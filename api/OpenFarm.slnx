@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenFarm.Api/OpenFarm.Api.csproj" />
+    <Project Path="src/OpenFarm.Application/OpenFarm.Application.csproj" />
+    <Project Path="src/OpenFarm.Domain/OpenFarm.Domain.csproj" />
+    <Project Path="src/OpenFarm.Infrastructure/OpenFarm.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenFarm.Api.IntegrationTests/OpenFarm.Api.IntegrationTests.csproj" />
+    <Project Path="tests/OpenFarm.Application.Tests/OpenFarm.Application.Tests.csproj" />
+    <Project Path="tests/OpenFarm.Domain.Tests/OpenFarm.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

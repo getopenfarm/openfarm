@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: api/global.json
+      - name: dotnet format check
+        run: dotnet format api/OpenFarm.slnx --verify-no-changes
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: bun install
+        working-directory: web
+        run: bun install --frozen-lockfile
+      - name: Biome check
+        working-directory: web
+        run: bun run lint
+
+  backend-build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: openfarm
+          POSTGRES_PASSWORD: openfarm
+          POSTGRES_DB: openfarm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U openfarm" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: api/global.json
+      - name: Restore
+        run: dotnet restore api/OpenFarm.slnx
+      - name: Build
+        run: dotnet build api/OpenFarm.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test api/OpenFarm.slnx --no-build --configuration Release
+        env:
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=openfarm"
+      # NOTE: "applies migrations" is a stub for now — no EF migrations exist yet
+      # since the scaffold has no domain entities. Unlocked once M0-proper adds
+      # the first real DbContext model + `dotnet ef migrations add`.
+
+  frontend-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - working-directory: web
+        run: bun install --frozen-lockfile
+      - working-directory: web
+        run: bunx tsc -b
+      - working-directory: web
+        run: bun run test
+      - working-directory: web
+        run: bun run build
+      # NOTE: Orval contract-drift check is a stub — deferred until a real
+      # OpenAPI surface exists beyond /api/v1/ping. Unlocked once the first
+      # real endpoint group + orval generation target lands.
+
+  e2e:
+    if: false # STUB: no Playwright suite yet — no meaningful user flow to test against
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deferred until M1+ ships a real flow (create printer, etc.)"
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: api/global.json
+      - name: dotnet vulnerable packages
+        run: dotnet list api/OpenFarm.slnx package --vulnerable --include-transitive
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - working-directory: web
+        run: bun install --frozen-lockfile && bun audit
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
