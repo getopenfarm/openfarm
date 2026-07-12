@@ -1,0 +1,62 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { clearToken, setToken } from '@/lib/auth/tokenStorage';
+import { httpClient } from './httpClient';
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+describe('httpClient', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearToken();
+  });
+
+  it('does not set Content-Type on a bodyless request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await httpClient('/api/v1/activity-log?page=1&pageSize=25');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has('Content-Type')).toBe(false);
+  });
+
+  it('sets Content-Type: application/json when a body is present', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await httpClient('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username: 'a', password: 'b' }),
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('Content-Type')).toBe('application/json');
+  });
+
+  it('adds an Authorization header when a token is stored', async () => {
+    setToken('a-valid-token');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await httpClient('/api/v1/auth/whoami');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer a-valid-token');
+  });
+
+  it('throws the raw Response when the request fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)));
+
+    await expect(httpClient('/api/v1/auth/whoami')).rejects.toMatchObject({
+      status: 401,
+    });
+  });
+});

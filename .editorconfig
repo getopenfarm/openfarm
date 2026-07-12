@@ -23,6 +23,10 @@ dotnet_diagnostic.CS8625.severity = warning
 [*.{ts,tsx,js,jsx,json,css}]
 indent_size = 2
 
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+
 [*.md]
 trim_trailing_whitespace = false
 

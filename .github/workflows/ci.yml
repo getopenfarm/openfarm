@@ -50,9 +50,10 @@ jobs:
         run: dotnet test api/OpenFarm.slnx --no-build --configuration Release
         env:
           ConnectionStrings__Default: "Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=openfarm"
-      # NOTE: "applies migrations" is a stub for now — no EF migrations exist yet
-      # since the scaffold has no domain entities. Unlocked once M0-proper adds
-      # the first real DbContext model + `dotnet ef migrations add`.
+      # Migrations are applied for real as part of the Test step above: every
+      # OpenFarm.Api.IntegrationTests fixture (CustomWebApplicationFactory) spins up
+      # its own Testcontainers Postgres and runs the InitialFoundation migration
+      # against it via Program.cs's startup Database.MigrateAsync() call.
 
   frontend-build-test:
     runs-on: ubuntu-latest
@@ -69,9 +70,9 @@ jobs:
         run: bun run test
       - working-directory: web
         run: bun run build
-      # NOTE: Orval contract-drift check is a stub — deferred until a real
-      # OpenAPI surface exists beyond /api/v1/ping. Unlocked once the first
-      # real endpoint group + orval generation target lands.
+      - name: Orval contract-drift check
+        working-directory: web
+        run: bunx orval && git diff --exit-code src/lib/api/generated
 
   e2e:
     if: false # STUB: no Playwright suite yet — no meaningful user flow to test against

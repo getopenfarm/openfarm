@@ -1,0 +1,272 @@
+openapi: 3.0.3
+info:
+  title: OpenFarm API — Phase 0 (Foundation)
+  version: "0.1.0"
+  description: >
+    Contract for Phase 0's real endpoint surface. This document is the design-time
+    contract; the actual source of truth once implemented is the FastEndpoints-generated
+    OpenAPI doc at api/openapi.json (via FastEndpoints.Swagger), which Orval regenerates
+    the frontend client from. Keep this file and the generated doc in sync in spirit,
+    not byte-for-byte.
+servers:
+  - url: /api/v1
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate the seeded operator and issue a JWT
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '400':
+          description: Validation failure (e.g. empty username/password)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /auth/whoami:
+    get:
+      summary: Return the authenticated caller's identity — the protected-gate proof endpoint
+      operationId: whoAmI
+      responses:
+        '200':
+          description: Current identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhoAmIResponse'
+        '401':
+          description: No valid session
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /connection-secrets:
+    get:
+      summary: List connection secrets (always masked)
+      operationId: listConnectionSecrets
+      responses:
+        '200':
+          description: Masked connection secrets for the current organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConnectionSecretResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create a new connection secret (immutable once created)
+      operationId: createConnectionSecret
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConnectionSecretRequest'
+      responses:
+        '201':
+          description: Created — response is masked, plaintext never echoed back
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionSecretResponse'
+        '400':
+          description: Validation failure (e.g. empty access code)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /activity-log:
+    get:
+      summary: List activity-log entries, paged, newest first
+      operationId: getActivityLog
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: A page of activity-log entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityLogPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  responses:
+    Unauthorized:
+      description: No valid, active session
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+
+    LoginResponse:
+      type: object
+      required: [token, expiresAtUtc]
+      properties:
+        token:
+          type: string
+        expiresAtUtc:
+          type: string
+          format: date-time
+
+    WhoAmIResponse:
+      type: object
+      required: [userId, username, organizationId]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        organizationId:
+          type: string
+          format: uuid
+
+    CreateConnectionSecretRequest:
+      type: object
+      required: [printerSerialNumber, plainAccessCode]
+      properties:
+        printerSerialNumber:
+          type: string
+          minLength: 1
+        plainAccessCode:
+          type: string
+          minLength: 1
+          description: >
+            Plaintext access code, accepted only in this request body — never returned
+            by any response, log line, or subsequent GET.
+
+    ConnectionSecretResponse:
+      type: object
+      required: [id, printerSerialNumber, maskedAccessCode, createdAtUtc]
+      properties:
+        id:
+          type: string
+          format: uuid
+        printerSerialNumber:
+          type: string
+          description: Non-secret identifying field, shown in full (FR-007)
+        maskedAccessCode:
+          type: string
+          example: "***"
+          description: Always masked — never the decrypted value
+        createdAtUtc:
+          type: string
+          format: date-time
+
+    ActivityLogEntryResponse:
+      type: object
+      required: [id, entityType, entityId, eventType, actorType, timestampUtc]
+      properties:
+        id:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+        entityId:
+          type: string
+        eventType:
+          type: string
+        actorId:
+          type: string
+          format: uuid
+          nullable: true
+        actorType:
+          type: string
+          enum: [Operator, System]
+        actorDisplayName:
+          type: string
+          nullable: true
+          description: Resolved from Identity at the read boundary; null for System actors
+        timestampUtc:
+          type: string
+          format: date-time
+
+    ActivityLogPageResponse:
+      type: object
+      required: [items, page, pageSize, totalCount]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityLogEntryResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807 — the single error shape every endpoint uses (Principle III)
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []

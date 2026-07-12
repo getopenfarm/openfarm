@@ -1,8 +1,5 @@
 import { defineConfig } from 'orval';
 
-// Stub config: no real OpenAPI surface exists yet beyond the backend's sample
-// ping endpoint. Generation is deferred until M0-proper ships a real endpoint
-// set — do not run `bunx orval` against this config until then.
 export default defineConfig({
   openfarm: {
     input: '../api/openapi.json',
@@ -10,6 +7,16 @@ export default defineConfig({
       target: './src/lib/api/generated/endpoints.ts',
       client: 'react-query',
       mode: 'tags-split',
+      httpClient: 'fetch',
+      override: {
+        mutator: {
+          path: './src/lib/api/httpClient.ts',
+          name: 'httpClient',
+        },
+      },
+    },
+    hooks: {
+      afterAllFilesWrite: 'biome check --write ./src/lib/api/generated',
     },
   },
 });
