@@ -2,12 +2,22 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-heading: var(--font-sans);
   --font-sans: "Geist Variable", sans-serif;
+  --font-heading: "Space Grotesk Variable", var(--font-sans);
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --color-status-printing: var(--status-printing);
+  --color-status-attention: var(--status-attention);
+  --color-status-complete: var(--status-complete);
+  --color-status-idle: var(--status-idle);
+  --color-status-offline: var(--status-offline);
+  --color-brand: var(--brand);
+  --color-brand-cyan: var(--brand-cyan);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,72 +59,106 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* brand — same hue in both modes */
+  --brand: #863bff;
+  --brand-cyan: #47bfff;
+
+  --background: #faf9fc;
+  --foreground: #1b1723;
+  --card: #ffffff;
+  --card-foreground: var(--foreground);
+  --popover: #ffffff;
+  --popover-foreground: var(--foreground);
+  --primary: color-mix(in oklch, var(--brand) 88%, black 12%);
+  --primary-foreground: #ffffff;
+  --secondary: color-mix(in oklch, var(--foreground) 5%, var(--background) 95%);
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in oklch, var(--foreground) 6%, var(--background) 94%);
+  --muted-foreground: color-mix(
+    in oklch,
+    var(--foreground) 58%,
+    var(--background) 42%
+  );
+  --accent: color-mix(in oklch, var(--brand) 10%, var(--background) 90%);
+  --accent-foreground: var(--foreground);
+  --destructive: color-mix(in oklch, var(--status-offline) 85%, black 15%);
+  --border: color-mix(in oklch, var(--foreground) 12%, transparent);
+  --input: color-mix(in oklch, var(--foreground) 15%, transparent);
+  --ring: var(--brand);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: color-mix(in oklch, var(--brand) 8%, var(--background) 92%);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--brand);
+
+  /* status — light mode, darkened from the raw brand hues for AA text/icon contrast on light surfaces */
+  --status-printing: color-mix(in oklch, var(--brand-cyan) 80%, black 20%);
+  --status-attention: color-mix(in oklch, #f5a623 82%, black 18%);
+  --status-complete: color-mix(in oklch, #3dd68c 80%, black 20%);
+  --status-offline: color-mix(in oklch, #ff5d5d 82%, black 18%);
+  --status-idle: var(--muted-foreground);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #121016;
+  --foreground: #f1eefa;
+  --card: #1c1922;
+  --card-foreground: var(--foreground);
+  --popover: #1c1922;
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: color-mix(
+    in oklch,
+    var(--foreground) 12%,
+    var(--background) 88%
+  );
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in oklch, var(--foreground) 10%, var(--background) 90%);
+  --muted-foreground: color-mix(
+    in oklch,
+    var(--foreground) 55%,
+    var(--background) 45%
+  );
+  --accent: color-mix(in oklch, var(--brand) 18%, var(--background) 82%);
+  --accent-foreground: var(--foreground);
+  --destructive: #ff5d5d;
+  --border: color-mix(in oklch, var(--foreground) 12%, transparent);
+  --input: color-mix(in oklch, var(--foreground) 16%, transparent);
+  --ring: var(--brand);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #1c1922;
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: color-mix(
+    in oklch,
+    var(--brand) 20%,
+    var(--background) 80%
+  );
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: color-mix(in oklch, var(--foreground) 12%, transparent);
+  --sidebar-ring: var(--brand);
+
+  /* status — dark mode, full-saturation brand hues read cleanly against the Ink Violet background */
+  --status-printing: var(--brand-cyan);
+  --status-attention: #f5a623;
+  --status-complete: #3dd68c;
+  --status-offline: #ff5d5d;
+  --status-idle: var(--muted-foreground);
 }
 
 @layer base {

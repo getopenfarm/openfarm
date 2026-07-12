@@ -1,23 +1,37 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
 import { clearToken, setToken } from '@/lib/auth/tokenStorage';
 import { AppShell } from './AppShell';
 
-function renderShell() {
+function renderShell(initialPath = '/') {
   setToken('a-valid-token');
+  const testRouter = createMemoryRouter(
+    [
+      { path: '/login', element: <div>Login screen</div> },
+      {
+        element: <AppShell />,
+        children: [
+          {
+            path: '/',
+            element: <div>Dashboard content</div>,
+            handle: { title: 'Dashboard' },
+          },
+          {
+            path: '/activity-log',
+            element: <div>Activity log content</div>,
+            handle: { title: 'Activity Log' },
+          },
+        ],
+      },
+    ],
+    { initialEntries: [initialPath] },
+  );
   return render(
     <AuthProvider>
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route path="/login" element={<div>Login screen</div>} />
-          <Route element={<AppShell />}>
-            <Route path="/" element={<div>Dashboard content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <RouterProvider router={testRouter} />
     </AuthProvider>,
   );
 }
@@ -27,15 +41,31 @@ describe('AppShell', () => {
     clearToken();
   });
 
-  it('renders the nav items', () => {
+  it('renders the grouped nav sections', () => {
     renderShell();
 
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Printers' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Jobs' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Filament' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Parts' })).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: 'Connection Secrets' }),
+      screen.getByRole('link', { name: 'Assemblies' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Maintenance' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Activity Log' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  it('shows the current route title in the title bar', () => {
+    renderShell('/activity-log');
+
+    expect(
+      screen.getByRole('heading', { name: 'Activity Log' }),
     ).toBeInTheDocument();
   });
 

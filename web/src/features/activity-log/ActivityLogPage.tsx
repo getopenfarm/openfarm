@@ -28,7 +28,6 @@ export function ActivityLogPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold">Activity Log</h1>
       <Table>
         <TableHeader>
           <TableRow>

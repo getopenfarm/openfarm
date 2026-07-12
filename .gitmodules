@@ -1,0 +1,4 @@
+[submodule "third_party/printers/bambulab"]
+	path = third_party/printers/bambulab
+	url = https://github.com/tanghq33/bambulab-api-docs.git
+	branch = develop

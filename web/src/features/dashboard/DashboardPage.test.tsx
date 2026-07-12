@@ -6,7 +6,13 @@ describe('DashboardPage', () => {
   it('renders the heading', () => {
     render(<DashboardPage />);
     expect(
-      screen.getByRole('heading', { name: 'OpenFarm' }),
+      screen.getByRole('heading', { name: 'Farm Overview' }),
     ).toBeInTheDocument();
+  });
+
+  it('renders the sample printer fleet', () => {
+    render(<DashboardPage />);
+    expect(screen.getByText('Printer 01')).toBeInTheDocument();
+    expect(screen.getByText('Printer 06')).toBeInTheDocument();
   });
 });
