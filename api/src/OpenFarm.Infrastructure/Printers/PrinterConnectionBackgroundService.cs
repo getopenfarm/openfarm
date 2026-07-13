@@ -51,13 +51,24 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await EnsureTenantInfoResolvedAsync(stoppingToken);
-        await StartConnectionsForRegisteredPrintersAsync(stoppingToken);
-
-        using var timer = new PeriodicTimer(_sweepInterval);
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        try
         {
-            await SweepUnreachablePrintersAsync(stoppingToken);
+            await EnsureTenantInfoResolvedAsync(stoppingToken);
+            await StartConnectionsForRegisteredPrintersAsync(stoppingToken);
+
+            using var timer = new PeriodicTimer(_sweepInterval);
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await SweepUnreachablePrintersAsync(stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected on shutdown — PeriodicTimer.WaitForNextTickAsync(CancellationToken) throws
+            // rather than returning false when the passed token (not the timer itself) is
+            // cancelled. Left uncaught, this becomes an unhandled BackgroundService exception and
+            // (with the default BackgroundServiceExceptionBehavior.StopHost) crashes the whole
+            // host on every graceful shutdown instead of exiting cleanly.
         }
     }
 
