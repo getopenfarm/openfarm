@@ -17,11 +17,23 @@ public sealed class IdentityAuthenticationService(
             return null;
         }
 
-        var passwordValid = await userManager.CheckPasswordAsync(user, password);
-        if (!passwordValid)
+        // UserManager.CheckPasswordAsync alone never consults or updates lockout state — only
+        // IsLockedOutAsync/AccessFailedAsync/ResetAccessFailedCountAsync do, so brute-forcing the
+        // password would otherwise go unthrottled even though AccessFailedCount/LockoutEnd exist
+        // in the schema and Options.Lockout is configured.
+        if (await userManager.IsLockedOutAsync(user))
         {
             return null;
         }
+
+        var passwordValid = await userManager.CheckPasswordAsync(user, password);
+        if (!passwordValid)
+        {
+            await userManager.AccessFailedAsync(user);
+            return null;
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
 
         var issuedToken = jwtTokenService.IssueToken(user.Id, Organization.WellKnownId);
         return new LoginResult(issuedToken.Token, issuedToken.ExpiresAtUtc, user.Id, Organization.WellKnownId);

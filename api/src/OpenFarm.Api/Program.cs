@@ -1,3 +1,5 @@
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using FastEndpoints;
 using FastEndpoints.Swagger;
@@ -56,13 +58,34 @@ builder.Services
     .AddHealthChecks()
     .AddNpgSql(connectionString, name: "postgres");
 
-builder.Services
+var dataProtectionBuilder = builder.Services
     .AddDataProtection()
     .SetApplicationName("OpenFarm")
     .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["DataProtection:KeysDirectory"] is { Length: > 0 } keysDir ? keysDir : "./keys"));
 
+// Without this, DataProtection keys sit on the keys volume in the clear — Linux has no
+// DPAPI-equivalent fallback the way Windows does — so anyone with filesystem/backup access to
+// that volume can decrypt every stored printer connection secret. Opt-in via config (rather than
+// required) since self-hosted installs need a working default with no cert provisioned.
+var dataProtectionCertificatePath = builder.Configuration["DataProtection:CertificatePath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath))
+{
+    var dataProtectionCertificatePassword = builder.Configuration["DataProtection:CertificatePassword"];
+    dataProtectionBuilder.ProtectKeysWithCertificate(
+        X509CertificateLoader.LoadPkcs12FromFile(dataProtectionCertificatePath, dataProtectionCertificatePassword));
+}
+
 builder.Services
-    .AddIdentityCore<ApplicationUser>(options => options.User.RequireUniqueEmail = true)
+    .AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        // Explicit (matches Identity's own defaults) so brute-force lockout behavior in
+        // IdentityAuthenticationService doesn't silently drift if these are ever tightened
+        // elsewhere without updating both spots.
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+    })
     .AddRoles<ApplicationRole>()
     .AddEntityFrameworkStores<OpenFarmDbContext>();
 
@@ -187,6 +210,16 @@ builder.Services
     });
 
 var app = builder.Build();
+
+// LoginEndpoint's Throttle() falls back to Connection.RemoteIpAddress when no X-Forwarded-For
+// header is present, and hard-403s ("can't identify client") if that's also null. Kestrel always
+// sets it for a real socket, but WebApplicationFactory's in-memory TestServer never does — without
+// this, every throttled endpoint would 403 unconditionally under integration tests.
+app.Use(async (context, next) =>
+{
+    context.Connection.RemoteIpAddress ??= IPAddress.Loopback;
+    await next();
+});
 
 app.UseSerilogRequestLogging();
 

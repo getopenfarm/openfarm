@@ -17,6 +17,10 @@ public sealed class LoginEndpoint(LoginHandler handler) : Endpoint<LoginCommand,
     {
         Post("/api/v1/auth/login");
         AllowAnonymous();
+        // Per-IP throttle on top of IdentityAuthenticationService's per-account lockout — this is
+        // the one endpoint an unauthenticated caller can hit repeatedly, so it needs its own limit
+        // independent of which (or whether a real) account is being guessed against.
+        Throttle(hitLimit: 10, durationSeconds: 60);
     }
 
     public override async Task HandleAsync(LoginCommand req, CancellationToken ct)
