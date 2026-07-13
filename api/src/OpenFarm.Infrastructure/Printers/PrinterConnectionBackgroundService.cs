@@ -19,7 +19,7 @@ namespace OpenFarm.Infrastructure.Printers;
 /// with <see cref="ActorType.System"/> since this runs outside any HTTP request — the
 /// ActivityLogPostProcessor never fires here (plan.md's Security &amp; Multi-Tenancy decision).
 /// </summary>
-public sealed partial class PrinterConnectionBackgroundService : BackgroundService
+public sealed partial class PrinterConnectionBackgroundService : BackgroundService, IPrinterConnectionManager
 {
     private static readonly TimeSpan DefaultSweepInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DefaultUnreachableThreshold = TimeSpan.FromSeconds(30);
@@ -58,9 +58,9 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     /// Starts a connection loop for a printer that wasn't already connected (e.g. one just
     /// registered). Safe to call repeatedly — a no-op if that printer is already connected.
     /// </summary>
-    public void StartConnection(Guid printerId, CancellationToken stoppingToken)
+    public void StartConnection(Guid printerId, CancellationToken cancellationToken)
     {
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (!_activeConnections.TryAdd(printerId, linkedCts))
         {
             linkedCts.Dispose();

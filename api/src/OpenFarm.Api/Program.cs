@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenFarm.Api.ExceptionHandling;
 using OpenFarm.Api.Hubs;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
@@ -27,12 +28,16 @@ using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
+using OpenFarm.Infrastructure.Printers.Bambu;
 using OpenFarm.Infrastructure.Security;
 using OpenFarm.Infrastructure.Seed;
 using Serilog;
 // FastEndpoints and OpenFarm.Application.Common both define an ICommandHandler<,> — alias ours.
 using LoginCommandHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Auth.LoginCommand, OpenFarm.Application.Auth.LoginResult?>;
 using CreateConnectionSecretHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.ConnectionSecrets.CreateConnectionSecretCommand, OpenFarm.Domain.ConnectionSecrets.ConnectionSecret>;
+using RegisterPrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RegisterPrinterCommand, OpenFarm.Domain.Printers.Printer>;
+using EditPrinterConnectionHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.EditPrinterConnectionCommand, OpenFarm.Domain.Printers.Printer>;
+using RemovePrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RemovePrinterCommand, bool>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -135,15 +140,37 @@ builder.Services.AddScoped<CreateConnectionSecretHandlerType, CreateConnectionSe
 builder.Services.AddScoped<IQueryHandler<ListConnectionSecretsQuery, IReadOnlyList<ConnectionSecretResult>>, ListConnectionSecretsQueryHandler>();
 
 builder.Services.AddScoped<IPrinterRepository, PrinterRepository>();
-// FakePrinterConnector is the dev/test default connector — singleton so its in-memory per-serial
-// event channels are shared across the long-lived background service and short-lived dev/test callers.
-builder.Services.AddSingleton<FakePrinterConnector>();
-builder.Services.AddScoped<IPrinterConnector>(sp => sp.GetRequiredService<FakePrinterConnector>());
+// FakePrinterConnector is the dev/test default (constitution: CI never touches real hardware).
+// "Printers:UseFakeConnector" opts into the real BambuLanConnector when explicitly set false —
+// defaults to the fake connector outside Development too, since that's the safer default absent
+// an explicit opt-in, and this connector has never been validated against physical hardware yet.
+var useFakePrinterConnector = builder.Configuration.GetValue("Printers:UseFakeConnector", defaultValue: true);
+if (useFakePrinterConnector)
+{
+    // Singleton so its in-memory per-serial event channels are shared across the long-lived
+    // background service and short-lived dev/test callers.
+    builder.Services.AddSingleton<FakePrinterConnector>();
+    builder.Services.AddScoped<IPrinterConnector>(sp => sp.GetRequiredService<FakePrinterConnector>());
+}
+else
+{
+    builder.Services.AddScoped<IPrinterConnector, BambuLanConnector>();
+}
+
 builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();
 builder.Services.AddSingleton<PrinterConnectionBackgroundService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
+builder.Services.AddScoped<IPrinterConnectionManager>(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
+
+builder.Services.AddScoped<RegisterPrinterHandlerType, RegisterPrinterCommandHandler>();
+builder.Services.AddScoped<EditPrinterConnectionHandlerType, EditPrinterConnectionCommandHandler>();
+builder.Services.AddScoped<RemovePrinterHandlerType, RemovePrinterCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFleetQuery, IReadOnlyList<FleetPrinterSummary>>, GetFleetQueryHandler>();
 
 builder.Services.AddSignalR();
+
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 builder.Services
     .AddFastEndpoints()
@@ -157,6 +184,8 @@ builder.Services
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+
+app.UseExceptionHandler();
 
 app.UseCors();
 
