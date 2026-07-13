@@ -166,9 +166,9 @@
 
 **Independent Test** (spec.md): Disconnect a printer from the network, confirm the UI shows it as unreachable/offline while its last-known print status remains visible and unchanged.
 
-- [ ] T063 [P] [US5] Update `PrinterTile.tsx` to render an explicit offline/unreachable indicator distinct from the `Idle`/`Printing`/`AwaitingClear` status badge (the underlying `IsReachable` data is already pushed via `PrinterStatusChanged` since T034) — depends on T036, T041
-- [ ] T064 [US5] Update `PrinterDetailPage.tsx` to show the same reachability indicator distinct from status — depends on T049, T063
-- [ ] T065 [P] [US5] Add a `PrintersPage.test.tsx` case asserting the fleet list shows `Idle` status and an "offline" indicator simultaneously (not conflated) when `IsReachable === false` and `Status === Idle` — depends on T063
+- [X] T063 [P] [US5] Update `PrinterTile.tsx` to render an explicit offline/unreachable indicator distinct from the `Idle`/`Printing`/`AwaitingClear` status badge (the underlying `IsReachable` data is already pushed via `PrinterStatusChanged` since T034) — depends on T036, T041. Already implemented in Phase 3 (`OFFLINE_META` rendered separately from `STATUS_META`); no change needed this phase.
+- [X] T064 [US5] Update `PrinterDetailPage.tsx` to show the same reachability indicator distinct from status — depends on T049, T063. Already implemented in Phase 4; live-verified repeatedly across Phases 4-6's screenshots (e.g. "Offline" + "Awaiting Clear" shown together).
+- [X] T065 [P] [US5] Add a `PrintersPage.test.tsx` case asserting the fleet list shows `Idle` status and an "offline" indicator simultaneously (not conflated) when `IsReachable === false` and `Status === Idle` — depends on T063. Already present (`shows an offline indicator distinct from status when unreachable`); confirmed passing.
 
 **Checkpoint**: All 5 user stories independently functional and testable.
 
