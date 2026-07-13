@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { PrintersPage } from './PrintersPage';
@@ -13,7 +14,7 @@ function renderPage() {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        {children}
+        <MemoryRouter>{children}</MemoryRouter>
         <Toaster />
       </QueryClientProvider>
     );

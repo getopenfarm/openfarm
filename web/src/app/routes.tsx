@@ -8,6 +8,7 @@ import { FilamentPage } from '../features/filament/FilamentPage';
 import { JobsPage } from '../features/jobs/JobsPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
 import { PartsPage } from '../features/parts/PartsPage';
+import { PrinterDetailPage } from '../features/printers/PrinterDetailPage';
 import { PrintersPage } from '../features/printers/PrintersPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { AppShell } from './layout/AppShell';
@@ -33,6 +34,11 @@ export const router = createBrowserRouter([
             path: '/printers',
             element: <PrintersPage />,
             handle: { title: 'Printers' },
+          },
+          {
+            path: '/printers/:id',
+            element: <PrinterDetailPage />,
+            handle: { title: 'Printer Detail' },
           },
           { path: '/jobs', element: <JobsPage />, handle: { title: 'Jobs' } },
           {

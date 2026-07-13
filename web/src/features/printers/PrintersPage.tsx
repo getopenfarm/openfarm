@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { PencilIcon, PrinterIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { PrinterTile } from '@/components/printer-tile/PrinterTile';
 import type { PrinterStatus } from '@/components/printer-tile/status';
@@ -83,16 +84,18 @@ export function PrintersPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {printers.map((printer) => (
             <div key={printer.id} className="group relative">
-              <PrinterTile
-                name={printer.name ?? ''}
-                status={(printer.status ?? 'Idle') as PrinterStatus}
-                isReachable={printer.isReachable ?? false}
-                filamentColorHex={PLACEHOLDER_FILAMENT_COLOR}
-                progressPercent={printer.printProgressPercent ?? 0}
-                nozzleTempC={0}
-                bedTempC={0}
-                etaMinutes={null}
-              />
+              <Link to={`/printers/${printer.id}`} className="block">
+                <PrinterTile
+                  name={printer.name ?? ''}
+                  status={(printer.status ?? 'Idle') as PrinterStatus}
+                  isReachable={printer.isReachable ?? false}
+                  filamentColorHex={PLACEHOLDER_FILAMENT_COLOR}
+                  progressPercent={printer.printProgressPercent ?? 0}
+                  nozzleTempC={0}
+                  bedTempC={0}
+                  etaMinutes={null}
+                />
+              </Link>
               <div className="absolute top-2 right-11 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                 <Button
                   variant="ghost"

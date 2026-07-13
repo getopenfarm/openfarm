@@ -67,6 +67,83 @@ public class BambuMqttMessageParserTests
         act.Should().NotThrow().Which.Should().BeFalse();
     }
 
+    [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_ExtractsTemperaturesProgressAndStage()
+    {
+        var reportPayload = LoadSection("awaiting-clear-x1c-multi-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.NozzleTempC.Should().Be(26.0m);
+        telemetry.BedTempC.Should().Be(23.0m);
+        telemetry.PrintProgressPercent.Should().Be(100);
+        telemetry.CurrentStageLabel.Should().Be("idle"); // stg_cur -1 => idle sub-stage label
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_ExtractsAllFourAmsUnitsWithCorrectTrayCounts()
+    {
+        var reportPayload = LoadSection("awaiting-clear-x1c-multi-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.AmsUnits.Should().HaveCount(4);
+        telemetry.AmsUnits.Select(u => u.UnitIndex).Should().BeEquivalentTo([0, 1, 2, 128]);
+        telemetry.AmsUnits.Single(u => u.UnitIndex == 0).Trays.Should().HaveCount(4);
+        telemetry.AmsUnits.Single(u => u.UnitIndex == 128).Trays.Should().HaveCount(1); // external spool holder
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_ParsesAPopulatedTrayCorrectly()
+    {
+        var reportPayload = LoadSection("awaiting-clear-x1c-multi-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        var tray = telemetry!.AmsUnits.Single(u => u.UnitIndex == 0).Trays.Single(t => t.SlotIndex == 0);
+        tray.Empty.Should().BeFalse();
+        tray.MaterialType.Should().Be("PLA");
+        tray.ColorHex.Should().Be("000000FF");
+        tray.RemainPercent.Should().Be(93);
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_ParsesAnEmptyTrayAsEmpty()
+    {
+        var reportPayload = LoadSection("awaiting-clear-x1c-multi-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        // Unit 2, tray 0 has no tray_type/tray_color in the real fixture — an unloaded slot.
+        var tray = telemetry!.AmsUnits.Single(u => u.UnitIndex == 2).Trays.Single(t => t.SlotIndex == 0);
+        tray.Empty.Should().BeTrue();
+        tray.MaterialType.Should().BeNull();
+        tray.ColorHex.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithNoAmsFixture_ReturnsEmptyAmsUnits()
+    {
+        var reportPayload = LoadSection("awaiting-clear-p1p-no-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.AmsUnits.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not json")]
+    public void TryParseTelemetry_WithMalformedPayload_ReturnsNullWithoutThrowing(string payload)
+    {
+        var act = () => BambuMqttMessageParser.TryParseTelemetry(payload);
+
+        act.Should().NotThrow().Which.Should().BeNull();
+    }
+
     private static string LoadSection(string fixtureFile, string sectionName)
     {
         var path = Path.Combine(FixturesDirectory, fixtureFile);

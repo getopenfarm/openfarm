@@ -112,14 +112,14 @@
 
 **Independent Test** (spec.md): Open a printer's detail page during an active print, confirm temperature/progress/AMS slot contents change on-screen as the physical print progresses.
 
-- [ ] T042 [US2] Extend `BambuMqttMessageParser` to also parse telemetry (`NozzleTempC`, `BedTempC`, `PrintProgressPercent`, `stg_cur` → `CurrentStageLabel`) and AMS slot fields into the `data-model.md` AMS JSONB shape (`research.md` §3) — depends on T031
-- [ ] T043 [P] [US2] Extend `BambuMqttMessageParserTests` with telemetry/AMS-parsing fixture cases — depends on T032, T042
-- [ ] T044 [US2] Update `PrinterConnectionBackgroundService` to persist parsed telemetry/AMS onto the `Printer`'s inline columns/`AmsUnits` and emit `PrinterTelemetryUpdated` via `FarmHub`, per `contracts/farm-hub.md` — depends on T017, T042
-- [ ] T045 [P] [US2] Implement `GetPrinterDetailQuery`, `Handler` in `api/src/OpenFarm.Application/Printers/GetPrinterDetailQuery.cs` (+`Handler.cs`) — depends on T012
-- [ ] T046 [US2] Implement `GetPrinterDetailEndpoint` in `api/src/OpenFarm.Api/Endpoints/Printers/GetPrinterDetailEndpoint.cs` per `contracts/printers-api.md`'s `GET /api/v1/printers/{id}` — depends on T045
-- [ ] T047 [US2] Regenerate the Orval client (`bunx orval` in `web/`, after refreshing `api/openapi.json`) for the new detail endpoint — depends on T046
-- [ ] T048 [P] [US2] Implement `TelemetryPanel.tsx` and `AmsSlotGrid.tsx` in `web/src/features/printers/components/` — depends on T047
-- [ ] T049 [US2] Implement `PrinterDetailPage.tsx` in `web/src/features/printers/` (fetches the detail query, renders `TelemetryPanel`/`AmsSlotGrid`, subscribes to `PrinterTelemetryUpdated` via `useFarmHub`) and register the `/printers/:id` route in `web/src/app/routes.tsx` — depends on T040, T048
+- [X] T042 [US2] Extend `BambuMqttMessageParser` to also parse telemetry (`NozzleTempC`, `BedTempC`, `PrintProgressPercent`, `stg_cur` → `CurrentStageLabel`) and AMS slot fields into the `data-model.md` AMS JSONB shape (`research.md` §3) — depends on T031
+- [X] T043 [P] [US2] Extend `BambuMqttMessageParserTests` with telemetry/AMS-parsing fixture cases — depends on T032, T042
+- [X] T044 [US2] Update `PrinterConnectionBackgroundService` to persist parsed telemetry/AMS onto the `Printer`'s inline columns/`AmsUnits` and emit `PrinterTelemetryUpdated` via `FarmHub`, per `contracts/farm-hub.md` — depends on T017, T042
+- [X] T045 [P] [US2] Implement `GetPrinterDetailQuery`, `Handler` in `api/src/OpenFarm.Application/Printers/GetPrinterDetailQuery.cs` (+`Handler.cs`) — depends on T012
+- [X] T046 [US2] Implement `GetPrinterDetailEndpoint` in `api/src/OpenFarm.Api/Endpoints/Printers/GetPrinterDetailEndpoint.cs` per `contracts/printers-api.md`'s `GET /api/v1/printers/{id}` — depends on T045
+- [X] T047 [US2] Regenerate the Orval client (`bunx orval` in `web/`, after refreshing `api/openapi.json`) for the new detail endpoint — depends on T046
+- [X] T048 [P] [US2] Implement `TelemetryPanel.tsx` and `AmsSlotGrid.tsx` in `web/src/features/printers/components/` — depends on T047
+- [X] T049 [US2] Implement `PrinterDetailPage.tsx` in `web/src/features/printers/` (fetches the detail query, renders `TelemetryPanel`/`AmsSlotGrid`, subscribes to `PrinterTelemetryUpdated` via `useFarmHub`) and register the `/printers/:id` route in `web/src/app/routes.tsx` — depends on T040, T048
 
 **Checkpoint**: US1 and US2 both work independently — SC-002 verifiable for telemetry, `quickstart.md`'s telemetry scenario passes.
 

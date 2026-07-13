@@ -24,6 +24,7 @@ import { httpClient } from '../../httpClient';
 import type {
   EditPrinterConnectionRequest,
   ListFleetResponse,
+  PrinterDetailResponse,
   PrinterSummaryResponse,
   RegisterPrinterRequest,
   VerifyPrinterConnectionRequest,
@@ -196,6 +197,391 @@ export const useOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse200 = {
+  data: PrinterDetailResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponseSuccess =
+  openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse401
+    | openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse =
+  | openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponseSuccess
+  | openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/printers/${id}`;
+};
+
+export const openFarmApiEndpointsPrintersGetPrinterDetailEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintersGetPrinterDetailEndpointResponse>(
+    getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointUrl(id),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey = (
+  id: string,
+) => {
+  return [`/api/v1/printers/${id}`] as const;
+};
+
+export const getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint>
+    >,
+    TError = void,
+  >(
+    id: string,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey(id);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsPrintersGetPrinterDetailEndpoint(id, { signal });
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: id !== null && id !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterDetailEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryOptions(
+      id,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponseSuccess =
+  openFarmApiEndpointsPrintersRemovePrinterEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponseError = (
+  | openFarmApiEndpointsPrintersRemovePrinterEndpointResponse401
+  | openFarmApiEndpointsPrintersRemovePrinterEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponse =
+  | openFarmApiEndpointsPrintersRemovePrinterEndpointResponseSuccess
+  | openFarmApiEndpointsPrintersRemovePrinterEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintersRemovePrinterEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/printers/${id}`;
+};
+
+export const openFarmApiEndpointsPrintersRemovePrinterEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintersRemovePrinterEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintersRemovePrinterEndpointResponse>(
+    getOpenFarmApiEndpointsPrintersRemovePrinterEndpointUrl(id),
+    {
+      ...options,
+      method: 'DELETE',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintersRemovePrinterEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
+    >,
+    TError,
+    { id: string },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsPrintersRemovePrinterEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
+      >,
+      { id: string }
+    > = (props) => {
+      const { id } = props ?? {};
+
+      return openFarmApiEndpointsPrintersRemovePrinterEndpoint(id);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintersRemovePrinterEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
+    >
+  >;
+
+export type OpenFarmApiEndpointsPrintersRemovePrinterEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintersRemovePrinterEndpointMutationOptions(
       options,
     ),
     queryClient,
@@ -534,134 +920,6 @@ export const useOpenFarmApiEndpointsPrintersRegisterPrinterEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsPrintersRegisterPrinterEndpointMutationOptions(
-      options,
-    ),
-    queryClient,
-  );
-};
-export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponse401 = {
-  data: void;
-  status: 401;
-};
-
-export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponse403 = {
-  data: void;
-  status: 403;
-};
-
-export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponseSuccess =
-  openFarmApiEndpointsPrintersRemovePrinterEndpointResponse204 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponseError = (
-  | openFarmApiEndpointsPrintersRemovePrinterEndpointResponse401
-  | openFarmApiEndpointsPrintersRemovePrinterEndpointResponse403
-) & {
-  headers: Headers;
-};
-
-export type openFarmApiEndpointsPrintersRemovePrinterEndpointResponse =
-  | openFarmApiEndpointsPrintersRemovePrinterEndpointResponseSuccess
-  | openFarmApiEndpointsPrintersRemovePrinterEndpointResponseError;
-
-export const getOpenFarmApiEndpointsPrintersRemovePrinterEndpointUrl = (
-  id: string,
-) => {
-  return `/api/v1/printers/${id}`;
-};
-
-export const openFarmApiEndpointsPrintersRemovePrinterEndpoint = async (
-  id: string,
-  options?: RequestInit,
-): Promise<openFarmApiEndpointsPrintersRemovePrinterEndpointResponse> => {
-  return httpClient<openFarmApiEndpointsPrintersRemovePrinterEndpointResponse>(
-    getOpenFarmApiEndpointsPrintersRemovePrinterEndpointUrl(id),
-    {
-      ...options,
-      method: 'DELETE',
-    },
-  );
-};
-
-export const getOpenFarmApiEndpointsPrintersRemovePrinterEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
-      >,
-      TError,
-      { id: string },
-      TContext
-    >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
-    >,
-    TError,
-    { id: string },
-    TContext
-  > => {
-    const mutationKey = ['openFarmApiEndpointsPrintersRemovePrinterEndpoint'];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        'mutationKey' in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
-      >,
-      { id: string }
-    > = (props) => {
-      const { id } = props ?? {};
-
-      return openFarmApiEndpointsPrintersRemovePrinterEndpoint(id);
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type OpenFarmApiEndpointsPrintersRemovePrinterEndpointMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
-    >
-  >;
-
-export type OpenFarmApiEndpointsPrintersRemovePrinterEndpointMutationError =
-  void;
-
-export const useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint = <
-  TError = void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>
-      >,
-      TError,
-      { id: string },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof openFarmApiEndpointsPrintersRemovePrinterEndpoint>>,
-  TError,
-  { id: string },
-  TContext
-> => {
-  return useMutation(
-    getOpenFarmApiEndpointsPrintersRemovePrinterEndpointMutationOptions(
       options,
     ),
     queryClient,

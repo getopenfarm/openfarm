@@ -66,6 +66,80 @@
         ]
       }
     },
+    "/api/v1/printers/{id}": {
+      "get": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrinterDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintersRemovePrinterEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/printers": {
       "get": {
         "tags": [
@@ -124,41 +198,6 @@
                 }
               }
             }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/printers/{id}": {
-      "delete": {
-        "tags": [
-          "Printers"
-        ],
-        "operationId": "OpenFarmApiEndpointsPrintersRemovePrinterEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
           },
           "401": {
             "description": "Unauthorized"
@@ -472,6 +511,120 @@
           },
           "accessCode": {
             "type": "string"
+          }
+        }
+      },
+      "PrinterDetailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "modelCode": {
+            "type": "string"
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "serialNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "isReachable": {
+            "type": "boolean"
+          },
+          "telemetry": {
+            "$ref": "#/components/schemas/PrinterDetailTelemetryResponse"
+          },
+          "amsUnits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AmsUnitResponse"
+            }
+          }
+        }
+      },
+      "PrinterDetailTelemetryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nozzleTempC": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "bedTempC": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "printProgressPercent": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "currentStageLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AmsUnitResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "unitIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "trays": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AmsTrayResponse"
+            }
+          }
+        }
+      },
+      "AmsTrayResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "slotIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "empty": {
+            "type": "boolean"
+          },
+          "materialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "subBrand": {
+            "type": "string",
+            "nullable": true
+          },
+          "remainPercent": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "active": {
+            "type": "boolean"
           }
         }
       },

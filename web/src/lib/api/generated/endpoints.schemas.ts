@@ -20,6 +20,49 @@ export interface EditPrinterConnectionRequest {
   accessCode?: string;
 }
 
+export interface PrinterDetailTelemetryResponse {
+  /** @nullable */
+  nozzleTempC?: number | null;
+  /** @nullable */
+  bedTempC?: number | null;
+  /** @nullable */
+  printProgressPercent?: number | null;
+  /** @nullable */
+  currentStageLabel?: string | null;
+}
+
+export interface AmsTrayResponse {
+  slotIndex?: number;
+  empty?: boolean;
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  subBrand?: string | null;
+  /** @nullable */
+  remainPercent?: number | null;
+  active?: boolean;
+}
+
+export interface AmsUnitResponse {
+  unitIndex?: number;
+  trays?: AmsTrayResponse[];
+}
+
+export interface PrinterDetailResponse {
+  id?: string;
+  name?: string;
+  brand?: string;
+  modelCode?: string;
+  ipAddress?: string;
+  serialNumber?: string;
+  status?: string;
+  isReachable?: boolean;
+  telemetry?: PrinterDetailTelemetryResponse;
+  amsUnits?: AmsUnitResponse[];
+}
+
 export interface FleetPrinterResponse {
   id?: string;
   name?: string;

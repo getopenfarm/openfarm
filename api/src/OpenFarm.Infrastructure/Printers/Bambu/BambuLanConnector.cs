@@ -92,9 +92,17 @@ public sealed class BambuLanConnector : IPrinterConnector
         client.ApplicationMessageReceivedAsync += e =>
         {
             var payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-            if (BambuMqttMessageParser.TryParseGcodeState(payload, out var gcodeState))
+            if (!BambuMqttMessageParser.IsPrintReport(payload))
             {
-                channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: gcodeState));
+                return Task.CompletedTask;
+            }
+
+            var hasGcodeState = BambuMqttMessageParser.TryParseGcodeState(payload, out var gcodeState);
+            var telemetry = BambuMqttMessageParser.TryParseTelemetry(payload);
+
+            if (hasGcodeState || telemetry is not null)
+            {
+                channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: gcodeState, Telemetry: telemetry));
             }
 
             return Task.CompletedTask;

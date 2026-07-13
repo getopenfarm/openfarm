@@ -166,6 +166,7 @@ builder.Services.AddScoped<RegisterPrinterHandlerType, RegisterPrinterCommandHan
 builder.Services.AddScoped<EditPrinterConnectionHandlerType, EditPrinterConnectionCommandHandler>();
 builder.Services.AddScoped<RemovePrinterHandlerType, RemovePrinterCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFleetQuery, IReadOnlyList<FleetPrinterSummary>>, GetFleetQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>, GetPrinterDetailQueryHandler>();
 
 builder.Services.AddSignalR();
 
