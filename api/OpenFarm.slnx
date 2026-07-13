@@ -9,5 +9,6 @@
     <Project Path="tests/OpenFarm.Api.IntegrationTests/OpenFarm.Api.IntegrationTests.csproj" />
     <Project Path="tests/OpenFarm.Application.Tests/OpenFarm.Application.Tests.csproj" />
     <Project Path="tests/OpenFarm.Domain.Tests/OpenFarm.Domain.Tests.csproj" />
+    <Project Path="tests/OpenFarm.Infrastructure.Tests/OpenFarm.Infrastructure.Tests.csproj" />
   </Folder>
 </Solution>
