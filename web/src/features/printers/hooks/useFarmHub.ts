@@ -168,13 +168,17 @@ export function useFarmHub() {
       },
     );
 
-    connection.start().catch(() => {
+    const startPromise = connection.start().catch(() => {
       // withAutomaticReconnect() handles retries; a failed initial connect just means no
       // live updates until connectivity returns.
     });
 
     return () => {
-      connection.stop();
+      // Calling stop() while start() is still negotiating throws ("connection was stopped
+      // during negotiation") and logs a console error — happens on every mount under React
+      // StrictMode's dev-only double-invoke. Wait for start() to settle first so stop() always
+      // acts on a connection that's actually in a stoppable state.
+      startPromise.finally(() => connection.stop());
     };
   }, [queryClient]);
 }
