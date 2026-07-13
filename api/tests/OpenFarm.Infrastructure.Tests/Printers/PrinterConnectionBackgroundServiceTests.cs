@@ -106,6 +106,9 @@ public class PrinterConnectionBackgroundServiceTests
         services.AddSingleton<IPrinterConnector>(connector);
         services.AddSingleton<IActivityLogWriter>(writer);
         services.AddSingleton<IPrinterEventPublisher, NoOpPrinterEventPublisher>();
+        // Test printers use BinaryImage-camera models (e.g. P1S), so RunConnectionLoopAsync always
+        // starts a concurrent camera loop too — register the fake relay so that path doesn't throw.
+        services.AddSingleton<IPrinterCameraRelay, FakePrinterCameraRelay>();
 
         // PrinterConnectionBackgroundService resolves these to populate tenant context per scope
         // (Finbuckle's HTTP-middleware-based resolution never runs for a scope it creates itself).

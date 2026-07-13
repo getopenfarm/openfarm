@@ -213,6 +213,48 @@
         ]
       }
     },
+    "/api/v1/printers/{id}/mark-ready": {
+      "post": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrinterSummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/printers/verify-connection": {
       "post": {
         "tags": [
@@ -675,6 +717,10 @@
             "nullable": true
           }
         }
+      },
+      "MarkPrinterReadyRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "RegisterPrinterRequest": {
         "type": "object",

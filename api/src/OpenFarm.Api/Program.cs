@@ -38,6 +38,7 @@ using CreateConnectionSecretHandlerType = OpenFarm.Application.Common.ICommandHa
 using RegisterPrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RegisterPrinterCommand, OpenFarm.Domain.Printers.Printer>;
 using EditPrinterConnectionHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.EditPrinterConnectionCommand, OpenFarm.Domain.Printers.Printer>;
 using RemovePrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RemovePrinterCommand, bool>;
+using MarkPrinterReadyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.MarkPrinterReadyCommand, OpenFarm.Domain.Printers.Printer>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -167,6 +168,7 @@ builder.Services.AddScoped<IPrinterConnectionManager>(sp => sp.GetRequiredServic
 builder.Services.AddScoped<RegisterPrinterHandlerType, RegisterPrinterCommandHandler>();
 builder.Services.AddScoped<EditPrinterConnectionHandlerType, EditPrinterConnectionCommandHandler>();
 builder.Services.AddScoped<RemovePrinterHandlerType, RemovePrinterCommandHandler>();
+builder.Services.AddScoped<MarkPrinterReadyHandlerType, MarkPrinterReadyCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFleetQuery, IReadOnlyList<FleetPrinterSummary>>, GetFleetQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>, GetPrinterDetailQueryHandler>();
 

@@ -925,6 +925,139 @@ export const useOpenFarmApiEndpointsPrintersRegisterPrinterEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse200 = {
+  data: PrinterSummaryResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponseSuccess =
+  openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse401
+    | openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse =
+  | openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponseSuccess
+  | openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/printers/${id}/mark-ready`;
+};
+
+export const openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse>(
+    getOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointUrl(id),
+    {
+      ...options,
+      method: 'POST',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
+    >,
+    TError,
+    { id: string },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
+      >,
+      { id: string }
+    > = (props) => {
+      const { id } = props ?? {};
+
+      return openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint(id);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
+    >
+  >;
+
+export type OpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
+  >,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsPrintersVerifyPrinterConnectionEndpointResponse200 =
   {
     data: VerifyPrinterConnectionResponse;

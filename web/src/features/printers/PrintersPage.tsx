@@ -1,5 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { PencilIcon, PrinterIcon, Trash2Icon } from 'lucide-react';
+import {
+  CheckCircle2Icon,
+  PencilIcon,
+  PrinterIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
@@ -11,6 +16,7 @@ import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
   useOpenFarmApiEndpointsPrintersListFleetEndpoint,
+  useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint,
   useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint,
 } from '@/lib/api/generated/printers/printers';
 import { AddPrinterDialog } from './components/AddPrinterDialog';
@@ -50,6 +56,22 @@ export function PrintersPage() {
     }
     removeMutation.mutate({ id });
   }
+
+  const markReadyMutation =
+    useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint({
+      mutation: {
+        onSuccess: () => {
+          toast.success('Printer marked ready.');
+          queryClient.invalidateQueries({
+            queryKey:
+              getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
+          });
+        },
+        onError: () => {
+          toast.error('Could not mark printer ready.');
+        },
+      },
+    });
 
   const printers =
     (fleetQuery.data?.data as ListFleetResponse | undefined)?.printers ?? [];
@@ -97,6 +119,18 @@ export function PrintersPage() {
                 />
               </Link>
               <div className="absolute top-2 right-11 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                {printer.status === 'AwaitingClear' && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Mark ${printer.name} ready`}
+                    onClick={() =>
+                      markReadyMutation.mutate({ id: printer.id ?? '' })
+                    }
+                  >
+                    <CheckCircle2Icon className="size-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon-sm"

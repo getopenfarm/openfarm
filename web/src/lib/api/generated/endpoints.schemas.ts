@@ -80,6 +80,10 @@ export interface ListFleetResponse {
   printers?: FleetPrinterResponse[];
 }
 
+export interface MarkPrinterReadyRequest {
+  [key: string]: unknown;
+}
+
 export interface RegisterPrinterRequest {
   name?: string;
   brand?: string;
