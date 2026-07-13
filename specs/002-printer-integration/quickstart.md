@@ -95,7 +95,8 @@ curl -i -X POST http://localhost:8888/api/v1/printers/{id}/mark-ready \
 **Expected**: `200`, `status: "Idle"`. Check the activity log:
 
 ```bash
-curl -s http://localhost:8888/api/v1/activity-log -H "Authorization: Bearer <token>" | jq '.[] | select(.entityType == "Printer")'
+curl -s "http://localhost:8888/api/v1/activity-log?page=1&pageSize=25" -H "Authorization: Bearer <token>" \
+  | jq '.items[] | select(.entityType == "Printer")'
 ```
 
 **Expected**: entries for both the connector-reported `AwaitingClear` transition (`actorType:

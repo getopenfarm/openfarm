@@ -45,6 +45,26 @@ No Constitution Check violations. One new external dependency (MQTTnet) is recor
 
 **Post-Phase-1-design re-check** (per `research.md`/`data-model.md`/`contracts/`): confirms all of the above with no new violations, plus one new item surfaced by research that Complexity Tracking now records — X1-family camera support (`CAMERA_RTSP`) needs an FFmpeg subprocess per active view, since `pybambu` itself has no RTSP client and relies on FFmpeg/GStreamer via Home Assistant's platform (research.md §4). P1/A1's `CAMERA_IMAGE` binary-JPEG path needs no such dependency and alone satisfies SC-005 for at least one printer family, so FFmpeg is scoped as an optional fast-follow within this phase, not a hard blocker. `IPrinterConnector`, the `PrinterStatus` transition table, and the `ConnectionSecret` natural-key reuse all held up unchanged through Phase 1 design — no rework of the Constitution Check's Phase 0 conclusions was needed.
 
+**Post-implementation re-check** (tasks.md T069, all 69 tasks complete except the deliberately-skipped
+X1 RTSP fast-follow T052): every item above holds against the actual code. `IPrinterCameraRelay`
+(camera's own contract, mirroring `IPrinterConnector`'s split) keeps Domain/Application free of any
+`TcpClient`/`SslStream`/MQTTnet reference — verified by grep, not just design intent. TLS trust logic
+was deduplicated into `BambuCertificateTrust.cs`, shared by both the MQTT connector and the camera
+relay, rather than copy-pasted (Principle IV in miniature). `CameraView.tsx` joined the same
+`useFarmHub`-owned `/hubs/farm` connection and the same TanStack-Query-cache-as-real-time-store
+pattern as status/telemetry — no second SignalR connection, no polling (Principle III/V). Activity-log
+coverage was live-verified end-to-end this phase (not just unit-tested): a "Mark ready" click produced
+a `PrinterMarkedReady` row with `actorType: "Operator"` via the HTTP post-processor path, and the
+existing `ConnectorReportedStatusChange_ReconcilesAndWritesActivityLogEntry` test covers the
+non-HTTP `ActorType.System` path — both halves of FR-010/SC-003's 100%-logged requirement confirmed,
+not assumed. One real bug was found and fixed via this live verification, outside any Constitution
+Check item but worth recording: `PrinterConnectionBackgroundService.ExecuteAsync` let
+`PeriodicTimer.WaitForNextTickAsync`'s cancellation exception escape uncaught, which combined with
+the default `BackgroundServiceExceptionBehavior.StopHost` turned every graceful shutdown into a fatal
+host crash — fixed by catching the expected `OperationCanceledException`. No Constitution Check
+violations found. No new external dependencies were added beyond MQTTnet (the camera relay reuses
+`System.Net.Security.SslStream` from the BCL, not a new package).
+
 ## Project Structure
 
 ### Source Code (repository root)
