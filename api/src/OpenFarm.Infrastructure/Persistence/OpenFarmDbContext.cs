@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Organizations;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Identity;
 
 namespace OpenFarm.Infrastructure.Persistence;
@@ -26,6 +27,8 @@ public sealed class OpenFarmDbContext(
     public DbSet<ConnectionSecret> ConnectionSecrets => Set<ConnectionSecret>();
 
     public DbSet<ActivityLogEntry> ActivityLogEntries => Set<ActivityLogEntry>();
+
+    public DbSet<Printer> Printers => Set<Printer>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

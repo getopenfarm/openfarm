@@ -17,4 +17,11 @@ public sealed class ConnectionSecretRepository(OpenFarmDbContext dbContext) : IC
             .AsNoTracking()
             .OrderByDescending(s => s.CreatedAtUtc)
             .ToListAsync(cancellationToken);
+
+    public Task<ConnectionSecret?> GetByPrinterSerialNumberAsync(string printerSerialNumber, CancellationToken cancellationToken) =>
+        dbContext.ConnectionSecrets
+            .AsNoTracking()
+            .Where(s => s.PrinterSerialNumber == printerSerialNumber)
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
 }

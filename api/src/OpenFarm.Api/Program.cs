@@ -12,18 +12,21 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenFarm.Api.Hubs;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
+using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Infrastructure.ActivityLog;
 using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Persistence;
+using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Security;
 using OpenFarm.Infrastructure.Seed;
 using Serilog;
@@ -85,6 +88,21 @@ builder.Services
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1),
         };
+        // SignalR's WebSocket/SSE transports can't set an Authorization header, so the client sends
+        // the JWT via the "access_token" query string for /hubs/* requests instead (standard pattern).
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            },
+        };
     });
 
 builder.Services.AddAuthorizationBuilder()
@@ -116,6 +134,17 @@ builder.Services.AddScoped<IConnectionSecretRepository, ConnectionSecretReposito
 builder.Services.AddScoped<CreateConnectionSecretHandlerType, CreateConnectionSecretCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<ListConnectionSecretsQuery, IReadOnlyList<ConnectionSecretResult>>, ListConnectionSecretsQueryHandler>();
 
+builder.Services.AddScoped<IPrinterRepository, PrinterRepository>();
+// FakePrinterConnector is the dev/test default connector — singleton so its in-memory per-serial
+// event channels are shared across the long-lived background service and short-lived dev/test callers.
+builder.Services.AddSingleton<FakePrinterConnector>();
+builder.Services.AddScoped<IPrinterConnector>(sp => sp.GetRequiredService<FakePrinterConnector>());
+builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();
+builder.Services.AddSingleton<PrinterConnectionBackgroundService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
+
+builder.Services.AddSignalR();
+
 builder.Services
     .AddFastEndpoints()
     .SwaggerDocument(o =>
@@ -146,6 +175,8 @@ app.UseFastEndpoints(c =>
     };
 });
 app.UseSwaggerGen();
+
+app.MapHub<FarmHub>("/hubs/farm");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
