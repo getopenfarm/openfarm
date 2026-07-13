@@ -24,8 +24,8 @@ import { AddPrinterDialog } from './components/AddPrinterDialog';
 import { EditPrinterDialog } from './components/EditPrinterDialog';
 import { useFarmHub } from './hooks/useFarmHub';
 
-// Telemetry (temps, filament color, ETA) lands on the printer detail page in Phase 4 — the
-// fleet list only ever exposes status/progress (contracts/printers-api.md's ListFleet shape).
+// Filament color/ETA aren't in the fleet-list contract yet (contracts/printers-api.md's
+// ListFleet shape) — those land on the printer detail page. Nozzle/bed temp are in the shape.
 const PLACEHOLDER_FILAMENT_COLOR = '#8892a6';
 
 export function PrintersPage() {
@@ -124,8 +124,8 @@ export function PrintersPage() {
                   isReachable={printer.isReachable ?? false}
                   filamentColorHex={PLACEHOLDER_FILAMENT_COLOR}
                   progressPercent={printer.printProgressPercent ?? 0}
-                  nozzleTempC={0}
-                  bedTempC={0}
+                  nozzleTempC={printer.nozzleTempC}
+                  bedTempC={printer.bedTempC}
                   etaMinutes={null}
                 />
               </Link>

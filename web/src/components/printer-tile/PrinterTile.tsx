@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LayerStackProgress } from './LayerStackProgress';
 import { OFFLINE_META, type PrinterStatus, STATUS_META } from './status';
@@ -8,8 +9,8 @@ export interface PrinterTileProps {
   isReachable: boolean;
   filamentColorHex: string;
   progressPercent: number;
-  nozzleTempC: number;
-  bedTempC: number;
+  nozzleTempC: number | null | undefined;
+  bedTempC: number | null | undefined;
   etaMinutes: number | null;
 }
 
@@ -20,7 +21,11 @@ function formatEta(etaMinutes: number | null): string {
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-export function PrinterTile({
+function formatTemp(value: number | null | undefined): string {
+  return value == null ? '—' : `${value}°C`;
+}
+
+export const PrinterTile = memo(function PrinterTile({
   name,
   status,
   isReachable,
@@ -66,7 +71,7 @@ export function PrinterTile({
         <LayerStackProgress status={status} progressPercent={progressPercent} />
         <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
           <span>
-            {nozzleTempC}°C / {bedTempC}°C
+            {formatTemp(nozzleTempC)} / {formatTemp(bedTempC)}
           </span>
           <span>
             {progressPercent}% · ETA {formatEta(etaMinutes)}
@@ -75,4 +80,4 @@ export function PrinterTile({
       </CardContent>
     </Card>
   );
-}
+});

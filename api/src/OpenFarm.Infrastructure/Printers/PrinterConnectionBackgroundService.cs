@@ -16,20 +16,26 @@ namespace OpenFarm.Infrastructure.Printers;
 /// <summary>
 /// Owns the per-printer <see cref="IPrinterConnector"/> connection lifecycle: one long-lived
 /// consumption loop per registered printer, tracking <see cref="Printer.LastMessageUtc"/> on every
-/// message and running the ~30s-threshold/5s-interval unreachable sweep (research.md §6). Any
-/// connector-reported status reconciliation is logged directly via <see cref="IActivityLogWriter"/>
-/// with <see cref="ActorType.System"/> since this runs outside any HTTP request — the
-/// ActivityLogPostProcessor never fires here (plan.md's Security &amp; Multi-Tenancy decision).
+/// message and running the ~30s-threshold/5s-interval unreachable sweep (research.md §6). Routine
+/// telemetry/heartbeat writes are coalesced to at most one DB save + SignalR broadcast per
+/// <see cref="_flushInterval"/> per printer — Bambu pushes report messages far more often than the
+/// DB or UI need to observe them — while status/reachability transitions still persist and broadcast
+/// immediately. Any connector-reported status reconciliation is logged directly via
+/// <see cref="IActivityLogWriter"/> with <see cref="ActorType.System"/> since this runs outside any
+/// HTTP request — the ActivityLogPostProcessor never fires here (plan.md's Security &amp;
+/// Multi-Tenancy decision).
 /// </summary>
 public sealed partial class PrinterConnectionBackgroundService : BackgroundService, IPrinterConnectionManager
 {
     private static readonly TimeSpan DefaultSweepInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DefaultUnreachableThreshold = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan DefaultFlushInterval = TimeSpan.FromSeconds(1);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PrinterConnectionBackgroundService> _logger;
     private readonly TimeSpan _sweepInterval;
     private readonly TimeSpan _unreachableThreshold;
+    private readonly TimeSpan _flushInterval;
 
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _activeConnections = new();
 
@@ -41,12 +47,14 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         IServiceScopeFactory scopeFactory,
         ILogger<PrinterConnectionBackgroundService> logger,
         TimeSpan? sweepInterval = null,
-        TimeSpan? unreachableThreshold = null)
+        TimeSpan? unreachableThreshold = null,
+        TimeSpan? flushInterval = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _sweepInterval = sweepInterval ?? DefaultSweepInterval;
         _unreachableThreshold = unreachableThreshold ?? DefaultUnreachableThreshold;
+        _flushInterval = flushInterval ?? DefaultFlushInterval;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -195,9 +203,10 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 _ = RunCameraLoopAsync(printerId, details, connectionToken);
             }
 
+            var lastFlushUtc = DateTimeOffset.MinValue;
             await foreach (var connectorEvent in connector.ConnectAsync(details, connectionToken))
             {
-                await HandleEventAsync(printer, connectorEvent, services, connectionToken);
+                lastFlushUtc = await HandleEventAsync(printer, connectorEvent, services, _logger, lastFlushUtc, _flushInterval, connectionToken);
             }
         }
         catch (OperationCanceledException)
@@ -220,10 +229,12 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     }
 
     /// <summary>
-    /// Runs alongside <see cref="RunConnectionLoopAsync"/> in its own DI scope/Printer instance —
-    /// never sharing the MQTT loop's DbContext, since two loops concurrently mutating/saving the
-    /// same tracked entity from the same scope isn't safe. Cancelled together with the MQTT loop via
-    /// the shared <paramref name="connectionToken"/>.
+    /// Runs alongside <see cref="RunConnectionLoopAsync"/> in its own DI scope, but never touches the
+    /// <see cref="Printer"/> entity or its DbContext — a camera frame carries no printer-entity data,
+    /// and reachability is already tracked from the MQTT report channel (which must already be
+    /// connected for the camera stream to exist), so frames go straight to
+    /// <see cref="IPrinterEventPublisher"/> with no DB write. Cancelled together with the MQTT loop
+    /// via the shared <paramref name="connectionToken"/>.
     /// </summary>
     private async Task RunCameraLoopAsync(Guid printerId, PrinterConnectionDetails details, CancellationToken connectionToken)
     {
@@ -233,6 +244,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             var services = scope.ServiceProvider;
             var printerRepository = services.GetRequiredService<IPrinterRepository>();
             var cameraRelay = services.GetRequiredService<IPrinterCameraRelay>();
+            var publisher = services.GetRequiredService<IPrinterEventPublisher>();
 
             var printer = await printerRepository.GetByIdAsync(printerId, connectionToken);
             if (printer is null)
@@ -242,7 +254,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
             await foreach (var frame in cameraRelay.StreamFramesAsync(details, connectionToken))
             {
-                await HandleEventAsync(printer, new PrinterConnectorEvent(DateTimeOffset.UtcNow, CameraFrameJpeg: frame), services, connectionToken);
+                await publisher.CameraFrameReceivedAsync(printer.OrganizationId, printer.Id, Convert.ToBase64String(frame), connectionToken);
             }
         }
         catch (OperationCanceledException)
@@ -255,14 +267,32 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         }
     }
 
-    private static async Task HandleEventAsync(
+    /// <summary>
+    /// Applies a connector event's changes to <paramref name="printer"/> and, if it's a status/
+    /// reachability transition or enough time has passed since <paramref name="lastFlushUtc"/>,
+    /// persists and broadcasts them. Routine telemetry/heartbeat-only events within
+    /// <paramref name="flushInterval"/> of the last flush only update the in-memory entity — no DB
+    /// write, no SignalR push — since <see cref="Printer.RecordTelemetry"/> already folds each delta
+    /// into last-known-good values, the next flush (whenever it happens) carries everything forward.
+    /// Returns the (possibly unchanged) last-flush timestamp for the caller to thread into the next
+    /// event.
+    /// </summary>
+    private static async Task<DateTimeOffset> HandleEventAsync(
         Printer printer,
         PrinterConnectorEvent connectorEvent,
         IServiceProvider services,
+        ILogger logger,
+        DateTimeOffset lastFlushUtc,
+        TimeSpan flushInterval,
         CancellationToken cancellationToken)
     {
         var wasReachable = printer.IsReachable;
         printer.MarkReachable(connectorEvent.ReceivedAtUtc);
+
+        if (!wasReachable)
+        {
+            LogPrinterReachable(logger, printer.Id);
+        }
 
         var statusChanged = connectorEvent.GcodeState is not null && printer.ObserveStatus(connectorEvent.GcodeState);
 
@@ -274,6 +304,12 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 telemetry.PrintProgressPercent,
                 telemetry.CurrentStageLabel,
                 telemetry.AmsUnits);
+        }
+
+        var mustFlushNow = statusChanged || !wasReachable;
+        if (!mustFlushNow && connectorEvent.ReceivedAtUtc - lastFlushUtc < flushInterval)
+        {
+            return lastFlushUtc;
         }
 
         var printerRepository = services.GetRequiredService<IPrinterRepository>();
@@ -306,13 +342,18 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
         if (connectorEvent.Telemetry is not null)
         {
-            await publisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id, connectorEvent.Telemetry, cancellationToken);
+            // Broadcast the printer's own merged state, not the raw (possibly-partial) connector
+            // event — RecordTelemetry above already folded this delta into last-known-good values.
+            var mergedTelemetry = new PrinterTelemetrySnapshot(
+                printer.NozzleTempC,
+                printer.BedTempC,
+                printer.PrintProgressPercent,
+                printer.CurrentStageLabel,
+                printer.AmsUnits);
+            await publisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id, mergedTelemetry, cancellationToken);
         }
 
-        if (connectorEvent.CameraFrameJpeg is { } frame)
-        {
-            await publisher.CameraFrameReceivedAsync(printer.OrganizationId, printer.Id, Convert.ToBase64String(frame), cancellationToken);
-        }
+        return connectorEvent.ReceivedAtUtc;
     }
 
     private async Task SweepUnreachablePrintersAsync(CancellationToken stoppingToken)
@@ -339,6 +380,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 }
 
                 tracked.MarkUnreachable();
+                LogPrinterUnreachable(_logger, tracked.Id, _unreachableThreshold.TotalSeconds);
                 await printerRepository.SaveChangesAsync(stoppingToken);
                 await publisher.PrinterStatusChangedAsync(
                     tracked.OrganizationId,
@@ -358,4 +400,10 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Printer {PrinterId} camera loop terminated unexpectedly.")]
     private static partial void LogCameraLoopFailed(ILogger logger, Guid printerId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Printer {PrinterId} marked reachable.")]
+    private static partial void LogPrinterReachable(ILogger logger, Guid printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {PrinterId} marked unreachable (no message for over {ThresholdSeconds}s).")]
+    private static partial void LogPrinterUnreachable(ILogger logger, Guid printerId, double thresholdSeconds);
 }

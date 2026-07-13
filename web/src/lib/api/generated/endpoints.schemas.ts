@@ -74,6 +74,10 @@ export interface FleetPrinterResponse {
   isReachable?: boolean;
   /** @nullable */
   printProgressPercent?: number | null;
+  /** @nullable */
+  nozzleTempC?: number | null;
+  /** @nullable */
+  bedTempC?: number | null;
 }
 
 export interface ListFleetResponse {

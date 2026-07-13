@@ -71,7 +71,7 @@ detail this catalog feeds into.
 | `NozzleTempC` | `decimal?` | `print` payload nozzle temperature field. |
 | `BedTempC` | `decimal?` | `print` payload bed temperature field. |
 | `PrintProgressPercent` | `int?` | `print` payload progress field. |
-| `CurrentStageLabel` | `string?` | Optional human-readable sub-stage (from `stg_cur` → `CURRENT_STAGE_IDS`, research.md §2) — display-only, not part of the `PrinterStatus` state machine. |
+| `CurrentStageLabel` | `string?` | Optional human-readable sub-stage (from `stg_cur` → `CURRENT_STAGE_IDS`, research.md §2) — display-only, not part of the `PrinterStatus` state machine. `stg_cur == 0` while `print_type == "idle"` is corrected to the idle sentinel `255` before lookup (firmware boot quirk, research.md §2). |
 
 ### AMS shape (`AmsUnits` JSONB)
 

@@ -13,4 +13,6 @@ public sealed record FleetPrinterSummary(
     string SerialNumber,
     PrinterStatus Status,
     bool IsReachable,
-    int? PrintProgressPercent);
+    int? PrintProgressPercent,
+    decimal? NozzleTempC,
+    decimal? BedTempC);

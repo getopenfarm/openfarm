@@ -65,6 +65,22 @@ host crash — fixed by catching the expected `OperationCanceledException`. No C
 violations found. No new external dependencies were added beyond MQTTnet (the camera relay reuses
 `System.Net.Security.SslStream` from the BCL, not a new package).
 
+**First real-hardware validation pass** (a Bambu A1, LAN mode, post-implementation — tasks.md
+T071-T073): confirmed the manual-only/never-a-CI-gate validation approach (Constitution Principle II)
+does its job — it caught three real bugs that fixture-replay tests structurally couldn't, since all
+three are about the actual wire protocol/environment rather than payload parsing: (1)
+`Printers:UseFakeConnector` defaulting to `true` with no operator-facing documentation, making a real
+printer look permanently `Offline` with no error trail; (2) `BambuCertificateTrust`'s TLS trust store
+put every bundled cert into `X509ChainPolicy.CustomTrustStore`, which `CustomRootTrust` requires to
+hold only self-signed roots — silently failing every real handshake despite passing every fixture
+test (fixtures never exercise real TLS); (3) `BambuLanConnector` never pinned
+`MqttProtocolVersion.V311`, so MQTTnet's v5 default produced a CONNACK that looked successful but a
+SUBSCRIBE the printer's firmware couldn't parse. All three are now fixed and covered by regression
+tests (`BambuCertificateTrustTests.cs`, `BambuLanConnectorTests.cs`) plus new connector-lifecycle
+logging (`Program.cs`, `BambuLanConnector`, `PrinterConnectionBackgroundService`) so a future
+real-hardware regression surfaces in logs rather than as silent `Offline`. No Constitution Check
+violations found in the fixes.
+
 ## Project Structure
 
 ### Source Code (repository root)

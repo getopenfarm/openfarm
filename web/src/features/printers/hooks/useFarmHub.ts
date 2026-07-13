@@ -60,6 +60,22 @@ type DetailQueryData = {
 };
 
 /**
+ * Refetches every fleet-list/printer-detail query in the cache, regardless of which printer id
+ * each detail key carries. Called after the SignalR connection (re)connects so a dropped
+ * connection can't leave the UI stuck on stale status/reachability forever — events that fired
+ * while disconnected are never replayed by SignalR itself, so this is the catch-up.
+ */
+function invalidatePrinterQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  queryClient.invalidateQueries({
+    predicate: (query) =>
+      typeof query.queryKey[0] === 'string' &&
+      query.queryKey[0].startsWith('/api/v1/printers'),
+  });
+}
+
+/**
  * Opens the /hubs/farm SignalR connection and writes incoming events directly into TanStack
  * Query's cache (contracts/farm-hub.md) — the sole real-time entry point, no polling fallback.
  * Wires PrinterStatusChanged into the fleet-list query, both PrinterStatusChanged and
@@ -152,6 +168,31 @@ export function useFarmHub() {
             };
           },
         );
+
+        queryClient.setQueryData<FleetQueryData | undefined>(
+          getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
+          (current) => {
+            if (!current?.data.printers) {
+              return current;
+            }
+
+            return {
+              ...current,
+              data: {
+                printers: current.data.printers.map(
+                  (printer: FleetPrinterResponse) =>
+                    printer.id === payload.printerId
+                      ? {
+                          ...printer,
+                          nozzleTempC: payload.telemetry.nozzleTempC,
+                          bedTempC: payload.telemetry.bedTempC,
+                        }
+                      : printer,
+                ),
+              },
+            };
+          },
+        );
       },
     );
 
@@ -168,10 +209,38 @@ export function useFarmHub() {
       },
     );
 
-    const startPromise = connection.start().catch(() => {
-      // withAutomaticReconnect() handles retries; a failed initial connect just means no
-      // live updates until connectivity returns.
+    connection.onreconnecting((error) => {
+      console.warn(
+        '[useFarmHub] SignalR connection lost, reconnecting…',
+        error,
+      );
     });
+
+    connection.onreconnected(() => {
+      console.info(
+        '[useFarmHub] SignalR reconnected — refetching printer data to catch up on any updates missed while disconnected.',
+      );
+      invalidatePrinterQueries(queryClient);
+    });
+
+    connection.onclose((error) => {
+      console.warn(
+        '[useFarmHub] SignalR connection closed — no more live updates until this component remounts.',
+        error,
+      );
+    });
+
+    const startPromise = connection
+      .start()
+      .then(() => {
+        console.info('[useFarmHub] SignalR connected.');
+        invalidatePrinterQueries(queryClient);
+      })
+      .catch((error: unknown) => {
+        // withAutomaticReconnect() handles retries; a failed initial connect just means no
+        // live updates until connectivity returns.
+        console.warn('[useFarmHub] SignalR failed to connect.', error);
+      });
 
     return () => {
       // Calling stop() while start() is still negotiating throws ("connection was stopped

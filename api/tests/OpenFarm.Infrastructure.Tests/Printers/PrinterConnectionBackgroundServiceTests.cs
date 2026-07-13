@@ -19,6 +19,10 @@ public class PrinterConnectionBackgroundServiceTests
     private static readonly TimeSpan SweepInterval = TimeSpan.FromMilliseconds(30);
     private static readonly TimeSpan UnreachableThreshold = TimeSpan.FromMilliseconds(150);
 
+    // Effectively "always flush" — keeps tests that aren't specifically about coalescing behaving
+    // like the pre-throttle code (every event flushes), so they stay deterministic.
+    private static readonly TimeSpan NoFlushThrottling = TimeSpan.Zero;
+
     [Fact]
     public async Task ReachabilitySweep_FlipsUnreachableAfterSilence_AndBackOnNextMessage()
     {
@@ -32,7 +36,8 @@ public class PrinterConnectionBackgroundServiceTests
             provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<PrinterConnectionBackgroundService>.Instance,
             SweepInterval,
-            UnreachableThreshold);
+            UnreachableThreshold,
+            NoFlushThrottling);
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -67,7 +72,8 @@ public class PrinterConnectionBackgroundServiceTests
             provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<PrinterConnectionBackgroundService>.Instance,
             SweepInterval,
-            UnreachableThreshold);
+            UnreachableThreshold,
+            NoFlushThrottling);
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -91,6 +97,179 @@ public class PrinterConnectionBackgroundServiceTests
     }
 
     [Fact]
+    public async Task TelemetryEvents_WithSubsequentPartialDelta_BroadcastsMergedState()
+    {
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-1");
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var connector = new FakePrinterConnector();
+        var publisher = new RecordingPrinterEventPublisher();
+
+        var provider = BuildServiceProvider(printer, secret, connector, out _, publisher);
+        var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance,
+            SweepInterval,
+            UnreachableThreshold,
+            NoFlushThrottling);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            var amsUnits = new List<AmsUnit> { new(0, []) };
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
+                DateTimeOffset.UtcNow,
+                Telemetry: new PrinterTelemetrySnapshot(60.5m, 65.0m, 42, "Printing", amsUnits)));
+
+            await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
+            publisher.TelemetryBroadcasts[0].NozzleTempC.Should().Be(60.5m);
+            publisher.TelemetryBroadcasts[0].BedTempC.Should().Be(65.0m);
+
+            // Bambu's next delta only reports progress advancing — nozzle/bed/AMS are omitted
+            // because they haven't changed. The broadcast should still carry the last-known values.
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
+                DateTimeOffset.UtcNow,
+                Telemetry: new PrinterTelemetrySnapshot(null, null, 50, null, [])));
+
+            await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 2, TimeSpan.FromSeconds(2));
+            var secondBroadcast = publisher.TelemetryBroadcasts[1];
+            secondBroadcast.NozzleTempC.Should().Be(60.5m);
+            secondBroadcast.BedTempC.Should().Be(65.0m);
+            secondBroadcast.PrintProgressPercent.Should().Be(50);
+            secondBroadcast.CurrentStageLabel.Should().Be("Printing");
+            secondBroadcast.AmsUnits.Should().BeEquivalentTo(amsUnits);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task TelemetryEvents_WithinFlushInterval_AreCoalescedIntoOneBroadcast()
+    {
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-2");
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var connector = new FakePrinterConnector();
+        var publisher = new RecordingPrinterEventPublisher();
+        var flushInterval = TimeSpan.FromMilliseconds(300);
+
+        var provider = BuildServiceProvider(printer, secret, connector, out _, publisher);
+        var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance,
+            SweepInterval,
+            UnreachableThreshold,
+            flushInterval);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
+                DateTimeOffset.UtcNow,
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", [])));
+            await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
+
+            // Arrives well inside the flush interval — should update the in-memory printer but not
+            // trigger a second DB write / broadcast yet (the MQTT-message-rate DB churn this
+            // throttle exists to prevent).
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
+                DateTimeOffset.UtcNow,
+                Telemetry: new PrinterTelemetrySnapshot(61m, 66m, 20, "Printing", [])));
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+            publisher.TelemetryBroadcasts.Should().HaveCount(1, "the second event landed inside the flush interval and should be coalesced");
+
+            // Once the interval has elapsed, the next event flushes the merged state.
+            await Task.Delay(flushInterval);
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
+                DateTimeOffset.UtcNow,
+                Telemetry: new PrinterTelemetrySnapshot(62m, 67m, 30, "Printing", [])));
+
+            await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 2, TimeSpan.FromSeconds(2));
+            var secondBroadcast = publisher.TelemetryBroadcasts[1];
+            secondBroadcast.NozzleTempC.Should().Be(62m);
+            secondBroadcast.BedTempC.Should().Be(67m);
+            secondBroadcast.PrintProgressPercent.Should().Be(30);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task StatusChange_MidFlushInterval_FlushesImmediatelyDespiteThrottle()
+    {
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-3");
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var connector = new FakePrinterConnector();
+        var publisher = new RecordingPrinterEventPublisher();
+
+        var provider = BuildServiceProvider(printer, secret, connector, out var activityLogWriter, publisher);
+        var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance,
+            SweepInterval,
+            UnreachableThreshold,
+            TimeSpan.FromSeconds(30)); // large enough that only the status change should force a flush
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
+                DateTimeOffset.UtcNow,
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", [])));
+            await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
+
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: "RUNNING"));
+
+            await WaitUntilAsync(() => printer.Status == PrinterStatus.Printing, TimeSpan.FromSeconds(2));
+            activityLogWriter.Entries.Should().ContainSingle(e => e.EventType == "PrinterStatusObserved");
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task CameraFrames_NeverTouchPrinterRepositoryOrTriggerDbWrite()
+    {
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-CAMERA-1");
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var connector = new FakePrinterConnector(); // never emits an MQTT event in this test
+        var publisher = new RecordingPrinterEventPublisher();
+        var repository = new SaveCountingPrinterRepository(new InMemoryPrinterRepository(printer));
+        var cameraRelay = new EmittingCameraRelay([1, 2, 3], [4, 5, 6]);
+
+        var provider = BuildServiceProvider(printer, secret, connector, out _, publisher, repository, cameraRelay);
+        var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance,
+            SweepInterval,
+            UnreachableThreshold,
+            NoFlushThrottling);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitUntilAsync(() => publisher.CameraFramesReceived.Count >= 2, TimeSpan.FromSeconds(2));
+
+            publisher.CameraFramesReceived.Should().Equal(
+                Convert.ToBase64String([1, 2, 3]),
+                Convert.ToBase64String([4, 5, 6]));
+            repository.SaveChangesCallCount.Should().Be(0, "camera frames carry no printer-entity data and shouldn't trigger a DB write");
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task StopThenImmediatelyStartConnection_DuringSlowUnwind_DoesNotOrphanTheNewLoop()
     {
         var organizationId = Guid.NewGuid();
@@ -103,7 +282,8 @@ public class PrinterConnectionBackgroundServiceTests
             provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<PrinterConnectionBackgroundService>.Instance,
             SweepInterval,
-            UnreachableThreshold);
+            UnreachableThreshold,
+            NoFlushThrottling);
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -139,21 +319,25 @@ public class PrinterConnectionBackgroundServiceTests
         Printer printer,
         ConnectionSecret secret,
         IPrinterConnector connector,
-        out RecordingActivityLogWriter activityLogWriter)
+        out RecordingActivityLogWriter activityLogWriter,
+        IPrinterEventPublisher? publisher = null,
+        IPrinterRepository? repository = null,
+        IPrinterCameraRelay? cameraRelay = null)
     {
         var writer = new RecordingActivityLogWriter();
         activityLogWriter = writer;
 
         var services = new ServiceCollection();
-        services.AddSingleton<IPrinterRepository>(new InMemoryPrinterRepository(printer));
+        services.AddSingleton<IPrinterRepository>(repository ?? new InMemoryPrinterRepository(printer));
         services.AddSingleton<IConnectionSecretRepository>(new InMemoryConnectionSecretRepository(secret));
         services.AddSingleton<ISecretProtector>(new PassthroughSecretProtector());
         services.AddSingleton<IPrinterConnector>(connector);
         services.AddSingleton<IActivityLogWriter>(writer);
-        services.AddSingleton<IPrinterEventPublisher, NoOpPrinterEventPublisher>();
+        services.AddSingleton<IPrinterEventPublisher>(publisher ?? new NoOpPrinterEventPublisher());
         // Test printers use BinaryImage-camera models (e.g. P1S), so RunConnectionLoopAsync always
-        // starts a concurrent camera loop too — register the fake relay so that path doesn't throw.
-        services.AddSingleton<IPrinterCameraRelay, FakePrinterCameraRelay>();
+        // starts a concurrent camera loop too — register a fake relay (never emits by default) so
+        // that path doesn't throw.
+        services.AddSingleton<IPrinterCameraRelay>(cameraRelay ?? new FakePrinterCameraRelay());
 
         // PrinterConnectionBackgroundService resolves these to populate tenant context per scope
         // (Finbuckle's HTTP-middleware-based resolution never runs for a scope it creates itself).
@@ -281,6 +465,74 @@ public class PrinterConnectionBackgroundServiceTests
 
         public Task CameraFrameReceivedAsync(Guid organizationId, Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) =>
             Task.CompletedTask;
+    }
+
+    private sealed class RecordingPrinterEventPublisher : IPrinterEventPublisher
+    {
+        public List<PrinterTelemetrySnapshot> TelemetryBroadcasts { get; } = [];
+
+        public List<string> CameraFramesReceived { get; } = [];
+
+        public Task PrinterStatusChangedAsync(Guid organizationId, Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task PrinterTelemetryUpdatedAsync(Guid organizationId, Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken)
+        {
+            TelemetryBroadcasts.Add(telemetry);
+            return Task.CompletedTask;
+        }
+
+        public Task CameraFrameReceivedAsync(Guid organizationId, Guid printerId, string frameJpegBase64, CancellationToken cancellationToken)
+        {
+            CameraFramesReceived.Add(frameJpegBase64);
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>Yields a fixed set of frames once, then stays alive (like a real relay) until cancelled.</summary>
+    private sealed class EmittingCameraRelay(params byte[][] frames) : IPrinterCameraRelay
+    {
+        public async IAsyncEnumerable<byte[]> StreamFramesAsync(
+            PrinterConnectionDetails details,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            foreach (var frame in frames)
+            {
+                yield return frame;
+            }
+
+            var completion = new TaskCompletionSource();
+            using (cancellationToken.Register(() => completion.TrySetResult()))
+            {
+                await completion.Task;
+            }
+        }
+    }
+
+    private sealed class SaveCountingPrinterRepository(IPrinterRepository inner) : IPrinterRepository
+    {
+        public int SaveChangesCallCount { get; private set; }
+
+        public Task AddAsync(Printer printer, CancellationToken cancellationToken) =>
+            inner.AddAsync(printer, cancellationToken);
+
+        public Task<Printer?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+            inner.GetByIdAsync(id, cancellationToken);
+
+        public Task<Printer?> GetBySerialNumberAsync(string serialNumber, CancellationToken cancellationToken) =>
+            inner.GetBySerialNumberAsync(serialNumber, cancellationToken);
+
+        public Task<IReadOnlyList<Printer>> ListAsync(CancellationToken cancellationToken) =>
+            inner.ListAsync(cancellationToken);
+
+        public Task RemoveAsync(Printer printer, CancellationToken cancellationToken) =>
+            inner.RemoveAsync(printer, cancellationToken);
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            SaveChangesCallCount++;
+            return inner.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private sealed class StubTenantStore(AppTenantInfo tenantInfo) : IMultiTenantStore<AppTenantInfo>

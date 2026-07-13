@@ -130,6 +130,12 @@ Open the detail page for a printer whose fake connector is configured to never e
 Once `BambuLanConnector` is implemented (M0.5), validate against a real printer in LAN-only +
 Developer Mode:
 
+0. **Set `Printers__UseFakeConnector=false`** (e.g. in `infra/.env`) before starting the stack.
+   This defaults to `true` (`FakePrinterConnector`) so CI/local dev never touches real hardware by
+   accident — left at the default, the backend never attempts a real MQTT connection at all and
+   every printer will show `Offline` forever regardless of its actual physical state, which looks
+   identical to a real connectivity bug. Check the API's startup log line
+   (`Printer connector: ...`) to confirm which implementation is active.
 1. Register the real printer through the UI using its actual IP/serial/access code — confirm the
    verify-before-add gate genuinely rejects a wrong access code and accepts the correct one.
 2. Start a print from the printer's own touchscreen (not through OpenFarm — FR-011 forbids dispatch
@@ -140,6 +146,13 @@ Developer Mode:
 5. Open the detail page during an active print; confirm a live camera frame appears within 3 seconds
    (SC-005) — for whichever camera transport (`CAMERA_IMAGE` or `CAMERA_RTSP`) that specific printer
    model uses (research.md §4).
+
+**First pass result**: steps 0-1 (connect + verify against a real A1) surfaced three real bugs — the
+`UseFakeConnector` default masking connectivity as `Offline`, a TLS trust-store bug, and a missing
+MQTT protocol-version pin — all now fixed, see `research.md` §1/§6's post-implementation notes and
+`plan.md`'s "First real-hardware validation pass". Live status now updates correctly end-to-end.
+Steps 2-5 (mark-ready round-trip, reachability-flip timing, camera feed) haven't each been
+individually re-confirmed since the fix — worth another pass before calling this phase fully closed.
 
 ## Automated verification (run instead of manual curl once implemented)
 

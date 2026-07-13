@@ -715,6 +715,16 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "nozzleTempC": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "bedTempC": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
           }
         }
       },

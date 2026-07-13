@@ -82,6 +82,34 @@ public class BambuMqttMessageParserTests
     }
 
     [Fact]
+    public void TryParseTelemetry_WithFractionalSensorReadings_RoundsToWholeDegrees()
+    {
+        // This fixture's raw nozzle_temper/bed_temper are 25.90625/23.125 — real Bambu ADC noise
+        // that jitters on nearly every message. A print-farm operator only cares about whole
+        // degrees, so the parser rounds rather than surfacing that sensor-level churn.
+        var reportPayload = LoadSection("awaiting-clear-p1p-no-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.NozzleTempC.Should().Be(26m);
+        telemetry.BedTempC.Should().Be(23m);
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithIdleA1Fixture_CorrectsBootQuirkStageZeroToIdle()
+    {
+        var reportPayload = LoadSection("idle-a1.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        // Firmware boot quirk: an idle A1/P1 reports stg_cur == 0 instead of the real idle
+        // sentinel 255 right after boot. print_type == "idle" is the signal to correct for it.
+        telemetry!.CurrentStageLabel.Should().Be("idle");
+    }
+
+    [Fact]
     public void TryParseTelemetry_WithMultiAmsFixture_ExtractsAllFourAmsUnitsWithCorrectTrayCounts()
     {
         var reportPayload = LoadSection("awaiting-clear-x1c-multi-ams.json", "pushall");

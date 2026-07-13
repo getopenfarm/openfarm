@@ -157,4 +157,51 @@ public class PrinterTests
         printer.IsReachable.Should().BeFalse();
         printer.Status.Should().Be(PrinterStatus.Printing);
     }
+
+    [Fact]
+    public void RecordTelemetry_WithFullSnapshot_SetsAllFields()
+    {
+        var printer = CreateValidPrinter();
+        var amsUnits = new List<AmsUnit> { new(0, []) };
+
+        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", amsUnits);
+
+        printer.NozzleTempC.Should().Be(60.5m);
+        printer.BedTempC.Should().Be(65.0m);
+        printer.PrintProgressPercent.Should().Be(42);
+        printer.CurrentStageLabel.Should().Be("Printing");
+        printer.AmsUnits.Should().BeEquivalentTo(amsUnits);
+    }
+
+    [Fact]
+    public void RecordTelemetry_WithSubsequentPartialSnapshot_PreservesFieldsMissingFromDelta()
+    {
+        var printer = CreateValidPrinter();
+        var amsUnits = new List<AmsUnit> { new(0, []) };
+        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", amsUnits);
+
+        // Bambu's MQTT deltas omit fields that haven't changed since the last message — a
+        // subsequent null/empty here must not clear the previously recorded value.
+        printer.RecordTelemetry(null, null, null, null, []);
+
+        printer.NozzleTempC.Should().Be(60.5m);
+        printer.BedTempC.Should().Be(65.0m);
+        printer.PrintProgressPercent.Should().Be(42);
+        printer.CurrentStageLabel.Should().Be("Printing");
+        printer.AmsUnits.Should().BeEquivalentTo(amsUnits);
+    }
+
+    [Fact]
+    public void RecordTelemetry_WithPartialSnapshot_OverwritesOnlyFieldsPresentInDelta()
+    {
+        var printer = CreateValidPrinter();
+        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", []);
+
+        printer.RecordTelemetry(61.0m, null, null, null, []);
+
+        printer.NozzleTempC.Should().Be(61.0m);
+        printer.BedTempC.Should().Be(65.0m);
+        printer.PrintProgressPercent.Should().Be(42);
+        printer.CurrentStageLabel.Should().Be("Printing");
+    }
 }

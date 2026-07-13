@@ -24,6 +24,10 @@ public sealed class FleetPrinterResponse
     public bool IsReachable { get; set; }
 
     public int? PrintProgressPercent { get; set; }
+
+    public decimal? NozzleTempC { get; set; }
+
+    public decimal? BedTempC { get; set; }
 }
 
 public sealed class ListFleetResponse
@@ -59,6 +63,8 @@ public sealed class ListFleetEndpoint(IQueryHandler<GetFleetQuery, IReadOnlyList
                     Status = p.Status.ToString(),
                     IsReachable = p.IsReachable,
                     PrintProgressPercent = p.PrintProgressPercent,
+                    NozzleTempC = p.NozzleTempC,
+                    BedTempC = p.BedTempC,
                 })
                 .ToList(),
         };

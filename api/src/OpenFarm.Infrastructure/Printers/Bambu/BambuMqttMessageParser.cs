@@ -93,10 +93,10 @@ public static class BambuMqttMessageParser
                 return null;
             }
 
-            var nozzleTempC = TryGetDecimal(print, "nozzle_temper");
-            var bedTempC = TryGetDecimal(print, "bed_temper");
+            var nozzleTempC = RoundToWholeDegree(TryGetDecimal(print, "nozzle_temper"));
+            var bedTempC = RoundToWholeDegree(TryGetDecimal(print, "bed_temper"));
             var printProgressPercent = TryGetInt(print, "mc_percent");
-            var currentStageLabel = TryGetInt(print, "stg_cur") is { } stage ? CurrentStageIds.Resolve(stage) : null;
+            var currentStageLabel = ResolveCurrentStageLabel(print);
             var amsUnits = ParseAmsUnits(print);
 
             return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, amsUnits);
@@ -105,6 +105,29 @@ public static class BambuMqttMessageParser
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Resolves <c>stg_cur</c> to a display label, correcting for a firmware boot quirk: an idle
+    /// A1/P1 printer reports <c>stg_cur == 0</c> instead of the real idle sentinel <c>255</c> right
+    /// after boot (ported from pybambu's <c>StageAction.print_update</c>, cross-checked against
+    /// third_party/printers/bambulab/docs/unified/local-mqtt/state-schema/print-job.md).
+    /// </summary>
+    private static string? ResolveCurrentStageLabel(JsonElement print)
+    {
+        var stage = TryGetInt(print, "stg_cur");
+        if (stage is not { } stageValue)
+        {
+            return null;
+        }
+
+        var printType = GetString(print, "print_type");
+        if (stageValue == 0 && string.Equals(printType, "idle", StringComparison.OrdinalIgnoreCase))
+        {
+            stageValue = 255;
+        }
+
+        return CurrentStageIds.Resolve(stageValue);
     }
 
     private static List<AmsUnit> ParseAmsUnits(JsonElement print)
@@ -169,6 +192,15 @@ public static class BambuMqttMessageParser
         element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
             ? property.GetString()
             : null;
+
+    /// <summary>
+    /// Bambu reports raw ADC sensor readings (e.g. <c>27.8125</c>) that jitter by a fraction of a
+    /// degree on nearly every message — whole-degree precision is all a print-farm operator cares
+    /// about, and rounding here collapses that sensor noise so downstream persistence/broadcast/UI
+    /// don't churn on changes nobody can act on.
+    /// </summary>
+    private static decimal? RoundToWholeDegree(decimal? value) =>
+        value is { } v ? Math.Round(v, 0, MidpointRounding.AwayFromZero) : null;
 
     private static decimal? TryGetDecimal(JsonElement element, string propertyName) =>
         element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out var value)

@@ -15,13 +15,13 @@ public sealed record PrinterTelemetrySnapshot(
 /// One inbound message from a printer's live connection, already parsed into domain-shaped data —
 /// never raw MQTT JSON (plan.md's Clean Architecture gate). <see cref="GcodeState"/> is the raw
 /// connector-reported state string (e.g. "RUNNING"); resolving it to a <see cref="PrinterStatus"/>
-/// is <see cref="PrinterStatusTransitions.ObserveStatus"/>'s job, not the connector's.
+/// is <see cref="PrinterStatusTransitions.ObserveStatus"/>'s job, not the connector's. Camera frames
+/// are a separate stream (<see cref="IPrinterCameraRelay"/>), not part of this event type.
 /// </summary>
 public sealed record PrinterConnectorEvent(
     DateTimeOffset ReceivedAtUtc,
     string? GcodeState = null,
-    PrinterTelemetrySnapshot? Telemetry = null,
-    byte[]? CameraFrameJpeg = null);
+    PrinterTelemetrySnapshot? Telemetry = null);
 
 /// <summary>
 /// Application-defined contract for a printer brand's live connection, implemented in

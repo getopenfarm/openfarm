@@ -1,7 +1,9 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 using MQTTnet;
+using MQTTnet.Formatter;
 using OpenFarm.Application.Printers;
 
 namespace OpenFarm.Infrastructure.Printers.Bambu;
@@ -9,16 +11,25 @@ namespace OpenFarm.Infrastructure.Printers.Bambu;
 /// <summary>
 /// Real Bambu LAN connector: MQTT 3.1.1 over TLS on port 8883, username <c>bblp</c> / password =
 /// the printer's LAN access code, topics <c>device/{serial}/report</c> (subscribe) and
-/// <c>device/{serial}/request</c> (publish), per research.md §1. Never built/validated against real
-/// hardware in this environment — see <c>Printers/Fixtures/README.md</c> and quickstart.md's manual
-/// physical-hardware validation section.
+/// <c>device/{serial}/request</c> (publish), per research.md §1. First validated against real
+/// hardware (a Bambu A1) via quickstart.md's manual physical-hardware validation section — that pass
+/// found and fixed the TLS trust-store root/intermediate bug (<see cref="BambuCertificateTrust"/>)
+/// and this class's missing MQTT protocol-version pin (research.md §1's two post-implementation
+/// notes); see <c>Printers/Fixtures/README.md</c> for the fixture-replay corpus used elsewhere.
 /// </summary>
-public sealed class BambuLanConnector : IPrinterConnector
+public sealed partial class BambuLanConnector : IPrinterConnector
 {
     private const string MqttUsername = "bblp";
     private const int MqttPort = 8883;
     private static readonly TimeSpan VerifyTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+
+    private readonly ILogger<BambuLanConnector> _logger;
+
+    public BambuLanConnector(ILogger<BambuLanConnector> logger)
+    {
+        _logger = logger;
+    }
 
     public async Task<bool> VerifyAsync(PrinterConnectionDetails details, CancellationToken cancellationToken)
     {
@@ -65,10 +76,12 @@ public sealed class BambuLanConnector : IPrinterConnector
         }
         catch (OperationCanceledException)
         {
+            LogVerifyTimedOut(_logger, details.IpAddress);
             return false;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            LogVerifyFailed(_logger, details.IpAddress, ex);
             return false;
         }
         finally
@@ -106,9 +119,13 @@ public sealed class BambuLanConnector : IPrinterConnector
             return Task.CompletedTask;
         };
 
-        client.ConnectedAsync += async _ => await SubscribeAndRequestAsync(client, details.SerialNumber, cancellationToken);
+        client.ConnectedAsync += async _ =>
+        {
+            LogConnected(_logger, details.SerialNumber);
+            await SubscribeAndRequestAsync(client, details.SerialNumber, cancellationToken);
+        };
 
-        var maintainTask = MaintainConnectionAsync(client, BuildClientOptions(details), cancellationToken);
+        var maintainTask = MaintainConnectionAsync(client, BuildClientOptions(details), details.SerialNumber, _logger, cancellationToken);
 
         try
         {
@@ -124,7 +141,12 @@ public sealed class BambuLanConnector : IPrinterConnector
         }
     }
 
-    private static async Task MaintainConnectionAsync(IMqttClient client, MqttClientOptions options, CancellationToken cancellationToken)
+    private static async Task MaintainConnectionAsync(
+        IMqttClient client,
+        MqttClientOptions options,
+        string serialNumber,
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -136,9 +158,9 @@ public sealed class BambuLanConnector : IPrinterConnector
                     {
                         await client.ConnectAsync(options, cancellationToken);
                     }
-                    catch (Exception)
+                    catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        // Reconnect attempt failed; retry after the delay below.
+                        LogReconnectFailed(logger, serialNumber, ex);
                     }
                 }
 
@@ -178,12 +200,19 @@ public sealed class BambuLanConnector : IPrinterConnector
                 .Build(),
             cancellationToken);
 
-    private static MqttClientOptions BuildClientOptions(PrinterConnectionDetails details) =>
+    internal static MqttClientOptions BuildClientOptions(PrinterConnectionDetails details) =>
         new MqttClientOptionsBuilder()
             .WithTcpServer(details.IpAddress, MqttPort)
             .WithCredentials(MqttUsername, details.AccessCode)
             .WithKeepAlivePeriod(TimeSpan.FromSeconds(5))
             .WithCleanSession()
+            // MQTTnet defaults to MQTT 5, but Bambu's LAN broker only speaks v3.1.1 (research.md §1;
+            // confirmed against pybambu's mqtt.Client(protocol=mqtt.MQTTv311)) — a v5 CONNECT gets a
+            // successful-looking CONNACK but the broker then can't parse the v5-shaped SUBSCRIBE that
+            // follows and silently closes the socket, surfacing as MqttClientNotConnectedException on
+            // the very next call.
+            .WithProtocolVersion(MqttProtocolVersion.V311)
+            .WithClientId($"openfarm-{Guid.NewGuid()}")
             .WithTlsOptions(tls => tls
                 .UseTls()
                 // Bambu printers present a device-specific cert, not one from a public CA. Pin the
@@ -200,4 +229,16 @@ public sealed class BambuLanConnector : IPrinterConnector
     private static string ReportTopic(string serialNumber) => $"device/{serialNumber}/report";
 
     private static string RequestTopic(string serialNumber) => $"device/{serialNumber}/request";
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "MQTT connected to printer {SerialNumber}.")]
+    private static partial void LogConnected(ILogger logger, string serialNumber);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "MQTT reconnect attempt to printer {SerialNumber} failed.")]
+    private static partial void LogReconnectFailed(ILogger logger, string serialNumber, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Verify connection to {IpAddress} failed.")]
+    private static partial void LogVerifyFailed(ILogger logger, string ipAddress, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Verify connection to {IpAddress} timed out.")]
+    private static partial void LogVerifyTimedOut(ILogger logger, string ipAddress);
 }

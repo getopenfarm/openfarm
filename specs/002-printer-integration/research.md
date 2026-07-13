@@ -9,6 +9,13 @@ approximate line numbers in that source. The curated summaries at
 `third_party/printers/bambulab/docs/ha-bambulab/**/*.md` are used only for cross-checking and framing
 — every claim below was independently verified against the primary source, not copied from the docs.
 
+**Post-implementation update**: the submodule has since been expanded into a unified, multi-source
+reference — `third_party/printers/bambulab/docs/unified/` now merges `ha-bambulab`/`pybambu` with
+`OpenBambuAPI` and `bambulabs_api`, cross-checking the same protocol claims against three independent
+reverse-engineering efforts rather than one. This is now the preferred first stop for future protocol
+questions in this doc tree; the `pybambu`-specific citations below remain accurate (the unified docs
+restate the same values) and are left as-is rather than rewritten.
+
 ## 1. MQTT topic/message schema, TLS handshake, full-vs-delta behavior
 
 **Decision**: Use MQTT topics `device/{serial}/report` (subscribe) and `device/{serial}/request`
@@ -47,6 +54,36 @@ available but opt-in only, for printers whose cert isn't recognized by the bundl
 certificate-validation callback that accepts Bambu's per-device certs; a pinned/bundled CA list is
 the safer default, with an explicit "skip verification" opt-out surfaced to the operator only as a
 documented fallback, not the default.
+
+**Bug found on first real-hardware connection (post-implementation)**: Python's
+`ssl.SSLContext.load_verify_locations()` treats every loaded cert as usable both as a trust anchor
+and as chain-building material, so pybambu's flat "load every `.cert` file" approach just works. .NET's
+`X509Chain` doesn't make that assumption: under `X509ChainTrustMode.CustomRootTrust`,
+`ChainPolicy.CustomTrustStore` must contain **only self-signed roots** — intermediate/cross-sign
+certs (here: `bambu.cert`'s 2 cross-sign bridge certs plus the 3 per-model "Device CA" intermediates)
+must go in the separate `ChainPolicy.ExtraStore`. `BambuCertificateTrust.cs`'s original port put
+every bundled cert (8 total: 3 self-signed roots + 5 intermediates) into `CustomTrustStore` only,
+leaving `ExtraStore` empty — so `X509Chain.Build()` could never resolve a real printer leaf cert's
+issuer (`PartialChain`/`UntrustedRoot`), failing identically for every printer/model, confirmed
+against a real device's `MqttCommunicationException`. Fixed by partitioning the bundled certs by
+self-signed-ness into the two stores. Also switched cert loading from
+`X509CertificateLoader.LoadCertificate` (loads only the first cert in a file) to
+`X509Certificate2Collection.ImportFromPem` (loads every cert), since `bambu.cert` itself is a
+5-certificate PEM bundle, not a single cert.
+
+**Second bug found immediately after (post-implementation)**: with the TLS handshake fixed, the very
+next call (`SubscribeAsync`) started throwing `MqttClientNotConnectedException` — the broker accepted
+the CONNECT/CONNACK, then silently closed the socket. Cause: MQTTnet's `MqttClientOptions` defaults to
+**MQTT 5.0.0** when `.WithProtocolVersion(...)` isn't set; `BambuLanConnector.BuildClientOptions`
+never set it. Bambu's LAN broker only speaks **MQTT v3.1.1**
+(`third_party/printers/bambulab/docs/unified/local-mqtt/connection.md:32-37`; confirmed against
+pybambu's `mqtt.Client(protocol=mqtt.MQTTv311, client_id=f"ha-bambulab-{uuid.uuid4()}")`,
+`bambu_client.py:461-464`). A v5 CONNECT gets a superficially-successful CONNACK (the
+username/password fields it authenticates on are structurally unchanged between v3.1.1 and v5), but
+the broker can't parse the differently-shaped v5 SUBSCRIBE packet that follows and drops the TCP
+connection — silent, since v3.1.1 brokers have no server-DISCONNECT packet. Fixed by adding
+`.WithProtocolVersion(MqttProtocolVersion.V311)` and `.WithClientId($"openfarm-{Guid.NewGuid()}")`
+(matching the reference client's unique per-connection ID) to `BuildClientOptions`.
 
 **Full vs. delta**: The printer pushes incremental telemetry by default; `PUSH_ALL`/`pushall`
 explicitly requests one complete state object (see `connection.md` §9, verified against
@@ -103,6 +140,20 @@ decision.
 and rejected — a paused print is still an active job requiring the operator's attention as "printing,"
 not one that's finished and awaiting a physical clear action; conflating the two would misrepresent
 FR-003's Idle/Printing/AwaitingClear semantics.
+
+**`stg_cur` boot quirk (found post-implementation, fixed in T070)**: `stg_cur` (the numeric sub-stage
+feeding `CurrentStageLabel`, see data-model.md's telemetry table) has a documented firmware quirk on
+idle A1/P1 printers: right after boot they report `stg_cur == 0` (which `CURRENT_STAGE_IDS` resolves
+to `"printing"`) instead of the real idle sentinel `255`. `pybambu/models.py`'s
+`StageAction.print_update` corrects for this: `if (self._print_type == "idle") and (self._id == 0):
+self._id = 255`. Independently confirmed in the now-merged
+`third_party/printers/bambulab/docs/unified/local-mqtt/state-schema/print-job.md`: "When `print_type
+== "idle"` and the raw ID is `0`, treat it as `255` instead — the firmware can incorrectly report
+`stg_cur == 0` rather than `255` on boot." OpenFarm's original port of this mapping
+(`BambuMqttMessageParser.TryParseTelemetry`) omitted this correction and never parsed `print_type`,
+so an idle A1/P1's `CurrentStageLabel` incorrectly read `"printing"` — reproduced by the repo's own
+`idle-a1.json` fixture. Fixed by parsing `print_type` and applying the same correction before
+resolving `stg_cur` via `CurrentStageIds.Resolve`.
 
 ## 3. AMS slot schema
 
@@ -241,6 +292,22 @@ exposes to the operator.
 periodic sweep) was considered; rejected because a sweep interval decoupled from message arrival is
 simpler to reason about across many concurrent printer connections and avoids per-message timer
 churn under SC-006's ~20-printer concurrency target.
+
+**Operational note (found post-implementation)**: `Program.cs` wires `IPrinterConnector` to
+`FakePrinterConnector` unless `Printers:UseFakeConnector` is explicitly set `false`
+(`Printers__UseFakeConnector=false` as an env var — e.g. in `infra/.env`), which is the safe default
+so CI/local dev never touches real hardware by accident (constitution Principle II). Left at the
+default in an environment that's supposed to reach real printers, the backend never attempts a real
+MQTT connection at all — every printer's `IsReachable` stays at its domain-default `false` forever,
+which looks indistinguishable from a genuine connectivity/MQTT bug (a printer actively printing on
+the physical device still shows `Offline`). This was previously undocumented outside `Program.cs`'s
+own comment; it's now called out in `quickstart.md`'s Physical hardware validation section and the
+API logs which connector is active on startup. Additionally hardened: `BambuLanConnector`'s reconnect
+loop and `VerifyAsync` previously swallowed every connect/TLS exception with no logging at all
+(`catch (Exception) { }`) — now logged via `ILogger<BambuLanConnector>` using the same
+`[LoggerMessage]` pattern as `PrinterConnectionBackgroundService`, and reachability transitions
+(`MarkReachable`/`MarkUnreachable`) are now logged too, so a real-hardware connectivity failure is
+diagnosable from logs instead of silent.
 
 ## 7. Verify-before-add/edit semantics (FR-001a, FR-002)
 

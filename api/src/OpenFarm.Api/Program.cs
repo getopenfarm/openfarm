@@ -211,6 +211,14 @@ builder.Services
 
 var app = builder.Build();
 
+// Loud on purpose: this flag silently no-ops every real printer connection when left at its
+// safe-by-default true (see the registration comment above) — easy to mistake for a connectivity
+// bug instead of a config gap.
+Program.LogPrinterConnectorSelected(
+    app.Logger,
+    useFakePrinterConnector ? nameof(FakePrinterConnector) : nameof(BambuLanConnector),
+    useFakePrinterConnector);
+
 // LoginEndpoint's Throttle() falls back to Connection.RemoteIpAddress when no X-Forwarded-For
 // header is present, and hard-403s ("can't identify client") if that's also null. Kestrel always
 // sets it for a real socket, but WebApplicationFactory's in-memory TestServer never does — without
@@ -259,4 +267,8 @@ using (var scope = app.Services.CreateScope())
 
 app.Run();
 
-public partial class Program;
+public partial class Program
+{
+    [LoggerMessage(Level = LogLevel.Information, Message = "Printer connector: {ConnectorType} (Printers:UseFakeConnector={UseFakeConnector})")]
+    private static partial void LogPrinterConnectorSelected(Microsoft.Extensions.Logging.ILogger logger, string connectorType, bool useFakeConnector);
+}

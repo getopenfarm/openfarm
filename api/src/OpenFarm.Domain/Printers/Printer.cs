@@ -123,6 +123,13 @@ public sealed class Printer
         IsReachable = false;
     }
 
+    /// <summary>
+    /// Bambu's MQTT reports are deltas (research.md §1): a missing field means "unchanged", not
+    /// "cleared". Each nullable parameter therefore falls back to the previously recorded value
+    /// rather than overwriting it with null. <paramref name="amsUnits"/> can't represent "absent"
+    /// at the type level (the parser returns an empty list both when the AMS key is missing from
+    /// a delta and when it's genuinely empty), so an empty list is likewise treated as "unchanged".
+    /// </summary>
     public void RecordTelemetry(
         decimal? nozzleTempC,
         decimal? bedTempC,
@@ -130,11 +137,11 @@ public sealed class Printer
         string? currentStageLabel,
         IReadOnlyList<AmsUnit> amsUnits)
     {
-        NozzleTempC = nozzleTempC;
-        BedTempC = bedTempC;
-        PrintProgressPercent = printProgressPercent;
-        CurrentStageLabel = currentStageLabel;
-        AmsUnits = amsUnits;
+        NozzleTempC = nozzleTempC ?? NozzleTempC;
+        BedTempC = bedTempC ?? BedTempC;
+        PrintProgressPercent = printProgressPercent ?? PrintProgressPercent;
+        CurrentStageLabel = currentStageLabel ?? CurrentStageLabel;
+        AmsUnits = amsUnits.Count > 0 ? amsUnits : AmsUnits;
     }
 
     public void EditConnection(string ipAddress)
