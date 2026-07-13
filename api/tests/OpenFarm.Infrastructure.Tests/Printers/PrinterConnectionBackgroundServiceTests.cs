@@ -90,10 +90,55 @@ public class PrinterConnectionBackgroundServiceTests
         }
     }
 
+    [Fact]
+    public async Task StopThenImmediatelyStartConnection_DuringSlowUnwind_DoesNotOrphanTheNewLoop()
+    {
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-RACE-1");
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var connector = new SlowCancelPrinterConnector { CancellationLag = TimeSpan.FromMilliseconds(150) };
+
+        var provider = BuildServiceProvider(printer, secret, connector, out _);
+        var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance,
+            SweepInterval,
+            UnreachableThreshold);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitUntilAsync(() => connector.ConnectCallCount >= 1, TimeSpan.FromSeconds(2));
+
+            // Mirrors EditPrinterConnectionCommandHandler: Stop immediately followed by Start, with
+            // no synchronization between them and no wait for the old loop to actually unwind.
+            service.StopConnection(printer.Id);
+            service.StartConnection(printer.Id, CancellationToken.None);
+
+            await WaitUntilAsync(() => connector.ConnectCallCount >= 2, TimeSpan.FromSeconds(2));
+
+            // Give the old (slow-to-unwind) loop's `finally` plenty of time to run.
+            await Task.Delay(connector.CancellationLag + TimeSpan.FromMilliseconds(300));
+
+            // StartConnection is documented as a no-op when the printer is already connected. If
+            // the old loop's `finally` wrongly tore down the new loop's dictionary entry (the bug
+            // this test guards against), that entry would be gone and this call would succeed in
+            // starting a second, duplicate connector loop instead of no-op'ing.
+            service.StartConnection(printer.Id, CancellationToken.None);
+            await Task.Delay(100);
+
+            connector.ConnectCallCount.Should().Be(2);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
     private static ServiceProvider BuildServiceProvider(
         Printer printer,
         ConnectionSecret secret,
-        FakePrinterConnector connector,
+        IPrinterConnector connector,
         out RecordingActivityLogWriter activityLogWriter)
     {
         var writer = new RecordingActivityLogWriter();
@@ -172,6 +217,40 @@ public class PrinterConnectionBackgroundServiceTests
 
         public Task<ConnectionSecret?> GetByPrinterSerialNumberAsync(string printerSerialNumber, CancellationToken cancellationToken) =>
             Task.FromResult(secret.PrinterSerialNumber == printerSerialNumber ? secret : null);
+    }
+
+    /// <summary>
+    /// Never observes cancellation to stop yielding immediately — after <see cref="CancellationLag"/>
+    /// once cancellation is requested, simulating a connector whose underlying transport takes a
+    /// moment to unwind (e.g. a live socket read that must return before the loop notices it was
+    /// cancelled). Widens the Stop-then-Start race window enough for a test to deterministically
+    /// land inside it.
+    /// </summary>
+    private sealed class SlowCancelPrinterConnector : IPrinterConnector
+    {
+        private int _connectCallCount;
+
+        public TimeSpan CancellationLag { get; init; } = TimeSpan.FromMilliseconds(150);
+
+        public int ConnectCallCount => _connectCallCount;
+
+        public Task<bool> VerifyAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+            Task.FromResult(true);
+
+        public async IAsyncEnumerable<PrinterConnectorEvent> ConnectAsync(
+            PrinterConnectionDetails details,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _connectCallCount);
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(5, CancellationToken.None);
+            }
+
+            await Task.Delay(CancellationLag, CancellationToken.None);
+            yield break;
+        }
     }
 
     private sealed class PassthroughSecretProtector : ISecretProtector

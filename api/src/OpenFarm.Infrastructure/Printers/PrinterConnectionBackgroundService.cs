@@ -85,7 +85,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             return;
         }
 
-        _ = RunConnectionLoopAsync(printerId, linkedCts.Token);
+        _ = RunConnectionLoopAsync(printerId, linkedCts);
     }
 
     /// <summary>Stops a printer's connection loop (e.g. it was just removed).</summary>
@@ -149,8 +149,18 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         }
     }
 
-    private async Task RunConnectionLoopAsync(Guid printerId, CancellationToken connectionToken)
+    /// <summary>
+    /// Owns <paramref name="ownedCts"/> for its full lifetime. Editing a printer's connection
+    /// (<see cref="Application.Printers.EditPrinterConnectionCommandHandler"/>) calls
+    /// <see cref="StopConnection"/> immediately followed by <see cref="StartConnection"/> with no
+    /// synchronization between them, so by the time this loop's <c>finally</c> runs, a *newer* CTS
+    /// may already occupy <paramref name="printerId"/>'s slot in <see cref="_activeConnections"/>.
+    /// The identity-checked <c>Remove(KeyValuePair&lt;,&gt;)</c> below only tears down the dictionary
+    /// entry (and disposes the CTS) if it's still this loop's own instance — never someone else's.
+    /// </summary>
+    private async Task RunConnectionLoopAsync(Guid printerId, CancellationTokenSource ownedCts)
     {
+        var connectionToken = ownedCts.Token;
         try
         {
             await EnsureTenantInfoResolvedAsync(connectionToken);
@@ -200,9 +210,11 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         }
         finally
         {
-            if (_activeConnections.TryRemove(printerId, out var cts))
+            var stillOwnsSlot = ((ICollection<KeyValuePair<Guid, CancellationTokenSource>>)_activeConnections)
+                .Remove(new KeyValuePair<Guid, CancellationTokenSource>(printerId, ownedCts));
+            if (stillOwnsSlot)
             {
-                cts.Dispose();
+                ownedCts.Dispose();
             }
         }
     }
