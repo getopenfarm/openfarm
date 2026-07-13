@@ -4,6 +4,7 @@ import {
   PencilIcon,
   PrinterIcon,
   Trash2Icon,
+  TriangleAlertIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -94,6 +95,16 @@ export function PrintersPage() {
             // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder cards
             <Skeleton key={`skeleton-${index}`} className="h-40 w-full" />
           ))}
+        </div>
+      ) : fleetQuery.isError ? (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-12 text-center">
+          <TriangleAlertIcon className="size-8 text-destructive" />
+          <p className="text-sm text-muted-foreground">
+            Couldn't load printers.
+          </p>
+          <Button variant="outline" onClick={() => fleetQuery.refetch()}>
+            Retry
+          </Button>
         </div>
       ) : printers.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-12 text-center">

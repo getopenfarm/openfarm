@@ -38,38 +38,56 @@ export function ActivityLogPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {query.isLoading
-            ? Array.from({ length: 3 }).map((_, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder rows
-                <TableRow key={`skeleton-${index}`}>
-                  <TableCell>
-                    <Skeleton className="h-4 w-40" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-16" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-24" />
-                  </TableCell>
-                </TableRow>
-              ))
-            : items.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell>
-                    {entry.entityType} {entry.entityId}
-                  </TableCell>
-                  <TableCell>{entry.eventType}</TableCell>
-                  <TableCell>{entry.actorDisplayName ?? 'System'}</TableCell>
-                  <TableCell>
-                    {entry.timestampUtc
-                      ? new Date(entry.timestampUtc).toLocaleString()
-                      : ''}
-                  </TableCell>
-                </TableRow>
-              ))}
+          {query.isLoading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder rows
+              <TableRow key={`skeleton-${index}`}>
+                <TableCell>
+                  <Skeleton className="h-4 w-40" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-16" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-32" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-24" />
+                </TableCell>
+              </TableRow>
+            ))
+          ) : query.isError ? (
+            <TableRow>
+              <TableCell
+                colSpan={4}
+                className="py-8 text-center text-muted-foreground text-sm"
+              >
+                Couldn't load the activity log.{' '}
+                <Button
+                  variant="link"
+                  className="h-auto p-0"
+                  onClick={() => query.refetch()}
+                >
+                  Retry
+                </Button>
+              </TableCell>
+            </TableRow>
+          ) : (
+            items.map((entry) => (
+              <TableRow key={entry.id}>
+                <TableCell>
+                  {entry.entityType} {entry.entityId}
+                </TableCell>
+                <TableCell>{entry.eventType}</TableCell>
+                <TableCell>{entry.actorDisplayName ?? 'System'}</TableCell>
+                <TableCell>
+                  {entry.timestampUtc
+                    ? new Date(entry.timestampUtc).toLocaleString()
+                    : ''}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
       <div className="flex items-center justify-between">

@@ -1,4 +1,4 @@
-import { getToken } from '@/lib/auth/tokenStorage';
+import { clearToken, getToken } from '@/lib/auth/tokenStorage';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8888';
@@ -31,6 +31,12 @@ export async function httpClient<T>(
   });
 
   if (!response.ok) {
+    // The stored token is invalid/expired — no page-level retry or error state can recover
+    // from that, so clear it and bounce back to login instead of leaving every query stuck.
+    if (response.status === 401 && window.location.pathname !== '/login') {
+      clearToken();
+      window.location.assign('/login');
+    }
     throw response;
   }
 

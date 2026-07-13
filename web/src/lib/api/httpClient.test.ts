@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearToken, setToken } from '@/lib/auth/tokenStorage';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearToken, getToken, setToken } from '@/lib/auth/tokenStorage';
 import { httpClient } from './httpClient';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -57,6 +57,57 @@ describe('httpClient', () => {
 
     await expect(httpClient('/api/v1/auth/whoami')).rejects.toMatchObject({
       status: 401,
+    });
+  });
+
+  describe('on a 401 response', () => {
+    const originalLocation = window.location;
+    let assignSpy: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      assignSpy = vi.fn();
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: {
+          ...originalLocation,
+          pathname: '/printers',
+          assign: assignSpy,
+        },
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+      });
+    });
+
+    it('clears the stored token and redirects to /login', async () => {
+      setToken('a-stale-token');
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)));
+
+      await expect(httpClient('/api/v1/printers')).rejects.toMatchObject({
+        status: 401,
+      });
+
+      expect(getToken()).toBeNull();
+      expect(assignSpy).toHaveBeenCalledWith('/login');
+    });
+
+    it('does not redirect again when already on /login', async () => {
+      setToken('a-stale-token');
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: { ...originalLocation, pathname: '/login', assign: assignSpy },
+      });
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)));
+
+      await expect(
+        httpClient('/api/v1/auth/login', { method: 'POST' }),
+      ).rejects.toMatchObject({ status: 401 });
+
+      expect(assignSpy).not.toHaveBeenCalled();
     });
   });
 });

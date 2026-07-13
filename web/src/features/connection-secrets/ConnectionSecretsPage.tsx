@@ -139,32 +139,50 @@ export function ConnectionSecretsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {listQuery.isLoading
-            ? Array.from({ length: 3 }).map((_, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder rows
-                <TableRow key={`skeleton-${index}`}>
-                  <TableCell>
-                    <Skeleton className="h-4 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-12" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-24" />
-                  </TableCell>
-                </TableRow>
-              ))
-            : secrets.map((secret) => (
-                <TableRow key={secret.id}>
-                  <TableCell>{secret.printerSerialNumber}</TableCell>
-                  <TableCell>{secret.maskedAccessCode}</TableCell>
-                  <TableCell>
-                    {secret.createdAtUtc
-                      ? new Date(secret.createdAtUtc).toLocaleString()
-                      : ''}
-                  </TableCell>
-                </TableRow>
-              ))}
+          {listQuery.isLoading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder rows
+              <TableRow key={`skeleton-${index}`}>
+                <TableCell>
+                  <Skeleton className="h-4 w-32" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-12" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-24" />
+                </TableCell>
+              </TableRow>
+            ))
+          ) : listQuery.isError ? (
+            <TableRow>
+              <TableCell
+                colSpan={3}
+                className="py-8 text-center text-muted-foreground text-sm"
+              >
+                Couldn't load connection secrets.{' '}
+                <Button
+                  variant="link"
+                  className="h-auto p-0"
+                  onClick={() => listQuery.refetch()}
+                >
+                  Retry
+                </Button>
+              </TableCell>
+            </TableRow>
+          ) : (
+            secrets.map((secret) => (
+              <TableRow key={secret.id}>
+                <TableCell>{secret.printerSerialNumber}</TableCell>
+                <TableCell>{secret.maskedAccessCode}</TableCell>
+                <TableCell>
+                  {secret.createdAtUtc
+                    ? new Date(secret.createdAtUtc).toLocaleString()
+                    : ''}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </div>

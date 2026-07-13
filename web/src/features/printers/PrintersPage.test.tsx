@@ -85,6 +85,27 @@ describe('PrintersPage', () => {
     );
   });
 
+  it('shows an error state with a retry button when the fleet request fails', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/hubs/farm')) {
+        return Promise.reject(new Error('SignalR not available in tests'));
+      }
+      return Promise.resolve(jsonResponse({ title: 'Server error' }, 500));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage();
+
+    expect(
+      await screen.findByText(/Couldn't load printers/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No printers registered yet/),
+    ).not.toBeInTheDocument();
+  });
+
   it('shows an offline indicator distinct from status when unreachable', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();

@@ -62,4 +62,18 @@ describe('ActivityLogPage', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     expect(screen.getByText('Page 1 · 1 entries')).toBeInTheDocument();
   });
+
+  it('shows an error state with a retry button when the request fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ title: 'Server error' }, 500)),
+    );
+
+    renderPage();
+
+    expect(
+      await screen.findByText(/Couldn't load the activity log/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
 });

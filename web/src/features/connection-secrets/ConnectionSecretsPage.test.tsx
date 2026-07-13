@@ -85,4 +85,18 @@ describe('ConnectionSecretsPage', () => {
     );
     expect(postCalls).toHaveLength(0);
   });
+
+  it('shows an error state with a retry button when the list request fails', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ title: 'Server error' }, 500));
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage();
+
+    expect(
+      await screen.findByText(/Couldn't load connection secrets/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
 });
