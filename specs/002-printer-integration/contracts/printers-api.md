@@ -88,10 +88,15 @@ Fleet list.
 ```jsonc
 {
   "printers": [
-    { "id": "guid", "name": "Printer 1", "brand": "Bambu", "modelCode": "P1S", "status": "Printing", "isReachable": true, "printProgressPercent": 42 }
+    { "id": "guid", "name": "Printer 1", "brand": "Bambu", "modelCode": "P1S", "ipAddress": "192.168.1.50", "serialNumber": "01P00A123456789", "status": "Printing", "isReachable": true, "printProgressPercent": 42 }
   ]
 }
 ```
+
+**Implementation note (added during Phase 3 build)**: `ipAddress`/`serialNumber` were added to this
+response beyond the original sketch above — `EditPrinterDialog`'s verify-before-save gate needs a
+printer's current IP and serial to prefill/re-verify without a separate detail-endpoint round trip,
+and `GetPrinterDetailEndpoint` doesn't exist until Phase 4 (US2).
 
 ## `GET /api/v1/printers/{id}`
 

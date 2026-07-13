@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -8,6 +9,7 @@ using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Infrastructure.Multitenancy;
 
 namespace OpenFarm.Infrastructure.Printers;
 
@@ -31,6 +33,10 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _activeConnections = new();
 
+    // Resolved once and reused for every scope this service creates — see CreateTenantScope's
+    // remarks for why. Written once from ExecuteAsync before any tenant-scoped work starts.
+    private AppTenantInfo? _tenantInfo;
+
     public PrinterConnectionBackgroundService(
         IServiceScopeFactory scopeFactory,
         ILogger<PrinterConnectionBackgroundService> logger,
@@ -45,6 +51,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await EnsureTenantInfoResolvedAsync(stoppingToken);
         await StartConnectionsForRegisteredPrintersAsync(stoppingToken);
 
         using var timer = new PeriodicTimer(_sweepInterval);
@@ -80,9 +87,49 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         }
     }
 
+    /// <summary>
+    /// Resolves and caches the (single, static) organization's tenant info, once. Safe to call
+    /// repeatedly/concurrently — cheap no-op once cached.
+    /// </summary>
+    private async Task EnsureTenantInfoResolvedAsync(CancellationToken cancellationToken)
+    {
+        if (_tenantInfo is not null)
+        {
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+        _tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
+            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before printer connections start.");
+    }
+
+    /// <summary>
+    /// Creates a DI scope with the organization's tenant context pre-populated. Finbuckle's tenant
+    /// resolution is HTTP-middleware-based (<c>UseMultiTenant()</c>), which never runs for a scope
+    /// this background service creates itself — without this, every tenant-scoped EF query filter
+    /// (e.g. Printers') throws a <see cref="NullReferenceException"/> against a null
+    /// <c>TenantInfo</c>. This is Finbuckle's documented pattern for resolving tenant context outside
+    /// the request pipeline (<see cref="IMultiTenantContextSetter"/>).
+    ///
+    /// Deliberately synchronous (relies on <see cref="EnsureTenantInfoResolvedAsync"/> having already
+    /// cached <see cref="_tenantInfo"/>): the underlying accessor stores its value in an
+    /// <see cref="System.Threading.AsyncLocal{T}"/>, and a value set inside a separately-awaited
+    /// async helper does not flow back out to the caller once that helper's own internal await
+    /// resumes on a captured continuation — only mutations made directly within the same
+    /// synchronous continuation as their use are guaranteed visible.
+    /// </summary>
+    private IServiceScope CreateTenantScope()
+    {
+        var scope = _scopeFactory.CreateScope();
+        var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
+        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(_tenantInfo!);
+        return scope;
+    }
+
     private async Task StartConnectionsForRegisteredPrintersAsync(CancellationToken stoppingToken)
     {
-        using var scope = _scopeFactory.CreateScope();
+        using var scope = CreateTenantScope();
         var repository = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
         var printers = await repository.ListAsync(stoppingToken);
         foreach (var printer in printers)
@@ -95,7 +142,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     {
         try
         {
-            using var scope = _scopeFactory.CreateScope();
+            await EnsureTenantInfoResolvedAsync(connectionToken);
+            using var scope = CreateTenantScope();
             var services = scope.ServiceProvider;
             var printerRepository = services.GetRequiredService<IPrinterRepository>();
             var connectionSecrets = services.GetRequiredService<IConnectionSecretRepository>();
@@ -204,7 +252,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     private async Task SweepUnreachablePrintersAsync(CancellationToken stoppingToken)
     {
-        using var scope = _scopeFactory.CreateScope();
+        using var scope = CreateTenantScope();
         var printerRepository = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
         var publisher = scope.ServiceProvider.GetRequiredService<IPrinterEventPublisher>();
         var printers = await printerRepository.ListAsync(stoppingToken);

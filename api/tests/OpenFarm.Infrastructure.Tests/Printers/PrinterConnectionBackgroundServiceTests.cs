@@ -1,3 +1,4 @@
+using Finbuckle.MultiTenant.Abstractions;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,6 +9,7 @@ using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Printers;
 
 namespace OpenFarm.Infrastructure.Tests.Printers;
@@ -104,6 +106,14 @@ public class PrinterConnectionBackgroundServiceTests
         services.AddSingleton<IPrinterConnector>(connector);
         services.AddSingleton<IActivityLogWriter>(writer);
         services.AddSingleton<IPrinterEventPublisher, NoOpPrinterEventPublisher>();
+
+        // PrinterConnectionBackgroundService resolves these to populate tenant context per scope
+        // (Finbuckle's HTTP-middleware-based resolution never runs for a scope it creates itself).
+        var tenantInfo = new AppTenantInfo { Id = printer.OrganizationId.ToString(), Identifier = "default" };
+        services.AddSingleton<IMultiTenantStore<AppTenantInfo>>(new StubTenantStore(tenantInfo));
+        services.AddSingleton<AsyncLocalMultiTenantContextAccessor<AppTenantInfo>>();
+        services.AddSingleton<IMultiTenantContextSetter>(sp => sp.GetRequiredService<AsyncLocalMultiTenantContextAccessor<AppTenantInfo>>());
+
         return services.BuildServiceProvider();
     }
 
@@ -189,5 +199,22 @@ public class PrinterConnectionBackgroundServiceTests
 
         public Task CameraFrameReceivedAsync(Guid organizationId, Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) =>
             Task.CompletedTask;
+    }
+
+    private sealed class StubTenantStore(AppTenantInfo tenantInfo) : IMultiTenantStore<AppTenantInfo>
+    {
+        public Task<AppTenantInfo?> GetAsync(string id) => Task.FromResult<AppTenantInfo?>(tenantInfo);
+
+        public Task<AppTenantInfo?> GetByIdentifierAsync(string identifier) => Task.FromResult<AppTenantInfo?>(tenantInfo);
+
+        public Task<IEnumerable<AppTenantInfo>> GetAllAsync() => Task.FromResult<IEnumerable<AppTenantInfo>>([tenantInfo]);
+
+        public Task<IEnumerable<AppTenantInfo>> GetAllAsync(int take, int skip) => Task.FromResult<IEnumerable<AppTenantInfo>>([tenantInfo]);
+
+        public Task<bool> AddAsync(AppTenantInfo tenantInfoToAdd) => Task.FromResult(true);
+
+        public Task<bool> UpdateAsync(AppTenantInfo tenantInfoToUpdate) => Task.FromResult(true);
+
+        public Task<bool> RemoveAsync(string identifier) => Task.FromResult(true);
     }
 }

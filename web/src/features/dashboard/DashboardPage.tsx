@@ -3,12 +3,15 @@ import {
   type PrinterTileProps,
 } from '@/components/printer-tile/PrinterTile';
 
-// TODO(Phase 1): replace sampleFleet with a Fleet API query (Orval-generated
-// hook) plus SignalR-driven live updates once printer telemetry exists.
+// TODO(Phase 1 follow-up): replace sampleFleet with a Fleet API query (Orval-generated
+// hook) plus SignalR-driven live updates — the printers feature itself now owns that
+// wiring (web/src/features/printers/PrintersPage.tsx); the dashboard's own summary view
+// is a later phase.
 const sampleFleet: PrinterTileProps[] = [
   {
     name: 'Printer 01',
-    status: 'printing',
+    status: 'Printing',
+    isReachable: true,
     filamentColorHex: '#47bfff',
     progressPercent: 62,
     nozzleTempC: 220,
@@ -17,7 +20,8 @@ const sampleFleet: PrinterTileProps[] = [
   },
   {
     name: 'Printer 02',
-    status: 'printing',
+    status: 'Printing',
+    isReachable: true,
     filamentColorHex: '#863bff',
     progressPercent: 18,
     nozzleTempC: 215,
@@ -26,7 +30,8 @@ const sampleFleet: PrinterTileProps[] = [
   },
   {
     name: 'Printer 03',
-    status: 'attention',
+    status: 'AwaitingClear',
+    isReachable: true,
     filamentColorHex: '#f5a623',
     progressPercent: 84,
     nozzleTempC: 205,
@@ -35,7 +40,8 @@ const sampleFleet: PrinterTileProps[] = [
   },
   {
     name: 'Printer 04',
-    status: 'complete',
+    status: 'AwaitingClear',
+    isReachable: true,
     filamentColorHex: '#3dd68c',
     progressPercent: 100,
     nozzleTempC: 0,
@@ -44,7 +50,8 @@ const sampleFleet: PrinterTileProps[] = [
   },
   {
     name: 'Printer 05',
-    status: 'idle',
+    status: 'Idle',
+    isReachable: true,
     filamentColorHex: '#f1eefa',
     progressPercent: 0,
     nozzleTempC: 25,
@@ -53,7 +60,8 @@ const sampleFleet: PrinterTileProps[] = [
   },
   {
     name: 'Printer 06',
-    status: 'offline',
+    status: 'Idle',
+    isReachable: false,
     filamentColorHex: '#ff5d5d',
     progressPercent: 0,
     nozzleTempC: 0,

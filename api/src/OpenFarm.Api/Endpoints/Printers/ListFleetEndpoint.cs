@@ -15,6 +15,10 @@ public sealed class FleetPrinterResponse
 
     public string ModelCode { get; set; } = string.Empty;
 
+    public string IpAddress { get; set; } = string.Empty;
+
+    public string SerialNumber { get; set; } = string.Empty;
+
     public string Status { get; set; } = string.Empty;
 
     public bool IsReachable { get; set; }
@@ -50,6 +54,8 @@ public sealed class ListFleetEndpoint(IQueryHandler<GetFleetQuery, IReadOnlyList
                     Name = p.Name,
                     Brand = p.Brand,
                     ModelCode = p.ModelCode,
+                    IpAddress = p.IpAddress,
+                    SerialNumber = p.SerialNumber,
                     Status = p.Status.ToString(),
                     IsReachable = p.IsReachable,
                     PrintProgressPercent = p.PrintProgressPercent,

@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LayerStackProgress } from './LayerStackProgress';
-import { type PrinterStatus, STATUS_META } from './status';
+import { OFFLINE_META, type PrinterStatus, STATUS_META } from './status';
 
 export interface PrinterTileProps {
   name: string;
   status: PrinterStatus;
+  isReachable: boolean;
   filamentColorHex: string;
   progressPercent: number;
   nozzleTempC: number;
@@ -22,6 +23,7 @@ function formatEta(etaMinutes: number | null): string {
 export function PrinterTile({
   name,
   status,
+  isReachable,
   filamentColorHex,
   progressPercent,
   nozzleTempC,
@@ -41,12 +43,24 @@ export function PrinterTile({
           />
           <CardTitle className="truncate">{name}</CardTitle>
         </div>
-        <span
-          className={`flex shrink-0 items-center gap-1.5 text-xs font-medium ${meta.textClass}`}
-        >
-          <span className={`size-1.5 rounded-full ${meta.dotClass}`} />
-          {meta.label}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {!isReachable && (
+            <span
+              className={`flex items-center gap-1.5 text-xs font-medium ${OFFLINE_META.textClass}`}
+            >
+              <span
+                className={`size-1.5 rounded-full ${OFFLINE_META.dotClass}`}
+              />
+              {OFFLINE_META.label}
+            </span>
+          )}
+          <span
+            className={`flex items-center gap-1.5 text-xs font-medium ${meta.textClass}`}
+          >
+            <span className={`size-1.5 rounded-full ${meta.dotClass}`} />
+            {meta.label}
+          </span>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <LayerStackProgress status={status} progressPercent={progressPercent} />

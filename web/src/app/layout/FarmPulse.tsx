@@ -1,13 +1,13 @@
 import { STATUS_META } from '@/components/printer-tile/status';
 import { Badge } from '@/components/ui/badge';
 
-// TODO(Phase 1): replace sampleCounts with a live summary derived from the
-// Fleet API / SignalR farm hub once printer telemetry exists.
+// TODO(Phase 1 follow-up): replace sampleCounts with a live summary derived from
+// the fleet API / SignalR farm hub once the dashboard consumes GetFleetQuery.
 const sampleCounts: Array<{ status: keyof typeof STATUS_META; count: number }> =
   [
-    { status: 'printing', count: 4 },
-    { status: 'attention', count: 1 },
-    { status: 'idle', count: 2 },
+    { status: 'Printing', count: 4 },
+    { status: 'AwaitingClear', count: 1 },
+    { status: 'Idle', count: 2 },
   ];
 
 export function FarmPulse() {

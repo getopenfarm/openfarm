@@ -95,12 +95,12 @@
 
 ### Frontend
 
-- [ ] T036 [P] [US1] Remap `web/src/components/printer-tile/status.ts`'s `PrinterStatus` union and `STATUS_META` from `printing/attention/complete/idle/offline` to `Idle`/`Printing`/`AwaitingClear`, and update `web/src/components/printer-tile/PrinterTile.tsx`'s props to take `isReachable` as a separate prop rather than an `offline` status value (per plan.md's Constitution Check note)
-- [ ] T037 [US1] Export `api/openapi.json` from the running API's Swagger endpoint and run `bunx orval` in `web/` to generate typed hooks for the register/verify/edit/remove/list-fleet endpoints into `web/src/lib/api/generated/` — depends on T026, T027, T028, T029, T030
-- [ ] T038 [P] [US1] Implement `AddPrinterDialog.tsx` in `web/src/features/printers/components/` (react-hook-form + zod; calls the verify-connection endpoint on field blur; submit stays disabled until verified, per FR-001a) — depends on T037
-- [ ] T039 [P] [US1] Implement `EditPrinterDialog.tsx` in `web/src/features/printers/components/` (same verify-before-save gating as `AddPrinterDialog`, per FR-002) — depends on T037
-- [ ] T040 [P] [US1] Implement `useFarmHub.ts` in `web/src/features/printers/hooks/` — opens the SignalR connection to `/hubs/farm`, writes `PrinterStatusChanged` payloads into TanStack Query's cache via `setQueryData` for the fleet-list query — depends on T037
-- [ ] T041 [US1] Replace the `PrintersPage.tsx` `ComingSoonPage` stub with the real fleet list (fetches via the Orval-generated fleet query, renders `PrinterTile` per printer, mounts `AddPrinterDialog`/`EditPrinterDialog`, a remove-confirmation action per printer, subscribes via `useFarmHub`) in `web/src/features/printers/PrintersPage.tsx`, updating `PrintersPage.test.tsx` accordingly — depends on T036, T038, T039, T040
+- [X] T036 [P] [US1] Remap `web/src/components/printer-tile/status.ts`'s `PrinterStatus` union and `STATUS_META` from `printing/attention/complete/idle/offline` to `Idle`/`Printing`/`AwaitingClear`, and update `web/src/components/printer-tile/PrinterTile.tsx`'s props to take `isReachable` as a separate prop rather than an `offline` status value (per plan.md's Constitution Check note)
+- [X] T037 [US1] Export `api/openapi.json` from the running API's Swagger endpoint and run `bunx orval` in `web/` to generate typed hooks for the register/verify/edit/remove/list-fleet endpoints into `web/src/lib/api/generated/` — depends on T026, T027, T028, T029, T030
+- [X] T038 [P] [US1] Implement `AddPrinterDialog.tsx` in `web/src/features/printers/components/` (react-hook-form + zod; calls the verify-connection endpoint on field blur; submit stays disabled until verified, per FR-001a) — depends on T037
+- [X] T039 [P] [US1] Implement `EditPrinterDialog.tsx` in `web/src/features/printers/components/` (same verify-before-save gating as `AddPrinterDialog`, per FR-002) — depends on T037
+- [X] T040 [P] [US1] Implement `useFarmHub.ts` in `web/src/features/printers/hooks/` — opens the SignalR connection to `/hubs/farm`, writes `PrinterStatusChanged` payloads into TanStack Query's cache via `setQueryData` for the fleet-list query — depends on T037
+- [X] T041 [US1] Replace the `PrintersPage.tsx` `ComingSoonPage` stub with the real fleet list (fetches via the Orval-generated fleet query, renders `PrinterTile` per printer, mounts `AddPrinterDialog`/`EditPrinterDialog`, a remove-confirmation action per printer, subscribes via `useFarmHub`) in `web/src/features/printers/PrintersPage.tsx`, updating `PrintersPage.test.tsx` accordingly — depends on T036, T038, T039, T040
 
 **Checkpoint**: US1 fully functional and independently testable — SC-001, SC-002, SC-007 and `quickstart.md` Scenarios 1–3 all verifiable.
 

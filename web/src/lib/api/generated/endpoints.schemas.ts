@@ -4,6 +4,62 @@
  * OpenFarm.Api
  * OpenAPI spec version: 1.0.0
  */
+export interface PrinterSummaryResponse {
+  id?: string;
+  name?: string;
+  brand?: string;
+  modelCode?: string;
+  ipAddress?: string;
+  serialNumber?: string;
+  status?: string;
+  isReachable?: boolean;
+}
+
+export interface EditPrinterConnectionRequest {
+  ipAddress?: string;
+  accessCode?: string;
+}
+
+export interface FleetPrinterResponse {
+  id?: string;
+  name?: string;
+  brand?: string;
+  modelCode?: string;
+  ipAddress?: string;
+  serialNumber?: string;
+  status?: string;
+  isReachable?: boolean;
+  /** @nullable */
+  printProgressPercent?: number | null;
+}
+
+export interface ListFleetResponse {
+  printers?: FleetPrinterResponse[];
+}
+
+export interface RegisterPrinterRequest {
+  name?: string;
+  brand?: string;
+  modelCode?: string;
+  ipAddress?: string;
+  serialNumber?: string;
+  accessCode?: string;
+}
+
+export interface RemovePrinterRequest {
+  [key: string]: unknown;
+}
+
+export interface VerifyPrinterConnectionResponse {
+  verified?: boolean;
+}
+
+export interface VerifyPrinterConnectionRequest {
+  ipAddress?: string;
+  serialNumber?: string;
+  accessCode?: string;
+}
+
 export interface PingResponse {
   status?: string;
   version?: string;

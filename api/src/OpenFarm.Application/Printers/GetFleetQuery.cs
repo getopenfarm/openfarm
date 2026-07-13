@@ -9,6 +9,8 @@ public sealed record FleetPrinterSummary(
     string Name,
     string Brand,
     string ModelCode,
+    string IpAddress,
+    string SerialNumber,
     PrinterStatus Status,
     bool IsReachable,
     int? PrintProgressPercent);
