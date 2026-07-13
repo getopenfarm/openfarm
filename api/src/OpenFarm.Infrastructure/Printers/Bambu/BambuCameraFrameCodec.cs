@@ -17,6 +17,14 @@ public static class BambuCameraFrameCodec
     private const int AccessCodeFieldSize = 32;
     public const int AuthBlobSize = HeaderSize + UsernameFieldSize + AccessCodeFieldSize;
 
+    /// <summary>
+    /// Sanity ceiling on top of the wire format's own 0xFFFFFF (~16MB) cap — a single chamber JPEG
+    /// frame is a few hundred KB at most, so a header claiming several MB is either protocol
+    /// desync or a malfunctioning/compromised printer, not a legitimate frame. Enforced by
+    /// <see cref="BambuCameraRelay"/> before allocating the payload buffer.
+    /// </summary>
+    public const int MaxPayloadSize = 4 * 1024 * 1024;
+
     private static readonly byte[] JpegStart = [0xFF, 0xD8, 0xFF, 0xE0];
     private static readonly byte[] JpegEnd = [0xFF, 0xD9];
 

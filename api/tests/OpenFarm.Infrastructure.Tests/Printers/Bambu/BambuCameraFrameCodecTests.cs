@@ -37,6 +37,17 @@ public class BambuCameraFrameCodecTests
     }
 
     [Fact]
+    public void ParsePayloadSize_CanExceedMaxPayloadSize_SoCallersMustEnforceTheCeilingThemselves()
+    {
+        // The wire format's own cap (0xFFFFFF, ~16MB — only 3 of the header's 4 size bytes are
+        // read) sits well above MaxPayloadSize, confirming BambuCameraRelay's own ceiling check
+        // is load-bearing and not redundant with anything the codec already rejects.
+        byte[] header = [0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+        BambuCameraFrameCodec.ParsePayloadSize(header).Should().BeGreaterThan(BambuCameraFrameCodec.MaxPayloadSize);
+    }
+
+    [Fact]
     public void IsValidJpegFrame_WithRealFrameFixture_ReturnsTrue()
     {
         var frame = File.ReadAllBytes(Path.Combine(FixturesDirectory, "sample-camera-frame.jpg"));

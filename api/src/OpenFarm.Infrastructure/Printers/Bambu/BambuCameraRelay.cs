@@ -101,6 +101,11 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
         {
             await ReadExactAsync(sslStream, header, cancellationToken);
             var payloadSize = BambuCameraFrameCodec.ParsePayloadSize(header);
+            if (payloadSize > BambuCameraFrameCodec.MaxPayloadSize)
+            {
+                throw new IOException(
+                    $"Camera frame header claims a {payloadSize}-byte payload, exceeding the {BambuCameraFrameCodec.MaxPayloadSize}-byte sanity ceiling — treating as a desynced/malformed frame.");
+            }
 
             var payload = new byte[payloadSize];
             await ReadExactAsync(sslStream, payload, cancellationToken);
