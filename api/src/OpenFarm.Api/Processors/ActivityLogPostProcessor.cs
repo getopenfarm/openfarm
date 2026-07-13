@@ -27,7 +27,7 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
             return;
         }
 
-        var entityId = ExtractEntityId(context.Response);
+        var entityId = ExtractEntityId(context.Response) ?? ExtractEntityId(context.Request);
         var organizationId = ExtractOrganizationId(httpContext.User);
 
         if (entityId is null || organizationId is null)

@@ -1,13 +1,18 @@
 using FastEndpoints;
+using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.Printers;
 using RemovePrinterHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RemovePrinterCommand, bool>;
 
 namespace OpenFarm.Api.Endpoints.Printers;
 
-public sealed class RemovePrinterRequest
+public sealed class RemovePrinterRequest : IActivityLoggable
 {
     public Guid Id { get; set; }
+
+    public string EntityType => "Printer";
+
+    public string EventType => "PrinterRemoved";
 }
 
 /// <summary>
@@ -25,8 +30,8 @@ public sealed class RemovePrinterEndpoint(RemovePrinterHandler handler) : Endpoi
 
     public override async Task HandleAsync(RemovePrinterRequest req, CancellationToken ct)
     {
-        var id = Route<Guid>("id");
-        await handler.HandleAsync(new RemovePrinterCommand(id), ct);
+        req.Id = Route<Guid>("id");
+        await handler.HandleAsync(new RemovePrinterCommand(req.Id), ct);
 
         await HttpContext.Response.SendNoContentAsync(ct);
     }
