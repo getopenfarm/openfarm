@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { PrinterDetailResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint } from '@/lib/api/generated/printers/printers';
 import { AmsSlotGrid } from './components/AmsSlotGrid';
+import { CameraView } from './components/CameraView';
 import { TelemetryPanel } from './components/TelemetryPanel';
 import { useFarmHub } from './hooks/useFarmHub';
 
@@ -64,6 +65,7 @@ export function PrinterDetailPage() {
               {printer.brand} {printer.modelCode} · {printer.ipAddress}
             </p>
           </div>
+          <CameraView printerId={printer.id ?? ''} />
           <TelemetryPanel telemetry={printer.telemetry ?? {}} />
           <AmsSlotGrid amsUnits={printer.amsUnits ?? []} />
         </>

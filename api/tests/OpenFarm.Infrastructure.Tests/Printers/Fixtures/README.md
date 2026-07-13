@@ -15,6 +15,8 @@ JSON.
 | `awaiting-clear-p1p-no-ams.json` | `pybambu/tests/MOCK-P1PNOAMS.json` | P1P | `FINISH` | Unmodified. No AMS attached. |
 | `awaiting-clear-x1c-multi-ams.json` | `pybambu/tests/MOCK-X1CMULTIAMS.json` | X1C | `FINISH` | Unmodified. Multiple AMS units with populated trays — used for AMS-parsing tests (Phase 4). |
 
+| `sample-camera-frame.jpg` | Hand-constructed | — | — | **Synthetic**, not from pybambu's corpus (it has no binary camera-frame samples, only MQTT JSON). Bytes match research.md §4's `CAMERA_IMAGE` framing exactly (`FF D8 FF E0` start / `FF D9` end magic bytes around a minimal JFIF-shaped body) — protocol-accurate, not physically captured. Used by `BambuCameraFrameCodecTests`. |
+
 Real-hardware validation against a physical Bambu printer remains a required manual step before
 trusting `BambuLanConnector`/`BambuMqttMessageParser`/`BambuCameraRelay` in production — see
 `specs/002-printer-integration/quickstart.md`'s "Physical hardware validation (manual)" section.

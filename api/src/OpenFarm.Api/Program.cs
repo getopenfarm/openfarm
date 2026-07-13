@@ -151,10 +151,12 @@ if (useFakePrinterConnector)
     // background service and short-lived dev/test callers.
     builder.Services.AddSingleton<FakePrinterConnector>();
     builder.Services.AddScoped<IPrinterConnector>(sp => sp.GetRequiredService<FakePrinterConnector>());
+    builder.Services.AddScoped<IPrinterCameraRelay, FakePrinterCameraRelay>();
 }
 else
 {
     builder.Services.AddScoped<IPrinterConnector, BambuLanConnector>();
+    builder.Services.AddScoped<IPrinterCameraRelay, BambuCameraRelay>();
 }
 
 builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();

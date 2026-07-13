@@ -179,6 +179,12 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 printer.SerialNumber,
                 secretProtector.Unprotect(secret.EncryptedAccessCode));
 
+            if (PrinterModelCatalog.TryResolve(printer.Brand, printer.ModelCode, out var model)
+                && model!.CameraTransport == CameraTransport.BinaryImage)
+            {
+                _ = RunCameraLoopAsync(printerId, details, connectionToken);
+            }
+
             await foreach (var connectorEvent in connector.ConnectAsync(details, connectionToken))
             {
                 await HandleEventAsync(printer, connectorEvent, services, connectionToken);
@@ -198,6 +204,42 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             {
                 cts.Dispose();
             }
+        }
+    }
+
+    /// <summary>
+    /// Runs alongside <see cref="RunConnectionLoopAsync"/> in its own DI scope/Printer instance —
+    /// never sharing the MQTT loop's DbContext, since two loops concurrently mutating/saving the
+    /// same tracked entity from the same scope isn't safe. Cancelled together with the MQTT loop via
+    /// the shared <paramref name="connectionToken"/>.
+    /// </summary>
+    private async Task RunCameraLoopAsync(Guid printerId, PrinterConnectionDetails details, CancellationToken connectionToken)
+    {
+        try
+        {
+            using var scope = CreateTenantScope();
+            var services = scope.ServiceProvider;
+            var printerRepository = services.GetRequiredService<IPrinterRepository>();
+            var cameraRelay = services.GetRequiredService<IPrinterCameraRelay>();
+
+            var printer = await printerRepository.GetByIdAsync(printerId, connectionToken);
+            if (printer is null)
+            {
+                return;
+            }
+
+            await foreach (var frame in cameraRelay.StreamFramesAsync(details, connectionToken))
+            {
+                await HandleEventAsync(printer, new PrinterConnectorEvent(DateTimeOffset.UtcNow, CameraFrameJpeg: frame), services, connectionToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on shutdown or StopConnection().
+        }
+        catch (Exception ex)
+        {
+            LogCameraLoopFailed(_logger, printerId, ex);
         }
     }
 
@@ -301,4 +343,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Printer {PrinterId} connection loop terminated unexpectedly.")]
     private static partial void LogConnectionLoopFailed(ILogger logger, Guid printerId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Printer {PrinterId} camera loop terminated unexpectedly.")]
+    private static partial void LogCameraLoopFailed(ILogger logger, Guid printerId, Exception exception);
 }

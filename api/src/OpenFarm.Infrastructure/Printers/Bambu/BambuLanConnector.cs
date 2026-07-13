@@ -1,6 +1,4 @@
-using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Channels;
 using MQTTnet;
@@ -196,47 +194,8 @@ public sealed class BambuLanConnector : IPrinterConnector
                 .WithSslProtocols(System.Security.Authentication.SslProtocols.Tls12))
             .Build();
 
-    private static bool ValidateServerCertificate(MqttClientCertificateValidationEventArgs args)
-    {
-        if (args.Certificate is not X509Certificate2 serverCertificate)
-        {
-            return false;
-        }
-
-        using var chain = new X509Chain();
-        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-        chain.ChainPolicy.CustomTrustStore.AddRange(BundledTrustedCertificates.Value);
-        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-        // Bambu's certs may lack a Key Usage extension — pybambu clears VERIFY_X509_STRICT for the
-        // same reason (research.md §1); hostname is intentionally never checked (printers are
-        // addressed by LAN IP, matching pybambu's check_hostname = False).
-        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.IgnoreInvalidBasicConstraints;
-
-        return chain.Build(serverCertificate);
-    }
-
-    private static readonly Lazy<X509Certificate2Collection> BundledTrustedCertificates = new(LoadBundledCertificates);
-
-    private static X509Certificate2Collection LoadBundledCertificates()
-    {
-        var collection = new X509Certificate2Collection();
-        var assembly = Assembly.GetExecutingAssembly();
-
-        foreach (var resourceName in assembly.GetManifestResourceNames().Where(n => n.EndsWith(".cert", StringComparison.Ordinal)))
-        {
-            using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream is null)
-            {
-                continue;
-            }
-
-            using var memory = new MemoryStream();
-            stream.CopyTo(memory);
-            collection.Add(X509CertificateLoader.LoadCertificate(memory.ToArray()));
-        }
-
-        return collection;
-    }
+    private static bool ValidateServerCertificate(MqttClientCertificateValidationEventArgs args) =>
+        BambuCertificateTrust.Validate(args.Certificate);
 
     private static string ReportTopic(string serialNumber) => $"device/{serialNumber}/report";
 

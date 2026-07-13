@@ -29,6 +29,25 @@ interface PrinterTelemetryUpdatedPayload {
   amsUnits: AmsUnitResponse[];
 }
 
+interface CameraFrameReceivedPayload {
+  printerId: string;
+  frameJpegBase64: string;
+}
+
+export interface CameraFrameQueryData {
+  frameJpegBase64: string;
+  receivedAtUtc: number;
+}
+
+/**
+ * Not backed by any HTTP endpoint — CameraFrameReceived is push-only (contracts/farm-hub.md), so
+ * this cache slot exists purely as a place for useFarmHub to write frames and CameraView to read
+ * them reactively, same TanStack Query cache used for every other real-time update in this app.
+ */
+export function cameraFrameQueryKey(printerId: string) {
+  return ['printer-camera-frame', printerId] as const;
+}
+
 type FleetQueryData = {
   data: ListFleetResponse;
   status: number;
@@ -43,9 +62,9 @@ type DetailQueryData = {
 /**
  * Opens the /hubs/farm SignalR connection and writes incoming events directly into TanStack
  * Query's cache (contracts/farm-hub.md) — the sole real-time entry point, no polling fallback.
- * Wires PrinterStatusChanged into the fleet-list query, and both PrinterStatusChanged and
- * PrinterTelemetryUpdated into the printer-detail query when that printer's detail is cached.
- * Phase 5 extends this hook further for CameraFrameReceived.
+ * Wires PrinterStatusChanged into the fleet-list query, both PrinterStatusChanged and
+ * PrinterTelemetryUpdated into the printer-detail query when that printer's detail is cached, and
+ * CameraFrameReceived into the dedicated cameraFrameQueryKey cache slot CameraView reads from.
  */
 export function useFarmHub() {
   const queryClient = useQueryClient();
@@ -131,6 +150,19 @@ export function useFarmHub() {
                 amsUnits: payload.amsUnits,
               },
             };
+          },
+        );
+      },
+    );
+
+    connection.on(
+      'CameraFrameReceived',
+      (payload: CameraFrameReceivedPayload) => {
+        queryClient.setQueryData<CameraFrameQueryData>(
+          cameraFrameQueryKey(payload.printerId),
+          {
+            frameJpegBase64: payload.frameJpegBase64,
+            receivedAtUtc: Date.now(),
           },
         );
       },
