@@ -1,30 +1,50 @@
-import { useMatches } from 'react-router';
+import { SidebarLayoutToggle } from '@/components/sidebar-layout-toggle/SidebarLayoutToggle';
 import { ThemeToggle } from '@/components/theme-toggle';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { FarmPulse } from './FarmPulse';
-
-interface RouteHandle {
-  title?: string;
-}
-
-function usePageTitle(): string {
-  const matches = useMatches() as Array<{ handle?: unknown }>;
-  for (let i = matches.length - 1; i >= 0; i--) {
-    const handle = matches[i].handle as RouteHandle | undefined;
-    if (handle?.title) return handle.title;
-  }
-  return 'OpenFarm';
-}
+import { useBreadcrumb } from './useBreadcrumb';
 
 export function TitleBar() {
-  const title = usePageTitle();
+  const { root, leaf } = useBreadcrumb();
 
   return (
-    <header className="flex h-12 items-center gap-2 border-b px-4">
+    <header className="flex h-[52px] shrink-0 items-center gap-3 border-b px-4">
       <SidebarTrigger />
-      <h1 className="font-heading text-sm font-semibold">{title}</h1>
-      <div className="ml-auto flex items-center gap-2">
+      <Separator orientation="vertical" className="h-5" />
+      <Breadcrumb>
+        <BreadcrumbList className="flex-nowrap text-sm">
+          {root ? (
+            <>
+              <BreadcrumbItem className="text-muted-foreground">
+                {root}
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+            </>
+          ) : null}
+          <BreadcrumbItem>
+            <BreadcrumbPage className="font-heading font-semibold text-foreground">
+              {leaf}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      <div className="ml-auto flex items-center gap-3">
         <FarmPulse />
+        <Separator orientation="vertical" className="h-5" />
+        <div className="hidden items-center gap-2 md:flex">
+          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Sidebar
+          </span>
+          <SidebarLayoutToggle />
+        </div>
         <ThemeToggle />
       </div>
     </header>

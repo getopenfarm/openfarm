@@ -1,4 +1,11 @@
-import { LogOutIcon, UserIcon } from 'lucide-react';
+import {
+  HistoryIcon,
+  LogOutIcon,
+  PanelLeftCloseIcon,
+  PanelLeftIcon,
+  SettingsIcon,
+  UserIcon,
+} from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -18,15 +25,37 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/lib/auth/useAuth';
+import { usePreferences } from '@/lib/preferences/usePreferences';
 import { Logo } from './Logo';
-import { navSections } from './nav-config';
+import { flatNavItems, type NavItem, navSections } from './nav-config';
+
+function NavLink({ item }: { item: NavItem }) {
+  const { pathname } = useLocation();
+  const isActive =
+    item.url === '/' ? pathname === '/' : pathname.startsWith(item.url);
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild tooltip={item.title} isActive={isActive}>
+        <Link to={item.url}>
+          <item.icon />
+          <span>{item.title}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
 
 export function AppSidebar() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { toggleSidebar, state } = useSidebar();
+  const {
+    preferences: { sidebarVariant },
+  } = usePreferences();
 
   function handleLogout() {
     auth.logout();
@@ -39,32 +68,43 @@ export function AppSidebar() {
         <Logo />
       </SidebarHeader>
       <SidebarContent>
-        {navSections.map((section) => (
-          <SidebarGroup key={section.label}>
-            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+        {sidebarVariant === 'flat' || sidebarVariant === 'rail' ? (
+          <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {section.items.map((item) => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      isActive={pathname === item.url}
-                    >
-                      <Link to={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                {flatNavItems.map((item) => (
+                  <NavLink key={item.url} item={item} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        ))}
+        ) : (
+          navSections.map((section) => (
+            <SidebarGroup key={section.label}>
+              <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {section.items.map((item) => (
+                    <NavLink key={item.url} item={item} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))
+        )}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <NavLink
+            item={{
+              title: 'Activity Log',
+              url: '/activity-log',
+              icon: HistoryIcon,
+            }}
+          />
+          <NavLink
+            item={{ title: 'Settings', url: '/settings', icon: SettingsIcon }}
+          />
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -85,6 +125,21 @@ export function AppSidebar() {
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
+          {sidebarVariant === 'rail' && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip={state === 'collapsed' ? 'Expand' : 'Collapse'}
+                onClick={toggleSidebar}
+              >
+                {state === 'collapsed' ? (
+                  <PanelLeftIcon />
+                ) : (
+                  <PanelLeftCloseIcon />
+                )}
+                <span>{state === 'collapsed' ? 'Expand' : 'Collapse'}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
