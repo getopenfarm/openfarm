@@ -70,8 +70,8 @@
 }
 
 :root {
-  /* brand — same hue in both modes */
-  --brand: #863bff;
+  /* brand — same hue in both modes (mockup "Cobalt" accent) */
+  --brand: #2563eb;
   --brand-cyan: #47bfff;
 
   --background: #faf9fc;
@@ -124,7 +124,7 @@
   --kind-green: var(--status-complete);
   --kind-amber: var(--status-attention);
   --kind-red: var(--status-offline);
-  --kind-violet: var(--brand);
+  --kind-violet: #7c3aed;
   --kind-blue: var(--brand-cyan);
   --kind-orange: color-mix(in oklch, #f5a623 55%, #ff5d5d 45%);
 

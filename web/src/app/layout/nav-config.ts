@@ -72,8 +72,4 @@ export const navSections: NavSection[] = [
   { label: 'Library', items: [parts, assemblies, profiles, maintenance] },
 ];
 
-export const flatNavItems: NavItem[] = navSections.flatMap(
-  (section) => section.items,
-);
-
 export const bottomNavItems: NavItem[] = [activityLog];

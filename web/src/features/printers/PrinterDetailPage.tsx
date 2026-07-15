@@ -14,9 +14,10 @@ import {
 } from '@/lib/api/generated/printers/printers';
 import { AmsSlotGrid } from './components/AmsSlotGrid';
 import { CameraView } from './components/CameraView';
+import { CurrentJobCard } from './components/CurrentJobCard';
 import { EditPrinterDialog } from './components/EditPrinterDialog';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
-import { TelemetryPanel } from './components/TelemetryPanel';
+import { RecentActivityCard } from './components/RecentActivityCard';
 import { printerStatusToBadge } from './lib/printerStatusBadge';
 
 export function PrinterDetailPage() {
@@ -90,9 +91,19 @@ export function PrinterDetailPage() {
               onOpenSettings={() => setSettingsOpen(true)}
             />
           </div>
-          <CameraView printerId={printer.id ?? ''} />
-          <TelemetryPanel telemetry={printer.telemetry ?? {}} />
-          <AmsSlotGrid amsUnits={printer.amsUnits ?? []} />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
+            <div className="flex flex-col gap-4">
+              <CameraView
+                printerId={printer.id ?? ''}
+                telemetry={printer.telemetry ?? {}}
+              />
+              <CurrentJobCard telemetry={printer.telemetry ?? {}} />
+            </div>
+            <div className="flex flex-col gap-4">
+              <AmsSlotGrid amsUnits={printer.amsUnits ?? []} />
+              <RecentActivityCard printerId={printer.id ?? ''} />
+            </div>
+          </div>
           <EditPrinterDialog
             printerId={printer.id ?? ''}
             printerName={printer.name ?? ''}

@@ -1,4 +1,3 @@
-import { SidebarLayoutToggle } from '@/components/sidebar-layout-toggle/SidebarLayoutToggle';
 import {
   Card,
   CardContent,
@@ -21,19 +20,10 @@ export function AppearanceCard() {
       <CardHeader>
         <CardTitle>Appearance</CardTitle>
         <CardDescription>
-          Sidebar layout and table density — saved to this browser.
+          Table density — saved to this browser.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium">Sidebar layout</p>
-            <p className="text-xs text-muted-foreground">
-              Flat, grouped, or rail (icon-only) navigation.
-            </p>
-          </div>
-          <SidebarLayoutToggle />
-        </div>
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium">Density</p>
