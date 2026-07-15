@@ -4,7 +4,7 @@ import {
   DEFAULT_VIEW_MODE,
   PREFERENCES_STORAGE_KEY,
 } from './defaultPreferences';
-import type { Density, ListPageKey, Preferences, ViewMode } from './types';
+import type { ListPageKey, Preferences, ViewMode } from './types';
 
 function loadPreferences(): Preferences {
   if (typeof window === 'undefined') return DEFAULT_PREFERENCES;
@@ -36,7 +36,6 @@ function savePreferences(preferences: Preferences) {
 
 interface PreferencesContextValue {
   preferences: Preferences;
-  setDensity: (density: Density) => void;
   getListView: (page: ListPageKey) => ViewMode;
   setListView: (page: ListPageKey, mode: ViewMode) => void;
 }
@@ -54,14 +53,9 @@ export function PreferencesProvider({
     savePreferences(preferences);
   }, [preferences]);
 
-  useEffect(() => {
-    document.documentElement.dataset.density = preferences.density;
-  }, [preferences.density]);
-
   const value = useMemo<PreferencesContextValue>(
     () => ({
       preferences,
-      setDensity: (density) => setPreferences((prev) => ({ ...prev, density })),
       getListView: (page) => preferences.listViews[page] ?? DEFAULT_VIEW_MODE,
       setListView: (page, mode) =>
         setPreferences((prev) => ({

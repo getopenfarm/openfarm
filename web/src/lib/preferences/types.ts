@@ -1,4 +1,3 @@
-export type Density = 'comfortable' | 'compact';
 export type ViewMode = 'table' | 'grid';
 
 export type ListPageKey =
@@ -12,6 +11,5 @@ export type ListPageKey =
   | 'maintenance';
 
 export interface Preferences {
-  density: Density;
   listViews: Partial<Record<ListPageKey, ViewMode>>;
 }

@@ -6,7 +6,6 @@
 @import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
-@custom-variant compact (&:is([data-density="compact"] *));
 
 @theme inline {
   --font-sans: "Geist Variable", sans-serif;

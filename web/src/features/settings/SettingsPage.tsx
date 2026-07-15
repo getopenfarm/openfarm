@@ -6,12 +6,10 @@ import {
   CardDescription,
   CardTitle,
 } from '@/components/ui/card';
-import { AppearanceCard } from './components/AppearanceCard';
 
 export function SettingsPage() {
   return (
     <div className="flex flex-col gap-4">
-      <AppearanceCard />
       <Link to="/settings/connection-secrets" className="block">
         <Card className="transition-colors hover:bg-accent">
           <CardContent className="flex items-center gap-3">
