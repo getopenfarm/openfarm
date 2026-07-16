@@ -83,14 +83,30 @@ resolved case. This two-pass approach is a plain, deterministic algorithm — a 
 tested against synthetic in-batch/prior-import/unresolved fixtures rather than needing real slicer
 files.
 
-## 4. Preview/confirm flow — stateless, no server-side staging entity
+## 4. Preview/confirm flow — stateless, no server-side staging entity, no client-trusted payload
 
 **Decision**: the review-before-persist step (FR-003/FR-004) is implemented as two independent HTTP
-calls with **no server-side staging table** in between: `POST /profiles/imports/preview` parses the
-uploaded archive and returns the full extracted preset list (all fields, all presets) without writing
-anything to the database; `POST /profiles/imports/confirm` takes the *client-echoed* subset of that
-same preview payload the operator selected (plus a per-preset skip/import-as-new choice for anything
-flagged as a duplicate) and is the only call that writes rows.
+calls with **no server-side staging table** in between, and **confirm never trusts client-supplied
+preset content** — only the operator's *selection decision*. `POST /profiles/imports/preview` parses
+the uploaded archive and returns the full extracted preset list (all fields, all presets, for the
+review-list UI to render) without writing anything to the database. `POST /profiles/imports/confirm`
+re-uploads the **same file** alongside a compact list of `(type, name)` keys identifying which presets
+the operator selected, plus a duplicate-resolution choice for any flagged as duplicates at preview
+time. The confirm handler re-parses the re-uploaded file with the exact same `IProfileBundleParser`
+used at preview and persists only the presets whose keys appear in the selection list — every typed
+field and every byte of `RawDataJson` written to the database comes from the server's own fresh parse
+of the file, never from a client-echoed value.
+
+**Revision note**: an earlier version of this design had confirm accept a full client-echoed copy of
+each selected preset's data (every typed field plus `RawDataJson`) instead of re-uploading the file.
+That was rejected on review: it meant the server would persist whatever preset content a client
+claimed was in the bundle, with no guarantee it actually came from the uploaded archive — a real
+integrity gap, not just a style preference, even though the blast radius is limited (an authenticated
+org member can already write arbitrary profile JSON via the FR-012 raw-JSON editor after import, so
+this wasn't a new *capability*, just an unnecessary loophole for the confirm step specifically). Making
+confirm re-parse from the source file instead closes that gap for free and, as a side effect, shrinks
+the confirm request payload — the client only ever needs to say *which* presets it wants, never repeat
+their content back (see `data-model.md`'s `SelectedProfileKey` shape).
 
 **Alternatives considered and rejected**: a persisted `PendingImportBatch` entity (parse once, store the
 extracted-but-unconfirmed presets server-side, reference by an opaque batch id from the confirm call)
@@ -100,11 +116,10 @@ spec.md's own edge case: "if the operator's session or upload is interrupted par
 large bundle, no partial set of profiles should be left in the catalog." A stateless round-trip
 satisfies that by construction — there's no server-side state to leak partially — while a staging table
 would need its own cleanup/TTL story (abandoned batches, multi-tab conflicts) that nothing else in this
-phase needs. A typical bundle is under 50 presets (SC-001) of modest JSON each, well within a normal
-JSON POST body size, so round-tripping the full preview payload back on confirm carries no real
-size risk. If import volume grows enough in a later phase to make this cost real, revisiting toward a
-staging entity is a contained, isolated change — exactly the kind of extension point the constitution
-asks for, not one built speculatively now.
+phase needs. Re-parsing the file twice (once at preview, once at confirm) is a second, smaller way to
+get the same "no leaked partial state" property without a staging table, and it's cheap: bundles are
+capped well under any real size concern (SC-001, under 50 presets), so a second parse pass costs
+nothing worth optimizing away.
 
 **Consequence for FR-006** (warn when a selected override's base is present in the bundle but not
 selected): this check needs zero backend round-trip — the frontend already holds the full preview
@@ -112,30 +127,47 @@ array (every preset's name, type, and declared base name) and the operator's liv
 the warning is computed and rendered client-side as checkboxes change, confirmed in `contracts/` and
 `quickstart.md`.
 
+**Consistency check at confirm time**: if the operator re-selects a different file than the one they
+previewed (or the same file's content somehow parses differently — shouldn't happen for a static
+upload, but the check is cheap insurance), some selected `(type, name)` keys from the browser's
+retained preview state may not appear in the freshly re-parsed result. The confirm handler treats this
+as a client-input error (422), not a partial best-effort import — silently dropping unmatched
+selections would be a surprising, hard-to-notice partial import, worse than a clear rejection asking
+the operator to re-preview.
+
 ## 5. Duplicate detection (FR-009)
 
 **Decision**: computed server-side during the *preview* call (not confirm), since it requires a
 database lookup the frontend can't do on its own — for every parsed preset, the preview handler queries
 existing `MachineProfile`/`FilamentProfile` rows in the organization by exact `(Name)` match within the
 same profile type, and marks `IsDuplicate: true` on the preview item if found. The operator's
-skip/import-as-new choice per duplicate is carried through the client-echoed confirm payload (§4) as an
-explicit `DuplicateAction` enum, not re-derived at confirm time — avoids a race where the catalog
-changes between preview and confirm producing a different duplicate verdict than what the operator saw
-and decided against.
+skip/import-as-new *choice* per duplicate is the one piece of preset-level information the confirm
+payload carries beyond the bare selection key (§4) — an explicit `DuplicateAction` enum attached to
+that preset's key, not re-derived at confirm time. This is a deliberate exception to "confirm never
+carries preset content, only selection" (§4): a decision the operator already made isn't content to
+re-derive, and re-checking duplicate status fresh at confirm time would risk a different verdict than
+what the operator actually saw and decided against (e.g. someone else on the team imported the same
+name in between).
 
 ## 6. File upload mechanics (FastEndpoints)
 
-**Decision**: `POST /api/v1/profiles/imports/preview` is a FastEndpoints endpoint with
+**Decision**: both `POST /api/v1/profiles/imports/preview` **and** `POST
+/api/v1/profiles/imports/confirm` (per §4's revised design) are FastEndpoints endpoints with
 `AllowFileUploads()` in `Configure()` and a request DTO exposing a single `IFormFile File` property —
 FastEndpoints binds `multipart/form-data` uploads to `IFormFile`-typed request properties directly,
 confirmed against the framework's own file-handling docs and demo repo
 ([FastEndpoints: File Handling](https://fast-endpoints.com/docs/file-handling),
-[FastEndpoints/File-Handling-Demo](https://github.com/FastEndpoints/File-Handling-Demo)). A bundle is
-a small file (SC-001's "typical bundle" scope, dozens of presets, not gigabytes), so the simple
-auto-buffered `IFormFile` binding is sufficient — no need for the streaming
-`AllowFileUploads(dontAutoBindFormData: true)` + `FormFileSectionsAsync()` path FastEndpoints offers
-for large uploads. `MaxRequestBodySize()` is set to a conservative cap (e.g. 20 MB) generous for any
-realistic slicer bundle while still bounding worst-case memory use from an oversized/malicious upload.
+[FastEndpoints/File-Handling-Demo](https://github.com/FastEndpoints/File-Handling-Demo)). Confirm's
+request DTO adds one more bound field alongside `File`: a `Selections` property (a JSON-encoded string
+form field, deserialized manually in the handler — FastEndpoints multipart binding covers the file
+part, not nested JSON structures, so the selection list travels as a plain string field rather than a
+second exotic binding). A bundle is a small file (SC-001's "typical bundle" scope, dozens of presets,
+not gigabytes), so the simple auto-buffered `IFormFile` binding is sufficient for both endpoints — no
+need for the streaming `AllowFileUploads(dontAutoBindFormData: true)` + `FormFileSectionsAsync()` path
+FastEndpoints offers for large uploads. `MaxRequestBodySize()` is set to a conservative cap (e.g. 20
+MB) generous for any realistic slicer bundle while still bounding worst-case memory use from an
+oversized/malicious upload — applied to both endpoints identically, since confirm receives the same
+file preview did.
 
 ## 7. Extension to the activity-log post-processor for bulk-created entities
 
@@ -179,8 +211,8 @@ actual exported JSON" category of unknown.
 | `bundle_structure.json` exact schema | Not required for correctness — subfolder-based classification is primary, manifest is optional cross-check (§1); real-sample fixture verification deferred to implementation, not a plan blocker |
 | Parser placement/testing strategy | `Infrastructure`, fixture-replay/test-after, mirrors `BambuMqttMessageParser` precedent (§2) |
 | Base/override resolution algorithm | Two-pass, TDD, in `ConfirmProfileImportCommandHandler` (§3) |
-| Preview/confirm state management | Stateless round-trip, no staging entity (§4) |
-| Duplicate detection timing | Server-side at preview; resolution choice carried through confirm payload (§5) |
-| File upload binding | FastEndpoints `AllowFileUploads()` + `IFormFile` (§6) |
+| Preview/confirm state management | Stateless round-trip, no staging entity; confirm re-uploads the file and re-parses rather than trusting echoed content (§4) |
+| Duplicate detection timing | Server-side at preview; only the skip/import-as-new *decision* (not preset content) is carried through the confirm payload (§5) |
+| File upload binding | FastEndpoints `AllowFileUploads()` + `IFormFile`, used by both preview and confirm (§6) |
 | Bulk activity-log coverage | `IHasEntityIds` extension to the existing post-processor (§7) |
 | Live-integration flag | Best-effort match against Phase 1's `PrinterModelCatalog` (§8) |

@@ -62,36 +62,23 @@ open/parse:
 ## `POST /api/v1/profiles/imports/confirm`
 
 Persist exactly the presets the operator selected (FR-004). Stateless relative to the preview call —
-the client echoes back the selected preview items verbatim (`research.md` §4); nothing is looked up by
-a batch id because no batch id exists.
+**re-uploads the same file** and re-parses it server-side rather than trusting client-echoed preset
+content (`research.md` §4's revision note); nothing is looked up by a batch id because no batch id
+exists, and no preset field crosses the wire except the operator's selection and duplicate-resolution
+decisions.
 
-**Request**
+**Request**: `multipart/form-data`
+- `file` — the same bundle uploaded to `preview`.
+- `selections` — a JSON-encoded string field (FastEndpoints binds the file part natively; the
+  selection list travels as a plain string form field, `research.md` §6):
 ```jsonc
-{
-  "sourceFileName": "MyProfiles.zip",
-  "machinePresets": [
-    {
-      "name": "Bambu Lab X1 Carbon 0.4 nozzle", "sourceFormat": "OrcaSlicer",
-      "nozzleSizeMm": 0.4, "bedSizeXMm": 256, "bedSizeYMm": 256, "maxHeightMm": 256,
-      "hasEnclosure": true, "supportedMaterials": ["PLA", "PETG", "ABS", "TPU"],
-      "supportsLiveIntegration": true, "baseProfileName": null, "rawDataJson": "{ ... }",
-      "duplicateAction": null
-    }
-  ],
-  "filamentPresets": [
-    {
-      "name": "Bambu PLA Basic – Red", "sourceFormat": "OrcaSlicer",
-      "material": "PLA", "brand": "Bambu", "colorHex": "C12E1FFF",
-      "nozzleSizeMm": 0.4, "nozzleTempC": 220, "bedTempC": 55,
-      "maxVolumetricSpeedMm3s": 15, "fanPercent": 100,
-      "baseProfileName": "Bambu PLA Basic", "rawDataJson": "{ ... }",
-      "duplicateAction": "ImportAsNew"
-    }
-  ]
-}
+[
+  { "type": "Machine", "name": "Bambu Lab X1 Carbon 0.4 nozzle", "duplicateAction": null },
+  { "type": "Filament", "name": "Bambu PLA Basic – Red", "duplicateAction": "ImportAsNew" }
+]
 ```
-`duplicateAction` is required (`"Skip"` or `"ImportAsNew"`) for any item whose preview response had
-`isDuplicate: true`; null/omitted otherwise. An item with `duplicateAction: "Skip"` is not created.
+`duplicateAction` is required (`"Skip"` or `"ImportAsNew"`) for any key whose preview response had
+`isDuplicate: true`; null/omitted otherwise. A key with `duplicateAction: "Skip"` is not created.
 
 **Response 201**
 ```jsonc
@@ -102,6 +89,14 @@ a batch id because no batch id exists.
 ```
 Every created id in both arrays is what the extended `ActivityLogPostProcessor` (`research.md` §7)
 iterates to write one `ActivityLogEntry` per profile, `EventType: "ProfileImported"`.
+
+**Response 422** — a `selections` key's `(type, name)` doesn't match anything in the freshly re-parsed
+`file` (`research.md` §4's consistency check — most often means the operator uploaded a different file
+than the one they previewed):
+```jsonc
+{ "type": "...", "title": "Selection does not match the uploaded bundle", "status": 422,
+  "detail": "No Filament preset named 'Bambu PLA Basic – Red' was found in the re-parsed bundle. Re-run preview and try again." }
+```
 
 ## `GET /api/v1/profiles/machine`
 

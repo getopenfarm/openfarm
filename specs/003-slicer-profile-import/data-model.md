@@ -102,11 +102,25 @@ Carries every `MachineProfile`/`FilamentProfile` column above (minus `Id`, `Orga
 | `IsDuplicate` | `bool` | Set by the preview handler per `research.md` §5. |
 | `IsBaseSelectableInBundle` | n/a — **not a backend field** | FR-006's "base present in bundle but not selected" warning is computed entirely client-side from the full preview array + live selection state (`research.md` §4) — deliberately not a server-computed field, since it changes on every checkbox click and round-tripping to the server for it would violate Constitution Principle V (no needless network round-trips for something derivable from data already in hand). |
 
-### `SelectedProfileImport` (confirm request items)
+This full shape exists **only** for the preview response, to render the review-list UI. It is never
+sent back to the server — confirm identifies presets by key alone (below), and the server re-derives
+every one of these fields itself from a fresh parse (`research.md` §4's revision note). Keeping this
+distinction sharp is the point of the split: one shape is "what the review list displays," the other is
+"what the operator decided," and only the second one crosses back over the wire.
 
-The client echoes back the exact fields of the `ParsedMachinePreset`/`ParsedFilamentPreset` entries the
-operator selected, plus:
+### `SelectedProfileKey` (confirm request items — deliberately minimal)
+
+Per `research.md` §4, confirm re-uploads the original file and re-parses it server-side rather than
+trusting client-supplied preset content, so the request only needs enough to (a) identify which
+already-parsed presets to keep and (b) carry the one genuine decision the server can't re-derive — the
+duplicate resolution choice:
 
 | Field | Type | Notes |
 |---|---|---|
-| `DuplicateAction` | enum: `Skip` \| `ImportAsNew` | Required only when the echoed item's `IsDuplicate` was `true` at preview time; ignored otherwise. `Skip` means the handler does not create a row for this item at all. |
+| `Type` | enum: `Machine` \| `Filament` | Which catalog/array the `Name` below is scoped to. |
+| `Name` | `string` | Matched against the freshly re-parsed bundle's preset names within `Type`. A key with no match in the re-parse is a 422 (`research.md` §4's consistency check), not a silently skipped item. |
+| `DuplicateAction` | enum: `Skip` \| `ImportAsNew` | Required only when this preset was flagged `IsDuplicate: true` in the preview response; ignored otherwise. `Skip` means the handler does not create a row for this item at all. |
+
+No typed spec fields, no `RawDataJson`, no `BaseProfileName` — all of that is re-derived server-side
+from the re-uploaded file using the same `IProfileBundleParser` call preview used, never taken from the
+request body.

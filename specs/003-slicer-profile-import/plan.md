@@ -13,11 +13,13 @@ uploading an OrcaSlicer or Bambu Studio slicer-bundle archive (`.zip`, `.orca_pr
 `.orca_filament`, `.bbscfg`, `.bbsflmt`). The backend parses whichever machine/filament presets it
 recognizes out of the zip-format archive and returns them in a stateless preview response; the operator
 selects which ones to keep in a review list (client-side, no server-side staging entity); a second,
-separate confirm call persists only the selected presets, resolving each preset's declared base/override
-relationship into a self-referencing FK where the base is resolvable and preserving the base's name as
-an unresolved reference otherwise. Imported profiles are viewable in two separate catalog lists and
-editable only through a raw JSON viewer/editor — no structured per-field forms, no printer/job linkage,
-consistent with this phase's deliberately narrow scope per `docs/FEATURE_PLAN.md` Phase 2.
+separate confirm call re-uploads the same file and re-parses it server-side, persisting only the
+presets the operator selected (identified by a compact key, never by re-trusting client-supplied preset
+content) and resolving each preset's declared base/override relationship into a self-referencing FK
+where the base is resolvable, preserving the base's name as an unresolved reference otherwise. Imported
+profiles are viewable in two separate catalog lists and editable only through a raw JSON viewer/editor
+— no structured per-field forms, no printer/job linkage, consistent with this phase's deliberately
+narrow scope per `docs/FEATURE_PLAN.md` Phase 2.
 
 ## Technical Context
 
@@ -38,7 +40,9 @@ already in `web/src/components/`.
 `BaseProfileId` + durable `BaseProfileName`, `RawDataJson` jsonb) — see `data-model.md`. No changes to
 any Phase 0/1 table. No "import batch" table — the review step is a stateless round-trip
 (`research.md` §4), a deliberate rejection of a staging entity per the constitution's
-anti-speculation principle.
+anti-speculation principle; confirm re-uploads and re-parses the source file rather than persisting a
+client-echoed copy of it, so the transient confirm-request shape carries only selection keys, not
+duplicated preset data (`data-model.md`'s `SelectedProfileKey`).
 
 **Testing**: TDD (xUnit + FluentAssertions) for the base/override two-pass resolution algorithm and
 duplicate-name detection (`OpenFarm.Application.Tests` — pure, deterministic, well-specified logic, the
@@ -112,7 +116,11 @@ spec's FR-015 and Assumptions).
   the `IHasEntityIds` extension to `ActivityLogPostProcessor` (`research.md` §7) so a single
   bulk-confirm HTTP call still logs one entry per created profile structurally, rather than the handler
   reaching for `IActivityLogWriter` directly and reopening the exact gap the constitution's Security
-  section warns against. Auth is the existing real JWT flow — no new endpoint skips it. **Pass, with
+  section warns against. Auth is the existing real JWT flow — no new endpoint skips it. A second,
+  smaller integrity point sharpened during design: `confirm` persists only data the server itself
+  parsed from a re-uploaded file, never a client-echoed copy of preset content (`research.md` §4's
+  revision note) — what's written to the database always traces back to something the server's own
+  `IProfileBundleParser` actually produced, not an unverified claim in the request body. **Pass, with
   one explicit, justified post-processor extension** (see Complexity Tracking).
 
 No Constitution Check violations. The `IHasEntityIds` post-processor extension and the
@@ -154,7 +162,7 @@ api/src/OpenFarm.Application/Profiles/
   IProfileBundleParser.cs             # Application-defined contract; Infrastructure implements
   IMachineProfileRepository.cs / IFilamentProfileRepository.cs
   PreviewProfileImportCommand.cs / Handler         # parses upload, flags duplicates (research.md §5) — no persistence
-  ConfirmProfileImportCommand.cs / Handler         # two-pass base/override resolution (research.md §3) — TDD
+  ConfirmProfileImportCommand.cs / Handler         # re-parses the re-uploaded file (research.md §4), two-pass base/override resolution (research.md §3) — TDD
   GetMachineProfilesQuery.cs / Handler             # catalog list
   GetFilamentProfilesQuery.cs / Handler
   GetMachineProfileQuery.cs / Handler               # single, raw data (FR-011)
@@ -175,7 +183,7 @@ api/src/OpenFarm.Infrastructure/Profiles/
 api/src/OpenFarm.Api/
   Endpoints/Profiles/
     PreviewProfileImportEndpoint.cs     # POST /api/v1/profiles/imports/preview, AllowFileUploads()
-    ConfirmProfileImportEndpoint.cs     # POST /api/v1/profiles/imports/confirm
+    ConfirmProfileImportEndpoint.cs     # POST /api/v1/profiles/imports/confirm, AllowFileUploads() (re-uploads + re-parses, research.md §4)
     ListMachineProfilesEndpoint.cs / GetMachineProfileEndpoint.cs / UpdateMachineProfileRawDataEndpoint.cs
     ListFilamentProfilesEndpoint.cs / GetFilamentProfileEndpoint.cs / UpdateFilamentProfileRawDataEndpoint.cs
   Processors/ActivityLogPostProcessor.cs      # extended with IHasEntityIds support (research.md §7) — existing file, not new
@@ -211,4 +219,4 @@ Constitution Check section's note, not because either is a deviation:
 | Decision | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | `IHasEntityIds` extension to `ActivityLogPostProcessor` | The confirm-import endpoint creates many entities in one HTTP call — the existing post-processor's single-`Id`-reflection design can't express that | Having `ConfirmProfileImportCommandHandler` call `IActivityLogWriter` directly (bypassing the post-processor) was rejected because it would silently reopen the "every state-mutating command is captured structurally" guarantee the constitution's Security section calls out by name — this endpoint would become the one exception, undocumented at the pipeline level |
-| No `PendingImportBatch` staging entity between preview and confirm | Keeps the review step reversible-by-construction (a cancelled import has no server state to clean up, satisfying spec's interrupted-upload edge case for free) | A staging table was considered so confirm could reference a short opaque batch id instead of echoing full preset payloads, but it needs its own cleanup/TTL story (abandoned batches, multi-tab conflicts) that nothing else in this phase needs — rejected per Constitution Principle IV ("designed extension points are required, preemptive abstraction is not"); typical bundle size (SC-001, under 50 presets) makes the echo-back payload cost negligible |
+| No `PendingImportBatch` staging entity between preview and confirm; confirm re-uploads + re-parses the file instead of trusting echoed preset content | Keeps the review step reversible-by-construction (a cancelled import has no server state to clean up, satisfying spec's interrupted-upload edge case for free) *and* guarantees persisted data always traces back to the server's own parse of a real file, never an unverified client claim | A staging table was considered so confirm could reference a short opaque batch id instead of re-parsing, but it needs its own cleanup/TTL story (abandoned batches, multi-tab conflicts) that nothing else in this phase needs — rejected per Constitution Principle IV ("designed extension points are required, preemptive abstraction is not"). A client-echoed full-payload confirm (no re-upload) was also considered and rejected as a real integrity gap, not just a style choice (`research.md` §4's revision note); re-parsing a second time is cheap at this feature's scale (SC-001, under 50 presets) |
