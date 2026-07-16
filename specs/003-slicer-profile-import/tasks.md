@@ -303,18 +303,18 @@ its key identifying fields, in the corresponding catalog list.
   SC-006)
 - [X] T054 [P] [US3] Regenerate the Orval-generated API client for the four new list/detail endpoints in
   `web/src/lib/api/generated/profiles/`
-- [ ] T055 [P] [US3] Create `MachineProfilesTable.tsx` and `FilamentProfilesTable.tsx` in
+- [X] T055 [P] [US3] Create `MachineProfilesTable.tsx` and `FilamentProfilesTable.tsx` in
   `web/src/features/profiles/components/`, replacing the single merged `ProfilesTable.tsx`, wired into
   `ProfilesPage.tsx`'s two Tabs
-- [ ] T056 [US3] Create `ProfileRawDataDialog.tsx` (view-only) in
+- [X] T056 [US3] Create `ProfileRawDataDialog.tsx` (view-only) in
   `web/src/features/profiles/components/ProfileRawDataDialog.tsx` — opens from a catalog row click and
   shows the profile's full raw JSON (FR-011), reachable in ≤3 interactions from the catalog list
   (SC-006); edit capability is deferred to US4
-- [ ] T057 [P] [US3] Delete `web/src/features/profiles/data/mockProfiles.ts`,
+- [X] T057 [P] [US3] Delete `web/src/features/profiles/data/mockProfiles.ts`,
   `web/src/features/profiles/data/mockProfilesStore.ts`, and the old
   `web/src/features/profiles/components/ProfilesTable.tsx`, updating `ProfilesPage.test.tsx` to cover
   the real API-backed tables instead of the mock prototype
-- [ ] T058 [P] [US3] Vitest + RTL tests for `MachineProfilesTable.tsx`, `FilamentProfilesTable.tsx`, and
+- [X] T058 [P] [US3] Vitest + RTL tests for `MachineProfilesTable.tsx`, `FilamentProfilesTable.tsx`, and
   `ProfileRawDataDialog.tsx` in `web/src/features/profiles/components/` (catalog rows render key fields;
   opening a row shows raw JSON within the 3-interaction budget)
 

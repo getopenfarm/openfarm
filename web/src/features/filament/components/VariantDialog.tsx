@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { profilesStore } from '@/features/profiles/data/mockProfilesStore';
+import type { ListFilamentProfilesResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint } from '@/lib/api/generated/profiles/profiles';
 import { cn } from '@/lib/utils';
 import type { FilamentVariant } from '../data/mockFilamentStore';
 import { NAMED_COLOR_SWATCHES } from '../lib/colorSwatches';
@@ -66,7 +67,14 @@ export function VariantDialog({
     }
   }, [open, initialVariant]);
 
-  const allProfiles = profilesStore.getSnapshot();
+  const filamentProfilesQuery =
+    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
+  const allProfiles =
+    (
+      filamentProfilesQuery.data?.data as
+        | ListFilamentProfilesResponse
+        | undefined
+    )?.profiles ?? [];
 
   function toggleWeight(grams: number) {
     setVariant((prev) => {
@@ -83,8 +91,7 @@ export function VariantDialog({
       const overrides = { ...prev.profileOverrides };
       if (enabled) {
         const firstMatch = allProfiles.find(
-          (p) =>
-            p.category === 'Filament' && String(p.nozzleSizeMm) === nozzleSize,
+          (p) => String(p.nozzleSizeMm) === nozzleSize,
         );
         overrides[nozzleSize] = firstMatch?.id;
       } else {
@@ -185,9 +192,7 @@ export function VariantDialog({
             <div className="flex flex-col gap-4 border-t p-3">
               {NOZZLE_SIZES.map((nozzleSize) => {
                 const matchingProfiles = allProfiles.filter(
-                  (p) =>
-                    p.category === 'Filament' &&
-                    String(p.nozzleSizeMm) === nozzleSize,
+                  (p) => String(p.nozzleSizeMm) === nozzleSize,
                 );
                 const overrideId = variant.profileOverrides?.[nozzleSize];
                 const enabled = overrideId !== undefined;
@@ -221,7 +226,10 @@ export function VariantDialog({
                         </SelectTrigger>
                         <SelectContent>
                           {matchingProfiles.map((profile) => (
-                            <SelectItem key={profile.id} value={profile.id}>
+                            <SelectItem
+                              key={profile.id}
+                              value={profile.id ?? ''}
+                            >
                               {profile.name}
                             </SelectItem>
                           ))}

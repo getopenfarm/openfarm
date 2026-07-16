@@ -3,17 +3,23 @@ import { useState } from 'react';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { profilesStore } from '@/features/profiles/data/mockProfilesStore';
+import type {
+  FilamentProfileResponse,
+  ListFilamentProfilesResponse,
+} from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint } from '@/lib/api/generated/profiles/profiles';
 import type { FilamentVariant } from '../data/mockFilamentStore';
 import { formatWeightGrams } from '../lib/weightLabel';
 import { VariantDialog } from './VariantDialog';
 
-function overrideSummary(variant: FilamentVariant): string {
+function overrideSummary(
+  variant: FilamentVariant,
+  allProfiles: FilamentProfileResponse[],
+): string {
   const overrides = variant.profileOverrides;
   if (!overrides || Object.keys(overrides).length === 0) {
     return 'Uses default profile';
   }
-  const allProfiles = profilesStore.getSnapshot();
   const names = Object.entries(overrides)
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .map(([nozzleSize, profileId]) => {
@@ -39,6 +45,14 @@ export function VariantsCard({
   const [dialogState, setDialogState] = useState<
     { mode: 'add' } | { mode: 'edit'; variant: FilamentVariant } | null
   >(null);
+  const filamentProfilesQuery =
+    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
+  const allProfiles =
+    (
+      filamentProfilesQuery.data?.data as
+        | ListFilamentProfilesResponse
+        | undefined
+    )?.profiles ?? [];
 
   return (
     <Card>
@@ -71,7 +85,7 @@ export function VariantsCard({
                   {variant.weightsGrams.map(formatWeightGrams).join(' · ')}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {overrideSummary(variant)}
+                  {overrideSummary(variant, allProfiles)}
                 </span>
               </div>
               <Button
