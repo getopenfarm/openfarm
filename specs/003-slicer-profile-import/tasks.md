@@ -226,28 +226,28 @@ an independent copy.
 depends on it, select both, and verify the resulting catalog record shows the override linked to its
 base rather than as a flattened standalone copy.
 
-- [ ] T039 Write two-pass base/override resolution tests (TDD, write first) in
+- [X] T039 Write two-pass base/override resolution tests (TDD, write first) in
   `api/tests/OpenFarm.Application.Tests/Profiles/ConfirmProfileImportCommandHandlerResolutionTests.cs`
   [US2] against synthetic in-batch-match, prior-import-match, no-match, and ambiguous-match (both
   in-batch and prior-import) fixtures, scoped by `(SourceFormat, Name)`; confirm the tests fail before
   implementing (research.md §3)
-- [ ] T040 [US2] Extend `ConfirmProfileImportCommandHandler` in
+- [X] T040 [US2] Extend `ConfirmProfileImportCommandHandler` in
   `api/src/OpenFarm.Application/Profiles/ConfirmProfileImportCommandHandler.cs` with Pass 2 base
   resolution to make T039 pass — resolves `BaseProfileId` only on an unambiguous `(SourceFormat, Name)`
   match against same-batch siblings first, then prior-imported rows, leaving it null on no match or 2+
   candidates from either source (research.md §3)
-- [ ] T041 [P] [US2] Integration test: selecting both a base and its override links the override's
+- [X] T041 [P] [US2] Integration test: selecting both a base and its override links the override's
   `baseProfileId` to the base's `id`, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/BaseOverrideResolutionTests.cs` (FR-005, SC-002, US2
   Acceptance Scenario 1)
-- [ ] T042 [P] [US2] Integration test: importing an override alone keeps `baseProfileName` populated with
+- [X] T042 [P] [US2] Integration test: importing an override alone keeps `baseProfileName` populated with
   `baseProfileId` null (a dangling built-in-default reference is a normal outcome, not an error), and a
   duplicate-named base produces the same unresolved shape (ambiguous match), in the same test file
   (FR-005, US2 Acceptance Scenario 3, research.md §3)
-- [ ] T043 [US2] Add the FR-006 base-not-selected warning to `ProfileReviewList.tsx` in
+- [X] T043 [US2] Add the FR-006 base-not-selected warning to `ProfileReviewList.tsx` in
   `web/src/features/profiles/components/ProfileReviewList.tsx` — computed entirely client-side from the
   full preview array plus live selection state, no backend round trip (research.md §4)
-- [ ] T044 [P] [US2] Vitest test for the FR-006 warning in
+- [X] T044 [P] [US2] Vitest test for the FR-006 warning in
   `web/src/features/profiles/components/ProfileReviewList.test.tsx` (warning appears when an override is
   checked but its bundle-present base is unchecked, and disappears once the base is also checked)
 

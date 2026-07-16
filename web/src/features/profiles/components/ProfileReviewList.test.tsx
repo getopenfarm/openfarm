@@ -45,6 +45,22 @@ const filamentPresets: FilamentPresetPreviewItem[] = [
     fanPercent: null,
     compatiblePrinterNames: [],
   },
+  {
+    name: 'Existing PLA - Red',
+    sourceFormat: 'OrcaSlicer',
+    baseProfileName: 'Existing PLA',
+    hasUnresolvedBaseInChain: false,
+    isDuplicate: false,
+    material: 'PLA',
+    brand: null,
+    colorHex: '#C12E1FFF',
+    nozzleSizeMm: null,
+    nozzleTempC: null,
+    bedTempC: null,
+    maxVolumetricSpeedMm3s: null,
+    fanPercent: null,
+    compatiblePrinterNames: [],
+  },
 ];
 
 function StatefulReviewList() {
@@ -102,5 +118,26 @@ describe('ProfileReviewList', () => {
     await user.selectOptions(select, 'ImportAsNew');
 
     expect(select).toHaveValue('ImportAsNew');
+  });
+
+  it('FR-006: warns when a selected override is checked but its bundle-present base is unchecked', async () => {
+    const user = userEvent.setup();
+    render(<StatefulReviewList />);
+
+    const warningText =
+      'Base "Existing PLA" is in this bundle but not selected.';
+    expect(screen.queryByText(warningText)).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Select Existing PLA' }),
+    );
+
+    expect(screen.getByText(warningText)).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Select Existing PLA' }),
+    );
+
+    expect(screen.queryByText(warningText)).not.toBeInTheDocument();
   });
 });

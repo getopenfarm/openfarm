@@ -102,6 +102,19 @@ function PresetSection({
             const key = profileSelectionKey(type, name);
             const state = selections[key] ?? { selected: true };
 
+            // FR-006 — warn when a selected override's base is present elsewhere in this same
+            // bundle but not also selected, computed entirely from data already in hand (the full
+            // preview array + live selection state), no backend round trip (research.md §4).
+            const baseName = preset.baseProfileName;
+            const baseIsInBundle =
+              baseName != null && presets.some((p) => p.name === baseName);
+            const baseIsSelected =
+              baseName != null &&
+              (selections[profileSelectionKey(type, baseName)]?.selected ??
+                true);
+            const showUnselectedBaseWarning =
+              state.selected && baseIsInBundle && !baseIsSelected;
+
             return (
               <TableRow key={key}>
                 <TableCell>
@@ -118,6 +131,11 @@ function PresetSection({
                   {preset.baseProfileName
                     ? `Override of ${preset.baseProfileName}`
                     : 'Base'}
+                  {showUnselectedBaseWarning && (
+                    <p className="text-xs text-destructive">
+                      Base "{baseName}" is in this bundle but not selected.
+                    </p>
+                  )}
                 </TableCell>
                 <TableCell>
                   {preset.isDuplicate ? (
