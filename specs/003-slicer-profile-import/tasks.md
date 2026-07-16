@@ -48,11 +48,11 @@ Existing four-project Clean Architecture backend + single-SPA frontend, extended
 (bundle parsing uses the .NET BCL's `System.IO.Compression.ZipArchive`/`System.Text.Json`; frontend
 upload uses a plain file input + the existing Orval client pattern, per plan.md's Technical Context).
 
-- [ ] T001 Create empty `Profiles/` folders under `api/src/OpenFarm.Domain/`,
+- [X] T001 Create empty `Profiles/` folders under `api/src/OpenFarm.Domain/`,
   `api/src/OpenFarm.Application/`, `api/src/OpenFarm.Infrastructure/`, and
   `api/src/OpenFarm.Api/Endpoints/`, plus `web/src/features/profiles/components/`, per plan.md's
   Project Structure
-- [ ] T002 [P] Add real captured OrcaSlicer/Bambu Studio slicer-bundle fixtures — one multi-preset
+- [X] T002 [P] Add real captured OrcaSlicer/Bambu Studio slicer-bundle fixtures — one multi-preset
   `.zip`, one Bambu Studio `.bbscfg`, one single-preset `.orca_printer` or `.orca_filament`, and a
   base+override pair — to `api/tests/OpenFarm.Infrastructure.Tests/Profiles/Fixtures/` for
   fixture-replay `ProfileBundleParser` tests (research.md §1's follow-up task, mirroring Phase 1's real
@@ -67,61 +67,61 @@ upload uses a plain file input + the existing Orval client pattern, per plan.md'
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 [P] Create `ProfileSourceFormat` enum in `api/src/OpenFarm.Domain/Profiles/ProfileSourceFormat.cs`
+- [X] T003 [P] Create `ProfileSourceFormat` enum in `api/src/OpenFarm.Domain/Profiles/ProfileSourceFormat.cs`
   (`OrcaSlicer`, `BambuStudio` — plain enum, matches the existing `PrinterModel.Brand` precedent per
   data-model.md, not a lookup table)
-- [ ] T004 [P] Create `MachineProfile` entity in `api/src/OpenFarm.Domain/Profiles/MachineProfile.cs`
+- [X] T004 [P] Create `MachineProfile` entity in `api/src/OpenFarm.Domain/Profiles/MachineProfile.cs`
   (`Id`, `OrganizationId`, `Name`, `SourceFormat`, `BaseProfileName`, `BaseProfileId` self-FK,
   `RawDataJson`, `CreatedAtUtc` per data-model.md — no descriptive/spec fields as columns)
-- [ ] T005 [P] Create `FilamentProfile` entity in `api/src/OpenFarm.Domain/Profiles/FilamentProfile.cs`
+- [X] T005 [P] Create `FilamentProfile` entity in `api/src/OpenFarm.Domain/Profiles/FilamentProfile.cs`
   (identical shape to `MachineProfile` per data-model.md)
-- [ ] T006 [P] Create `MachineProfileConfiguration` in
+- [X] T006 [P] Create `MachineProfileConfiguration` in
   `api/src/OpenFarm.Infrastructure/Persistence/Configurations/MachineProfileConfiguration.cs`
   (`builder.IsMultiTenant()`, self-referencing FK with `ON DELETE SET NULL`, `RawDataJson` as `jsonb`,
   no uniqueness constraint on `Name` — data-model.md's EF Core configuration notes)
-- [ ] T007 [P] Create `FilamentProfileConfiguration` in
+- [X] T007 [P] Create `FilamentProfileConfiguration` in
   `api/src/OpenFarm.Infrastructure/Persistence/Configurations/FilamentProfileConfiguration.cs` (same
   rules as `MachineProfileConfiguration`)
-- [ ] T008 Add the `AddProfiles` EF Core migration in
+- [X] T008 Add the `AddProfiles` EF Core migration in
   `api/src/OpenFarm.Infrastructure/Persistence/Migrations/` for both new tables via
   `dotnet ef migrations add AddProfiles` against `OpenFarmDbContext` (single migration per the
   constitution's one-per-PR rule; depends on T004–T007)
-- [ ] T009 [P] Create `IMachineProfileRepository` interface in
+- [X] T009 [P] Create `IMachineProfileRepository` interface in
   `api/src/OpenFarm.Application/Profiles/IMachineProfileRepository.cs` (`AddAsync`, `GetByIdAsync`,
   `ListAsync`, `FindByNameAsync(ProfileSourceFormat, string)` for FR-009 duplicate lookups and §3's base
   resolution, `SaveChangesAsync` — mirrors `IPrinterRepository`'s shape)
-- [ ] T010 [P] Create `IFilamentProfileRepository` interface in
+- [X] T010 [P] Create `IFilamentProfileRepository` interface in
   `api/src/OpenFarm.Application/Profiles/IFilamentProfileRepository.cs` (same shape as
   `IMachineProfileRepository`)
-- [ ] T011 [P] Implement `MachineProfileRepository` in
+- [X] T011 [P] Implement `MachineProfileRepository` in
   `api/src/OpenFarm.Infrastructure/Profiles/MachineProfileRepository.cs` against `OpenFarmDbContext`
-- [ ] T012 [P] Implement `FilamentProfileRepository` in
+- [X] T012 [P] Implement `FilamentProfileRepository` in
   `api/src/OpenFarm.Infrastructure/Profiles/FilamentProfileRepository.cs` against `OpenFarmDbContext`
-- [ ] T013 [P] Create `IProfileBundleParser` contract in
+- [X] T013 [P] Create `IProfileBundleParser` contract in
   `api/src/OpenFarm.Application/Profiles/IProfileBundleParser.cs` — `ParseAsync(Stream, CancellationToken)`
   returning the full parsed bundle for preview, plus
   `ExtractMachineDisplayFields(string rawDataJson, ProfileSourceFormat)` /
   `ExtractFilamentDisplayFields(string rawDataJson, ProfileSourceFormat)` reused by both the parser
   itself and every catalog-read query handler (research.md §2)
-- [ ] T014 Write `ProfileRawDataMerger` tests (TDD, write first) in
+- [X] T014 Write `ProfileRawDataMerger` tests (TDD, write first) in
   `api/tests/OpenFarm.Application.Tests/Profiles/ProfileRawDataMergerTests.cs` against synthetic JSON
   fixtures — ancestor-first ordering, shallow last-element-wins key overwrite, and an unparseable
   ancestor blob being skipped with a structured log rather than throwing (research.md §10); confirm the
   tests fail before implementing
-- [ ] T015 Implement `ProfileRawDataMerger.MergeAncestorChain` in
+- [X] T015 Implement `ProfileRawDataMerger.MergeAncestorChain` in
   `api/src/OpenFarm.Application/Profiles/ProfileRawDataMerger.cs` to make T014 pass (research.md §10)
-- [ ] T016 Write `ProfileBundleParser` tests (fixture-replay, test-after) in
+- [X] T016 Write `ProfileBundleParser` tests (fixture-replay, test-after) in
   `api/tests/OpenFarm.Infrastructure.Tests/Profiles/ProfileBundleParserTests.cs` against the real
   fixtures from T002 — classification by `machine`/`filament` subfolder, `"inherits"` extraction into
   `BaseProfileName`, both `compatible_printers`/`compatible_prints` key spellings, tolerance of missing
   keys (field omitted, not a thrown error), and rejection of a non-zip/corrupted input
-- [ ] T017 Implement `ProfileBundleParser` in
+- [X] T017 Implement `ProfileBundleParser` in
   `api/src/OpenFarm.Infrastructure/Profiles/ProfileBundleParser.cs` (`ZipArchive`-based, per-`SourceFormat`
   field-mapping table, both `ExtractXDisplayFields` methods) to make T016 pass (research.md §1, §2)
-- [ ] T018 [P] Create `MachineProfileNotFoundException` and `FilamentProfileNotFoundException` in
+- [X] T018 [P] Create `MachineProfileNotFoundException` and `FilamentProfileNotFoundException` in
   `api/src/OpenFarm.Application/Profiles/` (thrown by detail/update handlers on an unknown or
   cross-tenant id, mapped to 404 by the existing `DomainExceptionHandler`)
-- [ ] T019 Register `IMachineProfileRepository`, `IFilamentProfileRepository`, and
+- [X] T019 Register `IMachineProfileRepository`, `IFilamentProfileRepository`, and
   `IProfileBundleParser` in the composition root's DI container (`api/src/OpenFarm.Api/Program.cs` or
   its existing service-registration extension method)
 
@@ -138,7 +138,7 @@ persist only the operator's selected presets.
 select a subset, confirm, and verify exactly the selected presets — and only those — exist in the
 catalogs afterward.
 
-- [ ] T020 [P] [US1] Create `UnsupportedProfileBundleFormatException` in
+- [X] T020 [P] [US1] Create `UnsupportedProfileBundleFormatException` in
   `api/src/OpenFarm.Application/Profiles/UnsupportedProfileBundleFormatException.cs` (FR-007, thrown on
   an unrecognized/corrupted archive, mapped to 422)
 - [ ] T021 [P] [US1] Create the `IHasEntityIds` marker interface in

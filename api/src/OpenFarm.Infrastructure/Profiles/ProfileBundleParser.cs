@@ -1,0 +1,270 @@
+using System.Globalization;
+using System.IO.Compression;
+using System.Text.Json;
+using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.Profiles;
+
+namespace OpenFarm.Infrastructure.Profiles;
+
+// ZipArchive-based; classifies presets by machine/filament subfolder rather than depending on the
+// unverifiable bundle_structure.json manifest shape (research.md §1), and tolerates missing keys
+// rather than failing the whole import (research.md §2).
+public sealed class ProfileBundleParser : IProfileBundleParser
+{
+    public async Task<ParsedProfileBundle> ParseAsync(
+        Stream bundleStream, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken)
+    {
+        ZipArchive archive;
+        try
+        {
+            archive = new ZipArchive(bundleStream, ZipArchiveMode.Read, leaveOpen: true);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new UnsupportedProfileBundleFormatException(
+                "The uploaded file could not be read as a slicer profile bundle (not a valid zip archive).", ex);
+        }
+
+        var machinePresets = new List<ParsedMachinePreset>();
+        var filamentPresets = new List<ParsedFilamentPreset>();
+
+        using (archive)
+        {
+            foreach (var entry in archive.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!entry.FullName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var kind = ClassifyBySubfolder(entry.FullName);
+                if (kind is null)
+                {
+                    continue;
+                }
+
+                string content;
+                await using (var entryStream = entry.Open())
+                using (var reader = new StreamReader(entryStream))
+                {
+                    content = await reader.ReadToEndAsync(cancellationToken);
+                }
+
+                JsonDocument document;
+                try
+                {
+                    document = JsonDocument.Parse(content);
+                }
+                catch (JsonException)
+                {
+                    // One malformed preset inside an otherwise-good bundle is excluded, not a
+                    // whole-bundle rejection (data-model.md's Validation rules / FR-007 scoping).
+                    continue;
+                }
+
+                using (document)
+                {
+                    var root = document.RootElement;
+                    var name = TryGetScalarOrFirstArrayElement(root, "name");
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        // A preset with no name is excluded from the preview list entirely
+                        // (data-model.md's Validation rules), not a bundle-wide failure.
+                        continue;
+                    }
+
+                    var baseProfileName = TryGetScalarOrFirstArrayElement(root, "inherits");
+                    if (string.IsNullOrWhiteSpace(baseProfileName))
+                    {
+                        baseProfileName = null;
+                    }
+
+                    if (kind == PresetKind.Machine)
+                    {
+                        machinePresets.Add(new ParsedMachinePreset(name, sourceFormat, baseProfileName, content));
+                    }
+                    else
+                    {
+                        filamentPresets.Add(new ParsedFilamentPreset(name, sourceFormat, baseProfileName, content));
+                    }
+                }
+            }
+        }
+
+        return new ParsedProfileBundle(machinePresets, filamentPresets);
+    }
+
+    public MachineProfileDisplayFields ExtractMachineDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat)
+    {
+        using var document = JsonDocument.Parse(rawDataJson);
+        var root = document.RootElement;
+
+        double? bedSizeX = null;
+        double? bedSizeY = null;
+        if (TryGetStringArray(root, "printable_area", out var corners))
+        {
+            foreach (var corner in corners)
+            {
+                var parts = corner.Split('x', StringSplitOptions.TrimEntries);
+                if (parts.Length == 2
+                    && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var x)
+                    && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
+                {
+                    bedSizeX = bedSizeX is null ? x : Math.Max(bedSizeX.Value, x);
+                    bedSizeY = bedSizeY is null ? y : Math.Max(bedSizeY.Value, y);
+                }
+            }
+        }
+
+        return new MachineProfileDisplayFields(
+            NozzleSizeMm: TryGetDouble(root, "nozzle_diameter"),
+            BedSizeXMm: bedSizeX,
+            BedSizeYMm: bedSizeY,
+            MaxHeightMm: TryGetDouble(root, "printable_height"),
+            HasEnclosure: TryGetBool(root, "support_chamber_temp_control"),
+            SupportedMaterials: TryGetStringArray(root, "supported_filament_types", out var materials) ? materials : []);
+    }
+
+    public FilamentProfileDisplayFields ExtractFilamentDisplayFields(
+        string rawDataJson, ProfileSourceFormat sourceFormat, string name, bool hasBaseProfileName)
+    {
+        using var document = JsonDocument.Parse(rawDataJson);
+        var root = document.RootElement;
+
+        // Tolerates the real, documented OrcaSlicer key-spelling bug (missing the trailing "er"),
+        // research.md §11 / OrcaSlicer issue #12193.
+        var hasCompatiblePrinters =
+            TryGetStringArray(root, "compatible_printers", out var compatiblePrinterNames)
+            || TryGetStringArray(root, "compatible_prints", out compatiblePrinterNames);
+
+        if ((!hasCompatiblePrinters || compatiblePrinterNames.Count == 0) && !hasBaseProfileName)
+        {
+            // Root-preset name-suffix fallback ("<filament> @ <printer>"), research.md §11 —
+            // only applies when the preset declares neither a base nor an explicit list.
+            var atIndex = name.LastIndexOf('@');
+            if (atIndex >= 0 && atIndex + 1 < name.Length)
+            {
+                var inferredPrinterName = name[(atIndex + 1)..].Trim();
+                if (inferredPrinterName.Length > 0)
+                {
+                    compatiblePrinterNames = [inferredPrinterName];
+                }
+            }
+        }
+
+        return new FilamentProfileDisplayFields(
+            Material: TryGetScalarOrFirstArrayElement(root, "filament_type"),
+            Brand: TryGetScalarOrFirstArrayElement(root, "filament_vendor"),
+            ColorHex: TryGetScalarOrFirstArrayElement(root, "default_filament_colour"),
+            NozzleSizeMm: TryGetDouble(root, "nozzle_diameter"),
+            NozzleTempC: TryGetDouble(root, "nozzle_temperature"),
+            BedTempC: TryGetDouble(root, "hot_plate_temp"),
+            MaxVolumetricSpeedMm3s: TryGetDouble(root, "filament_max_volumetric_speed"),
+            FanPercent: TryGetInt(root, "fan_max_speed"),
+            CompatiblePrinterNames: compatiblePrinterNames);
+    }
+
+    private enum PresetKind
+    {
+        Machine,
+        Filament,
+    }
+
+    private static PresetKind? ClassifyBySubfolder(string entryFullName)
+    {
+        var normalized = entryFullName.Replace('\\', '/');
+        var firstSegmentEnd = normalized.IndexOf('/');
+        if (firstSegmentEnd < 0)
+        {
+            return null;
+        }
+
+        var firstSegment = normalized[..firstSegmentEnd];
+        if (firstSegment.Equals("machine", StringComparison.OrdinalIgnoreCase))
+        {
+            return PresetKind.Machine;
+        }
+
+        if (firstSegment.Equals("filament", StringComparison.OrdinalIgnoreCase))
+        {
+            return PresetKind.Filament;
+        }
+
+        // "process/" (print settings) and anything else, including bundle_structure.json, is out
+        // of scope per spec.md's Key Entities — only Machine and Filament profiles are imported.
+        return null;
+    }
+
+    private static string? TryGetScalarOrFirstArrayElement(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.GetRawText(),
+            JsonValueKind.Array when value.GetArrayLength() > 0 => value[0].ValueKind switch
+            {
+                JsonValueKind.String => value[0].GetString(),
+                JsonValueKind.Number => value[0].GetRawText(),
+                _ => null,
+            },
+            _ => null,
+        };
+    }
+
+    private static bool TryGetStringArray(JsonElement root, string propertyName, out IReadOnlyList<string> values)
+    {
+        if (root.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Array)
+        {
+            values = value.EnumerateArray()
+                .Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : null)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s!)
+                .ToList();
+            return values.Count > 0;
+        }
+
+        values = [];
+        return false;
+    }
+
+    private static double? TryGetDouble(JsonElement root, string propertyName)
+    {
+        var raw = TryGetScalarOrFirstArrayElement(root, propertyName);
+        return raw is not null && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : null;
+    }
+
+    private static int? TryGetInt(JsonElement root, string propertyName)
+    {
+        var raw = TryGetScalarOrFirstArrayElement(root, propertyName);
+        return raw is not null && int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var asDouble)
+                ? (int)Math.Round(asDouble)
+                : null;
+    }
+
+    private static bool? TryGetBool(JsonElement root, string propertyName)
+    {
+        var raw = TryGetScalarOrFirstArrayElement(root, propertyName);
+        if (raw is null)
+        {
+            return null;
+        }
+
+        return raw switch
+        {
+            "1" or "true" => true,
+            "0" or "false" => false,
+            _ => null,
+        };
+    }
+}
