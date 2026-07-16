@@ -20,11 +20,16 @@ export async function httpClient<T>(
   const body =
     options.body ?? (METHODS_EXPECTING_A_BODY.has(method) ? '{}' : undefined);
 
+  // A FormData body (file uploads) must NOT get an explicit Content-Type — the browser sets its
+  // own `multipart/form-data; boundary=...` header only when none is set, and an explicit
+  // `application/json` here would corrupt the upload.
+  const isFormData = body instanceof FormData;
+
   const response = await fetch(`${API_BASE_URL}${url}`, {
     ...options,
     body,
     headers: {
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },

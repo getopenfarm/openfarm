@@ -195,20 +195,20 @@ catalogs afterward.
   `EventType: "ProfileImported"` per created profile, not one entry for the whole batch, in
   `api/tests/OpenFarm.Api.IntegrationTests/ActivityLog/ProfileImportActivityLogTests.cs` (research.md
   §7)
-- [ ] T034 [P] [US1] Regenerate the Orval-generated API client against the updated OpenAPI spec to
+- [X] T034 [P] [US1] Regenerate the Orval-generated API client against the updated OpenAPI spec to
   produce the preview/confirm hooks in `web/src/lib/api/generated/profiles/`
-- [ ] T035 [US1] Create `ImportProfilesDialog.tsx` in
+- [X] T035 [US1] Create `ImportProfilesDialog.tsx` in
   `web/src/features/profiles/components/ImportProfilesDialog.tsx` — file select → preview call →
   selection list → confirm call, replacing the existing "Not yet implemented" toast button
-- [ ] T036 [US1] Create `ProfileReviewList.tsx` in
+- [X] T036 [US1] Create `ProfileReviewList.tsx` in
   `web/src/features/profiles/components/ProfileReviewList.tsx` — selection checkboxes and per-preset
   skip/import-as-new duplicate controls (FR-003, FR-009); FR-006's base-not-selected warning is deferred
   to US2
-- [ ] T037 [US1] Create the `ProfilesPage.tsx` shell in `web/src/features/profiles/ProfilesPage.tsx` —
+- [X] T037 [US1] Create the `ProfilesPage.tsx` shell in `web/src/features/profiles/ProfilesPage.tsx` —
   Machine/Filament `Tabs` (shadcn `tabs.tsx`) housing the Import trigger wired to
   `ImportProfilesDialog`, replacing the mock-data prototype's entry point; catalog table content is
   deferred to US3
-- [ ] T038 [P] [US1] Vitest + RTL tests for `ImportProfilesDialog.tsx` and `ProfileReviewList.tsx` in
+- [X] T038 [P] [US1] Vitest + RTL tests for `ImportProfilesDialog.tsx` and `ProfileReviewList.tsx` in
   `web/src/features/profiles/components/` (file-select → preview → select subset → confirm flow;
   closing/cancelling before confirm leaves nothing selected)
 
