@@ -1,5 +1,3 @@
-export type SidebarVariant = 'flat' | 'grouped' | 'rail';
-export type Density = 'comfortable' | 'compact';
 export type ViewMode = 'table' | 'grid';
 
 export type ListPageKey =
@@ -13,7 +11,5 @@ export type ListPageKey =
   | 'maintenance';
 
 export interface Preferences {
-  sidebarVariant: SidebarVariant;
-  density: Density;
   listViews: Partial<Record<ListPageKey, ViewMode>>;
 }

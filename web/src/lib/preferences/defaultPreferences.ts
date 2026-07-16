@@ -1,8 +1,6 @@
 import type { Preferences } from './types';
 
 export const DEFAULT_PREFERENCES: Preferences = {
-  sidebarVariant: 'grouped',
-  density: 'comfortable',
   listViews: {},
 };
 

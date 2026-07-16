@@ -2,7 +2,6 @@ import { Outlet } from 'react-router';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useFarmHub } from '@/features/printers/hooks/useFarmHub';
-import { usePreferences } from '@/lib/preferences/usePreferences';
 import { AppSidebar } from './AppSidebar';
 import { TitleBar } from './TitleBar';
 
@@ -15,12 +14,9 @@ function readSidebarCookie(): boolean | null {
 
 export function AppShell() {
   useFarmHub();
-  const {
-    preferences: { sidebarVariant },
-  } = usePreferences();
 
   const cookieState = readSidebarCookie();
-  const defaultOpen = cookieState ?? sidebarVariant !== 'rail';
+  const defaultOpen = cookieState ?? true;
 
   return (
     <TooltipProvider>

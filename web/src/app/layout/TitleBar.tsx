@@ -1,4 +1,3 @@
-import { SidebarLayoutToggle } from '@/components/sidebar-layout-toggle/SidebarLayoutToggle';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
   Breadcrumb,
@@ -39,12 +38,6 @@ export function TitleBar() {
       <div className="ml-auto flex items-center gap-3">
         <FarmPulse />
         <Separator orientation="vertical" className="h-5" />
-        <div className="hidden items-center gap-2 md:flex">
-          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Sidebar
-          </span>
-          <SidebarLayoutToggle />
-        </div>
         <ThemeToggle />
       </div>
     </header>
