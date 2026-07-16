@@ -189,6 +189,14 @@ export interface PreviewProfileImportRequest {
   file?: Blob;
 }
 
+export interface UpdateFilamentProfileRawDataRequest {
+  rawDataJson?: string;
+}
+
+export interface UpdateMachineProfileRawDataRequest {
+  rawDataJson?: string;
+}
+
 export interface PrinterSummaryResponse {
   id?: string;
   name?: string;

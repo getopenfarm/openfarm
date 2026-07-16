@@ -45,6 +45,8 @@ using RemovePrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<Ope
 using MarkPrinterReadyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.MarkPrinterReadyCommand, OpenFarm.Domain.Printers.Printer>;
 using PreviewProfileImportHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.PreviewProfileImportCommand, OpenFarm.Application.Profiles.PreviewProfileImportResult>;
 using ConfirmProfileImportHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.ConfirmProfileImportCommand, OpenFarm.Application.Profiles.ConfirmProfileImportResult>;
+using UpdateMachineProfileRawDataHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.UpdateMachineProfileRawDataCommand, OpenFarm.Application.Profiles.MachineProfileDetail>;
+using UpdateFilamentProfileRawDataHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.UpdateFilamentProfileRawDataCommand, OpenFarm.Application.Profiles.FilamentProfileDetail>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -208,6 +210,8 @@ builder.Services.AddScoped<IQueryHandler<GetMachineProfilesQuery, IReadOnlyList<
 builder.Services.AddScoped<IQueryHandler<GetFilamentProfilesQuery, IReadOnlyList<FilamentProfileSummary>>, GetFilamentProfilesQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMachineProfileQuery, MachineProfileDetail?>, GetMachineProfileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentProfileQuery, FilamentProfileDetail?>, GetFilamentProfileQueryHandler>();
+builder.Services.AddScoped<UpdateMachineProfileRawDataHandlerType, UpdateMachineProfileRawDataCommandHandler>();
+builder.Services.AddScoped<UpdateFilamentProfileRawDataHandlerType, UpdateFilamentProfileRawDataCommandHandler>();
 
 builder.Services.AddSignalR();
 

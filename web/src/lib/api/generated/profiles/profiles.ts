@@ -30,6 +30,8 @@ import type {
   MachineProfileDetailResponse,
   PreviewProfileImportRequest,
   PreviewProfileImportResponse,
+  UpdateFilamentProfileRawDataRequest,
+  UpdateMachineProfileRawDataRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -1376,3 +1378,311 @@ export const useOpenFarmApiEndpointsProfilesPreviewProfileImportEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse200 =
+  {
+    data: FilamentProfileDetailResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponseSuccess =
+  openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponseError =
+  (
+    | openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse401
+    | openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse =
+  | openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponseSuccess
+  | openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponseError;
+
+export const getOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointUrl =
+  (id: string) => {
+    return `/api/v1/profiles/filament/${id}/raw-data`;
+  };
+
+export const openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint =
+  async (
+    id: string,
+    updateFilamentProfileRawDataRequest: UpdateFilamentProfileRawDataRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse>(
+      getOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointUrl(
+        id,
+      ),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(updateFilamentProfileRawDataRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: UpdateFilamentProfileRawDataRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: UpdateFilamentProfileRawDataRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint
+        >
+      >,
+      { id: string; data: UpdateFilamentProfileRawDataRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint(
+        id,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointMutationBody =
+  UpdateFilamentProfileRawDataRequest;
+export type OpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint =
+  <TError = void, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint
+          >
+        >,
+        TError,
+        { id: string; data: UpdateFilamentProfileRawDataRequest },
+        TContext
+      >;
+    },
+    queryClient?: QueryClient,
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: UpdateFilamentProfileRawDataRequest },
+    TContext
+  > => {
+    return useMutation(
+      getOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointMutationOptions(
+        options,
+      ),
+      queryClient,
+    );
+  };
+export type openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse200 =
+  {
+    data: MachineProfileDetailResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponseSuccess =
+  openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponseError =
+  (
+    | openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse401
+    | openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse =
+  | openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponseSuccess
+  | openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponseError;
+
+export const getOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointUrl =
+  (id: string) => {
+    return `/api/v1/profiles/machine/${id}/raw-data`;
+  };
+
+export const openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint =
+  async (
+    id: string,
+    updateMachineProfileRawDataRequest: UpdateMachineProfileRawDataRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointResponse>(
+      getOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointUrl(id),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(updateMachineProfileRawDataRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: UpdateMachineProfileRawDataRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: UpdateMachineProfileRawDataRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint
+        >
+      >,
+      { id: string; data: UpdateMachineProfileRawDataRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint(
+        id,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointMutationBody =
+  UpdateMachineProfileRawDataRequest;
+export type OpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint =
+  <TError = void, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint
+          >
+        >,
+        TError,
+        { id: string; data: UpdateMachineProfileRawDataRequest },
+        TContext
+      >;
+    },
+    queryClient?: QueryClient,
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: UpdateMachineProfileRawDataRequest },
+    TContext
+  > => {
+    return useMutation(
+      getOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpointMutationOptions(
+        options,
+      ),
+      queryClient,
+    );
+  };

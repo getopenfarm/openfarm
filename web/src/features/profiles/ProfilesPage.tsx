@@ -1,4 +1,6 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type {
   FilamentProfileDetailResponse,
@@ -7,10 +9,16 @@ import type {
   MachineProfileDetailResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
+  getOpenFarmApiEndpointsProfilesGetFilamentProfileEndpointQueryKey,
+  getOpenFarmApiEndpointsProfilesGetMachineProfileEndpointQueryKey,
+  getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey,
+  getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey,
   useOpenFarmApiEndpointsProfilesGetFilamentProfileEndpoint,
   useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint,
   useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint,
   useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint,
+  useOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint,
+  useOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint,
 } from '@/lib/api/generated/profiles/profiles';
 import { FilamentProfilesTable } from './components/FilamentProfilesTable';
 import { ImportProfilesDialog } from './components/ImportProfilesDialog';
@@ -21,6 +29,7 @@ type SelectedProfile = { type: 'Machine' | 'Filament'; id: string } | null;
 
 export function ProfilesPage() {
   const [selected, setSelected] = useState<SelectedProfile>(null);
+  const queryClient = useQueryClient();
 
   const machineListQuery =
     useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint();
@@ -51,6 +60,58 @@ export function ProfilesPage() {
     | MachineProfileDetailResponse
     | FilamentProfileDetailResponse
     | undefined;
+
+  const updateMachineMutation =
+    useOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint();
+  const updateFilamentMutation =
+    useOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint();
+
+  async function handleSaveRawData(rawDataJson: string) {
+    if (!selected) {
+      return;
+    }
+
+    try {
+      if (selected.type === 'Machine') {
+        await updateMachineMutation.mutateAsync({
+          id: selected.id,
+          data: { rawDataJson },
+        });
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsProfilesGetMachineProfileEndpointQueryKey(
+              selected.id,
+            ),
+        });
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey(),
+        });
+      } else {
+        await updateFilamentMutation.mutateAsync({
+          id: selected.id,
+          data: { rawDataJson },
+        });
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsProfilesGetFilamentProfileEndpointQueryKey(
+              selected.id,
+            ),
+        });
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey(),
+        });
+      }
+      toast.success('Profile updated.');
+    } catch (error) {
+      if (error instanceof Response && error.status === 422) {
+        const problem = await error.json();
+        throw new Error(problem.detail ?? 'The raw data is not valid JSON.');
+      }
+      throw new Error('Could not save this profile.');
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,6 +152,10 @@ export function ProfilesPage() {
         name={detail?.name}
         rawDataJson={detail?.rawDataJson}
         isLoading={detailQuery.isLoading}
+        onSave={handleSaveRawData}
+        isSaving={
+          updateMachineMutation.isPending || updateFilamentMutation.isPending
+        }
       />
     </div>
   );

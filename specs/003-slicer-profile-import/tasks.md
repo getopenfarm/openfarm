@@ -330,42 +330,42 @@ its key identifying fields, in the corresponding catalog list.
 the catalog reflects the new value; submitting malformed JSON is rejected with the previous data
 unchanged.
 
-- [ ] T059 [P] [US4] Create `InvalidProfileJsonException` in
+- [X] T059 [P] [US4] Create `InvalidProfileJsonException` in
   `api/src/OpenFarm.Application/Profiles/InvalidProfileJsonException.cs` (FR-013, mapped to 422 by the
   existing `DomainExceptionHandler`)
-- [ ] T060 [P] [US4] Create `UpdateMachineProfileRawDataCommand` + Validator in
+- [X] T060 [P] [US4] Create `UpdateMachineProfileRawDataCommand` + Validator in
   `api/src/OpenFarm.Application/Profiles/UpdateMachineProfileRawDataCommand.cs` /
   `UpdateMachineProfileRawDataCommandValidator.cs` (validates the submitted string is non-empty; JSON
   well-formedness is checked in the handler so a parse failure can throw the typed exception above)
-- [ ] T061 [US4] Implement `UpdateMachineProfileRawDataCommandHandler` in
+- [X] T061 [US4] Implement `UpdateMachineProfileRawDataCommandHandler` in
   `api/src/OpenFarm.Application/Profiles/UpdateMachineProfileRawDataCommandHandler.cs` — parses the
   submitted JSON, throws `InvalidProfileJsonException` on failure leaving the stored row untouched,
   otherwise overwrites `RawDataJson` only, with no re-derivation step (data-model.md)
-- [ ] T062 [P] [US4] Create `UpdateFilamentProfileRawDataCommand` + Validator + Handler in
+- [X] T062 [P] [US4] Create `UpdateFilamentProfileRawDataCommand` + Validator + Handler in
   `api/src/OpenFarm.Application/Profiles/UpdateFilamentProfileRawDataCommand.cs` /
   `UpdateFilamentProfileRawDataCommandValidator.cs` / `UpdateFilamentProfileRawDataCommandHandler.cs`
   (same behavior as T060/T061, scoped to `FilamentProfile`)
-- [ ] T063 [P] [US4] Create `UpdateMachineProfileRawDataEndpoint` in
+- [X] T063 [P] [US4] Create `UpdateMachineProfileRawDataEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/UpdateMachineProfileRawDataEndpoint.cs` — `PUT
   /api/v1/profiles/machine/{id}/raw-data`, `[Permission("profiles:edit-machine-raw-data")]`, returns the
   same shape as the detail `GET` with derived fields recomputed from the saved value
-- [ ] T064 [P] [US4] Create `UpdateFilamentProfileRawDataEndpoint` in
+- [X] T064 [P] [US4] Create `UpdateFilamentProfileRawDataEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/UpdateFilamentProfileRawDataEndpoint.cs` — `PUT
   /api/v1/profiles/filament/{id}/raw-data`, `[Permission("profiles:edit-filament-raw-data")]`
-- [ ] T065 [P] [US4] Integration test: a valid raw-data save is reflected on the next `GET`; malformed
+- [X] T065 [P] [US4] Integration test: a valid raw-data save is reflected on the next `GET`; malformed
   JSON returns 422 and leaves the previously saved value unchanged, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/UpdateProfileRawDataEndpointTests.cs` (FR-012,
   FR-013, US4 Acceptance Scenarios 1–2)
-- [ ] T066 [P] [US4] Integration test: editing a base profile's raw JSON changes its descendant's
+- [X] T066 [P] [US4] Integration test: editing a base profile's raw JSON changes its descendant's
   derived display fields on the descendant's very next read, with no propagation step anywhere, in the
   same test file (data-model.md's chain-propagation-for-free behavior)
-- [ ] T067 [P] [US4] Regenerate the Orval-generated API client for the two raw-data update endpoints in
+- [X] T067 [P] [US4] Regenerate the Orval-generated API client for the two raw-data update endpoints in
   `web/src/lib/api/generated/profiles/`
-- [ ] T068 [US4] Extend `ProfileRawDataDialog.tsx` in
+- [X] T068 [US4] Extend `ProfileRawDataDialog.tsx` in
   `web/src/features/profiles/components/ProfileRawDataDialog.tsx` with an editable JSON textarea
   (react-hook-form + zod), a Save action wired to the `PUT` hook, and inline error display on a 422
   response (FR-012, FR-013)
-- [ ] T069 [P] [US4] Vitest + RTL test for the edit/save flow in
+- [X] T069 [P] [US4] Vitest + RTL test for the edit/save flow in
   `web/src/features/profiles/components/ProfileRawDataDialog.test.tsx` (successful save updates
   displayed values; malformed JSON shows an error and leaves the last-saved value visible)
 
