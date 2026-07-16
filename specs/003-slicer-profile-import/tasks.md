@@ -375,11 +375,11 @@ unchanged.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T070 [P] Run `dotnet format api/OpenFarm.slnx --verify-no-changes` and `bun run lint` / `bun run
+- [X] T070 [P] Run `dotnet format api/OpenFarm.slnx --verify-no-changes` and `bun run lint` / `bun run
   format` across all new/changed files, fixing any violations
-- [ ] T071 Run the full `quickstart.md` validation (Scenarios 1–6 plus the activity-log coverage check)
+- [X] T071 Run the full `quickstart.md` validation (Scenarios 1–6 plus the activity-log coverage check)
   against a local `docker compose up` stack with a real captured bundle
-- [ ] T072 Run `dotnet test api/OpenFarm.slnx` and `bun run test` end-to-end and confirm the full suite
+- [X] T072 Run `dotnet test api/OpenFarm.slnx` and `bun run test` end-to-end and confirm the full suite
   passes
 
 ---
