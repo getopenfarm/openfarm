@@ -42,6 +42,8 @@ FR-002, FR-003). `multipart/form-data`, single field `file` (`research.md` §6).
       "maxVolumetricSpeedMm3s": 15, "fanPercent": 100,
       "baseProfileName": "Bambu PLA Basic",
       "hasUnresolvedBaseInChain": false,
+      "compatiblePrinterNames": ["Bambu Lab X1 Carbon 0.4 nozzle"],
+      "compatiblePrinterProfiles": [ { "name": "Bambu Lab X1 Carbon 0.4 nozzle", "machineProfileId": null } ],
       "isDuplicate": false
     }
   ]
@@ -68,6 +70,18 @@ that unresolved ancestor would have supplied. In the example above, the "Bambu P
 shows complete derived fields because "Bambu PLA Basic" is presumably also in this bundle or already
 imported; if it weren't, the same preset would show `"hasUnresolvedBaseInChain": true` and likely
 missing `nozzleTempC`/`bedTempC`/etc.
+
+`compatiblePrinterNames`/`compatiblePrinterProfiles` (filament presets only, FR-016, `research.md` §11):
+declared printer compatibility, same resolve-or-keep-the-name treatment as `baseProfileName`/
+`baseProfileId`, but resolved **only** against already-persisted catalog rows — never against a
+same-bundle sibling machine preset that hasn't been confirmed yet, even when it's right there in
+`machinePresets` above (a real `MachineProfile.Id` can't exist before confirm creates it). So
+`"machineProfileId": null` in the example above is expected, not a bug, for a first-time import — it
+resolves post-confirm, once "Bambu Lab X1 Carbon 0.4 nozzle" (if selected) becomes a real row. The
+frontend can still tell the operator this compatible printer *is* in the bundle, entirely client-side, by
+cross-referencing `compatiblePrinterNames` against this same response's `machinePresets[].name` — the
+same client-side-only pattern FR-006's "base present but not selected" warning already uses, not a
+second backend mechanism.
 
 **Response 422** (FR-007) — `ProblemDetails`, unrecognized file extension or an archive that fails to
 open/parse:
@@ -174,4 +188,10 @@ re-triggered on the descendant side (`research.md` §10).
 
 Mirror the three machine-profile endpoints above exactly, scoped to `FilamentProfile` and its own field
 set (`data-model.md`) — material/brand/colorHex/nozzleTempC/bedTempC/maxVolumetricSpeedMm3s/fanPercent
-instead of nozzleSizeMm/bedSize/enclosure/supportedMaterials.
+instead of nozzleSizeMm/bedSize/enclosure/supportedMaterials — **plus** `compatiblePrinterNames`/
+`compatiblePrinterProfiles` (FR-016, `research.md` §11), which has no machine-profile equivalent: a
+machine preset has nothing analogous to declare, since it already *is* the description of one printer
+model. Unlike preview (where `machineProfileId` is typically null even for a same-bundle compatible
+printer — see the preview section above), these two `GET` endpoints resolve against the full, already-
+persisted catalog, so a compatible printer imported in an *earlier* confirm call — or the same confirm
+call this filament profile came from — resolves correctly here.

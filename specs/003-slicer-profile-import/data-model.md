@@ -64,7 +64,17 @@ read, with no propagation step anywhere, since nothing in the chain is ever cach
 `supportsLiveIntegration` field — cut entirely for this phase, `research.md` §8.)
 
 **Filament profile derived fields**: `material`, `brand`, `colorHex`, `nozzleSizeMm`, `nozzleTempC`,
-`bedTempC`, `maxVolumetricSpeedMm3s`, `fanPercent`.
+`bedTempC`, `maxVolumetricSpeedMm3s`, `fanPercent`, plus (FR-016, `research.md` §11):
+- `compatiblePrinterNames: string[]` — the preset's declared compatible-printer names, extracted from the
+  chain-merged `compatible_printers`/`compatible_prints` field, or (only when the row's own
+  `BaseProfileName` is null and the merged list is empty) inferred from the preset's own `Name`'s
+  `@ <printer>` suffix. Empty means "compatible with all printers," per the source format's own
+  convention — not a gap, a meaningful declaration.
+- `compatiblePrinterProfiles: { name, machineProfileId }[]` — each declared name resolved against the
+  `MachineProfile` catalog by `(SourceFormat, Name)`, same tri-state as base resolution (exactly one
+  match → resolved; zero or 2+ → `machineProfileId: null`). **Not** a persisted relationship — computed
+  fresh on every read, since (unlike `BaseProfileId`) nothing structural needs a stable graph here; see
+  `research.md` §11 for why this is deliberately not modeled the same way as `BaseProfileId`.
 
 **`hasUnresolvedBaseInChain`** (both types): a boolean, computed alongside the merge during the same
 chain-walk — never a persisted column, same principle as every other derived field. `true` when the walk
@@ -114,6 +124,11 @@ without a real requirement driving it (constitution Principle IV).
   persisted form.
 - **Live-integration capability** (`MachineProfile`) — cut entirely for this phase, neither persisted
   nor derived. See `research.md` §8.
+- **Compatible-printer resolution** (`FilamentProfile.compatiblePrinterProfiles`) — deliberately not a
+  persisted relationship (no join table, no FK) even though it resolves against `MachineProfile.Id`,
+  unlike `BaseProfileId`. Computed fresh on every read from `compatiblePrinterNames` — see "Derived
+  display fields" above and `research.md` §11 for why this doesn't need `BaseProfileId`'s stable-graph
+  justification.
 
 ## EF Core configuration notes
 

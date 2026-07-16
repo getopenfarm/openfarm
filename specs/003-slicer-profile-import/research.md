@@ -462,6 +462,90 @@ handlers never revisit them (`data-model.md`). The walk must **always** use the 
 at preview time, the name-matching above) — never re-parse `RawDataJson`'s own embedded reference to
 decide topology. Worth stating explicitly now that a real chain-walk exists to get this wrong in.
 
+## 11. Filament preset → compatible printer(s) — a second declared relationship (FR-016)
+
+**Confirmed real, not inferred**: OrcaSlicer/Bambu Studio filament (and process) presets carry an actual
+`compatible_printers: string[]` field in their own JSON — an explicit list of printer preset *names* the
+preset declares itself usable with. An empty array (or the key absent entirely) means the preset is
+compatible with every printer, per the source format's own convention — this is confirmed product
+behavior, not a gap to fill in: Bambu Studio's own AMS-mapping/nozzle-compatibility gate reads exactly
+this kind of declared data before allowing a print
+([Bambu Lab Wiki: Use AMS on Bambu Studio](https://wiki.bambulab.com/en/software/bambu-studio/use-ams-on-bambu-studio)).
+A real, documented OrcaSlicer bug writes the key as `compatible_prints` (missing the trailing "er")
+instead of `compatible_printers` in some versions, which silently hides the affected preset from the UI
+([OrcaSlicer issue #12193](https://github.com/OrcaSlicer/OrcaSlicer/issues/12193)) — the parser accepts
+**both** key spellings defensively, matching §2's "tolerate the real format, don't assume a clean schema"
+philosophy.
+
+**Name-suffix fallback, precisely scoped**: when a preset's `compatible_printers`/`compatible_prints` is
+empty *and* the preset has no declared base (`BaseProfileName` is null — a "root" preset in OrcaSlicer's
+own terminology), OrcaSlicer itself infers compatibility from the preset's own name — the convention
+`<filament> @ <printer name>` (e.g. `"Bambu PLA Basic @ Bambu X1 Carbon"`) exists specifically so this
+inference works, confirmed both by OrcaSlicer's own preset-naming documentation
+([OrcaSlicer Wiki: How to create profiles](https://github.com/OrcaSlicer/OrcaSlicer/wiki/How-to-create-profiles))
+and by a description of Bambu Studio's own matching logic checking "whether the full printer preset name
+... appears inside the preset's name field." This fallback is conditioned on the *target row's own*
+`BaseProfileName` being null — a preset's `Name` (data-model.md) is always its own real column, never
+merged/inherited, so parsing the "@" suffix out of it is unambiguous regardless of chain resolution. When
+`BaseProfileName` *is* set (a non-root/derived preset), no fallback applies — an empty
+`compatible_printers` at that level is left to resolve through the ordinary chain merge below, same as
+any other field.
+
+**No new merge machinery — this reuses §10's chain-walk exactly**: `compatible_printers` is just one more
+key in a preset's JSON, subject to the same delta-export behavior every other field already gets (§9's
+revision, §10) — a derived preset's own JSON may omit `compatible_printers` entirely, inheriting whatever
+its base declared. `ProfileRawDataMerger.MergeAncestorChain`'s existing shallow key-overwrite merge
+already produces the correct effective value with zero changes; the per-`SourceFormat` field-mapping
+table (§2) just gains one more extraction target (`compatiblePrinterNames`, tolerant of both key
+spellings, defaulting to `[]` when absent at every level, applying the name-suffix fallback only for the
+target row's own `BaseProfileName == null` case described above) — computed via the exact call sites §9/
+§10 already established (preview and every catalog read), nothing new to fetch or wire up.
+
+**Resolution is read-time-only, deliberately *not* a persisted FK (unlike `BaseProfileId`)**: for each
+name in the merged `compatiblePrinterNames`, resolve against the `MachineProfile` catalog by
+`(SourceFormat, Name)` — exactly one match → resolved; zero or 2+ matches → unresolved, the identical
+tri-state §3 already establishes for base resolution. Unlike `BaseProfileId`, this is **not** persisted:
+`BaseProfileId` is a real column because the chain-walk merge structurally needs a stable, previously-set
+graph to traverse (§10's "topology is always the persisted columns" rule); compatible-printer resolution
+feeds no merge and has no such structural need — it's a flat, independent per-name lookup with no
+graph-traversal dependency, so computing it fresh on every read (same principle as every other derived
+field, §9) is both simpler and consistent, with no new schema surface for something no FR asks to be
+persisted, queried, or joined against (constitution Principle IV).
+
+**Important asymmetry versus §10's base-chain resolution, at preview time specifically**: because
+`machineProfileId` must be a real `MachineProfile.Id`, the DB lookup can only ever resolve against
+*already-persisted* catalog rows — never against a sibling machine preset sitting unconfirmed in the same
+preview response, even though that's the common case spec.md's own Acceptance Scenario 6 describes (one
+printer preset bundled with several compatible filament presets). This is different from §10's
+base-chain merge, where an in-batch sibling's *raw settings content* can be used immediately (no
+persisted `Id` needed to read a JSON string) — but a same-bundle sibling literally has no `Id` to hand
+back as `machineProfileId` until confirm actually creates it. So at preview time,
+`compatiblePrinterProfiles[].machineProfileId` is null for any name whose only match is a same-bundle,
+not-yet-confirmed sibling; it only resolves post-confirm, once that sibling (if selected) becomes a real
+row. This is expected, not a bug — and it's cheap to make visibly non-broken: the frontend already has
+everything needed to show "this compatible printer is included in this bundle" *without* a backend
+round-trip, by cross-referencing `compatiblePrinterNames` against the same preview response's
+`machinePresets[].name` array — exactly the client-side-only pattern FR-006's "base present in bundle but
+not selected" warning already establishes (§4), reused here rather than inventing a second mechanism or
+complicating the DB-backed resolution to fake an in-batch case it structurally can't satisfy.
+
+**API shape**: filament profile responses (preview and catalog, list and detail) gain
+`compatiblePrinterNames: string[]` (the raw declared/inferred names, post-merge) and
+`compatiblePrinterProfiles: { name: string, machineProfileId: string | null }[]` (per-name resolution
+against *persisted* catalog rows only — `machineProfileId` null means unresolved, per the asymmetry
+above the common case at preview time even for a same-bundle compatible printer, and, post-confirm, the
+same common case spec.md's Assumptions already establish for an unresolved `BaseProfileId`). An empty
+`compatiblePrinterNames` means "compatible with all printers," per the source format's own convention —
+surfaced as-is, not specially flagged, since it's an explicit, meaningful declaration rather than a gap.
+
+**Machine profiles don't get a reciprocal field this phase**: `compatible_printers` is a
+filament/process-preset concept in the source format — a machine/printer preset has no equivalent
+"compatible filaments" declaration of its own to extract (a machine preset already *is* the description
+of one printer model; there's nothing on that side needing a separate compatibility list). A "which
+filament profiles declare compatibility with this machine profile" reverse lookup is a reasonable future
+UI convenience but isn't required by FR-016 or any acceptance scenario — not built now, consistent with
+this feature's standing rule of not building past what's actually asked for (Principle IV).
+
 ## Summary of resolved unknowns
 
 | Item | Resolution |
@@ -478,3 +562,4 @@ decide topology. Worth stating explicitly now that a real chain-walk exists to g
 | Live-integration flag | Cut entirely for this phase — no FR/SC backs it and its source field is unverified (§8) |
 | Persisting descriptive/spec fields | Not stored — computed at read time (§9), and, since real exported presets are delta-only, from the *resolved ancestor chain's* merged `RawDataJson` rather than one row alone, both at preview and post-confirm (§10) |
 | Delta-export gap (custom profile with "nothing to reference") | Confirmed real via source code + a real fixture chain + GitHub issues: exports are delta-only. Fixed by a read-time chain-walk merge, not by seeding default slicer profiles — the latter was considered and rejected (§10) |
+| Filament preset → compatible printer(s) (FR-016) | Real `compatible_printers`/buggy `compatible_prints` field, plus a name-suffix fallback for root presets with neither a base nor a declared list; reuses §10's chain-walk merge as-is; resolution against the machine-profile catalog is read-time-only, never a persisted FK (§11) |
