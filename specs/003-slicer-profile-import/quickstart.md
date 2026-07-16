@@ -168,36 +168,21 @@ imported profile is listed with its key fields (US3 Acceptance Scenarios 1–2).
 open any one profile — should take no more than 3 clicks/interactions total from the catalog list
 (SC-006) — and confirm its raw JSON viewer shows the full original preset data.
 
-**Compatible-printer resolution** (FR-016, `research.md` §11): using the bundle from Scenario 2 (a
+**Compatible-printer declaration** (FR-016, `research.md` §11): using the bundle from Scenario 2 (a
 printer preset plus its compatible filament presets — spec's Acceptance Scenario 6), open one of the
-imported filament profiles and confirm its declared compatible printer name is shown. Since the machine
-preset was imported in the *same* confirm call, it now exists as a real catalog row:
+imported filament profiles and confirm its declared compatible printer name is shown, as plain text —
+this is a display-only field this feature, not resolved against the machine-profile catalog:
 
 ```bash
 curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bearer <token>" \
-  | jq '.profiles[] | {name, compatiblePrinterNames, compatiblePrinterProfiles}'
+  | jq '.profiles[] | {name, compatiblePrinterNames}'
 ```
 
-**Expected**: `compatiblePrinterNames` lists the printer preset's name, and
-`compatiblePrinterProfiles[].machineProfileId` is now a real id (not null) — resolved against the
-machine profile you imported alongside it. Contrast this with the **preview** response from earlier in
-Scenario 2, where `compatiblePrinterProfiles[].machineProfileId` should have been `null` for the exact
-same name — resolution only becomes possible once the compatible printer is actually persisted, which
-preview alone can't do (`research.md` §11's asymmetry). Confirm the review list still showed the
-compatible printer was part of the bundle at preview time regardless (client-side, from
-`machinePresets[].name`), so the operator wasn't misled while it was still unresolved.
-
-Now check a filament profile whose declared compatible printer was **not** imported (any filament preset
-you selected without its printer preset, or a single-preset `.orca_filament` export uploaded on its own):
-
-```bash
-curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bearer <token>" \
-  | jq '.profiles[] | select(.compatiblePrinterProfiles != null) | select(any(.compatiblePrinterProfiles[]; .machineProfileId == null))'
-```
-
-**Expected**: the profile exists, `compatiblePrinterNames` still lists the declared printer name, but
-`compatiblePrinterProfiles[].machineProfileId` is `null` — an unresolved compatible-printer reference is
-a normal outcome, the same tolerance as an unresolved base.
+**Expected**: `compatiblePrinterNames` lists the printer preset's name for any filament profile that
+declared one. Repeat with a single-preset `.orca_filament` export uploaded on its own (its compatible
+printer preset not imported) and confirm the same field is populated identically — whether or not the
+named printer exists elsewhere in the catalog makes no difference to this response, since no resolution
+is attempted.
 
 Edit one field's value (e.g. bump a temperature) and save:
 

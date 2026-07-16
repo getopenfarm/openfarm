@@ -107,9 +107,7 @@ catalog list.
 2. **Given** profiles have been imported, **When** the operator opens the filament profile catalog,
    **Then** every imported filament profile is listed with its name, material, and color.
 3. **Given** a filament profile that declares which printer(s) it's compatible with, **When** the
-   operator views that filament profile, **Then** the declared compatible printer name(s) are shown,
-   resolved to the matching machine profile when one exists in the catalog and shown as an unresolved
-   name when it doesn't — the same resolve-or-keep-the-name treatment as a base/override reference.
+   operator views that filament profile, **Then** the declared compatible printer name(s) are shown.
 
 ---
 
@@ -149,10 +147,6 @@ value, saving, and confirming the catalog now reflects the new value.
 - What happens when an override preset's declared base is a built-in slicer default that was never part
   of any bundle (the common case, not a rare one)? The system must import the override on its own and
   keep the base's name as an unresolved reference rather than blocking the import or erroring.
-- What happens when a filament preset's declared compatible printer name doesn't match any machine
-  profile in the catalog (the common case when only the filament preset, not its compatible printer
-  presets, was imported)? The system must keep the declared name for reference without requiring a
-  matching machine profile to exist — the same unresolved-reference tolerance as an unresolved base.
 - How does the system handle a very large bundle (many dozens of presets) in the review/selection list?
   The list must stay usable (searchable/scrollable) rather than becoming an unmanageable wall of entries.
 - What happens if the operator's session or upload is interrupted partway through parsing a large bundle?
@@ -205,13 +199,10 @@ value, saving, and confirming the catalog now reflects the new value.
 - **FR-016**: System MUST extract and preserve a filament preset's declared printer compatibility from
   the source bundle — the preset's own list of compatible printer preset names — and, for a preset that
   declares neither a base preset nor an explicit compatible-printer list, fall back to the printer name
-  embedded in the preset's own name. Each declared name MUST be resolved to the matching machine profile
-  when one exists unambiguously in the catalog, and kept as an unresolved name otherwise, with the same
-  tolerance FR-005 already establishes for an unresolved base — a declared compatible printer is commonly
-  one the operator never separately imported. An empty or entirely absent compatible-printer declaration
-  means the preset is compatible with all printers, consistent with the source format's own convention.
-  This is a relationship within the profile catalog itself (filament profile → machine profile), not a
-  link to any fleet printer record or job — FR-015 is unaffected.
+  embedded in the preset's own name. These names are stored and shown as declared text; resolving them
+  against a specific Machine Profile record is explicitly out of scope for this feature (see Assumptions)
+  — FR-015 is unaffected regardless. An empty or entirely absent compatible-printer declaration means the
+  preset is compatible with all printers, consistent with the source format's own convention.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -224,10 +215,9 @@ value, saving, and confirming the catalog now reflects the new value.
   bundle — material type, brand, color, and tuned slicer settings. Schema is kept close to Spoolman's
   filament/vendor shape for future compatibility. Carries the name of the base filament profile it
   overrides, if any, with the same possibly-unresolved reference behavior as Machine Profile. Also
-  carries the printer name(s) it declares itself compatible with (from the source preset's own
-  compatible-printer list, or inferred from its own name when it declares neither a base nor an explicit
-  list) — each resolved to a Machine Profile in the catalog when possible, kept as an unresolved name
-  otherwise (FR-016).
+  carries the printer name(s) it declares itself compatible with, stored as declared text (from the
+  source preset's own compatible-printer list, or inferred from its own name when it declares neither a
+  base nor an explicit list) — not resolved to a specific Machine Profile record this feature (FR-016).
 - **Import Batch** (conceptual, not necessarily a user-facing entity): The set of presets extracted from
   one uploaded bundle in one import action, used to group the review/selection step before any profile is
   persisted.
@@ -262,12 +252,11 @@ value, saving, and confirming the catalog now reflects the new value.
   default slicer profiles (consistent with `docs/FEATURE_PLAN.md`'s "import-your-own-bundle only"
   design). Storing an override whose base reference never resolves to a catalog record is therefore the
   common case, not an exceptional one.
-- A filament preset's declared printer compatibility works the same way and is just as commonly
-  unresolved: a filament preset frequently declares compatibility with a printer preset the operator
-  never separately imported (e.g. a filament tuned for a specific Bambu model the operator only ever
-  interacts with through Bambu Studio's built-in profile, not an exported one). Both this and the
-  base/override reference are examples of the same general pattern — a declared name reference from the
-  source bundle, preserved verbatim, resolved to a catalog record only when possible.
+- A filament preset's declared printer compatibility is stored and shown as plain declared text (FR-016)
+  — preserved verbatim from the source bundle, the same way `BaseProfileName` is, but explicitly **not**
+  resolved to a specific Machine Profile record in this feature. Linking a filament profile's declared
+  compatibility to an actual catalog Machine Profile is deferred, consistent with this feature's general
+  "catalog data only, no cross-record linking beyond base/override" scope for its first phase.
 - Structured per-field create/edit forms are explicitly out of scope for this phase; the raw JSON
   editor/viewer is the only way to inspect or correct an imported profile, consistent with
   `docs/FEATURE_PLAN.md` Phase 2 deferring per-attribute forms until real imported data has settled the

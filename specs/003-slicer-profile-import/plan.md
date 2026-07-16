@@ -23,8 +23,9 @@ reading one row alone — the dominant real case (a base imported alongside its 
 completely without OpenFarm ever seeding any built-in slicer defaults; a profile flags
 `hasUnresolvedBaseInChain` when that's not fully possible. A filament profile's declared printer
 compatibility (the source format's own `compatible_printers` field, or a name-suffix fallback for a
-preset with neither a base nor a declared list) is preserved and resolved against the machine-profile
-catalog the same way — a within-catalog relationship, not a link to any fleet printer. Imported profiles
+preset with neither a base nor a declared list) is preserved and shown as plain declared text — resolving
+it against the machine-profile catalog was designed and then deliberately cut for this feature. Imported
+profiles
 are viewable in two separate catalog lists and editable only through a raw JSON viewer/editor — no
 structured per-field forms, no printer/job linkage, consistent with this phase's deliberately narrow
 scope per `docs/FEATURE_PLAN.md` Phase 2.
@@ -208,9 +209,8 @@ api/src/OpenFarm.Application/Profiles/
   PreviewProfileImportCommand.cs / Handler         # parses upload, flags duplicates (research.md §5); resolves each
                                                     # preset's base chain by (SourceFormat, Name) against same-batch
                                                     # siblings then prior-imported rows, merges via ProfileRawDataMerger
-                                                    # (research.md §10); resolves each filament preset's declared
-                                                    # compatiblePrinterNames against already-persisted MachineProfile
-                                                    # rows only — never same-batch siblings, which have no real Id yet
+                                                    # (research.md §10); extracts each filament preset's declared
+                                                    # compatiblePrinterNames as plain text, no resolution attempted
                                                     # (research.md §11, FR-016) — no persistence
   ConfirmProfileImportCommand.cs / Handler         # re-parses the re-uploaded file (research.md §4), two-pass
                                                     # (SourceFormat, Name)-scoped base/override resolution (research.md §3) — TDD
@@ -220,14 +220,12 @@ api/src/OpenFarm.Application/Profiles/
                                                     # calls IProfileBundleParser.ExtractMachineDisplayFields on the
                                                     # merged result — no extra DB round trips, no recursive CTE
                                                     # (research.md §10)
-  GetFilamentProfilesQuery.cs / Handler            # same, via ExtractFilamentDisplayFields; also resolves each row's
-                                                    # compatiblePrinterNames (FR-016) against the same already-fetched
-                                                    # MachineProfile set by (SourceFormat, Name) — read-time only, no
-                                                    # persisted FK, no extra query (research.md §11)
+  GetFilamentProfilesQuery.cs / Handler            # same, via ExtractFilamentDisplayFields; compatiblePrinterNames
+                                                    # (FR-016) is just another extracted field, no resolution step
   GetMachineProfileQuery.cs / Handler               # single profile: raw data (FR-011) + chain-merged derived display
                                                      # fields, via sequential bounded fetch-by-id up BaseProfileId
                                                      # (research.md §10)
-  GetFilamentProfileQuery.cs / Handler              # same idea as list, plus compatible-printer resolution (FR-016)
+  GetFilamentProfileQuery.cs / Handler              # same idea as list
   UpdateMachineProfileRawDataCommand.cs / Handler / Validator   # FR-012/013 — validates JSON, overwrites RawDataJson; no caching step, nothing else to keep in sync
   UpdateFilamentProfileRawDataCommand.cs / Handler / Validator
   UnsupportedProfileBundleFormatException.cs        # FR-007 — unrecognized/corrupted archive
@@ -289,4 +287,4 @@ Constitution Check section's note, not because either is a deviation:
 | Base/override resolution treats an ambiguous same-name match (2+ candidate rows, in-batch or prior-import) as unresolved, same as no match | FR-009 permits importing duplicate-named presets as separate rows, so `Name` isn't unique — a `BaseProfileName` lookup by `Name` can legitimately match more than one row, which the original two-pass algorithm didn't account for (an in-batch `Name → Id` map can only hold one `Id` per name; a prior-import lookup could return 2+ rows) | A deterministic tie-break (e.g. most-recently-created same-named row) was considered and rejected — it resolves to *something*, but with no principled way to know which same-named row a preset's declared base actually meant; a silently wrong link is worse than a visibly missing one, since it looks correct in the UI and is much harder to notice or correct later |
 | Derived display fields computed from a chain-walk merge over `BaseProfileId` (`ProfileRawDataMerger`), not one row's `RawDataJson` alone; applied at both preview (name-matched) and post-confirm (Id-matched) | Real OrcaSlicer/Bambu Studio exports are delta-only (confirmed via source code, a real multi-level fixture chain, and GitHub issues, `research.md` §10) — an override preset's own `RawDataJson` typically lacks nozzle temp/bed temp/etc. entirely, so single-row extraction showed blank fields even when the base was imported alongside the override, spec's own US2 Scenario 1 | Seeding a narrow set of built-in slicer default profiles was considered (so override-only imports would always resolve) and rejected — it reopens spec.md's explicit "import-your-own-bundle only" position and adds an ongoing upstream-sync maintenance burden this phase has none of; the chain-walk fixes the dominant real case (base + override imported together) without seeding anything, leaving only a narrower, honestly-flagged (`hasUnresolvedBaseInChain`) residual gap for a truly unimported built-in root |
 | Base/override resolution scoped by `(SourceFormat, Name)`, not `Name` alone | An `"inherits"` reference always names a preset within that same slicer's own library — a Bambu Studio preset can never legitimately declare an OrcaSlicer-named preset as its base, and allowing a cross-format match would silently corrupt the chain-walk merge above by mixing two different field-name vocabularies in one merged blob | Leaving resolution `Name`-only (the prior design) was simpler but semantically wrong from the start, not just a missing safeguard for the merge feature — surfaced only once the merge work required every row in a chain to share one field-name vocabulary |
-| `FilamentProfile.compatiblePrinterNames`/`compatiblePrinterProfiles` (FR-016) resolved read-time-only, no persisted FK or join table, unlike `BaseProfileId` | Real research confirmed `compatible_printers` is an actual field in filament/process presets, with a name-suffix fallback for root presets — a genuine gap the original design missed entirely; resolving it feeds no merge and has no structural need for a stable persisted graph the way `BaseProfileId` does for the chain-walk | Modeling this as a persisted many-to-many relationship (a join table, or a `Guid?[]` of resolved ids) was considered — rejected because nothing forces resolution to happen once and stay stable (unlike base/override, which the merge depends on); a flat per-name lookup computed fresh on every read is simpler and needs no new schema surface for something no FR asks to be queried or joined against (Principle IV) |
+| `FilamentProfile.compatiblePrinterNames` (FR-016) stored/shown as declared text only, no resolution against `MachineProfile` at all | Real research confirmed `compatible_printers` is an actual field in filament/process presets, with a name-suffix fallback for root presets — a genuine gap the original design missed entirely; extracting and showing the declared names alone already satisfies FR-016 and US3's acceptance scenario | Resolving each name against the `MachineProfile` catalog (read-time-only, mirroring `BaseProfileId`'s tri-state) was designed and then cut: a `machineProfileId` could only ever resolve against *already-persisted* rows, so it would be null for the common case of a same-bundle compatible printer still unconfirmed at preview time — a resolution field that's usually null right where it matters most isn't worth the complexity; the frontend can already show "this compatible printer is in the bundle" client-side from data already in hand, the same pattern FR-006 uses |
