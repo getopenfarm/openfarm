@@ -67,6 +67,19 @@ public class ProfileBundleParserTests
     }
 
     [Fact]
+    public async Task ParseAsync_VeryShortNonZipStream_ThrowsUnsupportedProfileBundleFormatException()
+    {
+        // ZipArchive throws ArgumentOutOfRangeException (not InvalidDataException) for a stream
+        // too short to contain an End Of Central Directory record — a real gap caught only by
+        // manual end-to-end testing, not the longer "not-a-zip.zip" fixture below.
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("not a zip\n"));
+
+        var act = async () => await Parser.ParseAsync(stream, ProfileSourceFormat.OrcaSlicer, CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnsupportedProfileBundleFormatException>();
+    }
+
+    [Fact]
     public async Task ParseAsync_NonZipFile_ThrowsUnsupportedProfileBundleFormatException()
     {
         await using var stream = OpenFixture("not-a-zip.zip");

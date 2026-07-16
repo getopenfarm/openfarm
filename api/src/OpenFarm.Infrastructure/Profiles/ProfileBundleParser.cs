@@ -19,7 +19,11 @@ public sealed class ProfileBundleParser : IProfileBundleParser
         {
             archive = new ZipArchive(bundleStream, ZipArchiveMode.Read, leaveOpen: true);
         }
-        catch (InvalidDataException ex)
+        // ZipArchive throws different exception types depending on exactly how a stream fails to
+        // look like a zip (too short to contain an End Of Central Directory record, garbled
+        // central directory, etc.) — all of them mean the same thing to an operator: this isn't a
+        // usable bundle (FR-007).
+        catch (Exception ex) when (ex is InvalidDataException or ArgumentOutOfRangeException or IOException or EndOfStreamException)
         {
             throw new UnsupportedProfileBundleFormatException(
                 "The uploaded file could not be read as a slicer profile bundle (not a valid zip archive).", ex);

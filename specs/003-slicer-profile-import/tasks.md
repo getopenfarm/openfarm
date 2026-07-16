@@ -141,57 +141,57 @@ catalogs afterward.
 - [X] T020 [P] [US1] Create `UnsupportedProfileBundleFormatException` in
   `api/src/OpenFarm.Application/Profiles/UnsupportedProfileBundleFormatException.cs` (FR-007, thrown on
   an unrecognized/corrupted archive, mapped to 422)
-- [ ] T021 [P] [US1] Create the `IHasEntityIds` marker interface in
+- [X] T021 [P] [US1] Create the `IHasEntityIds` marker interface in
   `api/src/OpenFarm.Api/Processors/IHasEntityIds.cs` (`IReadOnlyList<string> EntityIds`, research.md §7)
-- [ ] T022 [US1] Extend `ActivityLogPostProcessor` in
+- [X] T022 [US1] Extend `ActivityLogPostProcessor` in
   `api/src/OpenFarm.Api/Processors/ActivityLogPostProcessor.cs` to check the response for
   `IHasEntityIds` and write one `ActivityLogEntry` per id when present, keeping the existing
   single-`Id`-reflection path as the default for every other endpoint (research.md §7)
-- [ ] T023 [P] [US1] Create `PreviewProfileImportCommand` in
+- [X] T023 [P] [US1] Create `PreviewProfileImportCommand` in
   `api/src/OpenFarm.Application/Profiles/PreviewProfileImportCommand.cs` (carries the uploaded stream)
-- [ ] T024 [US1] Implement `PreviewProfileImportCommandHandler` in
+- [X] T024 [US1] Implement `PreviewProfileImportCommandHandler` in
   `api/src/OpenFarm.Application/Profiles/PreviewProfileImportCommandHandler.cs` — parses the upload via
   `IProfileBundleParser`, flags `IsDuplicate` by `(Name, type)` against existing catalog rows
   (research.md §5), resolves each preset's base chain by `(SourceFormat, Name)` against same-batch
   siblings first, then prior-imported rows, merging via `ProfileRawDataMerger` for derived display
   fields and `hasUnresolvedBaseInChain` (research.md §10), and extracts `compatiblePrinterNames` as
   plain declared text with no catalog resolution (research.md §11, FR-016)
-- [ ] T025 [P] [US1] Create `ConfirmProfileImportCommand` in
+- [X] T025 [P] [US1] Create `ConfirmProfileImportCommand` in
   `api/src/OpenFarm.Application/Profiles/ConfirmProfileImportCommand.cs` (carries the re-uploaded stream
   plus the `SelectedProfileKey` list per data-model.md)
-- [ ] T026 [US1] Implement `ConfirmProfileImportCommandHandler` in
+- [X] T026 [US1] Implement `ConfirmProfileImportCommandHandler` in
   `api/src/OpenFarm.Application/Profiles/ConfirmProfileImportCommandHandler.cs` — re-parses the
   re-uploaded file with the same `IProfileBundleParser`, inserts only presets matching a selected key
   whose `DuplicateAction` isn't `Skip`, storing each row's parser-extracted `BaseProfileName` verbatim
   with `BaseProfileId` left null for now (Pass 2 resolution added in US2), and throws a 422-mapped
   exception when a selected key has no match in the fresh parse (research.md §4's consistency check)
-- [ ] T027 [P] [US1] Create `PreviewProfileImportEndpoint` in
+- [X] T027 [P] [US1] Create `PreviewProfileImportEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/PreviewProfileImportEndpoint.cs` — `POST
   /api/v1/profiles/imports/preview`, `AllowFileUploads()`, a conservative `MaxRequestBodySize()` cap
   (research.md §6), `[Permission("profiles:preview-import")]`, maps
   `UnsupportedProfileBundleFormatException` to 422
-- [ ] T028 [US1] Create `ConfirmProfileImportEndpoint` in
+- [X] T028 [US1] Create `ConfirmProfileImportEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/ConfirmProfileImportEndpoint.cs` — `POST
   /api/v1/profiles/imports/confirm`, `AllowFileUploads()`, binds `Selections` as a JSON-encoded string
   form field deserialized manually (research.md §6), `[Permission("profiles:confirm-import")]`, response
   implements `IHasEntityIds` over every created profile id for T022's post-processor extension
-- [ ] T029 [P] [US1] Integration test: preview extracts and returns every recognized preset without
+- [X] T029 [P] [US1] Integration test: preview extracts and returns every recognized preset without
   persisting anything, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/PreviewProfileImportEndpointTests.cs` (FR-001–003,
   SC-004 — assert catalog counts are unchanged before/after)
-- [ ] T030 [P] [US1] Integration test: confirm persists only the selected presets and the rest are
+- [X] T030 [P] [US1] Integration test: confirm persists only the selected presets and the rest are
   absent without a trace, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/ConfirmProfileImportEndpointTests.cs` (FR-004,
   SC-001, SC-003)
-- [ ] T031 [P] [US1] Integration test: an unsupported/corrupted bundle is rejected with 422 and creates
+- [X] T031 [P] [US1] Integration test: an unsupported/corrupted bundle is rejected with 422 and creates
   zero catalog entries; a successfully-opened bundle with nothing recognizable returns 200 with both
   arrays empty, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/RejectedAndEmptyBundleTests.cs` (FR-007, FR-008,
   SC-005)
-- [ ] T032 [P] [US1] Integration test: a duplicate-named preset is flagged `isDuplicate: true` at
+- [X] T032 [P] [US1] Integration test: a duplicate-named preset is flagged `isDuplicate: true` at
   preview, and confirming with `Skip` vs. `ImportAsNew` produces the correct resulting catalog row
   count, in `api/tests/OpenFarm.Api.IntegrationTests/Profiles/DuplicateProfileImportTests.cs` (FR-009)
-- [ ] T033 [P] [US1] Integration test: a multi-preset confirm call writes one `ActivityLogEntry` with
+- [X] T033 [P] [US1] Integration test: a multi-preset confirm call writes one `ActivityLogEntry` with
   `EventType: "ProfileImported"` per created profile, not one entry for the whole batch, in
   `api/tests/OpenFarm.Api.IntegrationTests/ActivityLog/ProfileImportActivityLogTests.cs` (research.md
   §7)
@@ -263,29 +263,29 @@ catalog lists, plus each profile's own raw data.
 **Independent Test**: Import a bundle with known presets and confirm each imported preset appears, with
 its key identifying fields, in the corresponding catalog list.
 
-- [ ] T045 [P] [US3] Create `GetMachineProfilesQuery` + Handler in
+- [X] T045 [P] [US3] Create `GetMachineProfilesQuery` + Handler in
   `api/src/OpenFarm.Application/Profiles/GetMachineProfilesQuery.cs` /
   `GetMachineProfilesQueryHandler.cs` — one `ListAsync` call, builds an in-memory `Id → row` map, walks
   each row's `BaseProfileId` chain in memory (cycle/depth-guarded), merges via `ProfileRawDataMerger`,
   then calls `ExtractMachineDisplayFields` on the merged result — no extra DB round trips, no recursive
   CTE (research.md §10)
-- [ ] T046 [P] [US3] Create `GetFilamentProfilesQuery` + Handler in
+- [X] T046 [P] [US3] Create `GetFilamentProfilesQuery` + Handler in
   `api/src/OpenFarm.Application/Profiles/GetFilamentProfilesQuery.cs` /
   `GetFilamentProfilesQueryHandler.cs` — same approach as T045 via `ExtractFilamentDisplayFields`, plus
   `compatiblePrinterNames` (FR-016)
-- [ ] T047 [P] [US3] Create `GetMachineProfileQuery` + Handler in
+- [X] T047 [P] [US3] Create `GetMachineProfileQuery` + Handler in
   `api/src/OpenFarm.Application/Profiles/GetMachineProfileQuery.cs` / `GetMachineProfileQueryHandler.cs`
   — the row's own `rawDataJson` (FR-011) plus chain-merged derived fields via sequential bounded
   fetch-by-id up `BaseProfileId`, reversed to ancestor-first before merging (research.md §10); throws
   `MachineProfileNotFoundException` on an unknown/cross-tenant id
-- [ ] T048 [P] [US3] Create `GetFilamentProfileQuery` + Handler in
+- [X] T048 [P] [US3] Create `GetFilamentProfileQuery` + Handler in
   `api/src/OpenFarm.Application/Profiles/GetFilamentProfileQuery.cs` / `GetFilamentProfileQueryHandler.cs`
   — same approach as T047 for `FilamentProfile`, throws `FilamentProfileNotFoundException`
-- [ ] T049 [P] [US3] Create `ListMachineProfilesEndpoint` + `GetMachineProfileEndpoint` in
+- [X] T049 [P] [US3] Create `ListMachineProfilesEndpoint` + `GetMachineProfileEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/` — `GET /api/v1/profiles/machine`
   (`[Permission("profiles:list-machine")]`) and `GET /api/v1/profiles/machine/{id}`
   (`[Permission("profiles:get-machine")]`)
-- [ ] T050 [P] [US3] Create `ListFilamentProfilesEndpoint` + `GetFilamentProfileEndpoint` in
+- [X] T050 [P] [US3] Create `ListFilamentProfilesEndpoint` + `GetFilamentProfileEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/` — `GET /api/v1/profiles/filament`
   (`[Permission("profiles:list-filament")]`) and `GET /api/v1/profiles/filament/{id}`
   (`[Permission("profiles:get-filament")]`)
