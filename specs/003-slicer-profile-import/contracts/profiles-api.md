@@ -100,7 +100,9 @@ than the one they previewed):
 
 ## `GET /api/v1/profiles/machine`
 
-List the machine profile catalog (FR-010, US3).
+List the machine profile catalog (FR-010, US3). `nozzleSizeMm`/`hasEnclosure`/
+`supportsLiveIntegration`/etc. below are **derived display fields** (`data-model.md`) — computed by
+the query handler from each row's `rawDataJson` on every request, not read from a stored column.
 
 **Response 200**
 ```jsonc
@@ -109,11 +111,12 @@ List the machine profile catalog (FR-010, US3).
 
 ## `GET /api/v1/profiles/machine/{id}`
 
-Single machine profile's full raw data (FR-011).
+Single machine profile's full raw data (FR-011), plus the same derived display fields as the list
+endpoint (shown once here, computed the same way).
 
 **Response 200**
 ```jsonc
-{ "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "rawDataJson": "{ ... }", "baseProfileId": null, "baseProfileName": null, "createdAtUtc": "..." }
+{ "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "supportsLiveIntegration": true, "rawDataJson": "{ ... }", "baseProfileId": null, "baseProfileName": null, "createdAtUtc": "..." }
 ```
 
 **Response 404** — `ProblemDetails`, unknown id (or id belongs to another org — Finbuckle's global
@@ -129,8 +132,9 @@ Save an edited raw JSON body (FR-012/013).
 { "rawDataJson": "{ \"nozzle_diameter\": [\"0.6\"], ... }" }
 ```
 
-**Response 200** — same shape as `GET /api/v1/profiles/machine/{id}`, reflecting the saved value
-(and any display fields the handler could re-derive from it — best-effort, `data-model.md`).
+**Response 200** — same shape as `GET /api/v1/profiles/machine/{id}`, reflecting the saved
+`rawDataJson` and every derived display field recomputed from it (`data-model.md`'s "Derived display
+fields" — these are never cached, so the response is always current by construction, not best-effort).
 
 **Response 422** (FR-013) — malformed JSON; the previously saved row is left unchanged.
 ```jsonc

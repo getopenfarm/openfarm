@@ -1,7 +1,7 @@
 # Phase 2 Data Model: Profiles (Machine + Filament, Imported from Slicer Bundles)
 
 Entities and validation rules implementing spec.md's Key Entities section, informed by
-`research.md` §1–§3 and §8. Two new tables (`MachineProfiles`, `FilamentProfiles`) — no changes to any
+`research.md` §1–§3, §8, and §9. Two new tables (`MachineProfiles`, `FilamentProfiles`) — no changes to any
 Phase 0/1 table.
 
 ## `MachineProfile` (new table)
@@ -10,17 +10,11 @@ Phase 0/1 table.
 |---|---|---|
 | `Id` | `Guid` (PK) | |
 | `OrganizationId` | `Guid` | Finbuckle tenant column; global query filter applies as on every other tenant-scoped table. |
-| `Name` | `string` | The preset's own name from the source bundle, e.g. `"Bambu Lab X1 Carbon 0.4 nozzle"`. Not globally unique — duplicate names across imports are permitted (FR-009 flags, never blocks). |
-| `SourceFormat` | enum: `OrcaSlicer` \| `BambuStudio` | Which slicer produced the bundle this preset came from — display-only provenance (US3's "source format" column), not used for parsing logic after import. |
-| `NozzleSizeMm` | `decimal?` | Extracted from the preset JSON per `research.md` §2's field-mapping table; null if the source preset didn't carry a recognizable value. |
-| `BedSizeXMm` / `BedSizeYMm` | `decimal?` | Bed volume's plan dimensions. |
-| `MaxHeightMm` | `decimal?` | Bed volume's Z dimension. |
-| `HasEnclosure` | `bool?` | Null when the source preset doesn't declare it either way (not every machine preset carries this field). |
-| `SupportedMaterials` | `IReadOnlyList<string>` (`jsonb`) | e.g. `["PLA", "PETG", "ABS"]`; empty list, not null, when nothing was extracted — same "never null for a collection" convention as `Printer.AmsUnits` (`specs/002-printer-integration/data-model.md`). |
-| `SupportsLiveIntegration` | `bool` | Best-effort derived match against `OpenFarm.Domain.Printers.PrinterModelCatalog` (`research.md` §8). Defaults `false`, never blocks import. |
-| `BaseProfileName` | `string?` | The raw `"inherits"`-equivalent reference from the source preset, stored verbatim. Null when the preset declares no base. **Never re-derived or cleared** once set, even if `BaseProfileId` never resolves (FR-005). |
+| `Name` | `string` | The preset's own name from the source bundle, e.g. `"Bambu Lab X1 Carbon 0.4 nozzle"`. Not globally unique — duplicate names across imports are permitted (FR-009 flags, never blocks). Real column: needed for FR-009 duplicate lookups and for resolving other profiles' `BaseProfileName` against it. |
+| `SourceFormat` | enum: `OrcaSlicer` \| `BambuStudio` | Which slicer produced the bundle this preset came from. Real column, not derivable from `RawDataJson`: which parser branch handled the upload is provenance about the *import*, not necessarily a field the preset JSON reliably self-declares. |
+| `BaseProfileName` | `string?` | The raw `"inherits"`-equivalent reference from the source preset, stored verbatim. Null when the preset declares no base. **Never re-derived or cleared** once set, even if `BaseProfileId` never resolves (FR-005). Real column: drives the resolution algorithm (`research.md` §3). |
 | `BaseProfileId` | `Guid?` (self-FK → `MachineProfiles.Id`) | Populated only when `BaseProfileName` resolves against another `MachineProfile` row in the same organization — either imported in the same confirm call or an earlier import (`research.md` §3). `ON DELETE SET NULL` — this feature has no delete endpoint yet (out of scope, see spec's Functional Requirements — none of FR-001–015 mention deletion), but the constraint is defined defensively for whenever one is added. |
-| `RawDataJson` | `string` (`jsonb`) | The preset's full original JSON, exactly as extracted from the bundle — this is what US4's JSON editor reads and writes (FR-011/012). Never reshaped or re-keyed on import. |
+| `RawDataJson` | `string` (`jsonb`) | The preset's full original JSON, exactly as extracted from the bundle — this is what US4's JSON editor reads and writes (FR-011/012), and the **only** source for every descriptive field below (see "Derived display fields"). Never reshaped or re-keyed on import. |
 | `SourceFileName` | `string` | The uploaded bundle's original file name, for traceability/debugging — not shown prominently in the UI, not a functional requirement, just cheap provenance to keep. |
 | `CreatedAtUtc` | `DateTimeOffset` | |
 
@@ -30,21 +24,46 @@ Phase 0/1 table.
 |---|---|---|
 | `Id` | `Guid` (PK) | |
 | `OrganizationId` | `Guid` | Tenant column, same as above. |
-| `Name` | `string` | e.g. `"Bambu PLA Basic @ Bambu X1 Carbon"`. |
-| `SourceFormat` | enum: `OrcaSlicer` \| `BambuStudio` | Same meaning as `MachineProfile.SourceFormat`. |
-| `Material` | `string?` | e.g. `"PLA"`, `"PETG"` — extracted material-type field. |
-| `Brand` | `string?` | Filament vendor/brand string from the preset, kept close to Spoolman's vendor concept per spec's Key Entities, without building a separate `Vendor` table this phase (that's deferred with the rest of the Spoolman-compatible surface — spec's Assumptions and `docs/FEATURE_PLAN.md` Phase 14). |
-| `ColorHex` | `string?` | e.g. `"1A1A1AFF"` (matches the existing `AmsUnit.ColorHex` convention in `specs/002-printer-integration/data-model.md` — RGBA hex, not RGB, for consistency across the codebase). |
-| `NozzleSizeMm` | `decimal?` | The nozzle diameter the preset's settings were tuned for (mirrors the existing frontend mock's field of the same name — see Project Structure note in `plan.md`). |
-| `NozzleTempC` | `decimal?` | |
-| `BedTempC` | `decimal?` | |
-| `MaxVolumetricSpeedMm3s` | `decimal?` | |
-| `FanPercent` | `int?` | |
+| `Name` | `string` | e.g. `"Bambu PLA Basic @ Bambu X1 Carbon"`. Real column, same reason as `MachineProfile.Name`. |
+| `SourceFormat` | enum: `OrcaSlicer` \| `BambuStudio` | Same meaning and same "real column" reasoning as `MachineProfile.SourceFormat`. |
 | `BaseProfileName` | `string?` | Same semantics as `MachineProfile.BaseProfileName`. |
 | `BaseProfileId` | `Guid?` (self-FK → `FilamentProfiles.Id`) | Same resolution rules as `MachineProfile.BaseProfileId`, scoped to the `FilamentProfiles` table (a filament preset's base is always another filament preset, never a machine preset). |
-| `RawDataJson` | `string` (`jsonb`) | Same meaning as `MachineProfile.RawDataJson`. |
+| `RawDataJson` | `string` (`jsonb`) | Same meaning as `MachineProfile.RawDataJson` — the only source for every descriptive field below. |
 | `SourceFileName` | `string` | Same meaning as `MachineProfile.SourceFileName`. |
 | `CreatedAtUtc` | `DateTimeOffset` | |
+
+## Derived display fields — computed at read time, not persisted columns
+
+Every other field spec.md's Key Entities section names — nozzle size, bed volume, enclosure, supported
+materials, and live-integration capability for `MachineProfile`; material, brand, color, and tuned
+settings for `FilamentProfile` — is deliberately **not** a stored column on either table. `RawDataJson`
+is the single source of truth for all of them; storing a second, derived copy would create exactly the
+kind of drift risk FR-012's raw-JSON editor makes real (edit the JSON, and a cached column silently
+stops matching it unless every write path remembers to keep it in sync). Instead, `GetMachineProfilesQuery`/
+`GetMachineProfileQuery` and their filament equivalents compute these fields on every read, by running
+the same per-`SourceFormat` field-extraction logic `IProfileBundleParser` already needs internally to
+build `ParsedMachinePreset`/`ParsedFilamentPreset` at preview time (`research.md` §2) — one extraction
+function, reused at both preview-from-archive and read-from-stored-row call sites, never duplicated.
+
+This means a raw-JSON edit (FR-012) takes effect on these fields automatically and immediately — there
+is no "re-derive and cache" step for `UpdateMachineProfileRawDataCommand`/
+`UpdateFilamentProfileRawDataCommand` to get right or get wrong; those handlers now do nothing beyond
+validating well-formed JSON (FR-013) and overwriting `RawDataJson`.
+
+**Machine profile derived fields** (API response shape, `contracts/profiles-api.md`): `nozzleSizeMm`,
+`bedSizeXMm`/`bedSizeYMm`, `maxHeightMm`, `hasEnclosure`, `supportedMaterials`, `supportsLiveIntegration`
+(the last one still the same best-effort `PrinterModelCatalog` cross-reference from `research.md` §8,
+just computed on read instead of cached on write — nullable/`false`-defaulting exactly as before when
+extraction or matching doesn't resolve).
+
+**Filament profile derived fields**: `material`, `brand`, `colorHex`, `nozzleSizeMm`, `nozzleTempC`,
+`bedTempC`, `maxVolumetricSpeedMm3s`, `fanPercent`.
+
+None of these are queryable/filterable/sortable at the database level as a result (no FR asks for
+that — US3 only requires them to be *displayed*). If a later phase needs to filter or sort the catalog
+by one of these (e.g. "find all 0.4mm machine profiles"), promoting that specific field back to a real
+indexed column is a small, contained migration at that point — not something to build speculatively now
+without a real requirement driving it (constitution Principle IV).
 
 ### Validation rules (both tables)
 
@@ -72,18 +91,24 @@ Phase 0/1 table.
 - **`ProfileSourceFormat` value** — modeled as a plain enum (`OrcaSlicer`, `BambuStudio`), not a lookup
   table; matches the existing `PrinterModel.Brand` enum precedent (`specs/002-printer-integration/`)
   rather than inventing a second small-catalog pattern for one field.
+- **Every descriptive/spec field** (nozzle size, bed volume, enclosure, supported materials,
+  live-integration flag, material, brand, color, tuned settings) — see "Derived display fields" above.
+  `RawDataJson` is their only persisted form.
 
 ## EF Core configuration notes
 
 - Both tables get `builder.IsMultiTenant()` (Finbuckle global query filter), same as `Printers` and
   `ConnectionSecrets` — no hand-rolled tenant `WHERE` clause, per the constitution's Security &
   Multi-Tenancy Isolation section.
-- `SupportedMaterials` uses the same `jsonb` + `ValueComparer` conversion pattern already established
-  for `Printer.AmsUnits` in `PrinterConfiguration.cs` — copied, not reinvented.
 - `RawDataJson` is stored as `jsonb` (typed `string` in C#, not a POCO) since its shape is
   preset-defined and arbitrary — there's deliberately no strongly-typed C# model for "a slicer preset's
-  full settings," only for the handful of fields promoted to their own typed columns above. This is the
-  direct data-layer expression of FR-014 (no structured per-field forms this phase).
+  full settings," and (per "Derived display fields" above) no typed columns shadowing pieces of it
+  either. This is the direct data-layer expression of FR-014 (no structured per-field forms this
+  phase). Net effect: each table is genuinely small — `Id`, `OrganizationId`, `Name`, `SourceFormat`,
+  `BaseProfileName`, `BaseProfileId`, `RawDataJson`, `SourceFileName`, `CreatedAtUtc`, nothing else —
+  which also means neither table needs the `jsonb`-array `ValueComparer` boilerplate
+  `PrinterConfiguration.cs` needed for `Printer.AmsUnits` (there's no typed collection column here to
+  compare).
 - One migration, `AddProfiles`, adds both tables together (single schema-coherent change) per the
   constitution's "one EF Core migration per PR when the schema changes" rule.
 
@@ -94,8 +119,10 @@ confirm — never a database row (`research.md` §4).
 
 ### `ParsedMachinePreset` / `ParsedFilamentPreset` (preview response items)
 
-Carries every `MachineProfile`/`FilamentProfile` column above (minus `Id`, `OrganizationId`,
-`CreatedAtUtc`, `BaseProfileId` — none of which exist yet at preview time) plus:
+Carries `Name`, `SourceFormat`, `BaseProfileName`, and `RawDataJson` (the real columns a confirmed
+import would persist), plus every "Derived display field" above — computed fresh during this parse
+pass by the same extraction logic a stored-row read would use later, so the review list shows the
+identical values the catalog will show after import — plus:
 
 | Field | Type | Notes |
 |---|---|---|

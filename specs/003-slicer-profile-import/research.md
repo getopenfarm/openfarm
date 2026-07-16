@@ -200,7 +200,45 @@ matches, `SupportsLiveIntegration` defaults to `false` rather than blocking the 
 machine profile importing successfully never depends on this field resolving (FR-002's extraction
 requirement doesn't gate on it). Verifying the real preset field name(s) that carry the printer's model
 string is part of the same real-sample-fixture task named in §1, since it's the same "confirm against
-actual exported JSON" category of unknown.
+actual exported JSON" category of unknown. Per §9, this field is computed at read time rather than
+cached — so a `PrinterModelCatalog` change (a new supported model added in a later phase) automatically
+changes what existing imported machine profiles report, with no backfill needed.
+
+## 9. Descriptive fields (nozzle size, bed volume, material, color, tuned settings, ...) are computed at read time, not stored
+
+**Decision**: none of the descriptive/spec fields spec.md's Key Entities names for either profile
+type — nozzle size, bed volume dimensions, enclosure, supported materials, live-integration capability
+(machine); material, brand, color, nozzle/bed temp, max volumetric speed, fan percent (filament) — are
+persisted as their own typed table columns. `RawDataJson` is the only persisted form of this data; the
+`MachineProfile`/`FilamentProfile` tables carry only identity/reference/provenance columns (`Id`,
+`OrganizationId`, `Name`, `SourceFormat`, `BaseProfileName`, `BaseProfileId`, `RawDataJson`,
+`SourceFileName`, `CreatedAtUtc` — see `data-model.md`). `IProfileBundleParser` exposes the same
+per-`SourceFormat` field-extraction logic it needs internally at two call sites: once against a freshly
+parsed archive entry (preview, §2), and once against a stored row's `RawDataJson` string (every catalog
+list/detail read) — one implementation, reused, never forked into a "parse-time version" and a
+"read-time version" that could drift from each other.
+
+**Revision note**: the original design (this file's first draft, and `data-model.md`'s first draft)
+promoted these fields to typed columns, mirroring `Printer`'s inline-telemetry-column precedent
+(`specs/002-printer-integration/data-model.md`). On review, that precedent doesn't actually transfer:
+`Printer`'s inline telemetry columns cache values that arrive continuously from a live MQTT connection
+with no other durable record of their own — the column *is* the only copy. Here, every one of these
+fields already has a durable, always-current source: `RawDataJson`. Caching a second copy in typed
+columns would only ever be a snapshot that a raw-JSON edit (FR-012) could silently invalidate — the
+`UpdateMachineProfileRawDataCommand`/`UpdateFilamentProfileRawDataCommand` handlers would need an
+explicit "re-derive and write back the cached columns" step, and getting that step wrong (or a future
+change forgetting it) would leave the catalog list showing values that don't match what the JSON editor
+just saved. Not persisting them removes the failure mode entirely rather than managing it carefully.
+
+**Alternative considered and rejected**: keep the typed columns as a read-performance optimization
+(avoid parsing `RawDataJson` on every list request). Rejected because no functional requirement asks
+for server-side filtering or sorting by any of these fields — US3 only requires them to be *displayed*
+— and re-running a small-JSON field extraction over, at most, a few hundred catalog rows (this feature
+has no bulk-scale story; SC-001 scopes a single import to under 50 presets) is not a real performance
+concern worth the drift risk. If a later phase adds a real query requirement against one of these
+fields (e.g. Phase 7's sliced files matching by nozzle size), promoting that specific field back to an
+indexed column at that point is a small, contained migration — exactly the extension point the
+constitution's Principle IV asks for, not something to pre-build now.
 
 ## Summary of resolved unknowns
 
@@ -216,3 +254,4 @@ actual exported JSON" category of unknown.
 | File upload binding | FastEndpoints `AllowFileUploads()` + `IFormFile`, used by both preview and confirm (§6) |
 | Bulk activity-log coverage | `IHasEntityIds` extension to the existing post-processor (§7) |
 | Live-integration flag | Best-effort match against Phase 1's `PrinterModelCatalog` (§8) |
+| Persisting descriptive/spec fields | Not stored — computed at read time from `RawDataJson`, one extraction implementation shared between preview and catalog reads (§9) |
