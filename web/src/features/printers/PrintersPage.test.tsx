@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 import { PrintersPage } from './PrintersPage';
 
 function renderPage() {
@@ -14,8 +15,10 @@ function renderPage() {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>{children}</MemoryRouter>
-        <Toaster />
+        <PreferencesProvider>
+          <MemoryRouter>{children}</MemoryRouter>
+          <Toaster />
+        </PreferencesProvider>
       </QueryClientProvider>
     );
   }
@@ -62,8 +65,9 @@ describe('PrintersPage', () => {
     renderPage();
 
     expect(await screen.findByText('Test Printer')).toBeInTheDocument();
-    expect(screen.getByText('Idle')).toBeInTheDocument();
-    expect(screen.queryByText('Offline')).not.toBeInTheDocument();
+    const table = within(screen.getByRole('table'));
+    expect(table.getByText('Idle')).toBeInTheDocument();
+    expect(table.queryByText('Offline')).not.toBeInTheDocument();
   });
 
   it('shows an empty state when no printers are registered', async () => {
@@ -133,7 +137,8 @@ describe('PrintersPage', () => {
     renderPage();
 
     await screen.findByText('Unreachable Printer');
-    expect(screen.getByText('Idle')).toBeInTheDocument();
-    expect(screen.getByText('Offline')).toBeInTheDocument();
+    const table = within(screen.getByRole('table'));
+    expect(table.getByText('Offline')).toBeInTheDocument();
+    expect(table.queryByText('Idle')).not.toBeInTheDocument();
   });
 });

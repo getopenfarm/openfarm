@@ -78,7 +78,7 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
         var client = await AuthenticatedClientAsync();
         var printer = await RegisterAwaitingClearPrinterAsync(client);
 
-        var response = await client.PostAsync(new Uri($"/api/v1/printers/{printer.Id}/mark-ready", UriKind.Relative), content: null);
+        var response = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printer.Id}/mark-ready", UriKind.Relative), new { });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<PrinterSummaryResponse>();
@@ -108,7 +108,7 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
             });
         var printer = await registerResponse.Content.ReadFromJsonAsync<PrinterSummaryResponse>();
 
-        var response = await client.PostAsync(new Uri($"/api/v1/printers/{printer!.Id}/mark-ready", UriKind.Relative), content: null);
+        var response = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printer!.Id}/mark-ready", UriKind.Relative), new { });
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }

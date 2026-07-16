@@ -16,6 +16,16 @@
   --color-status-complete: var(--status-complete);
   --color-status-idle: var(--status-idle);
   --color-status-offline: var(--status-offline);
+  --color-kind-zinc: var(--kind-zinc);
+  --color-kind-green: var(--kind-green);
+  --color-kind-amber: var(--kind-amber);
+  --color-kind-orange: var(--kind-orange);
+  --color-kind-red: var(--kind-red);
+  --color-kind-violet: var(--kind-violet);
+  --color-kind-blue: var(--kind-blue);
+  --color-checkerboard-a: var(--checkerboard-a);
+  --color-checkerboard-b: var(--checkerboard-b);
+  --color-progress-track: var(--progress-track);
   --color-brand: var(--brand);
   --color-brand-cyan: var(--brand-cyan);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -59,8 +69,8 @@
 }
 
 :root {
-  /* brand — same hue in both modes */
-  --brand: #863bff;
+  /* brand — same hue in both modes (mockup "Cobalt" accent) */
+  --brand: #2563eb;
   --brand-cyan: #47bfff;
 
   --background: #faf9fc;
@@ -106,6 +116,28 @@
   --status-complete: color-mix(in oklch, #3dd68c 80%, black 20%);
   --status-offline: color-mix(in oklch, #ff5d5d 82%, black 18%);
   --status-idle: var(--muted-foreground);
+
+  /* badge "kind" — a generic categorical color vocabulary distinct from --status-*
+     (job priority, filament type, profile category, activity-log dots) */
+  --kind-zinc: var(--muted-foreground);
+  --kind-green: var(--status-complete);
+  --kind-amber: var(--status-attention);
+  --kind-red: var(--status-offline);
+  --kind-violet: #7c3aed;
+  --kind-blue: var(--brand-cyan);
+  --kind-orange: color-mix(in oklch, #f5a623 55%, #ff5d5d 45%);
+
+  --checkerboard-a: color-mix(
+    in oklch,
+    var(--foreground) 4%,
+    var(--background) 96%
+  );
+  --checkerboard-b: color-mix(
+    in oklch,
+    var(--foreground) 9%,
+    var(--background) 91%
+  );
+  --progress-track: var(--muted);
 }
 
 .dark {
@@ -159,6 +191,34 @@
   --status-complete: #3dd68c;
   --status-offline: #ff5d5d;
   --status-idle: var(--muted-foreground);
+}
+
+@utility swatch-rainbow {
+  background-image: conic-gradient(
+    from 180deg,
+    var(--kind-red),
+    var(--kind-orange),
+    var(--kind-amber),
+    var(--kind-green),
+    var(--kind-blue),
+    var(--kind-violet),
+    var(--kind-red)
+  );
+}
+
+@utility checkerboard {
+  background-image:
+    linear-gradient(45deg, var(--checkerboard-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--checkerboard-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--checkerboard-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--checkerboard-b) 75%);
+  background-color: var(--checkerboard-a);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0px;
 }
 
 @layer base {

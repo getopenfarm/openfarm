@@ -1,13 +1,14 @@
-import { ClipboardListIcon } from 'lucide-react';
-import { ComingSoonPage } from '@/components/coming-soon-page';
+import { JobsHeader } from './components/JobsHeader';
+import { JobsTable } from './components/JobsTable';
+import { useJobs } from './data/mockJobsStore';
 
 export function JobsPage() {
+  const [jobs] = useJobs();
+
   return (
-    <ComingSoonPage
-      title="Jobs"
-      description="The print queue — sending sliced files to printers and tracking job status — lands here."
-      phase={2}
-      icon={ClipboardListIcon}
-    />
+    <div className="flex flex-col gap-6">
+      <JobsHeader jobs={jobs} />
+      <JobsTable jobs={jobs} />
+    </div>
   );
 }

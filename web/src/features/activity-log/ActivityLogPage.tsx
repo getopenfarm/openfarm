@@ -1,17 +1,14 @@
 import { useState } from 'react';
+import { BADGE_KIND_META } from '@/components/status-badge/kinds';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useOpenFarmApiEndpointsActivityLogGetActivityLogEndpoint } from '@/lib/api/generated/activity-log/activity-log';
+import { formatRelativeTime } from '@/lib/formatRelativeTime';
+import { cn } from '@/lib/utils';
+import { activityEventKind, describeActivityEvent } from './lib/activityEvent';
 
 const PAGE_SIZE = 25;
+const SKELETON_ROW_IDS = ['a', 'b', 'c', 'd'];
 
 export function ActivityLogPage() {
   const [page, setPage] = useState(1);
@@ -28,70 +25,86 @@ export function ActivityLogPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Entity</TableHead>
-            <TableHead>Event</TableHead>
-            <TableHead>Actor</TableHead>
-            <TableHead>Timestamp</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {query.isLoading ? (
-            Array.from({ length: 3 }).map((_, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder rows
-              <TableRow key={`skeleton-${index}`}>
-                <TableCell>
-                  <Skeleton className="h-4 w-40" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-16" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-32" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-24" />
-                </TableCell>
-              </TableRow>
-            ))
-          ) : query.isError ? (
-            <TableRow>
-              <TableCell
-                colSpan={4}
-                className="py-8 text-center text-muted-foreground text-sm"
+      <div>
+        <h2 className="font-heading text-2xl font-semibold">Activity log</h2>
+        <p className="text-sm text-muted-foreground">
+          Every status change, job update, and profile edit — the shared audit
+          trail.
+        </p>
+      </div>
+
+      <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
+        {query.isLoading ? (
+          <div className="flex flex-col">
+            {SKELETON_ROW_IDS.map((rowId) => (
+              <div
+                key={rowId}
+                className="flex items-center gap-3 border-b p-4 last:border-b-0"
               >
-                Couldn't load the activity log.{' '}
-                <Button
-                  variant="link"
-                  className="h-auto p-0"
-                  onClick={() => query.refetch()}
+                <Skeleton className="size-2.5 shrink-0 rounded-full" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-64" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : query.isError ? (
+          <div className="flex flex-col items-center gap-2 p-12 text-center">
+            <p className="text-sm text-muted-foreground">
+              Couldn't load the activity log.
+            </p>
+            <Button variant="outline" onClick={() => query.refetch()}>
+              Retry
+            </Button>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="p-12 text-center text-sm text-muted-foreground">
+            No activity recorded yet.
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {items.map((entry) => {
+              const kind = activityEventKind(entry.eventType ?? '');
+              const meta = BADGE_KIND_META[kind];
+              const relativeTime = formatRelativeTime(entry.timestampUtc);
+              return (
+                <div
+                  key={entry.id}
+                  className="flex items-center gap-3 border-b p-4 last:border-b-0"
                 >
-                  Retry
-                </Button>
-              </TableCell>
-            </TableRow>
-          ) : (
-            items.map((entry) => (
-              <TableRow key={entry.id}>
-                <TableCell>
-                  {entry.entityType} {entry.entityId}
-                </TableCell>
-                <TableCell>{entry.eventType}</TableCell>
-                <TableCell>{entry.actorDisplayName ?? 'System'}</TableCell>
-                <TableCell>
-                  {entry.timestampUtc
-                    ? new Date(entry.timestampUtc).toLocaleString()
-                    : ''}
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+                  <span
+                    className={cn(
+                      'size-2.5 shrink-0 rounded-full ring-4',
+                      meta.dotClass,
+                    )}
+                    style={{
+                      boxShadow: `0 0 0 4px color-mix(in oklch, var(--kind-${kind}) 15%, transparent)`,
+                    }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {describeActivityEvent(
+                        entry.entityType ?? 'Item',
+                        entry.eventType ?? 'Updated',
+                      )}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {entry.actorDisplayName ?? 'System'} · {relativeTime}
+                    </p>
+                  </div>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                    {relativeTime}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center justify-between">
-        <span className="text-muted-foreground text-sm">
+        <span className="text-sm text-muted-foreground">
           Page {page} · {totalCount} entries
         </span>
         <div className="flex gap-2">

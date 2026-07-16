@@ -1,0 +1,53 @@
+// Mock data for the Parts library — no backend exists for parts tracking
+// yet (see PartsPage.tsx). This store is also read directly by the
+// Assemblies feature's part picker + time/weight totals, so keep these
+// export names and shapes stable: `Part`, `DetectedColorSlot`, `PartFolder`,
+// `partsStore`, `useParts`, `FOLDERS`.
+import { createMockStore } from '@/lib/mock-store/createMockStore';
+import { SEED_FOLDERS, SEED_PARTS } from './mockParts';
+
+export interface DetectedColorSlot {
+  slotIndex: number;
+  detectedColorHex: string;
+  materialType: 'PLA' | 'PETG' | 'ABS' | 'ASA' | 'TPU' | 'PC';
+  // undefined = auto-match (nearest catalog color); when set, user has pinned a specific variant
+  pinnedFilamentId?: string;
+  pinnedVariantId?: string;
+}
+
+export interface Part {
+  id: string;
+  name: string;
+  folderId: string | null; // null = loose part at library root
+  estimatedTimeMinutes: number;
+  weightGrams: number;
+  revision: number; // "v1", "v2" etc — stored as a plain number, rendered "v{n}"
+  fileFormat: '3MF' | 'STL' | 'STEP' | 'GCODE' | 'OBJ';
+  slicer: 'Bambu Studio' | 'OrcaSlicer' | 'PrusaSlicer' | 'Cura';
+  tags: string[];
+  colorSlots: DetectedColorSlot[];
+}
+
+export interface PartFolder {
+  id: string;
+  name: string;
+}
+
+export const partsStore = createMockStore<Part>(SEED_PARTS);
+
+export function useParts() {
+  return partsStore.useStore();
+}
+
+// Folders aren't a separate route/entity per the mockup, but "New folder"
+// needs to actually persist for the session (consistent with the rest of
+// the app's mock-store pattern), so folders live in their own mock store.
+// `FOLDERS` is kept as a plain seed array export too, for any consumer that
+// just wants the fixed seed list synchronously.
+export const FOLDERS: PartFolder[] = SEED_FOLDERS;
+
+export const foldersStore = createMockStore<PartFolder>(SEED_FOLDERS);
+
+export function useFolders() {
+  return foldersStore.useStore();
+}

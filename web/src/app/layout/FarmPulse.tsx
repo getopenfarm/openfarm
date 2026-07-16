@@ -1,29 +1,24 @@
-import { STATUS_META } from '@/components/printer-tile/status';
-import { Badge } from '@/components/ui/badge';
-
-// TODO(Phase 1 follow-up): replace sampleCounts with a live summary derived from
-// the fleet API / SignalR farm hub once the dashboard consumes GetFleetQuery.
-const sampleCounts: Array<{ status: keyof typeof STATUS_META; count: number }> =
-  [
-    { status: 'Printing', count: 4 },
-    { status: 'AwaitingClear', count: 1 },
-    { status: 'Idle', count: 2 },
-  ];
+import { StatusBadge } from '@/components/status-badge/StatusBadge';
+import { deriveFleetStatusCounts } from '@/features/printers/lib/fleetStatus';
+import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 
 export function FarmPulse() {
+  const fleetQuery = useOpenFarmApiEndpointsPrintersListFleetEndpoint();
+
+  if (!fleetQuery.data || fleetQuery.isError) return null;
+
+  const printers =
+    (fleetQuery.data.data as ListFleetResponse | undefined)?.printers ?? [];
+  const counts = deriveFleetStatusCounts(printers);
+
+  if (counts.total === 0) return null;
+
   return (
     <div className="hidden items-center gap-1.5 sm:flex">
-      {sampleCounts.map(({ status, count }) => {
-        const meta = STATUS_META[status];
-        return (
-          <Badge key={status} variant="outline" className="gap-1.5">
-            <span className={`size-1.5 rounded-full ${meta.dotClass}`} />
-            <span className="text-muted-foreground">
-              {count} {meta.label.toLowerCase()}
-            </span>
-          </Badge>
-        );
-      })}
+      <StatusBadge kind="green" label={`${counts.printing} printing`} />
+      <StatusBadge kind="amber" label={`${counts.awaitingClear} awaiting`} />
+      <StatusBadge kind="zinc" label={`${counts.idle} idle`} />
     </div>
   );
 }

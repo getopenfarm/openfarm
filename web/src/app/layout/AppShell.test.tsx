@@ -1,13 +1,34 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
 import { clearToken, setToken } from '@/lib/auth/tokenStorage';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 import { AppShell } from './AppShell';
 
 function renderShell(initialPath = '/') {
   setToken('a-valid-token');
+
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    if (url.includes('/hubs/farm')) {
+      return Promise.reject(new Error('SignalR not available in tests'));
+    }
+    return Promise.resolve(
+      new Response(JSON.stringify({ printers: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+
   const testRouter = createMemoryRouter(
     [
       { path: '/login', element: <div>Login screen</div> },
@@ -30,15 +51,20 @@ function renderShell(initialPath = '/') {
     { initialEntries: [initialPath] },
   );
   return render(
-    <AuthProvider>
-      <RouterProvider router={testRouter} />
-    </AuthProvider>,
+    <QueryClientProvider client={queryClient}>
+      <PreferencesProvider>
+        <AuthProvider>
+          <RouterProvider router={testRouter} />
+        </AuthProvider>
+      </PreferencesProvider>
+    </QueryClientProvider>,
   );
 }
 
 describe('AppShell', () => {
   afterEach(() => {
     clearToken();
+    vi.unstubAllGlobals();
   });
 
   it('renders the grouped nav sections', () => {
@@ -48,10 +74,12 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Printers' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Jobs' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Filament' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Spools' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Parts' })).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Assemblies' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Profiles' })).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Maintenance' }),
     ).toBeInTheDocument();
@@ -59,13 +87,19 @@ describe('AppShell', () => {
       screen.getByRole('link', { name: 'Activity Log' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+
+    expect(screen.getAllByText('Operate').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Materials').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Library').length).toBeGreaterThan(0);
   });
 
   it('shows the current route title in the title bar', () => {
     renderShell('/activity-log');
 
     expect(
-      screen.getByRole('heading', { name: 'Activity Log' }),
+      screen.getByText('Activity Log', {
+        selector: '[data-slot="breadcrumb-page"]',
+      }),
     ).toBeInTheDocument();
   });
 

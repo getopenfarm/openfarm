@@ -56,8 +56,10 @@ describe('ActivityLogPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('Created')).toBeInTheDocument();
-    expect(screen.getByText('admin@openfarm.local')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Connection secret created'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/admin@openfarm\.local/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     expect(screen.getByText('Page 1 · 1 entries')).toBeInTheDocument();

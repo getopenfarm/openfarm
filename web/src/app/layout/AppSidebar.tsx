@@ -1,4 +1,4 @@
-import { LogOutIcon, UserIcon } from 'lucide-react';
+import { HistoryIcon, LogOutIcon, SettingsIcon, UserIcon } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -21,12 +21,28 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/lib/auth/useAuth';
 import { Logo } from './Logo';
-import { navSections } from './nav-config';
+import { type NavItem, navSections } from './nav-config';
+
+function NavLink({ item }: { item: NavItem }) {
+  const { pathname } = useLocation();
+  const isActive =
+    item.url === '/' ? pathname === '/' : pathname.startsWith(item.url);
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild tooltip={item.title} isActive={isActive}>
+        <Link to={item.url}>
+          <item.icon />
+          <span>{item.title}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
 
 export function AppSidebar() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
 
   function handleLogout() {
     auth.logout();
@@ -45,18 +61,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      isActive={pathname === item.url}
-                    >
-                      <Link to={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <NavLink key={item.url} item={item} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
@@ -65,6 +70,16 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <NavLink
+            item={{
+              title: 'Activity Log',
+              url: '/activity-log',
+              icon: HistoryIcon,
+            }}
+          />
+          <NavLink
+            item={{ title: 'Settings', url: '/settings', icon: SettingsIcon }}
+          />
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
