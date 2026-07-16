@@ -96,8 +96,9 @@ phase, assigning them to a printer or a sliced file).
 this closes the loop on Story 1 for a real user.
 
 **Independent Test**: Can be fully tested by importing a bundle with known presets and then confirming
-each imported preset appears, with its key identifying fields (name, source format, and whether it's a
-base or override), in the corresponding catalog list.
+each imported preset appears, with its key identifying fields (name, source format, whether it's a base
+or override, and — for filament profiles — its declared compatible printer(s)), in the corresponding
+catalog list.
 
 **Acceptance Scenarios**:
 
@@ -105,6 +106,8 @@ base or override), in the corresponding catalog list.
    **Then** every imported machine profile is listed with its name and key spec fields.
 2. **Given** profiles have been imported, **When** the operator opens the filament profile catalog,
    **Then** every imported filament profile is listed with its name, material, and color.
+3. **Given** a filament profile that declares which printer(s) it's compatible with, **When** the
+   operator views that filament profile, **Then** the declared compatible printer name(s) are shown.
 
 ---
 
@@ -193,6 +196,13 @@ value, saving, and confirming the catalog now reflects the new value.
   import.
 - **FR-015**: System MUST NOT link an imported profile to any specific fleet printer record or to any
   print job — profiles remain a standalone catalog in this feature.
+- **FR-016**: System MUST extract and preserve a filament preset's declared printer compatibility from
+  the source bundle — the preset's own list of compatible printer preset names — and, for a preset that
+  declares neither a base preset nor an explicit compatible-printer list, fall back to the printer name
+  embedded in the preset's own name. These names are stored and shown as declared text; resolving them
+  against a specific Machine Profile record is explicitly out of scope for this feature (see Assumptions)
+  — FR-015 is unaffected regardless. An empty or entirely absent compatible-printer declaration means the
+  preset is compatible with all printers, consistent with the source format's own convention.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -204,7 +214,10 @@ value, saving, and confirming the catalog now reflects the new value.
 - **Filament Profile**: A named catalog entry describing a filament preset as extracted from a slicer
   bundle — material type, brand, color, and tuned slicer settings. Schema is kept close to Spoolman's
   filament/vendor shape for future compatibility. Carries the name of the base filament profile it
-  overrides, if any, with the same possibly-unresolved reference behavior as Machine Profile.
+  overrides, if any, with the same possibly-unresolved reference behavior as Machine Profile. Also
+  carries the printer name(s) it declares itself compatible with, stored as declared text (from the
+  source preset's own compatible-printer list, or inferred from its own name when it declares neither a
+  base nor an explicit list) — not resolved to a specific Machine Profile record this feature (FR-016).
 - **Import Batch** (conceptual, not necessarily a user-facing entity): The set of presets extracted from
   one uploaded bundle in one import action, used to group the review/selection step before any profile is
   persisted.
@@ -239,6 +252,11 @@ value, saving, and confirming the catalog now reflects the new value.
   default slicer profiles (consistent with `docs/FEATURE_PLAN.md`'s "import-your-own-bundle only"
   design). Storing an override whose base reference never resolves to a catalog record is therefore the
   common case, not an exceptional one.
+- A filament preset's declared printer compatibility is stored and shown as plain declared text (FR-016)
+  — preserved verbatim from the source bundle, the same way `BaseProfileName` is, but explicitly **not**
+  resolved to a specific Machine Profile record in this feature. Linking a filament profile's declared
+  compatibility to an actual catalog Machine Profile is deferred, consistent with this feature's general
+  "catalog data only, no cross-record linking beyond base/override" scope for its first phase.
 - Structured per-field create/edit forms are explicitly out of scope for this phase; the raw JSON
   editor/viewer is the only way to inspect or correct an imported profile, consistent with
   `docs/FEATURE_PLAN.md` Phase 2 deferring per-attribute forms until real imported data has settled the
