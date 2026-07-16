@@ -37,7 +37,7 @@ FR-002, FR-003). `multipart/form-data`, single field `file` (`research.md` §6).
     {
       "name": "Bambu PLA Basic – Red",
       "sourceFormat": "OrcaSlicer",
-      "material": "PLA", "brand": "Bambu", "colorHex": "C12E1FFF",
+      "material": "PLA", "brand": "Bambu", "colorHex": "#C12E1FFF",
       "nozzleSizeMm": 0.4, "nozzleTempC": 220, "bedTempC": 55,
       "maxVolumetricSpeedMm3s": 15, "fanPercent": 100,
       "baseProfileName": "Bambu PLA Basic",

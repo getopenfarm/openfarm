@@ -117,7 +117,7 @@ upload uses a plain file input + the existing Orval client pattern, per plan.md'
   keys (field omitted, not a thrown error), and rejection of a non-zip/corrupted input
 - [X] T017 Implement `ProfileBundleParser` in
   `api/src/OpenFarm.Infrastructure/Profiles/ProfileBundleParser.cs` (`ZipArchive`-based, per-`SourceFormat`
-  field-mapping table, both `ExtractXDisplayFields` methods) to make T016 pass (research.md §1, §2)
+  field-mapping table, both `ExtractXDisplayFields` methods) to make T016 pass (FR-002, research.md §1, §2)
 - [X] T018 [P] Create `MachineProfileNotFoundException` and `FilamentProfileNotFoundException` in
   `api/src/OpenFarm.Application/Profiles/` (thrown by detail/update handlers on an unknown or
   cross-tenant id, mapped to 404 by the existing `DomainExceptionHandler`)
