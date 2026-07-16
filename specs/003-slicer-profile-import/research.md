@@ -77,32 +77,50 @@ transaction, not the parser (the parser's job is only to extract each preset's o
 
 **Pass 1 — insert and index.** Insert every selected, non-skipped preset as a new
 `MachineProfile`/`FilamentProfile` row. While inserting, build an in-memory per-profile-type map from
-`Name` to "zero, exactly one, or more than one `Id`" for rows created in *this* confirm call — a plain
-`Dictionary<string, Guid>` cannot represent this, since a second insert under the same key would
-silently overwrite the first with no documented behavior. Concretely: a `Dictionary<string, Guid?>`
-works — set `map[name] = id` on the first insert of that name; on any subsequent insert of the same
-name, set `map[name] = null` as an ambiguous sentinel and leave it null for all further inserts of that
-name. This is possible because FR-009 explicitly permits importing a duplicate-named preset as a
-separate additional row, and neither table enforces a DB uniqueness constraint on `Name`
-(`data-model.md`), so a same-batch name collision is a real, expected input shape, not a bug.
+`(SourceFormat, Name)` to "zero, exactly one, or more than one `Id`" for rows created in *this* confirm
+call — a plain `Dictionary<(ProfileSourceFormat, string), Guid>` cannot represent this, since a second
+insert under the same key would silently overwrite the first with no documented behavior. Concretely: a
+`Dictionary<(ProfileSourceFormat, string), Guid?>` works — set `map[(sourceFormat, name)] = id` on the
+first insert of that key; on any subsequent insert of the same key, set the entry to `null` as an
+ambiguous sentinel and leave it null for all further inserts of that key. This is possible because
+FR-009 explicitly permits importing a duplicate-named preset as a separate additional row, and neither
+table enforces a DB uniqueness constraint on `Name` (`data-model.md`), so a same-batch name collision is
+a real, expected input shape, not a bug. Keying by `(SourceFormat, Name)` rather than `Name` alone (see
+§10) is a correctness requirement, not just extra caution: an `"inherits"` reference always names a
+preset within that same slicer's own library, so a Bambu Studio preset can never legitimately declare an
+OrcaSlicer-named preset as its base.
 
-**Pass 2 — resolve.** For every inserted row with a non-null `BaseProfileName`, resolve `BaseProfileId`:
-1. Look up `BaseProfileName` in the in-batch map (the base was imported alongside it, US2 Scenario 1).
+**Pass 2 — resolve.** For every inserted row with a non-null `BaseProfileName`, resolve `BaseProfileId`
+by matching on `(SourceFormat, BaseProfileName)` — the row's own `SourceFormat`, never a different one:
+1. Look up `(SourceFormat, BaseProfileName)` in the in-batch map (the base was imported alongside it,
+   US2 Scenario 1).
    - Entry present with a non-null `Id` → resolved; `BaseProfileId` = that `Id`. **Stop — do not also
      query the database.**
-   - Entry present but `null` (ambiguous — 2+ same-named rows in this batch) → **unresolved**. **Stop —
-     do not fall through to a database lookup**: a prior-import row of the same name wouldn't
-     disambiguate which in-batch preset was meant, it would only add a third, equally arbitrary
-     candidate.
+   - Entry present but `null` (ambiguous — 2+ same-`(SourceFormat, Name)` rows in this batch) →
+     **unresolved**. **Stop — do not fall through to a database lookup**: a prior-import row of the same
+     name wouldn't disambiguate which in-batch preset was meant, it would only add a third, equally
+     arbitrary candidate.
    - No entry (zero in-batch candidates) → continue to step 2.
-2. Query already-imported catalog rows for the same organization/type by exact `Name` match (the base
-   was imported in an *earlier* import).
+2. Query already-imported catalog rows for the same organization/type/`SourceFormat` by exact `Name`
+   match (the base was imported in an *earlier* import).
    - Exactly one matching row → resolved; `BaseProfileId` = that row's `Id`.
    - Two or more matching rows → **unresolved** — the organization already has 2+ existing profiles
-     sharing that name, a legitimate state since FR-009 allows duplicate-name imports, and there is no
-     principled rule for picking one over another.
+     sharing that `(SourceFormat, Name)`, a legitimate state since FR-009 allows duplicate-name imports,
+     and there is no principled rule for picking one over another.
    - Zero matching rows → **unresolved** (US2 Scenario 3 — a built-in slicer default, the expected
      common case per spec.md's Assumptions).
+
+**Cycle reachability**: `BaseProfileId` is immutable once set (no endpoint ever revisits it — FR-012's
+raw-JSON editor only overwrites `RawDataJson`) and can only be set to reference a row that already
+exists at the moment of resolution, so a cycle spanning two different imports is structurally
+impossible — the reference graph only grows forward in time. A same-*batch* cycle (preset A declares
+base name B, preset B in the same bundle declares base name A) is the one case not structurally
+prevented here: Pass 1 inserts every selected preset before Pass 2 resolves any of them, so if both
+names are unambiguous within the batch, Pass 2 would happily resolve A→B and B→A. This is an
+adversarial/malformed input shape no real slicer export produces (a slicer's own `"inherits"` handling
+enforces a DAG when saving), so Pass 2 does not add extra bookkeeping to reject it — §10's read-side
+chain-walk guard is where this is neutralized, cheaply and for every read path at once, rather than
+duplicating the check at write time too.
 
 In every unresolved outcome above — no match, or an ambiguous match, from either source — `BaseProfileId`
 stays null and `BaseProfileName` is still stored verbatim, exactly the same "unresolved reference is a
@@ -268,7 +286,7 @@ sample bundles confirm the relevant preset field actually exists and is reliable
 nothing in this phase's schema blocks adding it then (the same "derived at read time, not persisted"
 pattern §9 establishes would still apply, so adding it later needs no migration).
 
-## 9. Descriptive fields (nozzle size, bed volume, material, color, tuned settings, ...) are computed at read time, not stored
+## 9. Descriptive fields (nozzle size, bed volume, material, color, tuned settings, ...) are computed at read time, not stored — and from a chain, not one row alone
 
 **Decision**: none of the descriptive/spec fields spec.md's Key Entities names for either profile
 type — nozzle size, bed volume dimensions, enclosure, supported materials (machine); material, brand,
@@ -277,25 +295,45 @@ table columns. (Key Entities also names a live-integration-capability attribute 
 that one is cut entirely rather than derived — see §8.) `RawDataJson` is the only persisted form of this
 data; the `MachineProfile`/`FilamentProfile` tables carry only identity/reference/provenance columns
 (`Id`, `OrganizationId`, `Name`, `SourceFormat`, `BaseProfileName`, `BaseProfileId`, `RawDataJson`,
-`CreatedAtUtc` — see `data-model.md`). `IProfileBundleParser` exposes the same per-`SourceFormat`
-field-extraction logic it needs internally at two call sites: once against a freshly parsed archive
-entry, where the parser already knows the format branch it's in (preview, §2), and once against a
-stored row's `RawDataJson` string plus its `SourceFormat` column — needed explicitly at this second call
-site since `SourceFormat` isn't derivable from `RawDataJson` alone (`data-model.md`) — for every catalog
-list/detail read. One implementation, reused, never forked into a "parse-time version" and a
-"read-time version" that could drift from each other.
+`CreatedAtUtc` — see `data-model.md`).
+
+**Revised (§10 supersedes this section's original single-row framing)**: computing these fields from
+*only the target row's own* `RawDataJson` is **not sufficient**, and was a real design gap, not just an
+approximation. Real research against OrcaSlicer/Bambu Studio's actual export behavior (source code, a
+real multi-level fixture chain of exported presets, and multiple GitHub issue reports — see §10)
+confirmed that exported presets are **delta-only**: a preset with a declared base carries only the
+fields it overrides, not the full effective settings. A color-variant filament override like "Bambu PLA
+Basic – Red" typically has only its color (and maybe flow ratio) in its own `RawDataJson` — no nozzle
+temp, bed temp, max volumetric speed, or fan percent, because those live only in whatever it inherits
+from. Reading one row's `RawDataJson` alone would show these fields blank for that profile **even when
+its base preset is imported right alongside it in the same bundle** — spec.md's own canonical example
+(US2 Scenario 1). §10 replaces single-row extraction with a **chain-walk merge**: derived fields are
+computed from the *resolved ancestor chain's* merged `RawDataJson`, not one row.
+
+`IProfileBundleParser`'s per-`SourceFormat` field-extraction (`ExtractMachineDisplayFields`/
+`ExtractFilamentDisplayFields`) is unchanged in shape and still the single implementation used
+everywhere fields are derived — what changes is what gets fed into it: a merged JSON string (§10's
+`ProfileRawDataMerger`) instead of one row's raw `RawDataJson` directly. `SourceFormat` is still not
+derivable from `RawDataJson` alone (`data-model.md`) — the merged chain is guaranteed single-format
+throughout by §3's `(SourceFormat, Name)`-scoped resolution, so the target row's own `SourceFormat`
+column remains the one value ever passed to extraction, at every call site.
 
 **Revision note**: the original design (this file's first draft, and `data-model.md`'s first draft)
 promoted these fields to typed columns, mirroring `Printer`'s inline-telemetry-column precedent
 (`specs/002-printer-integration/data-model.md`). On review, that precedent doesn't actually transfer:
 `Printer`'s inline telemetry columns cache values that arrive continuously from a live MQTT connection
 with no other durable record of their own — the column *is* the only copy. Here, every one of these
-fields already has a durable, always-current source: `RawDataJson`. Caching a second copy in typed
-columns would only ever be a snapshot that a raw-JSON edit (FR-012) could silently invalidate — the
+fields already has a durable, always-current source: `RawDataJson` (now understood to mean the resolved
+chain's `RawDataJson`, not necessarily the target row's alone). Caching a second copy in typed columns
+would only ever be a snapshot that a raw-JSON edit (FR-012) could silently invalidate — the
 `UpdateMachineProfileRawDataCommand`/`UpdateFilamentProfileRawDataCommand` handlers would need an
 explicit "re-derive and write back the cached columns" step, and getting that step wrong (or a future
 change forgetting it) would leave the catalog list showing values that don't match what the JSON editor
-just saved. Not persisting them removes the failure mode entirely rather than managing it carefully.
+just saved. Not persisting them removes the failure mode entirely rather than managing it carefully. The
+chain-walk design in §10 sharpens this further, not weakens it: because nothing in the chain is ever
+cached, editing a *base* profile's raw JSON via FR-012 takes effect in every descendant's displayed
+fields on the very next read, with no propagation logic anywhere — "never cache" now pays off across a
+whole chain, not just one row.
 
 **Alternative considered and rejected**: keep the typed columns as a read-performance optimization
 (avoid parsing `RawDataJson` on every list request). Rejected because no functional requirement asks
@@ -307,6 +345,123 @@ fields (e.g. Phase 7's sliced files matching by nozzle size), promoting that spe
 indexed column at that point is a small, contained migration — exactly the extension point the
 constitution's Principle IV asks for, not something to pre-build now.
 
+## 10. Chain-walk merge — closing the delta-export gap without seeding default profiles
+
+**The problem** (see §9's revision): OrcaSlicer/Bambu Studio export presets as deltas. Confirmed via
+convergent evidence: OrcaSlicer's `Preset::save()` (`libslic3r/Preset.cpp`) only writes
+`config.diff(*parent_config)` when a parent exists (marked `//BBS: only save difference if it has
+parent` — this mechanism originates in Bambu Studio's own codebase, which OrcaSlicer forked, so it
+applies to `.bbscfg`/`.bbsflmt` too, not just OrcaSlicer's own formats); a real public fixture repo of
+exported presets (`DRIgnazGortngschirl/bambulab-studio-orca-slicer-presets`) shows a 3-level chain of
+actual filament presets where none of the levels carry nozzle temp, bed temp, or max volumetric speed —
+those values exist only in the vendor's shipped `fdm_filament_pla.json`/`fdm_filament_common.json`
+resource files, which are bundled with the *application*, never exported by a user; and multiple
+OrcaSlicer GitHub issues (#7462, #12223) report hard failures ("can not find parent for config...")
+whose only coherent explanation is that shared/exported bundles are themselves delta-based.
+
+**The decision (not seeding default profiles)**: OpenFarm still does not seed or vendor any built-in
+slicer profile data. spec.md's Assumptions already commit to "import-your-own-bundle only," and vendoring
+even a narrow "common bases" subset of OrcaSlicer's shipped resources would reopen that position for an
+ongoing upstream-sync maintenance burden this phase currently has none of — the same reasoning §8
+already applied to cut `SupportsLiveIntegration`. Instead, the fix is entirely on the *read* side:
+compute derived display fields from the full resolved ancestor chain, not one row, so the dominant real
+case (base imported alongside its override, spec's own US2 Scenario 1) resolves completely without ever
+touching a vendor default. Only a genuinely unresolved built-in root (never imported by anyone) leaves
+the merge incomplete for whatever that true root would have supplied — a narrower, more honestly
+signalled residual limitation (`hasUnresolvedBaseInChain`, below) than silently showing blank fields with
+no explanation.
+
+**Merge utility**: `Application/Profiles/ProfileRawDataMerger.cs` —
+```csharp
+public static class ProfileRawDataMerger
+{
+    // rawDataJsonAncestorFirst: oldest resolved ancestor first, target profile's own RawDataJson last.
+    // Each element's top-level keys overwrite the accumulator's (shallow overwrite, matching the flat
+    // key shape real preset JSON actually uses) — the last element always wins on any conflict.
+    public static string MergeAncestorChain(IReadOnlyList<string> rawDataJsonAncestorFirst);
+}
+```
+Kept deliberately separate from `ExtractMachineDisplayFields`/`ExtractFilamentDisplayFields`, which stay
+unchanged and are simply called once on the merge's output:
+`parser.ExtractMachineDisplayFields(ProfileRawDataMerger.MergeAncestorChain(chain), row.SourceFormat)`.
+Merging is format-agnostic (pure key-overwrite); mapping known keys to typed fields is format-specific —
+conflating them would force a per-ancestor `SourceFormat` parameter that §3's `(SourceFormat, Name)`
+resolution tightening makes unnecessary (every row in a resolved chain is guaranteed one format). Placed
+in `Application`, not `Domain` — matches this codebase's existing precedent of putting deterministic,
+well-specified algorithms in `Application` (§3's two-pass resolution is the same class of logic, also in
+`Application`) rather than introducing this feature's first `Domain` static-service class. **TDD**, same
+bar as §3: pure synthetic JSON fixtures, no real slicer files needed, since the merge itself doesn't
+know or care about format-specific key names. Defensive: if an ancestor's `RawDataJson` somehow fails to
+parse (shouldn't happen — `data-model.md` guarantees well-formed JSON — but this is a shared read path
+hit by every catalog view), skip that level with a structured log rather than failing the whole request,
+matching the parser's existing "tolerate, don't fail the whole operation" philosophy (§2).
+
+**Where the chain is fetched from — no N+1, no recursive CTE**:
+- **List** (`GetMachineProfilesQuery`/`GetFilamentProfilesQuery`): both already call
+  `repository.ListAsync(ct)` to build the list response. Build one `Dictionary<Guid, Row>` from that
+  *same* already-fetched set and walk `BaseProfileId` purely in memory per row — zero additional DB
+  round trips. This works because every possible ancestor is, by `data-model.md`'s own FK scoping rule,
+  another row of the same table/org — already inside the one `ListAsync` result set.
+- **Detail** (`GetMachineProfileQuery`/`GetFilamentProfileQuery`): sequential bounded fetch-by-id up the
+  chain via the existing `GetByIdAsync(Guid, ct)`, reversed to ancestor-first before merging. Not an
+  N+1 pattern — one request resolving one bounded chain, not per-row-of-a-list; loading an entire
+  catalog just to resolve one detail view would be wasteful in the other direction.
+- **Not a recursive CTE**: the constitution's Principle V mandates one for BOM decomposition
+  specifically because of its stated *unlimited-depth, DB-layer* scale story. Profiles has no such story
+  — SC-001 caps an import at under 50 presets, real preset hierarchies are 2–4 levels deep, and the
+  list endpoint's full row set is already loaded regardless of how the walk is done. Reaching for `WITH
+  RECURSIVE` here would be over-engineering relative to Principle V's actual purpose (avoiding repeated
+  round trips / unbounded per-row DB cost), not required by it — a deliberate scoping call, not an
+  oversight next to the BOM example. Cumulative catalog scale (many imports over an org's lifetime, as
+  opposed to SC-001's per-import cap) stays trivial for an in-memory `O(n × depth)` walk over small JSON
+  blobs at any realistic size; true unbounded-catalog scale, if it ever became a real concern, is a
+  distinct future question this change doesn't need to anticipate.
+
+**Cycle/depth safety**: per §3's cycle-reachability note, a same-batch mutual reference is the one
+adversarial input shape not structurally prevented at write time. Guarded at the **read** side instead
+(both walk implementations above): a `HashSet<Guid>` of visited ids, `visited.Add(current.Id)` as the
+loop continuation check, plus a generous `MaxChainDepth` constant (e.g. 32) as cheap belt-and-suspenders.
+On cutoff, merge whatever ancestors were collected before the cutoff (still strictly better than the
+pre-fix zero-ancestor baseline) and set `hasUnresolvedBaseInChain` to `true` (correctness beyond the
+cutoff is unknown). Proportionate, not paranoid: a few lines in a loop the walk needs anyway, versus a
+shared read path that could otherwise hang on adversarial input; not duplicated at write time too, since
+the read-side guard alone already makes every read safe.
+
+**`hasUnresolvedBaseInChain: boolean`** — added to every catalog response (machine/filament, list and
+detail) and to preview response items (below). Computed during the same chain-walk: `true` iff the walk
+terminates *at any level* (not just the profile's own immediate base — a resolved immediate base whose
+own ancestor chain terminates unresolved still counts) at a row whose declared base name is non-null but
+didn't resolve, or at the cycle/depth cutoff. `false` only when the walk reaches a row that genuinely
+declares no base at all — the merge is complete by construction, nothing is missing. No new persisted
+column — computed read-time-only, the same principle as every other derived field.
+
+**Preview needs the identical fix, name-matched instead of `Id`-matched**: preview computes
+`ParsedMachinePreset`/`ParsedFilamentPreset`'s derived fields from one just-parsed preset in isolation —
+the same flaw. Fixing only the confirmed-catalog side would leave the review list (FR-003) showing
+incomplete data right up until the moment of confirm, undermining the honesty this whole fix is for.
+Preview has no persisted `Id`s to walk via `BaseProfileId`, so it reuses the same "check same-batch, then
+check prior imports" shape §5's duplicate detection already establishes at preview time — not new
+machinery, the same pattern applied to base-chain resolution instead of duplicate-name detection:
+1. Look up the declared base name, scoped by `(SourceFormat, Name)`, among sibling presets already
+   parsed from the *same* bundle. Present and unambiguous → use that sibling's own `RawDataJson` as the
+   next link (and recurse — that sibling may itself have a resolved or unresolved base).
+2. Not found in-batch → query prior-imported catalog rows by `(SourceFormat, Name)`. Exactly one match →
+   fetch that row's real ancestor chain (the detail-endpoint's fetch-by-id walk, above) and merge it in.
+3. Neither → unresolved; `hasUnresolvedBaseInChain: true` on the preview item.
+
+Preview's preset extraction gains the same `ProfileRawDataMerger.MergeAncestorChain` call, fed by a
+name-matched chain instead of an `Id`-matched one. The same cycle guard applies — a same-batch mutual
+name reference is exactly as reachable here as at confirm time, so the same visited-set/depth-cap
+approach is reused rather than a new one invented for preview specifically.
+
+**Chain topology is always the persisted columns, never `RawDataJson`'s own embedded reference**: a
+row's `RawDataJson` may itself contain a format-native `inherits`-shaped key — that's literally the field
+the parser extracts `BaseProfileName` from at import time. After a raw-JSON edit (FR-012), that embedded
+value and the persisted `BaseProfileId`/`BaseProfileName` columns could disagree, since the update
+handlers never revisit them (`data-model.md`). The walk must **always** use the persisted columns (or,
+at preview time, the name-matching above) — never re-parse `RawDataJson`'s own embedded reference to
+decide topology. Worth stating explicitly now that a real chain-walk exists to get this wrong in.
+
 ## Summary of resolved unknowns
 
 | Item | Resolution |
@@ -315,10 +470,11 @@ constitution's Principle IV asks for, not something to pre-build now.
 | Base/override reference field | `"inherits"`-shaped field in preset JSON (confirmed, §1) |
 | `bundle_structure.json` exact schema | Not required for correctness — subfolder-based classification is primary, manifest is optional cross-check (§1); real-sample fixture verification deferred to implementation, not a plan blocker |
 | Parser placement/testing strategy | `Infrastructure`, fixture-replay/test-after, mirrors `BambuMqttMessageParser` precedent (§2) |
-| Base/override resolution algorithm | Two-pass, TDD, in `ConfirmProfileImportCommandHandler`; ambiguous same-name matches (in-batch or prior-import) treated as unresolved, same as no match (§3) |
+| Base/override resolution algorithm | Two-pass, TDD, in `ConfirmProfileImportCommandHandler`; matches scoped by `(SourceFormat, Name)`; ambiguous matches (in-batch or prior-import) treated as unresolved, same as no match (§3) |
 | Preview/confirm state management | Stateless round-trip, no staging entity; confirm re-uploads the file and re-parses rather than trusting echoed content (§4) |
 | Duplicate detection timing | Server-side at preview; only the skip/import-as-new *decision* (not preset content) is carried through the confirm payload (§5) |
 | File upload binding | FastEndpoints `AllowFileUploads()` + `IFormFile`, used by both preview and confirm (§6) |
 | Bulk activity-log coverage | `IHasEntityIds` extension to the existing post-processor (§7) |
 | Live-integration flag | Cut entirely for this phase — no FR/SC backs it and its source field is unverified (§8) |
-| Persisting descriptive/spec fields | Not stored — computed at read time from `RawDataJson`, one extraction implementation shared between preview and catalog reads (§9) |
+| Persisting descriptive/spec fields | Not stored — computed at read time (§9), and, since real exported presets are delta-only, from the *resolved ancestor chain's* merged `RawDataJson` rather than one row alone, both at preview and post-confirm (§10) |
+| Delta-export gap (custom profile with "nothing to reference") | Confirmed real via source code + a real fixture chain + GitHub issues: exports are delta-only. Fixed by a read-time chain-walk merge, not by seeding default slicer profiles — the latter was considered and rejected (§10) |

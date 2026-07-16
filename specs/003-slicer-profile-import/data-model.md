@@ -1,7 +1,7 @@
 # Phase 2 Data Model: Profiles (Machine + Filament, Imported from Slicer Bundles)
 
 Entities and validation rules implementing spec.md's Key Entities section, informed by
-`research.md` §1–§3, §8, and §9. Two new tables (`MachineProfiles`, `FilamentProfiles`) — no changes to any
+`research.md` §1–§3 and §8–§10. Two new tables (`MachineProfiles`, `FilamentProfiles`) — no changes to any
 Phase 0/1 table.
 
 ## `MachineProfile` (new table)
@@ -13,7 +13,7 @@ Phase 0/1 table.
 | `Name` | `string` | The preset's own name from the source bundle, e.g. `"Bambu Lab X1 Carbon 0.4 nozzle"`. Not globally unique — duplicate names across imports are permitted (FR-009 flags, never blocks). Real column: needed for FR-009 duplicate lookups and for resolving other profiles' `BaseProfileName` against it. |
 | `SourceFormat` | enum: `OrcaSlicer` \| `BambuStudio` | Which slicer produced the bundle this preset came from. Real column, not derivable from `RawDataJson`: which parser branch handled the upload is provenance about the *import*, not necessarily a field the preset JSON reliably self-declares. |
 | `BaseProfileName` | `string?` | The raw `"inherits"`-equivalent reference from the source preset, stored verbatim. Null when the preset declares no base. **Never re-derived or cleared** once set, even if `BaseProfileId` never resolves (FR-005). Real column: drives the resolution algorithm (`research.md` §3). |
-| `BaseProfileId` | `Guid?` (self-FK → `MachineProfiles.Id`) | Populated only when `BaseProfileName` resolves *unambiguously* against exactly one other `MachineProfile` row in the same organization — either imported in the same confirm call or an earlier import (`research.md` §3). Left null (with `BaseProfileName` still stored) both when nothing matches and when more than one row shares that name, since duplicate names are permitted by FR-009. `ON DELETE SET NULL` — this feature has no delete endpoint yet (out of scope, see spec's Functional Requirements — none of FR-001–015 mention deletion), but the constraint is defined defensively for whenever one is added. |
+| `BaseProfileId` | `Guid?` (self-FK → `MachineProfiles.Id`) | Populated only when `BaseProfileName` resolves *unambiguously* against exactly one other `MachineProfile` row sharing this row's `SourceFormat`, in the same organization — either imported in the same confirm call or an earlier import (`research.md` §3). Left null (with `BaseProfileName` still stored) when nothing matches, when more than one row shares that `(SourceFormat, Name)`, or when a resolved chain is cut off by the cycle/depth guard (`research.md` §10) — duplicate names are permitted by FR-009, and a Bambu Studio preset can never legitimately resolve against an OrcaSlicer-named row or vice versa. `ON DELETE SET NULL` — this feature has no delete endpoint yet (out of scope, see spec's Functional Requirements — none of FR-001–015 mention deletion), but the constraint is defined defensively for whenever one is added. **Chain topology is always this column** (or, at preview time, the name-matching `research.md` §10 describes) — never a format-native `"inherits"`-shaped key possibly still embedded inside `RawDataJson`, which can drift from this column after a raw-JSON edit (FR-012) since the update handlers never revisit it. |
 | `RawDataJson` | `string` (`jsonb`) | The preset's full original JSON, exactly as extracted from the bundle — this is what US4's JSON editor reads and writes (FR-011/012), and the **only** source for every descriptive field below (see "Derived display fields"). Never reshaped or re-keyed on import. |
 | `CreatedAtUtc` | `DateTimeOffset` | |
 
@@ -26,7 +26,7 @@ Phase 0/1 table.
 | `Name` | `string` | e.g. `"Bambu PLA Basic @ Bambu X1 Carbon"`. Real column, same reason as `MachineProfile.Name`. |
 | `SourceFormat` | enum: `OrcaSlicer` \| `BambuStudio` | Same meaning and same "real column" reasoning as `MachineProfile.SourceFormat`. |
 | `BaseProfileName` | `string?` | Same semantics as `MachineProfile.BaseProfileName`. |
-| `BaseProfileId` | `Guid?` (self-FK → `FilamentProfiles.Id`) | Same resolution rules as `MachineProfile.BaseProfileId` (including the unambiguous-match-only requirement), scoped to the `FilamentProfiles` table (a filament preset's base is always another filament preset, never a machine preset). |
+| `BaseProfileId` | `Guid?` (self-FK → `FilamentProfiles.Id`) | Same resolution rules as `MachineProfile.BaseProfileId` (including the unambiguous-match-only requirement, the `SourceFormat` scoping, and the chain-topology-source-of-truth rule), scoped to the `FilamentProfiles` table (a filament preset's base is always another filament preset, never a machine preset). |
 | `RawDataJson` | `string` (`jsonb`) | Same meaning as `MachineProfile.RawDataJson` — the only source for every descriptive field below. |
 | `CreatedAtUtc` | `DateTimeOffset` | |
 
@@ -39,16 +39,25 @@ supported materials for `MachineProfile`; material, brand, color, and tuned sett
 phase rather than derived — see `research.md` §8.) `RawDataJson`
 is the single source of truth for all of them; storing a second, derived copy would create exactly the
 kind of drift risk FR-012's raw-JSON editor makes real (edit the JSON, and a cached column silently
-stops matching it unless every write path remembers to keep it in sync). Instead, `GetMachineProfilesQuery`/
-`GetMachineProfileQuery` and their filament equivalents compute these fields on every read, by running
-the same per-`SourceFormat` field-extraction logic `IProfileBundleParser` already needs internally to
-build `ParsedMachinePreset`/`ParsedFilamentPreset` at preview time (`research.md` §2) — one extraction
-function, reused at both preview-from-archive and read-from-stored-row call sites, never duplicated.
+stops matching it unless every write path remembers to keep it in sync).
+
+**Computed from a chain, not one row alone** (`research.md` §10): real OrcaSlicer/Bambu Studio exports
+are delta-only — a preset with a declared base typically carries only the fields it overrides, not the
+full effective settings. So `GetMachineProfilesQuery`/`GetMachineProfileQuery` and their filament
+equivalents don't read one row's `RawDataJson` in isolation; they walk the row's resolved `BaseProfileId`
+ancestor chain, merge every ancestor's `RawDataJson` with `ProfileRawDataMerger.MergeAncestorChain`
+(ancestor-first, the target row's own fields winning any conflict), and *then* run the same
+per-`SourceFormat` field-extraction logic `IProfileBundleParser` already needs internally to build
+`ParsedMachinePreset`/`ParsedFilamentPreset` at preview time (`research.md` §2) against the merged
+result — one extraction function, reused everywhere fields are derived, never duplicated; only what
+feeds it differs (a merged multi-row blob instead of one row's raw content).
 
 This means a raw-JSON edit (FR-012) takes effect on these fields automatically and immediately — there
 is no "re-derive and cache" step for `UpdateMachineProfileRawDataCommand`/
 `UpdateFilamentProfileRawDataCommand` to get right or get wrong; those handlers now do nothing beyond
-validating well-formed JSON (FR-013) and overwriting `RawDataJson`.
+validating well-formed JSON (FR-013) and overwriting `RawDataJson`. This now extends across a whole
+chain: editing a *base* profile's raw JSON changes every descendant's displayed fields on the very next
+read, with no propagation step anywhere, since nothing in the chain is ever cached.
 
 **Machine profile derived fields** (API response shape, `contracts/profiles-api.md`): `nozzleSizeMm`,
 `bedSizeXMm`/`bedSizeYMm`, `maxHeightMm`, `hasEnclosure`, `supportedMaterials`. (No
@@ -56,6 +65,17 @@ validating well-formed JSON (FR-013) and overwriting `RawDataJson`.
 
 **Filament profile derived fields**: `material`, `brand`, `colorHex`, `nozzleSizeMm`, `nozzleTempC`,
 `bedTempC`, `maxVolumetricSpeedMm3s`, `fanPercent`.
+
+**`hasUnresolvedBaseInChain`** (both types): a boolean, computed alongside the merge during the same
+chain-walk — never a persisted column, same principle as every other derived field. `true` when the walk
+terminates *at any level* at a row whose declared base name didn't resolve, or is cut off by the
+cycle/depth guard (`research.md` §10) — meaning the merge may be missing settings only that unresolved
+ancestor would have supplied. `false` only when the walk reaches a row that genuinely declares no base —
+the merge is complete by construction. This is the honest signal that replaces silently showing blank
+fields with no explanation: a profile can have complete derived fields (its whole resolved chain
+supplied everything) even though its own immediate `BaseProfileId` is null (it simply has no base), and
+conversely a profile with a resolved immediate `BaseProfileId` can still have `hasUnresolvedBaseInChain:
+true` if a *higher* ancestor in the chain didn't resolve.
 
 None of these are queryable/filterable/sortable at the database level as a result (no FR asks for
 that — US3 only requires them to be *displayed*). If a later phase needs to filter or sort the catalog
@@ -121,12 +141,18 @@ confirm — never a database row (`research.md` §4).
 
 Carries `Name`, `SourceFormat`, and `BaseProfileName` — three of the four real columns a confirmed
 import would persist — plus every "Derived display field" above, computed fresh during this parse pass
-from the freshly parsed (but not returned) `RawDataJson`, by the same extraction logic a stored-row read
-would use later, so the review list shows the identical values the catalog will show after import — plus:
+by the same chain-walk-merge process a stored-row read uses (`research.md` §10) — except preview has no
+persisted `Id`s to walk via `BaseProfileId` yet, so the chain is resolved by `(SourceFormat, Name)`
+matching against sibling presets already parsed from the same bundle first, then against prior-imported
+catalog rows, mirroring §5's existing preview-time duplicate-detection DB lookup rather than inventing a
+second pattern. The freshly parsed (but not returned) `RawDataJson` of every resolved link is what feeds
+`ProfileRawDataMerger.MergeAncestorChain`, so the review list shows the identical values the catalog
+will show after import — plus:
 
 | Field | Type | Notes |
 |---|---|---|
 | `IsDuplicate` | `bool` | Set by the preview handler per `research.md` §5. |
+| `HasUnresolvedBaseInChain` | `bool` | Same semantics as the persisted-catalog version (see "Derived display fields" above), computed by the same preview-time name-matched chain-walk (`research.md` §10). |
 | `IsBaseSelectableInBundle` | n/a — **not a backend field** | FR-006's "base present in bundle but not selected" warning is computed entirely client-side from the full preview array + live selection state (`research.md` §4) — deliberately not a server-computed field, since it changes on every checkbox click and round-tripping to the server for it would violate Constitution Principle V (no needless network round-trips for something derivable from data already in hand). |
 
 This full shape exists **only** for the preview response, to render the review-list UI. It is never

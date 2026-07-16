@@ -29,6 +29,7 @@ FR-002, FR-003). `multipart/form-data`, single field `file` (`research.md` §6).
       "hasEnclosure": true,
       "supportedMaterials": ["PLA", "PETG", "ABS", "TPU"],
       "baseProfileName": null,
+      "hasUnresolvedBaseInChain": false,
       "isDuplicate": false
     }
   ],
@@ -40,6 +41,7 @@ FR-002, FR-003). `multipart/form-data`, single field `file` (`research.md` §6).
       "nozzleSizeMm": 0.4, "nozzleTempC": 220, "bedTempC": 55,
       "maxVolumetricSpeedMm3s": 15, "fanPercent": 100,
       "baseProfileName": "Bambu PLA Basic",
+      "hasUnresolvedBaseInChain": false,
       "isDuplicate": false
     }
   ]
@@ -55,6 +57,17 @@ No `rawDataJson` and no `supportsLiveIntegration` in this response: `rawDataJson
 response (`research.md` §4) — omitting it also keeps the payload small for spec.md's Edge Cases concern
 about "very large bundle[s] (many dozens of presets)" staying usable. `supportsLiveIntegration` doesn't
 exist anywhere in this feature — cut entirely, not just from preview (`research.md` §8).
+
+Every preset's derived display fields (`nozzleSizeMm`, `hasEnclosure`, `nozzleTempC`, etc.) are computed
+by resolving and merging its base chain — matched by `(sourceFormat, name)` against sibling presets in
+this same bundle, then against previously-imported catalog rows — not from that one preset's own content
+alone, since real slicer exports carry only the settings a preset overrides (`research.md` §10).
+`hasUnresolvedBaseInChain: true` means the chain was cut short by a declared base that never resolved
+(at any level, not just this preset's own immediate one) — its derived fields may be missing whatever
+that unresolved ancestor would have supplied. In the example above, the "Bambu PLA Basic – Red" override
+shows complete derived fields because "Bambu PLA Basic" is presumably also in this bundle or already
+imported; if it weren't, the same preset would show `"hasUnresolvedBaseInChain": true` and likely
+missing `nozzleTempC`/`bedTempC`/etc.
 
 **Response 422** (FR-007) — `ProblemDetails`, unrecognized file extension or an archive that fails to
 open/parse:
@@ -111,23 +124,25 @@ than the one they previewed):
 ## `GET /api/v1/profiles/machine`
 
 List the machine profile catalog (FR-010, US3). `nozzleSizeMm`/`hasEnclosure`/etc. below are **derived
-display fields** (`data-model.md`) — computed by the query handler from each row's `rawDataJson` on
-every request, not read from a stored column. (No `supportsLiveIntegration` field — cut entirely for
-this phase, `research.md` §8.)
+display fields** (`data-model.md`) — computed by the query handler by walking and merging each row's
+resolved `BaseProfileId` ancestor chain on every request (`research.md` §10), not read from a stored
+column, and not from that row's own `rawDataJson` alone (real exports are delta-only). (No
+`supportsLiveIntegration` field — cut entirely for this phase, `research.md` §8.)
 
 **Response 200**
 ```jsonc
-{ "profiles": [ { "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "baseProfileId": null, "baseProfileName": null } ] }
+{ "profiles": [ { "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "hasUnresolvedBaseInChain": false, "baseProfileId": null, "baseProfileName": null } ] }
 ```
 
 ## `GET /api/v1/profiles/machine/{id}`
 
-Single machine profile's full raw data (FR-011), plus the same derived display fields as the list
-endpoint (shown once here, computed the same way).
+Single machine profile's full raw data (FR-011) — this row's own `rawDataJson` only, never a merged
+blob — plus the same chain-merged derived display fields as the list endpoint (shown once here, computed
+the same way).
 
 **Response 200**
 ```jsonc
-{ "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "rawDataJson": "{ ... }", "baseProfileId": null, "baseProfileName": null, "createdAtUtc": "..." }
+{ "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "hasUnresolvedBaseInChain": false, "rawDataJson": "{ ... }", "baseProfileId": null, "baseProfileName": null, "createdAtUtc": "..." }
 ```
 
 **Response 404** — `ProblemDetails`, unknown id (or id belongs to another org — Finbuckle's global
@@ -144,8 +159,11 @@ Save an edited raw JSON body (FR-012/013).
 ```
 
 **Response 200** — same shape as `GET /api/v1/profiles/machine/{id}`, reflecting the saved
-`rawDataJson` and every derived display field recomputed from it (`data-model.md`'s "Derived display
-fields" — these are never cached, so the response is always current by construction, not best-effort).
+`rawDataJson` and every derived display field recomputed from the chain merge including it
+(`data-model.md`'s "Derived display fields" — these are never cached, so the response is always current
+by construction, not best-effort). Editing a profile that other profiles inherit *from* also changes
+those descendants' derived fields on their very next read — nothing needs to be re-saved or
+re-triggered on the descendant side (`research.md` §10).
 
 **Response 422** (FR-013) — malformed JSON; the previously saved row is left unchanged.
 ```jsonc

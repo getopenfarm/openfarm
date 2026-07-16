@@ -69,10 +69,28 @@ curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bear
 **Expected**: the derived profile's `baseProfileId` is set (not null) and points at the base profile's
 own `id` from the same response — a real parent/child link, not a flattened independent copy (SC-002).
 
+**Chain-merged settings are complete, not just the link** (`research.md` §10): since real slicer exports
+are delta-only, the derived preset's *own* `rawDataJson` typically lacks nozzle temp/bed temp/etc.
+entirely — those exist only on the base. Confirm the derived profile's *derived display fields* are
+nonetheless complete by pulling values from the resolved base:
+
+```bash
+curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bearer <token>" \
+  | jq '.profiles[] | select(.baseProfileId != null) | {name, nozzleTempC, bedTempC, hasUnresolvedBaseInChain}'
+```
+
+**Expected**: `nozzleTempC`/`bedTempC` are populated (pulled from the base row, not the derived row's
+own sparse `rawDataJson`) and `hasUnresolvedBaseInChain` is `false` — the chain resolved completely
+because both levels were imported together. Also check the *preview* response from Scenario 1/2 for the
+same bundle and confirm it already showed these same complete values before you ever clicked confirm —
+the review list must not show incomplete data that only becomes complete after import (`research.md`
+§10's preview-side fix).
+
 Now repeat with a **fresh** bundle, this time selecting only the derived preset and leaving its base
 unchecked. Before clicking confirm in the browser, confirm the review list surfaces a visible warning
 that the base is present in the bundle but not selected (FR-006, computed client-side per
-`research.md` §4 — no separate API call backs this). Confirm anyway:
+`research.md` §4 — no separate API call backs this). Also confirm the preview item for this preset shows
+`"hasUnresolvedBaseInChain": true`, since its declared base isn't going to be imported. Confirm anyway:
 
 ```bash
 curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bearer <token>" \
@@ -80,8 +98,10 @@ curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bear
 ```
 
 **Expected**: the profile exists, `baseProfileName` is populated with the declared base's name, but
-`baseProfileId` is `null` — an unresolved reference is a normal outcome, not an error (Acceptance
-Scenario 3, US2).
+`baseProfileId` is `null` and `hasUnresolvedBaseInChain` is `true` — an unresolved reference is a normal
+outcome, not an error (Acceptance Scenario 3, US2), but the response makes the resulting incompleteness
+visible rather than silently showing blank settings fields with no explanation. Confirm `nozzleTempC`/
+`bedTempC`/etc. on this profile are absent, not zero or a misleading default.
 
 **Ambiguous base match** (`research.md` §3): since FR-009 permits importing a duplicate-named preset as
 a separate row, `Name` isn't unique — confirm the resolution algorithm treats an ambiguous match the

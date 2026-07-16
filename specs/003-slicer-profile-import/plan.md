@@ -16,10 +16,15 @@ selects which ones to keep in a review list (client-side, no server-side staging
 separate confirm call re-uploads the same file and re-parses it server-side, persisting only the
 presets the operator selected (identified by a compact key, never by re-trusting client-supplied preset
 content) and resolving each preset's declared base/override relationship into a self-referencing FK
-where the base is resolvable, preserving the base's name as an unresolved reference otherwise. Imported
-profiles are viewable in two separate catalog lists and editable only through a raw JSON viewer/editor
-— no structured per-field forms, no printer/job linkage, consistent with this phase's deliberately
-narrow scope per `docs/FEATURE_PLAN.md` Phase 2.
+where the base is resolvable, preserving the base's name as an unresolved reference otherwise. Because
+real slicer exports carry only the settings a preset overrides (not its full effective config), a
+profile's displayed settings are computed by walking and merging its resolved base chain rather than
+reading one row alone — the dominant real case (a base imported alongside its override) resolves
+completely without OpenFarm ever seeding any built-in slicer defaults; a profile flags
+`hasUnresolvedBaseInChain` when that's not fully possible. Imported profiles are viewable in two separate
+catalog lists and editable only through a raw JSON viewer/editor — no structured per-field forms, no
+printer/job linkage, consistent with this phase's deliberately narrow scope per `docs/FEATURE_PLAN.md`
+Phase 2.
 
 ## Technical Context
 
@@ -40,9 +45,12 @@ already in `web/src/components/`.
 `BaseProfileId` + durable `BaseProfileName`, `RawDataJson` jsonb, created-at) — see `data-model.md`.
 Every descriptive/spec field spec.md's Key Entities names (nozzle size, bed volume, enclosure,
 supported materials, material, brand, color, tuned settings) is **not** a stored column — it's computed
-at read time from `RawDataJson` by the same field-extraction logic the parser uses, so there's exactly
-one source of truth and a raw-JSON edit (FR-012) can never leave a cached column stale (`data-model.md`'s
-"Derived display fields"). One field Key Entities also names — machine-profile live-integration
+at read time by the same field-extraction logic the parser uses, fed by a merge of the profile's
+resolved `BaseProfileId` ancestor chain's `RawDataJson` rather than the row's own `RawDataJson` alone
+(`research.md` §10 — real slicer exports are delta-only, so a single row is often missing settings its
+base actually supplies), so there's exactly one source of truth per field and a raw-JSON edit (FR-012)
+can never leave a cached column stale, on any row in the chain (`data-model.md`'s "Derived display
+fields"). One field Key Entities also names — machine-profile live-integration
 capability — is cut entirely for this phase rather than derived (`research.md` §8: no FR/SC backs it,
 and its source field is unverified). No changes to any Phase 0/1 table. No "import batch" table — the
 review step is a stateless round-trip (`research.md` §4), a deliberate rejection of a staging entity per
@@ -50,9 +58,11 @@ the constitution's anti-speculation principle; confirm re-uploads and re-parses 
 than persisting a client-echoed copy of it, so the transient confirm-request shape carries only
 selection keys, not duplicated preset data (`data-model.md`'s `SelectedProfileKey`).
 
-**Testing**: TDD (xUnit + FluentAssertions) for the base/override two-pass resolution algorithm and
-duplicate-name detection (`OpenFarm.Application.Tests` — pure, deterministic, well-specified logic, the
-same bar the constitution sets for BOM decomposition and filament weight math). Fixture-replay,
+**Testing**: TDD (xUnit + FluentAssertions) for the base/override two-pass resolution algorithm,
+duplicate-name detection, and `ProfileRawDataMerger`'s ancestor-chain JSON merge (`OpenFarm.Application.Tests`
+— pure, deterministic, well-specified logic, the same bar the constitution sets for BOM decomposition and
+filament weight math; the merger needs only synthetic JSON fixtures, no real slicer files, since it's
+format-agnostic — `research.md` §10). Fixture-replay,
 test-after for `ProfileBundleParser` (`OpenFarm.Infrastructure.Tests`) against real captured export
 files, mirroring the exact precedent `BambuMqttMessageParser` set in Phase 1 for externally-defined
 formats (`research.md` §2) — real fixtures are a follow-up implementation task (`research.md` §1),
@@ -121,7 +131,12 @@ spec's FR-015 and Assumptions).
   poll — import is a synchronous request/response, catalogs are plain TanStack Query fetches). Review
   list uses the existing non-virtualized `DataTable` — correctly scoped as a non-violation per the
   constitution's own carve-out (only the *unbounded* job queue requires `TanStack Virtual`; "many dozens"
-  of presets is a bounded, small list). **Pass.**
+  of presets is a bounded, small list). Derived display fields now require walking each profile's
+  `BaseProfileId` ancestor chain (`research.md` §10) — deliberately an in-memory walk over the list
+  endpoint's already-fetched row set, not a recursive CTE: this principle's recursive-CTE requirement is
+  scoped to BOM decomposition's stated unlimited-depth/DB-layer story, which profiles doesn't share
+  (SC-001 caps an import at under 50 presets, real chains are 2–4 levels). Reaching for `WITH RECURSIVE`
+  here would be over-engineering relative to the principle's purpose, not required by it. **Pass.**
 - **Security & Multi-Tenancy Isolation**: Both new tables use Finbuckle's `IsMultiTenant()` global query
   filter exclusively — no hand-rolled tenant `WHERE` clause (`data-model.md`). No secrets are involved
   in this feature (profiles carry no credentials), so `IDataProtector` is out of scope entirely. Every
@@ -183,11 +198,26 @@ api/src/OpenFarm.Application/Profiles/
                                        # when called against a stored row, where (unlike a fresh archive entry) the
                                        # parser doesn't already know which format branch it's in.
   IMachineProfileRepository.cs / IFilamentProfileRepository.cs
-  PreviewProfileImportCommand.cs / Handler         # parses upload, flags duplicates (research.md §5) — no persistence
-  ConfirmProfileImportCommand.cs / Handler         # re-parses the re-uploaded file (research.md §4), two-pass base/override resolution (research.md §3) — TDD
-  GetMachineProfilesQuery.cs / Handler             # catalog list; computes derived display fields per row via IProfileBundleParser.ExtractMachineDisplayFields
+  ProfileRawDataMerger.cs             # MergeAncestorChain(rawDataJsonAncestorFirst) — pure, format-agnostic
+                                       # JSON key-overwrite merge (last element wins conflicts). Separate from
+                                       # IProfileBundleParser's ExtractXDisplayFields, which run once on the
+                                       # merge's output (research.md §10) — TDD, synthetic fixtures only.
+  PreviewProfileImportCommand.cs / Handler         # parses upload, flags duplicates (research.md §5); resolves each
+                                                    # preset's base chain by (SourceFormat, Name) against same-batch
+                                                    # siblings then prior-imported rows, merges via ProfileRawDataMerger
+                                                    # (research.md §10) — no persistence
+  ConfirmProfileImportCommand.cs / Handler         # re-parses the re-uploaded file (research.md §4), two-pass
+                                                    # (SourceFormat, Name)-scoped base/override resolution (research.md §3) — TDD
+  GetMachineProfilesQuery.cs / Handler             # catalog list; builds an in-memory Id->row map from the one
+                                                    # ListAsync call, walks each row's BaseProfileId chain in memory
+                                                    # (cycle/depth-guarded), merges via ProfileRawDataMerger, then
+                                                    # calls IProfileBundleParser.ExtractMachineDisplayFields on the
+                                                    # merged result — no extra DB round trips, no recursive CTE
+                                                    # (research.md §10)
   GetFilamentProfilesQuery.cs / Handler            # same, via ExtractFilamentDisplayFields
-  GetMachineProfileQuery.cs / Handler               # single, raw data (FR-011) + derived display fields
+  GetMachineProfileQuery.cs / Handler               # single profile: raw data (FR-011) + chain-merged derived display
+                                                     # fields, via sequential bounded fetch-by-id up BaseProfileId
+                                                     # (research.md §10)
   GetFilamentProfileQuery.cs / Handler
   UpdateMachineProfileRawDataCommand.cs / Handler / Validator   # FR-012/013 — validates JSON, overwrites RawDataJson; no caching step, nothing else to keep in sync
   UpdateFilamentProfileRawDataCommand.cs / Handler / Validator
@@ -248,3 +278,5 @@ Constitution Check section's note, not because either is a deviation:
 | Descriptive/spec fields (nozzle size, bed volume, enclosure, supported materials, material, brand, color, tuned settings) are computed from `RawDataJson` at read time, not stored as typed columns | Guarantees one source of truth — a raw-JSON edit (FR-012) can never leave a stale cached column behind, and the `UpdateXProfileRawDataCommand` handlers stay a pure validate-and-overwrite with no re-derivation step to get wrong | Storing them as typed columns (matching `Printer`'s inline-telemetry-column precedent) was the original design — reverted because no FR asks for DB-level filter/sort on any of these fields, only display, so caching them was schema surface with no query requirement behind it (Constitution Principle IV); re-extracting from a small `RawDataJson` blob on every catalog read is computationally trivial at this feature's scale |
 | `SourceFileName` column and machine-profile `SupportsLiveIntegration` field cut entirely (not persisted, not derived) | Neither has a documented consumer/requirement behind it — `SourceFileName` is written once at confirm and never read back by any endpoint/UI, and `SupportsLiveIntegration` is backed only by spec.md's Key Entities prose (no numbered FR/SC) and an unverified source field | Keeping `SourceFileName` as "cheap provenance" and `SupportsLiveIntegration` as a best-effort heuristic were the original designs — both reverted for consistency with the same "no FR/SC, no keep" standard applied to every other descriptive field above; `SupportsLiveIntegration` can be reintroduced once a later phase both needs it and confirms the real preset field it would read (`research.md` §8) |
 | Base/override resolution treats an ambiguous same-name match (2+ candidate rows, in-batch or prior-import) as unresolved, same as no match | FR-009 permits importing duplicate-named presets as separate rows, so `Name` isn't unique — a `BaseProfileName` lookup by `Name` can legitimately match more than one row, which the original two-pass algorithm didn't account for (an in-batch `Name → Id` map can only hold one `Id` per name; a prior-import lookup could return 2+ rows) | A deterministic tie-break (e.g. most-recently-created same-named row) was considered and rejected — it resolves to *something*, but with no principled way to know which same-named row a preset's declared base actually meant; a silently wrong link is worse than a visibly missing one, since it looks correct in the UI and is much harder to notice or correct later |
+| Derived display fields computed from a chain-walk merge over `BaseProfileId` (`ProfileRawDataMerger`), not one row's `RawDataJson` alone; applied at both preview (name-matched) and post-confirm (Id-matched) | Real OrcaSlicer/Bambu Studio exports are delta-only (confirmed via source code, a real multi-level fixture chain, and GitHub issues, `research.md` §10) — an override preset's own `RawDataJson` typically lacks nozzle temp/bed temp/etc. entirely, so single-row extraction showed blank fields even when the base was imported alongside the override, spec's own US2 Scenario 1 | Seeding a narrow set of built-in slicer default profiles was considered (so override-only imports would always resolve) and rejected — it reopens spec.md's explicit "import-your-own-bundle only" position and adds an ongoing upstream-sync maintenance burden this phase has none of; the chain-walk fixes the dominant real case (base + override imported together) without seeding anything, leaving only a narrower, honestly-flagged (`hasUnresolvedBaseInChain`) residual gap for a truly unimported built-in root |
+| Base/override resolution scoped by `(SourceFormat, Name)`, not `Name` alone | An `"inherits"` reference always names a preset within that same slicer's own library — a Bambu Studio preset can never legitimately declare an OrcaSlicer-named preset as its base, and allowing a cross-format match would silently corrupt the chain-walk merge above by mixing two different field-name vocabularies in one merged blob | Leaving resolution `Name`-only (the prior design) was simpler but semantically wrong from the start, not just a missing safeguard for the merge feature — surfaced only once the merge work required every row in a chain to share one field-name vocabulary |
