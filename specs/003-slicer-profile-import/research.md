@@ -54,7 +54,10 @@ package needed, this is a well-understood zip-plus-JSON format, not a binary pro
 stream. Per-preset field extraction (nozzle size, bed volume, material, color, etc. — the "key
 identifying fields" spec.md's US3 requires) is format-aware but table-driven, not one giant
 if/else: a small per-`SourceFormat` field-mapping table translates known JSON key names into the
-catalog's typed columns, tolerating missing keys (nullable columns) rather than failing the import.
+"derived display field" shape (§9) — `nozzleSizeMm`, `bedSizeXMm`, `material`, `colorHex`, etc. —
+tolerating missing keys (the field is simply omitted/null in the response) rather than failing the
+import. Per §9, none of these fields are persisted columns; this same extraction logic is invoked both
+at preview parse time and at every catalog read against a stored row's `RawDataJson`.
 
 **Testing classification**: fixture-replay, test-after — **not** TDD. This follows the exact precedent
 set by `BambuMqttMessageParser` in `specs/002-printer-integration/plan.md` (raw external-format bytes
@@ -62,7 +65,7 @@ set by `BambuMqttMessageParser` in `specs/002-printer-integration/plan.md` (raw 
 for "the real Bambu LAN client"). Parsing an externally-defined, imperfectly-documented archive format
 is the same class of problem — the correctness bar is "does it parse what a real slicer actually
 produces," which only real fixture files can prove, not up-front red-green-refactor against an assumed
-schema. `Domain`-side logic this feature *does* need TDD for for is narrower: the deterministic
+schema. `Domain`-side logic this feature *does* need TDD for is narrower: the deterministic
 base/override resolution algorithm (§3) and duplicate-name detection, both of which are pure,
 well-specified functions over already-parsed data — no external format uncertainty.
 
@@ -70,18 +73,62 @@ well-specified functions over already-parsed data — no external format uncerta
 
 **Decision**: resolution happens in two passes inside `ConfirmProfileImportCommandHandler`'s
 transaction, not the parser (the parser's job is only to extract each preset's own declared
-`BaseProfileName`, never to resolve it): (1) insert every selected, non-skipped preset as a new
-`MachineProfile`/`FilamentProfile` row, keeping an in-memory `Name → Id` map per profile type for rows
-created in *this* confirm call; (2) for every inserted row with a non-null `BaseProfileName`, resolve
-`BaseProfileId` by checking the in-batch map first (the base was imported alongside it, US2 Scenario 1),
-then falling back to a lookup against already-imported catalog rows for the same organization/type
-(the base was imported in an *earlier* import), leaving `BaseProfileId` null if neither resolves (US2
-Scenario 3 — a built-in slicer default, the expected common case per spec.md's Assumptions).
-`BaseProfileName` itself is always stored verbatim regardless of whether resolution succeeds — it's
-the durable reference spec.md's FR-005 requires, `BaseProfileId` is just an optimization for the
-resolved case. This two-pass approach is a plain, deterministic algorithm — a good TDD candidate,
-tested against synthetic in-batch/prior-import/unresolved fixtures rather than needing real slicer
-files.
+`BaseProfileName`, never to resolve it).
+
+**Pass 1 — insert and index.** Insert every selected, non-skipped preset as a new
+`MachineProfile`/`FilamentProfile` row. While inserting, build an in-memory per-profile-type map from
+`Name` to "zero, exactly one, or more than one `Id`" for rows created in *this* confirm call — a plain
+`Dictionary<string, Guid>` cannot represent this, since a second insert under the same key would
+silently overwrite the first with no documented behavior. Concretely: a `Dictionary<string, Guid?>`
+works — set `map[name] = id` on the first insert of that name; on any subsequent insert of the same
+name, set `map[name] = null` as an ambiguous sentinel and leave it null for all further inserts of that
+name. This is possible because FR-009 explicitly permits importing a duplicate-named preset as a
+separate additional row, and neither table enforces a DB uniqueness constraint on `Name`
+(`data-model.md`), so a same-batch name collision is a real, expected input shape, not a bug.
+
+**Pass 2 — resolve.** For every inserted row with a non-null `BaseProfileName`, resolve `BaseProfileId`:
+1. Look up `BaseProfileName` in the in-batch map (the base was imported alongside it, US2 Scenario 1).
+   - Entry present with a non-null `Id` → resolved; `BaseProfileId` = that `Id`. **Stop — do not also
+     query the database.**
+   - Entry present but `null` (ambiguous — 2+ same-named rows in this batch) → **unresolved**. **Stop —
+     do not fall through to a database lookup**: a prior-import row of the same name wouldn't
+     disambiguate which in-batch preset was meant, it would only add a third, equally arbitrary
+     candidate.
+   - No entry (zero in-batch candidates) → continue to step 2.
+2. Query already-imported catalog rows for the same organization/type by exact `Name` match (the base
+   was imported in an *earlier* import).
+   - Exactly one matching row → resolved; `BaseProfileId` = that row's `Id`.
+   - Two or more matching rows → **unresolved** — the organization already has 2+ existing profiles
+     sharing that name, a legitimate state since FR-009 allows duplicate-name imports, and there is no
+     principled rule for picking one over another.
+   - Zero matching rows → **unresolved** (US2 Scenario 3 — a built-in slicer default, the expected
+     common case per spec.md's Assumptions).
+
+In every unresolved outcome above — no match, or an ambiguous match, from either source — `BaseProfileId`
+stays null and `BaseProfileName` is still stored verbatim, exactly the same "unresolved reference is a
+normal, expected outcome" behavior FR-005 already establishes for the no-match case. This uniform
+treatment is deliberate: from the operator's perspective, an ambiguous match and no match are equally
+"the system cannot say with certainty which row was meant," and silently guessing (e.g. picking the
+most-recently-created same-named row) would produce a *wrong* link — a failure mode strictly worse than
+a missing one, since a wrong link looks correct in the UI and is much harder to notice and correct later.
+
+**Alternative considered and rejected**: an arbitrary but deterministic tie-break (most-recently-created
+row, or lexicographically-smallest `Id`, among same-named candidates) was considered, since it resolves
+*something* rather than leaving `BaseProfileId` null. Rejected for the reason above — there is no
+principled way to infer which same-named row a preset's declared base actually refers to, and a silent
+wrong guess is worse than the already-established, visible-by-its-absence "unresolved" state.
+
+**Distinguishing "ambiguous" from "no match at all"**: both collapse to the identical persisted shape
+(`BaseProfileName` set, `BaseProfileId` null) — no separate column is added to distinguish them, since
+no FR asks for that distinction to be queryable or user-visible, consistent with this feature's general
+avoidance of schema surface without a stated requirement (`data-model.md`'s "genuinely small" schema
+note). If this distinction is ever needed for debugging, the recommended approach is a structured log
+line in `ConfirmProfileImportCommandHandler` at the point an ambiguous match is discarded (candidate
+count, profile type, preset name), not a persisted column.
+
+This two-pass approach is still a plain, deterministic algorithm — a good TDD candidate, tested against
+synthetic in-batch/prior-import/unresolved/**ambiguous-in-batch/ambiguous-prior-import** fixtures rather
+than needing real slicer files.
 
 ## 4. Preview/confirm flow — stateless, no server-side staging entity, no client-trusted payload
 
@@ -186,36 +233,56 @@ like every other state-mutating command, without special-casing this one endpoin
 shared pipeline. `RegisterPrinterEndpoint`, `MarkPrinterReadyEndpoint`, etc. are entirely unaffected —
 the existing single-`Id` path stays the default and is checked first.
 
-## 8. Machine profile ↔ existing `PrinterModelCatalog` cross-reference (best-effort)
+**Performance note (accepted, non-blocking)**: `EfActivityLogWriter.WriteAsync` (the existing
+implementation of `IActivityLogWriter`) does one `Add` + one `SaveChangesAsync` per call, so this
+extension means confirm-import performs one activity-log DB round-trip per created profile, on top of
+the profile inserts themselves. Accepted at this feature's scale (SC-001 caps a single import at under
+50 presets); worth a code comment at the loop site for anyone revisiting this if the scale assumption
+ever changes, not a design blocker now.
 
-**Decision**: `MachineProfile.SupportsLiveIntegration` (spec's Key Entities: "whether the model is one
-OpenFarm can live-connect to") is derived, not manually set, by attempting to match the imported
-preset's declared printer name/model text against `OpenFarm.Domain.Printers.PrinterModelCatalog`
-(built in `specs/002-printer-integration/`) — reusing Phase 1's existing catalog instead of duplicating
-model knowledge, per the constitution's Principle IV. **This match is explicitly best-effort**: a
-slicer's machine-preset JSON names the printer in free text (e.g. `"Bambu Lab X1 Carbon 0.4 nozzle"`),
-not `PrinterModelCatalog`'s exact `(Brand, ModelCode)` pair (e.g. `("Bambu", "X1C")`), so resolution
-uses a small normalized substring/alias match rather than requiring an exact key hit; when nothing
-matches, `SupportsLiveIntegration` defaults to `false` rather than blocking the import or guessing — a
-machine profile importing successfully never depends on this field resolving (FR-002's extraction
-requirement doesn't gate on it). Verifying the real preset field name(s) that carry the printer's model
-string is part of the same real-sample-fixture task named in §1, since it's the same "confirm against
-actual exported JSON" category of unknown. Per §9, this field is computed at read time rather than
-cached — so a `PrinterModelCatalog` change (a new supported model added in a later phase) automatically
-changes what existing imported machine profiles report, with no backfill needed.
+## 8. Machine profile ↔ existing `PrinterModelCatalog` cross-reference — considered, cut for this phase
+
+**Decision**: `MachineProfile` does **not** carry a `SupportsLiveIntegration` field (or equivalent) in
+this phase — the idea was considered and explicitly cut, not deferred-by-omission.
+
+spec.md's Key Entities section names "whether the model is one OpenFarm can live-connect to" as an
+attribute of a Machine Profile. The design originally explored here derived it, not manually set, by
+matching the imported preset's declared printer name/model text against
+`OpenFarm.Domain.Printers.PrinterModelCatalog` (built in `specs/002-printer-integration/`) — reusing
+Phase 1's existing catalog instead of duplicating model knowledge, per the constitution's Principle IV.
+That match would have been explicitly best-effort: a slicer's machine-preset JSON names the printer in
+free text (e.g. `"Bambu Lab X1 Carbon 0.4 nozzle"`), not `PrinterModelCatalog`'s exact `(Brand,
+ModelCode)` pair (e.g. `("Bambu", "X1C")`), so resolution would have needed a normalized
+substring/alias match rather than an exact key hit.
+
+**Why cut rather than built**: unlike every other field this design kept, this one is backed by no
+numbered FR or SC — only by Key Entities' descriptive text — and its source data was never verified: the
+real preset JSON field(s) that carry a printer's model string are part of the same
+"confirm against actual exported JSON" unknown named in §1's real-sample-fixture follow-up task, i.e.
+this feature would have been building fuzzy-matching logic against a field whose existence in real
+bundles hadn't been confirmed. Given this phase's design elsewhere aggressively cuts anything not backed
+by a stated FR/SC (§9's derived-fields decision, the `SourceFileName` cut in `data-model.md`), keeping
+this one field as an exception — the single field with no FR/SC behind it *and* an unverified source —
+would have been inconsistent with that standard. It can be reintroduced in a later phase once real
+sample bundles confirm the relevant preset field actually exists and is reliable enough to match on;
+nothing in this phase's schema blocks adding it then (the same "derived at read time, not persisted"
+pattern §9 establishes would still apply, so adding it later needs no migration).
 
 ## 9. Descriptive fields (nozzle size, bed volume, material, color, tuned settings, ...) are computed at read time, not stored
 
 **Decision**: none of the descriptive/spec fields spec.md's Key Entities names for either profile
-type — nozzle size, bed volume dimensions, enclosure, supported materials, live-integration capability
-(machine); material, brand, color, nozzle/bed temp, max volumetric speed, fan percent (filament) — are
-persisted as their own typed table columns. `RawDataJson` is the only persisted form of this data; the
-`MachineProfile`/`FilamentProfile` tables carry only identity/reference/provenance columns (`Id`,
-`OrganizationId`, `Name`, `SourceFormat`, `BaseProfileName`, `BaseProfileId`, `RawDataJson`,
-`SourceFileName`, `CreatedAtUtc` — see `data-model.md`). `IProfileBundleParser` exposes the same
-per-`SourceFormat` field-extraction logic it needs internally at two call sites: once against a freshly
-parsed archive entry (preview, §2), and once against a stored row's `RawDataJson` string (every catalog
-list/detail read) — one implementation, reused, never forked into a "parse-time version" and a
+type — nozzle size, bed volume dimensions, enclosure, supported materials (machine); material, brand,
+color, nozzle/bed temp, max volumetric speed, fan percent (filament) — are persisted as their own typed
+table columns. (Key Entities also names a live-integration-capability attribute for machine profiles;
+that one is cut entirely rather than derived — see §8.) `RawDataJson` is the only persisted form of this
+data; the `MachineProfile`/`FilamentProfile` tables carry only identity/reference/provenance columns
+(`Id`, `OrganizationId`, `Name`, `SourceFormat`, `BaseProfileName`, `BaseProfileId`, `RawDataJson`,
+`CreatedAtUtc` — see `data-model.md`). `IProfileBundleParser` exposes the same per-`SourceFormat`
+field-extraction logic it needs internally at two call sites: once against a freshly parsed archive
+entry, where the parser already knows the format branch it's in (preview, §2), and once against a
+stored row's `RawDataJson` string plus its `SourceFormat` column — needed explicitly at this second call
+site since `SourceFormat` isn't derivable from `RawDataJson` alone (`data-model.md`) — for every catalog
+list/detail read. One implementation, reused, never forked into a "parse-time version" and a
 "read-time version" that could drift from each other.
 
 **Revision note**: the original design (this file's first draft, and `data-model.md`'s first draft)
@@ -248,10 +315,10 @@ constitution's Principle IV asks for, not something to pre-build now.
 | Base/override reference field | `"inherits"`-shaped field in preset JSON (confirmed, §1) |
 | `bundle_structure.json` exact schema | Not required for correctness — subfolder-based classification is primary, manifest is optional cross-check (§1); real-sample fixture verification deferred to implementation, not a plan blocker |
 | Parser placement/testing strategy | `Infrastructure`, fixture-replay/test-after, mirrors `BambuMqttMessageParser` precedent (§2) |
-| Base/override resolution algorithm | Two-pass, TDD, in `ConfirmProfileImportCommandHandler` (§3) |
+| Base/override resolution algorithm | Two-pass, TDD, in `ConfirmProfileImportCommandHandler`; ambiguous same-name matches (in-batch or prior-import) treated as unresolved, same as no match (§3) |
 | Preview/confirm state management | Stateless round-trip, no staging entity; confirm re-uploads the file and re-parses rather than trusting echoed content (§4) |
 | Duplicate detection timing | Server-side at preview; only the skip/import-as-new *decision* (not preset content) is carried through the confirm payload (§5) |
 | File upload binding | FastEndpoints `AllowFileUploads()` + `IFormFile`, used by both preview and confirm (§6) |
 | Bulk activity-log coverage | `IHasEntityIds` extension to the existing post-processor (§7) |
-| Live-integration flag | Best-effort match against Phase 1's `PrinterModelCatalog` (§8) |
+| Live-integration flag | Cut entirely for this phase — no FR/SC backs it and its source field is unverified (§8) |
 | Persisting descriptive/spec fields | Not stored — computed at read time from `RawDataJson`, one extraction implementation shared between preview and catalog reads (§9) |

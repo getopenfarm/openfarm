@@ -28,9 +28,7 @@ FR-002, FR-003). `multipart/form-data`, single field `file` (`research.md` §6).
       "bedSizeXMm": 256, "bedSizeYMm": 256, "maxHeightMm": 256,
       "hasEnclosure": true,
       "supportedMaterials": ["PLA", "PETG", "ABS", "TPU"],
-      "supportsLiveIntegration": true,
       "baseProfileName": null,
-      "rawDataJson": "{ ... }",
       "isDuplicate": false
     }
   ],
@@ -42,7 +40,6 @@ FR-002, FR-003). `multipart/form-data`, single field `file` (`research.md` §6).
       "nozzleSizeMm": 0.4, "nozzleTempC": 220, "bedTempC": 55,
       "maxVolumetricSpeedMm3s": 15, "fanPercent": 100,
       "baseProfileName": "Bambu PLA Basic",
-      "rawDataJson": "{ ... }",
       "isDuplicate": false
     }
   ]
@@ -51,6 +48,13 @@ FR-002, FR-003). `multipart/form-data`, single field `file` (`research.md` §6).
 Both arrays may be empty (FR-008 — successfully-opened bundle with nothing recognizable inside); this
 is a `200`, not an error — the frontend renders an explicit "nothing importable was found" state rather
 than treating an empty result as failure (`quickstart.md` Scenario 4).
+
+No `rawDataJson` and no `supportsLiveIntegration` in this response: `rawDataJson` has no consumer here
+— the review-list UI only needs name/type/base-name/duplicate-flag plus the derived display fields
+(FR-003), and confirm re-parses the re-uploaded file itself rather than reading anything back from this
+response (`research.md` §4) — omitting it also keeps the payload small for spec.md's Edge Cases concern
+about "very large bundle[s] (many dozens of presets)" staying usable. `supportsLiveIntegration` doesn't
+exist anywhere in this feature — cut entirely, not just from preview (`research.md` §8).
 
 **Response 422** (FR-007) — `ProblemDetails`, unrecognized file extension or an archive that fails to
 open/parse:
@@ -83,10 +87,16 @@ decisions.
 **Response 201**
 ```jsonc
 {
-  "createdMachineProfiles": [ { "id": "guid", "name": "Bambu Lab X1 Carbon 0.4 nozzle" } ],
+  "createdMachineProfiles": [ { "id": "guid", "name": "Bambu Lab X1 Carbon 0.4 nozzle – Direct Drive", "baseProfileId": "guid-of-base-if-resolved" } ],
   "createdFilamentProfiles": [ { "id": "guid", "name": "Bambu PLA Basic – Red", "baseProfileId": "guid-of-base-if-resolved" } ]
 }
 ```
+Both arrays share the identical `{id, name, baseProfileId}` shape — either profile type can be an
+override (FR-005/US2 Acceptance Scenario 1 is specifically a *machine*-profile base/override example),
+so there's no reason for the two arrays to differ. `baseProfileId` is `null` when the preset declared
+no base, or when its declared base didn't resolve — including the ambiguous-match case where more than
+one existing/in-batch row shares the declared base's name (`research.md` §3).
+
 Every created id in both arrays is what the extended `ActivityLogPostProcessor` (`research.md` §7)
 iterates to write one `ActivityLogEntry` per profile, `EventType: "ProfileImported"`.
 
@@ -100,13 +110,14 @@ than the one they previewed):
 
 ## `GET /api/v1/profiles/machine`
 
-List the machine profile catalog (FR-010, US3). `nozzleSizeMm`/`hasEnclosure`/
-`supportsLiveIntegration`/etc. below are **derived display fields** (`data-model.md`) — computed by
-the query handler from each row's `rawDataJson` on every request, not read from a stored column.
+List the machine profile catalog (FR-010, US3). `nozzleSizeMm`/`hasEnclosure`/etc. below are **derived
+display fields** (`data-model.md`) — computed by the query handler from each row's `rawDataJson` on
+every request, not read from a stored column. (No `supportsLiveIntegration` field — cut entirely for
+this phase, `research.md` §8.)
 
 **Response 200**
 ```jsonc
-{ "profiles": [ { "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "supportsLiveIntegration": true, "baseProfileId": null, "baseProfileName": null } ] }
+{ "profiles": [ { "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "baseProfileId": null, "baseProfileName": null } ] }
 ```
 
 ## `GET /api/v1/profiles/machine/{id}`
@@ -116,7 +127,7 @@ endpoint (shown once here, computed the same way).
 
 **Response 200**
 ```jsonc
-{ "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "supportsLiveIntegration": true, "rawDataJson": "{ ... }", "baseProfileId": null, "baseProfileName": null, "createdAtUtc": "..." }
+{ "id": "guid", "name": "...", "sourceFormat": "OrcaSlicer", "nozzleSizeMm": 0.4, "hasEnclosure": true, "rawDataJson": "{ ... }", "baseProfileId": null, "baseProfileName": null, "createdAtUtc": "..." }
 ```
 
 **Response 404** — `ProblemDetails`, unknown id (or id belongs to another org — Finbuckle's global
@@ -145,4 +156,4 @@ fields" — these are never cached, so the response is always current by constru
 
 Mirror the three machine-profile endpoints above exactly, scoped to `FilamentProfile` and its own field
 set (`data-model.md`) — material/brand/colorHex/nozzleTempC/bedTempC/maxVolumetricSpeedMm3s/fanPercent
-instead of nozzleSizeMm/bedSize/enclosure/supportedMaterials/supportsLiveIntegration.
+instead of nozzleSizeMm/bedSize/enclosure/supportedMaterials.

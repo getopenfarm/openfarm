@@ -83,6 +83,29 @@ curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bear
 `baseProfileId` is `null` — an unresolved reference is a normal outcome, not an error (Acceptance
 Scenario 3, US2).
 
+**Ambiguous base match** (`research.md` §3): since FR-009 permits importing a duplicate-named preset as
+a separate row, `Name` isn't unique — confirm the resolution algorithm treats an ambiguous match the
+same as no match, never a guess. Import a filament preset named e.g. `"Generic PLA"`, then import a
+*different* bundle containing another filament preset also named `"Generic PLA"`, choosing
+"import as new" at the duplicate-detection prompt so both exist as separate catalog rows:
+
+```bash
+curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bearer <token>" \
+  | jq '[.profiles[] | select(.name == "Generic PLA")] | length'
+```
+
+**Expected**: `2`. Now import a third preset whose declared base name is `"Generic PLA"` (either a
+third distinct bundle, or the same bundle if it contains an override preset naming that base):
+
+```bash
+curl -s "http://localhost:8888/api/v1/profiles/filament" -H "Authorization: Bearer <token>" \
+  | jq '.profiles[] | select(.name == "<the third preset name>")'
+```
+
+**Expected**: `baseProfileName` is `"Generic PLA"`, but `baseProfileId` is `null` — the same unresolved
+shape as the no-match case above, even though a same-named row *does* exist (two of them, in fact).
+Resolving to one of the two arbitrarily would be a wrong, silent guess; the system doesn't do that.
+
 ## Scenario 4 — Rejected and empty bundles (FR-007, FR-008; SC-005)
 
 ```bash

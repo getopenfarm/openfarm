@@ -37,17 +37,18 @@ already in `web/src/components/`.
 
 **Storage**: Existing Postgres via `OpenFarmDbContext`. Two new, deliberately narrow tables,
 `MachineProfiles` and `FilamentProfiles` (org id, name, source format, self-referencing
-`BaseProfileId` + durable `BaseProfileName`, `RawDataJson` jsonb, source file name, created-at) — see
-`data-model.md`. Every descriptive/spec field spec.md's Key Entities names (nozzle size, bed volume,
-enclosure, supported materials, live-integration flag, material, brand, color, tuned settings) is
-**not** a stored column — it's computed at read time from `RawDataJson` by the same field-extraction
-logic the parser uses, so there's exactly one source of truth and a raw-JSON edit (FR-012) can never
-leave a cached column stale (`data-model.md`'s "Derived display fields"). No changes to any Phase 0/1
-table. No "import batch" table — the review step is a stateless round-trip (`research.md` §4), a
-deliberate rejection of a staging entity per the constitution's anti-speculation principle; confirm
-re-uploads and re-parses the source file rather than persisting a client-echoed copy of it, so the
-transient confirm-request shape carries only selection keys, not duplicated preset data
-(`data-model.md`'s `SelectedProfileKey`).
+`BaseProfileId` + durable `BaseProfileName`, `RawDataJson` jsonb, created-at) — see `data-model.md`.
+Every descriptive/spec field spec.md's Key Entities names (nozzle size, bed volume, enclosure,
+supported materials, material, brand, color, tuned settings) is **not** a stored column — it's computed
+at read time from `RawDataJson` by the same field-extraction logic the parser uses, so there's exactly
+one source of truth and a raw-JSON edit (FR-012) can never leave a cached column stale (`data-model.md`'s
+"Derived display fields"). One field Key Entities also names — machine-profile live-integration
+capability — is cut entirely for this phase rather than derived (`research.md` §8: no FR/SC backs it,
+and its source field is unverified). No changes to any Phase 0/1 table. No "import batch" table — the
+review step is a stateless round-trip (`research.md` §4), a deliberate rejection of a staging entity per
+the constitution's anti-speculation principle; confirm re-uploads and re-parses the source file rather
+than persisting a client-echoed copy of it, so the transient confirm-request shape carries only
+selection keys, not duplicated preset data (`data-model.md`'s `SelectedProfileKey`).
 
 **Testing**: TDD (xUnit + FluentAssertions) for the base/override two-pass resolution algorithm and
 duplicate-name detection (`OpenFarm.Application.Tests` — pure, deterministic, well-specified logic, the
@@ -103,16 +104,19 @@ spec's FR-015 and Assumptions).
   `src/components/ui/` kit (`DataTable`, `Tabs`, dialogs) — no feature-invented UI pattern. All errors
   surface as `ProblemDetails`, same single shape the frontend already renders everywhere. **Pass.**
 - **IV. Build for Expansion, Not Speculation**: `organization_id` present on both new tables from the
-  first migration. `SupportsLiveIntegration` reuses Phase 1's `PrinterModelCatalog` instead of
-  duplicating model knowledge (`research.md` §8) — a real instance of this principle, not just a stated
-  intent. The rejected `PendingImportBatch` staging-entity alternative (`research.md` §4) is this
-  principle applied to a design choice, not just an architectural layer: no speculative persistence for
-  a review step nothing else in this phase needs. The same reasoning shaped the schema itself
+  first migration. The rejected `PendingImportBatch` staging-entity alternative (`research.md` §4) is
+  this principle applied to a design choice, not just an architectural layer: no speculative persistence
+  for a review step nothing else in this phase needs. The same reasoning shaped the schema itself
   (`data-model.md`'s "Derived display fields"): no typed column is added for nozzle size, bed volume,
   material, color, etc. without a stated query/filter/sort requirement driving it — today every FR only
   asks for these to be *displayed*, so they're computed from `RawDataJson` on read rather than
-  speculatively promoted to indexed columns nothing yet needs. Structured per-field forms are
-  explicitly deferred (FR-014) rather than half-built. **Pass.**
+  speculatively promoted to indexed columns nothing yet needs. It also drove cutting
+  `SupportsLiveIntegration` entirely rather than building a fuzzy match against Phase 1's
+  `PrinterModelCatalog` (`research.md` §8): reusing that catalog would have been a legitimate instance
+  of this principle, but only once a real requirement and a verified source field justify it — building
+  the matching logic now, against an unconfirmed preset field and with no FR/SC behind it, would have
+  been the speculative direction this principle warns against, not the expansion-friendly one. Structured
+  per-field forms are explicitly deferred (FR-014) rather than half-built. **Pass.**
 - **V. Performance and Real-Time Responsiveness**: No polling anywhere in this feature (nothing to
   poll — import is a synchronous request/response, catalogs are plain TanStack Query fetches). Review
   list uses the existing non-virtualized `DataTable` — correctly scoped as a non-violation per the
@@ -170,10 +174,14 @@ api/src/OpenFarm.Domain/Profiles/
 api/src/OpenFarm.Application/Profiles/
   IProfileBundleParser.cs             # Application-defined contract; Infrastructure implements.
                                        # ParseAsync(stream) -> full bundle, for preview.
-                                       # ExtractMachineDisplayFields(rawDataJson) / ExtractFilamentDisplayFields(rawDataJson)
+                                       # ExtractMachineDisplayFields(rawDataJson, sourceFormat) / ExtractFilamentDisplayFields(rawDataJson, sourceFormat)
                                        # -> the same per-format field-mapping logic, reused by the Get*Query handlers
                                        # below to compute data-model.md's "Derived display fields" from a stored row
                                        # instead of a fresh archive — one extraction implementation, two call sites.
+                                       # sourceFormat is required: SourceFormat isn't derivable from RawDataJson alone
+                                       # (data-model.md) — the per-SourceFormat field-mapping table needs it explicitly
+                                       # when called against a stored row, where (unlike a fresh archive entry) the
+                                       # parser doesn't already know which format branch it's in.
   IMachineProfileRepository.cs / IFilamentProfileRepository.cs
   PreviewProfileImportCommand.cs / Handler         # parses upload, flags duplicates (research.md §5) — no persistence
   ConfirmProfileImportCommand.cs / Handler         # re-parses the re-uploaded file (research.md §4), two-pass base/override resolution (research.md §3) — TDD
@@ -189,7 +197,8 @@ api/src/OpenFarm.Application/Profiles/
 
 api/src/OpenFarm.Infrastructure/Profiles/
   ProfileBundleParser.cs              # ZipArchive-based; classifies by subfolder + per-format field map (research.md §1/§2);
-                                       # also implements the two ExtractXDisplayFields methods against a bare RawDataJson string
+                                       # also implements the two ExtractXDisplayFields(rawDataJson, sourceFormat) methods
+                                       # against a bare RawDataJson string + its SourceFormat
   Persistence/Configurations/MachineProfileConfiguration.cs   # narrow schema — no typed spec-field columns, see data-model.md
   Persistence/Configurations/FilamentProfileConfiguration.cs
   Persistence/Migrations/<timestamp>_AddProfiles.cs   # single migration, per constitution's one-per-PR rule
@@ -222,7 +231,8 @@ implementation rather than layering the real feature alongside a stale mock, per
 hand-edit generated files" spirit applied more broadly: no throwaway scaffolding survives once its real
 replacement exists. The mock's field shape (`nozzleSizeMm`, `nozzleTempC`, `bedTempC`,
 `maxVolumetricSpeedMm3s`, `fanPercent`, `source`) already anticipated this feature's real
-`FilamentProfile` columns closely (`data-model.md`), so the migration is a direct one, not a redesign.
+`FilamentProfile` derived display fields closely (`data-model.md` — these are computed at read time
+from `RawDataJson`, not persisted columns), so the migration is a direct one, not a redesign.
 
 ## Complexity Tracking
 
@@ -235,4 +245,6 @@ Constitution Check section's note, not because either is a deviation:
 |-----------|------------|-------------------------------------|
 | `IHasEntityIds` extension to `ActivityLogPostProcessor` | The confirm-import endpoint creates many entities in one HTTP call — the existing post-processor's single-`Id`-reflection design can't express that | Having `ConfirmProfileImportCommandHandler` call `IActivityLogWriter` directly (bypassing the post-processor) was rejected because it would silently reopen the "every state-mutating command is captured structurally" guarantee the constitution's Security section calls out by name — this endpoint would become the one exception, undocumented at the pipeline level |
 | No `PendingImportBatch` staging entity between preview and confirm; confirm re-uploads + re-parses the file instead of trusting echoed preset content | Keeps the review step reversible-by-construction (a cancelled import has no server state to clean up, satisfying spec's interrupted-upload edge case for free) *and* guarantees persisted data always traces back to the server's own parse of a real file, never an unverified client claim | A staging table was considered so confirm could reference a short opaque batch id instead of re-parsing, but it needs its own cleanup/TTL story (abandoned batches, multi-tab conflicts) that nothing else in this phase needs — rejected per Constitution Principle IV ("designed extension points are required, preemptive abstraction is not"). A client-echoed full-payload confirm (no re-upload) was also considered and rejected as a real integrity gap, not just a style choice (`research.md` §4's revision note); re-parsing a second time is cheap at this feature's scale (SC-001, under 50 presets) |
-| Descriptive/spec fields (nozzle size, bed volume, enclosure, supported materials, live-integration flag, material, brand, color, tuned settings) are computed from `RawDataJson` at read time, not stored as typed columns | Guarantees one source of truth — a raw-JSON edit (FR-012) can never leave a stale cached column behind, and the `UpdateXProfileRawDataCommand` handlers stay a pure validate-and-overwrite with no re-derivation step to get wrong | Storing them as typed columns (matching `Printer`'s inline-telemetry-column precedent) was the original design — reverted because no FR asks for DB-level filter/sort on any of these fields, only display, so caching them was schema surface with no query requirement behind it (Constitution Principle IV); re-extracting from a small `RawDataJson` blob on every catalog read is computationally trivial at this feature's scale |
+| Descriptive/spec fields (nozzle size, bed volume, enclosure, supported materials, material, brand, color, tuned settings) are computed from `RawDataJson` at read time, not stored as typed columns | Guarantees one source of truth — a raw-JSON edit (FR-012) can never leave a stale cached column behind, and the `UpdateXProfileRawDataCommand` handlers stay a pure validate-and-overwrite with no re-derivation step to get wrong | Storing them as typed columns (matching `Printer`'s inline-telemetry-column precedent) was the original design — reverted because no FR asks for DB-level filter/sort on any of these fields, only display, so caching them was schema surface with no query requirement behind it (Constitution Principle IV); re-extracting from a small `RawDataJson` blob on every catalog read is computationally trivial at this feature's scale |
+| `SourceFileName` column and machine-profile `SupportsLiveIntegration` field cut entirely (not persisted, not derived) | Neither has a documented consumer/requirement behind it — `SourceFileName` is written once at confirm and never read back by any endpoint/UI, and `SupportsLiveIntegration` is backed only by spec.md's Key Entities prose (no numbered FR/SC) and an unverified source field | Keeping `SourceFileName` as "cheap provenance" and `SupportsLiveIntegration` as a best-effort heuristic were the original designs — both reverted for consistency with the same "no FR/SC, no keep" standard applied to every other descriptive field above; `SupportsLiveIntegration` can be reintroduced once a later phase both needs it and confirms the real preset field it would read (`research.md` §8) |
+| Base/override resolution treats an ambiguous same-name match (2+ candidate rows, in-batch or prior-import) as unresolved, same as no match | FR-009 permits importing duplicate-named presets as separate rows, so `Name` isn't unique — a `BaseProfileName` lookup by `Name` can legitimately match more than one row, which the original two-pass algorithm didn't account for (an in-batch `Name → Id` map can only hold one `Id` per name; a prior-import lookup could return 2+ rows) | A deterministic tie-break (e.g. most-recently-created same-named row) was considered and rejected — it resolves to *something*, but with no principled way to know which same-named row a preset's declared base actually meant; a silently wrong link is worse than a visibly missing one, since it looks correct in the UI and is much harder to notice or correct later |
