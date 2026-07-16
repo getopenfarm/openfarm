@@ -289,19 +289,19 @@ its key identifying fields, in the corresponding catalog list.
   `api/src/OpenFarm.Api/Endpoints/Profiles/` — `GET /api/v1/profiles/filament`
   (`[Permission("profiles:list-filament")]`) and `GET /api/v1/profiles/filament/{id}`
   (`[Permission("profiles:get-filament")]`)
-- [ ] T051 [P] [US3] Integration test: machine and filament catalog list endpoints return every
+- [X] T051 [P] [US3] Integration test: machine and filament catalog list endpoints return every
   imported profile with `name`, `sourceFormat`, and derived spec fields, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/ListProfilesEndpointTests.cs` (FR-010, US3
   Acceptance Scenarios 1–2)
-- [ ] T052 [P] [US3] Integration test: a filament profile response includes `compatiblePrinterNames` as
+- [X] T052 [P] [US3] Integration test: a filament profile response includes `compatiblePrinterNames` as
   declared text, identical whether or not the named printer exists elsewhere in the catalog, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/CompatiblePrinterNamesTests.cs` (FR-016, US3
   Acceptance Scenario 3)
-- [ ] T053 [P] [US3] Integration test: the single-profile detail endpoint returns full `rawDataJson`
+- [X] T053 [P] [US3] Integration test: the single-profile detail endpoint returns full `rawDataJson`
   plus chain-merged derived fields and `hasUnresolvedBaseInChain`, and 404s for an unknown/cross-tenant
   id, in `api/tests/OpenFarm.Api.IntegrationTests/Profiles/GetProfileDetailEndpointTests.cs` (FR-011,
   SC-006)
-- [ ] T054 [P] [US3] Regenerate the Orval-generated API client for the four new list/detail endpoints in
+- [X] T054 [P] [US3] Regenerate the Orval-generated API client for the four new list/detail endpoints in
   `web/src/lib/api/generated/profiles/`
 - [ ] T055 [P] [US3] Create `MachineProfilesTable.tsx` and `FilamentProfilesTable.tsx` in
   `web/src/features/profiles/components/`, replacing the single merged `ProfilesTable.tsx`, wired into
