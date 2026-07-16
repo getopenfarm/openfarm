@@ -1,0 +1,186 @@
+# Phase 2 Research: Profiles (Machine + Filament, Imported from Slicer Bundles)
+
+Resolves the open technical questions behind spec.md's Assumptions section (which already locked in
+the supported-format list and the general bundle shape) and the FastEndpoints/EF/Constitution
+mechanics needed to implement it. No `NEEDS CLARIFICATION` markers remain in Technical Context — this
+file either confirms a decision with a cited source or explicitly scopes an item as "verify against a
+real sample bundle during implementation," the same way `specs/002-printer-integration/research.md`
+§4 scoped the camera-protocol question rather than guessing at a precise byte-level spec.
+
+## 1. OrcaSlicer/Bambu Studio bundle shape (confirms spec.md Assumptions, doesn't relitigate them)
+
+**Decision**: Trust spec.md's Assumptions as written — every supported format (`.zip` profile bundle,
+`.orca_printer`, `.orca_filament`, `.bbscfg`, `.bbsflmt`) is a zip-format archive containing one or
+more preset JSON files, organized under type-named subfolders (`filament/`, `machine/` — `process/`
+print-settings presets are out of scope per spec's Key Entities, which only names Machine and Filament
+profiles). A parent/base preset reference is carried by an `"inherits"` field inside the preset's own
+JSON, naming the parent preset. This is independently confirmed by multiple sources: OrcaSlicer's own
+wiki and community docs describe "Export Preset Bundle" producing a `.zip` with `filament`/`machine`/
+`process` subfolders of individual JSON files ([OrcaSlicer Wiki: How to create
+profiles](https://github.com/OrcaSlicer/OrcaSlicer/wiki/How-to-create-profiles),
+[Obico: OrcaSlicer Profile Management](https://www.obico.io/blog/orcaslicer-comprehensive-profile-management-guide/)),
+system presets in the shipped profile library use `"inherits": "fdm_process_qidi_x3_common"`-shaped
+references ([OrcaSlicer issue #12223](https://github.com/OrcaSlicer/OrcaSlicer/issues/12223)), and
+Bambu Studio's `.bbscfg`/`.bbsflmt` exports are documented as "the printer preset, user filament
+presets associated with the printer, and user process presets associated with the printer" bundled
+together ([Bambu Lab Wiki: Exporting printer, filament, and process
+presets](https://wiki.bambulab.com/en/bambu-studio/export-filament)) — the same shared shape spec.md
+already asserts, since Bambu Studio and OrcaSlicer share a common lineage (OrcaSlicer is a Bambu
+Studio/PrusaSlicer fork).
+
+**Genuinely open item, scoped rather than guessed at**: the *exact* field names/schema of the
+`bundle_structure.json` manifest spec.md's Assumptions names are not published anywhere reachable
+during this research pass — GitHub code search for that filename requires an authenticated session
+this environment doesn't have, and the one PR that introduces a same-named `bundle.json` concept
+([OrcaSlicer PR #8858](https://github.com/SoftFever/OrcaSlicer/pull/8858)) is about the *vendor's
+shipped system-profile* bundle (an internal app-startup optimization), not the *user-facing* "Export
+Preset Bundle" output this feature parses — these are two different files that happen to share a
+naming pattern, and conflating them would be a real mistake. **Decision**: the parser (see §2) does
+not hard-depend on `bundle_structure.json` for correctness. It classifies presets primarily by their
+subfolder (`machine/` vs `filament/`), which every source above agrees on, and treats a
+`bundle_structure.json` manifest as an optional cross-check/name-source when present, never a required
+input — this is deliberately resilient to the one part of the format this research pass could not
+independently verify. **Follow-up task for the implementation phase** (not a plan blocker): obtain 2-3
+real exported bundles (one OrcaSlicer, one Bambu Studio, one single-preset `.orca_printer`) and add
+them as fixtures, exactly as M0.1's hardware spike captured real MQTT fixtures for Phase 1 — see §2's
+testing strategy.
+
+## 2. Where the bundle parser lives and how it's tested
+
+**Decision**: `IProfileBundleParser` is an `Application`-defined contract (`Application/Profiles/`,
+mirroring `IPrinterConnector`'s placement), implemented by `ProfileBundleParser` in
+`Infrastructure/Profiles/` using the .NET BCL's `System.IO.Compression.ZipArchive` — no new NuGet
+package needed, this is a well-understood zip-plus-JSON format, not a binary protocol like Bambu's MQTT
+stream. Per-preset field extraction (nozzle size, bed volume, material, color, etc. — the "key
+identifying fields" spec.md's US3 requires) is format-aware but table-driven, not one giant
+if/else: a small per-`SourceFormat` field-mapping table translates known JSON key names into the
+catalog's typed columns, tolerating missing keys (nullable columns) rather than failing the import.
+
+**Testing classification**: fixture-replay, test-after — **not** TDD. This follows the exact precedent
+set by `BambuMqttMessageParser` in `specs/002-printer-integration/plan.md` (raw external-format bytes
+→ domain shape, tested against real captured payloads, per the constitution's Principle II carve-out
+for "the real Bambu LAN client"). Parsing an externally-defined, imperfectly-documented archive format
+is the same class of problem — the correctness bar is "does it parse what a real slicer actually
+produces," which only real fixture files can prove, not up-front red-green-refactor against an assumed
+schema. `Domain`-side logic this feature *does* need TDD for for is narrower: the deterministic
+base/override resolution algorithm (§3) and duplicate-name detection, both of which are pure,
+well-specified functions over already-parsed data — no external format uncertainty.
+
+## 3. Base/override resolution algorithm
+
+**Decision**: resolution happens in two passes inside `ConfirmProfileImportCommandHandler`'s
+transaction, not the parser (the parser's job is only to extract each preset's own declared
+`BaseProfileName`, never to resolve it): (1) insert every selected, non-skipped preset as a new
+`MachineProfile`/`FilamentProfile` row, keeping an in-memory `Name → Id` map per profile type for rows
+created in *this* confirm call; (2) for every inserted row with a non-null `BaseProfileName`, resolve
+`BaseProfileId` by checking the in-batch map first (the base was imported alongside it, US2 Scenario 1),
+then falling back to a lookup against already-imported catalog rows for the same organization/type
+(the base was imported in an *earlier* import), leaving `BaseProfileId` null if neither resolves (US2
+Scenario 3 — a built-in slicer default, the expected common case per spec.md's Assumptions).
+`BaseProfileName` itself is always stored verbatim regardless of whether resolution succeeds — it's
+the durable reference spec.md's FR-005 requires, `BaseProfileId` is just an optimization for the
+resolved case. This two-pass approach is a plain, deterministic algorithm — a good TDD candidate,
+tested against synthetic in-batch/prior-import/unresolved fixtures rather than needing real slicer
+files.
+
+## 4. Preview/confirm flow — stateless, no server-side staging entity
+
+**Decision**: the review-before-persist step (FR-003/FR-004) is implemented as two independent HTTP
+calls with **no server-side staging table** in between: `POST /profiles/imports/preview` parses the
+uploaded archive and returns the full extracted preset list (all fields, all presets) without writing
+anything to the database; `POST /profiles/imports/confirm` takes the *client-echoed* subset of that
+same preview payload the operator selected (plus a per-preset skip/import-as-new choice for anything
+flagged as a duplicate) and is the only call that writes rows.
+
+**Alternatives considered and rejected**: a persisted `PendingImportBatch` entity (parse once, store the
+extracted-but-unconfirmed presets server-side, reference by an opaque batch id from the confirm call)
+was considered. Rejected per the constitution's Principle IV ("Build for Expansion, Not Speculation" —
+"designed extension points are required, preemptive abstraction is not") and directly supported by
+spec.md's own edge case: "if the operator's session or upload is interrupted partway through parsing a
+large bundle, no partial set of profiles should be left in the catalog." A stateless round-trip
+satisfies that by construction — there's no server-side state to leak partially — while a staging table
+would need its own cleanup/TTL story (abandoned batches, multi-tab conflicts) that nothing else in this
+phase needs. A typical bundle is under 50 presets (SC-001) of modest JSON each, well within a normal
+JSON POST body size, so round-tripping the full preview payload back on confirm carries no real
+size risk. If import volume grows enough in a later phase to make this cost real, revisiting toward a
+staging entity is a contained, isolated change — exactly the kind of extension point the constitution
+asks for, not one built speculatively now.
+
+**Consequence for FR-006** (warn when a selected override's base is present in the bundle but not
+selected): this check needs zero backend round-trip — the frontend already holds the full preview
+array (every preset's name, type, and declared base name) and the operator's live selection state, so
+the warning is computed and rendered client-side as checkboxes change, confirmed in `contracts/` and
+`quickstart.md`.
+
+## 5. Duplicate detection (FR-009)
+
+**Decision**: computed server-side during the *preview* call (not confirm), since it requires a
+database lookup the frontend can't do on its own — for every parsed preset, the preview handler queries
+existing `MachineProfile`/`FilamentProfile` rows in the organization by exact `(Name)` match within the
+same profile type, and marks `IsDuplicate: true` on the preview item if found. The operator's
+skip/import-as-new choice per duplicate is carried through the client-echoed confirm payload (§4) as an
+explicit `DuplicateAction` enum, not re-derived at confirm time — avoids a race where the catalog
+changes between preview and confirm producing a different duplicate verdict than what the operator saw
+and decided against.
+
+## 6. File upload mechanics (FastEndpoints)
+
+**Decision**: `POST /api/v1/profiles/imports/preview` is a FastEndpoints endpoint with
+`AllowFileUploads()` in `Configure()` and a request DTO exposing a single `IFormFile File` property —
+FastEndpoints binds `multipart/form-data` uploads to `IFormFile`-typed request properties directly,
+confirmed against the framework's own file-handling docs and demo repo
+([FastEndpoints: File Handling](https://fast-endpoints.com/docs/file-handling),
+[FastEndpoints/File-Handling-Demo](https://github.com/FastEndpoints/File-Handling-Demo)). A bundle is
+a small file (SC-001's "typical bundle" scope, dozens of presets, not gigabytes), so the simple
+auto-buffered `IFormFile` binding is sufficient — no need for the streaming
+`AllowFileUploads(dontAutoBindFormData: true)` + `FormFileSectionsAsync()` path FastEndpoints offers
+for large uploads. `MaxRequestBodySize()` is set to a conservative cap (e.g. 20 MB) generous for any
+realistic slicer bundle while still bounding worst-case memory use from an oversized/malicious upload.
+
+## 7. Extension to the activity-log post-processor for bulk-created entities
+
+**Decision**: `ActivityLogPostProcessor` (`api/src/OpenFarm.Api/Processors/ActivityLogPostProcessor.cs`)
+currently assumes exactly one entity is created per state-mutating request — it reflects a single `Id`
+property off the response DTO. The confirm-import endpoint is the first case in this codebase where one
+HTTP call legitimately creates *many* entities (every selected preset in one request). Rather than
+having `ConfirmProfileImportCommandHandler` call `IActivityLogWriter` directly and bypass the
+post-processor (which would quietly reopen the exact gap the constitution's Security section calls out
+— "structural, not a per-feature convention that can be forgotten"), the post-processor gains one small,
+generic extension: a response DTO may instead implement a new `IHasEntityIds { IReadOnlyList<string>
+EntityIds }` marker; when present, the post-processor writes one `ActivityLogEntry` per id (same
+`EntityType`/`EventType` from `IActivityLoggable`, same actor-extraction logic already there) instead of
+its existing single-`Id`-reflection path. This keeps every profile creation logged structurally, exactly
+like every other state-mutating command, without special-casing this one endpoint's logging outside the
+shared pipeline. `RegisterPrinterEndpoint`, `MarkPrinterReadyEndpoint`, etc. are entirely unaffected —
+the existing single-`Id` path stays the default and is checked first.
+
+## 8. Machine profile ↔ existing `PrinterModelCatalog` cross-reference (best-effort)
+
+**Decision**: `MachineProfile.SupportsLiveIntegration` (spec's Key Entities: "whether the model is one
+OpenFarm can live-connect to") is derived, not manually set, by attempting to match the imported
+preset's declared printer name/model text against `OpenFarm.Domain.Printers.PrinterModelCatalog`
+(built in `specs/002-printer-integration/`) — reusing Phase 1's existing catalog instead of duplicating
+model knowledge, per the constitution's Principle IV. **This match is explicitly best-effort**: a
+slicer's machine-preset JSON names the printer in free text (e.g. `"Bambu Lab X1 Carbon 0.4 nozzle"`),
+not `PrinterModelCatalog`'s exact `(Brand, ModelCode)` pair (e.g. `("Bambu", "X1C")`), so resolution
+uses a small normalized substring/alias match rather than requiring an exact key hit; when nothing
+matches, `SupportsLiveIntegration` defaults to `false` rather than blocking the import or guessing — a
+machine profile importing successfully never depends on this field resolving (FR-002's extraction
+requirement doesn't gate on it). Verifying the real preset field name(s) that carry the printer's model
+string is part of the same real-sample-fixture task named in §1, since it's the same "confirm against
+actual exported JSON" category of unknown.
+
+## Summary of resolved unknowns
+
+| Item | Resolution |
+|---|---|
+| Bundle container format | zip archive, all 5 supported extensions (confirmed via multiple independent sources, §1) |
+| Base/override reference field | `"inherits"`-shaped field in preset JSON (confirmed, §1) |
+| `bundle_structure.json` exact schema | Not required for correctness — subfolder-based classification is primary, manifest is optional cross-check (§1); real-sample fixture verification deferred to implementation, not a plan blocker |
+| Parser placement/testing strategy | `Infrastructure`, fixture-replay/test-after, mirrors `BambuMqttMessageParser` precedent (§2) |
+| Base/override resolution algorithm | Two-pass, TDD, in `ConfirmProfileImportCommandHandler` (§3) |
+| Preview/confirm state management | Stateless round-trip, no staging entity (§4) |
+| Duplicate detection timing | Server-side at preview; resolution choice carried through confirm payload (§5) |
+| File upload binding | FastEndpoints `AllowFileUploads()` + `IFormFile` (§6) |
+| Bulk activity-log coverage | `IHasEntityIds` extension to the existing post-processor (§7) |
+| Live-integration flag | Best-effort match against Phase 1's `PrinterModelCatalog` (§8) |
