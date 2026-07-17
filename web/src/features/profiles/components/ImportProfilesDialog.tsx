@@ -206,7 +206,7 @@ export function ImportProfilesDialog() {
       <DialogTrigger asChild>
         <Button>Import</Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[70vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import profiles</DialogTitle>
           <DialogDescription>

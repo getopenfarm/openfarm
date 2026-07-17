@@ -18,7 +18,7 @@ export function TitleBar() {
   const trail = useBreadcrumb();
 
   return (
-    <header className="flex h-[52px] shrink-0 items-center gap-3 border-b px-4">
+    <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
       <SidebarTrigger />
       <Separator orientation="vertical" />
       <Breadcrumb>
