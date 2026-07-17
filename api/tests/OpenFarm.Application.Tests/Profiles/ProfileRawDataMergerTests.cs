@@ -8,7 +8,7 @@ public class ProfileRawDataMergerTests
     [Fact]
     public void MergeAncestorChain_WithSingleElement_ReturnsItUnchanged()
     {
-        var result = ProfileRawDataMerger.MergeAncestorChain([ """{"a":1,"b":2}""" ]);
+        var result = ProfileRawDataMerger.MergeAncestorChain(["""{"a":1,"b":2}"""]);
 
         System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(result)
             .Should().BeEquivalentTo(new Dictionary<string, int> { ["a"] = 1, ["b"] = 2 });

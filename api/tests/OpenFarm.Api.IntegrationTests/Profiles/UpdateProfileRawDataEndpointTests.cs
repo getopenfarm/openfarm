@@ -29,6 +29,17 @@ public class UpdateProfileRawDataEndpointTests(CustomWebApplicationFactory facto
         return _client;
     }
 
+    // The RawDataJson column is jsonb — Postgres re-serializes it on write (e.g. adding a space
+    // after ':'/','), so a stored value is never guaranteed byte-identical to what was submitted.
+    // Compare structurally instead of with a raw string equality assertion.
+    private static void AssertJsonEquivalent(string? actual, string expected)
+    {
+        actual.Should().NotBeNull();
+        using var actualDoc = JsonDocument.Parse(actual!);
+        using var expectedDoc = JsonDocument.Parse(expected);
+        JsonSerializer.Serialize(actualDoc.RootElement).Should().Be(JsonSerializer.Serialize(expectedDoc.RootElement));
+    }
+
     [Fact]
     public async Task UpdateMachineProfileRawData_ValidJson_IsReflectedOnNextGet()
     {
@@ -54,7 +65,7 @@ public class UpdateProfileRawDataEndpointTests(CustomWebApplicationFactory facto
 
         var getResponse = await client.GetAsync(new Uri($"/api/v1/profiles/machine/{id}", UriKind.Relative));
         var detail = await getResponse.Content.ReadFromJsonAsync<MachineProfileDetailResponse>();
-        detail!.RawDataJson.Should().Be(updatedJson);
+        AssertJsonEquivalent(detail!.RawDataJson, updatedJson);
         detail.NozzleSizeMm.Should().Be(0.6);
     }
 
@@ -80,7 +91,7 @@ public class UpdateProfileRawDataEndpointTests(CustomWebApplicationFactory facto
 
         var getResponse = await client.GetAsync(new Uri($"/api/v1/profiles/machine/{id}", UriKind.Relative));
         var detail = await getResponse.Content.ReadFromJsonAsync<MachineProfileDetailResponse>();
-        detail!.RawDataJson.Should().Be(originalJson);
+        AssertJsonEquivalent(detail!.RawDataJson, originalJson);
     }
 
     [Fact]
@@ -108,7 +119,7 @@ public class UpdateProfileRawDataEndpointTests(CustomWebApplicationFactory facto
 
         var getResponse = await client.GetAsync(new Uri($"/api/v1/profiles/filament/{id}", UriKind.Relative));
         var detail = await getResponse.Content.ReadFromJsonAsync<FilamentProfileDetailResponse>();
-        detail!.RawDataJson.Should().Be(updatedJson);
+        AssertJsonEquivalent(detail!.RawDataJson, updatedJson);
         detail.Material.Should().Be("PETG");
     }
 
@@ -134,7 +145,7 @@ public class UpdateProfileRawDataEndpointTests(CustomWebApplicationFactory facto
 
         var getResponse = await client.GetAsync(new Uri($"/api/v1/profiles/filament/{id}", UriKind.Relative));
         var detail = await getResponse.Content.ReadFromJsonAsync<FilamentProfileDetailResponse>();
-        detail!.RawDataJson.Should().Be(originalJson);
+        AssertJsonEquivalent(detail!.RawDataJson, originalJson);
     }
 
     [Fact]
