@@ -254,9 +254,6 @@ export function ImportProfilesDialog() {
               disabled={previewMutation.isPending}
               className="hidden"
             />
-            {previewMutation.isPending && (
-              <p className="text-sm text-muted-foreground">Reading bundle…</p>
-            )}
           </div>
         )}
 
