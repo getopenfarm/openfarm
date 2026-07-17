@@ -186,7 +186,11 @@ public sealed class ProfileBundleParser : IProfileBundleParser
         }
 
         var firstSegment = normalized[..firstSegmentEnd];
-        if (firstSegment.Equals("machine", StringComparison.OrdinalIgnoreCase))
+        // Real OrcaSlicer "Export current printer" bundles (verified against an actual .orca_printer
+        // export) use a "printer/" subfolder for the machine preset, not "machine/" as the multi-preset
+        // "Export Preset Bundle" shape does — both are accepted so neither export path drops presets.
+        if (firstSegment.Equals("machine", StringComparison.OrdinalIgnoreCase)
+            || firstSegment.Equals("printer", StringComparison.OrdinalIgnoreCase))
         {
             return PresetKind.Machine;
         }

@@ -27,13 +27,20 @@ bundle structure," OrcaSlicer being a Bambu Studio fork.
 a real OrcaSlicer and Bambu Studio install, the same way `specs/002-printer-integration`'s hardware spike
 captured real MQTT fixtures — this note mirrors research.md §1's own caveat.
 
+**Update**: `orcaslicer-real-export-printer-subfolder.orca_printer` below is exactly that follow-up for the
+single-preset export path — a genuine "Export current printer" bundle from a real OrcaSlicer install. It
+revealed that this export path uses a `printer/` subfolder for the machine preset, not `machine/` as
+assumed in research.md §1 and used by the hand-restructured fixtures above; `ProfileBundleParser` now
+accepts both.
+
 ## Fixture inventory
 
 | File | Purpose |
 |---|---|
 | `orcaslicer-multi-preset-bundle.zip` | Multi-preset bundle: one machine preset with an unresolved base, two filament presets each with an unresolved base, plus the complete `My Custom PLA` → `My Custom PLA - Red` root/override pair. |
 | `base-and-override-pair.zip` | Just the `My Custom PLA` root + `My Custom PLA - Red` override, isolated for base/override-resolution-specific tests. |
-| `bambu-p1s-04-nozzle.orca_printer` | Single-preset machine export bundling the printer preset with its one directly compatible filament preset (spec.md Acceptance Scenario 5). |
+| `bambu-p1s-04-nozzle.orca_printer` | Single-preset machine export bundling the printer preset with its one directly compatible filament preset (spec.md Acceptance Scenario 5). Hand-restructured under `machine/`, per the original (incomplete) research assumption. |
+| `orcaslicer-real-export-printer-subfolder.orca_printer` | Genuine real-world "Export current printer" bundle, used as-is (not restructured) — proves the parser handles the real `printer/` subfolder naming, not just the assumed `machine/` one. |
 | `aliz-petg-basic.orca_filament` | Single-preset filament-style export; also carries `Bambu PLA Basic @base` for prior-import base-resolution tests (import the multi-preset bundle first, then this file). |
 | `bambu-studio-printer-config.bbscfg` | Bambu Studio printer config bundle equivalent of the OrcaSlicer multi-preset bundle. |
 | `bambu-studio-filament.bbsflmt` | Single Bambu Studio filament preset using the buggy `compatible_prints` key spelling (OrcaSlicer issue #12193) instead of `compatible_printers`, to prove the parser tolerates both. |

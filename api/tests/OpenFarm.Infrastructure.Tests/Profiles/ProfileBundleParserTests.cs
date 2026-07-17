@@ -55,6 +55,20 @@ public class ProfileBundleParserTests
     }
 
     [Fact]
+    public async Task ParseAsync_RealExportUsingPrinterSubfolder_ClassifiesAsMachinePreset()
+    {
+        // Genuine "Export current printer" bundle captured from a real OrcaSlicer install — unlike
+        // the hand-restructured fixtures above, it uses a "printer/" subfolder for the machine preset
+        // rather than "machine/", which the parser must also recognize (see ClassifyBySubfolder).
+        await using var stream = OpenFixture("orcaslicer-real-export-printer-subfolder.orca_printer");
+
+        var result = await Parser.ParseAsync(stream, ProfileSourceFormat.OrcaSlicer, CancellationToken.None);
+
+        result.MachinePresets.Should().ContainSingle(p => p.Name == "Bambu Lab P1S 0.6 nozzle - Scrubbler");
+        result.FilamentPresets.Should().ContainSingle(p => p.Name == "Aliz PETG Basic @Bambu Lab P1S 0.6 nozzle");
+    }
+
+    [Fact]
     public async Task ParseAsync_BambuStudioBundle_ParsesIdenticallyToOrcaSlicerShape()
     {
         await using var stream = OpenFixture("bambu-studio-printer-config.bbscfg");
