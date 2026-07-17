@@ -1,5 +1,6 @@
 import { PlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { SpoolsTable } from './components/SpoolsTable';
 import { useSpools } from './data/mockSpoolsStore';
@@ -18,26 +19,28 @@ export function SpoolsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold">Spools</h2>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        title="Spools"
+        description={
+          <>
             Physical inventory · {spools.length} spools ·{' '}
             <span className="text-kind-green font-medium">
               {inUseCount} in use
             </span>{' '}
             · <span className="text-kind-red font-medium">{lowCount} low</span>
-          </p>
-        </div>
-        <Button
-          onClick={() =>
-            toast.info("Adding spools isn't wired up in this preview yet.")
-          }
-        >
-          <PlusIcon />
-          Add spool
-        </Button>
-      </div>
+          </>
+        }
+        action={
+          <Button
+            onClick={() =>
+              toast.info("Adding spools isn't wired up in this preview yet.")
+            }
+          >
+            <PlusIcon />
+            Add spool
+          </Button>
+        }
+      />
       <SpoolsTable spools={spools} />
     </div>
   );

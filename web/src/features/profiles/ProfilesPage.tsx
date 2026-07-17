@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type {
   FilamentProfileDetailResponse,
@@ -115,15 +116,11 @@ export function ProfilesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold">Profiles</h2>
-          <p className="text-sm text-muted-foreground">
-            Machine and filament profiles imported from slicer bundles
-          </p>
-        </div>
-        <ImportProfilesDialog />
-      </div>
+      <PageHeader
+        title="Profiles"
+        description="Machine and filament profiles imported from slicer bundles"
+        action={<ImportProfilesDialog />}
+      />
       <Tabs defaultValue="machine">
         <TabsList>
           <TabsTrigger value="machine">Machine</TabsTrigger>

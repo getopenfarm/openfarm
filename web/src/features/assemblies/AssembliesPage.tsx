@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { formatMinutes } from '@/lib/formatMinutes';
 import { type Assembly, useAssemblies } from './data/mockAssembliesStore';
@@ -93,17 +94,15 @@ export function AssembliesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold">Assemblies</h2>
-          <p className="text-sm text-muted-foreground">
-            Group parts (and other assemblies) into reusable bills of materials.
-          </p>
-        </div>
-        <Button onClick={() => navigate('/assemblies/new')}>
-          <PlusIcon /> New assembly
-        </Button>
-      </div>
+      <PageHeader
+        title="Assemblies"
+        description="Group parts (and other assemblies) into reusable bills of materials."
+        action={
+          <Button onClick={() => navigate('/assemblies/new')}>
+            <PlusIcon /> New assembly
+          </Button>
+        }
+      />
 
       <DataTable
         columns={columns}
