@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { Toaster } from 'sonner';
@@ -137,6 +143,52 @@ describe('ImportProfilesDialog', () => {
     expect(selections).toEqual([
       { type: 'Machine', name: 'Test Printer', duplicateAction: null },
     ]);
+  });
+
+  it('accepts a file dropped onto the dropzone', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
+      Promise.resolve(jsonResponse(previewResponseBody)),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderDialog();
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+    const dialog = await screen.findByRole('dialog');
+    const dropzone = within(dialog).getByRole('button', {
+      name: 'Choose a profile bundle file, or drag and drop it here',
+    });
+
+    const file = new File(['{}'], 'bundle.zip', { type: 'application/zip' });
+    const dataTransfer = { files: [file] } as unknown as DataTransfer;
+    fireEvent.dragOver(dropzone, { dataTransfer });
+    fireEvent.drop(dropzone, { dataTransfer });
+
+    expect(await screen.findByText('Test Printer')).toBeInTheDocument();
+    expect(screen.getByText('Test PLA')).toBeInTheDocument();
+  });
+
+  it('clicking the dropzone opens the native file picker', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(previewResponseBody))),
+    );
+
+    renderDialog();
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+    const dialog = await screen.findByRole('dialog');
+    const dropzone = within(dialog).getByRole('button', {
+      name: 'Choose a profile bundle file, or drag and drop it here',
+    });
+    const input = dialog.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    const clickSpy = vi.spyOn(input, 'click');
+
+    await user.click(dropzone);
+
+    expect(clickSpy).toHaveBeenCalled();
   });
 
   it('closing before confirm leaves nothing selected on reopen', async () => {

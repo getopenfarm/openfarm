@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { ChangeEvent } from 'react';
-import { useState } from 'react';
+import { Upload } from 'lucide-react';
+import type { ChangeEvent, DragEvent } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,12 +20,16 @@ import {
   useOpenFarmApiEndpointsProfilesConfirmProfileImportEndpoint,
   useOpenFarmApiEndpointsProfilesPreviewProfileImportEndpoint,
 } from '@/lib/api/generated/profiles/profiles';
+import { cn } from '@/lib/utils';
 import {
   ProfileReviewList,
   type ProfileSelectionMap,
   type ProfileSelectionState,
   profileSelectionKey,
 } from './ProfileReviewList';
+
+const ACCEPTED_EXTENSIONS =
+  '.zip,.orca_printer,.orca_filament,.bbscfg,.bbsflmt';
 
 function splitSelectionKey(key: string): {
   type: 'Machine' | 'Filament';
@@ -44,6 +49,8 @@ export function ImportProfilesDialog() {
     null,
   );
   const [selections, setSelections] = useState<ProfileSelectionMap>({});
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const previewMutation =
@@ -105,15 +112,49 @@ export function ImportProfilesDialog() {
     setSelections({});
   }
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const selectedFile = event.target.files?.[0];
-    if (!selectedFile) {
-      return;
-    }
-
+  function processFile(selectedFile: File) {
     setFile(selectedFile);
     setPreview(null);
     previewMutation.mutate({ data: { file: selectedFile } });
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const selectedFile = event.target.files?.[0];
+    // Reset so picking the same file again still fires a change event.
+    event.target.value = '';
+    if (selectedFile) {
+      processFile(selectedFile);
+    }
+  }
+
+  function openFileDialog() {
+    fileInputRef.current?.click();
+  }
+
+  function handleDragOver(event: DragEvent<HTMLButtonElement>) {
+    // Required so the browser allows a drop here instead of rejecting it.
+    event.preventDefault();
+    if (!previewMutation.isPending) {
+      setIsDragging(true);
+    }
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    if (previewMutation.isPending) {
+      return;
+    }
+
+    const droppedFile = event.dataTransfer.files?.[0];
+    if (droppedFile) {
+      processFile(droppedFile);
+    }
   }
 
   function handleSelectionChange(key: string, next: ProfileSelectionState) {
@@ -176,12 +217,42 @@ export function ImportProfilesDialog() {
 
         {!hasPreview && (
           <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              aria-label="Choose a profile bundle file, or drag and drop it here"
+              disabled={previewMutation.isPending}
+              onClick={openFileDialog}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={cn(
+                'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
+                isDragging
+                  ? 'border-primary bg-primary/5'
+                  : 'border-input hover:border-primary/50',
+                previewMutation.isPending &&
+                  'pointer-events-none cursor-default opacity-60',
+              )}
+            >
+              <Upload className="size-6 text-muted-foreground" />
+              <p className="text-sm">
+                <span className="font-medium text-primary">
+                  Click to browse
+                </span>{' '}
+                or drag and drop a profile bundle
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {ACCEPTED_EXTENSIONS.split(',').join(', ')}
+              </p>
+            </button>
             <input
+              ref={fileInputRef}
               type="file"
-              accept=".zip,.orca_printer,.orca_filament,.bbscfg,.bbsflmt"
+              accept={ACCEPTED_EXTENSIONS}
               onChange={handleFileChange}
               disabled={previewMutation.isPending}
-              className="text-sm"
+              className="hidden"
             />
             {previewMutation.isPending && (
               <p className="text-sm text-muted-foreground">Reading bundle…</p>
