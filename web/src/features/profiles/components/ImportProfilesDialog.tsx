@@ -205,7 +205,7 @@ export function ImportProfilesDialog() {
         <Button>Import</Button>
       </DialogTrigger>
       <DialogScrollableContent
-        className="max-w-2xl sm:max-w-3xl"
+        className="max-w-3xl sm:max-w-4xl"
         header={
           <>
             <DialogTitle>Import profiles</DialogTitle>
