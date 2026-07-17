@@ -275,16 +275,16 @@ export function ImportProfilesDialog() {
           />
         )}
 
-        <DialogFooter>
-          {hasPreview && !nothingImportable && (
+        {hasPreview && !nothingImportable && (
+          <DialogFooter>
             <Button
               onClick={handleConfirm}
               disabled={confirmMutation.isPending || nothingSelected}
             >
               {confirmMutation.isPending ? 'Importing…' : 'Confirm import'}
             </Button>
-          )}
-        </DialogFooter>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
