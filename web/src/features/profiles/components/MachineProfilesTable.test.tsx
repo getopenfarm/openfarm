@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { MachineProfileResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -19,17 +19,38 @@ const profiles: MachineProfileResponse[] = [
     hasEnclosure: true,
     supportedMaterials: [],
   },
+  {
+    id: 'm2',
+    name: 'Bambu X1 Carbon 0.4 nozzle - Direct Drive',
+    sourceFormat: 'OrcaSlicer',
+    baseProfileId: 'm1',
+    baseProfileName: 'Bambu X1 Carbon 0.4 nozzle',
+    hasUnresolvedBaseInChain: false,
+    nozzleSizeMm: 0.4,
+    bedSizeXMm: 256,
+    bedSizeYMm: 256,
+    maxHeightMm: 256,
+    hasEnclosure: true,
+    supportedMaterials: [],
+  },
 ];
 
 describe('MachineProfilesTable', () => {
-  it('renders key fields for each imported machine profile', () => {
+  it('renders the name and base for each imported machine profile', () => {
     render(<MachineProfilesTable profiles={profiles} onRowClick={vi.fn()} />);
 
-    expect(screen.getByText('Bambu X1 Carbon 0.4 nozzle')).toBeInTheDocument();
-    expect(screen.getByText('OrcaSlicer')).toBeInTheDocument();
-    expect(screen.getByText('0.4mm')).toBeInTheDocument();
-    expect(screen.getByText('256×256mm')).toBeInTheDocument();
-    expect(screen.getByText('Yes')).toBeInTheDocument();
+    const rows = screen.getAllByRole('row');
+    // rows[0] is the header row.
+    expect(
+      within(rows[1]).getByText('Bambu X1 Carbon 0.4 nozzle'),
+    ).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Base')).toBeInTheDocument();
+    expect(
+      within(rows[2]).getByText('Bambu X1 Carbon 0.4 nozzle - Direct Drive'),
+    ).toBeInTheDocument();
+    expect(
+      within(rows[2]).getByText('Bambu X1 Carbon 0.4 nozzle'),
+    ).toBeInTheDocument();
   });
 
   it('shows an empty state when no profiles have been imported', () => {
@@ -46,7 +67,7 @@ describe('MachineProfilesTable', () => {
     const user = userEvent.setup();
     const onRowClick = vi.fn();
     render(
-      <MachineProfilesTable profiles={profiles} onRowClick={onRowClick} />,
+      <MachineProfilesTable profiles={[profiles[0]]} onRowClick={onRowClick} />,
     );
 
     await user.click(screen.getByText('Bambu X1 Carbon 0.4 nozzle'));
