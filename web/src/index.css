@@ -89,7 +89,7 @@
     var(--foreground) 58%,
     var(--background) 42%
   );
-  --accent: color-mix(in oklch, var(--brand) 10%, var(--background) 90%);
+  --accent: color-mix(in srgb, var(--brand) 12%, var(--background) 88%);
   --accent-foreground: var(--foreground);
   --destructive: color-mix(in oklch, var(--status-offline) 85%, black 15%);
   --border: color-mix(in oklch, var(--foreground) 12%, transparent);
@@ -105,7 +105,7 @@
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: color-mix(in oklch, var(--brand) 8%, var(--background) 92%);
+  --sidebar-accent: color-mix(in srgb, var(--brand) 12%, var(--background) 88%);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--brand);
@@ -161,7 +161,7 @@
     var(--foreground) 55%,
     var(--background) 45%
   );
-  --accent: color-mix(in oklch, var(--brand) 18%, var(--background) 82%);
+  --accent: color-mix(in srgb, var(--brand) 22%, var(--background) 78%);
   --accent-foreground: var(--foreground);
   --destructive: #ff5d5d;
   --border: color-mix(in oklch, var(--foreground) 12%, transparent);
@@ -176,11 +176,7 @@
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: color-mix(
-    in oklch,
-    var(--brand) 20%,
-    var(--background) 80%
-  );
+  --sidebar-accent: color-mix(in srgb, var(--brand) 22%, var(--background) 78%);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: color-mix(in oklch, var(--foreground) 12%, transparent);
   --sidebar-ring: var(--brand);
