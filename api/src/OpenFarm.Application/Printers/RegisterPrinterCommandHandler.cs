@@ -7,7 +7,7 @@ using OpenFarm.Domain.Printers;
 namespace OpenFarm.Application.Printers;
 
 public sealed class RegisterPrinterCommandHandler(
-    IPrinterConnector connector,
+    IPrinterConnectorFactory connectorFactory,
     IPrinterRepository printerRepository,
     IConnectionSecretRepository connectionSecretRepository,
     ISecretProtector secretProtector,
@@ -22,8 +22,8 @@ public sealed class RegisterPrinterCommandHandler(
         }
 
         // FR-001a: never trust only the client's earlier verify-connection call — re-run it here.
-        var details = new PrinterConnectionDetails(command.IpAddress, command.SerialNumber, command.AccessCode);
-        var verified = await connector.VerifyAsync(details, cancellationToken);
+        var details = new PrinterConnectionDetails(command.Brand, command.ModelCode, command.IpAddress, command.SerialNumber, command.AccessCode);
+        var verified = await connectorFactory.CreateConnector(details).VerifyAsync(details, cancellationToken);
         if (!verified)
         {
             throw new PrinterConnectionVerificationFailedException(command.IpAddress);

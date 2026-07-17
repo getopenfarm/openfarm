@@ -37,8 +37,8 @@ public class RemovePrinterEndpointTests(CustomWebApplicationFactory factory) : I
             new RegisterPrinterRequest
             {
                 Name = "Remove Test Printer",
-                Brand = "Bambu",
-                ModelCode = "P1S",
+                Brand = "System",
+                ModelCode = "Simulation",
                 IpAddress = "10.0.0.80",
                 SerialNumber = serialNumber,
                 AccessCode = "12345678",

@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using Finbuckle.MultiTenant.Abstractions;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +32,7 @@ public class PrinterConnectionBackgroundServiceTests
         var organizationId = Guid.NewGuid();
         var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-REACH-1");
         var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
-        var connector = new FakePrinterConnector();
+        var connector = new EmittingPrinterConnector();
 
         var provider = BuildServiceProvider(printer, secret, connector, out _);
         var service = new PrinterConnectionBackgroundService(
@@ -65,7 +68,7 @@ public class PrinterConnectionBackgroundServiceTests
         var organizationId = Guid.NewGuid();
         var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-REACH-2");
         var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
-        var connector = new FakePrinterConnector();
+        var connector = new EmittingPrinterConnector();
 
         var provider = BuildServiceProvider(printer, secret, connector, out var activityLogWriter);
         var service = new PrinterConnectionBackgroundService(
@@ -102,7 +105,7 @@ public class PrinterConnectionBackgroundServiceTests
         var organizationId = Guid.NewGuid();
         var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-1");
         var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
-        var connector = new FakePrinterConnector();
+        var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
 
         var provider = BuildServiceProvider(printer, secret, connector, out _, publisher);
@@ -151,7 +154,7 @@ public class PrinterConnectionBackgroundServiceTests
         var organizationId = Guid.NewGuid();
         var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-2");
         var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
-        var connector = new FakePrinterConnector();
+        var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
         var flushInterval = TimeSpan.FromMilliseconds(300);
 
@@ -204,7 +207,7 @@ public class PrinterConnectionBackgroundServiceTests
         var organizationId = Guid.NewGuid();
         var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-3");
         var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
-        var connector = new FakePrinterConnector();
+        var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
 
         var provider = BuildServiceProvider(printer, secret, connector, out var activityLogWriter, publisher);
@@ -240,7 +243,7 @@ public class PrinterConnectionBackgroundServiceTests
         var organizationId = Guid.NewGuid();
         var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-CAMERA-1");
         var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
-        var connector = new FakePrinterConnector(); // never emits an MQTT event in this test
+        var connector = new EmittingPrinterConnector(); // never emits an MQTT event in this test
         var publisher = new RecordingPrinterEventPublisher();
         var repository = new SaveCountingPrinterRepository(new InMemoryPrinterRepository(printer));
         var cameraRelay = new EmittingCameraRelay([1, 2, 3], [4, 5, 6]);
@@ -331,13 +334,12 @@ public class PrinterConnectionBackgroundServiceTests
         services.AddSingleton<IPrinterRepository>(repository ?? new InMemoryPrinterRepository(printer));
         services.AddSingleton<IConnectionSecretRepository>(new InMemoryConnectionSecretRepository(secret));
         services.AddSingleton<ISecretProtector>(new PassthroughSecretProtector());
-        services.AddSingleton<IPrinterConnector>(connector);
         services.AddSingleton<IActivityLogWriter>(writer);
         services.AddSingleton<IPrinterEventPublisher>(publisher ?? new NoOpPrinterEventPublisher());
         // Test printers use BinaryImage-camera models (e.g. P1S), so RunConnectionLoopAsync always
-        // starts a concurrent camera loop too — register a fake relay (never emits by default) so
-        // that path doesn't throw.
-        services.AddSingleton<IPrinterCameraRelay>(cameraRelay ?? new FakePrinterCameraRelay());
+        // starts a concurrent camera loop too — the stub factory below hands out a relay that never
+        // emits by default so that path doesn't throw.
+        services.AddSingleton<IPrinterConnectorFactory>(new StubPrinterConnectorFactory(connector, cameraRelay ?? new SilentCameraRelay()));
 
         // PrinterConnectionBackgroundService resolves these to populate tenant context per scope
         // (Finbuckle's HTTP-middleware-based resolution never runs for a scope it creates itself).
@@ -433,6 +435,61 @@ public class PrinterConnectionBackgroundServiceTests
             }
 
             await Task.Delay(CancellationLag, CancellationToken.None);
+            yield break;
+        }
+    }
+
+    /// <summary>Hands back the fixed connector/camera-relay instances the test constructed, regardless of details.</summary>
+    private sealed class StubPrinterConnectorFactory(IPrinterConnector connector, IPrinterCameraRelay cameraRelay) : IPrinterConnectorFactory
+    {
+        public IPrinterConnector CreateConnector(PrinterConnectionDetails details) => connector;
+
+        public IPrinterCameraRelay CreateCameraRelay(PrinterConnectionDetails details) => cameraRelay;
+    }
+
+    /// <summary>
+    /// Test-only push-based connector double for exercising <see cref="PrinterConnectionBackgroundService"/>'s
+    /// generic event handling (reachability, status reconciliation, telemetry coalescing) with arbitrary,
+    /// hand-constructed events — the same shape the retired production <c>FakePrinterConnector</c> used.
+    /// </summary>
+    private sealed class EmittingPrinterConnector : IPrinterConnector
+    {
+        private readonly ConcurrentDictionary<string, Channel<PrinterConnectorEvent>> _channels = new();
+
+        public Task<bool> VerifyAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+            Task.FromResult(true);
+
+        public async IAsyncEnumerable<PrinterConnectorEvent> ConnectAsync(
+            PrinterConnectionDetails details,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var channel = GetOrCreateChannel(details.SerialNumber);
+            await foreach (var connectorEvent in channel.Reader.ReadAllAsync(cancellationToken))
+            {
+                yield return connectorEvent;
+            }
+        }
+
+        public void Emit(string serialNumber, PrinterConnectorEvent connectorEvent) =>
+            GetOrCreateChannel(serialNumber).Writer.TryWrite(connectorEvent);
+
+        private Channel<PrinterConnectorEvent> GetOrCreateChannel(string serialNumber) =>
+            _channels.GetOrAdd(serialNumber, static _ => Channel.CreateUnbounded<PrinterConnectorEvent>());
+    }
+
+    /// <summary>Never emits a frame — the default camera relay for tests unrelated to camera behavior.</summary>
+    private sealed class SilentCameraRelay : IPrinterCameraRelay
+    {
+        public async IAsyncEnumerable<byte[]> StreamFramesAsync(
+            PrinterConnectionDetails details,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var completion = new TaskCompletionSource();
+            using (cancellationToken.Register(() => completion.TrySetResult()))
+            {
+                await completion.Task;
+            }
+
             yield break;
         }
     }

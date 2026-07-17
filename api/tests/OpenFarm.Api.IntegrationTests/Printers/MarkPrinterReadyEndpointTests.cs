@@ -7,8 +7,7 @@ using OpenFarm.Api.Endpoints.ActivityLog;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Api.Endpoints.Printers;
 using OpenFarm.Application.Auth;
-using OpenFarm.Application.Printers;
-using OpenFarm.Infrastructure.Printers;
+using OpenFarm.Infrastructure.Printers.Simulator;
 
 namespace OpenFarm.Api.IntegrationTests.Printers;
 
@@ -38,20 +37,43 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
             new RegisterPrinterRequest
             {
                 Name = "Mark Ready Test Printer",
-                Brand = "Bambu",
-                ModelCode = "P1S",
+                Brand = "System",
+                ModelCode = "Simulation",
                 IpAddress = "10.0.0.70",
                 SerialNumber = serialNumber,
                 AccessCode = "12345678",
             });
         var printer = await registerResponse.Content.ReadFromJsonAsync<PrinterSummaryResponse>();
 
-        var connector = factory.Services.GetRequiredService<FakePrinterConnector>();
-        connector.Emit(serialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: "FINISH"));
+        // StartSimulatedJob no-ops until the background connection loop's ConnectAsync stream has
+        // started (it marks the serial "active" before its very first — reachability-establishing —
+        // event); wait for that to land before triggering the job (research.md §3).
+        await WaitForReachableAsync(client, printer!.Id);
 
-        await WaitForStatusAsync(client, printer!.Id, "AwaitingClear");
+        var connector = factory.Services.GetRequiredService<SimulatorPrinterConnector>();
+        connector.StartSimulatedJob(serialNumber);
+
+        await WaitForStatusAsync(client, printer.Id, "AwaitingClear");
 
         return printer;
+    }
+
+    private static async Task WaitForReachableAsync(HttpClient client, Guid printerId)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var fleetResponse = await client.GetAsync(new Uri("/api/v1/printers", UriKind.Relative));
+            var fleet = await fleetResponse.Content.ReadFromJsonAsync<ListFleetResponse>();
+            var current = fleet!.Printers.FirstOrDefault(p => p.Id == printerId);
+            if (current?.IsReachable == true)
+            {
+                return;
+            }
+
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException($"Printer {printerId} never became reachable.");
     }
 
     private static async Task WaitForStatusAsync(HttpClient client, Guid printerId, string expectedStatus)
@@ -88,6 +110,14 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
         var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
         page!.Items.Should().ContainSingle(e =>
             e.EntityId == printer.Id.ToString() && e.EventType == "PrinterMarkedReady");
+
+        // The connector never learns Mark Ready happened (data-model.md's status-flapping-avoidance
+        // note) — confirm a few more of the simulator's own ticks don't flip status back to
+        // AwaitingClear by re-asserting "FINISH".
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        var fleetResponse = await client.GetAsync(new Uri("/api/v1/printers", UriKind.Relative));
+        var fleet = await fleetResponse.Content.ReadFromJsonAsync<ListFleetResponse>();
+        fleet!.Printers.Single(p => p.Id == printer.Id).Status.Should().Be("Idle");
     }
 
     [Fact]
@@ -100,8 +130,8 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
             new RegisterPrinterRequest
             {
                 Name = "Already Idle Printer",
-                Brand = "Bambu",
-                ModelCode = "P1S",
+                Brand = "System",
+                ModelCode = "Simulation",
                 IpAddress = "10.0.0.71",
                 SerialNumber = serialNumber,
                 AccessCode = "12345678",

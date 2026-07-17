@@ -29,8 +29,8 @@ public class RegisterPrinterEndpointTests(CustomWebApplicationFactory factory) :
     private static RegisterPrinterRequest ValidRequest(string serialNumber, string ipAddress = "10.0.0.50") => new()
     {
         Name = "Test Printer",
-        Brand = "Bambu",
-        ModelCode = "P1S",
+        Brand = "System",
+        ModelCode = "Simulation",
         IpAddress = ipAddress,
         SerialNumber = serialNumber,
         AccessCode = "12345678",
@@ -82,7 +82,7 @@ public class RegisterPrinterEndpointTests(CustomWebApplicationFactory factory) :
 
         var request = ValidRequest(serialNumber, "10.0.0.99");
         request.Name = distinctiveName;
-        request.AccessCode = "wrong"; // FakePrinterConnector's fixed sentinel for "verification fails".
+        request.AccessCode = "wrong"; // SimulatorPrinterConnector's fixed sentinel for "verification fails".
 
         var response = await client.PostAsJsonAsync(new Uri("/api/v1/printers", UriKind.Relative), request);
 

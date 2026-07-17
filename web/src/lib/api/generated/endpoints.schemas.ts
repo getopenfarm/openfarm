@@ -299,6 +299,8 @@ export interface VerifyPrinterConnectionResponse {
 }
 
 export interface VerifyPrinterConnectionRequest {
+  brand?: string;
+  modelCode?: string;
   ipAddress?: string;
   serialNumber?: string;
   accessCode?: string;

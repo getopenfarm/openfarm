@@ -2,7 +2,7 @@ using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Application.Printers;
 
-public sealed record PrinterConnectionDetails(string IpAddress, string SerialNumber, string AccessCode);
+public sealed record PrinterConnectionDetails(string Brand, string ModelCode, string IpAddress, string SerialNumber, string AccessCode);
 
 public sealed record PrinterTelemetrySnapshot(
     decimal? NozzleTempC,

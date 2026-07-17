@@ -15,7 +15,7 @@ public class BambuLanConnectorTests
     [Fact]
     public void BuildClientOptions_UsesMqttV311AndSetsAClientId()
     {
-        var details = new PrinterConnectionDetails("192.168.1.50", "SERIAL123", "12345678");
+        var details = new PrinterConnectionDetails("Bambu", "P1S", "192.168.1.50", "SERIAL123", "12345678");
 
         var options = BambuLanConnector.BuildClientOptions(details);
 

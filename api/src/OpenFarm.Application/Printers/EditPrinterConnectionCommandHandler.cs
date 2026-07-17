@@ -7,7 +7,7 @@ using OpenFarm.Domain.Printers;
 namespace OpenFarm.Application.Printers;
 
 public sealed class EditPrinterConnectionCommandHandler(
-    IPrinterConnector connector,
+    IPrinterConnectorFactory connectorFactory,
     IPrinterRepository printerRepository,
     IConnectionSecretRepository connectionSecretRepository,
     ISecretProtector secretProtector,
@@ -19,8 +19,8 @@ public sealed class EditPrinterConnectionCommandHandler(
             ?? throw new PrinterNotFoundException(command.PrinterId);
 
         // FR-002: same verify-before-save gate as registration.
-        var details = new PrinterConnectionDetails(command.IpAddress, printer.SerialNumber, command.AccessCode);
-        var verified = await connector.VerifyAsync(details, cancellationToken);
+        var details = new PrinterConnectionDetails(printer.Brand, printer.ModelCode, command.IpAddress, printer.SerialNumber, command.AccessCode);
+        var verified = await connectorFactory.CreateConnector(details).VerifyAsync(details, cancellationToken);
         if (!verified)
         {
             throw new PrinterConnectionVerificationFailedException(command.IpAddress);

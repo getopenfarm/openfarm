@@ -177,7 +177,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             var printerRepository = services.GetRequiredService<IPrinterRepository>();
             var connectionSecrets = services.GetRequiredService<IConnectionSecretRepository>();
             var secretProtector = services.GetRequiredService<ISecretProtector>();
-            var connector = services.GetRequiredService<IPrinterConnector>();
+            var connectorFactory = services.GetRequiredService<IPrinterConnectorFactory>();
 
             var printer = await printerRepository.GetByIdAsync(printerId, connectionToken);
             if (printer is null)
@@ -193,6 +193,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             }
 
             var details = new PrinterConnectionDetails(
+                printer.Brand,
+                printer.ModelCode,
                 printer.IpAddress,
                 printer.SerialNumber,
                 secretProtector.Unprotect(secret.EncryptedAccessCode));
@@ -203,6 +205,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 _ = RunCameraLoopAsync(printerId, details, connectionToken);
             }
 
+            var connector = connectorFactory.CreateConnector(details);
             var lastFlushUtc = DateTimeOffset.MinValue;
             await foreach (var connectorEvent in connector.ConnectAsync(details, connectionToken))
             {
@@ -243,7 +246,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             using var scope = CreateTenantScope();
             var services = scope.ServiceProvider;
             var printerRepository = services.GetRequiredService<IPrinterRepository>();
-            var cameraRelay = services.GetRequiredService<IPrinterCameraRelay>();
+            var cameraRelay = services.GetRequiredService<IPrinterConnectorFactory>().CreateCameraRelay(details);
             var publisher = services.GetRequiredService<IPrinterEventPublisher>();
 
             var printer = await printerRepository.GetByIdAsync(printerId, connectionToken);

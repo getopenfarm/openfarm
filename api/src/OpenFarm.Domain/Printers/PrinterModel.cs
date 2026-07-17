@@ -3,6 +3,7 @@ namespace OpenFarm.Domain.Printers;
 public enum PrinterBrand
 {
     Bambu,
+    System,
 }
 
 public enum CameraTransport

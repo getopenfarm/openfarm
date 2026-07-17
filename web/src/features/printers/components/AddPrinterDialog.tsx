@@ -29,19 +29,20 @@ import {
   useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint,
 } from '@/lib/api/generated/printers/printers';
 
-const PRINTER_MODELS = [
-  'X1',
-  'X1C',
-  'X1E',
-  'P1P',
-  'P1S',
-  'A1',
-  'A1MINI',
-] as const;
+const PRINTER_BRANDS = ['Bambu', 'System'] as const;
+
+const MODELS_BY_BRAND: Record<
+  (typeof PRINTER_BRANDS)[number],
+  readonly string[]
+> = {
+  Bambu: ['X1', 'X1C', 'X1E', 'P1P', 'P1S', 'A1', 'A1MINI'],
+  System: ['Simulation'],
+};
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  modelCode: z.enum(PRINTER_MODELS),
+  brand: z.enum(PRINTER_BRANDS),
+  modelCode: z.string().min(1, 'Model is required'),
   ipAddress: z.string().min(1, 'IP address is required'),
   serialNumber: z.string().min(1, 'Serial number is required'),
   accessCode: z.string().min(1, 'Access code is required'),
@@ -58,12 +59,15 @@ export function AddPrinterDialog() {
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
+      brand: 'Bambu',
       modelCode: 'P1S',
       ipAddress: '',
       serialNumber: '',
       accessCode: '',
     },
   });
+
+  const selectedBrand = form.watch('brand');
 
   const verifyMutation =
     useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint({
@@ -95,17 +99,32 @@ export function AddPrinterDialog() {
   // FR-001a: verify-before-add — re-checked on every connection-field blur; submit stays
   // disabled until a fresh verify succeeds. Any subsequent edit invalidates the prior result.
   function handleConnectionFieldBlur() {
-    const { ipAddress, serialNumber, accessCode } = form.getValues();
+    const { brand, modelCode, ipAddress, serialNumber, accessCode } =
+      form.getValues();
     setVerified(false);
     if (!ipAddress || !serialNumber || !accessCode) {
       return;
     }
-    verifyMutation.mutate({ data: { ipAddress, serialNumber, accessCode } });
+    verifyMutation.mutate({
+      data: { brand, modelCode, ipAddress, serialNumber, accessCode },
+    });
+  }
+
+  // Brand/Model determine which connector a printer routes to, so switching either invalidates
+  // any prior verify result exactly like a connection-field edit does.
+  function handleBrandChange(newBrand: (typeof PRINTER_BRANDS)[number]) {
+    form.setValue('brand', newBrand);
+    form.setValue('modelCode', MODELS_BY_BRAND[newBrand][0]);
+    handleConnectionFieldBlur();
+  }
+
+  function handleModelChange(newModelCode: string) {
+    form.setValue('modelCode', newModelCode);
+    handleConnectionFieldBlur();
   }
 
   function onSubmit(values: FormValues) {
-    // Bambu is the only supported brand this phase (spec.md Assumptions) — not a user-editable field.
-    registerMutation.mutate({ data: { ...values, brand: 'Bambu' } });
+    registerMutation.mutate({ data: values });
   }
 
   return (
@@ -141,6 +160,33 @@ export function AddPrinterDialog() {
             />
             <FormField
               control={form.control}
+              name="brand"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Brand</FormLabel>
+                  <FormControl>
+                    <select
+                      className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                      {...field}
+                      onChange={(e) =>
+                        handleBrandChange(
+                          e.target.value as (typeof PRINTER_BRANDS)[number],
+                        )
+                      }
+                    >
+                      {PRINTER_BRANDS.map((brand) => (
+                        <option key={brand} value={brand}>
+                          {brand}
+                        </option>
+                      ))}
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="modelCode"
               render={({ field }) => (
                 <FormItem>
@@ -149,8 +195,9 @@ export function AddPrinterDialog() {
                     <select
                       className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                       {...field}
+                      onChange={(e) => handleModelChange(e.target.value)}
                     >
-                      {PRINTER_MODELS.map((model) => (
+                      {MODELS_BY_BRAND[selectedBrand].map((model) => (
                         <option key={model} value={model}>
                           {model}
                         </option>

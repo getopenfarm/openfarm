@@ -31,7 +31,7 @@ using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
-using OpenFarm.Infrastructure.Printers.Bambu;
+using OpenFarm.Infrastructure.Printers.Simulator;
 using OpenFarm.Infrastructure.Profiles;
 using OpenFarm.Infrastructure.Security;
 using OpenFarm.Infrastructure.Seed;
@@ -170,24 +170,13 @@ builder.Services.AddScoped<CreateConnectionSecretHandlerType, CreateConnectionSe
 builder.Services.AddScoped<IQueryHandler<ListConnectionSecretsQuery, IReadOnlyList<ConnectionSecretResult>>, ListConnectionSecretsQueryHandler>();
 
 builder.Services.AddScoped<IPrinterRepository, PrinterRepository>();
-// FakePrinterConnector is the dev/test default (constitution: CI never touches real hardware).
-// "Printers:UseFakeConnector" opts into the real BambuLanConnector when explicitly set false —
-// defaults to the fake connector outside Development too, since that's the safer default absent
-// an explicit opt-in, and this connector has never been validated against physical hardware yet.
-var useFakePrinterConnector = builder.Configuration.GetValue("Printers:UseFakeConnector", defaultValue: true);
-if (useFakePrinterConnector)
-{
-    // Singleton so its in-memory per-serial event channels are shared across the long-lived
-    // background service and short-lived dev/test callers.
-    builder.Services.AddSingleton<FakePrinterConnector>();
-    builder.Services.AddScoped<IPrinterConnector>(sp => sp.GetRequiredService<FakePrinterConnector>());
-    builder.Services.AddScoped<IPrinterCameraRelay, FakePrinterCameraRelay>();
-}
-else
-{
-    builder.Services.AddScoped<IPrinterConnector, BambuLanConnector>();
-    builder.Services.AddScoped<IPrinterCameraRelay, BambuCameraRelay>();
-}
+// Singleton so the simulator's in-memory per-serial state is shared across the long-lived
+// background service and short-lived callers (tests). Connector selection between the simulator
+// and the real BambuLanConnector happens per-printer inside PrinterConnectorFactory, keyed off
+// each printer's own IP address — no process-wide switch (research.md §2).
+builder.Services.AddSingleton<SimulatorPrinterConnector>();
+builder.Services.AddSingleton<SimulatorPrinterCameraRelay>();
+builder.Services.AddScoped<IPrinterConnectorFactory, PrinterConnectorFactory>();
 
 builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();
 builder.Services.AddSingleton<PrinterConnectionBackgroundService>();
@@ -228,14 +217,6 @@ builder.Services
     });
 
 var app = builder.Build();
-
-// Loud on purpose: this flag silently no-ops every real printer connection when left at its
-// safe-by-default true (see the registration comment above) — easy to mistake for a connectivity
-// bug instead of a config gap.
-Program.LogPrinterConnectorSelected(
-    app.Logger,
-    useFakePrinterConnector ? nameof(FakePrinterConnector) : nameof(BambuLanConnector),
-    useFakePrinterConnector);
 
 // LoginEndpoint's Throttle() falls back to Connection.RemoteIpAddress when no X-Forwarded-For
 // header is present, and hard-403s ("can't identify client") if that's also null. Kestrel always
@@ -285,8 +266,4 @@ using (var scope = app.Services.CreateScope())
 
 app.Run();
 
-public partial class Program
-{
-    [LoggerMessage(Level = LogLevel.Information, Message = "Printer connector: {ConnectorType} (Printers:UseFakeConnector={UseFakeConnector})")]
-    private static partial void LogPrinterConnectorSelected(Microsoft.Extensions.Logging.ILogger logger, string connectorType, bool useFakeConnector);
-}
+public partial class Program;

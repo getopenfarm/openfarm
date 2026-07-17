@@ -8,6 +8,10 @@ namespace OpenFarm.Api.Endpoints.Printers;
 
 public sealed class VerifyPrinterConnectionRequest
 {
+    public string Brand { get; set; } = string.Empty;
+
+    public string ModelCode { get; set; } = string.Empty;
+
     public string IpAddress { get; set; } = string.Empty;
 
     public string SerialNumber { get; set; } = string.Empty;
@@ -19,6 +23,8 @@ public sealed class VerifyPrinterConnectionRequestValidator : AbstractValidator<
 {
     public VerifyPrinterConnectionRequestValidator()
     {
+        RuleFor(x => x.Brand).NotEmpty();
+        RuleFor(x => x.ModelCode).NotEmpty();
         RuleFor(x => x.IpAddress).NotEmpty();
         RuleFor(x => x.IpAddress)
             .Must(ip => IPAddress.TryParse(ip, out _))
@@ -38,7 +44,7 @@ public sealed class VerifyPrinterConnectionResponse
 /// Pre-flight check the add/edit form calls before enabling submit (FR-001a/FR-002). Never persists.
 /// </summary>
 [Permission("printers:verify-connection")]
-public sealed class VerifyPrinterConnectionEndpoint(IPrinterConnector connector)
+public sealed class VerifyPrinterConnectionEndpoint(IPrinterConnectorFactory connectorFactory)
     : Endpoint<VerifyPrinterConnectionRequest, VerifyPrinterConnectionResponse>
 {
     public override void Configure()
@@ -49,8 +55,8 @@ public sealed class VerifyPrinterConnectionEndpoint(IPrinterConnector connector)
 
     public override async Task HandleAsync(VerifyPrinterConnectionRequest req, CancellationToken ct)
     {
-        var details = new PrinterConnectionDetails(req.IpAddress, req.SerialNumber, req.AccessCode);
-        var verified = await connector.VerifyAsync(details, ct);
+        var details = new PrinterConnectionDetails(req.Brand, req.ModelCode, req.IpAddress, req.SerialNumber, req.AccessCode);
+        var verified = await connectorFactory.CreateConnector(details).VerifyAsync(details, ct);
 
         if (!verified)
         {
