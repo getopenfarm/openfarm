@@ -48,11 +48,11 @@ Existing four-project Clean Architecture backend + single-SPA frontend, extended
 (bundle parsing uses the .NET BCL's `System.IO.Compression.ZipArchive`/`System.Text.Json`; frontend
 upload uses a plain file input + the existing Orval client pattern, per plan.md's Technical Context).
 
-- [ ] T001 Create empty `Profiles/` folders under `api/src/OpenFarm.Domain/`,
+- [X] T001 Create empty `Profiles/` folders under `api/src/OpenFarm.Domain/`,
   `api/src/OpenFarm.Application/`, `api/src/OpenFarm.Infrastructure/`, and
   `api/src/OpenFarm.Api/Endpoints/`, plus `web/src/features/profiles/components/`, per plan.md's
   Project Structure
-- [ ] T002 [P] Add real captured OrcaSlicer/Bambu Studio slicer-bundle fixtures — one multi-preset
+- [X] T002 [P] Add real captured OrcaSlicer/Bambu Studio slicer-bundle fixtures — one multi-preset
   `.zip`, one Bambu Studio `.bbscfg`, one single-preset `.orca_printer` or `.orca_filament`, and a
   base+override pair — to `api/tests/OpenFarm.Infrastructure.Tests/Profiles/Fixtures/` for
   fixture-replay `ProfileBundleParser` tests (research.md §1's follow-up task, mirroring Phase 1's real
@@ -67,61 +67,61 @@ upload uses a plain file input + the existing Orval client pattern, per plan.md'
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 [P] Create `ProfileSourceFormat` enum in `api/src/OpenFarm.Domain/Profiles/ProfileSourceFormat.cs`
+- [X] T003 [P] Create `ProfileSourceFormat` enum in `api/src/OpenFarm.Domain/Profiles/ProfileSourceFormat.cs`
   (`OrcaSlicer`, `BambuStudio` — plain enum, matches the existing `PrinterModel.Brand` precedent per
   data-model.md, not a lookup table)
-- [ ] T004 [P] Create `MachineProfile` entity in `api/src/OpenFarm.Domain/Profiles/MachineProfile.cs`
+- [X] T004 [P] Create `MachineProfile` entity in `api/src/OpenFarm.Domain/Profiles/MachineProfile.cs`
   (`Id`, `OrganizationId`, `Name`, `SourceFormat`, `BaseProfileName`, `BaseProfileId` self-FK,
   `RawDataJson`, `CreatedAtUtc` per data-model.md — no descriptive/spec fields as columns)
-- [ ] T005 [P] Create `FilamentProfile` entity in `api/src/OpenFarm.Domain/Profiles/FilamentProfile.cs`
+- [X] T005 [P] Create `FilamentProfile` entity in `api/src/OpenFarm.Domain/Profiles/FilamentProfile.cs`
   (identical shape to `MachineProfile` per data-model.md)
-- [ ] T006 [P] Create `MachineProfileConfiguration` in
+- [X] T006 [P] Create `MachineProfileConfiguration` in
   `api/src/OpenFarm.Infrastructure/Persistence/Configurations/MachineProfileConfiguration.cs`
   (`builder.IsMultiTenant()`, self-referencing FK with `ON DELETE SET NULL`, `RawDataJson` as `jsonb`,
   no uniqueness constraint on `Name` — data-model.md's EF Core configuration notes)
-- [ ] T007 [P] Create `FilamentProfileConfiguration` in
+- [X] T007 [P] Create `FilamentProfileConfiguration` in
   `api/src/OpenFarm.Infrastructure/Persistence/Configurations/FilamentProfileConfiguration.cs` (same
   rules as `MachineProfileConfiguration`)
-- [ ] T008 Add the `AddProfiles` EF Core migration in
+- [X] T008 Add the `AddProfiles` EF Core migration in
   `api/src/OpenFarm.Infrastructure/Persistence/Migrations/` for both new tables via
   `dotnet ef migrations add AddProfiles` against `OpenFarmDbContext` (single migration per the
   constitution's one-per-PR rule; depends on T004–T007)
-- [ ] T009 [P] Create `IMachineProfileRepository` interface in
+- [X] T009 [P] Create `IMachineProfileRepository` interface in
   `api/src/OpenFarm.Application/Profiles/IMachineProfileRepository.cs` (`AddAsync`, `GetByIdAsync`,
   `ListAsync`, `FindByNameAsync(ProfileSourceFormat, string)` for FR-009 duplicate lookups and §3's base
   resolution, `SaveChangesAsync` — mirrors `IPrinterRepository`'s shape)
-- [ ] T010 [P] Create `IFilamentProfileRepository` interface in
+- [X] T010 [P] Create `IFilamentProfileRepository` interface in
   `api/src/OpenFarm.Application/Profiles/IFilamentProfileRepository.cs` (same shape as
   `IMachineProfileRepository`)
-- [ ] T011 [P] Implement `MachineProfileRepository` in
+- [X] T011 [P] Implement `MachineProfileRepository` in
   `api/src/OpenFarm.Infrastructure/Profiles/MachineProfileRepository.cs` against `OpenFarmDbContext`
-- [ ] T012 [P] Implement `FilamentProfileRepository` in
+- [X] T012 [P] Implement `FilamentProfileRepository` in
   `api/src/OpenFarm.Infrastructure/Profiles/FilamentProfileRepository.cs` against `OpenFarmDbContext`
-- [ ] T013 [P] Create `IProfileBundleParser` contract in
+- [X] T013 [P] Create `IProfileBundleParser` contract in
   `api/src/OpenFarm.Application/Profiles/IProfileBundleParser.cs` — `ParseAsync(Stream, CancellationToken)`
   returning the full parsed bundle for preview, plus
   `ExtractMachineDisplayFields(string rawDataJson, ProfileSourceFormat)` /
   `ExtractFilamentDisplayFields(string rawDataJson, ProfileSourceFormat)` reused by both the parser
   itself and every catalog-read query handler (research.md §2)
-- [ ] T014 Write `ProfileRawDataMerger` tests (TDD, write first) in
+- [X] T014 Write `ProfileRawDataMerger` tests (TDD, write first) in
   `api/tests/OpenFarm.Application.Tests/Profiles/ProfileRawDataMergerTests.cs` against synthetic JSON
   fixtures — ancestor-first ordering, shallow last-element-wins key overwrite, and an unparseable
   ancestor blob being skipped with a structured log rather than throwing (research.md §10); confirm the
   tests fail before implementing
-- [ ] T015 Implement `ProfileRawDataMerger.MergeAncestorChain` in
+- [X] T015 Implement `ProfileRawDataMerger.MergeAncestorChain` in
   `api/src/OpenFarm.Application/Profiles/ProfileRawDataMerger.cs` to make T014 pass (research.md §10)
-- [ ] T016 Write `ProfileBundleParser` tests (fixture-replay, test-after) in
+- [X] T016 Write `ProfileBundleParser` tests (fixture-replay, test-after) in
   `api/tests/OpenFarm.Infrastructure.Tests/Profiles/ProfileBundleParserTests.cs` against the real
   fixtures from T002 — classification by `machine`/`filament` subfolder, `"inherits"` extraction into
   `BaseProfileName`, both `compatible_printers`/`compatible_prints` key spellings, tolerance of missing
   keys (field omitted, not a thrown error), and rejection of a non-zip/corrupted input
-- [ ] T017 Implement `ProfileBundleParser` in
+- [X] T017 Implement `ProfileBundleParser` in
   `api/src/OpenFarm.Infrastructure/Profiles/ProfileBundleParser.cs` (`ZipArchive`-based, per-`SourceFormat`
-  field-mapping table, both `ExtractXDisplayFields` methods) to make T016 pass (research.md §1, §2)
-- [ ] T018 [P] Create `MachineProfileNotFoundException` and `FilamentProfileNotFoundException` in
+  field-mapping table, both `ExtractXDisplayFields` methods) to make T016 pass (FR-002, research.md §1, §2)
+- [X] T018 [P] Create `MachineProfileNotFoundException` and `FilamentProfileNotFoundException` in
   `api/src/OpenFarm.Application/Profiles/` (thrown by detail/update handlers on an unknown or
   cross-tenant id, mapped to 404 by the existing `DomainExceptionHandler`)
-- [ ] T019 Register `IMachineProfileRepository`, `IFilamentProfileRepository`, and
+- [X] T019 Register `IMachineProfileRepository`, `IFilamentProfileRepository`, and
   `IProfileBundleParser` in the composition root's DI container (`api/src/OpenFarm.Api/Program.cs` or
   its existing service-registration extension method)
 
@@ -138,77 +138,77 @@ persist only the operator's selected presets.
 select a subset, confirm, and verify exactly the selected presets — and only those — exist in the
 catalogs afterward.
 
-- [ ] T020 [P] [US1] Create `UnsupportedProfileBundleFormatException` in
+- [X] T020 [P] [US1] Create `UnsupportedProfileBundleFormatException` in
   `api/src/OpenFarm.Application/Profiles/UnsupportedProfileBundleFormatException.cs` (FR-007, thrown on
   an unrecognized/corrupted archive, mapped to 422)
-- [ ] T021 [P] [US1] Create the `IHasEntityIds` marker interface in
+- [X] T021 [P] [US1] Create the `IHasEntityIds` marker interface in
   `api/src/OpenFarm.Api/Processors/IHasEntityIds.cs` (`IReadOnlyList<string> EntityIds`, research.md §7)
-- [ ] T022 [US1] Extend `ActivityLogPostProcessor` in
+- [X] T022 [US1] Extend `ActivityLogPostProcessor` in
   `api/src/OpenFarm.Api/Processors/ActivityLogPostProcessor.cs` to check the response for
   `IHasEntityIds` and write one `ActivityLogEntry` per id when present, keeping the existing
   single-`Id`-reflection path as the default for every other endpoint (research.md §7)
-- [ ] T023 [P] [US1] Create `PreviewProfileImportCommand` in
+- [X] T023 [P] [US1] Create `PreviewProfileImportCommand` in
   `api/src/OpenFarm.Application/Profiles/PreviewProfileImportCommand.cs` (carries the uploaded stream)
-- [ ] T024 [US1] Implement `PreviewProfileImportCommandHandler` in
+- [X] T024 [US1] Implement `PreviewProfileImportCommandHandler` in
   `api/src/OpenFarm.Application/Profiles/PreviewProfileImportCommandHandler.cs` — parses the upload via
   `IProfileBundleParser`, flags `IsDuplicate` by `(Name, type)` against existing catalog rows
   (research.md §5), resolves each preset's base chain by `(SourceFormat, Name)` against same-batch
   siblings first, then prior-imported rows, merging via `ProfileRawDataMerger` for derived display
   fields and `hasUnresolvedBaseInChain` (research.md §10), and extracts `compatiblePrinterNames` as
   plain declared text with no catalog resolution (research.md §11, FR-016)
-- [ ] T025 [P] [US1] Create `ConfirmProfileImportCommand` in
+- [X] T025 [P] [US1] Create `ConfirmProfileImportCommand` in
   `api/src/OpenFarm.Application/Profiles/ConfirmProfileImportCommand.cs` (carries the re-uploaded stream
   plus the `SelectedProfileKey` list per data-model.md)
-- [ ] T026 [US1] Implement `ConfirmProfileImportCommandHandler` in
+- [X] T026 [US1] Implement `ConfirmProfileImportCommandHandler` in
   `api/src/OpenFarm.Application/Profiles/ConfirmProfileImportCommandHandler.cs` — re-parses the
   re-uploaded file with the same `IProfileBundleParser`, inserts only presets matching a selected key
   whose `DuplicateAction` isn't `Skip`, storing each row's parser-extracted `BaseProfileName` verbatim
   with `BaseProfileId` left null for now (Pass 2 resolution added in US2), and throws a 422-mapped
   exception when a selected key has no match in the fresh parse (research.md §4's consistency check)
-- [ ] T027 [P] [US1] Create `PreviewProfileImportEndpoint` in
+- [X] T027 [P] [US1] Create `PreviewProfileImportEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/PreviewProfileImportEndpoint.cs` — `POST
   /api/v1/profiles/imports/preview`, `AllowFileUploads()`, a conservative `MaxRequestBodySize()` cap
   (research.md §6), `[Permission("profiles:preview-import")]`, maps
   `UnsupportedProfileBundleFormatException` to 422
-- [ ] T028 [US1] Create `ConfirmProfileImportEndpoint` in
+- [X] T028 [US1] Create `ConfirmProfileImportEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/ConfirmProfileImportEndpoint.cs` — `POST
   /api/v1/profiles/imports/confirm`, `AllowFileUploads()`, binds `Selections` as a JSON-encoded string
   form field deserialized manually (research.md §6), `[Permission("profiles:confirm-import")]`, response
   implements `IHasEntityIds` over every created profile id for T022's post-processor extension
-- [ ] T029 [P] [US1] Integration test: preview extracts and returns every recognized preset without
+- [X] T029 [P] [US1] Integration test: preview extracts and returns every recognized preset without
   persisting anything, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/PreviewProfileImportEndpointTests.cs` (FR-001–003,
   SC-004 — assert catalog counts are unchanged before/after)
-- [ ] T030 [P] [US1] Integration test: confirm persists only the selected presets and the rest are
+- [X] T030 [P] [US1] Integration test: confirm persists only the selected presets and the rest are
   absent without a trace, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/ConfirmProfileImportEndpointTests.cs` (FR-004,
   SC-001, SC-003)
-- [ ] T031 [P] [US1] Integration test: an unsupported/corrupted bundle is rejected with 422 and creates
+- [X] T031 [P] [US1] Integration test: an unsupported/corrupted bundle is rejected with 422 and creates
   zero catalog entries; a successfully-opened bundle with nothing recognizable returns 200 with both
   arrays empty, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/RejectedAndEmptyBundleTests.cs` (FR-007, FR-008,
   SC-005)
-- [ ] T032 [P] [US1] Integration test: a duplicate-named preset is flagged `isDuplicate: true` at
+- [X] T032 [P] [US1] Integration test: a duplicate-named preset is flagged `isDuplicate: true` at
   preview, and confirming with `Skip` vs. `ImportAsNew` produces the correct resulting catalog row
   count, in `api/tests/OpenFarm.Api.IntegrationTests/Profiles/DuplicateProfileImportTests.cs` (FR-009)
-- [ ] T033 [P] [US1] Integration test: a multi-preset confirm call writes one `ActivityLogEntry` with
+- [X] T033 [P] [US1] Integration test: a multi-preset confirm call writes one `ActivityLogEntry` with
   `EventType: "ProfileImported"` per created profile, not one entry for the whole batch, in
   `api/tests/OpenFarm.Api.IntegrationTests/ActivityLog/ProfileImportActivityLogTests.cs` (research.md
   §7)
-- [ ] T034 [P] [US1] Regenerate the Orval-generated API client against the updated OpenAPI spec to
+- [X] T034 [P] [US1] Regenerate the Orval-generated API client against the updated OpenAPI spec to
   produce the preview/confirm hooks in `web/src/lib/api/generated/profiles/`
-- [ ] T035 [US1] Create `ImportProfilesDialog.tsx` in
+- [X] T035 [US1] Create `ImportProfilesDialog.tsx` in
   `web/src/features/profiles/components/ImportProfilesDialog.tsx` — file select → preview call →
   selection list → confirm call, replacing the existing "Not yet implemented" toast button
-- [ ] T036 [US1] Create `ProfileReviewList.tsx` in
+- [X] T036 [US1] Create `ProfileReviewList.tsx` in
   `web/src/features/profiles/components/ProfileReviewList.tsx` — selection checkboxes and per-preset
   skip/import-as-new duplicate controls (FR-003, FR-009); FR-006's base-not-selected warning is deferred
   to US2
-- [ ] T037 [US1] Create the `ProfilesPage.tsx` shell in `web/src/features/profiles/ProfilesPage.tsx` —
+- [X] T037 [US1] Create the `ProfilesPage.tsx` shell in `web/src/features/profiles/ProfilesPage.tsx` —
   Machine/Filament `Tabs` (shadcn `tabs.tsx`) housing the Import trigger wired to
   `ImportProfilesDialog`, replacing the mock-data prototype's entry point; catalog table content is
   deferred to US3
-- [ ] T038 [P] [US1] Vitest + RTL tests for `ImportProfilesDialog.tsx` and `ProfileReviewList.tsx` in
+- [X] T038 [P] [US1] Vitest + RTL tests for `ImportProfilesDialog.tsx` and `ProfileReviewList.tsx` in
   `web/src/features/profiles/components/` (file-select → preview → select subset → confirm flow;
   closing/cancelling before confirm leaves nothing selected)
 
@@ -226,28 +226,28 @@ an independent copy.
 depends on it, select both, and verify the resulting catalog record shows the override linked to its
 base rather than as a flattened standalone copy.
 
-- [ ] T039 Write two-pass base/override resolution tests (TDD, write first) in
+- [X] T039 Write two-pass base/override resolution tests (TDD, write first) in
   `api/tests/OpenFarm.Application.Tests/Profiles/ConfirmProfileImportCommandHandlerResolutionTests.cs`
   [US2] against synthetic in-batch-match, prior-import-match, no-match, and ambiguous-match (both
   in-batch and prior-import) fixtures, scoped by `(SourceFormat, Name)`; confirm the tests fail before
   implementing (research.md §3)
-- [ ] T040 [US2] Extend `ConfirmProfileImportCommandHandler` in
+- [X] T040 [US2] Extend `ConfirmProfileImportCommandHandler` in
   `api/src/OpenFarm.Application/Profiles/ConfirmProfileImportCommandHandler.cs` with Pass 2 base
   resolution to make T039 pass — resolves `BaseProfileId` only on an unambiguous `(SourceFormat, Name)`
   match against same-batch siblings first, then prior-imported rows, leaving it null on no match or 2+
   candidates from either source (research.md §3)
-- [ ] T041 [P] [US2] Integration test: selecting both a base and its override links the override's
+- [X] T041 [P] [US2] Integration test: selecting both a base and its override links the override's
   `baseProfileId` to the base's `id`, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/BaseOverrideResolutionTests.cs` (FR-005, SC-002, US2
   Acceptance Scenario 1)
-- [ ] T042 [P] [US2] Integration test: importing an override alone keeps `baseProfileName` populated with
+- [X] T042 [P] [US2] Integration test: importing an override alone keeps `baseProfileName` populated with
   `baseProfileId` null (a dangling built-in-default reference is a normal outcome, not an error), and a
   duplicate-named base produces the same unresolved shape (ambiguous match), in the same test file
   (FR-005, US2 Acceptance Scenario 3, research.md §3)
-- [ ] T043 [US2] Add the FR-006 base-not-selected warning to `ProfileReviewList.tsx` in
+- [X] T043 [US2] Add the FR-006 base-not-selected warning to `ProfileReviewList.tsx` in
   `web/src/features/profiles/components/ProfileReviewList.tsx` — computed entirely client-side from the
   full preview array plus live selection state, no backend round trip (research.md §4)
-- [ ] T044 [P] [US2] Vitest test for the FR-006 warning in
+- [X] T044 [P] [US2] Vitest test for the FR-006 warning in
   `web/src/features/profiles/components/ProfileReviewList.test.tsx` (warning appears when an override is
   checked but its bundle-present base is unchecked, and disappears once the base is also checked)
 
@@ -263,58 +263,58 @@ catalog lists, plus each profile's own raw data.
 **Independent Test**: Import a bundle with known presets and confirm each imported preset appears, with
 its key identifying fields, in the corresponding catalog list.
 
-- [ ] T045 [P] [US3] Create `GetMachineProfilesQuery` + Handler in
+- [X] T045 [P] [US3] Create `GetMachineProfilesQuery` + Handler in
   `api/src/OpenFarm.Application/Profiles/GetMachineProfilesQuery.cs` /
   `GetMachineProfilesQueryHandler.cs` — one `ListAsync` call, builds an in-memory `Id → row` map, walks
   each row's `BaseProfileId` chain in memory (cycle/depth-guarded), merges via `ProfileRawDataMerger`,
   then calls `ExtractMachineDisplayFields` on the merged result — no extra DB round trips, no recursive
   CTE (research.md §10)
-- [ ] T046 [P] [US3] Create `GetFilamentProfilesQuery` + Handler in
+- [X] T046 [P] [US3] Create `GetFilamentProfilesQuery` + Handler in
   `api/src/OpenFarm.Application/Profiles/GetFilamentProfilesQuery.cs` /
   `GetFilamentProfilesQueryHandler.cs` — same approach as T045 via `ExtractFilamentDisplayFields`, plus
   `compatiblePrinterNames` (FR-016)
-- [ ] T047 [P] [US3] Create `GetMachineProfileQuery` + Handler in
+- [X] T047 [P] [US3] Create `GetMachineProfileQuery` + Handler in
   `api/src/OpenFarm.Application/Profiles/GetMachineProfileQuery.cs` / `GetMachineProfileQueryHandler.cs`
   — the row's own `rawDataJson` (FR-011) plus chain-merged derived fields via sequential bounded
   fetch-by-id up `BaseProfileId`, reversed to ancestor-first before merging (research.md §10); throws
   `MachineProfileNotFoundException` on an unknown/cross-tenant id
-- [ ] T048 [P] [US3] Create `GetFilamentProfileQuery` + Handler in
+- [X] T048 [P] [US3] Create `GetFilamentProfileQuery` + Handler in
   `api/src/OpenFarm.Application/Profiles/GetFilamentProfileQuery.cs` / `GetFilamentProfileQueryHandler.cs`
   — same approach as T047 for `FilamentProfile`, throws `FilamentProfileNotFoundException`
-- [ ] T049 [P] [US3] Create `ListMachineProfilesEndpoint` + `GetMachineProfileEndpoint` in
+- [X] T049 [P] [US3] Create `ListMachineProfilesEndpoint` + `GetMachineProfileEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/` — `GET /api/v1/profiles/machine`
   (`[Permission("profiles:list-machine")]`) and `GET /api/v1/profiles/machine/{id}`
   (`[Permission("profiles:get-machine")]`)
-- [ ] T050 [P] [US3] Create `ListFilamentProfilesEndpoint` + `GetFilamentProfileEndpoint` in
+- [X] T050 [P] [US3] Create `ListFilamentProfilesEndpoint` + `GetFilamentProfileEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/` — `GET /api/v1/profiles/filament`
   (`[Permission("profiles:list-filament")]`) and `GET /api/v1/profiles/filament/{id}`
   (`[Permission("profiles:get-filament")]`)
-- [ ] T051 [P] [US3] Integration test: machine and filament catalog list endpoints return every
+- [X] T051 [P] [US3] Integration test: machine and filament catalog list endpoints return every
   imported profile with `name`, `sourceFormat`, and derived spec fields, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/ListProfilesEndpointTests.cs` (FR-010, US3
   Acceptance Scenarios 1–2)
-- [ ] T052 [P] [US3] Integration test: a filament profile response includes `compatiblePrinterNames` as
+- [X] T052 [P] [US3] Integration test: a filament profile response includes `compatiblePrinterNames` as
   declared text, identical whether or not the named printer exists elsewhere in the catalog, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/CompatiblePrinterNamesTests.cs` (FR-016, US3
   Acceptance Scenario 3)
-- [ ] T053 [P] [US3] Integration test: the single-profile detail endpoint returns full `rawDataJson`
+- [X] T053 [P] [US3] Integration test: the single-profile detail endpoint returns full `rawDataJson`
   plus chain-merged derived fields and `hasUnresolvedBaseInChain`, and 404s for an unknown/cross-tenant
   id, in `api/tests/OpenFarm.Api.IntegrationTests/Profiles/GetProfileDetailEndpointTests.cs` (FR-011,
   SC-006)
-- [ ] T054 [P] [US3] Regenerate the Orval-generated API client for the four new list/detail endpoints in
+- [X] T054 [P] [US3] Regenerate the Orval-generated API client for the four new list/detail endpoints in
   `web/src/lib/api/generated/profiles/`
-- [ ] T055 [P] [US3] Create `MachineProfilesTable.tsx` and `FilamentProfilesTable.tsx` in
+- [X] T055 [P] [US3] Create `MachineProfilesTable.tsx` and `FilamentProfilesTable.tsx` in
   `web/src/features/profiles/components/`, replacing the single merged `ProfilesTable.tsx`, wired into
   `ProfilesPage.tsx`'s two Tabs
-- [ ] T056 [US3] Create `ProfileRawDataDialog.tsx` (view-only) in
+- [X] T056 [US3] Create `ProfileRawDataDialog.tsx` (view-only) in
   `web/src/features/profiles/components/ProfileRawDataDialog.tsx` — opens from a catalog row click and
   shows the profile's full raw JSON (FR-011), reachable in ≤3 interactions from the catalog list
   (SC-006); edit capability is deferred to US4
-- [ ] T057 [P] [US3] Delete `web/src/features/profiles/data/mockProfiles.ts`,
+- [X] T057 [P] [US3] Delete `web/src/features/profiles/data/mockProfiles.ts`,
   `web/src/features/profiles/data/mockProfilesStore.ts`, and the old
   `web/src/features/profiles/components/ProfilesTable.tsx`, updating `ProfilesPage.test.tsx` to cover
   the real API-backed tables instead of the mock prototype
-- [ ] T058 [P] [US3] Vitest + RTL tests for `MachineProfilesTable.tsx`, `FilamentProfilesTable.tsx`, and
+- [X] T058 [P] [US3] Vitest + RTL tests for `MachineProfilesTable.tsx`, `FilamentProfilesTable.tsx`, and
   `ProfileRawDataDialog.tsx` in `web/src/features/profiles/components/` (catalog rows render key fields;
   opening a row shows raw JSON within the 3-interaction budget)
 
@@ -330,42 +330,42 @@ its key identifying fields, in the corresponding catalog list.
 the catalog reflects the new value; submitting malformed JSON is rejected with the previous data
 unchanged.
 
-- [ ] T059 [P] [US4] Create `InvalidProfileJsonException` in
+- [X] T059 [P] [US4] Create `InvalidProfileJsonException` in
   `api/src/OpenFarm.Application/Profiles/InvalidProfileJsonException.cs` (FR-013, mapped to 422 by the
   existing `DomainExceptionHandler`)
-- [ ] T060 [P] [US4] Create `UpdateMachineProfileRawDataCommand` + Validator in
+- [X] T060 [P] [US4] Create `UpdateMachineProfileRawDataCommand` + Validator in
   `api/src/OpenFarm.Application/Profiles/UpdateMachineProfileRawDataCommand.cs` /
   `UpdateMachineProfileRawDataCommandValidator.cs` (validates the submitted string is non-empty; JSON
   well-formedness is checked in the handler so a parse failure can throw the typed exception above)
-- [ ] T061 [US4] Implement `UpdateMachineProfileRawDataCommandHandler` in
+- [X] T061 [US4] Implement `UpdateMachineProfileRawDataCommandHandler` in
   `api/src/OpenFarm.Application/Profiles/UpdateMachineProfileRawDataCommandHandler.cs` — parses the
   submitted JSON, throws `InvalidProfileJsonException` on failure leaving the stored row untouched,
   otherwise overwrites `RawDataJson` only, with no re-derivation step (data-model.md)
-- [ ] T062 [P] [US4] Create `UpdateFilamentProfileRawDataCommand` + Validator + Handler in
+- [X] T062 [P] [US4] Create `UpdateFilamentProfileRawDataCommand` + Validator + Handler in
   `api/src/OpenFarm.Application/Profiles/UpdateFilamentProfileRawDataCommand.cs` /
   `UpdateFilamentProfileRawDataCommandValidator.cs` / `UpdateFilamentProfileRawDataCommandHandler.cs`
   (same behavior as T060/T061, scoped to `FilamentProfile`)
-- [ ] T063 [P] [US4] Create `UpdateMachineProfileRawDataEndpoint` in
+- [X] T063 [P] [US4] Create `UpdateMachineProfileRawDataEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/UpdateMachineProfileRawDataEndpoint.cs` — `PUT
   /api/v1/profiles/machine/{id}/raw-data`, `[Permission("profiles:edit-machine-raw-data")]`, returns the
   same shape as the detail `GET` with derived fields recomputed from the saved value
-- [ ] T064 [P] [US4] Create `UpdateFilamentProfileRawDataEndpoint` in
+- [X] T064 [P] [US4] Create `UpdateFilamentProfileRawDataEndpoint` in
   `api/src/OpenFarm.Api/Endpoints/Profiles/UpdateFilamentProfileRawDataEndpoint.cs` — `PUT
   /api/v1/profiles/filament/{id}/raw-data`, `[Permission("profiles:edit-filament-raw-data")]`
-- [ ] T065 [P] [US4] Integration test: a valid raw-data save is reflected on the next `GET`; malformed
+- [X] T065 [P] [US4] Integration test: a valid raw-data save is reflected on the next `GET`; malformed
   JSON returns 422 and leaves the previously saved value unchanged, in
   `api/tests/OpenFarm.Api.IntegrationTests/Profiles/UpdateProfileRawDataEndpointTests.cs` (FR-012,
   FR-013, US4 Acceptance Scenarios 1–2)
-- [ ] T066 [P] [US4] Integration test: editing a base profile's raw JSON changes its descendant's
+- [X] T066 [P] [US4] Integration test: editing a base profile's raw JSON changes its descendant's
   derived display fields on the descendant's very next read, with no propagation step anywhere, in the
   same test file (data-model.md's chain-propagation-for-free behavior)
-- [ ] T067 [P] [US4] Regenerate the Orval-generated API client for the two raw-data update endpoints in
+- [X] T067 [P] [US4] Regenerate the Orval-generated API client for the two raw-data update endpoints in
   `web/src/lib/api/generated/profiles/`
-- [ ] T068 [US4] Extend `ProfileRawDataDialog.tsx` in
+- [X] T068 [US4] Extend `ProfileRawDataDialog.tsx` in
   `web/src/features/profiles/components/ProfileRawDataDialog.tsx` with an editable JSON textarea
   (react-hook-form + zod), a Save action wired to the `PUT` hook, and inline error display on a 422
   response (FR-012, FR-013)
-- [ ] T069 [P] [US4] Vitest + RTL test for the edit/save flow in
+- [X] T069 [P] [US4] Vitest + RTL test for the edit/save flow in
   `web/src/features/profiles/components/ProfileRawDataDialog.test.tsx` (successful save updates
   displayed values; malformed JSON shows an error and leaves the last-saved value visible)
 
@@ -375,11 +375,11 @@ unchanged.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T070 [P] Run `dotnet format api/OpenFarm.slnx --verify-no-changes` and `bun run lint` / `bun run
+- [X] T070 [P] Run `dotnet format api/OpenFarm.slnx --verify-no-changes` and `bun run lint` / `bun run
   format` across all new/changed files, fixing any violations
-- [ ] T071 Run the full `quickstart.md` validation (Scenarios 1–6 plus the activity-log coverage check)
+- [X] T071 Run the full `quickstart.md` validation (Scenarios 1–6 plus the activity-log coverage check)
   against a local `docker compose up` stack with a real captured bundle
-- [ ] T072 Run `dotnet test api/OpenFarm.slnx` and `bun run test` end-to-end and confirm the full suite
+- [X] T072 Run `dotnet test api/OpenFarm.slnx` and `bun run test` end-to-end and confirm the full suite
   passes
 
 ---

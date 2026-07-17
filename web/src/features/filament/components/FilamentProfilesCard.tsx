@@ -13,16 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { ProfileSource } from '@/features/profiles/data/mockProfiles';
-import { profilesStore } from '@/features/profiles/data/mockProfilesStore';
+import type { ListFilamentProfilesResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint } from '@/lib/api/generated/profiles/profiles';
 
 const NOZZLE_SIZES = ['0.4', '0.6'] as const;
 type NozzleSize = (typeof NOZZLE_SIZES)[number];
 
-const SOURCE_BADGE_KIND: Record<ProfileSource, 'green' | 'blue' | 'zinc'> = {
-  'Bambu Studio': 'green',
+const SOURCE_BADGE_KIND: Record<string, 'green' | 'blue' | 'zinc'> = {
+  BambuStudio: 'green',
   OrcaSlicer: 'blue',
-  PrusaSlicer: 'zinc',
 };
 
 interface FilamentProfilesCardProps {
@@ -34,7 +33,14 @@ export function FilamentProfilesCard({
   profilesByNozzleSize,
   onChange,
 }: FilamentProfilesCardProps) {
-  const allProfiles = profilesStore.getSnapshot();
+  const filamentProfilesQuery =
+    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
+  const allProfiles =
+    (
+      filamentProfilesQuery.data?.data as
+        | ListFilamentProfilesResponse
+        | undefined
+    )?.profiles ?? [];
 
   return (
     <Card>
@@ -47,9 +53,7 @@ export function FilamentProfilesCard({
       <CardContent className="flex flex-col gap-4">
         {NOZZLE_SIZES.map((nozzleSize) => {
           const matchingProfiles = allProfiles.filter(
-            (profile) =>
-              profile.category === 'Filament' &&
-              String(profile.nozzleSizeMm) === nozzleSize,
+            (profile) => String(profile.nozzleSizeMm) === nozzleSize,
           );
           const selectedId = profilesByNozzleSize[nozzleSize];
           const selectedProfile = matchingProfiles.find(
@@ -68,7 +72,7 @@ export function FilamentProfilesCard({
                 </SelectTrigger>
                 <SelectContent>
                   {matchingProfiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
+                    <SelectItem key={profile.id} value={profile.id ?? ''}>
                       {profile.name}
                     </SelectItem>
                   ))}
@@ -82,10 +86,15 @@ export function FilamentProfilesCard({
                     {selectedProfile.maxVolumetricSpeedMm3s} mm³/s · fan{' '}
                     {selectedProfile.fanPercent}%
                   </span>
-                  <StatusBadge
-                    kind={SOURCE_BADGE_KIND[selectedProfile.source]}
-                    label={selectedProfile.source}
-                  />
+                  {selectedProfile.sourceFormat && (
+                    <StatusBadge
+                      kind={
+                        SOURCE_BADGE_KIND[selectedProfile.sourceFormat] ??
+                        'zinc'
+                      }
+                      label={selectedProfile.sourceFormat}
+                    />
+                  )}
                 </div>
               )}
             </div>

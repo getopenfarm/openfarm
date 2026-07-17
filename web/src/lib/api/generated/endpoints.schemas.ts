@@ -4,6 +4,199 @@
  * OpenFarm.Api
  * OpenAPI spec version: 1.0.0
  */
+export interface CreatedProfileItem {
+  id?: string;
+  name?: string;
+  /** @nullable */
+  baseProfileId?: string | null;
+}
+
+export interface ConfirmProfileImportResponse {
+  createdMachineProfiles?: CreatedProfileItem[];
+  createdFilamentProfiles?: CreatedProfileItem[];
+}
+
+export interface ConfirmProfileImportRequest {
+  file?: Blob;
+  selections?: string;
+}
+
+export interface FilamentProfileDetailResponse {
+  id?: string;
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileId?: string | null;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  rawDataJson?: string;
+  createdAtUtc?: string;
+  /** @nullable */
+  material?: string | null;
+  /** @nullable */
+  brand?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  nozzleSizeMm?: number | null;
+  /** @nullable */
+  nozzleTempC?: number | null;
+  /** @nullable */
+  bedTempC?: number | null;
+  /** @nullable */
+  maxVolumetricSpeedMm3s?: number | null;
+  /** @nullable */
+  fanPercent?: number | null;
+  compatiblePrinterNames?: string[];
+}
+
+export interface MachineProfileDetailResponse {
+  id?: string;
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileId?: string | null;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  rawDataJson?: string;
+  createdAtUtc?: string;
+  /** @nullable */
+  nozzleSizeMm?: number | null;
+  /** @nullable */
+  bedSizeXMm?: number | null;
+  /** @nullable */
+  bedSizeYMm?: number | null;
+  /** @nullable */
+  maxHeightMm?: number | null;
+  /** @nullable */
+  hasEnclosure?: boolean | null;
+  supportedMaterials?: string[];
+}
+
+export interface FilamentProfileResponse {
+  id?: string;
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileId?: string | null;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  /** @nullable */
+  material?: string | null;
+  /** @nullable */
+  brand?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  nozzleSizeMm?: number | null;
+  /** @nullable */
+  nozzleTempC?: number | null;
+  /** @nullable */
+  bedTempC?: number | null;
+  /** @nullable */
+  maxVolumetricSpeedMm3s?: number | null;
+  /** @nullable */
+  fanPercent?: number | null;
+  compatiblePrinterNames?: string[];
+}
+
+export interface ListFilamentProfilesResponse {
+  profiles?: FilamentProfileResponse[];
+}
+
+export interface MachineProfileResponse {
+  id?: string;
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileId?: string | null;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  /** @nullable */
+  nozzleSizeMm?: number | null;
+  /** @nullable */
+  bedSizeXMm?: number | null;
+  /** @nullable */
+  bedSizeYMm?: number | null;
+  /** @nullable */
+  maxHeightMm?: number | null;
+  /** @nullable */
+  hasEnclosure?: boolean | null;
+  supportedMaterials?: string[];
+}
+
+export interface ListMachineProfilesResponse {
+  profiles?: MachineProfileResponse[];
+}
+
+export interface MachinePresetPreviewItem {
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  isDuplicate?: boolean;
+  /** @nullable */
+  nozzleSizeMm?: number | null;
+  /** @nullable */
+  bedSizeXMm?: number | null;
+  /** @nullable */
+  bedSizeYMm?: number | null;
+  /** @nullable */
+  maxHeightMm?: number | null;
+  /** @nullable */
+  hasEnclosure?: boolean | null;
+  supportedMaterials?: string[];
+}
+
+export interface FilamentPresetPreviewItem {
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  isDuplicate?: boolean;
+  /** @nullable */
+  material?: string | null;
+  /** @nullable */
+  brand?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  nozzleSizeMm?: number | null;
+  /** @nullable */
+  nozzleTempC?: number | null;
+  /** @nullable */
+  bedTempC?: number | null;
+  /** @nullable */
+  maxVolumetricSpeedMm3s?: number | null;
+  /** @nullable */
+  fanPercent?: number | null;
+  compatiblePrinterNames?: string[];
+}
+
+export interface PreviewProfileImportResponse {
+  sourceFileName?: string;
+  machinePresets?: MachinePresetPreviewItem[];
+  filamentPresets?: FilamentPresetPreviewItem[];
+}
+
+export interface PreviewProfileImportRequest {
+  file?: Blob;
+}
+
+export interface UpdateFilamentProfileRawDataRequest {
+  rawDataJson?: string;
+}
+
+export interface UpdateMachineProfileRawDataRequest {
+  rawDataJson?: string;
+}
+
 export interface PrinterSummaryResponse {
   id?: string;
   name?: string;

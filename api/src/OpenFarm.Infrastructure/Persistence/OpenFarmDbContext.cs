@@ -7,6 +7,7 @@ using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Identity;
 
 namespace OpenFarm.Infrastructure.Persistence;
@@ -29,6 +30,10 @@ public sealed class OpenFarmDbContext(
     public DbSet<ActivityLogEntry> ActivityLogEntries => Set<ActivityLogEntry>();
 
     public DbSet<Printer> Printers => Set<Printer>();
+
+    public DbSet<MachineProfile> MachineProfiles => Set<MachineProfile>();
+
+    public DbSet<FilamentProfile> FilamentProfiles => Set<FilamentProfile>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

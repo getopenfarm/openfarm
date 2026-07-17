@@ -1,38 +1,71 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { filamentStore } from './data/mockFilamentStore';
 import { FilamentFormPage } from './FilamentFormPage';
 
+function stubEmptyFilamentProfilesFetch() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ profiles: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    ),
+  );
+}
+
 function renderAddPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
-    <MemoryRouter initialEntries={['/filament/new']}>
-      <Routes>
-        <Route path="/filament/new" element={<FilamentFormPage mode="add" />} />
-        <Route path="/filament" element={<div>Filament catalog page</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/filament/new']}>
+        <Routes>
+          <Route
+            path="/filament/new"
+            element={<FilamentFormPage mode="add" />}
+          />
+          <Route path="/filament" element={<div>Filament catalog page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
 function renderEditPage(id: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
-    <MemoryRouter initialEntries={[`/filament/${id}/edit`]}>
-      <Routes>
-        <Route
-          path="/filament/:id/edit"
-          element={<FilamentFormPage mode="edit" />}
-        />
-        <Route path="/filament" element={<div>Filament catalog page</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[`/filament/${id}/edit`]}>
+        <Routes>
+          <Route
+            path="/filament/:id/edit"
+            element={<FilamentFormPage mode="edit" />}
+          />
+          <Route path="/filament" element={<div>Filament catalog page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
 describe('FilamentFormPage', () => {
   beforeEach(() => {
     filamentStore.reset();
+    stubEmptyFilamentProfilesFetch();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('adds a new filament with a variant and commits it to the store on save', async () => {

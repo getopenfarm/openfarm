@@ -27,25 +27,41 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
             return;
         }
 
-        var entityId = ExtractEntityId(context.Response) ?? ExtractEntityId(context.Request);
         var organizationId = ExtractOrganizationId(httpContext.User);
-
-        if (entityId is null || organizationId is null)
+        if (organizationId is null)
         {
             return;
         }
 
         var (actorId, actorType) = ExtractActor(httpContext.User);
+        var writer = httpContext.RequestServices.GetRequiredService<IActivityLogWriter>();
+
+        if (context.Response is IHasEntityIds hasEntityIds)
+        {
+            foreach (var entityId in hasEntityIds.EntityIds)
+            {
+                var bulkEntry = ActivityLogEntry.Create(
+                    organizationId.Value, loggable.EntityType, entityId, loggable.EventType, actorId, actorType);
+                await writer.WriteAsync(bulkEntry, ct);
+            }
+
+            return;
+        }
+
+        var singleEntityId = ExtractEntityId(context.Response) ?? ExtractEntityId(context.Request);
+        if (singleEntityId is null)
+        {
+            return;
+        }
 
         var entry = ActivityLogEntry.Create(
             organizationId.Value,
             loggable.EntityType,
-            entityId,
+            singleEntityId,
             loggable.EventType,
             actorId,
             actorType);
 
-        var writer = httpContext.RequestServices.GetRequiredService<IActivityLogWriter>();
         await writer.WriteAsync(entry, ct);
     }
 

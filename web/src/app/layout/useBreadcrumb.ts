@@ -5,27 +5,21 @@ interface RouteHandle {
   title?: string;
 }
 
-function useLeafTitle(): string {
-  const matches = useMatches() as Array<{ handle?: unknown }>;
-  for (let i = matches.length - 1; i >= 0; i--) {
-    const handle = matches[i].handle as RouteHandle | undefined;
-    if (handle?.title) return handle.title;
-  }
-  return 'OpenFarm';
+export interface BreadcrumbEntry {
+  title: string;
+  /** Navigable path, or null for the current page / a non-navigable section label. */
+  url: string | null;
 }
 
-export interface Breadcrumb {
-  root: string | null;
-  leaf: string;
-}
-
-/** Finds which sidebar section the current route belongs to (path-prefix match, so nested
- * routes like /parts/new still resolve to their parent nav item's section) and pairs it with
- * the route's own title for the header breadcrumb. */
-export function useBreadcrumb(): Breadcrumb {
-  const matches = useMatches();
+/** Builds the header breadcrumb trail: the sidebar section this route belongs to (a
+ * non-navigable label), followed by every ancestor route's own title (as a link to that
+ * route), ending with the current route's title (not a link). */
+export function useBreadcrumb(): BreadcrumbEntry[] {
+  const matches = useMatches() as Array<{
+    pathname: string;
+    handle?: unknown;
+  }>;
   const pathname = matches[matches.length - 1]?.pathname ?? '/';
-  const leaf = useLeafTitle();
 
   const section = navSections.find((s) =>
     s.items.some((item) =>
@@ -33,5 +27,19 @@ export function useBreadcrumb(): Breadcrumb {
     ),
   );
 
-  return { root: section?.label ?? null, leaf };
+  const entries: BreadcrumbEntry[] = section
+    ? [{ title: section.label, url: null }]
+    : [];
+
+  for (const match of matches) {
+    const title = (match.handle as RouteHandle | undefined)?.title;
+    if (title) entries.push({ title, url: match.pathname });
+  }
+
+  if (entries.length === 0) entries.push({ title: 'OpenFarm', url: null });
+
+  const last = entries[entries.length - 1];
+  entries[entries.length - 1] = { ...last, url: null };
+
+  return entries;
 }

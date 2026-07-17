@@ -11,6 +11,348 @@
     }
   ],
   "paths": {
+    "/api/v1/profiles/imports/confirm": {
+      "post": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesConfirmProfileImportEndpoint",
+        "requestBody": {
+          "x-name": "ConfirmProfileImportRequest",
+          "description": "",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmProfileImportRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmProfileImportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/profiles/filament/{id}": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesGetFilamentProfileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilamentProfileDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/profiles/machine/{id}": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesGetMachineProfileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineProfileDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/profiles/filament": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListFilamentProfilesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/profiles/machine": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesListMachineProfilesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMachineProfilesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/profiles/imports/preview": {
+      "post": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesPreviewProfileImportEndpoint",
+        "requestBody": {
+          "x-name": "PreviewProfileImportRequest",
+          "description": "",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewProfileImportRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewProfileImportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/profiles/filament/{id}/raw-data": {
+      "put": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UpdateFilamentProfileRawDataRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFilamentProfileRawDataRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilamentProfileDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/profiles/machine/{id}/raw-data": {
+      "put": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UpdateMachineProfileRawDataRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMachineProfileRawDataRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineProfileDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/printers/{id}/connection": {
       "put": {
         "tags": [
@@ -513,6 +855,517 @@
   },
   "components": {
     "schemas": {
+      "ConfirmProfileImportResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "createdMachineProfiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreatedProfileItem"
+            }
+          },
+          "createdFilamentProfiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreatedProfileItem"
+            }
+          }
+        }
+      },
+      "CreatedProfileItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "baseProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "ConfirmProfileImportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "selections": {
+            "type": "string"
+          }
+        }
+      },
+      "FilamentProfileDetailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "rawDataJson": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "material": {
+            "type": "string",
+            "nullable": true
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "nozzleSizeMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "nozzleTempC": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedTempC": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "maxVolumetricSpeedMm3s": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "fanPercent": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "compatiblePrinterNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MachineProfileDetailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "rawDataJson": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nozzleSizeMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedSizeXMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedSizeYMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "maxHeightMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "hasEnclosure": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "supportedMaterials": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ListFilamentProfilesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentProfileResponse"
+            }
+          }
+        }
+      },
+      "FilamentProfileResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "material": {
+            "type": "string",
+            "nullable": true
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "nozzleSizeMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "nozzleTempC": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedTempC": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "maxVolumetricSpeedMm3s": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "fanPercent": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "compatiblePrinterNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ListMachineProfilesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MachineProfileResponse"
+            }
+          }
+        }
+      },
+      "MachineProfileResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "nozzleSizeMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedSizeXMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedSizeYMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "maxHeightMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "hasEnclosure": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "supportedMaterials": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PreviewProfileImportResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceFileName": {
+            "type": "string"
+          },
+          "machinePresets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MachinePresetPreviewItem"
+            }
+          },
+          "filamentPresets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentPresetPreviewItem"
+            }
+          }
+        }
+      },
+      "MachinePresetPreviewItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "isDuplicate": {
+            "type": "boolean"
+          },
+          "nozzleSizeMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedSizeXMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedSizeYMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "maxHeightMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "hasEnclosure": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "supportedMaterials": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "FilamentPresetPreviewItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "isDuplicate": {
+            "type": "boolean"
+          },
+          "material": {
+            "type": "string",
+            "nullable": true
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "nozzleSizeMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "nozzleTempC": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bedTempC": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "maxVolumetricSpeedMm3s": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "fanPercent": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "compatiblePrinterNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PreviewProfileImportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "UpdateFilamentProfileRawDataRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "rawDataJson": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateMachineProfileRawDataRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "rawDataJson": {
+            "type": "string"
+          }
+        }
+      },
       "PrinterSummaryResponse": {
         "type": "object",
         "additionalProperties": false,
