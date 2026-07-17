@@ -5,9 +5,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
+  DialogScrollableContent,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -90,50 +88,11 @@ export function ProfileRawDataDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="shrink-0 border-b p-4">
-          <DialogTitle>{name ?? 'Profile'}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto p-4">
-          {isLoading && (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          )}
-          {hasContent && (
-            <Form {...form}>
-              <form
-                id="profile-raw-data-form"
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="flex flex-col gap-3"
-              >
-                <FormField
-                  control={form.control}
-                  name="rawDataJson"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          className="h-96 font-mono text-xs"
-                          spellCheck={false}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {form.formState.errors.root && (
-                  <p className="text-sm text-destructive" role="alert">
-                    {form.formState.errors.root.message}
-                  </p>
-                )}
-              </form>
-            </Form>
-          )}
-        </div>
-
-        {hasContent && (
-          <DialogFooter className="mx-0 mb-0 shrink-0">
+      <DialogScrollableContent
+        className="max-w-2xl sm:max-w-2xl"
+        header={<DialogTitle>{name ?? 'Profile'}</DialogTitle>}
+        footer={
+          hasContent ? (
             <Button
               type="submit"
               form="profile-raw-data-form"
@@ -141,9 +100,42 @@ export function ProfileRawDataDialog({
             >
               {isSaving ? 'Saving…' : 'Save'}
             </Button>
-          </DialogFooter>
+          ) : undefined
+        }
+      >
+        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {hasContent && (
+          <Form {...form}>
+            <form
+              id="profile-raw-data-form"
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="flex flex-col gap-3"
+            >
+              <FormField
+                control={form.control}
+                name="rawDataJson"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        className="h-96 font-mono text-xs"
+                        spellCheck={false}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {form.formState.errors.root && (
+                <p className="text-sm text-destructive" role="alert">
+                  {form.formState.errors.root.message}
+                </p>
+              )}
+            </form>
+          </Form>
         )}
-      </DialogContent>
+      </DialogScrollableContent>
     </Dialog>
   );
 }

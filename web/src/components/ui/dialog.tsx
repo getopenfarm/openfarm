@@ -120,6 +120,44 @@ function DialogFooter({
   );
 }
 
+// A DialogContent whose header and footer stay pinned while only the body between them scrolls.
+// DialogContent's own default className is a single padded block with no overflow handling —
+// fine for short content, but a long header/footer scroll away with everything else once you add
+// max-h + overflow-y-auto to it directly (there's no separate "scrollable dialog" primitive in
+// shadcn/Radix for this). This bakes the flex-column + shrink-0 + isolated body-scroll
+// composition once so callers don't have to reproduce it at every call site.
+function DialogScrollableContent({
+  className,
+  header,
+  footer,
+  children,
+  showCloseButton = true,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+  showCloseButton?: boolean;
+}) {
+  return (
+    <DialogContent
+      showCloseButton={showCloseButton}
+      className={cn(
+        'flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0',
+        className,
+      )}
+      {...props}
+    >
+      {header && (
+        <DialogHeader className="shrink-0 border-b p-4">{header}</DialogHeader>
+      )}
+      <div className="flex-1 overflow-y-auto p-4">{children}</div>
+      {footer && (
+        <DialogFooter className="mx-0 mb-0 shrink-0">{footer}</DialogFooter>
+      )}
+    </DialogContent>
+  );
+}
+
 function DialogTitle({
   className,
   ...props
@@ -161,6 +199,7 @@ export {
   DialogHeader,
   DialogOverlay,
   DialogPortal,
+  DialogScrollableContent,
   DialogTitle,
   DialogTrigger,
 };
