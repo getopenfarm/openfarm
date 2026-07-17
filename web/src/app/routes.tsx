@@ -38,13 +38,15 @@ export const router = createBrowserRouter([
           },
           {
             path: '/printers',
-            element: <PrintersPage />,
             handle: { title: 'Printers' },
-          },
-          {
-            path: '/printers/:id',
-            element: <PrinterDetailPage />,
-            handle: { title: 'Printer Detail' },
+            children: [
+              { index: true, element: <PrintersPage /> },
+              {
+                path: ':id',
+                element: <PrinterDetailPage />,
+                handle: { title: 'Printer Detail' },
+              },
+            ],
           },
           { path: '/jobs', element: <JobsPage />, handle: { title: 'Jobs' } },
           {
