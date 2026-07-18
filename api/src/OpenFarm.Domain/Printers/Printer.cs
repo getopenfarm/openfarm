@@ -55,6 +55,8 @@ public sealed class Printer
 
     public IReadOnlyList<AmsUnit> AmsUnits { get; private set; }
 
+    public AmsTray? ExternalSpoolTray { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public static Printer Create(
@@ -135,13 +137,15 @@ public sealed class Printer
         decimal? bedTempC,
         int? printProgressPercent,
         string? currentStageLabel,
-        IReadOnlyList<AmsUnit> amsUnits)
+        IReadOnlyList<AmsUnit> amsUnits,
+        AmsTray? externalSpoolTray = null)
     {
         NozzleTempC = nozzleTempC ?? NozzleTempC;
         BedTempC = bedTempC ?? BedTempC;
         PrintProgressPercent = printProgressPercent ?? PrintProgressPercent;
         CurrentStageLabel = currentStageLabel ?? CurrentStageLabel;
         AmsUnits = amsUnits.Count > 0 ? amsUnits : AmsUnits;
+        ExternalSpoolTray = externalSpoolTray ?? ExternalSpoolTray;
     }
 
     /// <summary>

@@ -13,4 +13,4 @@ public enum CameraTransport
     BinaryImage,
 }
 
-public sealed record PrinterModel(PrinterBrand Brand, string ModelCode, CameraTransport CameraTransport);
+public sealed record PrinterModel(PrinterBrand Brand, string ModelCode, CameraTransport CameraTransport, int FilamentInletCount = 1);
