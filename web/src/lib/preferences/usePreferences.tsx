@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
+  DEFAULT_DENSITY_MODE,
   DEFAULT_PREFERENCES,
   DEFAULT_VIEW_MODE,
   PREFERENCES_STORAGE_KEY,
 } from './defaultPreferences';
-import type { ListPageKey, Preferences, ViewMode } from './types';
+import type { DensityMode, ListPageKey, Preferences, ViewMode } from './types';
 
 function loadPreferences(): Preferences {
   if (typeof window === 'undefined') return DEFAULT_PREFERENCES;
@@ -16,6 +17,10 @@ function loadPreferences(): Preferences {
       ...DEFAULT_PREFERENCES,
       ...parsed,
       listViews: { ...DEFAULT_PREFERENCES.listViews, ...parsed.listViews },
+      listDensities: {
+        ...DEFAULT_PREFERENCES.listDensities,
+        ...parsed.listDensities,
+      },
     };
   } catch {
     return DEFAULT_PREFERENCES;
@@ -38,6 +43,8 @@ interface PreferencesContextValue {
   preferences: Preferences;
   getListView: (page: ListPageKey) => ViewMode;
   setListView: (page: ListPageKey, mode: ViewMode) => void;
+  getListDensity: (page: ListPageKey) => DensityMode;
+  setListDensity: (page: ListPageKey, mode: DensityMode) => void;
 }
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
@@ -61,6 +68,13 @@ export function PreferencesProvider({
         setPreferences((prev) => ({
           ...prev,
           listViews: { ...prev.listViews, [page]: mode },
+        })),
+      getListDensity: (page) =>
+        preferences.listDensities[page] ?? DEFAULT_DENSITY_MODE,
+      setListDensity: (page, mode) =>
+        setPreferences((prev) => ({
+          ...prev,
+          listDensities: { ...prev.listDensities, [page]: mode },
         })),
     }),
     [preferences],

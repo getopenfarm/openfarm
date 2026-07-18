@@ -3,6 +3,7 @@ import { PrinterIcon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { DensityToggle } from '@/components/density-toggle/DensityToggle';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
@@ -28,8 +29,9 @@ export function PrintersPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const fleetQuery = useOpenFarmApiEndpointsPrintersListFleetEndpoint();
-  const { getListView } = usePreferences();
+  const { getListView, getListDensity } = usePreferences();
   const view = getListView('printers');
+  const density = getListDensity('printers');
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<PrinterStatusFilter>('all');
@@ -128,7 +130,10 @@ export function PrintersPage() {
               onStatusFilterChange={setStatusFilter}
               counts={counts}
             />
-            <ViewToggle page="printers" />
+            <div className="flex items-center gap-2">
+              <DensityToggle page="printers" />
+              <ViewToggle page="printers" />
+            </div>
           </div>
 
           {filteredPrinters.length === 0 ? (
@@ -140,12 +145,14 @@ export function PrintersPage() {
             <PrintersTable
               printers={filteredPrinters}
               maintenanceByPrinterId={maintenanceByPrinterId}
+              density={density}
               onOpen={(id) => navigate(`/printers/${id}`)}
               onMarkReady={(id) => markReadyMutation.mutate({ id })}
             />
           ) : (
             <PrintersGrid
               printers={filteredPrinters}
+              density={density}
               onMarkReady={(id) => markReadyMutation.mutate({ id })}
             />
           )}

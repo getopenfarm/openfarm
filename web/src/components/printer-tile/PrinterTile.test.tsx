@@ -45,6 +45,25 @@ describe('PrinterTile', () => {
     expect(screen.queryByText(/ETA/)).not.toBeInTheDocument();
   });
 
+  it('keeps the job name and hides the thumbnail in the small size', () => {
+    render(
+      <PrinterTile
+        {...baseProps}
+        size="small"
+        status="Printing"
+        progressPercent={62}
+        jobName="benchy.3mf"
+      />,
+    );
+
+    // Job name still shown so operators can see what's printing even in the dense layout.
+    expect(screen.getByText('benchy.3mf')).toBeInTheDocument();
+    // No thumbnail in small size.
+    expect(
+      document.querySelector('[data-slot="checkerboard-thumbnail"]'),
+    ).not.toBeInTheDocument();
+  });
+
   it('surfaces the offline state distinctly from status', () => {
     render(
       <PrinterTile

@@ -5,6 +5,7 @@ import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { printerStatusToBadge } from '@/features/printers/lib/printerStatusBadge';
+import type { DensityMode } from '@/lib/preferences/types';
 import { cn } from '@/lib/utils';
 import type { PrinterStatus } from './status';
 
@@ -19,6 +20,7 @@ export interface PrinterTileProps {
   etaMinutes: number | null;
   jobName: string | null;
   stageLabel: string | null;
+  size?: DensityMode;
 }
 
 function formatEta(etaMinutes: number | null): string {
@@ -43,11 +45,68 @@ export const PrinterTile = memo(function PrinterTile({
   etaMinutes,
   jobName,
   stageLabel,
+  size = 'medium',
 }: PrinterTileProps) {
   const badge = printerStatusToBadge(status, isReachable);
   const isPrinting = isReachable && status === 'Printing';
   // A finished print still sitting on the bed keeps its name until it's cleared.
   const hasJob = isReachable && (isPrinting || status === 'AwaitingClear');
+
+  const jobLine =
+    hasJob && jobName ? (
+      <>
+        <span className="text-foreground">{jobName}</span>
+        {isPrinting && stageLabel ? ` · ${stageLabel}` : null}
+      </>
+    ) : status === 'AwaitingClear' && isReachable ? (
+      'Ready to clear'
+    ) : (
+      'No active print'
+    );
+
+  const filamentDot = (
+    <span
+      className="size-3 shrink-0 rounded-full ring-1 ring-foreground/15"
+      style={{ backgroundColor: filamentColorHex ?? 'transparent' }}
+      aria-hidden="true"
+    />
+  );
+
+  // Small: no thumbnail, tight single-column layout that packs many printers per page.
+  if (size === 'small') {
+    return (
+      <Card className="gap-2 p-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {filamentDot}
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            {name}
+          </span>
+          <StatusBadge kind={badge.kind} label={badge.label} />
+        </div>
+        <p className="truncate text-xs text-muted-foreground">{jobLine}</p>
+        {isPrinting && (
+          <div className="flex items-center gap-2">
+            <Progress
+              value={progressPercent}
+              className="h-1 flex-1"
+              indicatorClassName="bg-status-printing"
+            />
+            <span className="shrink-0 font-mono text-[11px] font-medium text-status-printing">
+              {progressPercent}%
+            </span>
+          </div>
+        )}
+        <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground">
+          <span>
+            {formatTemp(nozzleTempC)} / {formatTemp(bedTempC)}
+          </span>
+          {isPrinting && <span>ETA {formatEta(etaMinutes)}</span>}
+        </div>
+      </Card>
+    );
+  }
+
+  const isLarge = size === 'large';
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
@@ -56,7 +115,8 @@ export const PrinterTile = memo(function PrinterTile({
           icon={PrinterIcon}
           label={isPrinting ? `${progressPercent}%` : undefined}
           className={cn(
-            'aspect-[16/9] w-full rounded-none',
+            'w-full rounded-none',
+            isLarge ? 'aspect-[16/10]' : 'aspect-[16/9]',
             !isReachable && 'opacity-50 grayscale',
           )}
         />
@@ -67,28 +127,22 @@ export const PrinterTile = memo(function PrinterTile({
         />
       </div>
 
-      <CardContent className="flex flex-col gap-3 p-[18px]">
+      <CardContent
+        className={cn('flex flex-col gap-3', isLarge ? 'p-5' : 'p-[18px]')}
+      >
         <div className="flex min-w-0 items-center gap-2">
+          {filamentDot}
           <span
-            className="size-3 shrink-0 rounded-full ring-1 ring-foreground/15"
-            style={{ backgroundColor: filamentColorHex ?? 'transparent' }}
-            aria-hidden="true"
-          />
-          <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+            className={cn(
+              'min-w-0 flex-1 truncate font-medium',
+              isLarge && 'text-lg',
+            )}
+          >
+            {name}
+          </span>
         </div>
 
-        <p className="truncate text-sm text-muted-foreground">
-          {hasJob && jobName ? (
-            <>
-              <span className="text-foreground">{jobName}</span>
-              {isPrinting && stageLabel ? ` · ${stageLabel}` : null}
-            </>
-          ) : status === 'AwaitingClear' && isReachable ? (
-            'Ready to clear'
-          ) : (
-            'No active print'
-          )}
-        </p>
+        <p className="truncate text-sm text-muted-foreground">{jobLine}</p>
 
         {isPrinting && (
           <div className="flex items-center gap-3">
