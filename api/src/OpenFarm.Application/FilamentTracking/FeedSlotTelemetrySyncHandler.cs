@@ -74,7 +74,7 @@ public sealed class FeedSlotTelemetrySyncHandler(IFeedUnitRepository feedUnitRep
         }
     }
 
-    private static bool ReconcileSlots(FeedUnit unit, IEnumerable<int> reportedSlotPositions)
+    private bool ReconcileSlots(FeedUnit unit, IEnumerable<int> reportedSlotPositions)
     {
         var reported = reportedSlotPositions.ToHashSet();
         var changed = false;
@@ -84,7 +84,10 @@ public sealed class FeedSlotTelemetrySyncHandler(IFeedUnitRepository feedUnitRep
             var slot = unit.FeedSlots.FirstOrDefault(s => s.SlotPosition == position);
             if (slot is null)
             {
-                unit.AddFeedSlot(position);
+                // TrackNewFeedSlot, not plain graph fix-up: unit is already tracked/Unchanged, and a
+                // new child discovered only via its navigation collection is misdetected as Modified
+                // by EF Core (client-generated Guid key already non-default) — see IFeedUnitRepository.
+                feedUnitRepository.TrackNewFeedSlot(unit.AddFeedSlot(position));
                 changed = true;
             }
             else if (slot.DeactivatedAtUtc is not null)

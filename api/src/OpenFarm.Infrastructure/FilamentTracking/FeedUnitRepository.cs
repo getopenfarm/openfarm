@@ -39,5 +39,7 @@ public sealed class FeedUnitRepository(OpenFarmDbContext dbContext) : IFeedUnitR
             .Include(u => u.FeedSlots)
             .FirstOrDefaultAsync(u => u.FeedSlots.Any(s => s.Id == feedSlotId), cancellationToken);
 
+    public void TrackNewFeedSlot(FeedSlot feedSlot) => dbContext.FeedSlots.Add(feedSlot);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

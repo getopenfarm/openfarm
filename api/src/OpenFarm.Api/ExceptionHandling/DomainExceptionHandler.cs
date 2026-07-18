@@ -37,6 +37,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             FeedSlotNotFoundException => (StatusCodes.Status404NotFound, "Feed slot not found"),
             FeedUnitNotFoundException => (StatusCodes.Status404NotFound, "Feed unit not found"),
             DuplicateVendorNameException => (StatusCodes.Status409Conflict, "Duplicate vendor name"),
+            DuplicateFilamentVariantColorException => (StatusCodes.Status409Conflict, "Duplicate filament variant color"),
             DuplicateAutomaticFilamentReloaderNameException => (StatusCodes.Status409Conflict, "Duplicate Automatic Filament Reloader name"),
             SpoolConcurrencyConflictException => (StatusCodes.Status409Conflict, "Spool was concurrently modified"),
             FeedSlotOccupiedException => (StatusCodes.Status409Conflict, "Feed slot already occupied"),

@@ -49,6 +49,9 @@ using PreviewProfileImportHandlerType = OpenFarm.Application.Common.ICommandHand
 using ConfirmProfileImportHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.ConfirmProfileImportCommand, OpenFarm.Application.Profiles.ConfirmProfileImportResult>;
 using UpdateMachineProfileRawDataHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.UpdateMachineProfileRawDataCommand, OpenFarm.Application.Profiles.MachineProfileDetail>;
 using UpdateFilamentProfileRawDataHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.UpdateFilamentProfileRawDataCommand, OpenFarm.Application.Profiles.FilamentProfileDetail>;
+using CreateVendorHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CreateVendorCommand, OpenFarm.Domain.FilamentTracking.Vendor>;
+using CreateFilamentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CreateFilamentCommand, OpenFarm.Domain.FilamentTracking.Filament>;
+using AddFilamentVariantHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.AddFilamentVariantCommand, OpenFarm.Domain.FilamentTracking.FilamentVariant>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -211,6 +214,12 @@ builder.Services.AddScoped<IFeedUnitRepository, FeedUnitRepository>();
 builder.Services.AddScoped<ISpoolRepository, SpoolRepository>();
 builder.Services.AddScoped<IFeedSlotTelemetrySync, FeedSlotTelemetrySyncHandler>();
 builder.Services.AddScoped<IFilamentTrackingEventPublisher, FarmHubFilamentTrackingEventPublisher>();
+
+builder.Services.AddScoped<CreateVendorHandlerType, CreateVendorCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetVendorsQuery, IReadOnlyList<VendorSummary>>, GetVendorsQueryHandler>();
+builder.Services.AddScoped<CreateFilamentHandlerType, CreateFilamentCommandHandler>();
+builder.Services.AddScoped<AddFilamentVariantHandlerType, AddFilamentVariantCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFilamentsQuery, IReadOnlyList<FilamentSummary>>, GetFilamentsQueryHandler>();
 
 builder.Services.AddSignalR();
 

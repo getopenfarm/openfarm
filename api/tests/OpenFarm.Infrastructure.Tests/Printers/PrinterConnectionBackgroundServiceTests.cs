@@ -691,6 +691,12 @@ public class PrinterConnectionBackgroundServiceTests
         public Task<FeedUnit?> GetByFeedSlotIdAsync(Guid feedSlotId, CancellationToken cancellationToken) =>
             Task.FromResult(_feedUnits.FirstOrDefault(u => u.FeedSlots.Any(s => s.Id == feedSlotId)));
 
+        // The domain-level FeedUnit.AddFeedSlot call already appended the slot in-memory — this fake
+        // has no real change-tracking to inform.
+        public void TrackNewFeedSlot(FeedSlot feedSlot)
+        {
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 

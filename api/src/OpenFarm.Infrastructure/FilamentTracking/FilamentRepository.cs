@@ -22,5 +22,11 @@ public sealed class FilamentRepository(OpenFarmDbContext dbContext) : IFilamentR
     public Task<FilamentVariant?> FindVariantByIdAsync(Guid filamentVariantId, CancellationToken cancellationToken) =>
         dbContext.FilamentVariants.FirstOrDefaultAsync(v => v.Id == filamentVariantId, cancellationToken);
 
+    public async Task AddVariantAsync(FilamentVariant variant, CancellationToken cancellationToken)
+    {
+        dbContext.FilamentVariants.Add(variant);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }
