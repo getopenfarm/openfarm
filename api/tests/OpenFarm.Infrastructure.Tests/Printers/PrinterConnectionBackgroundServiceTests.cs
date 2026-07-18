@@ -293,7 +293,7 @@ public class PrinterConnectionBackgroundServiceTests
         {
             await WaitUntilAsync(() => connector.ConnectCallCount >= 1, TimeSpan.FromSeconds(2));
 
-            // Mirrors EditPrinterConnectionCommandHandler: Stop immediately followed by Start, with
+            // Mirrors EditPrinterCommandHandler: Stop immediately followed by Start, with
             // no synchronization between them and no wait for the old loop to actually unwind.
             service.StopConnection(printer.Id);
             service.StartConnection(printer.Id, CancellationToken.None);

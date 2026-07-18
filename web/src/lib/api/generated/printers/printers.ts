@@ -22,8 +22,9 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
-  EditPrinterConnectionRequest,
+  EditPrinterRequest,
   ListFleetResponse,
+  PrinterCatalogResponse,
   PrinterDetailResponse,
   PrinterSummaryResponse,
   RegisterPrinterRequest,
@@ -49,87 +50,75 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
-export type openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse200 =
-  {
-    data: PrinterSummaryResponse;
-    status: 200;
-  };
-
-export type openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse401 =
-  {
-    data: void;
-    status: 401;
-  };
-
-export type openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse403 =
-  {
-    data: void;
-    status: 403;
-  };
-
-export type openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponseSuccess =
-  openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponseError =
-  (
-    | openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse401
-    | openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse403
-  ) & {
-    headers: Headers;
-  };
-
-export type openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse =
-  | openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponseSuccess
-  | openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponseError;
-
-export const getOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointUrl = (
-  id: string,
-) => {
-  return `/api/v1/printers/${id}/connection`;
+export type openFarmApiEndpointsPrintersEditPrinterEndpointResponse200 = {
+  data: PrinterSummaryResponse;
+  status: 200;
 };
 
-export const openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint = async (
+export type openFarmApiEndpointsPrintersEditPrinterEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintersEditPrinterEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintersEditPrinterEndpointResponseSuccess =
+  openFarmApiEndpointsPrintersEditPrinterEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintersEditPrinterEndpointResponseError = (
+  | openFarmApiEndpointsPrintersEditPrinterEndpointResponse401
+  | openFarmApiEndpointsPrintersEditPrinterEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPrintersEditPrinterEndpointResponse =
+  | openFarmApiEndpointsPrintersEditPrinterEndpointResponseSuccess
+  | openFarmApiEndpointsPrintersEditPrinterEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintersEditPrinterEndpointUrl = (
   id: string,
-  editPrinterConnectionRequest: EditPrinterConnectionRequest,
+) => {
+  return `/api/v1/printers/${id}`;
+};
+
+export const openFarmApiEndpointsPrintersEditPrinterEndpoint = async (
+  id: string,
+  editPrinterRequest: EditPrinterRequest,
   options?: RequestInit,
-): Promise<openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse> => {
-  return httpClient<openFarmApiEndpointsPrintersEditPrinterConnectionEndpointResponse>(
-    getOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointUrl(id),
+): Promise<openFarmApiEndpointsPrintersEditPrinterEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintersEditPrinterEndpointResponse>(
+    getOpenFarmApiEndpointsPrintersEditPrinterEndpointUrl(id),
     {
       ...options,
-      method: 'PUT',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(editPrinterConnectionRequest),
+      body: JSON.stringify(editPrinterRequest),
     },
   );
 };
 
-export const getOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointMutationOptions =
+export const getOpenFarmApiEndpointsPrintersEditPrinterEndpointMutationOptions =
   <TError = void, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint
-        >
+        ReturnType<typeof openFarmApiEndpointsPrintersEditPrinterEndpoint>
       >,
       TError,
-      { id: string; data: EditPrinterConnectionRequest },
+      { id: string; data: EditPrinterRequest },
       TContext
     >;
   }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint
-      >
-    >,
+    Awaited<ReturnType<typeof openFarmApiEndpointsPrintersEditPrinterEndpoint>>,
     TError,
-    { id: string; data: EditPrinterConnectionRequest },
+    { id: string; data: EditPrinterRequest },
     TContext
   > => {
-    const mutationKey = [
-      'openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint',
-    ];
+    const mutationKey = ['openFarmApiEndpointsPrintersEditPrinterEndpoint'];
     const { mutation: mutationOptions } = options
       ? options.mutation &&
         'mutationKey' in options.mutation &&
@@ -140,65 +129,49 @@ export const getOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointMutatio
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint
-        >
+        ReturnType<typeof openFarmApiEndpointsPrintersEditPrinterEndpoint>
       >,
-      { id: string; data: EditPrinterConnectionRequest }
+      { id: string; data: EditPrinterRequest }
     > = (props) => {
       const { id, data } = props ?? {};
 
-      return openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint(
-        id,
-        data,
-      );
+      return openFarmApiEndpointsPrintersEditPrinterEndpoint(id, data);
     };
 
     return { mutationFn, ...mutationOptions };
   };
 
-export type OpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointMutationResult =
+export type OpenFarmApiEndpointsPrintersEditPrinterEndpointMutationResult =
   NonNullable<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint
-      >
-    >
+    Awaited<ReturnType<typeof openFarmApiEndpointsPrintersEditPrinterEndpoint>>
   >;
-export type OpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointMutationBody =
-  EditPrinterConnectionRequest;
-export type OpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointMutationError =
-  void;
+export type OpenFarmApiEndpointsPrintersEditPrinterEndpointMutationBody =
+  EditPrinterRequest;
+export type OpenFarmApiEndpointsPrintersEditPrinterEndpointMutationError = void;
 
-export const useOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpoint = <
+export const useOpenFarmApiEndpointsPrintersEditPrinterEndpoint = <
   TError = void,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint
-        >
+        ReturnType<typeof openFarmApiEndpointsPrintersEditPrinterEndpoint>
       >,
       TError,
-      { id: string; data: EditPrinterConnectionRequest },
+      { id: string; data: EditPrinterRequest },
       TContext
     >;
   },
   queryClient?: QueryClient,
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof openFarmApiEndpointsPrintersEditPrinterConnectionEndpoint>
-  >,
+  Awaited<ReturnType<typeof openFarmApiEndpointsPrintersEditPrinterEndpoint>>,
   TError,
-  { id: string; data: EditPrinterConnectionRequest },
+  { id: string; data: EditPrinterRequest },
   TContext
 > => {
   return useMutation(
-    getOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpointMutationOptions(
-      options,
-    ),
+    getOpenFarmApiEndpointsPrintersEditPrinterEndpointMutationOptions(options),
     queryClient,
   );
 };
@@ -587,6 +560,247 @@ export const useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse200 = {
+  data: PrinterCatalogResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponseSuccess =
+  openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse401
+    | openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse =
+  | openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponseSuccess
+  | openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpointUrl =
+  () => {
+    return `/api/v1/printers/catalog`;
+  };
+
+export const openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintersGetPrinterCatalogEndpointResponse>(
+    getOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpointQueryKey =
+  () => {
+    return [`/api/v1/printers/catalog`] as const;
+  };
+
+export const getOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint>
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsPrintersGetPrinterCatalogEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPrintersGetPrinterCatalogEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersGetPrinterCatalogEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpointQueryOptions(
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export type openFarmApiEndpointsPrintersListFleetEndpointResponse200 = {
   data: ListFleetResponse;
   status: 200;

@@ -1,21 +1,10 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import {
-  CheckCircle2Icon,
-  MoreHorizontalIcon,
-  PencilIcon,
-  Trash2Icon,
-} from 'lucide-react';
+import { CheckCircle2Icon } from 'lucide-react';
 import { DataTable } from '@/components/data-table/DataTable';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import type { MatchedMaintenanceFlag } from '@/features/maintenance/lib/matchMaintenanceToFleet';
 import type { FleetPrinterResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -28,8 +17,6 @@ interface PrintersTableProps {
   maintenanceByPrinterId: Map<string, MatchedMaintenanceFlag>;
   onOpen: (id: string) => void;
   onMarkReady: (id: string) => void;
-  onEdit: (id: string) => void;
-  onRemove: (id: string, name: string) => void;
 }
 
 export function PrintersTable({
@@ -37,8 +24,6 @@ export function PrintersTable({
   maintenanceByPrinterId,
   onOpen,
   onMarkReady,
-  onEdit,
-  onRemove,
 }: PrintersTableProps) {
   const columns: ColumnDef<FleetPrinterResponse>[] = [
     {
@@ -117,49 +102,21 @@ export function PrintersTable({
       header: () => <span className="sr-only">Actions</span>,
       cell: ({ row }) => {
         const printer = row.original;
+        if (printer.status !== 'AwaitingClear') {
+          return null;
+        }
         return (
           <div className="flex justify-end">
-            {printer.status === 'AwaitingClear' ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onMarkReady(printer.id ?? '');
-                }}
-              >
-                <CheckCircle2Icon /> Clear
-              </Button>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Actions for ${printer.name}`}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <MoreHorizontalIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <DropdownMenuItem onSelect={() => onEdit(printer.id ?? '')}>
-                    <PencilIcon /> Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() =>
-                      onRemove(printer.id ?? '', printer.name ?? '')
-                    }
-                  >
-                    <Trash2Icon /> Remove
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(event) => {
+                event.stopPropagation();
+                onMarkReady(printer.id ?? '');
+              }}
+            >
+              <CheckCircle2Icon /> Clear
+            </Button>
           </div>
         );
       },

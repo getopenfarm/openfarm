@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Toaster } from '@/components/ui/sonner';
 import { PrinterDetailPage } from './PrinterDetailPage';
 
 function renderPage(printerId: string) {
@@ -15,6 +16,7 @@ function renderPage(printerId: string) {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[`/printers/${printerId}`]}>
           {children}
+          <Toaster />
         </MemoryRouter>
       </QueryClientProvider>
     );
@@ -23,6 +25,7 @@ function renderPage(printerId: string) {
   return render(
     <Routes>
       <Route path="/printers/:id" element={<PrinterDetailPage />} />
+      <Route path="/printers" element={<div>Fleet list page</div>} />
     </Routes>,
     { wrapper: Wrapper },
   );
@@ -180,5 +183,114 @@ describe('PrinterDetailPage', () => {
     renderPage('22222222-2222-2222-2222-222222222222');
 
     expect(await screen.findByText('Printer not found.')).toBeInTheDocument();
+  });
+
+  it('shows a working Remove action that navigates back to the fleet list (SC-003/SC-004)', async () => {
+    const printerId = '44444444-4444-4444-4444-444444444444';
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/hubs/farm')) {
+        return Promise.reject(new Error('SignalR not available in tests'));
+      }
+      if (url.includes('/activity-log')) {
+        return Promise.resolve(
+          jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
+        );
+      }
+      if (init?.method === 'DELETE') {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.resolve(
+        jsonResponse({
+          id: printerId,
+          name: 'Removable Printer',
+          brand: 'Bambu',
+          modelCode: 'P1S',
+          ipAddress: '10.0.0.62',
+          serialNumber: 'SN-REMOVE-1',
+          status: 'Idle',
+          isReachable: true,
+          telemetry: {
+            nozzleTempC: 24,
+            bedTempC: 24,
+            printProgressPercent: null,
+            currentStageLabel: null,
+          },
+          amsUnits: [],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage(printerId);
+
+    expect(await screen.findByText('Removable Printer')).toBeInTheDocument();
+    const removeButton = screen.getByRole('button', { name: /remove/i });
+    removeButton.click();
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(await screen.findByText('Fleet list page')).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        (call) =>
+          call[0].toString().includes(`/api/v1/printers/${printerId}`) &&
+          (call[1] as RequestInit | undefined)?.method === 'DELETE',
+      ),
+    ).toBe(true);
+
+    confirmSpy.mockRestore();
+  });
+
+  it('does not remove the printer when the confirmation is declined', async () => {
+    const printerId = '55555555-5555-5555-5555-555555555555';
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/hubs/farm')) {
+        return Promise.reject(new Error('SignalR not available in tests'));
+      }
+      if (url.includes('/activity-log')) {
+        return Promise.resolve(
+          jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
+        );
+      }
+      if (init?.method === 'DELETE') {
+        throw new Error(
+          'DELETE should not be called when confirmation is declined',
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({
+          id: printerId,
+          name: 'Kept Printer',
+          brand: 'Bambu',
+          modelCode: 'P1S',
+          ipAddress: '10.0.0.63',
+          serialNumber: 'SN-KEEP-1',
+          status: 'Idle',
+          isReachable: true,
+          telemetry: {
+            nozzleTempC: 24,
+            bedTempC: 24,
+            printProgressPercent: null,
+            currentStageLabel: null,
+          },
+          amsUnits: [],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage(printerId);
+
+    expect(await screen.findByText('Kept Printer')).toBeInTheDocument();
+    const removeButton = screen.getByRole('button', { name: /remove/i });
+    removeButton.click();
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.getByText('Kept Printer')).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
   });
 });

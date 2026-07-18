@@ -41,4 +41,20 @@ public static class PrinterModelCatalog
         model = null;
         return false;
     }
+
+    /// <summary>
+    /// Every (Brand, ModelCode) entry currently registered, grouped by brand — the read path a
+    /// backend-exposed catalog endpoint (US3) projects into a response, guaranteed to never drift
+    /// from what <see cref="Resolve"/>/<see cref="TryResolve"/> would accept since both read the
+    /// same static dictionary.
+    /// </summary>
+    public static IReadOnlyList<PrinterCatalogBrandGroup> All =>
+        Entries.Keys
+            .GroupBy(key => key.Brand)
+            .Select(group => new PrinterCatalogBrandGroup(
+                group.Key,
+                group.Select(key => key.ModelCode).ToList()))
+            .ToList();
 }
+
+public sealed record PrinterCatalogBrandGroup(PrinterBrand Brand, IReadOnlyList<string> Models);

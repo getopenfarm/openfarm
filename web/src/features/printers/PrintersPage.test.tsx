@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
+import { PREFERENCES_STORAGE_KEY } from '@/lib/preferences/defaultPreferences';
 import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 import { PrintersPage } from './PrintersPage';
 
@@ -68,6 +69,12 @@ describe('PrintersPage', () => {
     const table = within(screen.getByRole('table'));
     expect(table.getByText('Idle')).toBeInTheDocument();
     expect(table.queryByText('Offline')).not.toBeInTheDocument();
+    // User Story 2 (SC-003): Edit/Remove are relocated to the detail page only.
+    expect(table.queryByText('Edit')).not.toBeInTheDocument();
+    expect(table.queryByText('Remove')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /actions for/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows an empty state when no printers are registered', async () => {
@@ -140,5 +147,46 @@ describe('PrintersPage', () => {
     const table = within(screen.getByRole('table'));
     expect(table.getByText('Offline')).toBeInTheDocument();
     expect(table.queryByText('Idle')).not.toBeInTheDocument();
+  });
+
+  it('renders no Edit/Remove control in grid view either (SC-003)', async () => {
+    window.localStorage.setItem(
+      PREFERENCES_STORAGE_KEY,
+      JSON.stringify({ listViews: { printers: 'grid' } }),
+    );
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/hubs/farm')) {
+        return Promise.reject(new Error('SignalR not available in tests'));
+      }
+      return Promise.resolve(
+        jsonResponse({
+          printers: [
+            {
+              id: '11111111-1111-1111-1111-111111111111',
+              name: 'Grid Test Printer',
+              brand: 'Bambu',
+              modelCode: 'P1S',
+              status: 'Idle',
+              isReachable: true,
+              printProgressPercent: null,
+            },
+          ],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage();
+
+    expect(await screen.findByText('Grid Test Printer')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /^edit /i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /^remove /i }),
+    ).not.toBeInTheDocument();
+
+    window.localStorage.removeItem(PREFERENCES_STORAGE_KEY);
   });
 });

@@ -204,4 +204,50 @@ public class PrinterTests
         printer.PrintProgressPercent.Should().Be(42);
         printer.CurrentStageLabel.Should().Be("Printing");
     }
+
+    [Fact]
+    public void Rename_WithValidName_SetsName()
+    {
+        var printer = CreateValidPrinter();
+
+        printer.Rename("Printer 1 (renamed)");
+
+        printer.Name.Should().Be("Printer 1 (renamed)");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Rename_WithEmptyName_ThrowsAndLeavesNameUnchanged(string? name)
+    {
+        var printer = CreateValidPrinter();
+
+        var act = () => printer.Rename(name!);
+
+        act.Should().Throw<ArgumentException>();
+        printer.Name.Should().Be("Printer 1");
+    }
+
+    [Theory]
+    [InlineData(PrinterStatus.Idle)]
+    [InlineData(PrinterStatus.Printing)]
+    [InlineData(PrinterStatus.AwaitingClear)]
+    public void Rename_IsNeverBlockedByStatus(PrinterStatus status)
+    {
+        var printer = CreateValidPrinter();
+        if (status == PrinterStatus.Printing)
+        {
+            printer.ObserveStatus("RUNNING");
+        }
+        else if (status == PrinterStatus.AwaitingClear)
+        {
+            printer.ObserveStatus("FINISH");
+        }
+
+        printer.Rename("Renamed While " + status);
+
+        printer.Name.Should().Be("Renamed While " + status);
+        printer.Status.Should().Be(status);
+    }
 }

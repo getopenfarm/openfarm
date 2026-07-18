@@ -1,4 +1,4 @@
-import { CheckCircle2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
+import { CheckCircle2Icon } from 'lucide-react';
 import { Link } from 'react-router';
 import { PrinterTile } from '@/components/printer-tile/PrinterTile';
 import type { PrinterStatus } from '@/components/printer-tile/status';
@@ -10,16 +10,9 @@ const PLACEHOLDER_FILAMENT_COLOR = '#8892a6';
 interface PrintersGridProps {
   printers: FleetPrinterResponse[];
   onMarkReady: (id: string) => void;
-  onEdit: (id: string) => void;
-  onRemove: (id: string, name: string) => void;
 }
 
-export function PrintersGrid({
-  printers,
-  onMarkReady,
-  onEdit,
-  onRemove,
-}: PrintersGridProps) {
+export function PrintersGrid({ printers, onMarkReady }: PrintersGridProps) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {printers.map((printer) => (
@@ -36,8 +29,8 @@ export function PrintersGrid({
               etaMinutes={null}
             />
           </Link>
-          <div className="absolute top-2 right-11 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            {printer.status === 'AwaitingClear' && (
+          {printer.status === 'AwaitingClear' && (
+            <div className="absolute top-2 right-11 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -46,24 +39,8 @@ export function PrintersGrid({
               >
                 <CheckCircle2Icon className="size-4" />
               </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Edit ${printer.name}`}
-              onClick={() => onEdit(printer.id ?? '')}
-            >
-              <PencilIcon className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Remove ${printer.name}`}
-              onClick={() => onRemove(printer.id ?? '', printer.name ?? '')}
-            >
-              <Trash2Icon className="size-4" />
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
       ))}
     </div>

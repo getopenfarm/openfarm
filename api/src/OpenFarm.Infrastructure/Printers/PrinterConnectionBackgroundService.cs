@@ -159,7 +159,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     /// <summary>
     /// Owns <paramref name="ownedCts"/> for its full lifetime. Editing a printer's connection
-    /// (<see cref="Application.Printers.EditPrinterConnectionCommandHandler"/>) calls
+    /// (<see cref="Application.Printers.EditPrinterCommandHandler"/>) calls
     /// <see cref="StopConnection"/> immediately followed by <see cref="StartConnection"/> with no
     /// synchronization between them, so by the time this loop's <c>finally</c> runs, a *newer* CTS
     /// may already occupy <paramref name="printerId"/>'s slot in <see cref="_activeConnections"/>.

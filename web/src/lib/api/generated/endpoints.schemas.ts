@@ -208,9 +208,27 @@ export interface PrinterSummaryResponse {
   isReachable?: boolean;
 }
 
-export interface EditPrinterConnectionRequest {
-  ipAddress?: string;
-  accessCode?: string;
+export interface EditPrinterRequest {
+  name?: string;
+  /** @nullable */
+  ipAddress?: string | null;
+  /** @nullable */
+  accessCode?: string | null;
+  /** @nullable */
+  brand?: string | null;
+  /** @nullable */
+  modelCode?: string | null;
+  /** @nullable */
+  serialNumber?: string | null;
+}
+
+export interface PrinterCatalogBrandResponse {
+  brand?: string;
+  models?: string[];
+}
+
+export interface PrinterCatalogResponse {
+  brands?: PrinterCatalogBrandResponse[];
 }
 
 export interface PrinterDetailTelemetryResponse {

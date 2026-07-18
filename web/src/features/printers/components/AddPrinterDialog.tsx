@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -23,25 +23,21 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import type { PrinterCatalogResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
+  useOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpoint,
   useOpenFarmApiEndpointsPrintersRegisterPrinterEndpoint,
   useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint,
 } from '@/lib/api/generated/printers/printers';
 
-const PRINTER_BRANDS = ['Bambu', 'System'] as const;
-
-const MODELS_BY_BRAND: Record<
-  (typeof PRINTER_BRANDS)[number],
-  readonly string[]
-> = {
-  Bambu: ['X1', 'X1C', 'X1E', 'P1P', 'P1S', 'A1', 'A1MINI'],
-  System: ['Simulation'],
-};
-
+// FR-007/FR-008 (US3): brand/model options come from the backend catalog, not a hardcoded list —
+// adding a brand/model to PrinterModelCatalog now requires zero frontend code change. A compile-time
+// z.enum can no longer describe a server-driven list, so brand/modelCode are validated via a
+// runtime .refine() closed over the fetched catalog (research.md §5) instead.
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  brand: z.enum(PRINTER_BRANDS),
+  brand: z.string().min(1, 'Brand is required'),
   modelCode: z.string().min(1, 'Model is required'),
   ipAddress: z.string().min(1, 'IP address is required'),
   serialNumber: z.string().min(1, 'Serial number is required'),
@@ -55,19 +51,58 @@ export function AddPrinterDialog() {
   const [verified, setVerified] = useState(false);
   const queryClient = useQueryClient();
 
+  const catalogQuery =
+    useOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpoint();
+  const catalog = catalogQuery.data?.data as PrinterCatalogResponse | undefined;
+  const catalogRef = useRef<PrinterCatalogResponse | undefined>(catalog);
+  useEffect(() => {
+    catalogRef.current = catalog;
+  }, [catalog]);
+
+  const validatedSchema = schema
+    .refine(
+      (values) =>
+        (catalogRef.current?.brands ?? []).some(
+          (b) => b.brand === values.brand,
+        ),
+      { message: 'Unknown brand', path: ['brand'] },
+    )
+    .refine(
+      (values) =>
+        (catalogRef.current?.brands ?? [])
+          .find((b) => b.brand === values.brand)
+          ?.models?.includes(values.modelCode) ?? false,
+      { message: 'Unknown model for this brand', path: ['modelCode'] },
+    );
+
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(validatedSchema),
     defaultValues: {
       name: '',
-      brand: 'Bambu',
-      modelCode: 'P1S',
+      brand: '',
+      modelCode: '',
       ipAddress: '',
       serialNumber: '',
       accessCode: '',
     },
   });
 
+  // Seed brand/model with the catalog's first entries once it arrives, if the operator hasn't
+  // already picked something (e.g. the dialog was opened before the catalog finished loading).
+  useEffect(() => {
+    if (!catalog?.brands?.length) {
+      return;
+    }
+    if (!form.getValues('brand')) {
+      const firstBrand = catalog.brands[0];
+      form.setValue('brand', firstBrand.brand ?? '');
+      form.setValue('modelCode', firstBrand.models?.[0] ?? '');
+    }
+  }, [catalog, form]);
+
   const selectedBrand = form.watch('brand');
+  const modelsForBrand =
+    catalog?.brands?.find((b) => b.brand === selectedBrand)?.models ?? [];
 
   const verifyMutation =
     useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint({
@@ -112,9 +147,10 @@ export function AddPrinterDialog() {
 
   // Brand/Model determine which connector a printer routes to, so switching either invalidates
   // any prior verify result exactly like a connection-field edit does.
-  function handleBrandChange(newBrand: (typeof PRINTER_BRANDS)[number]) {
+  function handleBrandChange(newBrand: string) {
     form.setValue('brand', newBrand);
-    form.setValue('modelCode', MODELS_BY_BRAND[newBrand][0]);
+    const models = catalog?.brands?.find((b) => b.brand === newBrand)?.models;
+    form.setValue('modelCode', models?.[0] ?? '');
     handleConnectionFieldBlur();
   }
 
@@ -126,6 +162,8 @@ export function AddPrinterDialog() {
   function onSubmit(values: FormValues) {
     registerMutation.mutate({ data: values });
   }
+
+  const catalogUnavailable = catalogQuery.isError;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -167,16 +205,13 @@ export function AddPrinterDialog() {
                   <FormControl>
                     <select
                       className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                      disabled={catalogQuery.isLoading || catalogUnavailable}
                       {...field}
-                      onChange={(e) =>
-                        handleBrandChange(
-                          e.target.value as (typeof PRINTER_BRANDS)[number],
-                        )
-                      }
+                      onChange={(e) => handleBrandChange(e.target.value)}
                     >
-                      {PRINTER_BRANDS.map((brand) => (
-                        <option key={brand} value={brand}>
-                          {brand}
+                      {(catalog?.brands ?? []).map((b) => (
+                        <option key={b.brand} value={b.brand}>
+                          {b.brand}
                         </option>
                       ))}
                     </select>
@@ -194,10 +229,11 @@ export function AddPrinterDialog() {
                   <FormControl>
                     <select
                       className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                      disabled={catalogQuery.isLoading || catalogUnavailable}
                       {...field}
                       onChange={(e) => handleModelChange(e.target.value)}
                     >
-                      {MODELS_BY_BRAND[selectedBrand].map((model) => (
+                      {modelsForBrand.map((model) => (
                         <option key={model} value={model}>
                           {model}
                         </option>
@@ -266,6 +302,12 @@ export function AddPrinterDialog() {
                 </FormItem>
               )}
             />
+            {catalogUnavailable && (
+              <p className="text-sm text-destructive">
+                Couldn't load the printer catalog. Try again before adding a
+                printer.
+              </p>
+            )}
             {verifyMutation.isPending && (
               <p className="text-sm text-muted-foreground">
                 Verifying connection…
@@ -285,7 +327,9 @@ export function AddPrinterDialog() {
             <DialogFooter>
               <Button
                 type="submit"
-                disabled={!verified || registerMutation.isPending}
+                disabled={
+                  !verified || registerMutation.isPending || catalogUnavailable
+                }
               >
                 {registerMutation.isPending ? 'Adding…' : 'Add printer'}
               </Button>

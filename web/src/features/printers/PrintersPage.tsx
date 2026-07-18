@@ -14,11 +14,9 @@ import {
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
   useOpenFarmApiEndpointsPrintersListFleetEndpoint,
   useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint,
-  useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint,
 } from '@/lib/api/generated/printers/printers';
 import { usePreferences } from '@/lib/preferences/usePreferences';
 import { AddPrinterDialog } from './components/AddPrinterDialog';
-import { EditPrinterDialog } from './components/EditPrinterDialog';
 import {
   PrinterFilterBar,
   type PrinterStatusFilter,
@@ -33,33 +31,8 @@ export function PrintersPage() {
   const { getListView } = usePreferences();
   const view = getListView('printers');
 
-  const [editingPrinterId, setEditingPrinterId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<PrinterStatusFilter>('all');
-
-  const removeMutation = useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint({
-    mutation: {
-      onSuccess: () => {
-        toast.success('Printer removed.');
-        queryClient.invalidateQueries({
-          queryKey: getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
-        });
-      },
-      onError: () => {
-        toast.error('Could not remove printer.');
-      },
-    },
-  });
-
-  function handleRemove(id: string, name: string) {
-    const confirmed = window.confirm(
-      `Remove ${name}? This can't be undone. Removal isn't blocked by its current print status.`,
-    );
-    if (!confirmed) {
-      return;
-    }
-    removeMutation.mutate({ id });
-  }
 
   const markReadyMutation =
     useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint({
@@ -79,7 +52,6 @@ export function PrintersPage() {
 
   const printers =
     (fleetQuery.data?.data as ListFleetResponse | undefined)?.printers ?? [];
-  const editingPrinter = printers.find((p) => p.id === editingPrinterId);
 
   const maintenanceByPrinterId = useMemo(() => {
     const flags = matchMaintenanceToFleet(printers, MAINTENANCE_FLAG_SEEDS);
@@ -170,33 +142,14 @@ export function PrintersPage() {
               maintenanceByPrinterId={maintenanceByPrinterId}
               onOpen={(id) => navigate(`/printers/${id}`)}
               onMarkReady={(id) => markReadyMutation.mutate({ id })}
-              onEdit={setEditingPrinterId}
-              onRemove={handleRemove}
             />
           ) : (
             <PrintersGrid
               printers={filteredPrinters}
               onMarkReady={(id) => markReadyMutation.mutate({ id })}
-              onEdit={setEditingPrinterId}
-              onRemove={handleRemove}
             />
           )}
         </div>
-      )}
-
-      {editingPrinter && (
-        <EditPrinterDialog
-          printerId={editingPrinter.id ?? ''}
-          printerName={editingPrinter.name ?? ''}
-          serialNumber={editingPrinter.serialNumber ?? ''}
-          currentIpAddress={editingPrinter.ipAddress ?? ''}
-          open={editingPrinterId !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setEditingPrinterId(null);
-            }
-          }}
-        />
       )}
     </div>
   );

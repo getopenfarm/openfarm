@@ -53,4 +53,30 @@ public class PrinterModelCatalogTests
         resolved.Should().BeFalse();
         model.Should().BeNull();
     }
+
+    [Fact]
+    public void All_ReturnsEveryEntryGroupedByBrand()
+    {
+        var all = PrinterModelCatalog.All;
+
+        all.Should().ContainSingle(g => g.Brand == PrinterBrand.Bambu)
+            .Which.Models.Should().BeEquivalentTo(["X1", "X1C", "X1E", "P1P", "P1S", "A1", "A1MINI"]);
+        all.Should().ContainSingle(g => g.Brand == PrinterBrand.System)
+            .Which.Models.Should().BeEquivalentTo(["Simulation"]);
+    }
+
+    [Fact]
+    public void All_EveryEntryResolvesViaResolve()
+    {
+        var all = PrinterModelCatalog.All;
+
+        foreach (var group in all)
+        {
+            foreach (var modelCode in group.Models)
+            {
+                var act = () => PrinterModelCatalog.Resolve(group.Brand.ToString(), modelCode);
+                act.Should().NotThrow();
+            }
+        }
+    }
 }

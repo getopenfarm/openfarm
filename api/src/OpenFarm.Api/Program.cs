@@ -40,7 +40,7 @@ using Serilog;
 using LoginCommandHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Auth.LoginCommand, OpenFarm.Application.Auth.LoginResult?>;
 using CreateConnectionSecretHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.ConnectionSecrets.CreateConnectionSecretCommand, OpenFarm.Domain.ConnectionSecrets.ConnectionSecret>;
 using RegisterPrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RegisterPrinterCommand, OpenFarm.Domain.Printers.Printer>;
-using EditPrinterConnectionHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.EditPrinterConnectionCommand, OpenFarm.Domain.Printers.Printer>;
+using EditPrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.EditPrinterCommand, OpenFarm.Domain.Printers.Printer>;
 using RemovePrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RemovePrinterCommand, bool>;
 using MarkPrinterReadyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.MarkPrinterReadyCommand, OpenFarm.Domain.Printers.Printer>;
 using PreviewProfileImportHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.PreviewProfileImportCommand, OpenFarm.Application.Profiles.PreviewProfileImportResult>;
@@ -184,11 +184,12 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionB
 builder.Services.AddScoped<IPrinterConnectionManager>(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
 
 builder.Services.AddScoped<RegisterPrinterHandlerType, RegisterPrinterCommandHandler>();
-builder.Services.AddScoped<EditPrinterConnectionHandlerType, EditPrinterConnectionCommandHandler>();
+builder.Services.AddScoped<EditPrinterHandlerType, EditPrinterCommandHandler>();
 builder.Services.AddScoped<RemovePrinterHandlerType, RemovePrinterCommandHandler>();
 builder.Services.AddScoped<MarkPrinterReadyHandlerType, MarkPrinterReadyCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFleetQuery, IReadOnlyList<FleetPrinterSummary>>, GetFleetQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>, GetPrinterDetailQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPrinterCatalogQuery, PrinterCatalogResult>, GetPrinterCatalogQueryHandler>();
 
 builder.Services.AddScoped<IMachineProfileRepository, MachineProfileRepository>();
 builder.Services.AddScoped<IFilamentProfileRepository, FilamentProfileRepository>();

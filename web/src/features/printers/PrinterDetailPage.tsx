@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import type { PrinterStatus } from '@/components/printer-tile/status';
@@ -9,8 +9,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { PrinterDetailResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
+  getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
   useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint,
   useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint,
+  useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint,
 } from '@/lib/api/generated/printers/printers';
 import { AmsSlotGrid } from './components/AmsSlotGrid';
 import { CameraView } from './components/CameraView';
@@ -22,6 +24,7 @@ import { printerStatusToBadge } from './lib/printerStatusBadge';
 
 export function PrinterDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const detailQuery = useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint(
@@ -45,6 +48,31 @@ export function PrinterDetailPage() {
         },
       },
     });
+
+  const removeMutation = useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Printer removed.');
+        queryClient.invalidateQueries({
+          queryKey: getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
+        });
+        navigate('/printers');
+      },
+      onError: () => {
+        toast.error('Could not remove printer.');
+      },
+    },
+  });
+
+  function handleRemove(printerId: string, printerName: string) {
+    const confirmed = window.confirm(
+      `Remove ${printerName}? This can't be undone. Removal isn't blocked by its current print status.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    removeMutation.mutate({ id: printerId });
+  }
 
   const printer = detailQuery.data?.data as PrinterDetailResponse | undefined;
 
@@ -80,10 +108,14 @@ export function PrinterDetailPage() {
               status={(printer.status ?? 'Idle') as PrinterStatus}
               isReachable={printer.isReachable ?? false}
               isMarkReadyPending={markReadyMutation.isPending}
+              isRemovePending={removeMutation.isPending}
               onMarkReady={() =>
                 markReadyMutation.mutate({ id: printer.id ?? '' })
               }
               onOpenSettings={() => setSettingsOpen(true)}
+              onRemove={() =>
+                handleRemove(printer.id ?? '', printer.name ?? '')
+              }
             />
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
@@ -102,6 +134,8 @@ export function PrinterDetailPage() {
           <EditPrinterDialog
             printerId={printer.id ?? ''}
             printerName={printer.name ?? ''}
+            brand={printer.brand ?? ''}
+            modelCode={printer.modelCode ?? ''}
             serialNumber={printer.serialNumber ?? ''}
             currentIpAddress={printer.ipAddress ?? ''}
             open={settingsOpen}

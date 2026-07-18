@@ -144,6 +144,21 @@ public sealed class Printer
         AmsUnits = amsUnits.Count > 0 ? amsUnits : AmsUnits;
     }
 
+    /// <summary>
+    /// Renames the printer. Orthogonal to <see cref="Status"/> — unlike <see cref="TransitionTo"/>,
+    /// no state-machine gating applies; a printer may be renamed regardless of its current status
+    /// (FR-001).
+    /// </summary>
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Printer name is required.", nameof(name));
+        }
+
+        Name = name;
+    }
+
     public void EditConnection(string ipAddress)
     {
         if (string.IsNullOrWhiteSpace(ipAddress))

@@ -24,13 +24,14 @@ import {
 import { Input } from '@/components/ui/input';
 import {
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
-  useOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpoint,
+  useOpenFarmApiEndpointsPrintersEditPrinterEndpoint,
   useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint,
 } from '@/lib/api/generated/printers/printers';
 
 const schema = z.object({
-  ipAddress: z.string().min(1, 'IP address is required'),
-  accessCode: z.string().min(1, 'Access code is required'),
+  name: z.string().min(1, 'Name is required'),
+  ipAddress: z.string(),
+  accessCode: z.string(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -38,6 +39,8 @@ type FormValues = z.infer<typeof schema>;
 export interface EditPrinterDialogProps {
   printerId: string;
   printerName: string;
+  brand: string;
+  modelCode: string;
   serialNumber: string;
   currentIpAddress: string;
   open: boolean;
@@ -47,6 +50,8 @@ export interface EditPrinterDialogProps {
 export function EditPrinterDialog({
   printerId,
   printerName,
+  brand,
+  modelCode,
   serialNumber,
   currentIpAddress,
   open,
@@ -57,16 +62,31 @@ export function EditPrinterDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { ipAddress: currentIpAddress, accessCode: '' },
+    defaultValues: {
+      name: printerName,
+      ipAddress: currentIpAddress,
+      accessCode: '',
+    },
   });
 
   // Re-seed the form (and reset verification) whenever a different printer's dialog opens.
   useEffect(() => {
     if (open) {
-      form.reset({ ipAddress: currentIpAddress, accessCode: '' });
+      form.reset({
+        name: printerName,
+        ipAddress: currentIpAddress,
+        accessCode: '',
+      });
       setVerified(false);
     }
-  }, [open, currentIpAddress, form]);
+  }, [open, printerName, currentIpAddress, form]);
+
+  const ipAddress = form.watch('ipAddress');
+  const accessCode = form.watch('accessCode');
+  // research.md §7: verification only gates Save when the operator has actually touched
+  // connection fields — a name-only change never triggers the verify-before-save flow (FR-003).
+  const connectionChanged =
+    ipAddress !== currentIpAddress || accessCode.length > 0;
 
   const verifyMutation =
     useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint({
@@ -76,45 +96,69 @@ export function EditPrinterDialog({
       },
     });
 
-  const editMutation =
-    useOpenFarmApiEndpointsPrintersEditPrinterConnectionEndpoint({
-      mutation: {
-        onSuccess: () => {
-          toast.success('Printer connection updated.');
-          setVerified(false);
-          onOpenChange(false);
-          queryClient.invalidateQueries({
-            queryKey:
-              getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
-          });
-        },
-        onError: () => {
-          toast.error('Could not update printer connection.');
-        },
+  const editMutation = useOpenFarmApiEndpointsPrintersEditPrinterEndpoint({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Printer updated.');
+        setVerified(false);
+        onOpenChange(false);
+        queryClient.invalidateQueries({
+          queryKey: getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
+        });
       },
-    });
+      onError: () => {
+        toast.error('Could not update printer.');
+      },
+    },
+  });
 
-  // FR-002: same verify-before-save gate as registration.
+  // FR-002: same verify-before-save gate as registration, but only when connection fields changed.
   function handleConnectionFieldBlur() {
-    const { ipAddress, accessCode } = form.getValues();
+    const values = form.getValues();
     setVerified(false);
-    if (!ipAddress || !accessCode) {
+    if (
+      values.ipAddress === currentIpAddress &&
+      values.accessCode.length === 0
+    ) {
       return;
     }
-    verifyMutation.mutate({ data: { ipAddress, serialNumber, accessCode } });
+    if (!values.ipAddress || !values.accessCode) {
+      return;
+    }
+    verifyMutation.mutate({
+      data: {
+        ipAddress: values.ipAddress,
+        serialNumber,
+        accessCode: values.accessCode,
+      },
+    });
   }
 
   function onSubmit(values: FormValues) {
-    editMutation.mutate({ id: printerId, data: values });
+    editMutation.mutate({
+      id: printerId,
+      data: connectionChanged
+        ? {
+            name: values.name,
+            ipAddress: values.ipAddress,
+            accessCode: values.accessCode,
+          }
+        : { name: values.name },
+    });
   }
+
+  const saveDisabled = connectionChanged
+    ? !verified || editMutation.isPending
+    : editMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit {printerName}'s connection</DialogTitle>
+          <DialogTitle>Edit {printerName}</DialogTitle>
           <DialogDescription>
-            Save stays disabled until the new details are verified reachable.
+            {brand} {modelCode} — connection changes stay gated on verification;
+            renaming alone saves immediately.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -122,6 +166,19 @@ export function EditPrinterDialog({
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="ipAddress"
@@ -150,6 +207,7 @@ export function EditPrinterDialog({
                   <FormControl>
                     <Input
                       type="password"
+                      placeholder="Leave blank to keep the current connection"
                       {...field}
                       onBlur={() => {
                         field.onBlur();
@@ -161,27 +219,26 @@ export function EditPrinterDialog({
                 </FormItem>
               )}
             />
-            {verifyMutation.isPending && (
+            {connectionChanged && verifyMutation.isPending && (
               <p className="text-sm text-muted-foreground">
                 Verifying connection…
               </p>
             )}
-            {verifyMutation.isError && !verifyMutation.isPending && (
-              <p className="text-sm text-destructive">
-                Could not verify this printer's connection. Check the IP address
-                and LAN access code.
-              </p>
-            )}
-            {verified && !verifyMutation.isPending && (
+            {connectionChanged &&
+              verifyMutation.isError &&
+              !verifyMutation.isPending && (
+                <p className="text-sm text-destructive">
+                  Could not verify this printer's connection. Check the IP
+                  address and LAN access code.
+                </p>
+              )}
+            {connectionChanged && verified && !verifyMutation.isPending && (
               <p className="text-sm text-status-complete">
                 Connection verified.
               </p>
             )}
             <DialogFooter>
-              <Button
-                type="submit"
-                disabled={!verified || editMutation.isPending}
-              >
+              <Button type="submit" disabled={saveDisabled}>
                 {editMutation.isPending ? 'Saving…' : 'Save'}
               </Button>
             </DialogFooter>
