@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
 import { LoadSpoolDialog } from './LoadSpoolDialog';
+import { RecordUsageDialog } from './RecordUsageDialog';
 import { UnloadSpoolDialog } from './UnloadSpoolDialog';
 
 const STATE_BADGE: Record<
@@ -32,7 +33,7 @@ interface SpoolsTableProps {
 
 export function SpoolsTable({ spools }: SpoolsTableProps) {
   const [dialog, setDialog] = useState<{
-    mode: 'load' | 'unload';
+    mode: 'load' | 'unload' | 'usage';
     spoolId: string;
   } | null>(null);
 
@@ -142,7 +143,17 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
         }
         if (spool.state === 'Using') {
           return (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setDialog({ mode: 'usage', spoolId: spool.id ?? '' });
+                }}
+              >
+                Record usage
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -179,6 +190,15 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
       ) : null}
       {dialog?.mode === 'unload' ? (
         <UnloadSpoolDialog
+          spoolId={dialog.spoolId}
+          open={dialog !== null}
+          onOpenChange={(open) => {
+            if (!open) setDialog(null);
+          }}
+        />
+      ) : null}
+      {dialog?.mode === 'usage' ? (
+        <RecordUsageDialog
           spoolId={dialog.spoolId}
           open={dialog !== null}
           onOpenChange={(open) => {
