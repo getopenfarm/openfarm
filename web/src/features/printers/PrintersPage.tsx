@@ -3,8 +3,9 @@ import { PrinterIcon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PageHeader } from '@/components/page-header/PageHeader';
+import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
 import { ViewToggle } from '@/components/view-toggle/ViewToggle';
 import { MAINTENANCE_FLAG_SEEDS } from '@/features/maintenance/data/mockMaintenance';
 import { matchMaintenanceToFleet } from '@/features/maintenance/lib/matchMaintenanceToFleet';
@@ -126,40 +127,25 @@ export function PrintersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold">Printers</h2>
-          <p className="text-sm text-muted-foreground">
-            Fleet status updates live — no refresh needed.
-          </p>
-        </div>
-        <AddPrinterDialog />
-      </div>
+      <PageHeader
+        title="Printers"
+        description="Fleet status updates live — no refresh needed."
+        action={<AddPrinterDialog />}
+      />
 
       {fleetQuery.isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder cards
-            <Skeleton key={`skeleton-${index}`} className="h-40 w-full" />
-          ))}
-        </div>
+        <SkeletonGrid />
       ) : fleetQuery.isError ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-12 text-center">
-          <TriangleAlertIcon className="size-8 text-destructive" />
-          <p className="text-sm text-muted-foreground">
-            Couldn't load printers.
-          </p>
-          <Button variant="outline" onClick={() => fleetQuery.refetch()}>
-            Retry
-          </Button>
-        </div>
+        <ErrorState
+          icon={<TriangleAlertIcon className="size-8 text-destructive" />}
+          description="Couldn't load printers."
+          onRetry={() => fleetQuery.refetch()}
+        />
       ) : printers.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-12 text-center">
-          <PrinterIcon className="size-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            No printers registered yet. Add one to see its live status here.
-          </p>
-        </div>
+        <EmptyState
+          icon={<PrinterIcon className="size-8 text-muted-foreground" />}
+          description="No printers registered yet. Add one to see its live status here."
+        />
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -174,12 +160,10 @@ export function PrintersPage() {
           </div>
 
           {filteredPrinters.length === 0 ? (
-            <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed p-12 text-center">
-              <p className="text-sm font-medium">No printers match</p>
-              <p className="text-sm text-muted-foreground">
-                Try a different search or status filter.
-              </p>
-            </div>
+            <EmptyState
+              title="No printers match"
+              description="Try a different search or status filter."
+            />
           ) : view === 'table' ? (
             <PrintersTable
               printers={filteredPrinters}

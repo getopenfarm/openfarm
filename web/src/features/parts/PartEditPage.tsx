@@ -3,6 +3,7 @@ import { type KeyboardEvent, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { CheckerboardThumbnail } from '@/components/checkerboard-thumbnail/CheckerboardThumbnail';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PrintQueueDialog } from '@/components/print-queue-dialog/PrintQueueDialog';
 import { Button } from '@/components/ui/button';
@@ -76,15 +77,15 @@ export function PartEditPage() {
 
   if (!sourcePart) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-12 text-center">
-        <p className="text-sm font-medium">Part not found</p>
-        <p className="text-sm text-muted-foreground">
-          It may have been removed, or the link is out of date.
-        </p>
-        <Button variant="outline" onClick={() => navigate('/parts')}>
-          Back to library
-        </Button>
-      </div>
+      <EmptyState
+        title="Part not found"
+        description="It may have been removed, or the link is out of date."
+        action={
+          <Button variant="outline" onClick={() => navigate('/parts')}>
+            Back to library
+          </Button>
+        }
+      />
     );
   }
 

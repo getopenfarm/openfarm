@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { MAINTENANCE_FLAG_SEEDS } from '@/features/maintenance/data/mockMaintenance';
 import { matchMaintenanceToFleet } from '@/features/maintenance/lib/matchMaintenanceToFleet';
 import { deriveFleetStatusCounts } from '@/features/printers/lib/fleetStatus';
@@ -23,12 +24,10 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="font-heading text-2xl font-semibold">Dashboard</h2>
-        <p className="text-sm text-muted-foreground">
-          Live overview of {counts.total} printers across your fleet.
-        </p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description={`Live overview of ${counts.total} printers across your fleet.`}
+      />
 
       <KpiRow counts={counts} maintenanceFlags={maintenanceFlags} />
 

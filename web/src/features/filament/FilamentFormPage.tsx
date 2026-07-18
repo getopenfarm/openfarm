@@ -1,8 +1,9 @@
-import { ArrowLeftIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
+import { BackLink } from '@/components/back-link/BackLink';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -108,12 +109,7 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
   if (notFound) {
     return (
       <div className="flex flex-col gap-6">
-        <Link
-          to="/filament"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeftIcon className="size-4" /> Back to filament
-        </Link>
+        <BackLink to="/filament">Back to filament</BackLink>
         <p className="text-sm text-muted-foreground">Filament not found.</p>
       </div>
     );
@@ -121,23 +117,16 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        to="/filament"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeftIcon className="size-4" /> Back to filament
-      </Link>
+      <BackLink to="/filament">Back to filament</BackLink>
 
-      <div>
-        <h2 className="font-heading text-2xl font-semibold">
-          {mode === 'add' ? 'Add filament' : 'Edit filament'}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {mode === 'add'
+      <PageHeader
+        title={mode === 'add' ? 'Add filament' : 'Edit filament'}
+        description={
+          mode === 'add'
             ? 'Register a new material in the catalog with its colour variants.'
-            : `Editing ${filament.brand} · ${filament.material}`}
-        </p>
-      </div>
+            : `Editing ${filament.brand} · ${filament.material}`
+        }
+      />
 
       <Card>
         <CardHeader>

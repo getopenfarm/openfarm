@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { FilamentCatalogTable } from './components/FilamentCatalogTable';
 import { useFilaments } from './data/mockFilamentStore';
@@ -19,16 +20,20 @@ export function FilamentPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold">Filament</h2>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        title="Filament"
+        description={
+          <>
             Catalog · {filaments.length} materials · {variantCount} colour
             variants · {brandCount} brands
-          </p>
-        </div>
-        <Button onClick={() => navigate('/filament/new')}>Add filament</Button>
-      </div>
+          </>
+        }
+        action={
+          <Button onClick={() => navigate('/filament/new')}>
+            Add filament
+          </Button>
+        }
+      />
       <FilamentCatalogTable filaments={filaments} />
     </div>
   );

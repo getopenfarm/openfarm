@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { BADGE_KIND_META } from '@/components/status-badge/kinds';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,13 +27,10 @@ export function ActivityLogPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="font-heading text-2xl font-semibold">Activity log</h2>
-        <p className="text-sm text-muted-foreground">
-          Every status change, job update, and profile edit — the shared audit
-          trail.
-        </p>
-      </div>
+      <PageHeader
+        title="Activity log"
+        description="Every status change, job update, and profile edit — the shared audit trail."
+      />
 
       <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
         {query.isLoading ? (
@@ -50,18 +49,16 @@ export function ActivityLogPage() {
             ))}
           </div>
         ) : query.isError ? (
-          <div className="flex flex-col items-center gap-2 p-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              Couldn't load the activity log.
-            </p>
-            <Button variant="outline" onClick={() => query.refetch()}>
-              Retry
-            </Button>
-          </div>
+          <ErrorState
+            description="Couldn't load the activity log."
+            onRetry={() => query.refetch()}
+            bordered={false}
+          />
         ) : items.length === 0 ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">
-            No activity recorded yet.
-          </div>
+          <EmptyState
+            description="No activity recorded yet."
+            bordered={false}
+          />
         ) : (
           <div className="flex flex-col">
             {items.map((entry) => {
@@ -77,10 +74,8 @@ export function ActivityLogPage() {
                     className={cn(
                       'size-2.5 shrink-0 rounded-full ring-4',
                       meta.dotClass,
+                      meta.ringClass,
                     )}
-                    style={{
-                      boxShadow: `0 0 0 4px color-mix(in oklch, var(--kind-${kind}) 15%, transparent)`,
-                    }}
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">

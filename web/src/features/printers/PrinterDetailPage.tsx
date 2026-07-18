@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { toast } from 'sonner';
+import { BackLink } from '@/components/back-link/BackLink';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -50,12 +50,7 @@ export function PrinterDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        to="/printers"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeftIcon className="size-4" /> Back to fleet
-      </Link>
+      <BackLink to="/printers">Back to fleet</BackLink>
 
       {detailQuery.isLoading ? (
         <Skeleton className="h-64 w-full" />

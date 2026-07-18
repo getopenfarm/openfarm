@@ -1,11 +1,9 @@
-import {
-  ArrowLeftIcon,
-  FolderPlusIcon,
-  PlusIcon,
-  SearchIcon,
-} from 'lucide-react';
+import { FolderPlusIcon, PlusIcon, SearchIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { BackLink } from '@/components/back-link/BackLink';
+import { EmptyState } from '@/components/empty-state/EmptyState';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { PrintQueueDialog } from '@/components/print-queue-dialog/PrintQueueDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,35 +82,31 @@ export function PartsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          {activeFolder ? (
-            <button
-              type="button"
-              onClick={() => setActiveFolderId(null)}
-              className="mb-1 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeftIcon className="size-3.5" /> Part library
-            </button>
-          ) : null}
-          <h2 className="font-heading text-2xl font-semibold">
-            {activeFolder ? activeFolder.name : 'Part library'}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {activeFolder
-              ? `${scopedParts.length} ${scopedParts.length === 1 ? 'part' : 'parts'} in this folder`
-              : `${folders.length} ${folders.length === 1 ? 'folder' : 'folders'} · ${loosePartsCount} loose parts · ${parts.length} total`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setNewFolderOpen(true)}>
-            <FolderPlusIcon /> New folder
-          </Button>
-          <Button onClick={() => navigate('/parts/new')}>
-            <PlusIcon /> Add part
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        above={
+          activeFolder ? (
+            <BackLink onClick={() => setActiveFolderId(null)} className="mb-1">
+              Part library
+            </BackLink>
+          ) : undefined
+        }
+        title={activeFolder ? activeFolder.name : 'Part library'}
+        description={
+          activeFolder
+            ? `${scopedParts.length} ${scopedParts.length === 1 ? 'part' : 'parts'} in this folder`
+            : `${folders.length} ${folders.length === 1 ? 'folder' : 'folders'} · ${loosePartsCount} loose parts · ${parts.length} total`
+        }
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setNewFolderOpen(true)}>
+              <FolderPlusIcon /> New folder
+            </Button>
+            <Button onClick={() => navigate('/parts/new')}>
+              <PlusIcon /> Add part
+            </Button>
+          </div>
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full max-w-sm">
@@ -128,16 +122,16 @@ export function PartsPage() {
       </div>
 
       {nothingToShow ? (
-        <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed p-12 text-center">
-          <p className="text-sm font-medium">Nothing here yet</p>
-          <p className="text-sm text-muted-foreground">
-            {isSearching
+        <EmptyState
+          title="Nothing here yet"
+          description={
+            isSearching
               ? 'Try a different search.'
               : activeFolder
                 ? 'Add a part to this folder to get started.'
-                : 'Add a part or create a folder to get started.'}
-          </p>
-        </div>
+                : 'Add a part or create a folder to get started.'
+          }
+        />
       ) : view === 'table' ? (
         <PartsTable
           parts={scopedParts}

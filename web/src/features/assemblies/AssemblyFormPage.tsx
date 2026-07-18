@@ -1,8 +1,11 @@
-import { ArrowLeftIcon, PlusIcon } from 'lucide-react';
+import { PlusIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
+import { BackLink } from '@/components/back-link/BackLink';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -48,15 +51,15 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
 
   if (mode === 'edit' && !existing) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-12 text-center">
-        <p className="text-sm font-medium">Assembly not found</p>
-        <p className="text-sm text-muted-foreground">
-          It may have been removed, or the link is out of date.
-        </p>
-        <Button variant="outline" onClick={() => navigate('/assemblies')}>
-          Back to assemblies
-        </Button>
-      </div>
+      <EmptyState
+        title="Assembly not found"
+        description="It may have been removed, or the link is out of date."
+        action={
+          <Button variant="outline" onClick={() => navigate('/assemblies')}>
+            Back to assemblies
+          </Button>
+        }
+      />
     );
   }
 
@@ -123,22 +126,19 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
 
   return (
     <div className="flex flex-col gap-6 pb-4">
-      <div>
-        <Link
-          to="/assemblies"
-          className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeftIcon className="size-3.5" /> Back to assemblies
-        </Link>
-        <h2 className="font-heading text-2xl font-semibold">
-          {mode === 'add' ? 'New assembly' : 'Edit assembly'}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {mode === 'add'
+      <PageHeader
+        above={
+          <BackLink to="/assemblies" className="mb-1">
+            Back to assemblies
+          </BackLink>
+        }
+        title={mode === 'add' ? 'New assembly' : 'Edit assembly'}
+        description={
+          mode === 'add'
             ? 'Group parts (and other assemblies) into a reusable bill of materials.'
-            : "Update this assembly's parts and details."}
-        </p>
-      </div>
+            : "Update this assembly's parts and details."
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_18rem]">
         <div className="flex flex-col gap-6">
@@ -170,12 +170,11 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
               {components.length === 0 ? (
-                <div className="flex flex-col items-center gap-1 rounded-lg border border-dashed p-8 text-center">
-                  <p className="text-sm font-medium">No parts yet</p>
-                  <p className="text-sm text-muted-foreground">
-                    Use "Add part" to build the bill of materials.
-                  </p>
-                </div>
+                <EmptyState
+                  size="sm"
+                  title="No parts yet"
+                  description='Use "Add part" to build the bill of materials.'
+                />
               ) : (
                 components.map((component) => (
                   <ComponentRow

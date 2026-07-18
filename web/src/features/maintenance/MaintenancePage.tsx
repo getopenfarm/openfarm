@@ -1,7 +1,9 @@
 import { WrenchIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { EmptyState } from '@/components/empty-state/EmptyState';
+import { PageHeader } from '@/components/page-header/PageHeader';
+import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { NeedsAttentionCard } from './components/NeedsAttentionCard';
@@ -20,10 +22,10 @@ export function MaintenancePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold">Maintenance</h2>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        title="Maintenance"
+        description={
+          <>
             <span className="font-medium text-kind-red">
               {overdueCount} overdue
             </span>
@@ -31,28 +33,22 @@ export function MaintenancePage() {
             <span className="font-medium text-kind-amber">
               {dueCount} due soon
             </span>
-          </p>
-        </div>
-        <Button onClick={() => toast('Not yet implemented')}>New task</Button>
-      </div>
+          </>
+        }
+        action={
+          <Button onClick={() => toast('Not yet implemented')}>New task</Button>
+        }
+      />
 
       <div className="flex flex-col gap-3">
         <h3 className="font-heading text-lg font-semibold">Needs attention</h3>
         {fleetQuery.isLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder cards
-              <Skeleton key={`skeleton-${index}`} className="h-32 w-full" />
-            ))}
-          </div>
+          <SkeletonGrid itemClassName="h-32" />
         ) : printers.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-12 text-center">
-            <WrenchIcon className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              No printers registered yet. Add one on the Printers page to see
-              maintenance flags here.
-            </p>
-          </div>
+          <EmptyState
+            icon={<WrenchIcon className="size-8 text-muted-foreground" />}
+            description="No printers registered yet. Add one on the Printers page to see maintenance flags here."
+          />
         ) : (
           <div className="grid grid-cols-1 gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] sm:grid-cols-2 xl:grid-cols-3">
             {flags.map((flag) => (
