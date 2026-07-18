@@ -1,13 +1,25 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { Swatch } from '@/components/swatch/Swatch';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import type {
   CurrentSpoolResponse,
   FeedSlotResponse,
+  FeedUnitResponse,
   ListFeedUnitsResponse,
 } from '@/lib/api/generated/endpoints.schemas';
-import { useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint } from '@/lib/api/generated/printers/printers';
+import { useOpenFarmApiEndpointsFeedUnitsRemoveFeedUnitEndpoint } from '@/lib/api/generated/feed-units/feed-units';
+import {
+  getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey,
+  useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint,
+} from '@/lib/api/generated/printers/printers';
 import { cn } from '@/lib/utils';
+import { AddFeedUnitDialog } from './AddFeedUnitDialog';
+
+const REMOVABLE_KINDS = new Set(['AutomaticFilamentReloader', 'ExternalSpool']);
 
 export interface FeedUnitsCardProps {
   printerId: string;
@@ -91,7 +103,62 @@ function FeedSlotRow({ slot }: { slot: FeedSlotResponse }) {
   );
 }
 
+function FeedUnitGroup({
+  unit,
+  printerId,
+}: {
+  unit: FeedUnitResponse;
+  printerId: string;
+}) {
+  const queryClient = useQueryClient();
+  const removeMutation = useOpenFarmApiEndpointsFeedUnitsRemoveFeedUnitEndpoint(
+    {
+      mutation: {
+        onSuccess: () => {
+          toast.success('Feed Unit removed.');
+          queryClient.invalidateQueries({
+            queryKey:
+              getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey(
+                printerId,
+              ),
+          });
+        },
+        onError: () => {
+          toast.error('Could not remove that Feed Unit.');
+        },
+      },
+    },
+  );
+
+  return (
+    <div className="border-b last:border-b-0">
+      <div className="flex items-center justify-between px-[18px] py-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          {unit.displayLabel}
+        </p>
+        {unit.kind && REMOVABLE_KINDS.has(unit.kind) && unit.id ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            disabled={removeMutation.isPending}
+            onClick={() => removeMutation.mutate({ id: unit.id ?? '' })}
+          >
+            Remove
+          </Button>
+        ) : null}
+      </div>
+      <ul>
+        {(unit.feedSlots ?? []).map((slot) => (
+          <FeedSlotRow key={slot.id} slot={slot} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function FeedUnitsCard({ printerId }: FeedUnitsCardProps) {
+  const [addOpen, setAddOpen] = useState(false);
   const feedUnitsQuery = useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint(
     printerId,
     { query: { enabled: Boolean(printerId) } },
@@ -102,8 +169,16 @@ export function FeedUnitsCard({ printerId }: FeedUnitsCardProps) {
 
   return (
     <Card className="gap-0 py-0">
-      <CardHeader className="border-b px-[18px] py-3.5">
+      <CardHeader className="flex-row items-center justify-between border-b px-[18px] py-3.5">
         <CardTitle className="text-sm font-semibold">Feed Units</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7"
+          onClick={() => setAddOpen(true)}
+        >
+          Add a Feed Unit
+        </Button>
       </CardHeader>
       <CardContent className="p-0">
         {feedUnits.length === 0 ? (
@@ -113,20 +188,16 @@ export function FeedUnitsCard({ printerId }: FeedUnitsCardProps) {
         ) : (
           <div className="flex flex-col">
             {feedUnits.map((unit) => (
-              <div key={unit.id} className="border-b last:border-b-0">
-                <p className="px-[18px] py-2 text-xs font-medium text-muted-foreground">
-                  {unit.displayLabel}
-                </p>
-                <ul>
-                  {(unit.feedSlots ?? []).map((slot) => (
-                    <FeedSlotRow key={slot.id} slot={slot} />
-                  ))}
-                </ul>
-              </div>
+              <FeedUnitGroup key={unit.id} unit={unit} printerId={printerId} />
             ))}
           </div>
         )}
       </CardContent>
+      <AddFeedUnitDialog
+        printerId={printerId}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+      />
     </Card>
   );
 }

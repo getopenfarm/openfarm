@@ -1,13 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FeedUnitsCard } from './FeedUnitsCard';
 
-function stubFetch() {
+function stubFetch(onDelete?: (url: string) => void) {
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: RequestInfo | URL) => {
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
+      if (init?.method === 'DELETE') {
+        onDelete?.(url);
+        return Promise.resolve(
+          new Response(null, { status: 204, headers: {} }),
+        );
+      }
       if (url.includes('/feed-units')) {
         return Promise.resolve(
           new Response(
@@ -33,6 +40,20 @@ function stubFetch() {
                       id: 'slot-2',
                       slotPosition: 1,
                       displayLabel: 'Slot 2',
+                      currentSpool: null,
+                    },
+                  ],
+                },
+                {
+                  id: 'fu-2',
+                  kind: 'AutomaticFilamentReloader',
+                  displayLabel: 'Splicer',
+                  isRevealed: true,
+                  feedSlots: [
+                    {
+                      id: 'slot-3',
+                      slotPosition: 0,
+                      displayLabel: 'Slot 1',
                       currentSpool: null,
                     },
                   ],
@@ -73,9 +94,10 @@ function stubFetch() {
   );
 }
 
-function renderCard() {
+function renderCard(onDelete?: (url: string) => void) {
+  stubFetch(onDelete);
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -85,10 +107,6 @@ function renderCard() {
 }
 
 describe('FeedUnitsCard', () => {
-  beforeEach(() => {
-    stubFetch();
-  });
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -104,6 +122,36 @@ describe('FeedUnitsCard', () => {
   it('shows Empty for a Feed Slot with nothing loaded', async () => {
     renderCard();
 
-    expect(await screen.findByText('Empty')).toBeInTheDocument();
+    expect(await screen.findAllByText('Empty')).not.toHaveLength(0);
+  });
+
+  it('has an Add a Feed Unit action', async () => {
+    renderCard();
+
+    expect(
+      await screen.findByRole('button', { name: 'Add a Feed Unit' }),
+    ).toBeInTheDocument();
+  });
+
+  it('offers Remove only for the Automatic Filament Reloader, not the connector-derived MMU', async () => {
+    renderCard();
+
+    await screen.findByText('AMS 1');
+    expect(screen.getByText('Splicer')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
+  });
+
+  it('removes a Feed Unit', async () => {
+    const user = userEvent.setup();
+    let deletedUrl: string | undefined;
+    renderCard((url) => {
+      deletedUrl = url;
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+
+    await waitFor(() =>
+      expect(deletedUrl).toContain('/api/v1/feed-units/fu-2'),
+    );
   });
 });
