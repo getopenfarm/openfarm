@@ -55,6 +55,8 @@ using AddFilamentVariantHandlerType = OpenFarm.Application.Common.ICommandHandle
 using RegisterSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RegisterSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 using LoadSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.LoadSpoolOntoFeedSlotCommand, OpenFarm.Application.FilamentTracking.LoadSpoolResult>;
 using UnloadSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.UnloadSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
+using RecordSpoolUsageHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RecordSpoolUsageCommand, OpenFarm.Application.FilamentTracking.RecordSpoolUsageResult>;
+using CorrectRemainingWeightHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CorrectRemainingWeightCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -228,6 +230,10 @@ builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler
 builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>>, GetSpoolsQueryHandler>();
 builder.Services.AddScoped<LoadSpoolHandlerType, LoadSpoolOntoFeedSlotCommandHandler>();
 builder.Services.AddScoped<UnloadSpoolHandlerType, UnloadSpoolCommandHandler>();
+builder.Services.AddScoped<ISpoolUsageRecordRepository, SpoolUsageRecordRepository>();
+builder.Services.AddScoped<IAutoContinuationResolver, NoOpAutoContinuationResolver>();
+builder.Services.AddScoped<RecordSpoolUsageHandlerType, RecordSpoolUsageCommandHandler>();
+builder.Services.AddScoped<CorrectRemainingWeightHandlerType, CorrectRemainingWeightCommandHandler>();
 
 builder.Services.AddSignalR();
 
