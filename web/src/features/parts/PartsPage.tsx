@@ -8,6 +8,7 @@ import { PrintQueueDialog } from '@/components/print-queue-dialog/PrintQueueDial
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ViewToggle } from '@/components/view-toggle/ViewToggle';
+import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import { usePreferences } from '@/lib/preferences/usePreferences';
 import { FolderTile } from './components/FolderTile';
 import { NewFolderDialog } from './components/NewFolderDialog';
@@ -25,6 +26,7 @@ export function PartsPage() {
   const navigate = useNavigate();
   const [parts] = useParts();
   const [folders] = useFolders();
+  const filaments = useFilamentCatalog();
   const { getListView } = usePreferences();
   const view = getListView('parts');
 
@@ -73,12 +75,12 @@ export function PartsPage() {
       weightGrams: printPart.weightGrams,
       primaryMaterial: primarySlot
         ? {
-            colorHex: resolveSlotDisplayColor(primarySlot),
+            colorHex: resolveSlotDisplayColor(primarySlot, filaments),
             label: primarySlot.materialType,
           }
         : undefined,
     };
-  }, [printPart]);
+  }, [printPart, filaments]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -135,6 +137,7 @@ export function PartsPage() {
       ) : view === 'table' ? (
         <PartsTable
           parts={scopedParts}
+          filaments={filaments}
           onOpen={(id) => navigate(`/parts/${id}/edit`)}
           onPrint={handlePrint}
         />
@@ -156,6 +159,7 @@ export function PartsPage() {
             <PartCard
               key={part.id}
               part={part}
+              filaments={filaments}
               onPrint={() => handlePrint(part)}
             />
           ))}

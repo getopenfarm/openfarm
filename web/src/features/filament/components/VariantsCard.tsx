@@ -1,58 +1,30 @@
-import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
+import { PlusIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type {
-  FilamentProfileResponse,
-  ListFilamentProfilesResponse,
-} from '@/lib/api/generated/endpoints.schemas';
-import { useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint } from '@/lib/api/generated/profiles/profiles';
-import type { FilamentVariant } from '../data/mockFilamentStore';
-import { formatWeightGrams } from '../lib/weightLabel';
-import { VariantDialog } from './VariantDialog';
+import { type NewFilamentVariant, VariantDialog } from './VariantDialog';
 
-function overrideSummary(
-  variant: FilamentVariant,
-  allProfiles: FilamentProfileResponse[],
-): string {
-  const overrides = variant.profileOverrides;
-  if (!overrides || Object.keys(overrides).length === 0) {
-    return 'Uses default profile';
-  }
-  const names = Object.entries(overrides)
-    .filter((entry): entry is [string, string] => entry[1] !== undefined)
-    .map(([nozzleSize, profileId]) => {
-      const profile = allProfiles.find((p) => p.id === profileId);
-      return `${nozzleSize}mm ${profile?.name ?? 'unknown profile'}`;
-    });
-  return `Override: ${names.join(', ')}`;
+export interface DisplayedVariant {
+  id?: string;
+  colorName?: string;
+  colorHex?: string;
 }
 
 interface VariantsCardProps {
-  variants: FilamentVariant[];
-  onAdd: (variant: FilamentVariant) => void;
-  onEdit: (variant: FilamentVariant) => void;
-  onRemove: (variantId: string) => void;
+  variants: DisplayedVariant[];
+  onAdd: (variant: NewFilamentVariant) => void;
+  onRemove?: (index: number) => void;
+  isAdding?: boolean;
 }
 
 export function VariantsCard({
   variants,
   onAdd,
-  onEdit,
   onRemove,
+  isAdding,
 }: VariantsCardProps) {
-  const [dialogState, setDialogState] = useState<
-    { mode: 'add' } | { mode: 'edit'; variant: FilamentVariant } | null
-  >(null);
-  const filamentProfilesQuery =
-    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
-  const allProfiles =
-    (
-      filamentProfilesQuery.data?.data as
-        | ListFilamentProfilesResponse
-        | undefined
-    )?.profiles ?? [];
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
     <Card>
@@ -62,7 +34,8 @@ export function VariantsCard({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setDialogState({ mode: 'add' })}
+          disabled={isAdding}
+          onClick={() => setDialogOpen(true)}
         >
           <PlusIcon /> Add variant
         </Button>
@@ -73,66 +46,39 @@ export function VariantsCard({
             No variants yet
           </p>
         ) : (
-          variants.map((variant) => (
+          variants.map((variant, index) => (
             <div
-              key={variant.id}
+              key={variant.id ?? `${variant.colorName}-${index}`}
               className="flex items-center gap-3 rounded-lg border px-3 py-2"
             >
               <Swatch colorHex={variant.colorHex} size="md" />
-              <div className="flex flex-1 flex-col gap-0.5">
-                <span className="text-sm font-medium">{variant.name}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {variant.weightsGrams.map(formatWeightGrams).join(' · ')}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {overrideSummary(variant, allProfiles)}
-                </span>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Edit ${variant.name}`}
-                onClick={() => setDialogState({ mode: 'edit', variant })}
-              >
-                <PencilIcon />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${variant.name}`}
-                onClick={() => onRemove(variant.id)}
-              >
-                <Trash2Icon className="text-destructive" />
-              </Button>
+              <span className="flex-1 text-sm font-medium">
+                {variant.colorName}
+              </span>
+              {onRemove ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remove ${variant.colorName}`}
+                  onClick={() => onRemove(index)}
+                >
+                  <Trash2Icon className="text-destructive" />
+                </Button>
+              ) : null}
             </div>
           ))
         )}
       </CardContent>
 
-      {dialogState && (
-        <VariantDialog
-          mode={dialogState.mode}
-          open={dialogState !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setDialogState(null);
-            }
-          }}
-          initialVariant={
-            dialogState.mode === 'edit' ? dialogState.variant : undefined
-          }
-          onSave={(variant) => {
-            if (dialogState.mode === 'add') {
-              onAdd(variant);
-            } else {
-              onEdit(variant);
-            }
-            setDialogState(null);
-          }}
-        />
-      )}
+      <VariantDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSave={(variant) => {
+          onAdd(variant);
+          setDialogOpen(false);
+        }}
+      />
     </Card>
   );
 }

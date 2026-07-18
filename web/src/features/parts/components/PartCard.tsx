@@ -3,16 +3,18 @@ import { Link } from 'react-router';
 import { CheckerboardThumbnail } from '@/components/checkerboard-thumbnail/CheckerboardThumbnail';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
+import type { FilamentResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatMinutes } from '@/lib/formatMinutes';
 import type { Part } from '../data/mockPartsStore';
 import { resolveSlotDisplayColor } from '../lib/colorMatch';
 
 interface PartCardProps {
   part: Part;
+  filaments: FilamentResponse[];
   onPrint: () => void;
 }
 
-export function PartCard({ part, onPrint }: PartCardProps) {
+export function PartCard({ part, filaments, onPrint }: PartCardProps) {
   const primarySlot = part.colorSlots[0];
 
   return (
@@ -53,7 +55,7 @@ export function PartCard({ part, onPrint }: PartCardProps) {
           {part.colorSlots.slice(0, 3).map((slot) => (
             <Swatch
               key={slot.slotIndex}
-              colorHex={resolveSlotDisplayColor(slot)}
+              colorHex={resolveSlotDisplayColor(slot, filaments)}
               size="sm"
             />
           ))}

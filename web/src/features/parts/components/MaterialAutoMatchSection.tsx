@@ -4,7 +4,7 @@ import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { filamentStore } from '@/features/filament/data/mockFilamentStore';
+import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import { cn } from '@/lib/utils';
 import type { DetectedColorSlot } from '../data/mockPartsStore';
 import { autoMatchColor } from '../lib/colorMatch';
@@ -19,7 +19,7 @@ export function MaterialAutoMatchSection({
   onChange,
 }: MaterialAutoMatchSectionProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const filaments = filamentStore.getSnapshot();
+  const filaments = useFilamentCatalog();
 
   function updateSlot(
     index: number,
@@ -57,17 +57,21 @@ export function MaterialAutoMatchSection({
           const pinnedFilament = isPinned
             ? filaments.find((f) => f.id === slot.pinnedFilamentId)
             : undefined;
-          const pinnedVariant = pinnedFilament?.variants.find(
+          const pinnedVariant = pinnedFilament?.variants?.find(
             (v) => v.id === slot.pinnedVariantId,
           );
 
           const autoMatch = !isPinned
-            ? autoMatchColor(slot.detectedColorHex, slot.materialType)
+            ? autoMatchColor(
+                slot.detectedColorHex,
+                slot.materialType,
+                filaments,
+              )
             : null;
           const autoFilament = autoMatch
             ? filaments.find((f) => f.id === autoMatch.filamentId)
             : undefined;
-          const autoVariant = autoFilament?.variants.find(
+          const autoVariant = autoFilament?.variants?.find(
             (v) => v.id === autoMatch?.variantId,
           );
 
@@ -96,10 +100,10 @@ export function MaterialAutoMatchSection({
                     <Swatch colorHex={pinnedVariant.colorHex} size="md" />
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">
-                        {pinnedFilament.brand} {pinnedFilament.material}
+                        {pinnedFilament.vendorName} {pinnedFilament.material}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {pinnedVariant.name}
+                        {pinnedVariant.colorName}
                       </span>
                     </div>
                     <StatusBadge kind="violet" label="Specified" />
@@ -109,10 +113,10 @@ export function MaterialAutoMatchSection({
                     <Swatch colorHex={autoVariant.colorHex} size="md" />
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">
-                        {autoFilament.brand} {autoFilament.material}
+                        {autoFilament.vendorName} {autoFilament.material}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {autoVariant.name}
+                        {autoVariant.colorName}
                       </span>
                     </div>
                     <StatusBadge kind="green" label="Auto" />
@@ -164,14 +168,19 @@ export function MaterialAutoMatchSection({
                     </p>
                   ) : (
                     candidates.flatMap((filament) =>
-                      filament.variants.map((variant) => {
+                      (filament.variants ?? []).map((variant) => {
                         const selected = slot.pinnedVariantId === variant.id;
+                        if (!filament.id || !variant.id) return null;
                         return (
                           <button
                             key={variant.id}
                             type="button"
                             onClick={() =>
-                              setPinned(index, filament.id, variant.id)
+                              setPinned(
+                                index,
+                                filament.id ?? '',
+                                variant.id ?? '',
+                              )
                             }
                             className={cn(
                               'flex items-center gap-2 rounded-md border p-2 text-left text-sm transition-colors hover:bg-muted',
@@ -180,10 +189,10 @@ export function MaterialAutoMatchSection({
                           >
                             <Swatch colorHex={variant.colorHex} size="sm" />
                             <span>
-                              {filament.brand} {filament.material}
+                              {filament.vendorName} {filament.material}
                             </span>
                             <span className="text-muted-foreground">
-                              {variant.name}
+                              {variant.colorName}
                             </span>
                             {selected ? (
                               <CheckIcon className="ml-auto size-4 text-kind-violet" />

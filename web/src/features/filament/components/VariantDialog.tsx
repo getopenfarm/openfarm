@@ -11,131 +11,64 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import type { ListFilamentProfilesResponse } from '@/lib/api/generated/endpoints.schemas';
-import { useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint } from '@/lib/api/generated/profiles/profiles';
 import { cn } from '@/lib/utils';
-import type { FilamentVariant } from '../data/mockFilamentStore';
 import { NAMED_COLOR_SWATCHES } from '../lib/colorSwatches';
-import { formatWeightGrams } from '../lib/weightLabel';
 
-const WEIGHT_OPTIONS = [250, 500, 750, 1000] as const;
-const NOZZLE_SIZES = ['0.4', '0.6'] as const;
-
-function newVariantId() {
-  return `variant-${crypto.randomUUID()}`;
+export interface NewFilamentVariant {
+  colorName: string;
+  colorHex: string;
 }
 
-function emptyVariant(): FilamentVariant {
-  return {
-    id: newVariantId(),
-    name: '',
-    colorHex: NAMED_COLOR_SWATCHES[0].hex,
-    weightsGrams: [],
-  };
+function emptyVariant(): NewFilamentVariant {
+  return { colorName: '', colorHex: NAMED_COLOR_SWATCHES[0].hex };
 }
 
 interface VariantDialogProps {
-  mode: 'add' | 'edit';
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialVariant?: FilamentVariant;
-  onSave: (variant: FilamentVariant) => void;
+  onSave: (variant: NewFilamentVariant) => void;
 }
 
 export function VariantDialog({
-  mode,
   open,
   onOpenChange,
-  initialVariant,
   onSave,
 }: VariantDialogProps) {
-  const [variant, setVariant] = useState<FilamentVariant>(
-    () => initialVariant ?? emptyVariant(),
-  );
+  const [variant, setVariant] = useState<NewFilamentVariant>(emptyVariant());
 
   useEffect(() => {
     if (open) {
-      setVariant(initialVariant ?? emptyVariant());
+      setVariant(emptyVariant());
     }
-  }, [open, initialVariant]);
-
-  const filamentProfilesQuery =
-    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
-  const allProfiles =
-    (
-      filamentProfilesQuery.data?.data as
-        | ListFilamentProfilesResponse
-        | undefined
-    )?.profiles ?? [];
-
-  function toggleWeight(grams: number) {
-    setVariant((prev) => {
-      const has = prev.weightsGrams.includes(grams);
-      const weightsGrams = has
-        ? prev.weightsGrams.filter((g) => g !== grams)
-        : [...prev.weightsGrams, grams].sort((a, b) => a - b);
-      return { ...prev, weightsGrams };
-    });
-  }
-
-  function setOverrideEnabled(nozzleSize: '0.4' | '0.6', enabled: boolean) {
-    setVariant((prev) => {
-      const overrides = { ...prev.profileOverrides };
-      if (enabled) {
-        const firstMatch = allProfiles.find(
-          (p) => String(p.nozzleSizeMm) === nozzleSize,
-        );
-        overrides[nozzleSize] = firstMatch?.id;
-      } else {
-        delete overrides[nozzleSize];
-      }
-      return { ...prev, profileOverrides: overrides };
-    });
-  }
-
-  function setOverrideProfile(nozzleSize: '0.4' | '0.6', profileId: string) {
-    setVariant((prev) => ({
-      ...prev,
-      profileOverrides: { ...prev.profileOverrides, [nozzleSize]: profileId },
-    }));
-  }
+  }, [open]);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     onSave(variant);
   }
 
-  const canSave =
-    variant.name.trim().length > 0 && variant.weightsGrams.length > 0;
+  const canSave = variant.colorName.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {mode === 'add' ? 'Add variant' : 'Edit variant'}
-          </DialogTitle>
+          <DialogTitle>Add variant</DialogTitle>
           <DialogDescription>
-            A colour variant of this filament, with the weights you keep it
-            stocked in.
+            A colour variant of this filament.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="variant-name">Name</Label>
+            <Label htmlFor="variant-color-name">Name</Label>
             <Input
-              id="variant-name"
-              value={variant.name}
+              id="variant-color-name"
+              value={variant.colorName}
               onChange={(event) =>
-                setVariant((prev) => ({ ...prev, name: event.target.value }))
+                setVariant((prev) => ({
+                  ...prev,
+                  colorName: event.target.value,
+                }))
               }
               placeholder="e.g. Black"
             />
@@ -151,7 +84,11 @@ export function VariantDialog({
                   aria-label={option.name}
                   aria-pressed={variant.colorHex === option.hex}
                   onClick={() =>
-                    setVariant((prev) => ({ ...prev, colorHex: option.hex }))
+                    setVariant((prev) => ({
+                      ...prev,
+                      colorHex: option.hex,
+                      colorName: prev.colorName || option.name,
+                    }))
                   }
                   className={cn(
                     'rounded-[6px] p-0.5 ring-1 ring-transparent transition-all',
@@ -165,89 +102,6 @@ export function VariantDialog({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Weights</Label>
-            <div className="flex flex-wrap gap-2">
-              {WEIGHT_OPTIONS.map((grams) => {
-                const selected = variant.weightsGrams.includes(grams);
-                return (
-                  <Button
-                    key={grams}
-                    type="button"
-                    variant={selected ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => toggleWeight(grams)}
-                  >
-                    {formatWeightGrams(grams)}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-
-          <details className="rounded-lg border">
-            <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-              Advanced · profile overrides
-            </summary>
-            <div className="flex flex-col gap-4 border-t p-3">
-              {NOZZLE_SIZES.map((nozzleSize) => {
-                const matchingProfiles = allProfiles.filter(
-                  (p) => String(p.nozzleSizeMm) === nozzleSize,
-                );
-                const overrideId = variant.profileOverrides?.[nozzleSize];
-                const enabled = overrideId !== undefined;
-                const defaultProfile = matchingProfiles[0];
-                return (
-                  <div key={nozzleSize} className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor={`override-${nozzleSize}`}
-                        className="text-sm"
-                      >
-                        {nozzleSize}mm nozzle override
-                      </Label>
-                      <Switch
-                        id={`override-${nozzleSize}`}
-                        checked={enabled}
-                        onCheckedChange={(checked) =>
-                          setOverrideEnabled(nozzleSize, checked)
-                        }
-                      />
-                    </div>
-                    {enabled ? (
-                      <Select
-                        value={overrideId}
-                        onValueChange={(value) =>
-                          setOverrideProfile(nozzleSize, value)
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Choose a profile" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {matchingProfiles.map((profile) => (
-                            <SelectItem
-                              key={profile.id}
-                              value={profile.id ?? ''}
-                            >
-                              {profile.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        {defaultProfile
-                          ? `Default: ${defaultProfile.name}`
-                          : 'No default profile available for this nozzle size.'}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </details>
-
           <DialogFooter>
             <Button
               type="button"
@@ -257,7 +111,7 @@ export function VariantDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={!canSave}>
-              {mode === 'add' ? 'Add variant' : 'Save variant'}
+              Add variant
             </Button>
           </DialogFooter>
         </form>

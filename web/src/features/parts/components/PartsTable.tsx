@@ -5,17 +5,24 @@ import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
+import type { FilamentResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatMinutes } from '@/lib/formatMinutes';
 import type { Part } from '../data/mockPartsStore';
 import { resolveSlotDisplayColor } from '../lib/colorMatch';
 
 interface PartsTableProps {
   parts: Part[];
+  filaments: FilamentResponse[];
   onOpen: (id: string) => void;
   onPrint: (part: Part) => void;
 }
 
-export function PartsTable({ parts, onOpen, onPrint }: PartsTableProps) {
+export function PartsTable({
+  parts,
+  filaments,
+  onOpen,
+  onPrint,
+}: PartsTableProps) {
   const columns: ColumnDef<Part>[] = [
     {
       id: 'part',
@@ -48,7 +55,10 @@ export function PartsTable({ parts, onOpen, onPrint }: PartsTableProps) {
         }
         return (
           <div className="flex items-center gap-2">
-            <Swatch colorHex={resolveSlotDisplayColor(slot)} size="sm" />
+            <Swatch
+              colorHex={resolveSlotDisplayColor(slot, filaments)}
+              size="sm"
+            />
             <span>{slot.materialType}</span>
           </div>
         );

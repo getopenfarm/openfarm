@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -15,31 +16,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FilamentProfilesCard } from './components/FilamentProfilesCard';
+import type {
+  ListFilamentProfilesResponse,
+  ListFilamentsResponse,
+  ListVendorsResponse,
+} from '@/lib/api/generated/endpoints.schemas';
+import {
+  getOpenFarmApiEndpointsFilamentsListFilamentsEndpointQueryKey,
+  useOpenFarmApiEndpointsFilamentsAddFilamentVariantEndpoint,
+  useOpenFarmApiEndpointsFilamentsCreateFilamentEndpoint,
+  useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint,
+} from '@/lib/api/generated/filaments/filaments';
+import { useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint } from '@/lib/api/generated/profiles/profiles';
+import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
+import { CreateVendorDialog } from './components/CreateVendorDialog';
+import type { NewFilamentVariant } from './components/VariantDialog';
 import { VariantsCard } from './components/VariantsCard';
-import type { Filament, FilamentVariant } from './data/mockFilamentStore';
-import { filamentStore } from './data/mockFilamentStore';
 
-const MATERIAL_TYPES: Filament['materialType'][] = [
-  'PLA',
-  'PETG',
-  'ABS',
-  'ASA',
-  'TPU',
-  'PC',
-];
-
-function emptyFilament(): Filament {
-  return {
-    id: `filament-${crypto.randomUUID()}`,
-    brand: '',
-    material: '',
-    materialType: 'PLA',
-    diameterMm: 1.75,
-    profilesByNozzleSize: {},
-    variants: [],
-  };
-}
+const MATERIAL_TYPES = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PC'];
+const NO_PROFILE = '__none__';
 
 interface FilamentFormPageProps {
   mode: 'add' | 'edit';
@@ -48,69 +43,146 @@ interface FilamentFormPageProps {
 export function FilamentFormPage({ mode }: FilamentFormPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const [filament, setFilament] = useState<Filament>(() => {
-    if (mode === 'edit' && id) {
-      const existing = filamentStore
-        .getSnapshot()
-        .find((entry) => entry.id === id);
-      if (existing) {
-        return existing;
-      }
-    }
-    return emptyFilament();
-  });
+  const vendorsQuery = useOpenFarmApiEndpointsVendorsListVendorsEndpoint();
+  const vendors =
+    (vendorsQuery.data?.data as ListVendorsResponse | undefined)?.vendors ?? [];
 
-  const notFound =
-    mode === 'edit' &&
-    !filamentStore.getSnapshot().some((entry) => entry.id === id);
+  const filamentProfilesQuery =
+    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
+  const filamentProfiles =
+    (
+      filamentProfilesQuery.data?.data as
+        | ListFilamentProfilesResponse
+        | undefined
+    )?.profiles ?? [];
 
-  function handleSave() {
-    if (!filament.brand.trim() || !filament.material.trim()) {
-      toast.error('Brand and material name are required.');
-      return;
-    }
-    if (mode === 'add') {
-      filamentStore.setState((prev) => [...prev, filament]);
-      toast.success('Filament added.');
-    } else {
-      filamentStore.setState((prev) =>
-        prev.map((entry) => (entry.id === filament.id ? filament : entry)),
-      );
-      toast.success('Filament saved.');
-    }
-    navigate('/filament');
-  }
+  const filamentsQuery =
+    useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
+  const filaments =
+    (filamentsQuery.data?.data as ListFilamentsResponse | undefined)
+      ?.filaments ?? [];
+
+  const [vendorId, setVendorId] = useState('');
+  const [material, setMaterial] = useState('');
+  const [materialType, setMaterialType] = useState(MATERIAL_TYPES[0]);
+  const [filamentProfileId, setFilamentProfileId] = useState(NO_PROFILE);
+  const [variants, setVariants] = useState<NewFilamentVariant[]>([]);
+
+  const createMutation = useOpenFarmApiEndpointsFilamentsCreateFilamentEndpoint(
+    {
+      mutation: {
+        onSuccess: () => {
+          toast.success('Filament added.');
+          queryClient.invalidateQueries({
+            queryKey:
+              getOpenFarmApiEndpointsFilamentsListFilamentsEndpointQueryKey(),
+          });
+          navigate('/filament');
+        },
+        onError: () => {
+          toast.error('Could not add filament.');
+        },
+      },
+    },
+  );
+
+  const addVariantMutation =
+    useOpenFarmApiEndpointsFilamentsAddFilamentVariantEndpoint({
+      mutation: {
+        onSuccess: () => {
+          toast.success('Variant added.');
+          queryClient.invalidateQueries({
+            queryKey:
+              getOpenFarmApiEndpointsFilamentsListFilamentsEndpointQueryKey(),
+          });
+        },
+        onError: () => {
+          toast.error('Could not add variant.');
+        },
+      },
+    });
 
   function handleCancel() {
     navigate('/filament');
   }
 
-  function handleAddVariant(variant: FilamentVariant) {
-    setFilament((prev) => ({ ...prev, variants: [...prev.variants, variant] }));
+  function handleSave() {
+    if (!vendorId || !material.trim()) {
+      toast.error('Vendor and material name are required.');
+      return;
+    }
+    if (variants.length === 0) {
+      toast.error('Add at least one colour variant.');
+      return;
+    }
+    createMutation.mutate({
+      data: {
+        vendorId,
+        material: material.trim(),
+        materialType,
+        filamentProfileId:
+          filamentProfileId === NO_PROFILE ? null : filamentProfileId,
+        variants: variants.map((variant) => ({
+          colorName: variant.colorName,
+          colorHex: variant.colorHex,
+        })),
+      },
+    });
   }
 
-  function handleEditVariant(variant: FilamentVariant) {
-    setFilament((prev) => ({
-      ...prev,
-      variants: prev.variants.map((entry) =>
-        entry.id === variant.id ? variant : entry,
-      ),
-    }));
-  }
+  if (mode === 'edit') {
+    const existing = filaments.find((entry) => entry.id === id);
 
-  function handleRemoveVariant(variantId: string) {
-    setFilament((prev) => ({
-      ...prev,
-      variants: prev.variants.filter((entry) => entry.id !== variantId),
-    }));
-  }
+    if (filamentsQuery.isLoading) {
+      return (
+        <div className="flex flex-col gap-6">
+          <BackLink to="/filament">Back to filament</BackLink>
+        </div>
+      );
+    }
 
-  if (notFound) {
+    if (!existing) {
+      return (
+        <div className="flex flex-col gap-6">
+          <BackLink to="/filament">Back to filament</BackLink>
+          <p className="text-sm text-muted-foreground">Filament not found.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col gap-6">
         <BackLink to="/filament">Back to filament</BackLink>
-        <p className="text-sm text-muted-foreground">Filament not found.</p>
+
+        <PageHeader
+          title="Filament variants"
+          description={`${existing.vendorName} · ${existing.material} · ${existing.materialType}`}
+        />
+
+        <VariantsCard
+          variants={existing.variants ?? []}
+          isAdding={addVariantMutation.isPending}
+          onAdd={(variant) => {
+            if (!existing.id) return;
+            addVariantMutation.mutate({
+              id: existing.id,
+              data: {
+                colorName: variant.colorName,
+                colorHex: variant.colorHex,
+              },
+            });
+          }}
+        />
+
+        <FormFooter
+          end={
+            <Button type="button" onClick={() => navigate('/filament')}>
+              Done
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -120,12 +192,8 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
       <BackLink to="/filament">Back to filament</BackLink>
 
       <PageHeader
-        title={mode === 'add' ? 'Add filament' : 'Edit filament'}
-        description={
-          mode === 'add'
-            ? 'Register a new material in the catalog with its colour variants.'
-            : `Editing ${filament.brand} · ${filament.material}`
-        }
+        title="Add filament"
+        description="Register a new material in the catalog with its colour variants."
       />
 
       <Card>
@@ -134,41 +202,37 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="brand">Brand</Label>
-            <Input
-              id="brand"
-              value={filament.brand}
-              onChange={(event) =>
-                setFilament((prev) => ({ ...prev, brand: event.target.value }))
-              }
-              placeholder="e.g. Bambu Lab"
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="vendor">Vendor</Label>
+              <CreateVendorDialog
+                onCreated={(vendor) => vendor.id && setVendorId(vendor.id)}
+              />
+            </div>
+            <Select value={vendorId} onValueChange={setVendorId}>
+              <SelectTrigger id="vendor" className="w-full">
+                <SelectValue placeholder="Choose a vendor" />
+              </SelectTrigger>
+              <SelectContent>
+                {vendors.map((vendor) => (
+                  <SelectItem key={vendor.id} value={vendor.id ?? ''}>
+                    {vendor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="material">Material name</Label>
             <Input
               id="material"
-              value={filament.material}
-              onChange={(event) =>
-                setFilament((prev) => ({
-                  ...prev,
-                  material: event.target.value,
-                }))
-              }
+              value={material}
+              onChange={(event) => setMaterial(event.target.value)}
               placeholder="e.g. PLA Basic"
             />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="materialType">Material type</Label>
-            <Select
-              value={filament.materialType}
-              onValueChange={(value) =>
-                setFilament((prev) => ({
-                  ...prev,
-                  materialType: value as Filament['materialType'],
-                }))
-              }
-            >
+            <Select value={materialType} onValueChange={setMaterialType}>
               <SelectTrigger id="materialType" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -182,40 +246,33 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="diameter">Diameter (mm)</Label>
-            <Input
-              id="diameter"
-              value={filament.diameterMm}
-              onChange={(event) =>
-                setFilament((prev) => ({
-                  ...prev,
-                  diameterMm: Number(event.target.value) || 0,
-                }))
-              }
-              placeholder="1.75"
-            />
+            <Label htmlFor="filamentProfile">Filament profile (optional)</Label>
+            <Select
+              value={filamentProfileId}
+              onValueChange={setFilamentProfileId}
+            >
+              <SelectTrigger id="filamentProfile" className="w-full">
+                <SelectValue placeholder="No default profile" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_PROFILE}>No default profile</SelectItem>
+                {filamentProfiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id ?? ''}>
+                    {profile.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
-      <FilamentProfilesCard
-        profilesByNozzleSize={filament.profilesByNozzleSize ?? {}}
-        onChange={(nozzleSize, profileId) =>
-          setFilament((prev) => ({
-            ...prev,
-            profilesByNozzleSize: {
-              ...prev.profilesByNozzleSize,
-              [nozzleSize]: profileId,
-            },
-          }))
-        }
-      />
-
       <VariantsCard
-        variants={filament.variants}
-        onAdd={handleAddVariant}
-        onEdit={handleEditVariant}
-        onRemove={handleRemoveVariant}
+        variants={variants}
+        onAdd={(variant) => setVariants((prev) => [...prev, variant])}
+        onRemove={(index) =>
+          setVariants((prev) => prev.filter((_, i) => i !== index))
+        }
       />
 
       <FormFooter
@@ -225,8 +282,12 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
           </Button>
         }
         end={
-          <Button type="button" onClick={handleSave}>
-            {mode === 'add' ? 'Add filament' : 'Save changes'}
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={createMutation.isPending}
+          >
+            {createMutation.isPending ? 'Adding…' : 'Add filament'}
           </Button>
         }
       />

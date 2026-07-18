@@ -1,27 +1,8 @@
 // Seed data for the Parts library — no backend exists for parts tracking
-// yet. Where a part's detected color is described as "pinned" below, we
-// look up the real variant id from the Filament catalog's mock store at
-// module-eval time so the pin is a genuine cross-feature reference rather
-// than a hardcoded guess; if the catalog doesn't have that exact
-// brand/material/color (e.g. a seed changes later), we fall back to
-// leaving the slot on auto-match instead of crashing.
-import { filamentStore } from '@/features/filament/data/mockFilamentStore';
+// yet. Detected color slots below are left on auto-match (no pinned
+// filament/variant id) since the real Filament catalog is backend-seeded
+// per install and can't be resolved synchronously at module-eval time here.
 import type { Part, PartFolder } from './mockPartsStore';
-
-function findVariant(brand: string, material: string, variantName: string) {
-  const filament = filamentStore
-    .getSnapshot()
-    .find((f) => f.brand === brand && f.material === material);
-  const variant = filament?.variants.find((v) => v.name === variantName);
-  if (filament && variant) {
-    return { filamentId: filament.id, variantId: variant.id };
-  }
-  return undefined;
-}
-
-const bambuPlaBasicBlack = findVariant('Bambu Lab', 'PLA Basic', 'Black');
-const bambuPlaBasicBlue = findVariant('Bambu Lab', 'PLA Basic', 'Blue');
-const bambuPetgHfGray = findVariant('Bambu Lab', 'PETG HF', 'Gray');
 
 export const SEED_FOLDERS: PartFolder[] = [
   { id: 'folder-gridfinity-system', name: 'Gridfinity system' },
@@ -45,8 +26,8 @@ export const SEED_PARTS: Part[] = [
         slotIndex: 0,
         detectedColorHex: '#18181b',
         materialType: 'PLA',
-        pinnedFilamentId: bambuPlaBasicBlack?.filamentId,
-        pinnedVariantId: bambuPlaBasicBlack?.variantId,
+        pinnedFilamentId: undefined,
+        pinnedVariantId: undefined,
       },
     ],
   },
@@ -65,8 +46,8 @@ export const SEED_PARTS: Part[] = [
         slotIndex: 0,
         detectedColorHex: '#3b82f6',
         materialType: 'PLA',
-        pinnedFilamentId: bambuPlaBasicBlue?.filamentId,
-        pinnedVariantId: bambuPlaBasicBlue?.variantId,
+        pinnedFilamentId: undefined,
+        pinnedVariantId: undefined,
       },
     ],
   },
@@ -142,8 +123,8 @@ export const SEED_PARTS: Part[] = [
         slotIndex: 0,
         detectedColorHex: '#71717a',
         materialType: 'PETG',
-        pinnedFilamentId: bambuPetgHfGray?.filamentId,
-        pinnedVariantId: bambuPetgHfGray?.variantId,
+        pinnedFilamentId: undefined,
+        pinnedVariantId: undefined,
       },
     ],
   },
