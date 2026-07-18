@@ -22,11 +22,13 @@ using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
+using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Infrastructure.ActivityLog;
 using OpenFarm.Infrastructure.Auth;
+using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Persistence;
@@ -202,6 +204,13 @@ builder.Services.AddScoped<IQueryHandler<GetMachineProfileQuery, MachineProfileD
 builder.Services.AddScoped<IQueryHandler<GetFilamentProfileQuery, FilamentProfileDetail?>, GetFilamentProfileQueryHandler>();
 builder.Services.AddScoped<UpdateMachineProfileRawDataHandlerType, UpdateMachineProfileRawDataCommandHandler>();
 builder.Services.AddScoped<UpdateFilamentProfileRawDataHandlerType, UpdateFilamentProfileRawDataCommandHandler>();
+
+builder.Services.AddScoped<IVendorRepository, VendorRepository>();
+builder.Services.AddScoped<IFilamentRepository, FilamentRepository>();
+builder.Services.AddScoped<IFeedUnitRepository, FeedUnitRepository>();
+builder.Services.AddScoped<ISpoolRepository, SpoolRepository>();
+builder.Services.AddScoped<IFeedSlotTelemetrySync, FeedSlotTelemetrySyncHandler>();
+builder.Services.AddScoped<IFilamentTrackingEventPublisher, FarmHubFilamentTrackingEventPublisher>();
 
 builder.Services.AddSignalR();
 

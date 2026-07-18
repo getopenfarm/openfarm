@@ -8,9 +8,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
+using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Printers;
@@ -318,6 +320,65 @@ public class PrinterConnectionBackgroundServiceTests
         }
     }
 
+    /// <summary>
+    /// A printer's first connection populates its MultiMaterialUnit/ExternalSpool FeedUnit/FeedSlot
+    /// rows; a topology shrink (fewer reported trays) soft-deactivates the missing slot without
+    /// removing the row (spec.md's Edge Case). Uses the real <see cref="FeedSlotTelemetrySyncHandler"/>
+    /// against an in-memory <see cref="IFeedUnitRepository"/> double.
+    /// </summary>
+    [Fact]
+    public async Task FeedSlotTelemetrySync_FirstConnectionThenTopologyShrink_PopulatesThenSoftDeactivates()
+    {
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-FEEDUNIT-1");
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var connector = new EmittingPrinterConnector();
+        var feedUnitRepository = new InMemoryFeedUnitRepository();
+        var sync = new FeedSlotTelemetrySyncHandler(feedUnitRepository);
+
+        var provider = BuildServiceProvider(printer, secret, connector, out _, feedSlotTelemetrySync: sync);
+        var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance,
+            SweepInterval,
+            UnreachableThreshold,
+            NoFlushThrottling);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            var twoTrayAms = new List<AmsUnit>
+            {
+                new(0, [new AmsTray(0, false, "PLA", "#FF0000", "Generic", 80, false), new AmsTray(1, false, "PETG", "#00FF00", "Generic", 50, false)]),
+            };
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
+                DateTimeOffset.UtcNow,
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", twoTrayAms)));
+
+            await WaitUntilAsync(() => feedUnitRepository.Snapshot.Any(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit), TimeSpan.FromSeconds(2));
+
+            var unit = feedUnitRepository.Snapshot.Single(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit);
+            unit.FeedSlots.Should().HaveCount(2);
+            unit.FeedSlots.Should().OnlyContain(s => s.DeactivatedAtUtc == null);
+
+            // Topology shrinks to one tray.
+            var oneTrayAms = new List<AmsUnit> { new(0, [new AmsTray(0, false, "PLA", "#FF0000", "Generic", 80, false)]) };
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
+                DateTimeOffset.UtcNow,
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 20, "Printing", oneTrayAms)));
+
+            await WaitUntilAsync(() => unit.FeedSlots.Any(s => s.DeactivatedAtUtc != null), TimeSpan.FromSeconds(2));
+
+            unit.FeedSlots.Should().HaveCount(2, "the row is soft-deactivated, never removed");
+            unit.FeedSlots.Single(s => s.SlotPosition == 1).DeactivatedAtUtc.Should().NotBeNull();
+            unit.FeedSlots.Single(s => s.SlotPosition == 0).DeactivatedAtUtc.Should().BeNull();
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
     private static ServiceProvider BuildServiceProvider(
         Printer printer,
         ConnectionSecret secret,
@@ -325,7 +386,8 @@ public class PrinterConnectionBackgroundServiceTests
         out RecordingActivityLogWriter activityLogWriter,
         IPrinterEventPublisher? publisher = null,
         IPrinterRepository? repository = null,
-        IPrinterCameraRelay? cameraRelay = null)
+        IPrinterCameraRelay? cameraRelay = null,
+        IFeedSlotTelemetrySync? feedSlotTelemetrySync = null)
     {
         var writer = new RecordingActivityLogWriter();
         activityLogWriter = writer;
@@ -336,6 +398,7 @@ public class PrinterConnectionBackgroundServiceTests
         services.AddSingleton<ISecretProtector>(new PassthroughSecretProtector());
         services.AddSingleton<IActivityLogWriter>(writer);
         services.AddSingleton<IPrinterEventPublisher>(publisher ?? new NoOpPrinterEventPublisher());
+        services.AddSingleton<IFeedSlotTelemetrySync>(feedSlotTelemetrySync ?? new NoOpFeedSlotTelemetrySync());
         // Test printers use BinaryImage-camera models (e.g. P1S), so RunConnectionLoopAsync always
         // starts a concurrent camera loop too — the stub factory below hands out a relay that never
         // emits by default so that path doesn't throw.
@@ -590,6 +653,45 @@ public class PrinterConnectionBackgroundServiceTests
             SaveChangesCallCount++;
             return inner.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    private sealed class NoOpFeedSlotTelemetrySync : IFeedSlotTelemetrySync
+    {
+        public Task SyncAsync(Guid printerId, Guid organizationId, string brand, IReadOnlyList<AmsUnit> amsUnits, AmsTray? externalSpoolTray, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class InMemoryFeedUnitRepository : IFeedUnitRepository
+    {
+        private readonly List<FeedUnit> _feedUnits = [];
+
+        public IReadOnlyList<FeedUnit> Snapshot => _feedUnits.ToList();
+
+        public Task AddAsync(FeedUnit feedUnit, CancellationToken cancellationToken)
+        {
+            _feedUnits.Add(feedUnit);
+            return Task.CompletedTask;
+        }
+
+        public Task<FeedUnit?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(_feedUnits.FirstOrDefault(u => u.Id == id));
+
+        public Task<IReadOnlyList<FeedUnit>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FeedUnit>>(_feedUnits.ToList());
+
+        public Task<IReadOnlyList<FeedUnit>> GetByPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FeedUnit>>(_feedUnits.Where(u => u.PrinterId == printerId).ToList());
+
+        public Task<FeedUnit?> FindByPrinterKindUnitIndexAsync(Guid printerId, string kind, int unitIndex, CancellationToken cancellationToken) =>
+            Task.FromResult(_feedUnits.FirstOrDefault(u => u.PrinterId == printerId && u.Kind == kind && u.UnitIndex == unitIndex));
+
+        public Task<FeedSlot?> GetFeedSlotByIdAsync(Guid feedSlotId, CancellationToken cancellationToken) =>
+            Task.FromResult(_feedUnits.SelectMany(u => u.FeedSlots).FirstOrDefault(s => s.Id == feedSlotId));
+
+        public Task<FeedUnit?> GetByFeedSlotIdAsync(Guid feedSlotId, CancellationToken cancellationToken) =>
+            Task.FromResult(_feedUnits.FirstOrDefault(u => u.FeedSlots.Any(s => s.Id == feedSlotId)));
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class StubTenantStore(AppTenantInfo tenantInfo) : IMultiTenantStore<AppTenantInfo>

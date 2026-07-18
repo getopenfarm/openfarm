@@ -9,7 +9,8 @@ public sealed record PrinterTelemetrySnapshot(
     decimal? BedTempC,
     int? PrintProgressPercent,
     string? CurrentStageLabel,
-    IReadOnlyList<AmsUnit> AmsUnits);
+    IReadOnlyList<AmsUnit> AmsUnits,
+    AmsTray? ExternalSpoolTray = null);
 
 /// <summary>
 /// One inbound message from a printer's live connection, already parsed into domain-shaped data —
