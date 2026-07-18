@@ -82,6 +82,34 @@ public class BambuMqttMessageParserTests
     }
 
     [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_ExtractsRemainingTimeAndPrinterReportedJobName()
+    {
+        // The printer reports its own current job (subtask_name) and remaining time regardless of
+        // how the print was started — this fixture is a real device capture, not an OpenFarm-dispatched
+        // job, which is exactly the "not started from OpenFarm" case the card must still show.
+        var reportPayload = LoadSection("awaiting-clear-x1c-multi-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.RemainingTimeMinutes.Should().Be(0);
+        telemetry.CurrentJobName.Should().Be("Garden Hose Healer: Male fitting");
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithEmptySubtaskName_ReturnsNullJobName()
+    {
+        // An empty subtask_name means "no job to name" — treated as null so the delta-merge keeps the
+        // last known value rather than clobbering it with a blank.
+        var reportPayload = LoadSection("printing-a1.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.CurrentJobName.Should().BeNull();
+    }
+
+    [Fact]
     public void TryParseTelemetry_WithFractionalSensorReadings_RoundsToWholeDegrees()
     {
         // This fixture's raw nozzle_temper/bed_temper are 25.90625/23.125 — real Bambu ADC noise

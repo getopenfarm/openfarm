@@ -1,17 +1,24 @@
+import { PrinterIcon } from 'lucide-react';
 import { memo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LayerStackProgress } from './LayerStackProgress';
-import { OFFLINE_META, type PrinterStatus, STATUS_META } from './status';
+import { CheckerboardThumbnail } from '@/components/checkerboard-thumbnail/CheckerboardThumbnail';
+import { StatusBadge } from '@/components/status-badge/StatusBadge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { printerStatusToBadge } from '@/features/printers/lib/printerStatusBadge';
+import { cn } from '@/lib/utils';
+import type { PrinterStatus } from './status';
 
 export interface PrinterTileProps {
   name: string;
   status: PrinterStatus;
   isReachable: boolean;
-  filamentColorHex: string;
+  filamentColorHex: string | null;
   progressPercent: number;
   nozzleTempC: number | null | undefined;
   bedTempC: number | null | undefined;
   etaMinutes: number | null;
+  jobName: string | null;
+  stageLabel: string | null;
 }
 
 function formatEta(etaMinutes: number | null): string {
@@ -34,48 +41,73 @@ export const PrinterTile = memo(function PrinterTile({
   nozzleTempC,
   bedTempC,
   etaMinutes,
+  jobName,
+  stageLabel,
 }: PrinterTileProps) {
-  const meta = STATUS_META[status];
+  const badge = printerStatusToBadge(status, isReachable);
+  const isPrinting = isReachable && status === 'Printing';
+  // A finished print still sitting on the bed keeps its name until it's cleared.
+  const hasJob = isReachable && (isPrinting || status === 'AwaitingClear');
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="relative">
+        <CheckerboardThumbnail
+          icon={PrinterIcon}
+          label={isPrinting ? `${progressPercent}%` : undefined}
+          className={cn(
+            'aspect-[16/9] w-full rounded-none',
+            !isReachable && 'opacity-50 grayscale',
+          )}
+        />
+        <StatusBadge
+          kind={badge.kind}
+          label={badge.label}
+          className="absolute top-2 left-2 bg-background/85 backdrop-blur-sm"
+        />
+      </div>
+
+      <CardContent className="flex flex-col gap-3 p-[18px]">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="size-3 shrink-0 rounded-full ring-1 ring-foreground/15"
-            style={{ backgroundColor: filamentColorHex }}
+            style={{ backgroundColor: filamentColorHex ?? 'transparent' }}
             aria-hidden="true"
           />
-          <CardTitle className="truncate">{name}</CardTitle>
+          <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {!isReachable && (
-            <span
-              className={`flex items-center gap-1.5 text-xs font-medium ${OFFLINE_META.textClass}`}
-            >
-              <span
-                className={`size-1.5 rounded-full ${OFFLINE_META.dotClass}`}
-              />
-              {OFFLINE_META.label}
-            </span>
+
+        <p className="truncate text-sm text-muted-foreground">
+          {hasJob && jobName ? (
+            <>
+              <span className="text-foreground">{jobName}</span>
+              {isPrinting && stageLabel ? ` · ${stageLabel}` : null}
+            </>
+          ) : status === 'AwaitingClear' && isReachable ? (
+            'Ready to clear'
+          ) : (
+            'No active print'
           )}
-          <span
-            className={`flex items-center gap-1.5 text-xs font-medium ${meta.textClass}`}
-          >
-            <span className={`size-1.5 rounded-full ${meta.dotClass}`} />
-            {meta.label}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <LayerStackProgress status={status} progressPercent={progressPercent} />
+        </p>
+
+        {isPrinting && (
+          <div className="flex items-center gap-3">
+            <Progress
+              value={progressPercent}
+              className="h-1.5 flex-1"
+              indicatorClassName="bg-status-printing"
+            />
+            <span className="shrink-0 font-mono text-xs font-medium text-status-printing">
+              {progressPercent}%
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
           <span>
             {formatTemp(nozzleTempC)} / {formatTemp(bedTempC)}
           </span>
-          <span>
-            {progressPercent}% · ETA {formatEta(etaMinutes)}
-          </span>
+          {isPrinting && <span>ETA {formatEta(etaMinutes)}</span>}
         </div>
       </CardContent>
     </Card>

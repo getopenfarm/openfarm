@@ -23,6 +23,10 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
     private static readonly TimeSpan MinTickInterval = TimeSpan.FromMilliseconds(10);
     private const decimal PrintingNozzleTargetC = 220m;
     private const decimal PrintingBedTargetC = 60m;
+    // Illustrative wall-clock length the reported ETA counts down from — decoupled from the (short)
+    // simulation cycle so the card shows a realistic-looking "Xh Ym" remaining rather than seconds.
+    private const int SimulatedJobTotalMinutes = 120;
+    private const string SimulatedJobName = "benchy.3mf";
 
     private readonly TimeSpan _cycleDuration;
     private readonly TimeSpan _tickInterval;
@@ -92,6 +96,8 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
         state.Status = PrinterStatus.Printing;
         state.JobStartedAtUtc = DateTimeOffset.UtcNow;
         state.PrintProgressPercent = 0;
+        state.CurrentJobName = SimulatedJobName;
+        state.RemainingTimeMinutes = SimulatedJobTotalMinutes;
     }
 
     private SimulatedPrinterState GetOrCreateState(string serialNumber) =>
@@ -113,10 +119,12 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
         state.PrintProgressPercent = (int)Math.Round(fraction * 100);
         state.NozzleTempC = Lerp(25m, PrintingNozzleTargetC, fraction);
         state.BedTempC = Lerp(25m, PrintingBedTargetC, fraction);
+        state.RemainingTimeMinutes = (int)Math.Ceiling((1.0 - fraction) * SimulatedJobTotalMinutes);
 
         if (fraction >= 1.0)
         {
             state.Status = PrinterStatus.AwaitingClear;
+            state.RemainingTimeMinutes = 0;
         }
     }
 
@@ -132,6 +140,8 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
                 state.BedTempC,
                 state.PrintProgressPercent,
                 CurrentStageLabel: null,
+                state.RemainingTimeMinutes,
+                state.CurrentJobName,
                 state.AmsUnits,
                 state.ExternalSpoolTray));
 

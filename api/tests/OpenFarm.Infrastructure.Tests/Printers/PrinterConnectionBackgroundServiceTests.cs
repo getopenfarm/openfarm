@@ -124,7 +124,7 @@ public class PrinterConnectionBackgroundServiceTests
             var amsUnits = new List<AmsUnit> { new(0, []) };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60.5m, 65.0m, 42, "Printing", amsUnits)));
+                Telemetry: new PrinterTelemetrySnapshot(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", amsUnits)));
 
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
             publisher.TelemetryBroadcasts[0].NozzleTempC.Should().Be(60.5m);
@@ -134,7 +134,7 @@ public class PrinterConnectionBackgroundServiceTests
             // because they haven't changed. The broadcast should still carry the last-known values.
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(null, null, 50, null, [])));
+                Telemetry: new PrinterTelemetrySnapshot(null, null, 50, null, null, null, [])));
 
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 2, TimeSpan.FromSeconds(2));
             var secondBroadcast = publisher.TelemetryBroadcasts[1];
@@ -177,7 +177,7 @@ public class PrinterConnectionBackgroundServiceTests
         {
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", [])));
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", 90, "benchy.3mf", [])));
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
 
             // Arrives well inside the flush interval — should update the in-memory printer but not
@@ -185,7 +185,7 @@ public class PrinterConnectionBackgroundServiceTests
             // throttle exists to prevent).
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(61m, 66m, 20, "Printing", [])));
+                Telemetry: new PrinterTelemetrySnapshot(61m, 66m, 20, "Printing", 80, "benchy.3mf", [])));
             await Task.Delay(TimeSpan.FromMilliseconds(200));
             publisher.TelemetryBroadcasts.Should().HaveCount(1, "the second event landed inside the flush interval and should be coalesced");
 
@@ -193,7 +193,7 @@ public class PrinterConnectionBackgroundServiceTests
             await Task.Delay(flushInterval);
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(62m, 67m, 30, "Printing", [])));
+                Telemetry: new PrinterTelemetrySnapshot(62m, 67m, 30, "Printing", 70, "benchy.3mf", [])));
 
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 2, TimeSpan.FromSeconds(2));
             var secondBroadcast = publisher.TelemetryBroadcasts[1];
@@ -229,7 +229,7 @@ public class PrinterConnectionBackgroundServiceTests
         {
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", [])));
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", 90, "benchy.3mf", [])));
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
 
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: "RUNNING"));

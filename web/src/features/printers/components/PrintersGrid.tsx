@@ -5,8 +5,6 @@ import type { PrinterStatus } from '@/components/printer-tile/status';
 import { Button } from '@/components/ui/button';
 import type { FleetPrinterResponse } from '@/lib/api/generated/endpoints.schemas';
 
-const PLACEHOLDER_FILAMENT_COLOR = '#8892a6';
-
 interface PrintersGridProps {
   printers: FleetPrinterResponse[];
   onMarkReady: (id: string) => void;
@@ -22,11 +20,13 @@ export function PrintersGrid({ printers, onMarkReady }: PrintersGridProps) {
               name={printer.name ?? ''}
               status={(printer.status ?? 'Idle') as PrinterStatus}
               isReachable={printer.isReachable ?? false}
-              filamentColorHex={PLACEHOLDER_FILAMENT_COLOR}
+              filamentColorHex={printer.filamentColorHex ?? null}
               progressPercent={printer.printProgressPercent ?? 0}
               nozzleTempC={printer.nozzleTempC}
               bedTempC={printer.bedTempC}
-              etaMinutes={null}
+              etaMinutes={printer.remainingTimeMinutes ?? null}
+              jobName={printer.currentJobName ?? null}
+              stageLabel={printer.currentStageLabel ?? null}
             />
           </Link>
           {printer.status === 'AwaitingClear' && (

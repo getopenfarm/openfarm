@@ -15,4 +15,8 @@ public sealed record FleetPrinterSummary(
     bool IsReachable,
     int? PrintProgressPercent,
     decimal? NozzleTempC,
-    decimal? BedTempC);
+    decimal? BedTempC,
+    string? CurrentStageLabel,
+    int? RemainingTimeMinutes,
+    string? CurrentJobName,
+    string? FilamentColorHex);

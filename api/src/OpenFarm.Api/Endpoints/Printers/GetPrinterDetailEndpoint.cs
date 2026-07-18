@@ -15,6 +15,10 @@ public sealed class PrinterDetailTelemetryResponse
     public int? PrintProgressPercent { get; set; }
 
     public string? CurrentStageLabel { get; set; }
+
+    public int? RemainingTimeMinutes { get; set; }
+
+    public string? CurrentJobName { get; set; }
 }
 
 public sealed class AmsTrayResponse
@@ -101,6 +105,8 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                 BedTempC = detail.BedTempC,
                 PrintProgressPercent = detail.PrintProgressPercent,
                 CurrentStageLabel = detail.CurrentStageLabel,
+                RemainingTimeMinutes = detail.RemainingTimeMinutes,
+                CurrentJobName = detail.CurrentJobName,
             },
             AmsUnits = detail.AmsUnits
                 .Select(unit => new AmsUnitResponse

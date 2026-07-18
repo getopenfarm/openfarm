@@ -10,7 +10,22 @@ public sealed class GetFleetQueryHandler(IPrinterRepository printerRepository)
         var printers = await printerRepository.ListAsync(cancellationToken);
 
         return printers
-            .Select(p => new FleetPrinterSummary(p.Id, p.Name, p.Brand, p.ModelCode, p.IpAddress, p.SerialNumber, p.Status, p.IsReachable, p.PrintProgressPercent, p.NozzleTempC, p.BedTempC))
+            .Select(p => new FleetPrinterSummary(
+                p.Id,
+                p.Name,
+                p.Brand,
+                p.ModelCode,
+                p.IpAddress,
+                p.SerialNumber,
+                p.Status,
+                p.IsReachable,
+                p.PrintProgressPercent,
+                p.NozzleTempC,
+                p.BedTempC,
+                p.CurrentStageLabel,
+                p.RemainingTimeMinutes,
+                p.CurrentJobName,
+                FilamentColor.FromAmsUnits(p.AmsUnits)))
             .ToList();
     }
 }

@@ -33,6 +33,8 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
                     bedTempC = telemetry.BedTempC,
                     printProgressPercent = telemetry.PrintProgressPercent,
                     currentStageLabel = telemetry.CurrentStageLabel,
+                    remainingTimeMinutes = telemetry.RemainingTimeMinutes,
+                    currentJobName = telemetry.CurrentJobName,
                 },
                 amsUnits = telemetry.AmsUnits,
             },

@@ -164,12 +164,14 @@ public class PrinterTests
         var printer = CreateValidPrinter();
         var amsUnits = new List<AmsUnit> { new(0, []) };
 
-        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", amsUnits);
+        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", amsUnits);
 
         printer.NozzleTempC.Should().Be(60.5m);
         printer.BedTempC.Should().Be(65.0m);
         printer.PrintProgressPercent.Should().Be(42);
         printer.CurrentStageLabel.Should().Be("Printing");
+        printer.RemainingTimeMinutes.Should().Be(72);
+        printer.CurrentJobName.Should().Be("benchy.3mf");
         printer.AmsUnits.Should().BeEquivalentTo(amsUnits);
     }
 
@@ -178,16 +180,18 @@ public class PrinterTests
     {
         var printer = CreateValidPrinter();
         var amsUnits = new List<AmsUnit> { new(0, []) };
-        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", amsUnits);
+        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", amsUnits);
 
         // Bambu's MQTT deltas omit fields that haven't changed since the last message — a
         // subsequent null/empty here must not clear the previously recorded value.
-        printer.RecordTelemetry(null, null, null, null, []);
+        printer.RecordTelemetry(null, null, null, null, null, null, []);
 
         printer.NozzleTempC.Should().Be(60.5m);
         printer.BedTempC.Should().Be(65.0m);
         printer.PrintProgressPercent.Should().Be(42);
         printer.CurrentStageLabel.Should().Be("Printing");
+        printer.RemainingTimeMinutes.Should().Be(72);
+        printer.CurrentJobName.Should().Be("benchy.3mf");
         printer.AmsUnits.Should().BeEquivalentTo(amsUnits);
     }
 
@@ -195,14 +199,16 @@ public class PrinterTests
     public void RecordTelemetry_WithPartialSnapshot_OverwritesOnlyFieldsPresentInDelta()
     {
         var printer = CreateValidPrinter();
-        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", []);
+        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", []);
 
-        printer.RecordTelemetry(61.0m, null, null, null, []);
+        printer.RecordTelemetry(61.0m, null, null, null, 60, null, []);
 
         printer.NozzleTempC.Should().Be(61.0m);
         printer.BedTempC.Should().Be(65.0m);
         printer.PrintProgressPercent.Should().Be(42);
         printer.CurrentStageLabel.Should().Be("Printing");
+        printer.RemainingTimeMinutes.Should().Be(60);
+        printer.CurrentJobName.Should().Be("benchy.3mf");
     }
 
     [Fact]

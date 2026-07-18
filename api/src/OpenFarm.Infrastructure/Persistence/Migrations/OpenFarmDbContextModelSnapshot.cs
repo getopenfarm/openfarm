@@ -514,6 +514,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CurrentJobName")
+                        .HasColumnType("text");
+
                     b.Property<string>("CurrentStageLabel")
                         .HasColumnType("text");
 
@@ -545,6 +548,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<int?>("PrintProgressPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RemainingTimeMinutes")
                         .HasColumnType("integer");
 
                     b.Property<string>("SerialNumber")

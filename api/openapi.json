@@ -2518,6 +2518,15 @@
           "currentStageLabel": {
             "type": "string",
             "nullable": true
+          },
+          "remainingTimeMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "currentJobName": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -2624,6 +2633,23 @@
           "bedTempC": {
             "type": "number",
             "format": "decimal",
+            "nullable": true
+          },
+          "currentStageLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "remainingTimeMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "currentJobName": {
+            "type": "string",
+            "nullable": true
+          },
+          "filamentColorHex": {
+            "type": "string",
             "nullable": true
           }
         }
