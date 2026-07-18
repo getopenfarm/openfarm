@@ -54,6 +54,12 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
                 units => units.Aggregate(0, (hash, unit) => HashCode.Combine(hash, unit.GetHashCode())),
                 units => units.ToList()));
 
+        builder.Property(p => p.ExternalSpoolTray)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                tray => JsonSerializer.Serialize(tray, (JsonSerializerOptions?)null),
+                json => JsonSerializer.Deserialize<AmsTray?>(json, (JsonSerializerOptions?)null));
+
         builder.Property(p => p.CreatedAtUtc)
             .IsRequired();
 

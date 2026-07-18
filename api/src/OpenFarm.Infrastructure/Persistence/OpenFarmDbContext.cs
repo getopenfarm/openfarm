@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
@@ -34,6 +35,20 @@ public sealed class OpenFarmDbContext(
     public DbSet<MachineProfile> MachineProfiles => Set<MachineProfile>();
 
     public DbSet<FilamentProfile> FilamentProfiles => Set<FilamentProfile>();
+
+    public DbSet<Vendor> Vendors => Set<Vendor>();
+
+    public DbSet<Filament> Filaments => Set<Filament>();
+
+    public DbSet<FilamentVariant> FilamentVariants => Set<FilamentVariant>();
+
+    public DbSet<FeedUnit> FeedUnits => Set<FeedUnit>();
+
+    public DbSet<FeedSlot> FeedSlots => Set<FeedSlot>();
+
+    public DbSet<Spool> Spools => Set<Spool>();
+
+    public DbSet<SpoolUsageRecord> SpoolUsageRecords => Set<SpoolUsageRecord>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
