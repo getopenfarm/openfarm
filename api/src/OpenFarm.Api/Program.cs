@@ -52,6 +52,9 @@ using UpdateFilamentProfileRawDataHandlerType = OpenFarm.Application.Common.ICom
 using CreateVendorHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CreateVendorCommand, OpenFarm.Domain.FilamentTracking.Vendor>;
 using CreateFilamentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CreateFilamentCommand, OpenFarm.Domain.FilamentTracking.Filament>;
 using AddFilamentVariantHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.AddFilamentVariantCommand, OpenFarm.Domain.FilamentTracking.FilamentVariant>;
+using RegisterSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RegisterSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
+using LoadSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.LoadSpoolOntoFeedSlotCommand, OpenFarm.Application.FilamentTracking.LoadSpoolResult>;
+using UnloadSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.UnloadSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -220,6 +223,11 @@ builder.Services.AddScoped<IQueryHandler<GetVendorsQuery, IReadOnlyList<VendorSu
 builder.Services.AddScoped<CreateFilamentHandlerType, CreateFilamentCommandHandler>();
 builder.Services.AddScoped<AddFilamentVariantHandlerType, AddFilamentVariantCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentsQuery, IReadOnlyList<FilamentSummary>>, GetFilamentsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFeedUnitsQuery, IReadOnlyList<FeedUnitDetail>>, GetFeedUnitsQueryHandler>();
+builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>>, GetSpoolsQueryHandler>();
+builder.Services.AddScoped<LoadSpoolHandlerType, LoadSpoolOntoFeedSlotCommandHandler>();
+builder.Services.AddScoped<UnloadSpoolHandlerType, UnloadSpoolCommandHandler>();
 
 builder.Services.AddSignalR();
 

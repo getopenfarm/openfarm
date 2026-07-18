@@ -45,5 +45,19 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
             .ToListAsync(cancellationToken);
     }
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
+    public Task<Spool?> FindUsingFeedSlotAsync(Guid feedSlotId, CancellationToken cancellationToken) =>
+        dbContext.Spools.FirstOrDefaultAsync(s => s.State == SpoolState.Using && s.FeedSlotId == feedSlotId, cancellationToken);
+
+    public async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            var spoolId = ex.Entries.Select(e => e.Entity).OfType<Spool>().FirstOrDefault()?.Id ?? Guid.Empty;
+            throw new SpoolConcurrencyConflictException(spoolId);
+        }
+    }
 }
