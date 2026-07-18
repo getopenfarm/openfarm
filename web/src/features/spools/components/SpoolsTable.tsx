@@ -1,106 +1,191 @@
 import type { ColumnDef } from '@tanstack/react-table';
+import { useState } from 'react';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import type { Spool, SpoolState } from '../data/mockSpools';
+import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
+import { LoadSpoolDialog } from './LoadSpoolDialog';
+import { UnloadSpoolDialog } from './UnloadSpoolDialog';
 
 const STATE_BADGE: Record<
-  SpoolState,
+  string,
   { kind: 'green' | 'blue' | 'zinc'; label: string }
 > = {
-  using: { kind: 'green', label: 'In use' },
-  storage: { kind: 'blue', label: 'In storage' },
-  finished: { kind: 'zinc', label: 'Finished' },
+  Using: { kind: 'green', label: 'In use' },
+  InStorage: { kind: 'blue', label: 'In storage' },
+  Finished: { kind: 'zinc', label: 'Finished' },
 };
 
-function remainingIndicatorClass(fraction: number) {
+function remainingIndicatorClass(fraction: number, hasOverrun?: boolean) {
+  if (hasOverrun) return 'bg-kind-red';
   if (fraction < 0.15) return 'bg-kind-red';
   if (fraction < 0.4) return 'bg-kind-amber';
   return 'bg-kind-green';
 }
 
-const columns: ColumnDef<Spool>[] = [
-  {
-    accessorKey: 'colorName',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Spool" />
-    ),
-    cell: ({ row }) => {
-      const spool = row.original;
-      return (
-        <div className="flex items-center gap-2">
-          <Swatch colorHex={spool.colorHex} size="md" />
-          <div className="flex flex-col">
-            <span className="font-medium">{spool.colorName}</span>
-            <span className="text-xs text-muted-foreground">
-              {spool.material}
-            </span>
-          </div>
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: 'vendor',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Vendor" />
-    ),
-  },
-  {
-    id: 'remaining',
-    accessorFn: (spool) => spool.remainingGrams / spool.totalGrams,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Remaining" />
-    ),
-    cell: ({ row }) => {
-      const spool = row.original;
-      const fraction = spool.remainingGrams / spool.totalGrams;
-      return (
-        <div className="flex w-40 flex-col gap-1.5">
-          <Progress
-            value={fraction * 100}
-            indicatorClassName={remainingIndicatorClass(fraction)}
-          />
-          <span className="text-xs text-muted-foreground">
-            {spool.remainingGrams} / {spool.totalGrams} g
-          </span>
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: 'state',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="State" />
-    ),
-    cell: ({ row }) => {
-      const meta = STATE_BADGE[row.original.state];
-      return <StatusBadge kind={meta.kind} label={meta.label} />;
-    },
-  },
-  {
-    accessorKey: 'location',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Location" />
-    ),
-    cell: ({ row }) => (
-      <span className="font-mono text-xs">{row.original.location ?? '—'}</span>
-    ),
-  },
-];
-
 interface SpoolsTableProps {
-  spools: Spool[];
+  spools: SpoolResponse[];
 }
 
 export function SpoolsTable({ spools }: SpoolsTableProps) {
+  const [dialog, setDialog] = useState<{
+    mode: 'load' | 'unload';
+    spoolId: string;
+  } | null>(null);
+
+  const columns: ColumnDef<SpoolResponse>[] = [
+    {
+      id: 'spool',
+      accessorKey: 'colorName',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Spool" />
+      ),
+      cell: ({ row }) => {
+        const spool = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <Swatch colorHex={spool.colorHex} size="md" />
+            <div className="flex flex-col">
+              <span className="font-medium">
+                {spool.label || spool.colorName}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {spool.material} · {spool.colorName}
+              </span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'vendorName',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Vendor" />
+      ),
+    },
+    {
+      id: 'remaining',
+      accessorFn: (spool) =>
+        (spool.remainingWeightGrams ?? 0) / (spool.spoolWeightGrams || 1),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Remaining" />
+      ),
+      cell: ({ row }) => {
+        const spool = row.original;
+        const fraction =
+          (spool.remainingWeightGrams ?? 0) / (spool.spoolWeightGrams || 1);
+        return (
+          <div className="flex w-40 flex-col gap-1.5">
+            <Progress
+              value={Math.min(fraction, 1) * 100}
+              indicatorClassName={remainingIndicatorClass(
+                fraction,
+                spool.hasUsageOverrun,
+              )}
+            />
+            <span className="text-xs text-muted-foreground">
+              {spool.remainingWeightGrams} / {spool.spoolWeightGrams} g
+              {spool.hasUsageOverrun ? ' · overrun' : ''}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'state',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="State" />
+      ),
+      cell: ({ row }) => {
+        const meta = STATE_BADGE[row.original.state ?? ''] ?? {
+          kind: 'zinc' as const,
+          label: row.original.state ?? '',
+        };
+        return <StatusBadge kind={meta.kind} label={meta.label} />;
+      },
+    },
+    {
+      accessorKey: 'feedSlotLabel',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Location" />
+      ),
+      cell: ({ row }) => (
+        <span className="font-mono text-xs">
+          {row.original.feedSlotLabel ?? '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <span className="sr-only">Actions</span>,
+      cell: ({ row }) => {
+        const spool = row.original;
+        if (!spool.id) return null;
+        if (spool.state === 'InStorage') {
+          return (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setDialog({ mode: 'load', spoolId: spool.id ?? '' });
+                }}
+              >
+                Load
+              </Button>
+            </div>
+          );
+        }
+        if (spool.state === 'Using') {
+          return (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setDialog({ mode: 'unload', spoolId: spool.id ?? '' });
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+          );
+        }
+        return null;
+      },
+    },
+  ];
+
   return (
-    <DataTable
-      columns={columns}
-      data={spools}
-      emptyState={<>No spools yet. Add one to track it here.</>}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={spools}
+        emptyState={<>No spools yet. Add one to track it here.</>}
+      />
+      {dialog?.mode === 'load' ? (
+        <LoadSpoolDialog
+          spoolId={dialog.spoolId}
+          open={dialog !== null}
+          onOpenChange={(open) => {
+            if (!open) setDialog(null);
+          }}
+        />
+      ) : null}
+      {dialog?.mode === 'unload' ? (
+        <UnloadSpoolDialog
+          spoolId={dialog.spoolId}
+          open={dialog !== null}
+          onOpenChange={(open) => {
+            if (!open) setDialog(null);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
