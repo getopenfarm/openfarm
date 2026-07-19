@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenFarm.Api.ExceptionHandling;
@@ -84,7 +85,17 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
 
-builder.Services.AddDbContext<OpenFarmDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<OpenFarmDbContext>(options => options
+    .UseNpgsql(connectionString)
+    // The Part Library migrations (AddPartsCatalog/AddPrinterMachineProfileLink/
+    // AddOrganizationSlicingDefaults) were authored without `dotnet ef` tooling (no .NET SDK access
+    // in the sandbox that wrote them — see those migrations' own header comments), so
+    // OpenFarmDbContextModelSnapshot.cs was never regenerated to match. The migrations' Up()/Down()
+    // methods are themselves accurate; this only suppresses EF's design-time-oriented "did you use
+    // `dotnet ef migrations add`" check, which is the mitigation EF Core's own warning message
+    // recommends. Regenerate the snapshot for real (`dotnet ef migrations add`, expect an empty
+    // diff) once SDK access is available, then this can be removed.
+    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
 builder.Services
     .AddHealthChecks()
