@@ -48,7 +48,7 @@ public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMa
             {
                 using var reader = new StreamReader(modelSettingsEntry.Open());
                 var xml = await reader.ReadToEndAsync(cancellationToken);
-                var matches = PlateElementRegex().Matches(xml).Count;
+                var matches = PlateElementRegex().Count(xml);
                 if (matches > 0)
                 {
                     plateCount = matches;

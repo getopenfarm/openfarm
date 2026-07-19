@@ -1,3 +1,4 @@
+using System.Globalization;
 using FluentAssertions;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Profiles;
@@ -101,7 +102,7 @@ public class NozzleDiameterResolverTests
 
         public MachineProfileDisplayFields ExtractMachineDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat) =>
             new(
-                NozzleSizeMm: rawDataJson == "null" ? null : double.Parse(rawDataJson),
+                NozzleSizeMm: rawDataJson == "null" ? null : double.Parse(rawDataJson, CultureInfo.InvariantCulture),
                 BedSizeXMm: null, BedSizeYMm: null, MaxHeightMm: null, HasEnclosure: null, SupportedMaterials: []);
 
         public FilamentProfileDisplayFields ExtractFilamentDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat, string name, bool hasBaseProfileName) =>

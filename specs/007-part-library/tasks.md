@@ -38,9 +38,9 @@ Existing monorepo layout (unchanged): `api/src/OpenFarm.{Domain,Application,Infr
 
 **Purpose**: External infrastructure this feature's slicing capability needs, independent of any story.
 
-- [ ] T001 Add an `openfarm_part_files` bind-mounted volume (and the API service's mount of it) to `infra/docker-compose.yml`, for the new `IPartFileStorage` disk abstraction
-- [ ] T002 [P] Add a build step to the API container's Dockerfile installing the headless OrcaSlicer CLI (and optionally Bambu Studio CLI) binary
-- [ ] T003 [P] Create `api/src/OpenFarm.Infrastructure/Parts/SlicerOptions.cs` (CLI binary paths, timeout, `MaxConcurrentSlicingOperations` default 2, `GenericFallbackMaterialProfile` per `SlicerEngine`) and bind it from `appsettings.json`/`.env.example`
+- [X] T001 Add an `openfarm_part_files` bind-mounted volume (and the API service's mount of it) to `infra/docker-compose.yml`, for the new `IPartFileStorage` disk abstraction
+- [X] T002 [P] Add a build step to the API container's Dockerfile installing the headless OrcaSlicer CLI (and optionally Bambu Studio CLI) binary
+- [X] T003 [P] Create `api/src/OpenFarm.Infrastructure/Parts/SlicerOptions.cs` (CLI binary paths, timeout, `MaxConcurrentSlicingOperations` default 2, `GenericFallbackMaterialProfile` per `SlicerEngine`) and bind it from `appsettings.json`/`.env.example`
 
 ---
 
@@ -52,59 +52,59 @@ runs through. **No user story's independent test is runnable until this phase is
 
 ### Domain (`api/src/OpenFarm.Domain/Parts/`)
 
-- [ ] T004 [P] `PartFileFormat.cs` (enum: `Stl` \| `ThreeMf` \| `GCode`)
-- [ ] T005 [P] `SlicerEngine.cs` (enum: `OrcaSlicer` \| `BambuStudio`)
-- [ ] T006 [P] `EstimateStatus.cs` (enum: `Resolving` \| `Available` \| `Unavailable`)
-- [ ] T007 [P] `PartProcessingJobKind.cs` (`Add` \| `Replace`) and `PartProcessingJobStatus.cs` (`Processing` \| `ReadyForReview` \| `Confirmed` \| `Failed` \| `Discarded`)
-- [ ] T008 [P] `Tag.cs` entity
-- [ ] T009 [P] `PreviewFilamentRequirement.cs` (value record: `RequirementIndex`, `MaterialType?`, `DetectedColorHex?`, `DetectedSubBrand?`)
-- [ ] T010 [P] `PartFilamentRequirement.cs` entity (`MaterialType` `string?`, `DetectedColorHex?`, `DetectedSubBrand?`, `NarrowFilamentVariantId?`/`NarrowFilamentProfileId?` unenforced `Guid?`)
-- [ ] T011 [P] `PartThumbnail.cs` entity (`PartId`, `PlateIndex`, `Bytes`)
-- [ ] T012 [P] `PartProcessingJobPreviewThumbnail.cs` entity (`JobId`, `PlateIndex`, `Bytes`)
-- [ ] T013 `Part.cs` entity (depends on T004–T012: file fields, `NozzleDiameterMm`, `EstimateStatus`+nullable estimate fields, `SlicerEngineOverride`, `PlateCount`, `PartFilamentRequirement`/`PartThumbnail` collections, `UseXminAsConcurrencyToken()`)
-- [ ] T014 `PartProcessingJob.cs` entity (depends on T005–T009, T012: `Kind`/`Status`, snapshot fields, `Preview*` fields incl. `PreviewFilamentRequirements` shape, `ErrorMessage`, `RequestedByUserId`)
-- [ ] T015 [P] Domain exceptions in `api/src/OpenFarm.Domain/Parts/`: `PartNotFoundException.cs`, `TagNotFoundException.cs`, `DuplicatePartTagException.cs`, `UnsupportedPartFileFormatException.cs`, `PartFileParsingFailedException.cs`, `SlicingFailedException.cs`, `NoNozzleDiameterAvailableException.cs`, `UnslicedProjectMaterialParsingFailedException.cs`, `PartProcessingJobNotReadyForReviewException.cs`, `PartConcurrencyConflictException.cs`
+- [X] T004 [P] `PartFileFormat.cs` (enum: `Stl` \| `ThreeMf` \| `GCode`)
+- [X] T005 [P] `SlicerEngine.cs` (enum: `OrcaSlicer` \| `BambuStudio`)
+- [X] T006 [P] `EstimateStatus.cs` (enum: `Resolving` \| `Available` \| `Unavailable`)
+- [X] T007 [P] `PartProcessingJobKind.cs` (`Add` \| `Replace`) and `PartProcessingJobStatus.cs` (`Processing` \| `ReadyForReview` \| `Confirmed` \| `Failed` \| `Discarded`)
+- [X] T008 [P] `Tag.cs` entity
+- [X] T009 [P] `PreviewFilamentRequirement.cs` (value record: `RequirementIndex`, `MaterialType?`, `DetectedColorHex?`, `DetectedSubBrand?`)
+- [X] T010 [P] `PartFilamentRequirement.cs` entity (`MaterialType` `string?`, `DetectedColorHex?`, `DetectedSubBrand?`, `NarrowFilamentVariantId?`/`NarrowFilamentProfileId?` unenforced `Guid?`)
+- [X] T011 [P] `PartThumbnail.cs` entity (`PartId`, `PlateIndex`, `Bytes`)
+- [X] T012 [P] `PartProcessingJobPreviewThumbnail.cs` entity (`JobId`, `PlateIndex`, `Bytes`)
+- [X] T013 `Part.cs` entity (depends on T004–T012: file fields, `NozzleDiameterMm`, `EstimateStatus`+nullable estimate fields, `SlicerEngineOverride`, `PlateCount`, `PartFilamentRequirement`/`PartThumbnail` collections, `UseXminAsConcurrencyToken()`)
+- [X] T014 `PartProcessingJob.cs` entity (depends on T005–T009, T012: `Kind`/`Status`, snapshot fields, `Preview*` fields incl. `PreviewFilamentRequirements` shape, `ErrorMessage`, `RequestedByUserId`)
+- [X] T015 [P] Domain exceptions in `api/src/OpenFarm.Domain/Parts/`: `PartNotFoundException.cs`, `TagNotFoundException.cs`, `DuplicatePartTagException.cs`, `UnsupportedPartFileFormatException.cs`, `PartFileParsingFailedException.cs`, `SlicingFailedException.cs`, `NoNozzleDiameterAvailableException.cs`, `UnslicedProjectMaterialParsingFailedException.cs`, `PartProcessingJobNotReadyForReviewException.cs`, `PartConcurrencyConflictException.cs`
 
 ### Application seams (`api/src/OpenFarm.Application/Parts/`)
 
-- [ ] T016 [P] `IPartRepository.cs`, `ITagRepository.cs`, `IPartProcessingJobRepository.cs`
-- [ ] T017 [P] `IPartFileStorage.cs` (`SaveAsync`/`OpenReadAsync`/`DeleteAsync`, keyed by org/part id)
-- [ ] T018 [P] `IPartEventPublisher.cs` (job status changed, `PartUpserted`, `PartEstimateResolved`, `PartEstimateUnavailable`, `PartDeleted`)
-- [ ] T019 [P] Contract-only declarations: `IPartFileClassifier.cs`, `IAlreadySlicedFileMetadataParser.cs`, `IUnslicedProjectMaterialResolver.cs`, `ISlicerEngine.cs` (concrete implementations arrive in US2/US3 — `PartFileProcessor` below compiles and is tested against these interfaces regardless)
-- [ ] T020 `IPartFileProcessor.cs` + `PartProcessingWorkItem.cs` (queue payload shape)
+- [X] T016 [P] `IPartRepository.cs`, `ITagRepository.cs`, `IPartProcessingJobRepository.cs`
+- [X] T017 [P] `IPartFileStorage.cs` (`SaveAsync`/`OpenReadAsync`/`DeleteAsync`, keyed by org/part id)
+- [X] T018 [P] `IPartEventPublisher.cs` (job status changed, `PartUpserted`, `PartEstimateResolved`, `PartEstimateUnavailable`, `PartDeleted`)
+- [X] T019 [P] Contract-only declarations: `IPartFileClassifier.cs`, `IAlreadySlicedFileMetadataParser.cs`, `IUnslicedProjectMaterialResolver.cs`, `ISlicerEngine.cs` (concrete implementations arrive in US2/US3 — `PartFileProcessor` below compiles and is tested against these interfaces regardless)
+- [X] T020 `IPartFileProcessor.cs` + `PartProcessingWorkItem.cs` (queue payload shape)
 
 ### Infrastructure plumbing
 
-- [ ] T021 [P] Write failing tests for `IPartFileClassifier`'s dispatch rule (STL/G-code always by extension; `.3mf` by Bambu `Metadata/slice_info.config` zip-entry presence) in `api/tests/OpenFarm.Infrastructure.Tests/Parts/PartFileClassifierTests.cs`
-- [ ] T022 `api/src/OpenFarm.Infrastructure/Parts/PartFileClassifier.cs` — implement to pass T021 (TDD, `ZipArchive`-based, patterned after `ProfileBundleParser`)
-- [ ] T023 [P] `api/src/OpenFarm.Infrastructure/Parts/LocalDiskPartFileStorage.cs` — implements `IPartFileStorage` against the new volume (T001)
-- [ ] T024 [P] `api/src/OpenFarm.Api/Hubs/FarmHubPartEventPublisher.cs` — implements `IPartEventPublisher` via `IHubContext<FarmHub>` + `FarmHub.GroupName(orgId)`, mirroring `FarmHubPrinterEventPublisher`
-- [ ] T025 [P] `api/src/OpenFarm.Infrastructure/Parts/PartRepository.cs`, `TagRepository.cs`, `PartProcessingJobRepository.cs`
-- [ ] T026 [P] EF configurations in `api/src/OpenFarm.Infrastructure/Persistence/Configurations/`: `PartConfiguration.cs` (incl. `HasConversion<string>()` for enums, `UseXminAsConcurrencyToken()`), `PartFilamentRequirementConfiguration.cs` (partial unique index on `(PartId, MaterialType, DetectedColorHex)` where color is non-null), `PartThumbnailConfiguration.cs`, `TagConfiguration.cs`, `PartTagConfiguration.cs`, `PartProcessingJobConfiguration.cs` (`PreviewFilamentRequirements` as `jsonb` via `HasConversion` + custom `ValueComparer`), `PartProcessingJobPreviewThumbnailConfiguration.cs` — all `IsMultiTenant()`
-- [ ] T027 Generate `api/src/OpenFarm.Infrastructure/Persistence/Migrations/<timestamp>_AddPartsCatalog.cs` from T004–T026 (`Tags`, `Parts`, `PartFilamentRequirements`, `PartTags`, `PartProcessingJobs`, `PartThumbnails`, `PartProcessingJobPreviewThumbnails`)
+- [X] T021 [P] Write failing tests for `IPartFileClassifier`'s dispatch rule (STL/G-code always by extension; `.3mf` by Bambu `Metadata/slice_info.config` zip-entry presence) in `api/tests/OpenFarm.Infrastructure.Tests/Parts/PartFileClassifierTests.cs`
+- [X] T022 `api/src/OpenFarm.Infrastructure/Parts/PartFileClassifier.cs` — implement to pass T021 (TDD, `ZipArchive`-based, patterned after `ProfileBundleParser`)
+- [X] T023 [P] `api/src/OpenFarm.Infrastructure/Parts/LocalDiskPartFileStorage.cs` — implements `IPartFileStorage` against the new volume (T001)
+- [X] T024 [P] `api/src/OpenFarm.Api/Hubs/FarmHubPartEventPublisher.cs` — implements `IPartEventPublisher` via `IHubContext<FarmHub>` + `FarmHub.GroupName(orgId)`, mirroring `FarmHubPrinterEventPublisher`
+- [X] T025 [P] `api/src/OpenFarm.Infrastructure/Parts/PartRepository.cs`, `TagRepository.cs`, `PartProcessingJobRepository.cs`
+- [X] T026 [P] EF configurations in `api/src/OpenFarm.Infrastructure/Persistence/Configurations/`: `PartConfiguration.cs` (incl. `HasConversion<string>()` for enums, `UseXminAsConcurrencyToken()`), `PartFilamentRequirementConfiguration.cs` (partial unique index on `(PartId, MaterialType, DetectedColorHex)` where color is non-null), `PartThumbnailConfiguration.cs`, `TagConfiguration.cs`, `PartTagConfiguration.cs`, `PartProcessingJobConfiguration.cs` (`PreviewFilamentRequirements` as `jsonb` via `HasConversion` + custom `ValueComparer`), `PartProcessingJobPreviewThumbnailConfiguration.cs` — all `IsMultiTenant()`
+- [X] T027 Generate `api/src/OpenFarm.Infrastructure/Persistence/Migrations/<timestamp>_AddPartsCatalog.cs` from T004–T026 (`Tags`, `Parts`, `PartFilamentRequirements`, `PartTags`, `PartProcessingJobs`, `PartThumbnails`, `PartProcessingJobPreviewThumbnails`)
 
 ### Unifying processor, background service, and endpoints
 
-- [ ] T028 `api/src/OpenFarm.Infrastructure/Parts/PartFileProcessor.cs` — implements `IPartFileProcessor`; dispatch skeleton delegating to the injected `IAlreadySlicedFileMetadataParser`/`IUnslicedProjectMaterialResolver`/`ISlicerEngine` seams (concrete bodies land in US2/US3; orchestration itself is test-after per `research.md` §12)
-- [ ] T029 [P] `api/tests/OpenFarm.Application.Tests/Parts/PartFileProcessorTests.cs` — dispatch-only tests using fakes for each of T028's three dependencies
-- [ ] T030 `api/src/OpenFarm.Infrastructure/Parts/PartProcessingBackgroundService.cs` — bounded `Channel<PartProcessingWorkItem>` consumer, `IServiceScopeFactory`+`CreateTenantScope()` pattern from `PrinterConnectionBackgroundService`, the `Processing → ReadyForReview/Failed` transition, the §3b continuation-targeting skeleton (`ReadyForReview` refresh vs. `Confirmed`-then-write-`Part` vs. `Discarded`-drop), and a direct `IActivityLogWriter` write attributed to `RequestedByUserId` on a pre-confirm `Failed`
+- [X] T028 `api/src/OpenFarm.Infrastructure/Parts/PartFileProcessor.cs` — implements `IPartFileProcessor`; dispatch skeleton delegating to the injected `IAlreadySlicedFileMetadataParser`/`IUnslicedProjectMaterialResolver`/`ISlicerEngine` seams (concrete bodies land in US2/US3; orchestration itself is test-after per `research.md` §12)
+- [X] T029 [P] `api/tests/OpenFarm.Application.Tests/Parts/PartFileProcessorTests.cs` — dispatch-only tests using fakes for each of T028's three dependencies
+- [X] T030 `api/src/OpenFarm.Infrastructure/Parts/PartProcessingBackgroundService.cs` — bounded `Channel<PartProcessingWorkItem>` consumer, `IServiceScopeFactory`+`CreateTenantScope()` pattern from `PrinterConnectionBackgroundService`, the `Processing → ReadyForReview/Failed` transition, the §3b continuation-targeting skeleton (`ReadyForReview` refresh vs. `Confirmed`-then-write-`Part` vs. `Discarded`-drop), and a direct `IActivityLogWriter` write attributed to `RequestedByUserId` on a pre-confirm `Failed`
 - [ ] T031 [P] `api/tests/OpenFarm.Infrastructure.Tests/Parts/PartProcessingBackgroundServiceTests.cs` — queue-consumption and continuation-targeting tests (test-after)
-- [ ] T032 [P] Write failing tests for `AddPartCommandValidator` (accepted file-format check only — no `filamentId`/`name`/`tags` fields exist to validate at submit) in `api/tests/OpenFarm.Application.Tests/Parts/AddPartCommandValidatorTests.cs`
-- [ ] T033 `api/src/OpenFarm.Application/Parts/AddPartCommand.cs` / `AddPartCommandHandler.cs` / `AddPartCommandValidator.cs` — creates `PartProcessingJob{Kind=Add, PartId=null}`, enqueues, to pass T032
-- [ ] T034 [P] Write failing tests for `ConfirmPartProcessingJobCommandValidator` (name required for `Add` only, `Replace` rejects `name`/`tags`, at most one narrow-override field per entry, `requirementIndex` must match a preview requirement) in `api/tests/OpenFarm.Application.Tests/Parts/ConfirmPartProcessingJobCommandValidatorTests.cs`
-- [ ] T035 `api/src/OpenFarm.Application/Parts/ConfirmPartProcessingJobCommand.cs` / `Handler.cs` / `Validator.cs` — creates/updates `Part` from the job's preview as-is (whatever `PreviewEstimateStatus` currently holds), to pass T034
-- [ ] T036 [P] `api/src/OpenFarm.Application/Parts/DiscardPartProcessingJobCommand.cs` / `Handler.cs` (valid from `Processing` or `ReadyForReview`; best-effort-cancels an in-flight slice)
-- [ ] T037 [P] `api/src/OpenFarm.Application/Parts/GetPartProcessingJobQuery.cs` / `Handler.cs`
-- [ ] T038 [P] `api/src/OpenFarm.Api/Endpoints/Parts/CreatePartEndpoint.cs` (`POST /api/v1/parts`, multipart `AllowFileUploads()`, `[Permission("parts:create")]`, `202`)
-- [ ] T039 [P] `api/src/OpenFarm.Api/Endpoints/PartProcessingJobs/GetPartProcessingJobEndpoint.cs`, `ConfirmPartProcessingJobEndpoint.cs` (`POST .../confirm`), `DiscardPartProcessingJobEndpoint.cs` (`DELETE .../confirm`)
-- [ ] T040 `api/src/OpenFarm.Api/ExceptionHandling/DomainExceptionHandler.cs` — extend with this feature's exception→`ProblemDetails` mappings (`PartNotFoundException`→404, `UnsupportedPartFileFormatException`→400, `NoNozzleDiameterAvailableException`→422, `PartProcessingJobNotReadyForReviewException`→409, `PartConcurrencyConflictException`→409)
+- [X] T032 [P] Write failing tests for `AddPartCommandValidator` (accepted file-format check only — no `filamentId`/`name`/`tags` fields exist to validate at submit) in `api/tests/OpenFarm.Application.Tests/Parts/AddPartCommandValidatorTests.cs`
+- [X] T033 `api/src/OpenFarm.Application/Parts/AddPartCommand.cs` / `AddPartCommandHandler.cs` / `AddPartCommandValidator.cs` — creates `PartProcessingJob{Kind=Add, PartId=null}`, enqueues, to pass T032
+- [X] T034 [P] Write failing tests for `ConfirmPartProcessingJobCommandValidator` (name required for `Add` only, `Replace` rejects `name`/`tags`, at most one narrow-override field per entry, `requirementIndex` must match a preview requirement) in `api/tests/OpenFarm.Application.Tests/Parts/ConfirmPartProcessingJobCommandValidatorTests.cs`
+- [X] T035 `api/src/OpenFarm.Application/Parts/ConfirmPartProcessingJobCommand.cs` / `Handler.cs` / `Validator.cs` — creates/updates `Part` from the job's preview as-is (whatever `PreviewEstimateStatus` currently holds), to pass T034
+- [X] T036 [P] `api/src/OpenFarm.Application/Parts/DiscardPartProcessingJobCommand.cs` / `Handler.cs` (valid from `Processing` or `ReadyForReview`; best-effort-cancels an in-flight slice)
+- [X] T037 [P] `api/src/OpenFarm.Application/Parts/GetPartProcessingJobQuery.cs` / `Handler.cs`
+- [X] T038 [P] `api/src/OpenFarm.Api/Endpoints/Parts/CreatePartEndpoint.cs` (`POST /api/v1/parts`, multipart `AllowFileUploads()`, `[Permission("parts:create")]`, `202`)
+- [X] T039 [P] `api/src/OpenFarm.Api/Endpoints/PartProcessingJobs/GetPartProcessingJobEndpoint.cs`, `ConfirmPartProcessingJobEndpoint.cs` (`POST .../confirm`), `DiscardPartProcessingJobEndpoint.cs` (`DELETE .../confirm`)
+- [X] T040 `api/src/OpenFarm.Api/ExceptionHandling/DomainExceptionHandler.cs` — extend with this feature's exception→`ProblemDetails` mappings (`PartNotFoundException`→404, `UnsupportedPartFileFormatException`→400, `NoNozzleDiameterAvailableException`→422, `PartProcessingJobNotReadyForReviewException`→409, `PartConcurrencyConflictException`→409)
 - [ ] T041 [P] `api/tests/OpenFarm.Api.IntegrationTests/Parts/CreatePartEndpointTests.cs` — submit-time `400` (unrecognized format) case
-- [ ] T042 Register `PartProcessingBackgroundService` as a hosted service and every new Foundational interface's implementation in DI (`api/src/OpenFarm.Api` composition root)
+- [X] T042 Register `PartProcessingBackgroundService` as a hosted service and every new Foundational interface's implementation in DI (`api/src/OpenFarm.Api` composition root)
 
 ### Frontend shared infra
 
-- [ ] T043 Extract shared `HubConnectionBuilder` setup into `web/src/lib/signalr/farmHubConnection.ts`
-- [ ] T044 Update `web/src/features/printers/hooks/useFarmHub.ts` to consume `farmHubConnection.ts` (T043) with no behavior change
+- [X] T043 Extract shared `HubConnectionBuilder` setup into `web/src/lib/signalr/farmHubConnection.ts`
+- [X] T044 Update `web/src/features/printers/hooks/useFarmHub.ts` to consume `farmHubConnection.ts` (T043) with no behavior change
 
 **Checkpoint**: Foundation ready — an add request can be submitted, classified, queued, and its job polled/confirmed/discarded, though `ReadyForReview` isn't reachable yet (US2/US3 supply the two concrete processing paths).
 
@@ -121,12 +121,12 @@ the part in the catalog with per-plate thumbnails and real nozzle/material data.
 
 ### Implementation for User Story 1
 
-- [ ] T045 [P] [US1] `api/src/OpenFarm.Application/Parts/GetPartsQuery.cs` / `GetPartsQueryHandler.cs` (pagination; tag filter added in US5)
-- [ ] T046 [P] [US1] `api/src/OpenFarm.Application/Parts/GetPartQuery.cs` / `GetPartQueryHandler.cs` (detail shape incl. `narrowFilamentVariantUnresolved`/`narrowFilamentProfileUnresolved` flags)
-- [ ] T047 [P] [US1] `api/src/OpenFarm.Api/Endpoints/Parts/ListPartsEndpoint.cs` (`GET /api/v1/parts`, `[Permission("parts:list")]`)
-- [ ] T048 [P] [US1] `api/src/OpenFarm.Api/Endpoints/Parts/GetPartEndpoint.cs` (`GET /api/v1/parts/{id}`, `[Permission("parts:read")]`)
-- [ ] T049 [P] [US1] `api/src/OpenFarm.Api/Endpoints/Parts/GetPartFileEndpoint.cs` (`GET /api/v1/parts/{id}/file`, raw byte-stream download)
-- [ ] T050 [P] [US1] `api/src/OpenFarm.Application/Parts/DeletePartCommand.cs` / `Handler.cs` + `api/src/OpenFarm.Api/Endpoints/Parts/DeletePartEndpoint.cs` (`DELETE /api/v1/parts/{id}`, cascades tags/requirements/thumbnails, calls `IPartFileStorage.DeleteAsync`)
+- [X] T045 [P] [US1] `api/src/OpenFarm.Application/Parts/GetPartsQuery.cs` / `GetPartsQueryHandler.cs` (pagination; tag filter added in US5)
+- [X] T046 [P] [US1] `api/src/OpenFarm.Application/Parts/GetPartQuery.cs` / `GetPartQueryHandler.cs` (detail shape incl. `narrowFilamentVariantUnresolved`/`narrowFilamentProfileUnresolved` flags)
+- [X] T047 [P] [US1] `api/src/OpenFarm.Api/Endpoints/Parts/ListPartsEndpoint.cs` (`GET /api/v1/parts`, `[Permission("parts:list")]`)
+- [X] T048 [P] [US1] `api/src/OpenFarm.Api/Endpoints/Parts/GetPartEndpoint.cs` (`GET /api/v1/parts/{id}`, `[Permission("parts:read")]`)
+- [X] T049 [P] [US1] `api/src/OpenFarm.Api/Endpoints/Parts/GetPartFileEndpoint.cs` (`GET /api/v1/parts/{id}/file`, raw byte-stream download)
+- [X] T050 [P] [US1] `api/src/OpenFarm.Application/Parts/DeletePartCommand.cs` / `Handler.cs` + `api/src/OpenFarm.Api/Endpoints/Parts/DeletePartEndpoint.cs` (`DELETE /api/v1/parts/{id}`, cascades tags/requirements/thumbnails, calls `IPartFileStorage.DeleteAsync`)
 - [ ] T051 [US1] Rebuild `api/` to regenerate `api/openapi.json` and run `bunx orval` in `web/` to produce `src/lib/api/generated` hooks for every Part Library endpoint built so far
 - [ ] T052 [P] [US1] `web/src/features/parts/hooks/usePartsHub.ts` — subscribes to `PartProcessingJobStatusChanged`/`PartUpserted`/`PartDeleted` (`PartEstimateResolved`/`PartEstimateUnavailable` wired in US2)
 - [ ] T053 [P] [US1] `web/src/features/parts/components/PartThumbnailGallery.tsx` — per-plate strip against `{thumbnails, plateCount}`, graceful missing-plate fallback (FR-014a)
@@ -157,24 +157,24 @@ shows per-plate thumbnails + estimate, and nothing appears in the catalog until 
 
 ### Implementation for User Story 2
 
-- [ ] T064 [P] [US2] `api/src/OpenFarm.Domain/Printers/Printer.cs` — add `MachineProfileId` (`Guid?`) + `LinkMachineProfile`/`UnlinkMachineProfile` methods
-- [ ] T065 [P] [US2] `api/src/OpenFarm.Domain/Organizations/Organization.cs` — add `DefaultSlicerEngine` + `SetDefaultSlicerEngine` method
-- [ ] T066 [US2] `api/src/OpenFarm.Infrastructure/Persistence/Configurations/PrinterConfiguration.cs` — `HasOne<MachineProfile>().WithMany().HasForeignKey(...).OnDelete(SetNull)`
-- [ ] T067 [US2] Generate `api/src/OpenFarm.Infrastructure/Persistence/Migrations/<timestamp>_AddPrinterMachineProfileLink.cs`
-- [ ] T068 [US2] Generate `api/src/OpenFarm.Infrastructure/Persistence/Migrations/<timestamp>_AddOrganizationSlicingDefaults.cs`
-- [ ] T069 [P] [US2] Write failing tests for `NozzleDiameterResolver` (mode selection; smallest-diameter tie-break; no qualifying printer → `null`) in `api/tests/OpenFarm.Application.Tests/Parts/NozzleDiameterResolverTests.cs`
-- [ ] T070 [US2] `api/src/OpenFarm.Application/Parts/NozzleDiameterResolver.cs` — `Resolve(printers, profiles)` via `IProfileBundleParser.ExtractMachineDisplayFields`, to pass T069
-- [ ] T071 [P] [US2] `api/src/OpenFarm.Application/Printers/LinkPrinterMachineProfileCommand.cs` / `Handler.cs` / `Validator.cs`
-- [ ] T072 [P] [US2] `api/src/OpenFarm.Api/Endpoints/Printers/LinkPrinterMachineProfileEndpoint.cs` (`PUT /api/v1/printers/{id}/machine-profile`)
-- [ ] T073 [P] [US2] `api/src/OpenFarm.Application/Parts/GetSlicingDefaultsQuery.cs` / `Handler.cs`, `UpdateSlicingDefaultsCommand.cs` / `Handler.cs` / `Validator.cs`
-- [ ] T074 [P] [US2] `api/src/OpenFarm.Api/Endpoints/Settings/GetSlicingDefaultsEndpoint.cs`, `UpdateSlicingDefaultsEndpoint.cs`
+- [X] T064 [P] [US2] `api/src/OpenFarm.Domain/Printers/Printer.cs` — add `MachineProfileId` (`Guid?`) + `LinkMachineProfile`/`UnlinkMachineProfile` methods
+- [X] T065 [P] [US2] `api/src/OpenFarm.Domain/Organizations/Organization.cs` — add `DefaultSlicerEngine` + `SetDefaultSlicerEngine` method
+- [X] T066 [US2] `api/src/OpenFarm.Infrastructure/Persistence/Configurations/PrinterConfiguration.cs` — `HasOne<MachineProfile>().WithMany().HasForeignKey(...).OnDelete(SetNull)`
+- [X] T067 [US2] Generate `api/src/OpenFarm.Infrastructure/Persistence/Migrations/<timestamp>_AddPrinterMachineProfileLink.cs`
+- [X] T068 [US2] Generate `api/src/OpenFarm.Infrastructure/Persistence/Migrations/<timestamp>_AddOrganizationSlicingDefaults.cs`
+- [X] T069 [P] [US2] Write failing tests for `NozzleDiameterResolver` (mode selection; smallest-diameter tie-break; no qualifying printer → `null`) in `api/tests/OpenFarm.Application.Tests/Parts/NozzleDiameterResolverTests.cs`
+- [X] T070 [US2] `api/src/OpenFarm.Application/Parts/NozzleDiameterResolver.cs` — `Resolve(printers, profiles)` via `IProfileBundleParser.ExtractMachineDisplayFields`, to pass T069
+- [X] T071 [P] [US2] `api/src/OpenFarm.Application/Printers/LinkPrinterMachineProfileCommand.cs` / `Handler.cs` / `Validator.cs`
+- [X] T072 [P] [US2] `api/src/OpenFarm.Api/Endpoints/Printers/LinkPrinterMachineProfileEndpoint.cs` (`PUT /api/v1/printers/{id}/machine-profile`)
+- [X] T073 [P] [US2] `api/src/OpenFarm.Application/Parts/GetSlicingDefaultsQuery.cs` / `Handler.cs`, `UpdateSlicingDefaultsCommand.cs` / `Handler.cs` / `Validator.cs`
+- [X] T074 [P] [US2] `api/src/OpenFarm.Api/Endpoints/Settings/GetSlicingDefaultsEndpoint.cs`, `UpdateSlicingDefaultsEndpoint.cs`
 - [ ] T075 [US2] Extend `AddPartCommandValidator`/`Handler` (T033) — synchronous `422` gate when `RequiresSlicing` and `NozzleDiameterResolver` (T070) returns `null` (FR-006a), before job creation
 - [ ] T076 [P] [US2] Fixture-replay tests for `IUnslicedProjectMaterialResolver` (parseable + unparseable `Metadata/project_settings.config`) in `api/tests/OpenFarm.Infrastructure.Tests/Parts/UnslicedProjectMaterialResolverTests.cs` + fixtures under `Parts/Fixtures/`
-- [ ] T077 [US2] `api/src/OpenFarm.Infrastructure/Parts/UnslicedProjectMaterialResolver.cs` — `ZipArchive` read of project settings (material + plate count), to pass T076
-- [ ] T078 [P] [US2] `api/src/OpenFarm.Infrastructure/Parts/FakeSlicerEngine.cs` — deterministic canned `SlicingResult` test/dev double
-- [ ] T079 [US2] `api/src/OpenFarm.Infrastructure/Parts/CliSlicerEngine.cs` — `System.Diagnostics.Process` wrapper invoking the configured OrcaSlicer/Bambu Studio CLI, per-plate thumbnail export, temp-output cleanup (manual real-CLI validation only, never a CI gate)
-- [ ] T080 [US2] Extend `api/src/OpenFarm.Infrastructure/Parts/PartFileProcessor.cs` (T028) — wire the requires-slicing branch: STL → `SlicerOptions.GenericFallbackMaterialProfile`; unsliced 3MF → `IUnslicedProjectMaterialResolver` (T077); both → `ISlicerEngine.SliceAsync`, setting `PreviewEstimateStatus=Resolving` then handing off to the continuation
-- [ ] T081 [US2] Extend `api/src/OpenFarm.Infrastructure/Parts/PartProcessingBackgroundService.cs` (T030) — wire the real §3b continuation: on slice completion, refresh the job's preview (still `ReadyForReview`) or write directly onto `Part` + publish `PartEstimateResolved`/`PartEstimateUnavailable` (already `Confirmed`), or drop the result (`Discarded`)
+- [X] T077 [US2] `api/src/OpenFarm.Infrastructure/Parts/UnslicedProjectMaterialResolver.cs` — `ZipArchive` read of project settings (material + plate count), to pass T076
+- [X] T078 [P] [US2] `api/src/OpenFarm.Infrastructure/Parts/FakeSlicerEngine.cs` — deterministic canned `SlicingResult` test/dev double
+- [X] T079 [US2] `api/src/OpenFarm.Infrastructure/Parts/CliSlicerEngine.cs` — `System.Diagnostics.Process` wrapper invoking the configured OrcaSlicer/Bambu Studio CLI, per-plate thumbnail export, temp-output cleanup (manual real-CLI validation only, never a CI gate)
+- [X] T080 [US2] Extend `api/src/OpenFarm.Infrastructure/Parts/PartFileProcessor.cs` (T028) — wire the requires-slicing branch: STL → `SlicerOptions.GenericFallbackMaterialProfile`; unsliced 3MF → `IUnslicedProjectMaterialResolver` (T077); both → `ISlicerEngine.SliceAsync`, setting `PreviewEstimateStatus=Resolving` then handing off to the continuation
+- [X] T081 [US2] Extend `api/src/OpenFarm.Infrastructure/Parts/PartProcessingBackgroundService.cs` (T030) — wire the real §3b continuation: on slice completion, refresh the job's preview (still `ReadyForReview`) or write directly onto `Part` + publish `PartEstimateResolved`/`PartEstimateUnavailable` (already `Confirmed`), or drop the result (`Discarded`)
 - [ ] T082 [P] [US2] `api/tests/OpenFarm.Api.IntegrationTests/Parts/RequiresSlicingPartEndpointTests.cs` — STL "any material" full cycle, unsliced-3MF-with-real-material full cycle, unsliced-3MF-unparseable-material rejection, no-linked-printer `422` rejection, using `FakeSlicerEngine`
 - [ ] T083 [P] [US2] `api/tests/OpenFarm.Api.IntegrationTests/Parts/EarlyConfirmEstimateContinuationTests.cs` — confirm while `PreviewEstimateStatus=Resolving`, assert the trailing continuation correctly targets the confirmed `Part` on both success and an injected failure (FR-009c/FR-009d)
 - [ ] T084 [P] [US2] `api/tests/OpenFarm.Api.IntegrationTests/Printers/LinkPrinterMachineProfileEndpointTests.cs` — link/unlink round trip + mixed-nozzle-diameter tie-break determination
@@ -198,12 +198,12 @@ confirming stores the file as-is; an unparseable file rejects outright with no r
 
 ### Implementation for User Story 3
 
-- [ ] T089 [P] [US3] Write failing tests for `FilamentRequirementGrouper` (dedup by distinct `(material, color)` pair; the 4-plate/3-requirement worked example) in `api/tests/OpenFarm.Application.Tests/Parts/FilamentRequirementGrouperTests.cs`
-- [ ] T090 [US3] `api/src/OpenFarm.Application/Parts/FilamentRequirementGrouper.cs` — `Group(detectedRequirements)`, to pass T089
+- [X] T089 [P] [US3] Write failing tests for `FilamentRequirementGrouper` (dedup by distinct `(material, color)` pair; the 4-plate/3-requirement worked example) in `api/tests/OpenFarm.Application.Tests/Parts/FilamentRequirementGrouperTests.cs`
+- [X] T090 [US3] `api/src/OpenFarm.Application/Parts/FilamentRequirementGrouper.cs` — `Group(detectedRequirements)`, to pass T089
 - [ ] T091 [P] [US3] Author already-sliced test fixtures (single-material G-code; 4-plate multi-color `.gcode.3mf` with plates 1/3 sharing black PETG, plate 2 white PLA, plate 4 red PETG) under `api/tests/OpenFarm.Infrastructure.Tests/Parts/Fixtures/`
 - [ ] T092 [P] [US3] Fixture-replay tests for `IAlreadySlicedFileMetadataParser` (G-code header parse, multi-plate Bambu `slice_info.config` parse, per-plate thumbnail extraction, unparseable → failure) in `api/tests/OpenFarm.Infrastructure.Tests/Parts/AlreadySlicedFileMetadataParserTests.cs`
-- [ ] T093 [US3] `api/src/OpenFarm.Infrastructure/Parts/AlreadySlicedFileMetadataParser.cs` — implements `IAlreadySlicedFileMetadataParser`, calls `FilamentRequirementGrouper` (T090), to pass T092
-- [ ] T094 [US3] Extend `api/src/OpenFarm.Infrastructure/Parts/PartFileProcessor.cs` (T028/T080) — wire the not-requires-slicing branch: atomic parse via T093 populating nozzle/material/estimate/thumbnails together, `PreviewEstimateStatus=Available` immediately
+- [X] T093 [US3] `api/src/OpenFarm.Infrastructure/Parts/AlreadySlicedFileMetadataParser.cs` — implements `IAlreadySlicedFileMetadataParser`, calls `FilamentRequirementGrouper` (T090), to pass T092
+- [X] T094 [US3] Extend `api/src/OpenFarm.Infrastructure/Parts/PartFileProcessor.cs` (T028/T080) — wire the not-requires-slicing branch: atomic parse via T093 populating nozzle/material/estimate/thumbnails together, `PreviewEstimateStatus=Available` immediately
 - [ ] T095 [P] [US3] `api/tests/OpenFarm.Api.IntegrationTests/Parts/AlreadySlicedPartEndpointTests.cs` — single-material full cycle, the 4-plate/3-requirement fixture (asserts exactly 3 grouped requirements, summed estimate, 4 thumbnails), every FR-006c rejection case (unparseable nozzle/material/estimate)
 
 **Checkpoint**: All three P1 stories complete — every acceptance scenario in spec.md's User Stories 1–3 is runnable end-to-end. **This is the MVP.**
@@ -220,10 +220,10 @@ data update. Separately, a failing replacement leaves the part completely unchan
 
 ### Implementation for User Story 4
 
-- [ ] T096 [P] [US4] `api/src/OpenFarm.Application/Parts/ReplacePartFileCommand.cs` / `Handler.cs` / `Validator.cs` (`Kind=Replace`, existing `Part`'s name/tags untouched)
-- [ ] T097 [P] [US4] `api/src/OpenFarm.Api/Endpoints/Parts/ReplacePartFileEndpoint.cs` (`PUT /api/v1/parts/{id}/file`, `[Permission("parts:replace-file")]`)
+- [X] T096 [P] [US4] `api/src/OpenFarm.Application/Parts/ReplacePartFileCommand.cs` / `Handler.cs` / `Validator.cs` (`Kind=Replace`, existing `Part`'s name/tags untouched)
+- [X] T097 [P] [US4] `api/src/OpenFarm.Api/Endpoints/Parts/ReplacePartFileEndpoint.cs` (`PUT /api/v1/parts/{id}/file`, `[Permission("parts:replace-file")]`)
 - [ ] T098 [US4] Verify/extend `ConfirmPartProcessingJobCommandValidator` (T034/T035) covers the `Replace`-kind `400` case (name/tags supplied) against a real `ReplacePartFileCommand`-created job
-- [ ] T099 [US4] Wire `Part`'s `xmin` concurrency-conflict path — a concurrent replace throws `PartConcurrencyConflictException`, mapped to `409` (T040)
+- [X] T099 [US4] Wire `Part`'s `xmin` concurrency-conflict path — a concurrent replace throws `PartConcurrencyConflictException`, mapped to `409` (T040)
 - [ ] T100 [US4] `web/src/features/parts/components/AddOrReplacePartDialog.tsx` — Replace mode (reuse T056, minus name/tags fields)
 - [ ] T101 [US4] `web/src/features/parts/PartDetailPage.tsx` (T059) — "Replace file" action opening T100
 - [ ] T102 [P] [US4] `api/tests/OpenFarm.Api.IntegrationTests/Parts/ReplacePartFileEndpointTests.cs` — successful replace (keeps name/tags), failed replace before confirm (unchanged), failed replace after early confirm (estimate unavailable, new file/nozzle/material kept), concurrent-replace `409`
@@ -242,11 +242,11 @@ sharing a given tag.
 
 ### Implementation for User Story 5
 
-- [ ] T104 [P] [US5] `api/src/OpenFarm.Application/Parts/TagPartCommand.cs` / `Handler.cs`, `UntagPartCommand.cs` / `Handler.cs` (get-or-create by name)
-- [ ] T105 [P] [US5] `api/src/OpenFarm.Application/Parts/ListTagsQuery.cs` / `Handler.cs`
-- [ ] T106 [P] [US5] `api/src/OpenFarm.Api/Endpoints/Parts/TagPartEndpoint.cs` (`POST /parts/{id}/tags`), `UntagPartEndpoint.cs` (`DELETE /parts/{id}/tags/{tagId}`)
-- [ ] T107 [P] [US5] `api/src/OpenFarm.Api/Endpoints/Tags/ListTagsEndpoint.cs` (`GET /api/v1/tags`)
-- [ ] T108 [US5] Extend `GetPartsQuery`/`GetPartsQueryHandler` (T045) — repeatable `tag` query param, AND-semantics filter
+- [X] T104 [P] [US5] `api/src/OpenFarm.Application/Parts/TagPartCommand.cs` / `Handler.cs`, `UntagPartCommand.cs` / `Handler.cs` (get-or-create by name)
+- [X] T105 [P] [US5] `api/src/OpenFarm.Application/Parts/ListTagsQuery.cs` / `Handler.cs`
+- [X] T106 [P] [US5] `api/src/OpenFarm.Api/Endpoints/Parts/TagPartEndpoint.cs` (`POST /parts/{id}/tags`), `UntagPartEndpoint.cs` (`DELETE /parts/{id}/tags/{tagId}`)
+- [X] T107 [P] [US5] `api/src/OpenFarm.Api/Endpoints/Tags/ListTagsEndpoint.cs` (`GET /api/v1/tags`)
+- [X] T108 [US5] Extend `GetPartsQuery`/`GetPartsQueryHandler` (T045) — repeatable `tag` query param, AND-semantics filter
 - [ ] T109 [US5] Rebuild `api/`, regenerate `api/openapi.json`, run `bunx orval` to pick up the tag endpoints + filter param
 - [ ] T110 [P] [US5] `web/src/features/parts/components/PartTagsEditor.tsx`
 - [ ] T111 [P] [US5] `web/src/features/parts/components/PartFilterBar.tsx` — tag filter chips wired to `GET /parts?tag=`

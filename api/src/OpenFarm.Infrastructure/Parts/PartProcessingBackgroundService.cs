@@ -126,7 +126,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
     /// whichever of the job's own preview or the already-confirmed <see cref="Part"/> currently holds
     /// the truth by the time the slice finishes.
     /// </summary>
-    private async Task RunEstimateContinuationAsync(PartProcessingWorkItem workItem, PartProcessingJob job, IServiceProvider services, CancellationToken stoppingToken)
+    private static async Task RunEstimateContinuationAsync(PartProcessingWorkItem workItem, PartProcessingJob job, IServiceProvider services, CancellationToken stoppingToken)
     {
         var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
         var partRepository = services.GetRequiredService<IPartRepository>();

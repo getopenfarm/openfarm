@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using OpenFarm.Application.Parts;
@@ -58,7 +59,7 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
             var plateNumbers = archive.Entries
                 .Select(e => PlateGCodeEntryRegex().Match(e.FullName.Replace('\\', '/')))
                 .Where(m => m.Success)
-                .Select(m => int.Parse(m.Groups[1].Value))
+                .Select(m => int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture))
                 .Distinct()
                 .OrderBy(n => n)
                 .ToList();
