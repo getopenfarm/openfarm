@@ -158,7 +158,11 @@ public class PrinterConnectionBackgroundServiceTests
         var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
-        var flushInterval = TimeSpan.FromMilliseconds(300);
+        // A generous window relative to the ~100ms of margin this test used to run with — the gap
+        // between "broadcast #1 observed" and "event #2 emitted" is real wall-clock time (thread-pool
+        // scheduling, GC, CI runner contention), not simulated/virtual time, so a tight window here is
+        // inherently flaky under CI load rather than under local runs alone.
+        var flushInterval = TimeSpan.FromMilliseconds(1200);
 
         var provider = BuildServiceProvider(printer, secret, connector, out _, publisher);
         var service = new PrinterConnectionBackgroundService(
@@ -182,7 +186,7 @@ public class PrinterConnectionBackgroundServiceTests
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
                 Telemetry: new PrinterTelemetrySnapshot(61m, 66m, 20, "Printing", [])));
-            await Task.Delay(TimeSpan.FromMilliseconds(100));
+            await Task.Delay(TimeSpan.FromMilliseconds(200));
             publisher.TelemetryBroadcasts.Should().HaveCount(1, "the second event landed inside the flush interval and should be coalesced");
 
             // Once the interval has elapsed, the next event flushes the merged state.
