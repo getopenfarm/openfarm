@@ -63,8 +63,15 @@ public class RegisterSpoolEndpointTests(CustomWebApplicationFactory factory) : I
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// The remaining-vs-spool-weight relationship is enforced by RegisterSpoolCommandValidator (a
+    /// FluentValidation rule), not a thrown domain exception — so like every other validator-caught
+    /// failure in this codebase, FastEndpoints' validation pre-processor returns 400, not 422 (422 is
+    /// reserved for DomainExceptionHandler's mapped domain exceptions; see e.g.
+    /// InvalidSpoolStateTransitionException).
+    /// </summary>
     [Fact]
-    public async Task Register_WithRemainingWeightAboveSpoolWeight_Returns422()
+    public async Task Register_WithRemainingWeightAboveSpoolWeight_Returns400()
     {
         var client = await AuthenticatedClientAsync(_client);
         var variantId = await CreateFilamentVariantAsync(client);
@@ -76,6 +83,6 @@ public class RegisterSpoolEndpointTests(CustomWebApplicationFactory factory) : I
             RemainingWeightGrams = 600,
         });
 
-        response.StatusCode.Should().Be((HttpStatusCode)422);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 }

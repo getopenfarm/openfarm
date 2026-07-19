@@ -1,9 +1,10 @@
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.FeedUnits;
-using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Infrastructure.Persistence;
 using static OpenFarm.Api.IntegrationTests.FilamentTracking.FilamentTrackingTestHelpers;
 
 namespace OpenFarm.Api.IntegrationTests.FilamentTracking;
@@ -39,9 +40,7 @@ public class FeedUnitsListingTests(CustomWebApplicationFactory factory) : IClass
         var printerId = await RegisterSimulatorPrinterAsync(client);
         await WaitForFeedUnitsAsync(client, printerId);
 
-        using var scope = factory.Services.CreateScope();
-        var feedUnitRepository = scope.ServiceProvider.GetRequiredService<IFeedUnitRepository>();
-        var externalSpoolSlotId = (await WaitForExternalSpoolSlotAsync(feedUnitRepository, printerId)).Id;
+        var externalSpoolSlotId = (await WaitForExternalSpoolSlotAsync(factory, printerId)).Id;
 
         var variantId = await CreateFilamentVariantAsync(client);
         var spoolId = await RegisterSpoolAsync(client, variantId);
@@ -54,12 +53,26 @@ public class FeedUnitsListingTests(CustomWebApplicationFactory factory) : IClass
         body!.FeedUnits.Should().Contain(u => u.Kind == "ExternalSpool" && u.FeedSlots.Any(s => s.Id == externalSpoolSlotId));
     }
 
-    private static async Task<FeedSlot> WaitForExternalSpoolSlotAsync(IFeedUnitRepository repository, Guid printerId)
+    /// <summary>
+    /// Queries via a raw DI scope rather than the HTTP pipeline, so there's no request-scoped tenant
+    /// context for Finbuckle's multi-tenant query filter to resolve — <c>IgnoreQueryFilters()</c>
+    /// sidesteps that the same way <c>ConnectionSecretsEndpointTests</c> does for its own raw-scope
+    /// DbContext assertions. A fresh scope/DbContext per poll also avoids reusing a change tracker
+    /// against rows the background telemetry sync is concurrently inserting via its own DbContext.
+    /// </summary>
+    private static async Task<FeedSlot> WaitForExternalSpoolSlotAsync(CustomWebApplicationFactory factory, Guid printerId)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (!cts.IsCancellationRequested)
         {
-            var units = await repository.GetByPrinterIdAsync(printerId, CancellationToken.None);
+            using var scope = factory.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var units = await dbContext.FeedUnits
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Include(u => u.FeedSlots)
+                .Where(u => u.PrinterId == printerId)
+                .ToListAsync(CancellationToken.None);
             var externalSpool = units.FirstOrDefault(u => u.Kind == FeedUnitKindCatalog.ExternalSpool);
             if (externalSpool is not null && externalSpool.FeedSlots.Count > 0)
             {
