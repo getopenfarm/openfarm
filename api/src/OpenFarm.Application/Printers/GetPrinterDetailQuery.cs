@@ -17,4 +17,6 @@ public sealed record PrinterDetail(
     decimal? BedTempC,
     int? PrintProgressPercent,
     string? CurrentStageLabel,
+    int? RemainingTimeMinutes,
+    string? CurrentJobName,
     IReadOnlyList<AmsUnit> AmsUnits);

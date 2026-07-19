@@ -307,6 +307,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 telemetry.BedTempC,
                 telemetry.PrintProgressPercent,
                 telemetry.CurrentStageLabel,
+                telemetry.RemainingTimeMinutes,
+                telemetry.CurrentJobName,
                 telemetry.AmsUnits,
                 telemetry.ExternalSpoolTray);
         }
@@ -357,7 +359,10 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 printer.BedTempC,
                 printer.PrintProgressPercent,
                 printer.CurrentStageLabel,
-                printer.AmsUnits);
+                printer.RemainingTimeMinutes,
+                printer.CurrentJobName,
+                printer.AmsUnits,
+                printer.ExternalSpoolTray);
             await publisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id, mergedTelemetry, cancellationToken);
         }
 

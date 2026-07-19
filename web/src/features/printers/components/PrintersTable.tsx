@@ -8,13 +8,22 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import type { MatchedMaintenanceFlag } from '@/features/maintenance/lib/matchMaintenanceToFleet';
 import type { FleetPrinterResponse } from '@/lib/api/generated/endpoints.schemas';
+import type { DensityMode } from '@/lib/preferences/types';
 import { printerStatusToBadge } from '../lib/printerStatusBadge';
 
 const PLACEHOLDER_FILAMENT_COLOR = '#8892a6';
 
+// Row vertical padding per density — Small tightens rows so more printers fit per screen.
+const DENSITY_CELL_PADDING: Record<DensityMode, string> = {
+  small: 'py-1',
+  medium: 'py-2',
+  large: 'py-4',
+};
+
 interface PrintersTableProps {
   printers: FleetPrinterResponse[];
   maintenanceByPrinterId: Map<string, MatchedMaintenanceFlag>;
+  density?: DensityMode;
   onOpen: (id: string) => void;
   onMarkReady: (id: string) => void;
 }
@@ -22,6 +31,7 @@ interface PrintersTableProps {
 export function PrintersTable({
   printers,
   maintenanceByPrinterId,
+  density = 'medium',
   onOpen,
   onMarkReady,
 }: PrintersTableProps) {
@@ -127,6 +137,7 @@ export function PrintersTable({
     <DataTable
       columns={columns}
       data={printers}
+      cellClassName={DENSITY_CELL_PADDING[density]}
       onRowClick={(row) => onOpen(row.id ?? '')}
       emptyState="No printers match."
     />

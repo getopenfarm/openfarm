@@ -124,7 +124,7 @@ public class PrinterConnectionBackgroundServiceTests
             var amsUnits = new List<AmsUnit> { new(0, []) };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60.5m, 65.0m, 42, "Printing", amsUnits)));
+                Telemetry: new PrinterTelemetrySnapshot(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", amsUnits)));
 
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
             publisher.TelemetryBroadcasts[0].NozzleTempC.Should().Be(60.5m);
@@ -134,7 +134,7 @@ public class PrinterConnectionBackgroundServiceTests
             // because they haven't changed. The broadcast should still carry the last-known values.
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(null, null, 50, null, [])));
+                Telemetry: new PrinterTelemetrySnapshot(null, null, 50, null, null, null, [])));
 
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 2, TimeSpan.FromSeconds(2));
             var secondBroadcast = publisher.TelemetryBroadcasts[1];
@@ -158,42 +158,45 @@ public class PrinterConnectionBackgroundServiceTests
         var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
-        // A generous window relative to the ~100ms of margin this test used to run with — the gap
-        // between "broadcast #1 observed" and "event #2 emitted" is real wall-clock time (thread-pool
-        // scheduling, GC, CI runner contention), not simulated/virtual time, so a tight window here is
-        // inherently flaky under CI load rather than under local runs alone.
-        var flushInterval = TimeSpan.FromMilliseconds(1200);
+        var flushInterval = TimeSpan.FromMilliseconds(300);
+        // Coalescing is decided from each event's own ReceivedAtUtc relative to the last flush, so the
+        // three events below carry explicit timestamps rather than DateTimeOffset.UtcNow — that keeps
+        // the flush-window math independent of how fast a (possibly slow CI) runner processes them.
+        // A long unreachable threshold likewise stops the reachability sweep from flipping the printer
+        // offline between events (which would flush event 2 as a reachability-restore, not coalesce it),
+        // keeping this test purely about flush throttling.
+        var baseTime = DateTimeOffset.UtcNow;
+        var noSweepInterference = TimeSpan.FromSeconds(30);
 
         var provider = BuildServiceProvider(printer, secret, connector, out _, publisher);
         var service = new PrinterConnectionBackgroundService(
             provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<PrinterConnectionBackgroundService>.Instance,
             SweepInterval,
-            UnreachableThreshold,
+            noSweepInterference,
             flushInterval);
 
         await service.StartAsync(CancellationToken.None);
         try
         {
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
-                DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", [])));
+                baseTime,
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", 90, "benchy.3mf", [])));
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
 
-            // Arrives well inside the flush interval — should update the in-memory printer but not
+            // Timestamped inside the flush interval — should update the in-memory printer but not
             // trigger a second DB write / broadcast yet (the MQTT-message-rate DB churn this
             // throttle exists to prevent).
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
-                DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(61m, 66m, 20, "Printing", [])));
+                baseTime.AddMilliseconds(100),
+                Telemetry: new PrinterTelemetrySnapshot(61m, 66m, 20, "Printing", 80, "benchy.3mf", [])));
             await Task.Delay(TimeSpan.FromMilliseconds(200));
             publisher.TelemetryBroadcasts.Should().HaveCount(1, "the second event landed inside the flush interval and should be coalesced");
 
-            // Once the interval has elapsed, the next event flushes the merged state.
-            await Task.Delay(flushInterval);
+            // Timestamped past the flush interval — the next event flushes the merged state.
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
-                DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(62m, 67m, 30, "Printing", [])));
+                baseTime.Add(flushInterval).AddMilliseconds(100),
+                Telemetry: new PrinterTelemetrySnapshot(62m, 67m, 30, "Printing", 70, "benchy.3mf", [])));
 
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 2, TimeSpan.FromSeconds(2));
             var secondBroadcast = publisher.TelemetryBroadcasts[1];
@@ -229,7 +232,7 @@ public class PrinterConnectionBackgroundServiceTests
         {
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", [])));
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", 90, "benchy.3mf", [])));
             await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count >= 1, TimeSpan.FromSeconds(2));
 
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: "RUNNING"));
@@ -357,7 +360,7 @@ public class PrinterConnectionBackgroundServiceTests
             };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", twoTrayAms)));
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", null, null, twoTrayAms)));
 
             await WaitUntilAsync(() => feedUnitRepository.Snapshot.Any(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit), TimeSpan.FromSeconds(2));
 
@@ -369,7 +372,7 @@ public class PrinterConnectionBackgroundServiceTests
             var oneTrayAms = new List<AmsUnit> { new(0, [new AmsTray(0, false, "PLA", "#FF0000", "Generic", 80, false)]) };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 20, "Printing", oneTrayAms)));
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 20, "Printing", null, null, oneTrayAms)));
 
             await WaitUntilAsync(() => unit.FeedSlots.Any(s => s.DeactivatedAtUtc != null), TimeSpan.FromSeconds(2));
 

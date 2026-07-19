@@ -361,6 +361,10 @@ export interface PrinterDetailTelemetryResponse {
   printProgressPercent?: number | null;
   /** @nullable */
   currentStageLabel?: string | null;
+  /** @nullable */
+  remainingTimeMinutes?: number | null;
+  /** @nullable */
+  currentJobName?: string | null;
 }
 
 export interface AmsTrayResponse {
@@ -410,6 +414,14 @@ export interface FleetPrinterResponse {
   nozzleTempC?: number | null;
   /** @nullable */
   bedTempC?: number | null;
+  /** @nullable */
+  currentStageLabel?: string | null;
+  /** @nullable */
+  remainingTimeMinutes?: number | null;
+  /** @nullable */
+  currentJobName?: string | null;
+  /** @nullable */
+  filamentColorHex?: string | null;
 }
 
 export interface ListFleetResponse {

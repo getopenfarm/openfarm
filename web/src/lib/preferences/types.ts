@@ -1,5 +1,7 @@
 export type ViewMode = 'table' | 'grid';
 
+export type DensityMode = 'small' | 'medium' | 'large';
+
 export type ListPageKey =
   | 'printers'
   | 'jobs'
@@ -12,4 +14,5 @@ export type ListPageKey =
 
 export interface Preferences {
   listViews: Partial<Record<ListPageKey, ViewMode>>;
+  listDensities: Partial<Record<ListPageKey, DensityMode>>;
 }

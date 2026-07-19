@@ -27,6 +27,8 @@ interface DataTableProps<TData, TValue> {
   emptyState?: ReactNode;
   pageSize?: number;
   className?: string;
+  /** Extra classes applied to every body cell — used to tune row density. */
+  cellClassName?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -36,6 +38,7 @@ export function DataTable<TData, TValue>({
   emptyState,
   pageSize,
   className,
+  cellClassName,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -85,7 +88,7 @@ export function DataTable<TData, TValue>({
                   onClick={() => onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className={cellClassName}>
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

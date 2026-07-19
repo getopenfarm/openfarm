@@ -13,6 +13,7 @@ import {
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
 } from '@/lib/api/generated/printers/printers';
 import { getToken } from '@/lib/auth/tokenStorage';
+import { filamentColorFromAms } from '../lib/filamentColor';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8888';
@@ -200,6 +201,16 @@ export function useFarmHub() {
                           ...printer,
                           nozzleTempC: payload.telemetry.nozzleTempC,
                           bedTempC: payload.telemetry.bedTempC,
+                          printProgressPercent:
+                            payload.telemetry.printProgressPercent,
+                          currentStageLabel:
+                            payload.telemetry.currentStageLabel,
+                          remainingTimeMinutes:
+                            payload.telemetry.remainingTimeMinutes,
+                          currentJobName: payload.telemetry.currentJobName,
+                          filamentColorHex: filamentColorFromAms(
+                            payload.amsUnits,
+                          ),
                         }
                       : printer,
                 ),

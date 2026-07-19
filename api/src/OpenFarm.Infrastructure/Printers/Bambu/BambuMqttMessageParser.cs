@@ -97,10 +97,12 @@ public static class BambuMqttMessageParser
             var bedTempC = RoundToWholeDegree(TryGetDecimal(print, "bed_temper"));
             var printProgressPercent = TryGetInt(print, "mc_percent");
             var currentStageLabel = ResolveCurrentStageLabel(print);
+            var remainingTimeMinutes = TryGetInt(print, "mc_remaining_time");
+            var currentJobName = ResolveCurrentJobName(print);
             var amsUnits = ParseAmsUnits(print);
             var externalSpoolTray = ParseExternalSpool(print);
 
-            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, amsUnits, externalSpoolTray);
+            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, amsUnits, externalSpoolTray);
         }
         catch (JsonException)
         {
@@ -129,6 +131,32 @@ public static class BambuMqttMessageParser
         }
 
         return CurrentStageIds.Resolve(stageValue);
+    }
+
+    /// <summary>
+    /// Resolves the human-readable name of whatever the printer is currently printing — reported by
+    /// the printer itself (<c>subtask_name</c>), so it reflects any print regardless of origin
+    /// (Bambu Studio, the Handy app, an SD card, or a future OpenFarm dispatch), not a stored job
+    /// record. Falls back to the <c>gcode_file</c> basename (sans directory/extension) when the
+    /// printer sends only that, and treats an empty value as "no job" (null), preserving the delta
+    /// semantics — a genuinely absent key still returns null and the caller keeps the last value.
+    /// </summary>
+    private static string? ResolveCurrentJobName(JsonElement print)
+    {
+        var subtaskName = GetString(print, "subtask_name");
+        if (!string.IsNullOrWhiteSpace(subtaskName))
+        {
+            return subtaskName;
+        }
+
+        var gcodeFile = GetString(print, "gcode_file");
+        if (string.IsNullOrWhiteSpace(gcodeFile))
+        {
+            return null;
+        }
+
+        var fileName = Path.GetFileNameWithoutExtension(gcodeFile);
+        return string.IsNullOrWhiteSpace(fileName) ? null : fileName;
     }
 
     private static List<AmsUnit> ParseAmsUnits(JsonElement print)

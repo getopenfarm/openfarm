@@ -43,6 +43,8 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.Property(p => p.BedTempC);
         builder.Property(p => p.PrintProgressPercent);
         builder.Property(p => p.CurrentStageLabel);
+        builder.Property(p => p.RemainingTimeMinutes);
+        builder.Property(p => p.CurrentJobName);
 
         builder.Property(p => p.AmsUnits)
             .HasColumnType("jsonb")

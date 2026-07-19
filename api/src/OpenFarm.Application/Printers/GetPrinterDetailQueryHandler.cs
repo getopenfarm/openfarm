@@ -26,6 +26,8 @@ public sealed class GetPrinterDetailQueryHandler(IPrinterRepository printerRepos
             printer.BedTempC,
             printer.PrintProgressPercent,
             printer.CurrentStageLabel,
+            printer.RemainingTimeMinutes,
+            printer.CurrentJobName,
             printer.AmsUnits);
     }
 }

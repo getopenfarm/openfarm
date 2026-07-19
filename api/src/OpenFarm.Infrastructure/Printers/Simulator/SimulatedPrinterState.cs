@@ -27,6 +27,16 @@ public sealed class SimulatedPrinterState
     public int PrintProgressPercent { get; set; }
 
     /// <summary>
+    /// Illustrative "current job" the simulated printer reports while printing — stands in for the
+    /// <c>subtask_name</c> a real Bambu printer sends, so the dashboard/grid card exercise the
+    /// job-name + ETA fields end to end. Null when idle (nothing on the bed).
+    /// </summary>
+    public string? CurrentJobName { get; set; }
+
+    /// <summary>Minutes left in the simulated print, counted down from the cycle duration.</summary>
+    public int? RemainingTimeMinutes { get; set; }
+
+    /// <summary>
     /// Fixed illustrative default fixture (data-model.md's AMS default content table) — same static
     /// material/color/remaining-% shape for the life of the connection; only the printing tray's
     /// <c>Active</c> flag reflects current status.

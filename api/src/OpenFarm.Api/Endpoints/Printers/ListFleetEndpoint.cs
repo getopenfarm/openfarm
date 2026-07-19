@@ -28,6 +28,14 @@ public sealed class FleetPrinterResponse
     public decimal? NozzleTempC { get; set; }
 
     public decimal? BedTempC { get; set; }
+
+    public string? CurrentStageLabel { get; set; }
+
+    public int? RemainingTimeMinutes { get; set; }
+
+    public string? CurrentJobName { get; set; }
+
+    public string? FilamentColorHex { get; set; }
 }
 
 public sealed class ListFleetResponse
@@ -65,6 +73,10 @@ public sealed class ListFleetEndpoint(IQueryHandler<GetFleetQuery, IReadOnlyList
                     PrintProgressPercent = p.PrintProgressPercent,
                     NozzleTempC = p.NozzleTempC,
                     BedTempC = p.BedTempC,
+                    CurrentStageLabel = p.CurrentStageLabel,
+                    RemainingTimeMinutes = p.RemainingTimeMinutes,
+                    CurrentJobName = p.CurrentJobName,
+                    FilamentColorHex = p.FilamentColorHex,
                 })
                 .ToList(),
         };

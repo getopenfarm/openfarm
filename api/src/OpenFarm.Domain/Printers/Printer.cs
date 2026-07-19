@@ -53,6 +53,10 @@ public sealed class Printer
 
     public string? CurrentStageLabel { get; private set; }
 
+    public int? RemainingTimeMinutes { get; private set; }
+
+    public string? CurrentJobName { get; private set; }
+
     public IReadOnlyList<AmsUnit> AmsUnits { get; private set; }
 
     public AmsTray? ExternalSpoolTray { get; private set; }
@@ -137,6 +141,8 @@ public sealed class Printer
         decimal? bedTempC,
         int? printProgressPercent,
         string? currentStageLabel,
+        int? remainingTimeMinutes,
+        string? currentJobName,
         IReadOnlyList<AmsUnit> amsUnits,
         AmsTray? externalSpoolTray = null)
     {
@@ -144,6 +150,8 @@ public sealed class Printer
         BedTempC = bedTempC ?? BedTempC;
         PrintProgressPercent = printProgressPercent ?? PrintProgressPercent;
         CurrentStageLabel = currentStageLabel ?? CurrentStageLabel;
+        RemainingTimeMinutes = remainingTimeMinutes ?? RemainingTimeMinutes;
+        CurrentJobName = currentJobName ?? CurrentJobName;
         AmsUnits = amsUnits.Count > 0 ? amsUnits : AmsUnits;
         ExternalSpoolTray = externalSpoolTray ?? ExternalSpoolTray;
     }
