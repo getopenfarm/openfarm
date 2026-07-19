@@ -1,3 +1,5 @@
+using OpenFarm.Domain.Parts;
+
 namespace OpenFarm.Application.Parts;
 
 public sealed record GetPartProcessingJobQuery(Guid JobId);

@@ -1,4 +1,5 @@
 using OpenFarm.Application.Parts;
+using OpenFarm.Domain.Parts;
 using SlicerEngineEnum = OpenFarm.Domain.Parts.SlicerEngine;
 
 namespace OpenFarm.Infrastructure.Parts;
