@@ -162,3 +162,34 @@
   Test, new Edge Case. `docs/FEATURE_PLAN.md`'s Phase 4 section updated to match. No scope change — this is
   a request/response-shape and UX-sequencing refinement of the already-uniform review/confirm pipeline, not
   a new capability.
+- Fourth follow-up clarification during `/speckit-plan` (2026-07-19, again raised directly by the user, 1
+  formal question after the user supplied a concrete worked example): **filament-requirement detection now
+  scans every plate and every AMS slot in an already-sliced file (not just the first plate), grouping
+  results by distinct (material type, color) pairs — a genuine, scoped reopening of the earlier "multi-plate
+  3MF is an accepted, unaddressed limitation" decision.** Detected color is new (previously nothing tracked
+  color at all) and exists purely to distinguish/group requirements — never a matching criterion itself. A
+  4-plate file that's all one material+color still produces exactly one requirement; repeated pairs across
+  different plates collapse rather than duplicating. Narrowing a requirement applies to every plate/slot
+  sharing its pair, not per-plate independently. What's still unchanged: the thumbnail still comes from the
+  first plate only, and the file is still never split into multiple Parts — only filament-requirement
+  detection was reopened, not the whole limitation. Print time/weight estimates now explicitly sum across
+  all plates. Updated FR-012/FR-012a/FR-013, User Story 3's Acceptance Scenario 3, the Key Entities
+  "Filament Requirement" description, the relevant Edge Case and Assumptions entries, and
+  `docs/FEATURE_PLAN.md`'s Phase 4 section.
+- Fifth follow-up clarification during `/speckit-plan` (2026-07-19, again raised directly by the user, 1
+  formal question plus one directly-answered factual question): (1) **Filament becomes optional, not
+  required, for a requires-slicing file — omitting it is a genuine "any material" wildcard, not a rejection
+  case.** The system still runs its own immediate in-app slice (required regardless, since a part is never
+  saved incomplete) against a fixed, internal, non-operator-configurable generic default material, but
+  records the resulting filament requirement as fully unconstrained rather than tied to any generic type.
+  This is a named, accepted accuracy tradeoff (the estimate is a best-effort approximation, not guaranteed
+  accurate for whatever material the part is eventually printed in) — narrowing SC-003's "100% accurate"
+  claim specifically for this case; completeness (FR-006) is unaffected. Removed the "(a) no Filament
+  specified" rejection case from FR-006 (relettering its remaining sub-items a/b/c), added new FR-002a,
+  updated FR-001/FR-002/FR-005, User Story 1's Acceptance Scenario 3, the matching Edge Case, SC-003, the
+  Key Entities "Part" description, the "no organization-configured default material" Assumption, and
+  `docs/FEATURE_PLAN.md`'s Phase 4 section. (2) **Confirmed directly (factual, no decision needed): an
+  already-sliced file's requirement can never be widened to "any material"** — its process parameters
+  (nozzle/bed temp, retraction, flow) are physically fixed to one specific material once sliced, so this
+  wildcard applies only to a file requiring slicing, which is always re-sliced fresh whenever its real
+  material becomes known. Captured directly in FR-002a rather than as a separate FR.

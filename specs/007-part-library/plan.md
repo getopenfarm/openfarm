@@ -17,12 +17,19 @@ slicing) starts background processing immediately, as a single continuous add-pa
 keeps entering/editing the part's name and tags in that same dialog while processing runs, and the Save
 action stays disabled until processing reaches a "ready for review" state (and, for a new part, a name has
 been entered). An already-sliced file (G-code, or a 3MF that already contains sliced G-code) is parsed
-directly from its own embedded metadata — including a genuine AMS-style multi-color mapping, which parses
-into one filament requirement per detected slot — while a file requiring slicing (STL, or an unsliced 3MF)
+directly from its own embedded metadata — scanning every plate and every AMS slot within each for its
+detected material and color, then grouping the results into one filament requirement per **distinct**
+(material, color) pair rather than one per plate/slot, so e.g. two plates sharing the same material+color
+collapse into a single requirement — while a file requiring slicing (STL, or an unsliced 3MF)
 is handled by a new in-app slicing capability that automatically invokes a headless slicer engine (OrcaSlicer
 by default, Bambu Studio supported, organization-configurable with a per-part override) against the
-specified Filament and whichever nozzle diameter is currently most common among the farm's registered
-printers. Both paths converge on the same "ready for review" state: the operator sees the derived nozzle
+specified Filament — or, if none is specified, against a fixed internal generic default material, since a
+Filament is always optional even for a file requiring slicing: omitting it means "any material" (a genuine
+wildcard, not a rejection), storing the resulting filament requirement as fully unconstrained rather than
+tied to any specific type, with the tradeoff that its estimate is then a best-effort approximation rather
+than guaranteed-accurate for whatever material it's eventually printed in — and whichever nozzle diameter is
+currently most common among the farm's registered printers. Both paths converge on the same "ready for
+review" state: the operator sees the derived nozzle
 diameter, material type(s), estimated time/weight, and thumbnail, may attach a narrower filament override
 per requirement now that a real result exists to narrow, and then either confirms/saves (creating the part
 or applying the replacement immediately from the already-derived data, together with the name/tags
@@ -64,8 +71,9 @@ frontend dependencies (`@tanstack/react-virtual` stays unused — `research.md` 
 doesn't need it).
 
 **Storage**: Existing Postgres via `OpenFarmDbContext`. Three migrations in this feature's PR series:
-`AddPartsCatalog` (`Tags`, `Parts`, `PartFilamentRequirements`, `PartTags`, `PartProcessingJobs`,
-`PartProcessingJobPreviewFilamentRequirements`), `AddPrinterMachineProfileLink` (one nullable FK column on
+`AddPartsCatalog` (`Tags`, `Parts`, `PartFilamentRequirements`, `PartTags`, `PartProcessingJobs` — the last
+including a `PreviewFilamentRequirements` `jsonb` column, not a separate table, `research.md` §3a),
+`AddPrinterMachineProfileLink` (one nullable FK column on
 the existing `Printers` table), and `AddOrganizationSlicingDefaults` (one enum column on the existing
 `Organizations` table). A part's actual file content (STL/3MF/G-code, potentially large) is **not** stored
 in Postgres — a new `IPartFileStorage` abstraction persists it to a new bind-mounted volume
@@ -77,13 +85,18 @@ uses Postgres's `xmin` system column as an EF Core optimistic-concurrency token,
 already uses.
 
 **Testing**: TDD (xUnit + FluentAssertions, `OpenFarm.Domain.Tests`/`OpenFarm.Application.Tests`) for
-`NozzleDiameterResolver` (mode + deterministic tie-break), the Add/Replace/Confirm Part FluentValidation
-gates (Filament-required-when-slicing, name-required-on-Add-confirm-only, mutually-exclusive narrow
-overrides per filament requirement, accepted-file-format checks), and `IPartFileClassifier`'s STL/G-code/3MF
-requires-slicing dispatch rule. Test-after/fixture-replay (matching `BambuMqttMessageParser`/
-`ProfileBundleParser`'s existing carve-out) for `IAlreadySlicedFileMetadataParser`'s actual byte-level
-G-code/3MF metadata parsing (including multi-slot mapping extraction) and `ISlicerEngine`'s real CLI
-invocation (developed against a `FakeSlicerEngine` first; real-CLI validation is manual, never a CI gate).
+`NozzleDiameterResolver` (mode + deterministic tie-break), `FilamentRequirementGrouper` (dedup-by-
+distinct-(material,color)-pair across every plate/slot — the exact worked example the user supplied while
+reviewing this plan, e.g. a 4-plate input producing 3 grouped requirements, is a direct test case), the
+Add/Replace/Confirm Part FluentValidation gates (nozzle-diameter-must-be-resolvable-regardless-of-
+filamentId, name-required-on-Add-confirm-only, mutually-exclusive narrow overrides per filament requirement,
+accepted-file-format checks),
+and `IPartFileClassifier`'s STL/G-code/3MF requires-slicing dispatch rule. Test-after/fixture-replay
+(matching `BambuMqttMessageParser`/`ProfileBundleParser`'s existing carve-out) for
+`IAlreadySlicedFileMetadataParser`'s actual byte-level G-code/3MF metadata parsing (including multi-plate/
+multi-slot detected-material/color extraction, fed into `FilamentRequirementGrouper`) and `ISlicerEngine`'s
+real CLI invocation (developed against a `FakeSlicerEngine` first; real-CLI validation is manual, never a
+CI gate).
 Test-after for orchestration-only `Application` handlers, `PartFileProcessor`'s parse-vs-slice dispatch,
 `PartProcessingBackgroundService`'s queue-consumption loop, EF Core repository/configuration code, and React
 components/pages. `WebApplicationFactory` + Testcontainers.PostgreSql for API integration tests covering the
@@ -135,8 +148,9 @@ already used by every other catalog feature — no virtualization concern this p
   `ISlicerEngine`'s reusability by Phase 7 (FR-010) is exactly what this boundary is for — `IPartFileProcessor`
   is the phase-local unifying facade over it and `IAlreadySlicedFileMetadataParser`, not a replacement for
   either. **Pass.**
-- **II. Test Discipline**: TDD for `NozzleDiameterResolver`, the Add/Replace/Confirm FluentValidation gates,
-  and `IPartFileClassifier`'s dispatch rule — all deterministic, well-specified logic, the same bar this
+- **II. Test Discipline**: TDD for `NozzleDiameterResolver`, `FilamentRequirementGrouper`, the Add/Replace/
+  Confirm FluentValidation gates, and `IPartFileClassifier`'s dispatch rule — all deterministic, well-specified
+  logic, the same bar this
   codebase already holds `FeedUnitKindCatalog.Resolve`/`PrinterModelCatalog.Resolve` to. Test-after/
   fixture-replay for the actual G-code/3MF byte-level metadata parsing (including multi-slot extraction) and
   the real slicer CLI invocation. Test-after for orchestration handlers, `PartFileProcessor`'s dispatch
@@ -156,8 +170,11 @@ already used by every other catalog feature — no virtualization concern this p
   mapping; two paths that had already converged in behavior) rather than speculative abstraction.
   Conversely, this phase deliberately does **not** build several things it has no current, stated need for:
   no `SlicingDefaults` table for a single enum column, no TanStack Virtual for a catalog SC-005 bounds at
-  500+ rows, no Hangfire-style durable job runner, and no thumbnail content-type tracking now that every
-  source is normalized to one format at ingestion. **Pass.**
+  500+ rows, no Hangfire-style durable job runner, no thumbnail content-type tracking now that every source
+  is normalized to one format at ingestion, and — despite FR-002a introducing a fixed fallback material —
+  still no organization-configurable default material setting of any kind; the fallback is a hardcoded
+  system constant with exactly one purpose (letting the "any material" wildcard's own immediate slice run at
+  all), not a Settings field this principle would otherwise warn against speculatively adding. **Pass.**
 - **V. Performance and Real-Time Responsiveness**: every add/replace runs as a `BackgroundService`-consumed
   async pipeline specifically so it never blocks a request thread (FR-009) — this holds uniformly now, not
   just for the slicing branch. `MaxConcurrentSlicingOperations` bounds CPU/IO-heavy external-process
@@ -207,13 +224,20 @@ specs/007-part-library/
 ```text
 api/src/OpenFarm.Domain/Parts/
   Part.cs                              # entity — see data-model.md for full field list
-  PartFilamentRequirement.cs           # entity — child of Part, SlotIndex?/MaterialType/narrow overrides
+  PartFilamentRequirement.cs           # entity — child of Part; MaterialType (string? — null means "any
+                                          # material," research.md §7a)/DetectedColorHex/DetectedSubBrand/
+                                          # narrow overrides. One row per distinct (MaterialType,
+                                          # DetectedColorHex) pair across the whole file — no SlotIndex (research.md §7)
   PartFileFormat.cs                    # enum: Stl, ThreeMf, GCode
   SlicerEngine.cs                      # enum: OrcaSlicer, BambuStudio
   Tag.cs                               # entity
-  PartProcessingJob.cs                 # entity — Kind/Status enums + preview fields, uniform for every file type
+  PartProcessingJob.cs                 # entity — Kind/Status enums + preview fields (incl. a
+                                          # PreviewFilamentRequirements value list, jsonb-mapped, not a
+                                          # child entity — research.md §3a), uniform for every file type
   PartProcessingJobKind.cs / PartProcessingJobStatus.cs
-  PartProcessingJobPreviewFilamentRequirement.cs   # entity — child of PartProcessingJob
+  PreviewFilamentRequirement.cs         # small record/value type — {RequirementIndex, MaterialType,
+                                          # DetectedColorHex?, DetectedSubBrand?} — not an EF-tracked
+                                          # entity, just the jsonb-serialized shape (research.md §3a/§7)
   PartNotFoundException.cs / TagNotFoundException.cs / DuplicatePartTagException.cs
   UnsupportedPartFileFormatException.cs / PartFileParsingFailedException.cs
   SlicingFailedException.cs / NoNozzleDiameterAvailableException.cs
@@ -237,6 +261,9 @@ api/src/OpenFarm.Application/Parts/
   IPartFileStorage.cs                   # SaveAsync/OpenReadAsync/DeleteAsync, keyed by org/part id
   IPartEventPublisher.cs                # Application-defined contract; Api implements
   NozzleDiameterResolver.cs             # static Resolve(printers, profiles) -> decimal? — TDD (research.md §5)
+  FilamentRequirementGrouper.cs         # static Group(detectedRequirements) -> IReadOnlyList<PreviewFilamentRequirement>
+                                          # — dedups by distinct (MaterialType, DetectedColorHex) pair across
+                                          # every plate/slot IAlreadySlicedFileMetadataParser found — TDD (research.md §7/§12)
   AddPartCommand.cs / Handler / Validator          # file + filamentId? only; always creates a job, never a Part
   ReplacePartFileCommand.cs / Handler / Validator  # same shape, existing Part's name/tags untouched
   ConfirmPartProcessingJobCommand.cs / Handler / Validator   # name/tags (Add only) + narrow overrides -> Part
@@ -253,7 +280,9 @@ api/src/OpenFarm.Application/Parts/
 api/src/OpenFarm.Infrastructure/Parts/
   PartRepository.cs / TagRepository.cs / PartProcessingJobRepository.cs
   PartFileClassifier.cs                 # ZipArchive-based, mirrors ProfileBundleParser's technique (research.md §1)
-  AlreadySlicedFileMetadataParser.cs    # G-code comment + Bambu slice_info.config/multi-slot/plate-preview parsing
+  AlreadySlicedFileMetadataParser.cs    # G-code comment + Bambu slice_info.config parsing; walks EVERY plate
+                                          # in a multi-plate 3MF (not just the first), reading each plate's own
+                                          # per-slot material+color, then calls FilamentRequirementGrouper
   CliSlicerEngine.cs                    # System.Diagnostics.Process wrapper around OrcaSlicer/Bambu Studio CLI
   FakeSlicerEngine.cs                   # test/dev double — deterministic canned SlicingResult
   PartFileProcessor.cs                  # implements IPartFileProcessor — branches to ISlicerEngine or
@@ -262,13 +291,19 @@ api/src/OpenFarm.Infrastructure/Parts/
   PartProcessingBackgroundService.cs    # Channel<PartProcessingWorkItem> consumer, IServiceScopeFactory +
                                           # CreateTenantScope() pattern from PrinterConnectionBackgroundService;
                                           # on failure only, writes IActivityLogWriter directly (research.md §3)
-  SlicerOptions.cs                      # CLI paths, timeout, MaxConcurrentSlicingOperations — bound from config
+  SlicerOptions.cs                      # CLI paths, timeout, MaxConcurrentSlicingOperations, and
+                                          # GenericFallbackMaterialProfile per SlicerEngine (e.g. OrcaSlicer:
+                                          # "Generic PLA") — used only for the "any material" wildcard
+                                          # (research.md §7a); bound from config, never operator-configurable
   Persistence/Configurations/PartConfiguration.cs / PartFilamentRequirementConfiguration.cs /
-    TagConfiguration.cs / PartTagConfiguration.cs / PartProcessingJobConfiguration.cs /
-    PartProcessingJobPreviewFilamentRequirementConfiguration.cs
+    TagConfiguration.cs / PartTagConfiguration.cs / PartProcessingJobConfiguration.cs
     # PartConfiguration: FileFormat/SlicerEngineOverride HasConversion<string>(), UseXminAsConcurrencyToken()
-    # PartFilamentRequirementConfiguration: partial unique index (PartId, SlotIndex) WHERE SlotIndex IS NOT NULL,
-    #   bare Guid? columns for NarrowFilamentVariantId/NarrowFilamentProfileId (no HasOne)
+    # PartFilamentRequirementConfiguration: partial unique index (PartId, MaterialType, DetectedColorHex)
+    #   WHERE DetectedColorHex IS NOT NULL, bare Guid? columns for NarrowFilamentVariantId/
+    #   NarrowFilamentProfileId (no HasOne)
+    # PartProcessingJobConfiguration: PreviewFilamentRequirements as jsonb via HasConversion(serialize,
+    #   deserialize) + a custom ValueComparer, mirroring PrinterConfiguration's AmsUnits mapping — no
+    #   separate child-table configuration needed (research.md §3a)
   Persistence/Migrations/<timestamp>_AddPartsCatalog.cs
   Persistence/Migrations/<timestamp>_AddPrinterMachineProfileLink.cs
     # PrinterConfiguration: + HasOne<MachineProfile>().WithMany().HasForeignKey(...).OnDelete(SetNull)
@@ -276,11 +311,15 @@ api/src/OpenFarm.Infrastructure/Parts/
 
 api/src/OpenFarm.Api/
   Endpoints/Parts/CreatePartEndpoint.cs / ReplacePartFileEndpoint.cs / DeletePartEndpoint.cs /
-    ListPartsEndpoint.cs / GetPartEndpoint.cs / GetPartThumbnailEndpoint.cs / GetPartFileEndpoint.cs /
+    ListPartsEndpoint.cs / GetPartEndpoint.cs / GetPartFileEndpoint.cs /
     TagPartEndpoint.cs / UntagPartEndpoint.cs
+    # no GetPartThumbnailEndpoint — thumbnailBase64 travels inline on List/Get responses (research.md §8);
+    # a bare byte-stream endpoint wouldn't be renderable via <img src> under this app's Bearer-only auth
   Endpoints/Tags/ListTagsEndpoint.cs
-  Endpoints/PartProcessingJobs/GetPartProcessingJobEndpoint.cs / GetPartProcessingJobThumbnailEndpoint.cs /
+  Endpoints/PartProcessingJobs/GetPartProcessingJobEndpoint.cs /
     ConfirmPartProcessingJobEndpoint.cs / DiscardPartProcessingJobEndpoint.cs
+    # no GetPartProcessingJobThumbnailEndpoint — same reasoning; preview.thumbnailBase64 travels inline on
+    # both the GET response and the PartProcessingJobStatusChanged SignalR push
   Endpoints/Printers/LinkPrinterMachineProfileEndpoint.cs   # new file alongside existing printer endpoints
   Endpoints/Settings/GetSlicingDefaultsEndpoint.cs / UpdateSlicingDefaultsEndpoint.cs
   Hubs/FarmHubPartEventPublisher.cs      # implements IPartEventPublisher
@@ -294,8 +333,10 @@ web/src/features/parts/                 # replaces the mock-data prototype
                                            # ReadyForReview, Save disabled until ready + named, Cancel discards
   components/PartProcessingReviewSection.tsx   # the in-dialog preview + per-requirement narrow-override picker
   components/PartsTable.tsx / PartFilterBar.tsx
-  components/PartThumbnail.tsx           # new — static image + graceful no-thumbnail fallback (FR-014a)
-  components/PartFilamentRequirementsList.tsx   # new — renders 1+ requirements with per-slot narrow overrides
+  components/PartThumbnail.tsx           # new — renders {thumbnailBase64} as a data: URI, graceful
+                                           # no-thumbnail fallback (FR-014a); no fetch of its own (research.md §8)
+  components/PartFilamentRequirementsList.tsx   # new — renders 1+ grouped requirements (material + detected
+                                                  # color swatch), each independently narrowable
   components/PartTagsEditor.tsx
   hooks/usePartsHub.ts                   # subscribes to PartProcessingJobStatusChanged/PartUpserted/PartDeleted
   data/ (Orval-generated hooks; mockParts.ts / mockPartsStore.ts deleted)
@@ -332,5 +373,11 @@ is a deviation:
 | `name`/`tags` moved out of the initial add/replace request entirely, supplied only at Confirm, alongside a single continuous dialog that stays open across attach → process → review → save | The operator experience the user described is one continuous action, not two round trips to sequence — attaching a file should start work immediately without first demanding a finished name, and the operator should be able to keep typing while that runs | Requiring `name` upfront (an earlier revision of this plan) was reconsidered once it became clear that gates the *start* of background work behind a field that has nothing to do with processing the file itself — moving it to Confirm removes an artificial ordering constraint with no correctness reason behind it |
 | A background-completed **failure** still gets a direct, operator-attributed (`ActorType.User`) activity-log write from `PartProcessingBackgroundService`, while a **success** no longer needs one (Confirm is a normal synchronous endpoint the existing post-processor already covers, for every file type now) | FR-017 requires a processing failure to be logged, but that outcome is only known inside the background service, with no HTTP request in flight at that moment | Logging failures only via the job's own row (no activity-log entry at all) was considered and rejected — FR-017 explicitly wants failures visible in the shared activity log |
 | `PartFilamentRequirement` is a child collection, not scalar fields on `Part` | A real already-sliced multi-color/AMS file genuinely declares more than one material/color requirement | A JSON column holding the same array was considered and rejected in favor of a real child table — the narrow-override fields need to be queryable/joinable against `FilamentVariant`/`FilamentProfile` for read-time resolution, which a JSON blob would make materially harder for no clear benefit given the row count per part is always small |
+| Filament requirements are identified by a distinct `(MaterialType, DetectedColorHex)` pair, grouped across every plate/slot in the file, rather than one row per detected `SlotIndex` | The user's own worked example (a 4-plate file, 2 plates sharing one material+color) requires collapsing repeated pairs into one requirement, not one row per plate/slot — a per-`SlotIndex` design (an earlier revision of this plan) would have produced 4 duplicate-looking rows instead of 3 distinct ones | Keeping `SlotIndex` as the identity and just adding a `DetectedColorHex` display field alongside it was considered and rejected — it would still show 4 rows for the 4-plate example, not the 3 the user's own framing explicitly calls for |
+| Multi-plate 3MF scanning for filament-requirement detection is reopened (every plate is scanned, not just the first), while the file is still never split into multiple Parts and the thumbnail still comes from the first plate only | The user directly confirmed this scope via a concrete example (plate-level materials must be detected and shown); nothing about splitting the file or picking a different thumbnail plate was asked for or implied | Reopening the *entire* multi-plate limitation (also attempting per-plate thumbnails or treating each plate as its own Part) was considered and rejected as a scope expansion well beyond what was actually requested — the reopening is deliberately narrow, scoped to filament-requirement detection only |
 | `Printer.MachineProfileId` is an **enforced** nullable FK (`OnDelete(SetNull)`), while `PartFilamentRequirement.NarrowFilamentVariantId`/`NarrowFilamentProfileId` are **unenforced** bare `Guid?` columns | Each field's correctness requirement is genuinely different: FR-005a's farm-wide nozzle-diameter computation silently produces a wrong answer if a dangling link is tolerated, while spec.md explicitly wants a deleted narrow-override reference to degrade gracefully per-requirement | Applying one uniform rule was considered and rejected — spec.md itself asks for different failure behavior in each case |
 | Thumbnail stored inline (`bytea`), always normalized to PNG with no content-type column, while the part's actual file goes through a new `IPartFileStorage` disk abstraction | A thumbnail is small, bounded, atomic with its owning row, and — once every source format is normalized at ingestion — always the same image type; the file itself can be large and needs independent re-download/streaming | Storing a per-row content-type alongside the bytes was considered and dropped once it became clear every real source can simply be re-encoded to one format at the single point of ingestion |
+| `PartProcessingJob.PreviewFilamentRequirements` is a `jsonb` column, not a separate child table | A job's preview requirement(s) are small (1–4 entries), read exactly once (by `Confirm`), and never independently queried/joined — the same shape `Printer.AmsUnits` already stores as `jsonb` | A dedicated `PartProcessingJobPreviewFilamentRequirement` child table (an earlier revision of this plan) was reconsidered directly by the user and dropped — it added a fourth migration-relevant entity, its own EF configuration, and a cascade-delete relationship for data whose entire lifetime is "written once, superseded once," with no query/join need `Part.PartFilamentRequirement` (the real, final table, §7) actually has |
+| Thumbnails travel as inline `thumbnailBase64` in JSON/SignalR payloads, with no separate `GET .../thumbnail` byte-stream endpoint | This app authenticates via JWT Bearer tokens only, so a plain `<img src="...">` cannot attach the required `Authorization` header against an authenticated byte-stream endpoint — `features/printers/components/CameraView.tsx` already establishes inline base64 as this codebase's actual working pattern for an authenticated image | A dedicated `GET /parts/{id}/thumbnail` (and job-preview equivalent) — an earlier revision of this contract — was caught and dropped directly by the user reviewing the plan: as designed it would not have been renderable via a bare `<img>` tag at all, only fetchable via an authenticated client call the contract never specified, so it was a latent design gap, not a valid simpler alternative |
+| A requires-slicing file with no Filament specified defaults to "any material" (`MaterialType: null`), sliced against a fixed internal fallback profile, instead of being rejected | The user directly asked for STL to support a genuine no-material-commitment default, deferring the real material choice to whenever the part is actually matched to a machine/job — reopening FR-002's "always required" rule and the separate "no fallback material, ever" decision, specifically for this one wildcard case | Keeping Filament strictly required (the original, multiply-ratified design) was the simpler alternative, and was directly superseded by the user's own request; an organization-configurable default material was also considered (and re-rejected) as a way to reduce friction without a true wildcard — it would still force every organization to pick *some* material up front, which isn't what was asked for |
+| An already-sliced file's requirement can never be "any material," only a requires-slicing file's can | A sliced G-code's process parameters (temps, retraction, flow) are physically fixed to one material — swapping materials against them isn't a compatibility nuance, it's a likely-bad print; only a file that still requires slicing gets a genuinely fresh slice whenever its real material becomes known | Allowing the operator to relax an already-sliced file's parsed material to "any" was considered and rejected outright — it would let the catalog claim a physical capability the file doesn't actually have, undermining the "derived data reflects reality" principle this whole spec is built on |

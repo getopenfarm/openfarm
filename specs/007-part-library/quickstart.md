@@ -2,8 +2,11 @@
 
 Supersedes the previous version — every add/replace, regardless of file type, now goes through the
 identical Processing → Ready for Review → Confirm/Discard pipeline (`part-processing-jobs`, renamed from
-`part-slicing-jobs`), and `name`/`tags` are supplied at Confirm, not at the initial upload. See
-`data-model.md` for entity shapes and `contracts/part-library-api.md` for exact request/response bodies.
+`part-slicing-jobs`), `name`/`tags` are supplied at Confirm, not at the initial upload, filament-requirement
+detection groups by distinct material+color pair across every plate/slot, and a Filament is now always
+optional — even for a file requiring slicing, where omitting it is a genuine "any material" wildcard rather
+than a rejection (Scenario 4b). See `data-model.md` for entity shapes and `contracts/part-library-api.md`
+for exact request/response bodies.
 Prerequisites assume Phase 1–3 are already running.
 
 ## Prerequisites
@@ -46,9 +49,17 @@ subscribe:
 curl -s http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID -H "Authorization: Bearer <token>" | tee job.json
 ```
 
-**Expected**: eventually `{ "status": "ReadyForReview", "preview": { "nozzleDiameterMm": ..., "estimatedPrintTimeMinutes": ..., "estimatedFilamentWeightGrams": ..., "thumbnailAvailable": true, "filamentRequirements": [{ "slotIndex": null, "materialType": "PETG" }] } }`
-— nothing under `/parts` shows this part yet. Confirm it (this is the "Save" click — `name` is required
-here, since this is where it's finally submitted):
+**Expected**: eventually `{ "status": "ReadyForReview", "preview": { "nozzleDiameterMm": ..., "estimatedPrintTimeMinutes": ..., "estimatedFilamentWeightGrams": ..., "thumbnailBase64": "iVBORw0KGgo...", "filamentRequirements": [{ "requirementIndex": 0, "materialType": "PETG", "detectedColorHex": null }] } }`
+— note `thumbnailBase64` arrives inline (no separate thumbnail request — see below), and nothing under
+`/parts` shows this part yet. Decode it locally to confirm it's a real image:
+
+```bash
+jq -r '.preview.thumbnailBase64' job.json | base64 -d > preview_thumb.png
+file preview_thumb.png   # Expected: PNG image data
+```
+
+Confirm the job (this is the "Save" click — `name` is required here, since this is where it's finally
+submitted):
 
 ```bash
 curl -s -X POST http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID/confirm \
@@ -104,50 +115,112 @@ curl -s -X POST http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID/confir
 PART_ID=$(jq -r .id part.json)
 ```
 
-**Expected**: `201`, with exactly one `filamentRequirements[0]` entry (`slotIndex: null`) parsed straight
-from the G-code's own metadata. Confirm the thumbnail is available:
+**Expected**: `201`, with exactly one `filamentRequirements[0]` entry (`requirementIndex: 0`) parsed straight
+from the G-code's own metadata. Confirm the thumbnail travelled back inline on this same response (there is
+no separate thumbnail endpoint — `research.md` §8, since a bare authenticated byte-stream URL isn't
+renderable via `<img src>` under this app's Bearer-token auth):
 
 ```bash
-curl -s -o thumb.png -w '%{http_code}\n' http://localhost:8888/api/v1/parts/$PART_ID/thumbnail \
-  -H "Authorization: Bearer <token>"
+jq -r '.thumbnailBase64' part.json | base64 -d | file -
 ```
 
-**Expected**: `200`, `Content-Type: image/png`.
+**Expected**: `... PNG image data ...`. The same field also appears on `GET /api/v1/parts/$PART_ID` and
+`GET /api/v1/parts` (per-row, bounded by `pageSize`) afterward.
 
-## Scenario 3b — Add a multi-color already-sliced file, narrowing one slot at confirm time
+## Scenario 3b — Add a multi-plate/multi-color already-sliced file: grouped, not per-plate, requirements
+
+Using a 4-plate `.gcode.3mf` where plates 1 and 3 are both black PETG, plate 2 is white PLA, and plate 4 is
+red PETG:
 
 ```bash
 curl -s -X POST http://localhost:8888/api/v1/parts \
-  -H "Authorization: Bearer <token>" -F "file=@multicolor.gcode.3mf" | tee job.json
+  -H "Authorization: Bearer <token>" -F "file=@four_plate_multicolor.gcode.3mf" | tee job.json
 JOB_ID=$(jq -r .jobId job.json)
 # wait for ReadyForReview, then:
-curl -s http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID -H "Authorization: Bearer <token>" | jq '.preview.filamentRequirements'
-# Expected: two or more entries, one per detected AMS slot
-
-curl -s -X POST http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID/confirm \
-  -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
-  -d '{"name": "Two-Tone Vase", "filamentRequirementOverrides": [{"slotIndex": 0, "narrowFilamentVariantId": "<variantId>"}]}' \
-  | jq '.filamentRequirements'
+curl -s http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID -H "Authorization: Bearer <token>" \
+  | jq '.preview.filamentRequirements'
 ```
 
-**Expected**: the `slotIndex: 0` entry shows `narrowFilamentVariantId` set to the supplied variant, others
-remain unnarrowed.
+**Expected**: exactly **3** entries (not 4, not 1) — plates 1 and 3's shared black-PETG pair collapses into
+one entry:
+```jsonc
+[
+  { "requirementIndex": 0, "materialType": "PETG", "detectedColorHex": "#000000" },
+  { "requirementIndex": 1, "materialType": "PLA",  "detectedColorHex": "#FFFFFF" },
+  { "requirementIndex": 2, "materialType": "PETG", "detectedColorHex": "#FF0000" }
+]
+```
 
-## Scenario 4 — Rejections never even reach the processing pipeline (FR-006)
+Narrow the black-PETG requirement (`requirementIndex: 0`) at confirm time:
 
 ```bash
-# No Filament specified for a file requiring slicing
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8888/api/v1/parts \
-  -H "Authorization: Bearer <token>" -F "file=@bracket.stl"
-# Expected: 400
+curl -s -X POST http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID/confirm \
+  -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
+  -d '{"name": "Four-Plate Batch", "filamentRequirementOverrides": [{"requirementIndex": 0, "narrowFilamentVariantId": "<variantId>"}]}' \
+  | tee part.json | jq '.filamentRequirements'
+```
 
-# No printer with a linked Machine Profile at all (unlink the one from Scenario 1 first)
+**Expected**: the `requirementIndex: 0` entry (which represents **both** plate 1 and plate 3) shows
+`narrowFilamentVariantId` set to the supplied variant; the PLA and red-PETG requirements remain unnarrowed.
+Confirm the aggregate estimates reflect all four plates:
+
+```bash
+jq '{estimatedPrintTimeMinutes, estimatedFilamentWeightGrams}' part.json
+```
+
+**Expected**: the sum across all four plates' own individual estimates, not just plate 1's.
+
+## Scenario 4 — Rejections never even reach the processing pipeline (FR-006), and "any material" is not one of them
+
+```bash
+# No printer with a linked Machine Profile at all (unlink the one from Scenario 1 first) —
+# this is the one thing that still rejects an STL/unsliced-3MF outright, filamentId or not
 curl -s -X PUT http://localhost:8888/api/v1/printers/<printerId>/machine-profile \
   -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' -d '{"machineProfileId": null}'
 curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8888/api/v1/parts \
   -H "Authorization: Bearer <token>" -F "file=@bracket.stl" -F "filamentId=<filamentId>"
 # Expected: 422
+
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8888/api/v1/parts \
+  -H "Authorization: Bearer <token>" -F "file=@bracket.stl"
+# Expected: 422 as well — "any material" still needs a nozzle-diameter target to slice against
 ```
+
+Re-link the printer (Scenario 1) before continuing.
+
+## Scenario 4b — "Any material": omit the Filament entirely (FR-002a)
+
+```bash
+curl -s -X POST http://localhost:8888/api/v1/parts \
+  -H "Authorization: Bearer <token>" -F "file=@bracket.stl" | tee job.json
+JOB_ID=$(jq -r .jobId job.json)
+```
+
+**Expected**: `202` (not `400`) — omitting `filamentId` is a genuine wildcard, not a rejection. Once ready:
+
+```bash
+curl -s http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID -H "Authorization: Bearer <token>" \
+  | jq '.preview.filamentRequirements'
+```
+
+**Expected**: `[{ "requirementIndex": 0, "materialType": null, "detectedColorHex": null, "detectedSubBrand": null }]`
+— the estimate/nozzle-diameter/thumbnail are still fully present (never partial), but were computed against
+a fixed internal fallback material, not a real operator-chosen one — a known, accepted approximation. Confirm
+it, then optionally narrow it to a real filament after the fact, exactly like any other requirement:
+
+```bash
+curl -s -X POST http://localhost:8888/api/v1/part-processing-jobs/$JOB_ID/confirm \
+  -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
+  -d '{"name": "Generic Mounting Bracket"}' | tee any_material_part.json
+ANY_MATERIAL_PART_ID=$(jq -r .id any_material_part.json)
+jq '.filamentRequirements' any_material_part.json
+
+curl -s "http://localhost:8888/api/v1/parts?page=1&pageSize=50" -H "Authorization: Bearer <token>" \
+  | jq --arg id "$ANY_MATERIAL_PART_ID" '.parts[] | select(.id == $id) | .materialTypes'
+```
+
+**Expected**: `filamentRequirements[0].materialType` is `null` on the detail response; the catalog-list
+response's `materialTypes` field for this same part is `[]` (empty, not `[null]`).
 
 Re-link the printer (Scenario 1) before continuing.
 

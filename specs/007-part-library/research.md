@@ -11,7 +11,14 @@ longer part of the initial submit request at all — attaching a file (plus a Fi
 processing immediately as one continuous add-part dialog, and the operator keeps editing name/tags
 concurrently while it runs; both are only actually submitted, together with any narrow filament overrides,
 at the Confirm ("Save") step, which the frontend gates on both `ReadyForReview` and (for a new part) a
-non-empty name. Everything else carries forward unchanged.
+non-empty name. A fourth follow-up simplifies §3: a job's preview filament requirement(s) are now a `jsonb`
+column on `PartProcessingJob` (§3a) rather than a separate child table, since this data is small, transient,
+and never independently queried — mirroring `Printer.AmsUnits`'s existing pattern. §7 was also revised
+(distinct-(material,color)-pair grouping across every plate, not one row per detected slot) per a worked
+example the user supplied directly. A fifth follow-up adds §7a: `filamentId` is no longer required even for
+a requires-slicing file — omitting it is a genuine "any material" wildcard (`PartFilamentRequirement.
+MaterialType` becomes nullable), driven by a fixed internal fallback material profile that is never an
+organization setting and never valid for an already-sliced file. Everything else carries forward unchanged.
 
 This phase introduces four genuinely new pieces of backend infrastructure with zero prior art in this
 codebase (confirmed by direct code search, not assumption): sliced-file metadata inspection, file storage
@@ -42,13 +49,18 @@ into a new, purpose-built interface is the smaller, more honest change.
   `Metadata/slice_info.config` entry (only present in an already-sliced `.gcode.3mf`) — present → `false`,
   absent → `true`. This step stays **synchronous, at submit time** (§2) — it's cheap I/O (an extension
   check, or at most a single zip-entry-presence check), not the heavy work this phase's async pipeline
-  exists for, and its result is needed immediately to validate whether `filamentId` is required (FR-002)
-  before a job is even created.
+  exists for, and its result is needed immediately to decide, if `filamentId` was omitted, whether that
+  means "any material" (`requiresSlicing = true`, FR-002a) or simply "unused" (`requiresSlicing = false`,
+  the file's own material is parsed instead) — before a job is even created.
 - `IAlreadySlicedFileMetadataParser.ParseAsync(Stream, PartFileFormat) -> SlicedFileMetadata` — nozzle
-  diameter, an estimated time/weight, a normalized-to-PNG thumbnail (§8), and one or more filament-requirement
-  entries (§7 — a single entry for an ordinary single-material file, one per detected AMS-style color slot
-  for a genuine multi-color mapping), or a typed failure. Reads G-code comment headers or a Bambu
-  `.gcode.3mf`'s metadata/plate-preview image. Unparseable → the add/replace is rejected outright (FR-006d).
+  diameter, a summed estimated time/weight across every plate (§7), a normalized-to-PNG thumbnail from the
+  **first** plate only (§8), and one or more grouped filament-requirement entries (§7 — a single entry for
+  an ordinary single-material file, one per **distinct detected (material type, color) pair** found across
+  every plate and every AMS slot within each plate), or a typed failure. For a G-code file this reads its
+  header comments (`filament_type`/`filament_colour`, standard Bambu/OrcaSlicer convention — one value per
+  AMS slot used); for a `.gcode.3mf`, this now walks **every plate's own embedded G-code/metadata block**
+  (not just the first), reading the same per-slot fields from each. Unparseable → the add/replace is
+  rejected outright (FR-006c).
 
 **Alternative considered and rejected**: a dedicated 3MF-parsing NuGet package. Rejected — none is currently
 a dependency anywhere in this solution, the actual parsing need is narrow, and the codebase's own precedent
@@ -60,9 +72,10 @@ external dependency.
 **Decision**: `POST /api/v1/parts` and `PUT /api/v1/parts/{id}/file` are each a single FastEndpoints class
 with **one** completion shape, not two. Their request body is deliberately minimal — `file` plus
 `filamentId?` only, **no `name`/`tags`** — since the sole purpose of this call is to start processing as
-early as possible; the handler calls `IPartFileClassifier` synchronously (§1) purely to validate the
-request (`filamentId` required iff `requiresSlicing`, and to determine which downstream processor the job
-will need) — but the actual work of turning the file into derived data (nozzle diameter, filament
+early as possible; the handler calls `IPartFileClassifier` synchronously (§1) to determine which downstream
+processor the job will need — `filamentId` is always optional now, even when `requiresSlicing` (§7a: an
+omitted value means "any material," not a rejection) — but the actual work of turning the file into derived
+data (nozzle diameter, filament
 requirement(s), estimated time/weight, thumbnail) always happens asynchronously via a new
 `PartProcessingJob`, and a successful result **always** lands in a "ready for review" state before anything
 is saved. There is no longer a synchronous, direct-save branch for an already-sliced file. `name`/`tags`
@@ -115,11 +128,11 @@ functional benefit.
 `OrganizationId`, `PartId` nullable until an Add is confirmed, `Kind: Add | Replace`,
 `Status: Processing | ReadyForReview | Confirmed | Failed | Discarded`, the preview fields once
 `ReadyForReview` — `PreviewNozzleDiameterMm`, `PreviewEstimatedPrintTimeMinutes`,
-`PreviewEstimatedFilamentWeightGrams`, `PreviewThumbnailBytes`, and one-or-more
-`PreviewFilamentRequirement`s (§7) — `ErrorMessage`, `RequestedByUserId`, `CreatedAtUtc`, `ProcessedAtUtc`,
-`ResolvedAtUtc`) — distinct from `Part` itself, so "a part is never saved in an incomplete state" (spec.md
-Assumptions) stays literally true: nothing under `/parts` ever shows a half-built or not-yet-reviewed row.
-A bounded `System.Threading.Channels.Channel<PartProcessingWorkItem>` feeds a new
+`PreviewEstimatedFilamentWeightGrams`, `PreviewThumbnailBytes`, and `PreviewFilamentRequirements` (§3a) —
+`ErrorMessage`, `RequestedByUserId`, `CreatedAtUtc`, `ProcessedAtUtc`, `ResolvedAtUtc`) — distinct from
+`Part` itself, so "a part is never saved in an incomplete state" (spec.md Assumptions) stays literally true:
+nothing under `/parts` ever shows a half-built or not-yet-reviewed row. A bounded
+`System.Threading.Channels.Channel<PartProcessingWorkItem>` feeds a new
 `PartProcessingBackgroundService` (`Infrastructure.Parts`, registered as a hosted service exactly like
 `PrinterConnectionBackgroundService`), whose consumer count is capped by a small configurable
 `MaxConcurrentSlicingOperations` (default 2, applying only to the CPU/IO-heavy slicing branch in practice —
@@ -134,6 +147,33 @@ succeeded; the background service's job here is done — it never touches `Part`
 it to `Confirmed` (creating/updating the `Part` in the same request) or `DELETE .../confirm` moves it to
 `Discarded` — both terminal, both plain synchronous HTTP endpoints, since all the data needed to
 create/update the `Part` was already computed and is just sitting on the job row.
+
+## 3a. A job's preview filament requirement(s) are a `jsonb` column on `PartProcessingJob`, not a separate child table
+
+**Decision**: `PartProcessingJob.PreviewFilamentRequirements` is stored as `jsonb` (a small
+`IReadOnlyList<PreviewFilamentRequirement>` value list, `HasConversion` + a custom `ValueComparer`) directly
+on the job row, rather than a separate `PartProcessingJobPreviewFilamentRequirement` child table (an earlier
+revision of this design). **Why**: this data is small (1–4 entries, bounded by real AMS hardware), never
+independently queried/filtered/joined by anything (it's read exactly once, by the `Confirm` handler, then
+superseded by the real `PartFilamentRequirement` rows it produces), and this codebase already has an
+established, working pattern for exactly this shape — `Printer.AmsUnits`/`Printer.ExternalSpoolTray`
+(`api/src/OpenFarm.Domain/Printers/Printer.cs`) are stored the same way for the same reason. A dedicated
+child table would mean a fourth migration-relevant entity, its own EF configuration class, and a cascade-
+delete relationship for data whose entire lifetime is "written once, read once, then irrelevant." This is
+the *opposite* asymmetry from `Part.PartFilamentRequirement` (§7), which stays a real child table —
+deliberately, since that one's narrow-override fields need to be resolved against `FilamentVariant`/
+`FilamentProfile` at read time for the rest of the part's life, and a future Phase 7 will plausibly query/
+join it for job-dispatch matching. The preview copy on a job has neither of those needs.
+
+**This does not change what the `Confirm` request accepts.** The client still never submits nozzle
+diameter, material type, or estimated time/weight — those remain exclusively server-derived and
+server-stored (now in this `jsonb` column instead of a child table), read back by the `Confirm` handler
+itself, not echoed back by the client. `Confirm`'s request body is unchanged: `name`/`tags` (Add only) plus
+an optional array of narrow-override choices keyed by `requirementIndex` — the only things a client ever
+legitimately supplies. Letting the client instead round-trip the full derived record (submit it back as
+part of `Confirm`) was considered and rejected: it would reopen exactly the "no manual numeric entry
+anywhere" hole spec.md's FR-006/FR-013 close, since nothing would then stop a client from submitting a
+different nozzle diameter or estimate than what was actually derived.
 
 **Activity log stays simple, and now uniformly so**: the actual `Part`-mutating action (confirm) is
 operator-initiated and completes within an HTTP request for **every** file type now, so the existing
@@ -195,19 +235,46 @@ for a filament requirement's narrower override (§7). Phase 2 has no delete endp
 yet, so this is currently more a correctness-by-construction choice than a day-one operational necessity —
 but it costs nothing and removes a whole class of "what if this Guid doesn't resolve" bugs later.
 
-## 7. A Part's filament requirement is a collection (`PartFilamentRequirement`), and its narrow overrides follow the existing `Filament.FilamentProfileId` "soft reference" precedent
+## 7. A Part's filament requirement is a collection (`PartFilamentRequirement`), grouped by distinct (material, color) pair across every plate/slot — not one row per slot or plate
 
-**Decision**: a `Part` holds a collection of `PartFilamentRequirement` child rows, each with its own
-`SlotIndex?`, `MaterialType`, and up to one of `NarrowFilamentVariantId`/`NarrowFilamentProfileId` (mutually
-exclusive). A real already-sliced multi-color file (Bambu AMS-style slot-to-filament mapping) genuinely
-declares more than one material/color requirement; an in-app slice still always produces exactly one
-(in-app slicing targets exactly one operator-specified Filament this phase). Since every add/replace now
-goes through the same review step (§2), narrow overrides for **any** requirement — however many a given
-file produced — are supplied at the same point: the `Confirm` request, as an array keyed by `slotIndex`, not
-on the initial submit. This is a further simplification the unification (§2) enables: the earlier design
-had already-sliced files supply narrow overrides upfront (no review step existed for them yet) while an
-in-app slice's single requirement was narrowed at confirm time — two different moments for conceptually the
-same operator action. Now there is exactly one moment, for every case.
+Supersedes this section's previous revision — per a fourth follow-up clarification the user raised directly
+(after supplying a concrete worked example: a 4-plate file with plates 1/3 sharing black PETG, plate 2 white
+PLA, plate 4 red PETG, expecting **3** requirement rows, not 4 and not 1). Two changes from the prior
+design: (a) detection now scans **every plate**, not just the first — partially reopening spec.md's earlier
+"multi-plate 3MF is an accepted, unaddressed limitation" decision, specifically for filament-requirement
+purposes; (b) requirements are identified by their **detected (material type, color) pair**, not by a
+`SlotIndex` — `SlotIndex` is dropped entirely from the model.
+
+**Decision**: a `Part` holds a collection of `PartFilamentRequirement` child rows, each with `MaterialType`,
+an optional best-effort `DetectedColorHex` (and `DetectedSubBrand`, purely informational — e.g. "Bambu
+PETG-CF" — mirroring `AmsTray`'s existing `SubBrand`/`ColorHex` shape from Phase 1/3 telemetry), and up to
+one of `NarrowFilamentVariantId`/`NarrowFilamentProfileId` (mutually exclusive). The parsing/grouping
+algorithm: scan every plate in the file, and every AMS slot within each plate, for its detected
+`(MaterialType, DetectedColorHex)` pair; **group** the results by distinct pairs (a small, deterministic,
+well-specified function — `Application.Parts.FilamentRequirementGrouper`, the same TDD bar as
+`NozzleDiameterResolver`/`FeedUnitKindCatalog.Resolve`, §12); emit exactly one `PartFilamentRequirement` per
+distinct group, in first-seen order. A file that's uniformly one material+color (however many plates/slots
+it spans) produces exactly one requirement; a file with genuinely different pairs produces one per pair,
+regardless of how many plates/slots repeat a given pair. **`DetectedColorHex` groups/distinguishes
+requirements from each other — it is never itself a matching criterion** (matching still runs purely on
+`MaterialType`, or the narrow override if the operator sets one); it exists so the operator reviewing "3
+filament requirements" can actually tell them apart (e.g. "PETG — black" vs. "PETG — red") rather than
+guessing from an opaque slot number, which is the practical problem an earlier revision of this design (one
+row per `SlotIndex`, no color at all) didn't solve.
+
+**Narrowing one requirement applies to every plate/slot sharing its pair, not per-plate independently** —
+this falls directly out of the grouping: since a requirement already represents *every* plate/slot with that
+exact material+color combination, there is no finer-grained "narrow plate 3 differently from plate 1"
+concept to build, and the user's own framing of the decision confirms this is the intended behavior, not a
+limitation. An in-app slice still always produces exactly one requirement regardless (in-app slicing targets
+exactly one operator-specified Filament this phase — true multi-material *slicing* is out of scope), so
+none of this grouping machinery is exercised on that path at all.
+
+Since every add/replace goes through the same review step (§2), narrow overrides for **any** requirement —
+however many a given file produced — are supplied at the same point: the `Confirm` request, as an array. The
+preview copy of each requirement (§3a) carries a stable `RequirementIndex` (0-based, assigned in the same
+first-seen grouping order) that the `Confirm` request's override entries key against, replacing `SlotIndex`'s
+old role as the "which requirement does this override apply to" reference.
 
 **Each requirement's narrow-override fields stay unenforced `Guid?` columns** — no `HasOne`/FK constraint,
 exactly matching `Filament.FilamentProfileId`'s existing pattern. **Why**: spec.md's own edge case is
@@ -222,6 +289,56 @@ FR-012a explicitly names both as independent options, and a `FilamentProfile` ca
 layer validation enforces "at most one of the two may be set per requirement" (a FluentValidation gate, not
 a DB constraint).
 
+**Print time/weight aggregation**: since a multi-plate `.gcode.3mf` executes all of its plates as one
+continuous physical print, `Part.EstimatedPrintTimeMinutes`/`EstimatedFilamentWeightGrams` are the **sum**
+across every plate's own parsed estimate (FR-013) — a single-plate file is trivially "sum of one." The
+thumbnail stays first-plate-only, unchanged (FR-014) — reopening multi-plate detection for filament
+requirements doesn't extend to picking a "best" plate for the thumbnail; that stays exactly as already
+ratified.
+
+## 7a. "Any material" for a requires-slicing file: `MaterialType` becomes nullable, driven by a fixed internal fallback slicer profile — never an organization setting, never valid for an already-sliced file
+
+**Decision**: per a fifth follow-up clarification the user raised directly (FR-002a), `filamentId` is no
+longer required on `POST /parts`/`PUT /parts/{id}/file` even when the classified file requires slicing. When
+omitted, `PartFileProcessor`'s `ISlicerEngine` branch runs the immediate in-app slice against a **fixed,
+hardcoded fallback material profile** — a constant on `SlicerOptions` (e.g.
+`GenericFallbackMaterialProfile = "Generic PLA"`), one entry per `SlicerEngine`, since OrcaSlicer and Bambu
+Studio each ship their own bundled generic system presets under slightly different names. This is **not** an
+organization-configurable setting — it never appears in `Organization`/`SlicingDefaults`, and there is no
+Settings UI for it — it exists purely so the CLI invocation this phase already requires has *something*
+concrete to slice against; a slicer cannot run without a material's temperature/retraction/flow settings as
+input, so "no material" can never literally mean "no settings passed to the CLI," only "no settings the
+*operator* committed to."
+
+**`PartFilamentRequirement.MaterialType` becomes `string?`** (was a required `string`) specifically to
+represent this — `null` means "fully unconstrained, matches any spool of any material," a strictly broader
+claim than a real generic type like `"PLA"` (which still requires PLA specifically). This can only ever
+arise from the "any material" path; an already-sliced file's requirement(s) always have a real, non-null
+`MaterialType`, since FR-006c rejects an unparseable one outright — there is no "any material" wildcard for
+an already-sliced file at all (§7's grouping/detection logic never produces a null `MaterialType`, only the
+"any material" in-app-slicing path does).
+
+**No new stored "is this approximate" flag** — whether a part's estimate is a best-effort approximation
+(SC-003's named exception) is fully derivable at read time by checking whether any of its filament
+requirements has `MaterialType = null`; since an in-app slice always produces exactly one requirement, this
+is a single, cheap check, not a query. Storing a redundant boolean alongside data that already implies it
+would be exactly the kind of "don't cache what you can derive" case Phase 2's own display-field extraction
+already established as this codebase's convention.
+
+**Narrowing still works identically** on an "any material" requirement — the operator can attach a specific
+Filament Profile/color-variant to it at Confirm, exactly like any other requirement (FR-012a) — but doing so
+does **not** trigger a re-slice; the estimate stays whatever the fallback-material slice originally produced,
+approximate regardless of any subsequent narrowing. A fresh, accurate slice for the part's real, eventual
+material is Phase 7's job at job-dispatch time (FR-010), not something this phase re-triggers.
+
+**Why an already-sliced file can never use this wildcard**: once a file is sliced, its G-code toolpath has
+one material's process parameters (nozzle/bed temperature, retraction, cooling-fan speed, flow rate)
+physically baked in — printing a different actual material through it isn't a compatibility nuance, it's a
+likely-bad print (poor adhesion, stringing, or a clog) from wrong temperatures. A file requiring slicing has
+no such commitment yet — it gets a genuinely fresh slice whenever its real material is eventually known
+(now, with a placeholder, or later at Phase 7 dispatch, with the real one) — so only that path can honestly
+support deferring the material commitment at all.
+
 ## 8. File storage: new `IPartFileStorage` abstraction (local disk); thumbnails stay in Postgres as `bytea`, always normalized to PNG
 
 **Decision**: confirmed via direct search — **no file-storage abstraction exists anywhere in this
@@ -235,8 +352,29 @@ A part's **thumbnail** is small and bounded, so it's stored as a plain `byte[]`/
 `Parts` (and, transiently, on `PartProcessingJobs` while a preview is pending) rather than as a second file
 on disk. **No separate content-type/format column is needed**: every thumbnail source (a slicer CLI's
 plate-preview export, a G-code comment's base64 preview, a Bambu 3MF's embedded plate PNG) is normalized to
-PNG at ingestion time, so `GET /parts/{id}/thumbnail` (and the job-preview equivalent) can always serve
-`Content-Type: image/png` unconditionally.
+PNG at ingestion time, so any response that includes one can always treat it as PNG unconditionally.
+
+**Thumbnails are served as inline base64 in JSON/SignalR payloads (`thumbnailBase64`), never as a bare
+authenticated byte-stream URL.** This app authenticates purely via JWT Bearer tokens (no cookies,
+confirmed by the SignalR client's `withCredentials: false`) — a plain `<img src="...">` cannot attach an
+`Authorization` header, so a naive `GET /parts/{id}/thumbnail`-style endpoint returning raw bytes would not
+actually be renderable by the browser without extra client-side plumbing. This codebase already has exactly
+one precedent for displaying an authenticated image, and it solves this the same way:
+`features/printers/components/CameraView.tsx` renders a live camera frame via
+`<img src={`data:image/jpeg;base64,${data.frameJpegBase64}`}>`, with the frame's bytes arriving inside an
+already-authenticated SignalR payload rather than a second bare-URL fetch. Phase 4 follows the identical
+pattern: `thumbnailBase64` is embedded directly in `GET /parts` (list, bounded by `pageSize` — never the
+full catalog), `GET /parts/{id}`, `GET /part-processing-jobs/{id}`, and the
+`PartProcessingJobStatusChanged` SignalR event itself (`contracts/part-library-api.md`) — there is no
+separate `GET .../thumbnail` endpoint. An earlier revision of this contract *did* include one; it would not
+have actually worked as designed, since nothing about it addressed the Bearer-auth-vs-`<img>` problem —
+this was caught and corrected directly by the user reviewing the plan, not discovered independently.
+
+**The part's actual file** (`GET /parts/{id}/file` — potentially large, STL/3MF/G-code) stays a genuine
+byte-stream endpoint, unaffected by this — it's never rendered inline by the browser the way a thumbnail
+is; a "download" action in the frontend fetches it through the authenticated Orval client as a blob and
+triggers a browser download from that blob, the standard pattern for authenticated binary downloads,
+rather than a bare hyperlink.
 
 ## 9. Tags: a new small many-to-many, org-scoped, get-or-create by name
 
@@ -259,8 +397,10 @@ backend" template. Three new pieces are needed:
   (`features/profiles/components/ImportProfilesDialog.tsx`) manages the file via plain `useState<File | null>`
   alongside an otherwise-RHF form. This phase's Add/Replace Part dialog follows that same precedent.
 - **Static thumbnail display**: no generic image/thumbnail primitive exists in `components/ui/` — this
-  phase adds a small, feature-scoped `PartThumbnail` component (an `<img>` with a graceful "no thumbnail"
-  fallback state, per FR-014a).
+  phase adds a small, feature-scoped `PartThumbnail` component. It takes the `thumbnailBase64` string
+  already present on whatever payload rendered it (list row, detail, job preview, or the SignalR push
+  itself, §8) and renders `<img src={`data:image/png;base64,${thumbnailBase64}`}>` directly — no separate
+  fetch, no loading state of its own — with a graceful "no thumbnail" fallback when it's `null` (FR-014a).
 - **A single Add/Replace Part dialog that stays open across the whole submit → process → review → save
   sequence**, not a two-step "submit, then separately go review a job" interaction. Selecting/attaching a
   file (and, if the file needs slicing, picking a Filament) immediately fires the `POST`/`PUT` request and
