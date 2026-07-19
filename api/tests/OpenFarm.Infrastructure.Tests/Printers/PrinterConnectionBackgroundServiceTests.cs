@@ -360,7 +360,7 @@ public class PrinterConnectionBackgroundServiceTests
             };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", twoTrayAms)));
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 10, "Printing", null, null, twoTrayAms)));
 
             await WaitUntilAsync(() => feedUnitRepository.Snapshot.Any(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit), TimeSpan.FromSeconds(2));
 
@@ -372,7 +372,7 @@ public class PrinterConnectionBackgroundServiceTests
             var oneTrayAms = new List<AmsUnit> { new(0, [new AmsTray(0, false, "PLA", "#FF0000", "Generic", 80, false)]) };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
-                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 20, "Printing", oneTrayAms)));
+                Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 20, "Printing", null, null, oneTrayAms)));
 
             await WaitUntilAsync(() => unit.FeedSlots.Any(s => s.DeactivatedAtUtc != null), TimeSpan.FromSeconds(2));
 
