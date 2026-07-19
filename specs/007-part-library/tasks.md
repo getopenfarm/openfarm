@@ -127,16 +127,16 @@ the part in the catalog with per-plate thumbnails and real nozzle/material data.
 - [X] T048 [P] [US1] `api/src/OpenFarm.Api/Endpoints/Parts/GetPartEndpoint.cs` (`GET /api/v1/parts/{id}`, `[Permission("parts:read")]`)
 - [X] T049 [P] [US1] `api/src/OpenFarm.Api/Endpoints/Parts/GetPartFileEndpoint.cs` (`GET /api/v1/parts/{id}/file`, raw byte-stream download)
 - [X] T050 [P] [US1] `api/src/OpenFarm.Application/Parts/DeletePartCommand.cs` / `Handler.cs` + `api/src/OpenFarm.Api/Endpoints/Parts/DeletePartEndpoint.cs` (`DELETE /api/v1/parts/{id}`, cascades tags/requirements/thumbnails, calls `IPartFileStorage.DeleteAsync`)
-- [ ] T051 [US1] Rebuild `api/` to regenerate `api/openapi.json` and run `bunx orval` in `web/` to produce `src/lib/api/generated` hooks for every Part Library endpoint built so far
-- [ ] T052 [P] [US1] `web/src/features/parts/hooks/usePartsHub.ts` — subscribes to `PartProcessingJobStatusChanged`/`PartUpserted`/`PartDeleted` (`PartEstimateResolved`/`PartEstimateUnavailable` wired in US2)
-- [ ] T053 [P] [US1] `web/src/features/parts/components/PartThumbnailGallery.tsx` — per-plate strip against `{thumbnails, plateCount}`, graceful missing-plate fallback (FR-014a)
-- [ ] T054 [P] [US1] `web/src/features/parts/components/PartFilamentRequirementsList.tsx` — renders 1+ grouped requirements with narrow-override picker
-- [ ] T055 [P] [US1] `web/src/features/parts/components/PartProcessingReviewSection.tsx` — in-dialog preview panel, "still resolving"/"estimating…" indicator (FR-009a)
-- [ ] T056 [US1] `web/src/features/parts/components/AddOrReplacePartDialog.tsx` (Add mode) — file attach fires `POST` immediately; RHF+zod name/tags stay editable concurrently (subscribed via T052); Save `disabled` until `ReadyForReview` + name entered; Cancel fires Discard (depends on T052–T055)
-- [ ] T057 [P] [US1] `web/src/features/parts/components/PartsTable.tsx` — real-data table (thumbnail, `materialTypes`, `estimateStatus` indicator per row)
-- [ ] T058 [US1] `web/src/features/parts/PartsPage.tsx` — `DataTable` + pagination wired to `GET /parts`, "Add Part" opens T056
-- [ ] T059 [US1] `web/src/features/parts/PartDetailPage.tsx` — wired to `GET /parts/{id}`, renders T053/T054, delete action
-- [ ] T060 [US1] Delete `web/src/features/parts/data/mockParts.ts`, `mockPartsStore.ts`, and now-superseded mock-only components (`FolderTile.tsx`, `NewFolderDialog.tsx`, `PartCard.tsx`, `MaterialAutoMatchSection.tsx`, `lib/colorMatch.ts`/`.test.ts`); confirm no dangling imports
+- [X] T051 [US1] Rebuild `api/` to regenerate `api/openapi.json` and run `bunx orval` in `web/` to produce `src/lib/api/generated` hooks for every Part Library endpoint built so far
+- [X] T052 [P] [US1] `web/src/features/parts/hooks/usePartsHub.ts` — subscribes to `PartProcessingJobStatusChanged`/`PartUpserted`/`PartDeleted` (`PartEstimateResolved`/`PartEstimateUnavailable` wired in US2)
+- [X] T053 [P] [US1] `web/src/features/parts/components/PartThumbnailGallery.tsx` — per-plate strip against `{thumbnails, plateCount}`, graceful missing-plate fallback (FR-014a)
+- [X] T054 [P] [US1] `web/src/features/parts/components/PartFilamentRequirementsList.tsx` — renders 1+ grouped requirements with narrow-override picker
+- [X] T055 [P] [US1] `web/src/features/parts/components/PartProcessingReviewSection.tsx` — in-dialog preview panel, "still resolving"/"estimating…" indicator (FR-009a)
+- [X] T056 [US1] `web/src/features/parts/components/AddOrReplacePartDialog.tsx` (Add mode) — file attach fires `POST` immediately; RHF+zod name/tags stay editable concurrently (subscribed via T052); Save `disabled` until `ReadyForReview` + name entered; Cancel fires Discard (depends on T052–T055)
+- [X] T057 [P] [US1] `web/src/features/parts/components/PartsTable.tsx` — real-data table (thumbnail, `materialTypes`, `estimateStatus` indicator per row)
+- [X] T058 [US1] `web/src/features/parts/PartsPage.tsx` — `DataTable` + pagination wired to `GET /parts`, "Add Part" opens T056
+- [X] T059 [US1] `web/src/features/parts/PartDetailPage.tsx` — wired to `GET /parts/{id}`, renders T053/T054, delete action
+- [X] T060 [US1] Delete `web/src/features/parts/data/mockParts.ts`, `mockPartsStore.ts`, and now-superseded mock-only components (`FolderTile.tsx`, `NewFolderDialog.tsx`, `PartCard.tsx`, `MaterialAutoMatchSection.tsx`, `lib/colorMatch.ts`/`.test.ts`); confirm no dangling imports — Assemblies (Phase 6, still mock-only) depended on this store, so its own decoupled copy was relocated to `web/src/features/assemblies/data/`
 - [ ] T061 [P] [US1] Vitest+RTL tests for `PartsPage`/`PartDetailPage`/`AddOrReplacePartDialog`/`PartsTable` covering Save-gating and catalog rendering
 - [ ] T062 [US1] `api/tests/OpenFarm.Api.IntegrationTests/Parts/PartCatalogEndpointTests.cs` — full Processing→ReadyForReview→Confirm cycle for a simple already-sliced G-code fixture (from US3, T091), asserting the part appears via `GET /parts`/`GET /parts/{id}` with per-plate thumbnail + nozzle/material data
 - [ ] T063 [P] [US1] `api/tests/OpenFarm.Api.IntegrationTests/Parts/DeletePartEndpointTests.cs` and `GetPartFileEndpointTests.cs`
@@ -200,8 +200,8 @@ confirming stores the file as-is; an unparseable file rejects outright with no r
 
 - [X] T089 [P] [US3] Write failing tests for `FilamentRequirementGrouper` (dedup by distinct `(material, color)` pair; the 4-plate/3-requirement worked example) in `api/tests/OpenFarm.Application.Tests/Parts/FilamentRequirementGrouperTests.cs`
 - [X] T090 [US3] `api/src/OpenFarm.Application/Parts/FilamentRequirementGrouper.cs` — `Group(detectedRequirements)`, to pass T089
-- [ ] T091 [P] [US3] Author already-sliced test fixtures (single-material G-code; 4-plate multi-color `.gcode.3mf` with plates 1/3 sharing black PETG, plate 2 white PLA, plate 4 red PETG) under `api/tests/OpenFarm.Infrastructure.Tests/Parts/Fixtures/`
-- [ ] T092 [P] [US3] Fixture-replay tests for `IAlreadySlicedFileMetadataParser` (G-code header parse, multi-plate Bambu `slice_info.config` parse, per-plate thumbnail extraction, unparseable → failure) in `api/tests/OpenFarm.Infrastructure.Tests/Parts/AlreadySlicedFileMetadataParserTests.cs`
+- [X] T091 [P] [US3] Author already-sliced test fixtures (single-material G-code; 4-plate multi-color `.gcode.3mf` with plates 1/3 sharing black PETG, plate 2 white PLA, plate 4 red PETG) under `api/tests/OpenFarm.Infrastructure.Tests/Parts/Fixtures/` — the single-material G-code is a committed fixture file; the 4-plate `.gcode.3mf` is built programmatically in the test itself (clearer to review as a diff than a committed binary zip)
+- [X] T092 [P] [US3] Fixture-replay tests for `IAlreadySlicedFileMetadataParser` (G-code header parse, multi-plate Bambu `slice_info.config` parse, per-plate thumbnail extraction, unparseable → failure) in `api/tests/OpenFarm.Infrastructure.Tests/Parts/AlreadySlicedFileMetadataParserTests.cs`
 - [X] T093 [US3] `api/src/OpenFarm.Infrastructure/Parts/AlreadySlicedFileMetadataParser.cs` — implements `IAlreadySlicedFileMetadataParser`, calls `FilamentRequirementGrouper` (T090), to pass T092
 - [X] T094 [US3] Extend `api/src/OpenFarm.Infrastructure/Parts/PartFileProcessor.cs` (T028/T080) — wire the not-requires-slicing branch: atomic parse via T093 populating nozzle/material/estimate/thumbnails together, `PreviewEstimateStatus=Available` immediately
 - [ ] T095 [P] [US3] `api/tests/OpenFarm.Api.IntegrationTests/Parts/AlreadySlicedPartEndpointTests.cs` — single-material full cycle, the 4-plate/3-requirement fixture (asserts exactly 3 grouped requirements, summed estimate, 4 thumbnails), every FR-006c rejection case (unparseable nozzle/material/estimate)
@@ -224,8 +224,8 @@ data update. Separately, a failing replacement leaves the part completely unchan
 - [X] T097 [P] [US4] `api/src/OpenFarm.Api/Endpoints/Parts/ReplacePartFileEndpoint.cs` (`PUT /api/v1/parts/{id}/file`, `[Permission("parts:replace-file")]`)
 - [ ] T098 [US4] Verify/extend `ConfirmPartProcessingJobCommandValidator` (T034/T035) covers the `Replace`-kind `400` case (name/tags supplied) against a real `ReplacePartFileCommand`-created job
 - [X] T099 [US4] Wire `Part`'s `xmin` concurrency-conflict path — a concurrent replace throws `PartConcurrencyConflictException`, mapped to `409` (T040)
-- [ ] T100 [US4] `web/src/features/parts/components/AddOrReplacePartDialog.tsx` — Replace mode (reuse T056, minus name/tags fields)
-- [ ] T101 [US4] `web/src/features/parts/PartDetailPage.tsx` (T059) — "Replace file" action opening T100
+- [X] T100 [US4] `web/src/features/parts/components/AddOrReplacePartDialog.tsx` — Replace mode (reuse T056, minus name/tags fields)
+- [X] T101 [US4] `web/src/features/parts/PartDetailPage.tsx` (T059) — "Replace file" action opening T100
 - [ ] T102 [P] [US4] `api/tests/OpenFarm.Api.IntegrationTests/Parts/ReplacePartFileEndpointTests.cs` — successful replace (keeps name/tags), failed replace before confirm (unchanged), failed replace after early confirm (estimate unavailable, new file/nozzle/material kept), concurrent-replace `409`
 - [ ] T103 [P] [US4] Vitest+RTL tests for Replace-mode dialog (no name/tags fields; Cancel leaves the existing part untouched)
 
@@ -247,10 +247,10 @@ sharing a given tag.
 - [X] T106 [P] [US5] `api/src/OpenFarm.Api/Endpoints/Parts/TagPartEndpoint.cs` (`POST /parts/{id}/tags`), `UntagPartEndpoint.cs` (`DELETE /parts/{id}/tags/{tagId}`)
 - [X] T107 [P] [US5] `api/src/OpenFarm.Api/Endpoints/Tags/ListTagsEndpoint.cs` (`GET /api/v1/tags`)
 - [X] T108 [US5] Extend `GetPartsQuery`/`GetPartsQueryHandler` (T045) — repeatable `tag` query param, AND-semantics filter
-- [ ] T109 [US5] Rebuild `api/`, regenerate `api/openapi.json`, run `bunx orval` to pick up the tag endpoints + filter param
+- [X] T109 [US5] Rebuild `api/`, regenerate `api/openapi.json`, run `bunx orval` to pick up the tag endpoints + filter param — done together with T051's regeneration pass
 - [ ] T110 [P] [US5] `web/src/features/parts/components/PartTagsEditor.tsx`
-- [ ] T111 [P] [US5] `web/src/features/parts/components/PartFilterBar.tsx` — tag filter chips wired to `GET /parts?tag=`
-- [ ] T112 [US5] Wire `PartFilterBar` (T111) into `PartsPage.tsx` (T058)
+- [X] T111 [P] [US5] `web/src/features/parts/components/PartFilterBar.tsx` — tag filter chips wired to `GET /parts?tag=`
+- [X] T112 [US5] Wire `PartFilterBar` (T111) into `PartsPage.tsx` (T058)
 - [ ] T113 [P] [US5] `api/tests/OpenFarm.Api.IntegrationTests/Parts/PartTagsEndpointTests.cs` — tag/untag/get-or-create/filter-by-tag
 - [ ] T114 [P] [US5] Vitest+RTL tests for `PartTagsEditor`/`PartFilterBar`
 
@@ -265,7 +265,7 @@ sharing a given tag.
 - [ ] T117 [P] Final regeneration pass: `api/openapi.json` + `bunx orval` in `web/`, confirm `src/lib/api/generated` has zero drift from the finalized contract
 - [ ] T118 Run `dotnet format api/OpenFarm.slnx --verify-no-changes` and `bun run lint` / `bunx tsc -b` clean across the whole feature
 - [ ] T119 Run `dotnet test api/OpenFarm.slnx` and `bun run test` full suites, confirm green
-- [ ] T120 Execute `quickstart.md` Scenarios 1–7 end-to-end against `infra/docker-compose.yml` (manual/local validation, including the real OrcaSlicer CLI carve-out from T079)
+- [ ] T120 Execute `quickstart.md` Scenarios 1–7 end-to-end against `infra/docker-compose.yml` (manual/local validation, including the real OrcaSlicer CLI carve-out from T079) — partially attempted directly against a real Postgres + `dotnet run` (no Docker in that sandbox): migrations applied cleanly, `CreatePartEndpoint` returned real job ids over both curl and a real browser (Playwright), but the long-lived API process was repeatedly reaped by that sandbox's process lifecycle management before a job could finish processing, so the full Confirm → catalog → detail loop was never watched end-to-end live. Backstopped instead with `AlreadySlicedFileMetadataParserTests` (T092) asserting the exact values (nozzle/material/estimate/thumbnail) that would have populated the review panel. Needs a real re-run against `infra/docker-compose.yml` in an environment without that constraint before merge.
 
 ---
 
@@ -364,4 +364,4 @@ directly, ahead of US2/US3 landing. US4/US5 start once US1–US3 are stable.
 
 ## Phase 9: Convergence
 
-- [ ] T121 [US1] Retire the old page-routed Add/Edit flow: delete `web/src/features/parts/PartAddPage.tsx`, `PartAddPage.test.tsx`, and `PartEditPage.tsx` (all still on `mockPartsStore`), and update `web/src/app/routes.tsx` so `/parts`'s "Add Part" opens `AddOrReplacePartDialog` (T056) in place instead of navigating to a `/parts/new` route, and the `:id/edit` route becomes `:id`, routing to `PartDetailPage` (T059) per plan.md Project Structure / FR-001 (missing)
+- [X] T121 [US1] Retire the old page-routed Add/Edit flow: delete `web/src/features/parts/PartAddPage.tsx`, `PartAddPage.test.tsx`, and `PartEditPage.tsx` (all still on `mockPartsStore`), and update `web/src/app/routes.tsx` so `/parts`'s "Add Part" opens `AddOrReplacePartDialog` (T056) in place instead of navigating to a `/parts/new` route, and the `:id/edit` route becomes `:id`, routing to `PartDetailPage` (T059) per plan.md Project Structure / FR-001 (missing)

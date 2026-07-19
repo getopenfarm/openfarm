@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8899"
+      "url": "http://localhost:8888"
     }
   ],
   "paths": {
@@ -66,6 +66,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListVendorsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tags": {
+      "get": {
+        "tags": [
+          "Tags"
+        ],
+        "operationId": "OpenFarmApiEndpointsTagsListTagsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTagsResponse"
                 }
               }
             }
@@ -400,6 +431,79 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SpoolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/slicing-defaults": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlicingDefaultsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsUpdateSlicingDefaultsEndpoint",
+        "requestBody": {
+          "x-name": "UpdateSlicingDefaultsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSlicingDefaultsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlicingDefaultsResponse"
                 }
               }
             }
@@ -918,6 +1022,60 @@
         ]
       }
     },
+    "/api/v1/printers/{id}/machine-profile": {
+      "put": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "LinkPrinterMachineProfileRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkPrinterMachineProfileRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkPrinterMachineProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/printers": {
       "get": {
         "tags": [
@@ -1095,6 +1253,503 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/parts": {
+      "post": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsCreatePartEndpoint",
+        "requestBody": {
+          "x-name": "CreatePartRequest",
+          "description": "",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePartRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartProcessingJobSubmittedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsListPartsEndpoint",
+        "parameters": [
+          {
+            "name": "tag",
+            "in": "query",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "nullable": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPartsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}": {
+      "delete": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsDeletePartEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsGetPartEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/file": {
+      "get": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsGetPartFileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsReplacePartFileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ReplacePartFileRequest",
+          "description": "",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplacePartFileRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartProcessingJobSubmittedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/tags": {
+      "post": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsTagPartEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "TagPartRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagPartRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartTagsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/tags/{tagId}": {
+      "delete": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsUntagPartEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tagId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartTagsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/part-processing-jobs/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Part-Processing-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartProcessingJobsConfirmPartProcessingJobEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ConfirmPartProcessingJobRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmPartProcessingJobRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Part-Processing-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartProcessingJobsDiscardPartProcessingJobEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/part-processing-jobs/{id}": {
+      "get": {
+        "tags": [
+          "Part-Processing-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartProcessingJobsGetPartProcessingJobEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartProcessingJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/filaments/{id}/variants": {
@@ -1583,6 +2238,31 @@
           }
         }
       },
+      "ListTagsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagResponse"
+            }
+          }
+        }
+      },
+      "TagResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "SpoolResponseLite": {
         "type": "object",
         "additionalProperties": false,
@@ -1854,6 +2534,28 @@
         "additionalProperties": false,
         "properties": {
           "action": {
+            "type": "string"
+          }
+        }
+      },
+      "SlicingDefaultsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "defaultSlicerEngine": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateSlicingDefaultsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "defaultSlicerEngine": {
             "type": "string"
           }
         }
@@ -2579,6 +3281,32 @@
           }
         }
       },
+      "LinkPrinterMachineProfileResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "printerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "machineProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "LinkPrinterMachineProfileRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "machineProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
       "ListFleetResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -2729,6 +3457,404 @@
           "timestampUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "PartProcessingJobSubmittedResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CreatePartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "slicerEngine": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "DeletePartRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "PartResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "fileFormat": {
+            "type": "string"
+          },
+          "requiresSlicing": {
+            "type": "boolean"
+          },
+          "originalFileName": {
+            "type": "string"
+          },
+          "fileSizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nozzleDiameterMm": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "estimateStatus": {
+            "type": "string"
+          },
+          "estimatedPrintTimeMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "estimatedFilamentWeightGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "filamentRequirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartFilamentRequirementResponse"
+            }
+          },
+          "plateCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThumbnailResponse"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PartFilamentRequirementResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "materialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "detectedColorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "detectedSubBrand": {
+            "type": "string",
+            "nullable": true
+          },
+          "narrowFilamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "narrowFilamentProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "narrowFilamentVariantUnresolved": {
+            "type": "boolean"
+          },
+          "narrowFilamentProfileUnresolved": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ThumbnailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "plateIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "thumbnailBase64": {
+            "type": "string"
+          }
+        }
+      },
+      "ListPartsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartSummaryResponse"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PartSummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "fileFormat": {
+            "type": "string"
+          },
+          "requiresSlicing": {
+            "type": "boolean"
+          },
+          "nozzleDiameterMm": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "estimateStatus": {
+            "type": "string"
+          },
+          "estimatedPrintTimeMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "estimatedFilamentWeightGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "thumbnailBase64": {
+            "type": "string",
+            "nullable": true
+          },
+          "materialTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ListPartsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ReplacePartFileRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "slicerEngine": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PartTagsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TagPartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfirmPartProcessingJobRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "filamentRequirementOverrides": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/FilamentRequirementOverrideRequest"
+            }
+          }
+        }
+      },
+      "FilamentRequirementOverrideRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirementIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "narrowFilamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "narrowFilamentProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "DiscardPartProcessingJobRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "PartProcessingJobResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "partId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "preview": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartProcessingJobPreviewResponse"
+              }
+            ]
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PartProcessingJobPreviewResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nozzleDiameterMm": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "filamentRequirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewFilamentRequirementResponse"
+            }
+          },
+          "estimateStatus": {
+            "type": "string"
+          },
+          "estimatedPrintTimeMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "estimatedFilamentWeightGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "plateCount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThumbnailResponse"
+            }
+          }
+        }
+      },
+      "PreviewFilamentRequirementResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirementIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "materialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "detectedColorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "detectedSubBrand": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

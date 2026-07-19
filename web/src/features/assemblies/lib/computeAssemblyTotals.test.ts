@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { partsStore } from '@/features/parts/data/mockPartsStore';
+import { partsStore } from '@/features/assemblies/data/mockPartsStore';
 import type { Assembly } from '../data/mockAssembliesStore';
 import { computeAssemblyTotals } from './computeAssemblyTotals';
 

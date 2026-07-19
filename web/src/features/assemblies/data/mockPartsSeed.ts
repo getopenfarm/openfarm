@@ -1,7 +1,7 @@
-// Seed data for the Parts library — no backend exists for parts tracking
-// yet. Detected color slots below are left on auto-match (no pinned
-// filament/variant id) since the real Filament catalog is backend-seeded
-// per install and can't be resolved synchronously at module-eval time here.
+// Seed data for Assemblies' own decoupled mock parts snapshot (mockPartsStore.ts) — not the
+// real Part Library backend. Detected color slots below are left on auto-match (no pinned
+// filament/variant id) since the real Filament catalog is backend-seeded per install and
+// can't be resolved synchronously at module-eval time here.
 import type { Part, PartFolder } from './mockPartsStore';
 
 export const SEED_FOLDERS: PartFolder[] = [

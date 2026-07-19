@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { partsStore } from '@/features/parts/data/mockPartsStore';
+import { partsStore } from '@/features/assemblies/data/mockPartsStore';
 import { ComponentRow } from './components/ComponentRow';
 import {
   PartPickerDialog,

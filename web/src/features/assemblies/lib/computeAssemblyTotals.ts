@@ -2,7 +2,7 @@
 // AssembliesPage list (over `assembliesStore`) and by the in-progress draft
 // in AssemblyFormPage/SummarySidebar (over local component state) without
 // forking the math.
-import { partsStore } from '@/features/parts/data/mockPartsStore';
+import { partsStore } from '@/features/assemblies/data/mockPartsStore';
 import type { Assembly } from '../data/mockAssembliesStore';
 
 export interface AssemblyTotals {

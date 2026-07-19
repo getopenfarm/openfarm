@@ -29,6 +29,7 @@
     <None Include="Printers\Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Printers\Fixtures\**\*.jpg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Profiles\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Parts\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

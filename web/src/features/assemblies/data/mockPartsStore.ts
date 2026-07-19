@@ -1,10 +1,11 @@
-// Mock data for the Parts library — no backend exists for parts tracking
-// yet (see PartsPage.tsx). This store is also read directly by the
-// Assemblies feature's part picker + time/weight totals, so keep these
-// export names and shapes stable: `Part`, `DetectedColorSlot`, `PartFolder`,
+// Assemblies' own frozen mock snapshot of "parts" — the real Part Library feature
+// (web/src/features/parts/) now has a real backend and no longer has mock data of its own.
+// Assemblies (Phase 6) hasn't been wired to the real Parts API yet, so its part picker +
+// time/weight totals keep reading this local, decoupled copy until that phase lands. Keep
+// these export names and shapes stable: `Part`, `DetectedColorSlot`, `PartFolder`,
 // `partsStore`, `useParts`, `FOLDERS`.
 import { createMockStore } from '@/lib/mock-store/createMockStore';
-import { SEED_FOLDERS, SEED_PARTS } from './mockParts';
+import { SEED_FOLDERS, SEED_PARTS } from './mockPartsSeed';
 
 export interface DetectedColorSlot {
   slotIndex: number;

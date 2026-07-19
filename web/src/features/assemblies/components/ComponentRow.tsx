@@ -1,7 +1,7 @@
 import { Layers3Icon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { CheckerboardThumbnail } from '@/components/checkerboard-thumbnail/CheckerboardThumbnail';
 import { Button } from '@/components/ui/button';
-import type { Part } from '@/features/parts/data/mockPartsStore';
+import type { Part } from '@/features/assemblies/data/mockPartsStore';
 import { formatMinutes } from '@/lib/formatMinutes';
 import type { Assembly, AssemblyComponent } from '../data/mockAssembliesStore';
 
