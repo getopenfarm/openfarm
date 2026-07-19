@@ -15,6 +15,7 @@ public sealed class PartProcessingJobConfiguration : IEntityTypeConfiguration<Pa
 
         builder.HasKey(j => j.Id);
 
+        builder.Property(j => j.OrganizationId).IsRequired();
         builder.Property(j => j.PartId);
         builder.Property(j => j.Kind).IsRequired().HasConversion<string>();
         builder.Property(j => j.Status).IsRequired().HasConversion<string>();

@@ -13,6 +13,7 @@ public sealed class PartThumbnailConfiguration : IEntityTypeConfiguration<PartTh
 
         builder.HasKey(t => new { t.PartId, t.PlateIndex });
 
+        builder.Property(t => t.OrganizationId).IsRequired();
         builder.Property(t => t.Bytes).IsRequired();
 
         builder.IsMultiTenant();

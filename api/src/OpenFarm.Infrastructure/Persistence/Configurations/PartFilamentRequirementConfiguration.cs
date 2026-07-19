@@ -13,6 +13,9 @@ public sealed class PartFilamentRequirementConfiguration : IEntityTypeConfigurat
 
         builder.HasKey(r => r.Id);
 
+        builder.Property(r => r.OrganizationId).IsRequired();
+        builder.Property(r => r.PartId).IsRequired();
+
         builder.Property(r => r.MaterialType);
         builder.Property(r => r.DetectedColorHex);
         builder.Property(r => r.DetectedSubBrand);

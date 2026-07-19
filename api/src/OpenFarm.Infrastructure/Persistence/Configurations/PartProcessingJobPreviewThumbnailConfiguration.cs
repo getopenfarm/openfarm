@@ -13,6 +13,7 @@ public sealed class PartProcessingJobPreviewThumbnailConfiguration : IEntityType
 
         builder.HasKey(t => new { t.JobId, t.PlateIndex });
 
+        builder.Property(t => t.OrganizationId).IsRequired();
         builder.Property(t => t.Bytes).IsRequired();
 
         builder.IsMultiTenant();

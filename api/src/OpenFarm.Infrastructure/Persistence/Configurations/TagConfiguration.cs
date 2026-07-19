@@ -13,6 +13,7 @@ public sealed class TagConfiguration : IEntityTypeConfiguration<Tag>
 
         builder.HasKey(t => t.Id);
 
+        builder.Property(t => t.OrganizationId).IsRequired();
         builder.Property(t => t.Name).IsRequired();
 
         builder.Property(t => t.CreatedAtUtc).IsRequired();

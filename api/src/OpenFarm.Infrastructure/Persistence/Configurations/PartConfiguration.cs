@@ -13,6 +13,8 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
 
         builder.HasKey(p => p.Id);
 
+        builder.Property(p => p.OrganizationId).IsRequired();
+
         builder.Property(p => p.Name).IsRequired();
 
         builder.Property(p => p.FileFormat).IsRequired().HasConversion<string>();
@@ -50,16 +52,16 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         // PartTags is a plain FK-derived join between two already tenant-filtered aggregates — no
         // independent OrganizationId shadow column (EF's skip-navigation insert path has no natural
         // source to populate one from on Part.AddTag, unlike every real child/root entity in this
-        // feature, which does carry its own OrganizationId + IsMultiTenant()).
+        // feature, which does carry its own OrganizationId + IsMultiTenant()). A real CLR join type
+        // (PartTagJoinRow), not Dictionary<string,object>, for the more conventional EF Core pattern.
         builder.HasMany(p => p.Tags)
             .WithMany()
-            .UsingEntity<Dictionary<string, object>>(
-                "PartTags",
-                j => j.HasOne<Tag>().WithMany().HasForeignKey("TagId").OnDelete(DeleteBehavior.Cascade),
-                j => j.HasOne<Part>().WithMany().HasForeignKey("PartId").OnDelete(DeleteBehavior.Cascade),
+            .UsingEntity<PartTagJoinRow>(
+                j => j.HasOne<Tag>().WithMany().HasForeignKey(x => x.TagId).OnDelete(DeleteBehavior.Cascade),
+                j => j.HasOne<Part>().WithMany().HasForeignKey(x => x.PartId).OnDelete(DeleteBehavior.Cascade),
                 j =>
                 {
-                    j.HasKey("PartId", "TagId");
+                    j.HasKey(x => new { x.PartId, x.TagId });
                     j.ToTable("PartTags");
                 });
         builder.Navigation(p => p.Tags).UsePropertyAccessMode(PropertyAccessMode.Field);
