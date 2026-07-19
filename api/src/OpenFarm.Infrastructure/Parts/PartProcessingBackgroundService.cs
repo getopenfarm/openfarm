@@ -19,7 +19,7 @@ namespace OpenFarm.Infrastructure.Parts;
 /// the exact <see cref="IServiceScopeFactory"/> + <c>CreateTenantScope()</c> pattern
 /// <c>PrinterConnectionBackgroundService</c> already established. Test-after (research.md §12).
 /// </summary>
-public sealed partial class PartProcessingBackgroundService : BackgroundService, IPartProcessingQueue
+public sealed partial class PartProcessingBackgroundService : BackgroundService, IPartProcessingDispatcher
 {
     private readonly Channel<PartProcessingWorkItem> _channel;
     private readonly IServiceScopeFactory _scopeFactory;

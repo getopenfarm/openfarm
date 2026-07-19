@@ -274,7 +274,7 @@ builder.Services.AddSingleton(sp => new PartProcessingBackgroundService(
     sp.GetRequiredService<ILogger<PartProcessingBackgroundService>>(),
     sp.GetRequiredService<IOptions<SlicerOptions>>().Value.MaxConcurrentSlicingOperations));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
-builder.Services.AddScoped<IPartProcessingQueue>(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
+builder.Services.AddScoped<IPartProcessingDispatcher>(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
 
 builder.Services.AddScoped<AddPartHandlerType, AddPartCommandHandler>();
 builder.Services.AddScoped<ReplacePartFileHandlerType, ReplacePartFileCommandHandler>();

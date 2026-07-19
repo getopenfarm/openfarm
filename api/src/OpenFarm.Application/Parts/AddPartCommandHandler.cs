@@ -17,7 +17,7 @@ public sealed class AddPartCommandHandler(
     IPartFileClassifier classifier,
     IPartFileStorage storage,
     IPartProcessingJobRepository jobRepository,
-    IPartProcessingQueue queue,
+    IPartProcessingDispatcher queue,
     IPrinterRepository printerRepository,
     IMachineProfileRepository machineProfileRepository,
     IProfileBundleParser profileBundleParser,

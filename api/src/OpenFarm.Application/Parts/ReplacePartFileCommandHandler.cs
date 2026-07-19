@@ -13,7 +13,7 @@ public sealed class ReplacePartFileCommandHandler(
     IPartFileStorage storage,
     IPartRepository partRepository,
     IPartProcessingJobRepository jobRepository,
-    IPartProcessingQueue queue,
+    IPartProcessingDispatcher queue,
     IPrinterRepository printerRepository,
     IMachineProfileRepository machineProfileRepository,
     IProfileBundleParser profileBundleParser,
