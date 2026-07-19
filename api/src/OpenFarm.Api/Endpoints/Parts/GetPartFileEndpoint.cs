@@ -26,6 +26,8 @@ public sealed class GetPartFileEndpoint(IQueryHandler<GetPartFileQuery, PartFile
         }
 
         await using var content = download.Content;
-        await SendStreamAsync(content, download.OriginalFileName, contentType: "application/octet-stream", cancellation: ct);
+        HttpContext.Response.ContentType = "application/octet-stream";
+        HttpContext.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{download.OriginalFileName}\"";
+        await content.CopyToAsync(HttpContext.Response.Body, ct);
     }
 }

@@ -43,7 +43,7 @@ public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler) : E
     {
         var jobId = Route<Guid>("id");
         var sub = HttpContext.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        Guid.TryParse(sub, out var userId);
+        _ = Guid.TryParse(sub, out var userId);
 
         var overrides = req.FilamentRequirementOverrides?
             .Select(o => new FilamentRequirementOverride(o.RequirementIndex, o.NarrowFilamentVariantId, o.NarrowFilamentProfileId))

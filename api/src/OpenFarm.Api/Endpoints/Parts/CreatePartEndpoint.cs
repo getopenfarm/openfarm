@@ -53,7 +53,7 @@ public sealed class CreatePartEndpoint(AddPartHandler handler) : Endpoint<Create
         }
 
         var sub = HttpContext.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        Guid.TryParse(sub, out var userId);
+        _ = Guid.TryParse(sub, out var userId);
 
         await using var stream = req.File.OpenReadStream();
         var command = new AddPartCommand(stream, req.File.FileName, slicerEngineOverride, userId);

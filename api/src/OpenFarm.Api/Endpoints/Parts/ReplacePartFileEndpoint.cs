@@ -46,7 +46,7 @@ public sealed class ReplacePartFileEndpoint(ReplacePartFileHandler handler) : En
         }
 
         var sub = HttpContext.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        Guid.TryParse(sub, out var userId);
+        _ = Guid.TryParse(sub, out var userId);
 
         await using var stream = req.File.OpenReadStream();
         var command = new ReplacePartFileCommand(partId, stream, req.File.FileName, slicerEngineOverride, userId);
