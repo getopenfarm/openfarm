@@ -359,3 +359,9 @@ directly, ahead of US2/US3 landing. US4/US5 start once US1–US3 are stable.
   even across different user-story phases.
 - Avoid: vague tasks, same-file conflicts run in parallel, cross-story dependencies that break independence
   beyond the two explicitly-shared files called out above.
+
+---
+
+## Phase 9: Convergence
+
+- [ ] T121 [US1] Retire the old page-routed Add/Edit flow: delete `web/src/features/parts/PartAddPage.tsx`, `PartAddPage.test.tsx`, and `PartEditPage.tsx` (all still on `mockPartsStore`), and update `web/src/app/routes.tsx` so `/parts`'s "Add Part" opens `AddOrReplacePartDialog` (T056) in place instead of navigating to a `/parts/new` route, and the `:id/edit` route becomes `:id`, routing to `PartDetailPage` (T059) per plan.md Project Structure / FR-001 (missing)
