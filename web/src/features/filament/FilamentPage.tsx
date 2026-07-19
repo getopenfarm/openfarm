@@ -2,20 +2,28 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { ListFilamentsResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
+import { CreateVendorDialog } from './components/CreateVendorDialog';
 import { FilamentCatalogTable } from './components/FilamentCatalogTable';
-import { useFilaments } from './data/mockFilamentStore';
+import { VendorTable } from './components/VendorTable';
 
 export function FilamentPage() {
-  const [filaments] = useFilaments();
   const navigate = useNavigate();
+  const filamentsQuery =
+    useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
+  const filaments =
+    (filamentsQuery.data?.data as ListFilamentsResponse | undefined)
+      ?.filaments ?? [];
 
-  const { brandCount, variantCount } = useMemo(() => {
-    const brands = new Set(filaments.map((filament) => filament.brand));
+  const { vendorCount, variantCount } = useMemo(() => {
+    const vendors = new Set(filaments.map((filament) => filament.vendorName));
     const variants = filaments.reduce(
-      (total, filament) => total + filament.variants.length,
+      (total, filament) => total + (filament.variants?.length ?? 0),
       0,
     );
-    return { brandCount: brands.size, variantCount: variants };
+    return { vendorCount: vendors.size, variantCount: variants };
   }, [filaments]);
 
   return (
@@ -25,7 +33,7 @@ export function FilamentPage() {
         description={
           <>
             Catalog · {filaments.length} materials · {variantCount} colour
-            variants · {brandCount} brands
+            variants · {vendorCount} vendors
           </>
         }
         action={
@@ -34,7 +42,21 @@ export function FilamentPage() {
           </Button>
         }
       />
-      <FilamentCatalogTable filaments={filaments} />
+      <Tabs defaultValue="catalog">
+        <TabsList>
+          <TabsTrigger value="catalog">Catalog</TabsTrigger>
+          <TabsTrigger value="vendors">Vendors</TabsTrigger>
+        </TabsList>
+        <TabsContent value="catalog">
+          <FilamentCatalogTable filaments={filaments} />
+        </TabsContent>
+        <TabsContent value="vendors" className="flex flex-col gap-3">
+          <div className="flex justify-end">
+            <CreateVendorDialog />
+          </div>
+          <VendorTable />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

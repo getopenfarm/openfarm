@@ -231,11 +231,15 @@ them at all (manually declared, `research.md` §7).
 priority order (`research.md` §9/§11):
 1. **Declared** (FR-022): some `AutomaticFilamentReloader`-kind `FeedUnit` on the same printer has
    `ReplacesFeedUnitId` pointing at this `ExternalSpool` unit.
-2. **Auto-derived** (FR-023), only checked if (1) found nothing: the same printer currently has at least one
-   non-deactivated `MultiMaterialUnit`-kind `FeedUnit` — a Multi-Material Unit's presence is directly
-   observable from live telemetry, so no operator declaration or stored field is needed for this case.
-   Never checked against other `MultiMaterialUnit` rows themselves — multiple Multi-Material Units on the
-   same printer never supersede each other.
+2. **Auto-derived** (FR-023/FR-023a), only checked if (1) found nothing and the printer's model has a single
+   filament inlet (`PrinterModelCatalog.Resolve(printer.Brand, printer.ModelCode).FilamentInletCount == 1`):
+   the same printer currently has at least one non-deactivated `MultiMaterialUnit`-kind `FeedUnit` — a
+   Multi-Material Unit's presence is directly observable from live telemetry, so no operator declaration or
+   stored field is needed for this case. Never checked against other `MultiMaterialUnit` rows themselves —
+   multiple Multi-Material Units on the same printer never supersede each other. On a multi-inlet printer
+   model (`FilamentInletCount > 1`, e.g. Bambu H2D/H2C/X2D) this auto-derivation is skipped entirely — an
+   External Spool position there is only ever superseded via (1), never by Multi-Material Unit presence
+   alone (`research.md` §11).
 
 **Filtering (`research.md` §12, corrected from an earlier advisory-only design)**: `GetFeedUnitsQuery` omits
 an `ExternalSpool` unit from its response entirely when *all three* hold: (a) `supersededByFeedUnitId` is

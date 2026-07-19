@@ -1,12 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { filamentStore } from '@/features/filament/data/mockFilamentStore';
+import { describe, expect, it } from 'vitest';
+import type { FilamentResponse } from '@/lib/api/generated/endpoints.schemas';
 import { autoMatchColor, colorDistance, hexToRgb } from './colorMatch';
 
 describe('colorMatch', () => {
-  afterEach(() => {
-    filamentStore.reset();
-  });
-
   describe('hexToRgb', () => {
     it('converts a hex string to its rgb components', () => {
       expect(hexToRgb('#ff0000')).toEqual({ r: 255, g: 0, b: 0 });
@@ -28,20 +24,17 @@ describe('colorMatch', () => {
 
   describe('autoMatchColor', () => {
     it('returns an exact match with distance 0', () => {
-      filamentStore.setState([
+      const filaments: FilamentResponse[] = [
         {
           id: 'f1',
-          brand: 'Bambu Lab',
+          vendorName: 'Bambu Lab',
           material: 'PLA Basic',
           materialType: 'PLA',
-          diameterMm: 1.75,
-          variants: [
-            { id: 'v1', name: 'Blue', colorHex: '#3b82f6', weightsGrams: [] },
-          ],
+          variants: [{ id: 'v1', colorName: 'Blue', colorHex: '#3b82f6' }],
         },
-      ]);
+      ];
 
-      const result = autoMatchColor('#3b82f6', 'PLA');
+      const result = autoMatchColor('#3b82f6', 'PLA', filaments);
 
       expect(result).toEqual({
         filamentId: 'f1',
@@ -51,60 +44,45 @@ describe('colorMatch', () => {
     });
 
     it('picks the closer of two candidates (nearest-neighbor)', () => {
-      filamentStore.setState([
+      const filaments: FilamentResponse[] = [
         {
           id: 'f-black',
-          brand: 'A',
+          vendorName: 'A',
           material: 'M1',
           materialType: 'PLA',
-          diameterMm: 1.75,
           variants: [
-            {
-              id: 'v-black',
-              name: 'Black',
-              colorHex: '#000000',
-              weightsGrams: [],
-            },
+            { id: 'v-black', colorName: 'Black', colorHex: '#000000' },
           ],
         },
         {
           id: 'f-white',
-          brand: 'B',
+          vendorName: 'B',
           material: 'M2',
           materialType: 'PLA',
-          diameterMm: 1.75,
           variants: [
-            {
-              id: 'v-white',
-              name: 'White',
-              colorHex: '#ffffff',
-              weightsGrams: [],
-            },
+            { id: 'v-white', colorName: 'White', colorHex: '#ffffff' },
           ],
         },
-      ]);
+      ];
 
       // Much closer to black than white.
-      const result = autoMatchColor('#101010', 'PLA');
+      const result = autoMatchColor('#101010', 'PLA', filaments);
 
       expect(result?.variantId).toBe('v-black');
     });
 
     it('returns null when no filaments exist for that material type', () => {
-      filamentStore.setState([
+      const filaments: FilamentResponse[] = [
         {
           id: 'f-petg',
-          brand: 'A',
+          vendorName: 'A',
           material: 'M1',
           materialType: 'PETG',
-          diameterMm: 1.75,
-          variants: [
-            { id: 'v1', name: 'Gray', colorHex: '#71717a', weightsGrams: [] },
-          ],
+          variants: [{ id: 'v1', colorName: 'Gray', colorHex: '#71717a' }],
         },
-      ]);
+      ];
 
-      expect(autoMatchColor('#000000', 'PLA')).toBeNull();
+      expect(autoMatchColor('#000000', 'PLA', filaments)).toBeNull();
     });
   });
 });

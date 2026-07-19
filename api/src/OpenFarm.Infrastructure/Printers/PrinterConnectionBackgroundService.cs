@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
+using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Printers;
@@ -306,7 +307,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 telemetry.BedTempC,
                 telemetry.PrintProgressPercent,
                 telemetry.CurrentStageLabel,
-                telemetry.AmsUnits);
+                telemetry.AmsUnits,
+                telemetry.ExternalSpoolTray);
         }
 
         var mustFlushNow = statusChanged || !wasReachable;
@@ -317,6 +319,9 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
         var printerRepository = services.GetRequiredService<IPrinterRepository>();
         await printerRepository.SaveChangesAsync(cancellationToken);
+
+        var feedSlotTelemetrySync = services.GetRequiredService<IFeedSlotTelemetrySync>();
+        await feedSlotTelemetrySync.SyncAsync(printer.Id, printer.OrganizationId, printer.Brand, printer.AmsUnits, printer.ExternalSpoolTray, cancellationToken);
 
         var publisher = services.GetRequiredService<IPrinterEventPublisher>();
 

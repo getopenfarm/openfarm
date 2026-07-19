@@ -172,6 +172,47 @@ public class BambuMqttMessageParserTests
         act.Should().NotThrow().Which.Should().BeNull();
     }
 
+    [Fact]
+    public void TryParseTelemetry_WithIdleA1Fixture_ParsesExternalSpoolTrayAsLoaded()
+    {
+        var reportPayload = LoadSection("idle-a1.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.ExternalSpoolTray.Should().NotBeNull();
+        telemetry.ExternalSpoolTray!.Empty.Should().BeFalse();
+        telemetry.ExternalSpoolTray.MaterialType.Should().Be("PLA");
+        telemetry.ExternalSpoolTray.ColorHex.Should().Be("FFFFFFFF");
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithNoAmsFixture_ParsesExternalSpoolTrayWithDifferentMaterial()
+    {
+        var reportPayload = LoadSection("awaiting-clear-p1p-no-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.ExternalSpoolTray.Should().NotBeNull();
+        telemetry.ExternalSpoolTray!.Empty.Should().BeFalse();
+        telemetry.ExternalSpoolTray.MaterialType.Should().Be("PETG");
+        telemetry.ExternalSpoolTray.ColorHex.Should().Be("BCBCBCFF");
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_ParsesEmptyExternalSpoolTrayAsEmpty()
+    {
+        var reportPayload = LoadSection("awaiting-clear-x1c-multi-ams.json", "pushall");
+
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.ExternalSpoolTray.Should().NotBeNull();
+        telemetry.ExternalSpoolTray!.Empty.Should().BeTrue();
+        telemetry.ExternalSpoolTray.MaterialType.Should().BeNull();
+    }
+
     private static string LoadSection(string fixtureFile, string sectionName)
     {
         var path = Path.Combine(FixturesDirectory, fixtureFile);

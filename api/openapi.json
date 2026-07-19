@@ -7,10 +7,417 @@
   },
   "servers": [
     {
-      "url": "http://localhost:58889"
+      "url": "http://localhost:8899"
     }
   ],
   "paths": {
+    "/api/v1/vendors": {
+      "post": {
+        "tags": [
+          "Vendors"
+        ],
+        "operationId": "OpenFarmApiEndpointsVendorsCreateVendorEndpoint",
+        "requestBody": {
+          "x-name": "CreateVendorRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVendorRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Vendors"
+        ],
+        "operationId": "OpenFarmApiEndpointsVendorsListVendorsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListVendorsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spools/{id}/remaining-weight": {
+      "put": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "CorrectRemainingWeightRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectRemainingWeightRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpoolResponseLite"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spools": {
+      "get": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsListSpoolsEndpoint",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SpoolState"
+                }
+              ]
+            }
+          },
+          {
+            "name": "filamentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "filamentVariantId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "vendorId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSpoolsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsRegisterSpoolEndpoint",
+        "requestBody": {
+          "x-name": "RegisterSpoolRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterSpoolRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpoolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spools/{id}/load": {
+      "put": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsLoadSpoolEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "LoadSpoolRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadSpoolRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadSpoolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spools/{id}/usage": {
+      "post": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsRecordSpoolUsageEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "RecordSpoolUsageRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordSpoolUsageRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordSpoolUsageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spools/{id}/unload": {
+      "put": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsUnloadSpoolEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UnloadSpoolRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnloadSpoolRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpoolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/profiles/imports/confirm": {
       "post": {
         "tags": [
@@ -690,6 +1097,264 @@
         }
       }
     },
+    "/api/v1/filaments/{id}/variants": {
+      "post": {
+        "tags": [
+          "Filaments"
+        ],
+        "operationId": "OpenFarmApiEndpointsFilamentsAddFilamentVariantEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "AddFilamentVariantRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddFilamentVariantRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilamentVariantResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/filaments": {
+      "post": {
+        "tags": [
+          "Filaments"
+        ],
+        "operationId": "OpenFarmApiEndpointsFilamentsCreateFilamentEndpoint",
+        "requestBody": {
+          "x-name": "CreateFilamentRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFilamentRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilamentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Filaments"
+        ],
+        "operationId": "OpenFarmApiEndpointsFilamentsListFilamentsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListFilamentsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/printers/{printerId}/feed-units": {
+      "post": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint",
+        "parameters": [
+          {
+            "name": "printerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "AddFeedUnitRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddFeedUnitRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddFeedUnitResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint",
+        "parameters": [
+          {
+            "name": "printerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListFeedUnitsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/feed-units/{id}": {
+      "delete": {
+        "tags": [
+          "Feed-Units"
+        ],
+        "operationId": "OpenFarmApiEndpointsFeedUnitsRemoveFeedUnitEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/connection-secrets": {
       "post": {
         "tags": [
@@ -884,6 +1549,315 @@
   },
   "components": {
     "schemas": {
+      "VendorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateVendorRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ListVendorsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "vendors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VendorResponse"
+            }
+          }
+        }
+      },
+      "SpoolResponseLite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "hasUsageOverrun": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CorrectRemainingWeightRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "ListSpoolsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "spools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpoolResponse"
+            }
+          }
+        }
+      },
+      "SpoolResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "colorName": {
+            "type": "string"
+          },
+          "colorHex": {
+            "type": "string"
+          },
+          "material": {
+            "type": "string"
+          },
+          "vendorName": {
+            "type": "string"
+          },
+          "spoolWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "state": {
+            "type": "string"
+          },
+          "feedSlotId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "feedSlotLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUsageOverrun": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ListSpoolsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SpoolState": {
+        "type": "integer",
+        "description": "",
+        "x-enumNames": [
+          "InStorage",
+          "Using",
+          "Finished"
+        ],
+        "enum": [
+          0,
+          1,
+          2
+        ]
+      },
+      "LoadSpoolResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "colorName": {
+            "type": "string"
+          },
+          "colorHex": {
+            "type": "string"
+          },
+          "material": {
+            "type": "string"
+          },
+          "vendorName": {
+            "type": "string"
+          },
+          "spoolWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "state": {
+            "type": "string"
+          },
+          "feedSlotId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "feedSlotLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUsageOverrun": {
+            "type": "boolean"
+          },
+          "rfidMismatchWarning": {
+            "type": "boolean"
+          },
+          "portSharingNote": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "LoadSpoolRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "feedSlotId": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "RecordSpoolUsageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "hasUsageOverrun": {
+            "type": "boolean"
+          },
+          "autoContinuation": {
+            "$ref": "#/components/schemas/AutoContinuationResponse"
+          }
+        }
+      },
+      "AutoContinuationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "occurred": {
+            "type": "boolean"
+          },
+          "continuedSpoolId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "continuedFeedSlotId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "materialMismatch": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RecordSpoolUsageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "gramsConsumed": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "jobId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "RegisterSpoolRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "spoolWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "UnloadSpoolRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          }
+        }
+      },
       "ConfirmProfileImportResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -1731,6 +2705,295 @@
             "format": "date-time"
           }
         }
+      },
+      "FilamentVariantResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "colorName": {
+            "type": "string"
+          },
+          "colorHex": {
+            "type": "string"
+          }
+        }
+      },
+      "AddFilamentVariantRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "colorName": {
+            "type": "string"
+          },
+          "colorHex": {
+            "type": "string"
+          }
+        }
+      },
+      "FilamentResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "vendorId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "vendorName": {
+            "type": "string"
+          },
+          "material": {
+            "type": "string"
+          },
+          "materialType": {
+            "type": "string"
+          },
+          "filamentProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentVariantResponse"
+            }
+          }
+        }
+      },
+      "CreateFilamentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "vendorId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "material": {
+            "type": "string"
+          },
+          "materialType": {
+            "type": "string"
+          },
+          "filamentProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateFilamentVariantRequest"
+            }
+          }
+        }
+      },
+      "CreateFilamentVariantRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "colorName": {
+            "type": "string"
+          },
+          "colorHex": {
+            "type": "string"
+          }
+        }
+      },
+      "ListFilamentsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filaments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentResponse"
+            }
+          }
+        }
+      },
+      "AddFeedUnitResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "unitIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayLabel": {
+            "type": "string"
+          },
+          "isRevealed": {
+            "type": "boolean"
+          },
+          "replacesFeedUnitId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "feedSlots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedSlotResponse"
+            }
+          }
+        }
+      },
+      "FeedSlotResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "slotPosition": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayLabel": {
+            "type": "string"
+          },
+          "deactivatedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "currentSpool": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CurrentSpoolResponse"
+              }
+            ]
+          },
+          "detectedMaterialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "detectedColorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "detectedSubBrand": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CurrentSpoolResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "AddFeedUnitRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "slotCount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "replacesFeedUnitId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "ListFeedUnitsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "feedUnits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedUnitResponse"
+            }
+          }
+        }
+      },
+      "FeedUnitResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "unitIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayLabel": {
+            "type": "string"
+          },
+          "isRevealed": {
+            "type": "boolean"
+          },
+          "replacesFeedUnitId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "supersededByFeedUnitId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "feedSlots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedSlotResponse"
+            }
+          }
+        }
+      },
+      "ListFeedUnitsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "RemoveFeedUnitRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "ConnectionSecretResponse": {
         "type": "object",

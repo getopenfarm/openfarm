@@ -98,8 +98,9 @@ public static class BambuMqttMessageParser
             var printProgressPercent = TryGetInt(print, "mc_percent");
             var currentStageLabel = ResolveCurrentStageLabel(print);
             var amsUnits = ParseAmsUnits(print);
+            var externalSpoolTray = ParseExternalSpool(print);
 
-            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, amsUnits);
+            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, amsUnits, externalSpoolTray);
         }
         catch (JsonException)
         {
@@ -160,6 +161,12 @@ public static class BambuMqttMessageParser
 
         return units;
     }
+
+    /// <summary>Reads <c>print.vt_tray</c> — the external/single spool holder, reported the same way regardless of an AMS being attached (FR-020, research.md §6). Mirrors <see cref="ParseTray"/>.</summary>
+    private static AmsTray? ParseExternalSpool(JsonElement print) =>
+        print.TryGetProperty("vt_tray", out var vtTray) && vtTray.ValueKind == JsonValueKind.Object
+            ? ParseTray(vtTray)
+            : null;
 
     private static AmsTray ParseTray(JsonElement trayElement)
     {

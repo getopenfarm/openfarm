@@ -4,6 +4,127 @@
  * OpenFarm.Api
  * OpenAPI spec version: 1.0.0
  */
+export interface VendorResponse {
+  id?: string;
+  name?: string;
+}
+
+export interface CreateVendorRequest {
+  name?: string;
+}
+
+export interface ListVendorsResponse {
+  vendors?: VendorResponse[];
+}
+
+export interface SpoolResponseLite {
+  id?: string;
+  state?: string;
+  remainingWeightGrams?: number;
+  hasUsageOverrun?: boolean;
+}
+
+export interface CorrectRemainingWeightRequest {
+  remainingWeightGrams?: number;
+}
+
+export interface SpoolResponse {
+  id?: string;
+  /** @nullable */
+  label?: string | null;
+  filamentVariantId?: string;
+  colorName?: string;
+  colorHex?: string;
+  material?: string;
+  vendorName?: string;
+  spoolWeightGrams?: number;
+  remainingWeightGrams?: number;
+  state?: string;
+  /** @nullable */
+  feedSlotId?: string | null;
+  /** @nullable */
+  feedSlotLabel?: string | null;
+  hasUsageOverrun?: boolean;
+}
+
+export interface ListSpoolsResponse {
+  spools?: SpoolResponse[];
+}
+
+export interface ListSpoolsRequest {
+  [key: string]: unknown;
+}
+
+export type SpoolState = (typeof SpoolState)[keyof typeof SpoolState];
+
+export const SpoolState = {
+  InStorage: 0,
+  Using: 1,
+  Finished: 2,
+} as const;
+
+export interface LoadSpoolResponse {
+  id?: string;
+  /** @nullable */
+  label?: string | null;
+  filamentVariantId?: string;
+  colorName?: string;
+  colorHex?: string;
+  material?: string;
+  vendorName?: string;
+  spoolWeightGrams?: number;
+  remainingWeightGrams?: number;
+  state?: string;
+  /** @nullable */
+  feedSlotId?: string | null;
+  /** @nullable */
+  feedSlotLabel?: string | null;
+  hasUsageOverrun?: boolean;
+  rfidMismatchWarning?: boolean;
+  /** @nullable */
+  portSharingNote?: string | null;
+}
+
+export interface LoadSpoolRequest {
+  feedSlotId?: string;
+}
+
+export interface AutoContinuationResponse {
+  occurred?: boolean;
+  /** @nullable */
+  continuedSpoolId?: string | null;
+  /** @nullable */
+  continuedFeedSlotId?: string | null;
+  materialMismatch?: boolean;
+}
+
+export interface RecordSpoolUsageResponse {
+  id?: string;
+  state?: string;
+  remainingWeightGrams?: number;
+  hasUsageOverrun?: boolean;
+  autoContinuation?: AutoContinuationResponse;
+}
+
+export interface RecordSpoolUsageRequest {
+  gramsConsumed?: number;
+  /** @nullable */
+  jobId?: string | null;
+}
+
+export interface RegisterSpoolRequest {
+  filamentVariantId?: string;
+  /** @nullable */
+  label?: string | null;
+  spoolWeightGrams?: number;
+  /** @nullable */
+  remainingWeightGrams?: number | null;
+}
+
+export interface UnloadSpoolRequest {
+  action?: string;
+}
+
 export interface CreatedProfileItem {
   id?: string;
   name?: string;
@@ -330,6 +451,113 @@ export interface PingResponse {
   timestampUtc?: string;
 }
 
+export interface FilamentVariantResponse {
+  id?: string;
+  colorName?: string;
+  colorHex?: string;
+}
+
+export interface AddFilamentVariantRequest {
+  colorName?: string;
+  colorHex?: string;
+}
+
+export interface FilamentResponse {
+  id?: string;
+  vendorId?: string;
+  vendorName?: string;
+  material?: string;
+  materialType?: string;
+  /** @nullable */
+  filamentProfileId?: string | null;
+  variants?: FilamentVariantResponse[];
+}
+
+export interface CreateFilamentVariantRequest {
+  colorName?: string;
+  colorHex?: string;
+}
+
+export interface CreateFilamentRequest {
+  vendorId?: string;
+  material?: string;
+  materialType?: string;
+  /** @nullable */
+  filamentProfileId?: string | null;
+  variants?: CreateFilamentVariantRequest[];
+}
+
+export interface ListFilamentsResponse {
+  filaments?: FilamentResponse[];
+}
+
+export interface CurrentSpoolResponse {
+  id?: string;
+  filamentVariantId?: string;
+  remainingWeightGrams?: number;
+}
+
+export interface FeedSlotResponse {
+  id?: string;
+  slotPosition?: number;
+  displayLabel?: string;
+  /** @nullable */
+  deactivatedAtUtc?: string | null;
+  currentSpool?: CurrentSpoolResponse | null;
+  /** @nullable */
+  detectedMaterialType?: string | null;
+  /** @nullable */
+  detectedColorHex?: string | null;
+  /** @nullable */
+  detectedSubBrand?: string | null;
+}
+
+export interface AddFeedUnitResponse {
+  id?: string;
+  kind?: string;
+  unitIndex?: number;
+  displayLabel?: string;
+  isRevealed?: boolean;
+  /** @nullable */
+  replacesFeedUnitId?: string | null;
+  feedSlots?: FeedSlotResponse[];
+}
+
+export interface AddFeedUnitRequest {
+  kind?: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  slotCount?: number | null;
+  /** @nullable */
+  replacesFeedUnitId?: string | null;
+}
+
+export interface FeedUnitResponse {
+  id?: string;
+  kind?: string;
+  unitIndex?: number;
+  displayLabel?: string;
+  isRevealed?: boolean;
+  /** @nullable */
+  replacesFeedUnitId?: string | null;
+  /** @nullable */
+  supersededByFeedUnitId?: string | null;
+  feedSlots?: FeedSlotResponse[];
+}
+
+export interface ListFeedUnitsResponse {
+  feedUnits?: FeedUnitResponse[];
+}
+
+export interface ListFeedUnitsRequest {
+  [key: string]: unknown;
+}
+
+export interface RemoveFeedUnitRequest {
+  [key: string]: unknown;
+}
+
 export interface ConnectionSecretResponse {
   id?: string;
   printerSerialNumber?: string;
@@ -381,6 +609,22 @@ export interface ActivityLogPageResponse {
 export interface GetActivityLogRequest {
   [key: string]: unknown;
 }
+
+export type OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams = {
+  state?: SpoolState | null;
+  /**
+   * @nullable
+   */
+  filamentId?: string | null;
+  /**
+   * @nullable
+   */
+  filamentVariantId?: string | null;
+  /**
+   * @nullable
+   */
+  vendorId?: string | null;
+};
 
 export type OpenFarmApiEndpointsActivityLogGetActivityLogEndpointParams = {
   page: number;

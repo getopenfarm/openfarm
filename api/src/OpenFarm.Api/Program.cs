@@ -22,11 +22,13 @@ using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
+using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Infrastructure.ActivityLog;
 using OpenFarm.Infrastructure.Auth;
+using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Persistence;
@@ -47,6 +49,16 @@ using PreviewProfileImportHandlerType = OpenFarm.Application.Common.ICommandHand
 using ConfirmProfileImportHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.ConfirmProfileImportCommand, OpenFarm.Application.Profiles.ConfirmProfileImportResult>;
 using UpdateMachineProfileRawDataHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.UpdateMachineProfileRawDataCommand, OpenFarm.Application.Profiles.MachineProfileDetail>;
 using UpdateFilamentProfileRawDataHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.UpdateFilamentProfileRawDataCommand, OpenFarm.Application.Profiles.FilamentProfileDetail>;
+using CreateVendorHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CreateVendorCommand, OpenFarm.Domain.FilamentTracking.Vendor>;
+using CreateFilamentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CreateFilamentCommand, OpenFarm.Domain.FilamentTracking.Filament>;
+using AddFilamentVariantHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.AddFilamentVariantCommand, OpenFarm.Domain.FilamentTracking.FilamentVariant>;
+using RegisterSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RegisterSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
+using LoadSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.LoadSpoolOntoFeedSlotCommand, OpenFarm.Application.FilamentTracking.LoadSpoolResult>;
+using UnloadSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.UnloadSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
+using RecordSpoolUsageHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RecordSpoolUsageCommand, OpenFarm.Application.FilamentTracking.RecordSpoolUsageResult>;
+using CorrectRemainingWeightHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CorrectRemainingWeightCommand, OpenFarm.Domain.FilamentTracking.Spool>;
+using AddFeedUnitHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.AddFeedUnitCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>;
+using RemoveFeedUnitHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RemoveFeedUnitCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -202,6 +214,30 @@ builder.Services.AddScoped<IQueryHandler<GetMachineProfileQuery, MachineProfileD
 builder.Services.AddScoped<IQueryHandler<GetFilamentProfileQuery, FilamentProfileDetail?>, GetFilamentProfileQueryHandler>();
 builder.Services.AddScoped<UpdateMachineProfileRawDataHandlerType, UpdateMachineProfileRawDataCommandHandler>();
 builder.Services.AddScoped<UpdateFilamentProfileRawDataHandlerType, UpdateFilamentProfileRawDataCommandHandler>();
+
+builder.Services.AddScoped<IVendorRepository, VendorRepository>();
+builder.Services.AddScoped<IFilamentRepository, FilamentRepository>();
+builder.Services.AddScoped<IFeedUnitRepository, FeedUnitRepository>();
+builder.Services.AddScoped<ISpoolRepository, SpoolRepository>();
+builder.Services.AddScoped<IFeedSlotTelemetrySync, FeedSlotTelemetrySyncHandler>();
+builder.Services.AddScoped<IFilamentTrackingEventPublisher, FarmHubFilamentTrackingEventPublisher>();
+
+builder.Services.AddScoped<CreateVendorHandlerType, CreateVendorCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetVendorsQuery, IReadOnlyList<VendorSummary>>, GetVendorsQueryHandler>();
+builder.Services.AddScoped<CreateFilamentHandlerType, CreateFilamentCommandHandler>();
+builder.Services.AddScoped<AddFilamentVariantHandlerType, AddFilamentVariantCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFilamentsQuery, IReadOnlyList<FilamentSummary>>, GetFilamentsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFeedUnitsQuery, IReadOnlyList<FeedUnitDetail>>, GetFeedUnitsQueryHandler>();
+builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>>, GetSpoolsQueryHandler>();
+builder.Services.AddScoped<LoadSpoolHandlerType, LoadSpoolOntoFeedSlotCommandHandler>();
+builder.Services.AddScoped<UnloadSpoolHandlerType, UnloadSpoolCommandHandler>();
+builder.Services.AddScoped<ISpoolUsageRecordRepository, SpoolUsageRecordRepository>();
+builder.Services.AddScoped<IAutoContinuationResolver, SpoolUsageRecordedHandler>();
+builder.Services.AddScoped<RecordSpoolUsageHandlerType, RecordSpoolUsageCommandHandler>();
+builder.Services.AddScoped<CorrectRemainingWeightHandlerType, CorrectRemainingWeightCommandHandler>();
+builder.Services.AddScoped<AddFeedUnitHandlerType, AddFeedUnitCommandHandler>();
+builder.Services.AddScoped<RemoveFeedUnitHandlerType, RemoveFeedUnitCommandHandler>();
 
 builder.Services.AddSignalR();
 

@@ -1,20 +1,22 @@
-import { PlusIcon } from 'lucide-react';
-import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
+import type { ListSpoolsResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
+import { AddSpoolDialog } from './components/AddSpoolDialog';
 import { SpoolsTable } from './components/SpoolsTable';
-import { useSpools } from './data/mockSpoolsStore';
 
 const LOW_REMAINING_FRACTION = 0.25;
 
 export function SpoolsPage() {
-  const [spools] = useSpools();
+  const spoolsQuery = useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint();
+  const spools =
+    (spoolsQuery.data?.data as ListSpoolsResponse | undefined)?.spools ?? [];
 
-  const inUseCount = spools.filter((spool) => spool.state === 'using').length;
+  const inUseCount = spools.filter((spool) => spool.state === 'Using').length;
   const lowCount = spools.filter(
     (spool) =>
-      spool.state === 'using' &&
-      spool.remainingGrams / spool.totalGrams < LOW_REMAINING_FRACTION,
+      spool.state === 'Using' &&
+      (spool.remainingWeightGrams ?? 0) / (spool.spoolWeightGrams || 1) <
+        LOW_REMAINING_FRACTION,
   ).length;
 
   return (
@@ -30,16 +32,7 @@ export function SpoolsPage() {
             · <span className="text-kind-red font-medium">{lowCount} low</span>
           </>
         }
-        action={
-          <Button
-            onClick={() =>
-              toast.info("Adding spools isn't wired up in this preview yet.")
-            }
-          >
-            <PlusIcon />
-            Add spool
-          </Button>
-        }
+        action={<AddSpoolDialog />}
       />
       <SpoolsTable spools={spools} />
     </div>

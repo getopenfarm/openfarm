@@ -202,6 +202,280 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedSlot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeactivatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FeedUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SlotPosition")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeedUnitId", "SlotPosition")
+                        .IsUnique();
+
+                    b.ToTable("FeedSlots", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedUnit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRevealed")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PrinterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ReplacesFeedUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UnitIndex")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReplacesFeedUnitId");
+
+                    b.HasIndex("PrinterId", "Kind", "UnitIndex")
+                        .IsUnique();
+
+                    b.ToTable("FeedUnits", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Filament", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("FilamentProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Material")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MaterialType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("VendorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VendorId");
+
+                    b.ToTable("Filaments", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FilamentVariant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ColorHex")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ColorName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FilamentId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FilamentId", "ColorName")
+                        .IsUnique();
+
+                    b.ToTable("FilamentVariants", (string)null);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Spool", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("FeedSlotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FilamentVariantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("HasUsageOverrun")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Label")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("RemainingWeightGrams")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("SpoolWeightGrams")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeedSlotId")
+                        .IsUnique()
+                        .HasFilter("\"State\" = 'Using'");
+
+                    b.HasIndex("FilamentVariantId");
+
+                    b.ToTable("Spools", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.SpoolUsageRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("GramsConsumed")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("RecordedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("SpoolId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SpoolId");
+
+                    b.ToTable("SpoolUsageRecords", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Vendor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Vendors", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Organizations.Organization", b =>
                 {
                     b.Property<Guid>("Id")
@@ -242,6 +516,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("CurrentStageLabel")
                         .HasColumnType("text");
+
+                    b.Property<string>("ExternalSpoolTray")
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("IpAddress")
                         .IsRequired()
@@ -521,6 +798,64 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedSlot", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.FeedUnit", null)
+                        .WithMany("FeedSlots")
+                        .HasForeignKey("FeedUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedUnit", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.FeedUnit", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacesFeedUnitId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Filament", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.Vendor", null)
+                        .WithMany()
+                        .HasForeignKey("VendorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FilamentVariant", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.Filament", null)
+                        .WithMany("Variants")
+                        .HasForeignKey("FilamentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Spool", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.FeedSlot", null)
+                        .WithMany()
+                        .HasForeignKey("FeedSlotId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.FilamentVariant", null)
+                        .WithMany()
+                        .HasForeignKey("FilamentVariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.SpoolUsageRecord", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.Spool", null)
+                        .WithMany()
+                        .HasForeignKey("SpoolId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Profiles.FilamentProfile", b =>
                 {
                     b.HasOne("OpenFarm.Domain.Profiles.FilamentProfile", null)
@@ -535,6 +870,16 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("BaseProfileId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedUnit", b =>
+                {
+                    b.Navigation("FeedSlots");
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Filament", b =>
+                {
+                    b.Navigation("Variants");
                 });
 #pragma warning restore 612, 618
         }

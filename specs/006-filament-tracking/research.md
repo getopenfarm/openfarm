@@ -236,6 +236,25 @@ positions by design — unlike a Multi-Material Unit and an External Spool, whic
 for the same one physical path (§0/§1's own framing). Hiding additional Multi-Material Units the way an
 `ExternalSpool` gets hidden would misrepresent real, independently-usable capacity as redundant.
 
+**Second scope limit, added after reviewing multi-inlet hardware (FR-023a)**: the "alternate sources for the
+same one physical path" premise this whole auto-derivation rests on is true for single-nozzle Bambu printers
+(A1/P1/X1-series), but not for a multi-inlet printer whose filament buffer has more than one independent
+inlet port — confirmed real for Bambu H2D/H2C/X2D (§10): an AMS on one inlet and an External Spool on
+another can be fully independent, simultaneously-usable paths, not alternates for one shared path at all.
+Applying §11's blanket "any non-deactivated `MultiMaterialUnit` on the printer" check without regard to
+inlet topology would incorrectly auto-hide a genuinely independent, always-usable External Spool position on
+that hardware class. **Decision**: gate FR-023's auto-derivation on the printer model having a single
+filament inlet. This needs one new fact the catalog doesn't carry today: `PrinterModel` gains a
+`FilamentInletCount` (int, default `1` for every current X1/P1/A1-series entry) alongside `CameraTransport`
+— resolved the same way (`PrinterModelCatalog.Resolve`), no new persisted column on `Printer` itself (mirrors
+`CameraTransport`: a model-level fact, not a per-printer one). `GetFeedUnitsQuery`'s supersession check reads
+`FilamentInletCount == 1` before applying §11's MMU-presence rule at all; on a multi-inlet model it's skipped
+entirely, so that printer's External Spool positions are never auto-hidden by Multi-Material Unit presence —
+only an explicit `ReplacesFeedUnitId` declaration (§9, FR-022) can hide one there, the same per-position
+mechanism already used for an Automatic Filament Reloader. H2D/H2C/X2D aren't in `PrinterModelCatalog` yet
+(Bambu X1/P1/A1-series only today) — this is forward-looking scoping for whenever those models are added,
+not a change needed against the current catalog.
+
 **Confirms no separate "active source" concept is needed**: the real "Enable/Disable AMS" toggle mentioned
 above actually conflates two different facts — (a) whether the operator's physical wiring makes the
 External Spool concurrently usable at all (a slow-changing, wiring-level fact — exactly what
@@ -330,6 +349,6 @@ implementation phase, not something this design needs to support via a dedicated
 | RFID validation | No `Kind` restriction at all — gated purely on live per-slot data presence; corrected after Snapmaker U1 disproved the earlier categorical `ExternalSpool` exclusion (§8) |
 | Port-sharing Automatic Filament Reloader | Optional `ReplacesFeedUnitId` (self-ref, AFR → `ExternalSpool` only), fixed at creation (§9) |
 | Multi-toolhead printers (H2D/H2C) | Confirmed existing `UnitIndex` generalization already covers this; toolhead/nozzle routing explicitly deferred, not modeled (§10) |
-| Multi-Material Unit ↔ External Spool relationship | Auto-derived at read time (no stored field), never extended to multiple Multi-Material Units, confirms no separate "active source" concept needed (§11, FR-023) |
+| Multi-Material Unit ↔ External Spool relationship | Auto-derived at read time (no stored field), never extended to multiple Multi-Material Units, confirms no separate "active source" concept needed (§11, FR-023); scoped to single-filament-inlet printer models only via new `PrinterModel.FilamentInletCount` — never applies on a multi-inlet model like Bambu H2D/H2C/X2D (§11, FR-023a) |
 | Superseded External Spool presentation | Omitted from the default Feed Unit listing entirely (not just flagged), with an operator-settable `IsRevealed` escape hatch and a loaded-spool safety net (§12, FR-022/FR-024/FR-025) |
 | Add/remove Feed Unit unification | One `AddFeedUnitCommand`/`RemoveFeedUnitCommand` pair, `Kind`-discriminated, covers both declaring/removing an Automatic Filament Reloader and revealing/re-hiding an External Spool — resolves discoverability without a separate `includeHidden` parameter (§13, FR-005c/FR-024/FR-026) |

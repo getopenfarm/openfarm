@@ -75,6 +75,20 @@ function invalidatePrinterQueries(
   });
 }
 
+/** Matches both the printer-scoped feed-units list (/api/v1/printers/{id}/feed-units) and the
+ * global spools list (/api/v1/spools) — spool state and Feed Unit topology are shown together
+ * on FeedUnitsCard/SpoolsTable, so either changing invalidates both. */
+function invalidateFilamentTrackingQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  queryClient.invalidateQueries({
+    predicate: (query) =>
+      typeof query.queryKey[0] === 'string' &&
+      (query.queryKey[0].includes('/feed-units') ||
+        query.queryKey[0].startsWith('/api/v1/spools')),
+  });
+}
+
 /**
  * Opens the /hubs/farm SignalR connection and writes incoming events directly into TanStack
  * Query's cache (contracts/farm-hub.md) — the sole real-time entry point, no polling fallback.
@@ -195,6 +209,18 @@ export function useFarmHub() {
         );
       },
     );
+
+    connection.on('SpoolStateChanged', () => {
+      invalidateFilamentTrackingQueries(queryClient);
+    });
+
+    connection.on('FeedUnitAutoContinued', () => {
+      invalidateFilamentTrackingQueries(queryClient);
+    });
+
+    connection.on('FeedUnitsChanged', () => {
+      invalidateFilamentTrackingQueries(queryClient);
+    });
 
     connection.on(
       'CameraFrameReceived',

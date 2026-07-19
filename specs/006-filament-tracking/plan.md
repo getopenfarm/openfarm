@@ -56,7 +56,9 @@ it via a multi-way splitter — an operator may optionally declare that relation
 is handled differently: since its presence is directly telemetry-observable (unlike an Automatic Filament
 Reloader), it's auto-derived at read time with no stored field at all (FR-023) — never extended to multiple
 Multi-Material Units on the same printer, which form one unified pool rather than alternate sources for one
-path. Either way, a superseded External Spool position is **omitted from the default Feed Unit listing
+path, and never applied at all on a multi-inlet printer model (new `PrinterModel.FilamentInletCount`,
+FR-023a) where a Multi-Material Unit and an External Spool on different inlets are independent paths, not
+alternates. Either way, a superseded External Spool position is **omitted from the default Feed Unit listing
 entirely** — mirroring the physical reality of one filament input per printer, not merely flagged — unless
 an operator reveals it via a new `FeedUnit.IsRevealed` flag (FR-024, for bypass/multi-way connector setups)
 or a spool is currently loaded onto it (FR-025's safety net, so an actively-tracked spool never silently
@@ -247,6 +249,9 @@ api/src/OpenFarm.Domain/FilamentTracking/
 api/src/OpenFarm.Domain/Printers/
   AmsTray.cs                          # unchanged — reused as Printer.ExternalSpoolTray's type
   Printer.cs                          # + ExternalSpoolTray property; RecordTelemetry gains one parameter
+  PrinterModel.cs                     # + FilamentInletCount (int, default 1) — model-level fact resolved via
+                                        # PrinterModelCatalog, mirrors CameraTransport; gates FR-023/FR-023a's
+                                        # auto-supersession (research.md §11)
 
 api/src/OpenFarm.Application/FilamentTracking/
   IVendorRepository.cs / IFilamentRepository.cs / IFeedUnitRepository.cs / ISpoolRepository.cs

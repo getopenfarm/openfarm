@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import { formatMinutes } from '@/lib/formatMinutes';
 import { MaterialAutoMatchSection } from './components/MaterialAutoMatchSection';
 import {
@@ -42,6 +43,7 @@ export function PartEditPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [parts] = useParts();
+  const filaments = useFilamentCatalog();
 
   const existingPart = parts.find((part) => part.id === id);
   const draftPart = (location.state as LocationState | null)?.draftPart;
@@ -68,12 +70,12 @@ export function PartEditPage() {
       weightGrams: sourcePart.weightGrams,
       primaryMaterial: primarySlot
         ? {
-            colorHex: resolveSlotDisplayColor(primarySlot),
+            colorHex: resolveSlotDisplayColor(primarySlot, filaments),
             label: primarySlot.materialType,
           }
         : undefined,
     };
-  }, [sourcePart, name, colorSlots]);
+  }, [sourcePart, name, colorSlots, filaments]);
 
   if (!sourcePart) {
     return (

@@ -114,10 +114,13 @@ specific hardware simply doesn't read tags, indistinguishable either way. Always
 included, not hidden — deactivation and this omission are two different, independent things.
 `supersededByFeedUnitId` on an `ExternalSpool` unit is populated from either of two sources (`research.md`
 §9/§11, priority order): an `AutomaticFilamentReloader` declaring `replacesFeedUnitId` pointing at it
-(FR-022, explicit), or — absent that — the same printer currently having an active `MultiMaterialUnit`
-(FR-023, auto-derived purely from live topology, no stored field; never checked against other
-`MultiMaterialUnit` rows, which never supersede each other). `isRevealed` reflects whether the operator has
-revealed this position (FR-024) and is the reason a superseded unit is shown despite that.
+(FR-022, explicit), or — absent that, and only on a single-filament-inlet printer model — the same printer
+currently having an active `MultiMaterialUnit` (FR-023, auto-derived purely from live topology, no stored
+field; never checked against other `MultiMaterialUnit` rows, which never supersede each other). On a
+multi-inlet printer model (`PrinterModel.FilamentInletCount > 1`, e.g. Bambu H2D/H2C/X2D) the second source
+never applies — an `ExternalSpool` there is only ever superseded via an explicit `replacesFeedUnitId`
+declaration (FR-023a). `isRevealed` reflects whether the operator has revealed this position (FR-024) and is
+the reason a superseded unit is shown despite that.
 
 **Response 200 with an empty array** — expected for a printer that has never connected and has no manually
 added Automatic Filament Reloader.

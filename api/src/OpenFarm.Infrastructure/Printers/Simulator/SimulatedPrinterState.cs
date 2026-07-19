@@ -41,4 +41,11 @@ public sealed class SimulatedPrinterState
             new AmsTray(3, Empty: false, MaterialType: "TPU", ColorHex: "#FDD835", SubBrand: "Generic", RemainPercent: 12, Active: false),
         ]),
     ];
+
+    /// <summary>
+    /// Fixed illustrative fixture so the virtual/simulator printer also reports an External Spool
+    /// position, letting quickstart.md Scenario 2's default-hidden-behind-the-active-AMS behavior be
+    /// observed locally without real hardware.
+    /// </summary>
+    public AmsTray ExternalSpoolTray { get; } = new(0, Empty: false, MaterialType: "PLA", ColorHex: "#8E24AA", SubBrand: "Generic", RemainPercent: 60, Active: false);
 }

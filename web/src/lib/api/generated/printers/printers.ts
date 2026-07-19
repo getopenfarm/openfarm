@@ -22,7 +22,10 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
+  AddFeedUnitRequest,
+  AddFeedUnitResponse,
   EditPrinterRequest,
+  ListFeedUnitsResponse,
   ListFleetResponse,
   PrinterCatalogResponse,
   PrinterDetailResponse,
@@ -1423,3 +1426,377 @@ export const useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse200 = {
+  data: AddFeedUnitResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponseSuccess =
+  openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponseError = (
+  | openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse401
+  | openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse =
+  | openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponseSuccess
+  | openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponseError;
+
+export const getOpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpointUrl = (
+  printerId: string,
+) => {
+  return `/api/v1/printers/${printerId}/feed-units`;
+};
+
+export const openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint = async (
+  printerId: string,
+  addFeedUnitRequest: AddFeedUnitRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsFeedUnitsAddFeedUnitEndpointResponse>(
+    getOpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpointUrl(printerId),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(addFeedUnitRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint>
+      >,
+      TError,
+      { printerId: string; data: AddFeedUnitRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint>
+    >,
+    TError,
+    { printerId: string; data: AddFeedUnitRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint>
+      >,
+      { printerId: string; data: AddFeedUnitRequest }
+    > = (props) => {
+      const { printerId, data } = props ?? {};
+
+      return openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint(printerId, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint>>
+  >;
+export type OpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpointMutationBody =
+  AddFeedUnitRequest;
+export type OpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint>
+      >,
+      TError,
+      { printerId: string; data: AddFeedUnitRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint>>,
+  TError,
+  { printerId: string; data: AddFeedUnitRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse200 = {
+  data: ListFeedUnitsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponseSuccess =
+  openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponseError = (
+  | openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse401
+  | openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse =
+  | openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponseSuccess
+  | openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointUrl = (
+  printerId: string,
+) => {
+  return `/api/v1/printers/${printerId}/feed-units`;
+};
+
+export const openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint = async (
+  printerId: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse>(
+    getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointUrl(printerId),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey = (
+  printerId: string,
+) => {
+  return [`/api/v1/printers/${printerId}/feed-units`] as const;
+};
+
+export const getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+    >,
+    TError = void,
+  >(
+    printerId: string,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey(printerId);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint(printerId, { signal });
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: printerId !== null && printerId !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+  >,
+  TError = void,
+>(
+  printerId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+  >,
+  TError = void,
+>(
+  printerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+  >,
+  TError = void,
+>(
+  printerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+  >,
+  TError = void,
+>(
+  printerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryOptions(
+      printerId,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

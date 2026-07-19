@@ -132,7 +132,8 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
                 state.BedTempC,
                 state.PrintProgressPercent,
                 CurrentStageLabel: null,
-                state.AmsUnits));
+                state.AmsUnits,
+                state.ExternalSpoolTray));
 
     private static string StatusToGcodeState(PrinterStatus status) => status switch
     {
