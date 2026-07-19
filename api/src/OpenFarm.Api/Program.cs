@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenFarm.Api.ExceptionHandling;
 using OpenFarm.Api.Hubs;
@@ -23,14 +24,18 @@ using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Application.Organizations;
+using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ConnectionSecrets;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.ActivityLog;
 using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
+using OpenFarm.Infrastructure.Parts;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Simulator;
@@ -59,6 +64,15 @@ using RecordSpoolUsageHandlerType = OpenFarm.Application.Common.ICommandHandler<
 using CorrectRemainingWeightHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CorrectRemainingWeightCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 using AddFeedUnitHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.AddFeedUnitCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>;
 using RemoveFeedUnitHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RemoveFeedUnitCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>;
+using AddPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.AddPartCommand, OpenFarm.Application.Parts.AddPartResult>;
+using ReplacePartFileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.ReplacePartFileCommand, OpenFarm.Application.Parts.AddPartResult>;
+using ConfirmPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.ConfirmPartProcessingJobCommand, OpenFarm.Domain.Parts.Part>;
+using DiscardPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DiscardPartProcessingJobCommand, bool>;
+using DeletePartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DeletePartCommand, bool>;
+using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.TagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
+using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
+using LinkPrinterMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.LinkPrinterMachineProfileCommand, OpenFarm.Domain.Printers.Printer>;
+using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -238,6 +252,45 @@ builder.Services.AddScoped<RecordSpoolUsageHandlerType, RecordSpoolUsageCommandH
 builder.Services.AddScoped<CorrectRemainingWeightHandlerType, CorrectRemainingWeightCommandHandler>();
 builder.Services.AddScoped<AddFeedUnitHandlerType, AddFeedUnitCommandHandler>();
 builder.Services.AddScoped<RemoveFeedUnitHandlerType, RemoveFeedUnitCommandHandler>();
+
+builder.Services.Configure<PartFileStorageOptions>(builder.Configuration.GetSection(PartFileStorageOptions.SectionName));
+builder.Services.Configure<SlicerOptions>(builder.Configuration.GetSection(SlicerOptions.SectionName));
+
+builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
+builder.Services.AddScoped<IPartRepository, PartRepository>();
+builder.Services.AddScoped<ITagRepository, TagRepository>();
+builder.Services.AddScoped<IPartProcessingJobRepository, PartProcessingJobRepository>();
+builder.Services.AddScoped<IPartFileStorage, LocalDiskPartFileStorage>();
+builder.Services.AddScoped<IPartEventPublisher, FarmHubPartEventPublisher>();
+builder.Services.AddScoped<IPartFileClassifier, PartFileClassifier>();
+builder.Services.AddScoped<IAlreadySlicedFileMetadataParser, AlreadySlicedFileMetadataParser>();
+builder.Services.AddScoped<IUnslicedProjectMaterialResolver, UnslicedProjectMaterialResolver>();
+builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
+builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();
+builder.Services.AddScoped<IPartFileProcessor, PartFileProcessor>();
+
+builder.Services.AddSingleton(sp => new PartProcessingBackgroundService(
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<ILogger<PartProcessingBackgroundService>>(),
+    sp.GetRequiredService<IOptions<SlicerOptions>>().Value.MaxConcurrentSlicingOperations));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
+builder.Services.AddScoped<IPartProcessingQueue>(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
+
+builder.Services.AddScoped<AddPartHandlerType, AddPartCommandHandler>();
+builder.Services.AddScoped<ReplacePartFileHandlerType, ReplacePartFileCommandHandler>();
+builder.Services.AddScoped<ConfirmPartProcessingJobHandlerType, ConfirmPartProcessingJobCommandHandler>();
+builder.Services.AddScoped<DiscardPartProcessingJobHandlerType, DiscardPartProcessingJobCommandHandler>();
+builder.Services.AddScoped<DeletePartHandlerType, DeletePartCommandHandler>();
+builder.Services.AddScoped<TagPartHandlerType, TagPartCommandHandler>();
+builder.Services.AddScoped<UntagPartHandlerType, UntagPartCommandHandler>();
+builder.Services.AddScoped<LinkPrinterMachineProfileHandlerType, LinkPrinterMachineProfileCommandHandler>();
+builder.Services.AddScoped<UpdateSlicingDefaultsHandlerType, UpdateSlicingDefaultsCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>, GetPartProcessingJobQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPartsQuery, PartsPage>, GetPartsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPartQuery, PartDetail?>, GetPartQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPartFileQuery, PartFileDownload?>, GetPartFileQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<ListTagsQuery, IReadOnlyList<TagSummary>>, ListTagsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>, GetSlicingDefaultsQueryHandler>();
 
 builder.Services.AddSignalR();
 

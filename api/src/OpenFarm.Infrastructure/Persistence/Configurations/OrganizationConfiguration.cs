@@ -15,6 +15,10 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organiz
         builder.Property(o => o.Name)
             .IsRequired();
 
+        builder.Property(o => o.DefaultSlicerEngine)
+            .IsRequired()
+            .HasConversion<string>();
+
         builder.Property(o => o.CreatedAtUtc)
             .IsRequired();
     }

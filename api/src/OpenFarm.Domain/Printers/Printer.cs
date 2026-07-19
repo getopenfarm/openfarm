@@ -61,6 +61,14 @@ public sealed class Printer
 
     public AmsTray? ExternalSpoolTray { get; private set; }
 
+    /// <summary>
+    /// Optional link to a Machine Profile (Phase 2), filling the deferred link `docs/FEATURE_PLAN.md`'s
+    /// own Phase 1 notes earmarked (FR-005b). `null` at creation time — a matching profile might not be
+    /// imported yet. Only a printer with this set counts as a "real fleet member" for
+    /// <c>NozzleDiameterResolver</c> (FR-005a).
+    /// </summary>
+    public Guid? MachineProfileId { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public static Printer Create(
@@ -180,4 +188,8 @@ public sealed class Printer
 
         IpAddress = ipAddress;
     }
+
+    public void LinkMachineProfile(Guid machineProfileId) => MachineProfileId = machineProfileId;
+
+    public void UnlinkMachineProfile() => MachineProfileId = null;
 }
