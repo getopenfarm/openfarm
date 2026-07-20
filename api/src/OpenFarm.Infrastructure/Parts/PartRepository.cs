@@ -38,6 +38,11 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         return (parts, totalCount);
     }
 
+    public async Task<IReadOnlyList<Part>> ListWithResolvingEstimateAsync(CancellationToken cancellationToken) =>
+        await Include(dbContext.Parts)
+            .Where(p => p.EstimateStatus == EstimateStatus.Resolving)
+            .ToListAsync(cancellationToken);
+
     public Task RemoveAsync(Part part, CancellationToken cancellationToken)
     {
         dbContext.Parts.Remove(part);

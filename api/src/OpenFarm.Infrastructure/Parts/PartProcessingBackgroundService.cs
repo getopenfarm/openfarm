@@ -41,10 +41,48 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // The work queue is an in-memory Channel, never durable across restarts — anything left
+        // Processing or ReadyForReview-with-a-Resolving-preview-estimate at this exact moment was
+        // orphaned by a previous process lifetime ending mid-job (crash, restart, deploy), not
+        // something this run enqueued. Reconcile once, before any real work starts, or those
+        // rows sit stuck forever with the UI spinning and nothing left to ever pick them back up.
+        await ReconcileOrphanedWorkAsync(stoppingToken);
+
         var workers = Enumerable.Range(0, _maxConcurrency)
             .Select(_ => ConsumeAsync(stoppingToken))
             .ToArray();
         await Task.WhenAll(workers);
+    }
+
+    private async Task ReconcileOrphanedWorkAsync(CancellationToken stoppingToken)
+    {
+        using var scope = CreateTenantScope(default);
+        var services = scope.ServiceProvider;
+        var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
+        var partRepository = services.GetRequiredService<IPartRepository>();
+        var publisher = services.GetRequiredService<IPartEventPublisher>();
+        var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
+
+        const string interruptedMessage = "Processing was interrupted by a server restart. Please re-upload this file.";
+
+        foreach (var job in await jobRepository.ListOrphanedInFlightAsync(stoppingToken))
+        {
+            job.MarkFailed(interruptedMessage);
+            await jobRepository.SaveChangesAsync(stoppingToken);
+            await WriteFailureActivityLogAsync(activityLogWriter, job, "PartFileProcessingFailed", stoppingToken);
+            await publisher.PartProcessingJobStatusChangedAsync(job.OrganizationId, job, stoppingToken);
+            LogOrphanedJobReconciled(_logger, job.Id);
+        }
+
+        foreach (var part in await partRepository.ListWithResolvingEstimateAsync(stoppingToken))
+        {
+            part.MarkEstimateUnavailable();
+            await partRepository.SaveChangesAsync(stoppingToken);
+            await WriteFailureActivityLogAsync(
+                activityLogWriter, part.OrganizationId, "PartEstimateUnavailable", "Part", part.Id.ToString(), stoppingToken);
+            await publisher.PartEstimateUnavailableAsync(part.OrganizationId, part.Id, stoppingToken);
+            LogOrphanedEstimateReconciled(_logger, part.Id);
+        }
     }
 
     private async Task ConsumeAsync(CancellationToken stoppingToken)
@@ -56,6 +94,12 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                 try
                 {
                     await ProcessWorkItemAsync(workItem, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    // Ordinary host shutdown mid-item — not a real failure. The job/part this left
+                    // behind stays in its in-flight status; ReconcileOrphanedWorkAsync resolves it
+                    // (to Failed/Unavailable) the next time the host starts.
                 }
                 catch (Exception ex)
                 {
@@ -214,8 +258,16 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             ? (userId, ActorType.Operator)
             : ((Guid?)null, ActorType.System);
 
-        var entry = ActivityLogEntry.Create(
-            job.OrganizationId, entityType, entityId ?? job.Id.ToString(), eventType, actorId, actorType);
+        await WriteFailureActivityLogAsync(
+            activityLogWriter, job.OrganizationId, eventType, entityType, entityId ?? job.Id.ToString(), cancellationToken, actorId, actorType);
+    }
+
+    /// <summary>Reconciliation has no originating job/user to attribute to — always a system actor.</summary>
+    private static async Task WriteFailureActivityLogAsync(
+        IActivityLogWriter activityLogWriter, Guid organizationId, string eventType,
+        string entityType, string entityId, CancellationToken cancellationToken, Guid? actorId = null, ActorType actorType = ActorType.System)
+    {
+        var entry = ActivityLogEntry.Create(organizationId, entityType, entityId, eventType, actorId, actorType);
         await activityLogWriter.WriteAsync(entry, cancellationToken);
     }
 
@@ -233,4 +285,10 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Part processing job {JobId} terminated unexpectedly.")]
     private static partial void LogWorkItemFailed(ILogger logger, Guid jobId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Part processing job {JobId} was orphaned by a previous process lifetime and marked failed on startup.")]
+    private static partial void LogOrphanedJobReconciled(ILogger logger, Guid jobId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Part {PartId}'s estimate was orphaned by a previous process lifetime and marked unavailable on startup.")]
+    private static partial void LogOrphanedEstimateReconciled(ILogger logger, Guid partId);
 }

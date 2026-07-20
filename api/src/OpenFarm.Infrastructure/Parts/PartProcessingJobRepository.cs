@@ -18,6 +18,12 @@ public sealed class PartProcessingJobRepository(OpenFarmDbContext dbContext) : I
             .Include(j => j.PreviewThumbnails)
             .FirstOrDefaultAsync(j => j.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<PartProcessingJob>> ListOrphanedInFlightAsync(CancellationToken cancellationToken) =>
+        await dbContext.PartProcessingJobs
+            .Where(j => j.Status == PartProcessingJobStatus.Processing
+                || (j.Status == PartProcessingJobStatus.ReadyForReview && j.PreviewEstimateStatus == EstimateStatus.Resolving))
+            .ToListAsync(cancellationToken);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }
