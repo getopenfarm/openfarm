@@ -44,6 +44,7 @@ function invalidatePartQueries(queryClient: ReturnType<typeof useQueryClient>) {
     predicate: (query) =>
       typeof query.queryKey[0] === 'string' &&
       (query.queryKey[0].startsWith('/api/v1/parts') ||
+        query.queryKey[0].startsWith('/api/v1/part-processing-jobs') ||
         query.queryKey[0].startsWith('/api/v1/tags')),
   });
 }
