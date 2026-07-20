@@ -27,4 +27,24 @@ public class CliSlicerEngineTests
         (await act.Should().ThrowAsync<SlicingFailedException>())
             .WithMessage("*Could not start the OrcaSlicer CLI*");
     }
+
+    // The Process.Start-specific catch above doesn't cover exceptions thrown before it — e.g.
+    // SlicerOptions.CliPathFor's InvalidOperationException when BambuStudioCliPath is unset (its
+    // default). Without the outer catch in SliceAsync, this escaped as a raw, unwrapped exception
+    // that bypassed RunEstimateContinuationAsync's catch (SlicingFailedException) entirely, leaving
+    // the job/part stuck in "Resolving" forever — same failure shape as the missing-CLI case above,
+    // just reached via a different exception source.
+    [Fact]
+    public async Task SliceAsync_BambuStudioCliPathNotConfigured_ThrowsSlicingFailedException()
+    {
+        var options = Options.Create(new SlicerOptions());
+        var engine = new CliSlicerEngine(options);
+        using var modelStream = new MemoryStream([1, 2, 3]);
+
+        var act = async () => await engine.SliceAsync(
+            SlicerEngine.BambuStudio, modelStream, "Bambu PLA Basic", 0.4m, CancellationToken.None);
+
+        (await act.Should().ThrowAsync<SlicingFailedException>())
+            .WithMessage("*Slicing failed*BambuStudioCliPath*");
+    }
 }

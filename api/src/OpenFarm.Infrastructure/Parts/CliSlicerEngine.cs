@@ -18,6 +18,26 @@ public sealed class CliSlicerEngine(IOptions<SlicerOptions> options) : ISlicerEn
     public async Task<SlicingResult> SliceAsync(
         SlicerEngine engine, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
+        try
+        {
+            return await SliceCoreAsync(engine, modelFileStream, materialType, nozzleDiameterMm, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException)
+        {
+            // Closes the rest of the exception surface the Process.Start-specific catch below
+            // doesn't cover — a misconfigured CLI path (e.g. BambuStudioCliPath unset),
+            // temp-dir/file I/O errors, or unparseable output must surface as
+            // SlicingFailedException too, or it escapes RunEstimateContinuationAsync's catch and
+            // leaves the job/part silently stuck in "Resolving" forever (research.md §4).
+            // Genuine caller-requested cancellation is deliberately left unconverted so it's still
+            // recognizable as cancellation rather than a slicing failure.
+            throw new SlicingFailedException($"Slicing failed: {ex.Message}", ex);
+        }
+    }
+
+    private async Task<SlicingResult> SliceCoreAsync(
+        SlicerEngine engine, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
+    {
         var workDirectory = Directory.CreateTempSubdirectory("openfarm-slice-");
         try
         {
