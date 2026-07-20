@@ -55,16 +55,6 @@ describe('FilamentProfilesTable', () => {
     expect(within(rows[2]).getByText('Bambu PLA Basic')).toBeInTheDocument();
   });
 
-  it('shows an empty state when no profiles have been imported', () => {
-    render(<FilamentProfilesTable profiles={[]} onRowClick={vi.fn()} />);
-
-    expect(
-      screen.getByText(
-        'No filament profiles yet. Import a slicer bundle to populate this catalog.',
-      ),
-    ).toBeInTheDocument();
-  });
-
   it('calls onRowClick with the profile id when a row is clicked', async () => {
     const user = userEvent.setup();
     const onRowClick = vi.fn();

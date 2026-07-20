@@ -1,3 +1,4 @@
+import { HistoryIcon } from 'lucide-react';
 import { useState } from 'react';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -56,7 +57,9 @@ export function ActivityLogPage() {
           />
         ) : items.length === 0 ? (
           <EmptyState
-            description="No activity recorded yet."
+            icon={<HistoryIcon className="size-8 text-muted-foreground" />}
+            title="No activity yet"
+            description="Status changes, job updates, and profile edits will show up here."
             bordered={false}
           />
         ) : (

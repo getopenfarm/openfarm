@@ -1,4 +1,4 @@
-import { WrenchIcon } from 'lucide-react';
+import { ClipboardListIcon, WrenchIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -63,7 +63,22 @@ export function MaintenancePage() {
 
       <div className="flex flex-col gap-3">
         <h3 className="font-heading text-lg font-semibold">Task templates</h3>
-        <TaskTemplatesTable templates={TASK_TEMPLATES} />
+        {TASK_TEMPLATES.length === 0 ? (
+          <EmptyState
+            icon={
+              <ClipboardListIcon className="size-8 text-muted-foreground" />
+            }
+            title="No task templates yet"
+            description="Task templates define what maintenance to track and when."
+            action={
+              <Button onClick={() => toast('Not yet implemented')}>
+                New task
+              </Button>
+            }
+          />
+        ) : (
+          <TaskTemplatesTable templates={TASK_TEMPLATES} />
+        )}
       </div>
     </div>
   );

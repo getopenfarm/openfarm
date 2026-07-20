@@ -116,19 +116,5 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
 ];
 
 export function PartsTable({ parts, onRowClick }: PartsTableProps) {
-  return (
-    <DataTable
-      columns={columns}
-      data={parts}
-      onRowClick={onRowClick}
-      emptyState={
-        <div className="flex flex-col items-center gap-1 py-4">
-          <p className="text-sm font-medium">No parts yet</p>
-          <p className="text-sm text-muted-foreground">
-            Add a part to build your catalog.
-          </p>
-        </div>
-      }
-    />
-  );
+  return <DataTable columns={columns} data={parts} onRowClick={onRowClick} />;
 }

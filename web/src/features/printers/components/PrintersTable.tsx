@@ -139,7 +139,6 @@ export function PrintersTable({
       data={printers}
       cellClassName={DENSITY_CELL_PADDING[density]}
       onRowClick={(row) => onOpen(row.id ?? '')}
-      emptyState="No printers match."
     />
   );
 }

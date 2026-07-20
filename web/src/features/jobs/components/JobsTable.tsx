@@ -142,15 +142,5 @@ interface JobsTableProps {
 }
 
 export function JobsTable({ jobs }: JobsTableProps) {
-  return (
-    <DataTable
-      columns={columns}
-      data={jobs}
-      emptyState={
-        <span className="text-sm text-muted-foreground">
-          No jobs in the queue.
-        </span>
-      }
-    />
-  );
+  return <DataTable columns={columns} data={jobs} />;
 }

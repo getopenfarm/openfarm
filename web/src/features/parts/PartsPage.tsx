@@ -54,6 +54,11 @@ export function PartsPage() {
 
       {partsQuery.isLoading ? (
         <Skeleton className="h-64 w-full" />
+      ) : parts.length === 0 && selectedTags.length > 0 ? (
+        <EmptyState
+          title="No parts match"
+          description="Try a different tag filter."
+        />
       ) : parts.length === 0 ? (
         <EmptyState
           title="No parts yet"
