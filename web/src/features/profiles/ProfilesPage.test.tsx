@@ -70,7 +70,9 @@ describe('ProfilesPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('No machine profiles yet')).toBeInTheDocument();
+    expect(
+      await screen.findByText('No machine profiles yet'),
+    ).toBeInTheDocument();
     expect(
       screen.getByText('Import a slicer bundle to populate this catalog.'),
     ).toBeInTheDocument();

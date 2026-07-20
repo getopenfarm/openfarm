@@ -29,11 +29,11 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { ConnectionSecretResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   useOpenFarmApiEndpointsConnectionSecretsCreateConnectionSecretEndpoint,
   useOpenFarmApiEndpointsConnectionSecretsListConnectionSecretsEndpoint,
 } from '@/lib/api/generated/connection-secrets/connection-secrets';
+import type { ConnectionSecretResponse } from '@/lib/api/generated/endpoints.schemas';
 
 const createSchema = z.object({
   printerSerialNumber: z.string().min(1, 'Printer serial number is required'),

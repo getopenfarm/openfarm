@@ -26,8 +26,7 @@ export function FilamentPage() {
 
   const vendorsQuery = useOpenFarmApiEndpointsVendorsListVendorsEndpoint();
   const vendors =
-    (vendorsQuery.data?.data as ListVendorsResponse | undefined)?.vendors ??
-    [];
+    (vendorsQuery.data?.data as ListVendorsResponse | undefined)?.vendors ?? [];
 
   const { vendorCount, variantCount } = useMemo(() => {
     const vendorNames = new Set(

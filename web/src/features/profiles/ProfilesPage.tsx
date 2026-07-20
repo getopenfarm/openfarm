@@ -134,9 +134,7 @@ export function ProfilesPage() {
             <Skeleton className="h-64 w-full" />
           ) : machineProfiles.length === 0 ? (
             <EmptyState
-              icon={
-                <SettingsIcon className="size-8 text-muted-foreground" />
-              }
+              icon={<SettingsIcon className="size-8 text-muted-foreground" />}
               title="No machine profiles yet"
               description="Import a slicer bundle to populate this catalog."
               action={<ImportProfilesDialog />}
@@ -153,9 +151,7 @@ export function ProfilesPage() {
             <Skeleton className="h-64 w-full" />
           ) : filamentProfiles.length === 0 ? (
             <EmptyState
-              icon={
-                <SwatchBookIcon className="size-8 text-muted-foreground" />
-              }
+              icon={<SwatchBookIcon className="size-8 text-muted-foreground" />}
               title="No filament profiles yet"
               description="Import a slicer bundle to populate this catalog."
               action={<ImportProfilesDialog />}
