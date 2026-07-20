@@ -218,7 +218,12 @@ builder.Services.AddScoped<IPrinterConnectorFactory, PrinterConnectorFactory>();
 builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();
 builder.Services.AddSingleton<PrinterConnectionBackgroundService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
-builder.Services.AddScoped<IPrinterConnectionManager>(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
+// Must be Singleton, not Scoped — same reasoning as IPartProcessingDispatcher's registration
+// below: a Scoped factory returning an already-singleton IDisposable gets that instance disposed
+// at the end of whichever HTTP request scope first resolves it, killing the shared connection
+// manager's worker loops for the rest of the process's lifetime. Dormant here only because no
+// exercised code path happens to resolve IPrinterConnectionManager from within a request scope yet.
+builder.Services.AddSingleton<IPrinterConnectionManager>(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
 
 builder.Services.AddScoped<RegisterPrinterHandlerType, RegisterPrinterCommandHandler>();
 builder.Services.AddScoped<EditPrinterHandlerType, EditPrinterCommandHandler>();
@@ -285,7 +290,14 @@ builder.Services.AddSingleton(sp => new PartProcessingBackgroundService(
     sp.GetRequiredService<ILogger<PartProcessingBackgroundService>>(),
     sp.GetRequiredService<IOptions<SlicerOptions>>().Value.MaxConcurrentSlicingOperations));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
-builder.Services.AddScoped<IPartProcessingDispatcher>(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
+// Must be Singleton, not Scoped: the factory returns an already-singleton BackgroundService
+// (IDisposable via its base class). A Scoped registration whose factory returns a disposable
+// instance gets that instance added to the CURRENT scope's own disposables list — meaning every
+// HTTP request that resolves IPartProcessingDispatcher (i.e. every part upload) would dispose the
+// shared PartProcessingBackgroundService singleton when that request's scope ends, cancelling its
+// stoppingToken and permanently killing every worker loop after the very first upload. Silent: no
+// exception, just every future job stuck "Processing" forever since nothing ever picks it up again.
+builder.Services.AddSingleton<IPartProcessingDispatcher>(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
 
 builder.Services.AddScoped<AddPartHandlerType, AddPartCommandHandler>();
 builder.Services.AddScoped<ReplacePartFileHandlerType, ReplacePartFileCommandHandler>();

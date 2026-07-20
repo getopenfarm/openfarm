@@ -25,6 +25,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PartProcessingBackgroundService> _logger;
     private readonly int _maxConcurrency;
+    private AppTenantInfo? _tenantInfo;
 
     public PartProcessingBackgroundService(IServiceScopeFactory scopeFactory, ILogger<PartProcessingBackgroundService> logger, int maxConcurrency = 2)
     {
@@ -41,6 +42,8 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await EnsureTenantInfoResolvedAsync(stoppingToken);
+
         // The work queue is an in-memory Channel, never durable across restarts — anything left
         // Processing or ReadyForReview-with-a-Resolving-preview-estimate at this exact moment was
         // orphaned by a previous process lifetime ending mid-job (crash, restart, deploy), not
@@ -54,9 +57,26 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
         await Task.WhenAll(workers);
     }
 
+    /// <summary>
+    /// Resolves and caches the (single, static) organization's tenant info, once. Safe to call
+    /// repeatedly/concurrently — cheap no-op once cached.
+    /// </summary>
+    private async Task EnsureTenantInfoResolvedAsync(CancellationToken cancellationToken)
+    {
+        if (_tenantInfo is not null)
+        {
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+        _tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
+            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before part processing starts.");
+    }
+
     private async Task ReconcileOrphanedWorkAsync(CancellationToken stoppingToken)
     {
-        using var scope = CreateTenantScope(default);
+        using var scope = CreateTenantScope();
         var services = scope.ServiceProvider;
         var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
         var partRepository = services.GetRequiredService<IPartRepository>();
@@ -104,6 +124,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                 catch (Exception ex)
                 {
                     LogWorkItemFailed(_logger, workItem.JobId, ex);
+                    await TryMarkOrphanedWorkItemFailedAsync(workItem, ex, stoppingToken);
                 }
             }
         }
@@ -117,7 +138,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
     private async Task ProcessWorkItemAsync(PartProcessingWorkItem workItem, CancellationToken stoppingToken)
     {
-        using var scope = CreateTenantScope(workItem.OrganizationId);
+        using var scope = CreateTenantScope();
         var services = scope.ServiceProvider;
         var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
         var storage = services.GetRequiredService<IPartFileStorage>();
@@ -137,8 +158,12 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             await using var stream = await storage.OpenReadAsync(job.StoragePath, stoppingToken);
             materialResolution = await processor.ResolveMaterialAsync(job, stream, stoppingToken);
         }
-        catch (Exception ex) when (ex is PartFileParsingFailedException or UnslicedProjectMaterialParsingFailedException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // Deliberately catches everything (parsing failures, storage I/O errors reading the
+            // uploaded file, anything else) rather than enumerating specific exception types —
+            // anything that escapes here falls through to ConsumeAsync's log-only catch, leaving
+            // the job stuck "Processing" forever since the frontend has no polling fallback.
             job.MarkFailed(ex.Message);
             await jobRepository.SaveChangesAsync(stoppingToken);
             await WriteFailureActivityLogAsync(activityLogWriter, job, "PartFileProcessingFailed", stoppingToken);
@@ -194,8 +219,12 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             await using var stream = await storage.OpenReadAsync(job.StoragePath, stoppingToken);
             estimateResolution = await processor.ResolveEstimateAsync(job, stream, stoppingToken);
         }
-        catch (SlicingFailedException ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // Deliberately catches everything, not just SlicingFailedException — the storage read
+            // above can throw raw IOException/FileNotFoundException/UnauthorizedAccessException
+            // (e.g. a misconfigured PartFileStorage:RootDirectory), and those must reach the job's
+            // status too, or they escape to ConsumeAsync's log-only catch and stall the job forever.
             var current = await jobRepository.GetByIdAsync(workItem.JobId, stoppingToken);
             if (current is null)
             {
@@ -250,6 +279,42 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
         // by the Discard endpoint's caller; nothing left to write it to either way).
     }
 
+    /// <summary>
+    /// Last-resort safety net for exceptions that escape ProcessWorkItemAsync's own handling
+    /// entirely (e.g. failing to even load the job/scope, or the failure-handling path itself
+    /// throwing while persisting/publishing) — without this, such a job is left in a non-terminal
+    /// status with nothing left to ever revisit it, since the in-memory queue is not durable across
+    /// restarts and the frontend has no polling fallback. Best-effort: a second failure here is
+    /// only logged, never rethrown, so it can't crash the host.
+    /// </summary>
+    private async Task TryMarkOrphanedWorkItemFailedAsync(PartProcessingWorkItem workItem, Exception originalException, CancellationToken stoppingToken)
+    {
+        try
+        {
+            using var scope = CreateTenantScope();
+            var services = scope.ServiceProvider;
+            var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
+            var publisher = services.GetRequiredService<IPartEventPublisher>();
+            var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
+
+            var job = await jobRepository.GetByIdAsync(workItem.JobId, stoppingToken);
+            if (job is null || job.Status is not (PartProcessingJobStatus.Processing or PartProcessingJobStatus.ReadyForReview))
+            {
+                return;
+            }
+
+            job.MarkFailed($"Part processing failed unexpectedly: {originalException.Message}");
+            await jobRepository.SaveChangesAsync(stoppingToken);
+            await WriteFailureActivityLogAsync(activityLogWriter, job, "PartFileProcessingFailed", stoppingToken);
+            await publisher.PartProcessingJobStatusChangedAsync(job.OrganizationId, job, stoppingToken);
+            LogOrphanedWorkItemRecovered(_logger, job.Id);
+        }
+        catch (Exception ex)
+        {
+            LogWorkItemDoubleFault(_logger, workItem.JobId, ex);
+        }
+    }
+
     private static async Task WriteFailureActivityLogAsync(
         IActivityLogWriter activityLogWriter, PartProcessingJob job, string eventType, CancellationToken cancellationToken,
         string entityType = "PartProcessingJob", string? entityId = null)
@@ -271,20 +336,31 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
         await activityLogWriter.WriteAsync(entry, cancellationToken);
     }
 
-    /// <summary>Mirrors <c>PrinterConnectionBackgroundService.CreateTenantScope</c> exactly — this app is single-organization, so the tenant is always the well-known org.</summary>
-    private IServiceScope CreateTenantScope(Guid organizationId)
+    /// <summary>
+    /// Creates a DI scope with the organization's tenant context pre-populated. Finbuckle's tenant
+    /// resolution is HTTP-middleware-based (<c>UseMultiTenant()</c>), which never runs for a scope
+    /// this background service creates itself — without this, every tenant-scoped EF query filter
+    /// throws a <see cref="NullReferenceException"/> against a null <c>TenantInfo</c>. Mirrors
+    /// <c>PrinterConnectionBackgroundService.CreateTenantScope</c> exactly: resolves the tenant once
+    /// via <see cref="EnsureTenantInfoResolvedAsync"/> up front rather than doing a blocking DB call
+    /// on every scope creation.
+    /// </summary>
+    private IServiceScope CreateTenantScope()
     {
         var scope = _scopeFactory.CreateScope();
-        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-        var tenantInfo = tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier).GetAwaiter().GetResult()
-            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before part processing starts.");
         var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenantInfo);
+        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(_tenantInfo!);
         return scope;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Part processing job {JobId} terminated unexpectedly.")]
     private static partial void LogWorkItemFailed(ILogger logger, Guid jobId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Part processing job {JobId} was recovered by the last-resort safety net and marked failed.")]
+    private static partial void LogOrphanedWorkItemRecovered(ILogger logger, Guid jobId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Part processing job {JobId} could not be recovered by the last-resort safety net either — it may be stuck.")]
+    private static partial void LogWorkItemDoubleFault(ILogger logger, Guid jobId, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Part processing job {JobId} was orphaned by a previous process lifetime and marked failed on startup.")]
     private static partial void LogOrphanedJobReconciled(ILogger logger, Guid jobId);
