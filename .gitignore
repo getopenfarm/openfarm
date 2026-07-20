@@ -20,6 +20,7 @@ bun.lockb
 .env.*.local
 *.pem
 api/src/OpenFarm.Api/keys/
+api/src/OpenFarm.Api/data/
 
 # ---- Docker ----
 infra/docker/**/*.log
