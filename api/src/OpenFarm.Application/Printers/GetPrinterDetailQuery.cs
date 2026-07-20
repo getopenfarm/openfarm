@@ -19,4 +19,6 @@ public sealed record PrinterDetail(
     string? CurrentStageLabel,
     int? RemainingTimeMinutes,
     string? CurrentJobName,
-    IReadOnlyList<AmsUnit> AmsUnits);
+    IReadOnlyList<AmsUnit> AmsUnits,
+    Guid? MachineProfileId,
+    string? MachineProfileName);

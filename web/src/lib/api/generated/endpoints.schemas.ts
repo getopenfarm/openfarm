@@ -415,6 +415,10 @@ export interface PrinterDetailResponse {
   isReachable?: boolean;
   telemetry?: PrinterDetailTelemetryResponse;
   amsUnits?: AmsUnitResponse[];
+  /** @nullable */
+  machineProfileId?: string | null;
+  /** @nullable */
+  machineProfileName?: string | null;
 }
 
 export interface LinkPrinterMachineProfileResponse {

@@ -3195,6 +3195,15 @@
             "items": {
               "$ref": "#/components/schemas/AmsUnitResponse"
             }
+          },
+          "machineProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "machineProfileName": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

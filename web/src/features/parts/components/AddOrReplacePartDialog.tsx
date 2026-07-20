@@ -43,6 +43,27 @@ import { PartProcessingReviewSection } from './PartProcessingReviewSection';
 
 const ACCEPTED_EXTENSIONS = '.stl,.3mf,.gcode,.gco,.g';
 
+/** Backend errors surface as RFC 7807 ProblemDetails on the raw fetch Response httpClient
+ * throws (CLAUDE.md: "Errors surface uniformly as RFC 7807 ProblemDetails") — extracts the
+ * operator-facing `detail` (e.g. "No registered printer has a linked Machine Profile with a
+ * known nozzle diameter.") instead of a generic message, matching ProfilesPage's convention. */
+async function extractErrorDetail(
+  error: unknown,
+  fallback: string,
+): Promise<string> {
+  if (error instanceof Response) {
+    try {
+      const problem = await error.json();
+      if (typeof problem?.detail === 'string' && problem.detail.length > 0) {
+        return problem.detail;
+      }
+    } catch {
+      // Response body wasn't JSON — fall through to the generic fallback.
+    }
+  }
+  return fallback;
+}
+
 const addSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   tags: z.string(),
@@ -101,8 +122,10 @@ export function AddOrReplacePartDialog({
         const data = response.data as PartProcessingJobSubmittedResponse;
         setJobId(data.jobId ?? null);
       },
-      onError: () => {
-        toast.error('Could not process this file.');
+      onError: async (error) => {
+        toast.error(
+          await extractErrorDetail(error, 'Could not process this file.'),
+        );
         setFile(null);
       },
     },
@@ -114,8 +137,10 @@ export function AddOrReplacePartDialog({
         const data = response.data as PartProcessingJobSubmittedResponse;
         setJobId(data.jobId ?? null);
       },
-      onError: () => {
-        toast.error('Could not process this file.');
+      onError: async (error) => {
+        toast.error(
+          await extractErrorDetail(error, 'Could not process this file.'),
+        );
         setFile(null);
       },
     },
@@ -137,7 +162,11 @@ export function AddOrReplacePartDialog({
           }
           resetAndClose();
         },
-        onError: () => toast.error('Could not save the part.'),
+        onError: async (error) => {
+          toast.error(
+            await extractErrorDetail(error, 'Could not save the part.'),
+          );
+        },
       },
     });
 

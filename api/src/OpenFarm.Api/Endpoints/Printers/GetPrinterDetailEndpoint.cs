@@ -66,6 +66,11 @@ public sealed class PrinterDetailResponse
     public PrinterDetailTelemetryResponse Telemetry { get; set; } = new();
 
     public IReadOnlyList<AmsUnitResponse> AmsUnits { get; set; } = [];
+
+    /// <summary>Null when unlinked — no printer with a null value here has a resolvable nozzle diameter (FR-005a/FR-005b).</summary>
+    public Guid? MachineProfileId { get; set; }
+
+    public string? MachineProfileName { get; set; }
 }
 
 [Permission("printers:get-detail")]
@@ -126,6 +131,8 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                         .ToList(),
                 })
                 .ToList(),
+            MachineProfileId = detail.MachineProfileId,
+            MachineProfileName = detail.MachineProfileName,
         };
     }
 }
