@@ -41,41 +41,56 @@ public sealed class CliSlicerEngine(IOptions<SlicerOptions> options) : ISlicerEn
                 UseShellExecute = false,
             };
 
-            using var process = Process.Start(startInfo)
-                ?? throw new SlicingFailedException($"Could not start the {engine} CLI process.");
-
-            using var timeoutCts = new CancellationTokenSource(options.Value.CliTimeout);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-
+            Process process;
             try
             {
-                await process.WaitForExitAsync(linkedCts.Token);
+                process = Process.Start(startInfo)
+                    ?? throw new SlicingFailedException($"Could not start the {engine} CLI process.");
             }
-            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+            catch (Exception ex) when (ex is not SlicingFailedException)
             {
-                TryKill(process);
-                throw new SlicingFailedException($"The {engine} CLI timed out after {options.Value.CliTimeout}.");
+                // Most commonly Win32Exception when the configured CLI path doesn't exist on this
+                // host — surfaced as SlicingFailedException so callers (RunEstimateContinuationAsync)
+                // mark the job/part failed instead of this escaping to the background service's
+                // generic catch, which only logs and leaves the job silently stuck (research.md §4).
+                throw new SlicingFailedException($"Could not start the {engine} CLI at '{cliPath}': {ex.Message}", ex);
             }
 
-            if (process.ExitCode != 0 || !File.Exists(outputPath))
+            using (process)
             {
-                var stderr = await process.StandardError.ReadToEndAsync(CancellationToken.None);
-                throw new SlicingFailedException($"The {engine} CLI exited with code {process.ExitCode}: {stderr}");
+                using var timeoutCts = new CancellationTokenSource(options.Value.CliTimeout);
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+                try
+                {
+                    await process.WaitForExitAsync(linkedCts.Token);
+                }
+                catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+                {
+                    TryKill(process);
+                    throw new SlicingFailedException($"The {engine} CLI timed out after {options.Value.CliTimeout}.");
+                }
+
+                if (process.ExitCode != 0 || !File.Exists(outputPath))
+                {
+                    var stderr = await process.StandardError.ReadToEndAsync(CancellationToken.None);
+                    throw new SlicingFailedException($"The {engine} CLI exited with code {process.ExitCode}: {stderr}");
+                }
+
+                var gcode = await File.ReadAllTextAsync(outputPath, cancellationToken);
+                var values = GCodeMetadataHelper.ParseComments(gcode);
+                var estimatedMinutes = GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values)
+                    ?? throw new SlicingFailedException("The sliced G-code did not contain a parseable estimated print time.");
+                var estimatedWeight = GCodeMetadataHelper.ParseFilamentWeightGrams(values)
+                    ?? throw new SlicingFailedException("The sliced G-code did not contain a parseable filament weight.");
+                var thumbnail = GCodeMetadataHelper.ExtractEmbeddedThumbnailPng(gcode);
+
+                return new SlicingResult(
+                    PlateCount: 1,
+                    estimatedMinutes,
+                    estimatedWeight,
+                    thumbnail is null ? [] : [new ThumbnailSpec(0, thumbnail)]);
             }
-
-            var gcode = await File.ReadAllTextAsync(outputPath, cancellationToken);
-            var values = GCodeMetadataHelper.ParseComments(gcode);
-            var estimatedMinutes = GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values)
-                ?? throw new SlicingFailedException("The sliced G-code did not contain a parseable estimated print time.");
-            var estimatedWeight = GCodeMetadataHelper.ParseFilamentWeightGrams(values)
-                ?? throw new SlicingFailedException("The sliced G-code did not contain a parseable filament weight.");
-            var thumbnail = GCodeMetadataHelper.ExtractEmbeddedThumbnailPng(gcode);
-
-            return new SlicingResult(
-                PlateCount: 1,
-                estimatedMinutes,
-                estimatedWeight,
-                thumbnail is null ? [] : [new ThumbnailSpec(0, thumbnail)]);
         }
         finally
         {

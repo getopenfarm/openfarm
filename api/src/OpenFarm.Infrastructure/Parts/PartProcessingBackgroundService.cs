@@ -49,16 +49,25 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
     private async Task ConsumeAsync(CancellationToken stoppingToken)
     {
-        await foreach (var workItem in _channel.Reader.ReadAllAsync(stoppingToken))
+        try
         {
-            try
+            await foreach (var workItem in _channel.Reader.ReadAllAsync(stoppingToken))
             {
-                await ProcessWorkItemAsync(workItem, stoppingToken);
+                try
+                {
+                    await ProcessWorkItemAsync(workItem, stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    LogWorkItemFailed(_logger, workItem.JobId, ex);
+                }
             }
-            catch (Exception ex)
-            {
-                LogWorkItemFailed(_logger, workItem.JobId, ex);
-            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Ordinary host shutdown while idling for the next item — not a real failure. Left
+            // uncaught, .NET's default HostOptions.BackgroundServiceExceptionBehavior (StopHost)
+            // logs this as a fatal crash and tears down the whole host.
         }
     }
 
