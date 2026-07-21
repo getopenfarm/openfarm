@@ -24,11 +24,11 @@ public sealed class CliSlicerEngine(
     IOptions<SlicerOptions> options) : ISlicerEngine
 {
     public async Task<SlicingResult> SliceAsync(
-        SlicerRef slicer, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
+        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
         try
         {
-            return await SliceCoreAsync(slicer, modelFileStream, materialType, nozzleDiameterMm, cancellationToken);
+            return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, cancellationToken);
         }
         catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException && ex is not SlicerUnavailableException)
         {
@@ -44,7 +44,7 @@ public sealed class CliSlicerEngine(
     }
 
     private async Task<SlicingResult> SliceCoreAsync(
-        SlicerRef slicer, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
+        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
         var platform = hostPlatform.Current;
         var available = catalog.Find(slicer, platform)
@@ -56,7 +56,7 @@ public sealed class CliSlicerEngine(
         var workDirectory = Directory.CreateTempSubdirectory("openfarm-slice-");
         try
         {
-            var inputPath = Path.Combine(workDirectory.FullName, "model.3mf");
+            var inputPath = Path.Combine(workDirectory.FullName, ResolveInputFileName(modelFileFormat));
             await using (var inputFile = File.Create(inputPath))
             {
                 await modelFileStream.CopyToAsync(inputFile, cancellationToken);
@@ -152,6 +152,15 @@ public sealed class CliSlicerEngine(
         using var reader = new StreamReader(entry.Open());
         return await reader.ReadToEndAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// OrcaSlicer/Bambu Studio dispatch model loading off the input file's extension, not its
+    /// content — writing an STL upload to disk as "model.3mf" made the slicer try to unzip it as a
+    /// 3MF and fail with "Loading of a model file failed." Internal (not private) for the same
+    /// InternalsVisibleTo testability as <see cref="ReadEmbeddedPlateGCodeAsync"/>.
+    /// </summary>
+    internal static string ResolveInputFileName(PartFileFormat modelFileFormat) =>
+        modelFileFormat == PartFileFormat.Stl ? "model.stl" : "model.3mf";
 
     private static void TryKill(Process process)
     {

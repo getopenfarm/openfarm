@@ -23,6 +23,7 @@ public interface ISlicerEngine
     Task<SlicingResult> SliceAsync(
         SlicerRef slicer,
         Stream modelFileStream,
+        PartFileFormat modelFileFormat,
         string materialType,
         decimal nozzleDiameterMm,
         CancellationToken cancellationToken);

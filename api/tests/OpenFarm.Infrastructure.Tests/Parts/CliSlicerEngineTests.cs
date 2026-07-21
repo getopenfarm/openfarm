@@ -24,7 +24,7 @@ public class CliSlicerEngineTests
         var engine = CreateEngine(new FakeAvailableSlicerCatalog());
         using var modelStream = new MemoryStream([1, 2, 3]);
 
-        var act = async () => await engine.SliceAsync(Orca220, modelStream, "Generic PLA", 0.4m, CancellationToken.None);
+        var act = async () => await engine.SliceAsync(Orca220, modelStream, PartFileFormat.Stl, "Generic PLA", 0.4m, CancellationToken.None);
 
         await act.Should().ThrowAsync<SlicerUnavailableException>();
     }
@@ -37,10 +37,18 @@ public class CliSlicerEngineTests
         var engine = CreateEngine(catalog);
         using var modelStream = new MemoryStream([1, 2, 3]);
 
-        var act = async () => await engine.SliceAsync(Orca220, modelStream, "Generic PLA", 0.4m, CancellationToken.None);
+        var act = async () => await engine.SliceAsync(Orca220, modelStream, PartFileFormat.Stl, "Generic PLA", 0.4m, CancellationToken.None);
 
         (await act.Should().ThrowAsync<SlicingFailedException>())
             .WithMessage("*Could not start the OrcaSlicer CLI*");
+    }
+
+    [Theory]
+    [InlineData(PartFileFormat.Stl, "model.stl")]
+    [InlineData(PartFileFormat.ThreeMf, "model.3mf")]
+    public void ResolveInputFileName_UsesTheRealExtensionSoTheSlicerDoesNotMisdetectTheFormat(PartFileFormat format, string expected)
+    {
+        CliSlicerEngine.ResolveInputFileName(format).Should().Be(expected);
     }
 
     [Fact]
