@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openfarm.dev/schemas/slicers.manifest.schema.json",
+  "title": "OpenFarm Slicer Provisioning Manifest",
+  "description": "Maintainer-authored declaration of which (engine, version, platform) slicer builds to fetch into the application's bundled slicer directory. Consumed only by the dev/build-time provisioning tool (tools/provision-slicers) — never read by the running application (FR-012/FR-018).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["slicers"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "description": "Manifest format version for forward-compat; current = 1.",
+      "const": 1
+    },
+    "slicers": {
+      "type": "array",
+      "description": "Desired set of slicers to bundle. Append-only across releases by product commitment (FR-008a) — entries are added, never removed.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/slicerEntry" }
+    }
+  },
+  "$defs": {
+    "engine": {
+      "type": "string",
+      "description": "Supported slicer engine (FR-001). Each maps to a fixed official GitHub release source resolved by the provisioning tool.",
+      "enum": ["OrcaSlicer", "BambuStudio", "SuperSlicer"]
+    },
+    "platform": {
+      "type": "string",
+      "description": "Target host platform for the fetched build (FR-009/FR-010).",
+      "enum": ["Linux", "Windows", "MacOs"]
+    },
+    "slicerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "version", "platforms"],
+      "properties": {
+        "engine": { "$ref": "#/$defs/engine" },
+        "version": {
+          "type": "string",
+          "description": "Exact upstream release string, verbatim, as published on the engine's GitHub releases (e.g. \"2.2.0\", \"2.5.59.13\", \"01.10.00.00\"). Stored/displayed verbatim by the app (FR-005). No leading 'v'.",
+          "minLength": 1,
+          "examples": ["2.2.0", "2.5.59.13", "01.10.00.00"]
+        },
+        "platforms": {
+          "type": "array",
+          "description": "Which platform builds of this (engine, version) to fetch. A platform whose upstream asset does not exist fails only that entry, not the run (FR-015).",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/platform" }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional free-text maintainer note (e.g. why this version is pinned)."
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schemaVersion": 1,
+      "slicers": [
+        { "engine": "OrcaSlicer", "version": "2.2.0", "platforms": ["Linux", "Windows", "MacOs"] },
+        { "engine": "OrcaSlicer", "version": "2.3.0", "platforms": ["Linux"] },
+        { "engine": "SuperSlicer", "version": "2.5.59.13", "platforms": ["Linux"], "notes": "PrusaSlicer-fork CLI form" }
+      ]
+    }
+  ]
+}
