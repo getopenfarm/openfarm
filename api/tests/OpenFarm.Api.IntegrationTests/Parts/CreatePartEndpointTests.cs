@@ -232,5 +232,14 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
 
         job!.Slicer!.Engine.Should().Be("OrcaSlicer");
         job.Slicer.Version.Should().Be("2.2.0");
+
+        // Restore the auto-defaulted baseline (OrcaSlicer, the newest/preferred bundled engine) —
+        // there's no "clear explicit default" endpoint, and every test in this IClassFixture-shared
+        // factory/database runs against the same Organization row with no guaranteed ordering, so
+        // leaving the SuperSlicer override in place here would silently corrupt any sibling test that
+        // assumes no explicit default has been set yet.
+        await client.PutAsJsonAsync(
+            new Uri("/api/v1/settings/slicing-defaults", UriKind.Relative),
+            new { engine = "OrcaSlicer", version = "2.2.0" });
     }
 }
