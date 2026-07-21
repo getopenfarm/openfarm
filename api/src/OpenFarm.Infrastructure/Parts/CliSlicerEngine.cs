@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using Microsoft.Extensions.Options;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
@@ -61,8 +62,7 @@ public sealed class CliSlicerEngine(
                 await modelFileStream.CopyToAsync(inputFile, cancellationToken);
             }
 
-            var outputPath = Path.Combine(workDirectory.FullName, "output.gcode");
-            var processInvocation = invocationStrategy.BuildInvocation(available, inputPath, materialType, nozzleDiameterMm, outputPath);
+            var processInvocation = invocationStrategy.BuildInvocation(available, inputPath, materialType, nozzleDiameterMm, workDirectory.FullName);
 
             var startInfo = new ProcessStartInfo(processInvocation.FileName, processInvocation.Arguments)
             {
@@ -101,13 +101,15 @@ public sealed class CliSlicerEngine(
                     throw new SlicingFailedException($"The {slicer.Engine} CLI timed out after {options.Value.CliTimeout}.");
                 }
 
-                if (process.ExitCode != 0 || !File.Exists(outputPath))
+                if (process.ExitCode != 0 || !File.Exists(processInvocation.OutputPath))
                 {
                     var stderr = await process.StandardError.ReadToEndAsync(CancellationToken.None);
                     throw new SlicingFailedException($"The {slicer.Engine} CLI exited with code {process.ExitCode}: {stderr}");
                 }
 
-                var gcode = await File.ReadAllTextAsync(outputPath, cancellationToken);
+                var gcode = processInvocation.ProducesGCodeBearingThreeMf
+                    ? await ReadEmbeddedPlateGCodeAsync(processInvocation.OutputPath, cancellationToken)
+                    : await File.ReadAllTextAsync(processInvocation.OutputPath, cancellationToken);
                 var values = GCodeMetadataHelper.ParseComments(gcode);
                 var estimatedMinutes = GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values)
                     ?? throw new SlicingFailedException("The sliced G-code did not contain a parseable estimated print time.");
@@ -133,6 +135,22 @@ public sealed class CliSlicerEngine(
                 // Best-effort cleanup — a leftover temp dir is not worth failing the slice result over.
             }
         }
+    }
+
+    /// <summary>
+    /// OrcaSlicer/Bambu Studio's <c>--export-3mf</c> writes a gcode-bearing 3MF, not a plain .gcode
+    /// file — the real G-code for the first (only, today) plate lives inside it as a zip entry.
+    /// Internal (not private) so InternalsVisibleTo lets Infrastructure.Tests exercise this directly
+    /// without a real slicer subprocess, same rationale as BambuCertificateTrust.
+    /// </summary>
+    internal static async Task<string> ReadEmbeddedPlateGCodeAsync(string threeMfPath, CancellationToken cancellationToken)
+    {
+        using var archive = ZipFile.OpenRead(threeMfPath);
+        var entry = archive.GetEntry("Metadata/plate_1.gcode")
+            ?? throw new SlicingFailedException("The exported 3MF did not contain Metadata/plate_1.gcode.");
+
+        using var reader = new StreamReader(entry.Open());
+        return await reader.ReadToEndAsync(cancellationToken);
     }
 
     private static void TryKill(Process process)

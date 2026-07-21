@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using OpenFarm.Application.Parts;
@@ -40,6 +41,50 @@ public class CliSlicerEngineTests
 
         (await act.Should().ThrowAsync<SlicingFailedException>())
             .WithMessage("*Could not start the OrcaSlicer CLI*");
+    }
+
+    [Fact]
+    public async Task ReadEmbeddedPlateGCodeAsync_ThreeMfWithPlateOneGCode_ReturnsItsContent()
+    {
+        var threeMfPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.gcode.3mf");
+        using (var archive = ZipFile.Open(threeMfPath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("Metadata/plate_1.gcode");
+            await using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("; nozzle_diameter = 0.4\nG28\n");
+        }
+
+        try
+        {
+            var gcode = await CliSlicerEngine.ReadEmbeddedPlateGCodeAsync(threeMfPath, CancellationToken.None);
+
+            gcode.Should().Contain("nozzle_diameter = 0.4");
+        }
+        finally
+        {
+            File.Delete(threeMfPath);
+        }
+    }
+
+    [Fact]
+    public async Task ReadEmbeddedPlateGCodeAsync_ThreeMfMissingPlateOneGCode_ThrowsSlicingFailedException()
+    {
+        var threeMfPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.gcode.3mf");
+        using (ZipFile.Open(threeMfPath, ZipArchiveMode.Create))
+        {
+            // Deliberately empty — no Metadata/plate_1.gcode entry.
+        }
+
+        try
+        {
+            var act = async () => await CliSlicerEngine.ReadEmbeddedPlateGCodeAsync(threeMfPath, CancellationToken.None);
+
+            await act.Should().ThrowAsync<SlicingFailedException>();
+        }
+        finally
+        {
+            File.Delete(threeMfPath);
+        }
     }
 
     private static CliSlicerEngine CreateEngine(FakeAvailableSlicerCatalog catalog) => new(
