@@ -30,6 +30,14 @@ public sealed class Organization
     /// <summary>The version half of the optional default pair; <c>null</c> ⇒ no explicit default set (data-model.md "Organization").</summary>
     public string? DefaultSlicerVersion { get; private set; }
 
+    /// <summary>
+    /// The org's default <c>MachineProfile</c> for headless slicing — <c>null</c> ⇒ not yet
+    /// configured, in which case slicing against OrcaSlicer/Bambu Studio fails with a clear
+    /// "unconfigured" error rather than falling back to a guess (no printer is assigned yet at
+    /// Part-processing time, so there is no per-printer profile to derive this from).
+    /// </summary>
+    public Guid? DefaultMachineProfileId { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public static Organization Create(string name)
@@ -57,4 +65,8 @@ public sealed class Organization
 
     /// <summary>The explicit default as a <see cref="SlicerRef"/>, or <c>null</c> when none has ever been set.</summary>
     public SlicerRef? DefaultSlicer => DefaultSlicerVersion is { } version ? new SlicerRef(DefaultSlicerEngine, version) : null;
+
+    public void SetDefaultMachineProfile(Guid machineProfileId) => DefaultMachineProfileId = machineProfileId;
+
+    public void ClearDefaultMachineProfile() => DefaultMachineProfileId = null;
 }

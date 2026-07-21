@@ -29,11 +29,18 @@ public sealed class MachineProfileConfiguration : IEntityTypeConfiguration<Machi
         builder.Property(p => p.CreatedAtUtc)
             .IsRequired();
 
+        builder.Property(p => p.DefaultProcessProfileId);
+
         // No delete endpoint exists yet (FR-001–015 name no deletion capability) — ON DELETE SET
         // NULL is a defensive default for whenever one is added (data-model.md).
         builder.HasOne<MachineProfile>()
             .WithMany()
             .HasForeignKey(p => p.BaseProfileId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne<ProcessProfile>()
+            .WithMany()
+            .HasForeignKey(p => p.DefaultProcessProfileId)
             .OnDelete(DeleteBehavior.SetNull);
 
         // No uniqueness constraint on Name — FR-009 permits duplicate-named imports as separate
