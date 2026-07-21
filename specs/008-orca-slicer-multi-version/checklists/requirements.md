@@ -1,4 +1,4 @@
-# Specification Quality Checklist: OrcaSlicer Multi-Version Management
+# Specification Quality Checklist: Multi-Engine, Multi-Version Slicer Management
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-07-21
@@ -41,6 +41,7 @@
   - **Version identity**: exact upstream OrcaSlicer release version, verbatim, no friendly-label scheme (FR-005).
 - Clarification session 2026-07-21 (second pass) resolved two more:
   - **No runtime validation**: the backend only *discovers* bundled versions at startup (present == available); a broken binary surfaces as a normal slice failure at slice time, not a pre-flight check (FR-002, FR-006; US1 scenario 3).
-  - **Default when unset**: with no admin-set default, auto-default to the newest bundled version (by release-version comparison) so the system is usable out of the box (FR-003).
+  - **Default when unset**: with no admin-set default, auto-default to the newest bundled version (by release-version comparison), preferring OrcaSlicer, so the system is usable out of the box (FR-003).
+- Scope expanded (2026-07-21, per user): the feature now spans **three engines — OrcaSlicer, Bambu Studio, and SuperSlicer** — managed uniformly (supersedes the prior "OrcaSlicer only" FR-022). A slice is an (engine, version) pair; default and per-part override both carry engine + version (FR-001–FR-008a); each engine is invoked with its own CLI form (FR-009a, SuperSlicer differs); the manifest/provisioning script and bundle are per-engine (FR-012–FR-018); SC-007 added for per-engine slice success. Title updated accordingly. All checklist items re-verified as still passing.
 - The spec references the concrete current-state code path (`Slicing:OrcaSlicerCliPath`, single baked-in version) only to establish the problem being solved, not as implementation prescription for the solution.
 - Spec is ready for `/speckit-plan`.
