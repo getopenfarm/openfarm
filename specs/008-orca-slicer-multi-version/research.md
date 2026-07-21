@@ -157,15 +157,7 @@ prevented up front).
 
 ## §8 — Dev/build-time provisioning tool: language, integrity, idempotency
 
-**Superseded invocation mechanism**: The pipeline below still lives in `tools/provision-slicers`, but it
-is now a plain **class library** with no CLI entry point of its own — invoked via the repo's NUKE build
-(`build/Build.cs`'s `ProvisionSlicers` Target, run as `./build.sh ProvisionSlicers`) rather than
-`dotnet run --project tools/provision-slicers` directly. This folds provisioning into the same build
-definition used for backend/frontend build+test in CI (`.github/workflows/ci.yml`), standardizing "the
-one command that runs the same way locally and in CI" per the project's stated direction. The pipeline
-logic, its tests, and everything below this line are unchanged.
-
-**Decision**: A standalone **.NET class library** `tools/provision-slicers`, invoked via NUKE
+**Decision**: A standalone **.NET console project** `tools/provision-slicers`, run via `dotnet run`
 (cross-platform on the SDK the repo already requires). It:
 
 - reads `slicers.manifest.json` (engine, version, platforms — see contract schema);

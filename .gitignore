@@ -6,11 +6,6 @@ obj/
 *.userosscache
 *.sln.docstates
 
-# ---- NUKE build (build/Build.cs) ----
-.nuke/temp/
-.idea/.idea.*/.nuke/
-artifacts/
-
 # ---- Node / Bun ----
 node_modules/
 dist/
