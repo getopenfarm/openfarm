@@ -38,9 +38,9 @@
         "engine": { "$ref": "#/$defs/engine" },
         "version": {
           "type": "string",
-          "description": "Exact upstream release string, verbatim, as published on the engine's GitHub releases (e.g. \"2.2.0\", \"2.5.59.13\", \"01.10.00.00\"). Stored/displayed verbatim by the app (FR-005). No leading 'v'.",
+          "description": "Maintainer-chosen display version (FR-005) — stored/shown verbatim everywhere (bundle directory name, discovery, pickers, recorded values). It need not match the engine's literal upstream release tag; a maintainer may use a friendlier marketed string instead (e.g. \"2.7.1\" for a Bambu Studio build whose actual tag/asset-embedded string is \"02.07.01.57\"). It does need to stay a dotted-numeric shape (e.g. \"2.2.0\", \"2.5.59.13\", \"01.10.00.00\") for \"newest\" ordering to work meaningfully, and must stay stable once a build has shipped — it is not the same string used to construct download URLs, which come entirely from `assets` below. No leading 'v'.",
           "minLength": 1,
-          "examples": ["2.2.0", "2.5.59.13", "01.10.00.00"]
+          "examples": ["2.2.0", "2.5.59.13", "01.10.00.00", "2.7.1"]
         },
         "assets": {
           "type": "object",

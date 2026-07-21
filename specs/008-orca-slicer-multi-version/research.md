@@ -54,13 +54,17 @@ not change under a running install, and append-only means a new version arrives 
 
 ## §3 — Version identity and cross-engine "newest" comparison
 
-**Decision**: A version is the **exact upstream release string, stored verbatim** on entities and shown
-verbatim in pickers (FR-005; no friendly-label scheme). Ordering ("newest") is computed by a tolerant
-`SlicerVersionComparer` that parses a dotted numeric release (`2.2.0`, `2.5.59.13`, Bambu's
-`01.10.00.00`) into a variable-length list of integer components and compares component-wise, shorter
-padded with zeros; a non-numeric suffix (e.g. an RC tag) orders **before** the same release without it and
-is compared lexically only as a tiebreak. Comparison is **within a single engine** only — versions are
-never ordered across engines.
+**Decision**: A version is a single **maintainer-chosen display string** — there is no separate "exact
+upstream" vs. "friendly" pair (superseded; see spec Clarifications). The manifest declares it directly
+(e.g. a maintainer may write "2.7.1" instead of Bambu Studio's literal release tag "02.07.01.57"), and
+that same string is stored/shown verbatim everywhere: bundle directory name, discovery, pickers, and
+recorded values (FR-005). Ordering ("newest") is computed by a tolerant `SlicerVersionComparer` that
+parses a dotted numeric release (`2.2.0`, `2.5.59.13`, Bambu's `01.10.00.00`) into a variable-length list
+of integer components and compares component-wise, shorter padded with zeros; a non-numeric suffix (e.g.
+an RC tag) orders **before** the same release without it and is compared lexically only as a tiebreak.
+Comparison is **within a single engine** only — versions are never ordered across engines. A maintainer
+choosing a display string should keep it in this dotted-numeric shape so ordering stays meaningful — the
+comparer doesn't require it, but a non-numeric string degrades "newest" to a lexical tiebreak only.
 
 **Rationale**: The three engines all publish dotted-numeric releases but with differing component counts,
 so a fixed `System.Version` (max 4 components, rejects 1-component) is too rigid; a hand-rolled
