@@ -25,7 +25,7 @@ the data model (`data-model.md`) rather than restating them. Commands assume the
    dotnet run --project tools/provision-slicers -- \
        --manifest slicers.manifest.json \
        --out "$SlicerBundle__RootDirectory" \
-       --platform Linux
+       --platform linux
    ```
 
    **Expected**: the tool first prints how many entries it found for the platform, then for each one

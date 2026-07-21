@@ -17,7 +17,7 @@ ENV SlicerBundle__RootDirectory=/opt/slicers
 RUN dotnet run --project tools/provision-slicers -- \
         --manifest slicers.manifest.json \
         --out "$SlicerBundle__RootDirectory" \
-        --platform Linux \
+        --platform linux \
     || echo "WARNING: Slicer provisioning failed or was incomplete — Part Library in-app slicing may be unavailable for the missing engine/version until this is fixed; unrelated feature work is unaffected."
 
 ENTRYPOINT ["dotnet", "watch", "run", "--project", "api/src/OpenFarm.Api/OpenFarm.Api.csproj", "--urls", "http://0.0.0.0:8888", "--no-launch-profile"]

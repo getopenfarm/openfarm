@@ -3,7 +3,7 @@ using OpenFarm.Tools.ProvisionSlicers;
 var options = CliOptions.Parse(args);
 if (options is null)
 {
-    Console.Error.WriteLine("Usage: provision-slicers --manifest <path> --out <dir> --platform <Linux|Windows|MacOs>");
+    Console.Error.WriteLine("Usage: provision-slicers --manifest <path> --out <dir> --platform <linux|windows|macos>");
     return 1;
 }
 
@@ -77,7 +77,7 @@ internal sealed record CliOptions(string ManifestPath, string OutputDirectory, P
                     outputDirectory = args[++i];
                     break;
                 case "--platform" when i + 1 < args.Length:
-                    if (Enum.TryParse<Platform>(args[++i], out var parsedPlatform))
+                    if (Enum.TryParse<Platform>(args[++i], ignoreCase: true, out var parsedPlatform))
                     {
                         platform = parsedPlatform;
                     }
