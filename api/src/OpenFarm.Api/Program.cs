@@ -297,6 +297,7 @@ builder.Services.AddSingleton<IAvailableSlicerCatalog, AvailableSlicerCatalog>()
 builder.Services.AddSingleton<ISlicerInvocation, PrusaSliceFamilyInvocation>();
 builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
 builder.Services.AddScoped<ResolveSlicerSelection>();
+builder.Services.AddScoped<ResolveSlicingProfileSelection>();
 
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
 builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();

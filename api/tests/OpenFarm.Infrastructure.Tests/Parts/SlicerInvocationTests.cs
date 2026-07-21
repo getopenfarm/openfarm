@@ -1,5 +1,5 @@
-using System.Text.Json;
 using FluentAssertions;
+using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 
@@ -9,6 +9,11 @@ public class SlicerInvocationTests
 {
     private static readonly AvailableSlicer Orca = new(SlicerEngine.OrcaSlicer, "2.2.0", SlicerPlatform.Linux, "/bundle/orcaslicer/2.2.0/linux/AppRun");
     private static readonly AvailableSlicer SuperSlicerBinary = new(SlicerEngine.SuperSlicer, "2.5.59.13", SlicerPlatform.Linux, "/bundle/superslicer/2.5.59.13/linux/AppRun");
+
+    private static readonly ResolvedSlicingProfiles ResolvedProfiles = new(
+        MachineSettingsJson: """{"type":"machine","name":"Test Machine","nozzle_diameter":["0.4"]}""",
+        ProcessSettingsJson: """{"type":"process","name":"0.20mm Standard","layer_height":"0.2"}""",
+        FilamentSettingsJson: """{"type":"filament","name":"Generic PETG","filament_type":["PETG"]}""");
 
     [Fact]
     public void PrusaSliceFamilyInvocation_SupportsOrcaSlicerAndBambuStudioOnly()
@@ -21,37 +26,49 @@ public class SlicerInvocationTests
     }
 
     [Fact]
-    public void PrusaSliceFamilyInvocation_BuildInvocation_ExportsAGCodeBearingThreeMfViaGeneratedSettingsJson()
+    public void PrusaSliceFamilyInvocation_BuildInvocation_WritesResolvedProfilesAndExportsAGCodeBearingThreeMf()
     {
         var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");
         try
         {
             var invocation = new PrusaSliceFamilyInvocation();
 
-            var result = invocation.BuildInvocation(Orca, "/tmp/model.3mf", "PETG", 0.4m, workDirectory.FullName);
+            var result = invocation.BuildInvocation(Orca, "/tmp/model.3mf", "PETG", 0.4m, workDirectory.FullName, ResolvedProfiles);
 
             result.FileName.Should().Be(Orca.ExecutablePath);
             result.ProducesGCodeBearingThreeMf.Should().BeTrue();
             result.OutputPath.Should().Be(Path.Combine(workDirectory.FullName, "output.gcode.3mf"));
 
             var machineSettingsPath = Path.Combine(workDirectory.FullName, "machine_settings.json");
+            var processSettingsPath = Path.Combine(workDirectory.FullName, "process_settings.json");
             var filamentSettingsPath = Path.Combine(workDirectory.FullName, "filament_settings.json");
 
             result.Arguments.Should().Be(
-                $"--slice 0 --load-settings \"{machineSettingsPath}\" --load-filaments \"{filamentSettingsPath}\" " +
+                $"--slice 0 --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{filamentSettingsPath}\" " +
+                "--nozzle-diameter 0.4 --filament-type \"PETG\" " +
                 $"--export-3mf \"{result.OutputPath}\" \"/tmp/model.3mf\"");
 
-            File.Exists(machineSettingsPath).Should().BeTrue();
-            using (var doc = JsonDocument.Parse(File.ReadAllText(machineSettingsPath)))
-            {
-                doc.RootElement.GetProperty("nozzle_diameter")[0].GetString().Should().Be("0.4");
-            }
+            File.ReadAllText(machineSettingsPath).Should().Be(ResolvedProfiles.MachineSettingsJson);
+            File.ReadAllText(processSettingsPath).Should().Be(ResolvedProfiles.ProcessSettingsJson);
+            File.ReadAllText(filamentSettingsPath).Should().Be(ResolvedProfiles.FilamentSettingsJson);
+        }
+        finally
+        {
+            workDirectory.Delete(recursive: true);
+        }
+    }
 
-            File.Exists(filamentSettingsPath).Should().BeTrue();
-            using (var doc = JsonDocument.Parse(File.ReadAllText(filamentSettingsPath)))
-            {
-                doc.RootElement.GetProperty("filament_type")[0].GetString().Should().Be("PETG");
-            }
+    [Fact]
+    public void PrusaSliceFamilyInvocation_BuildInvocation_NullResolvedProfiles_ThrowsSlicingFailedException()
+    {
+        var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");
+        try
+        {
+            var invocation = new PrusaSliceFamilyInvocation();
+
+            var act = () => invocation.BuildInvocation(Orca, "/tmp/model.3mf", "PETG", 0.4m, workDirectory.FullName, null);
+
+            act.Should().Throw<SlicingFailedException>();
         }
         finally
         {
@@ -74,11 +91,22 @@ public class SlicerInvocationTests
     {
         var invocation = new SuperSlicerInvocation();
 
-        var result = invocation.BuildInvocation(SuperSlicerBinary, "/tmp/model.3mf", "Generic PLA", 0.4m, "/tmp");
+        var result = invocation.BuildInvocation(SuperSlicerBinary, "/tmp/model.3mf", "Generic PLA", 0.4m, "/tmp", resolvedProfiles: null);
 
         result.FileName.Should().Be(SuperSlicerBinary.ExecutablePath);
         result.ProducesGCodeBearingThreeMf.Should().BeFalse();
         result.OutputPath.Should().Be(Path.Combine("/tmp", "output.gcode"));
+        result.Arguments.Should().Be(
+            "--slice --filament-type \"Generic PLA\" --nozzle-diameter 0.4 --export-gcode \"/tmp/output.gcode\" \"/tmp/model.3mf\"");
+    }
+
+    [Fact]
+    public void SuperSlicerInvocation_BuildInvocation_IgnoresANonNullResolvedProfiles()
+    {
+        var invocation = new SuperSlicerInvocation();
+
+        var result = invocation.BuildInvocation(SuperSlicerBinary, "/tmp/model.3mf", "Generic PLA", 0.4m, "/tmp", ResolvedProfiles);
+
         result.Arguments.Should().Be(
             "--slice --filament-type \"Generic PLA\" --nozzle-diameter 0.4 --export-gcode \"/tmp/output.gcode\" \"/tmp/model.3mf\"");
     }

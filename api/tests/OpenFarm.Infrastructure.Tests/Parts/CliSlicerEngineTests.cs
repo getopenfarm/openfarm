@@ -1,8 +1,12 @@
 using System.IO.Compression;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
+using OpenFarm.Application.Organizations;
 using OpenFarm.Application.Parts;
+using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Parts;
 using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 
@@ -99,7 +103,97 @@ public class CliSlicerEngineTests
         catalog,
         new FakeHostPlatformProvider(SlicerPlatform.Linux),
         [new PrusaSliceFamilyInvocation(), new SuperSlicerInvocation()],
+        CreateProfileSelection(),
         Options.Create(new SlicerOptions()));
+
+    // A fully configured (machine, process, filament) triple for "Generic PLA" — these tests only
+    // exercise failure paths that occur before or after profile resolution, so resolution itself
+    // must succeed rather than mask the behavior under test with an unrelated unconfigured error.
+    private static ResolveSlicingProfileSelection CreateProfileSelection()
+    {
+        var organization = Organization.Create("Test Org");
+        var machine = MachineProfile.Create(organization.Id, "Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        var process = ProcessProfile.Create(organization.Id, "Test Process", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        var filament = FilamentProfile.Create(organization.Id, "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        machine.SetDefaultProcessProfile(process.Id);
+        organization.SetDefaultMachineProfile(machine.Id);
+        var filamentDefault = OrganizationFilamentDefault.Create(organization.Id, "Generic PLA", filament.Id);
+
+        return new ResolveSlicingProfileSelection(
+            new FakeOrganizationRepository(organization),
+            new FakeMachineProfileRepository(machine),
+            new FakeProcessProfileRepository(process),
+            new FakeFilamentProfileRepository(filament),
+            new FakeOrganizationFilamentDefaultRepository(filamentDefault));
+    }
+
+    private sealed class FakeOrganizationRepository(Organization organization) : IOrganizationRepository
+    {
+        public Task<Organization> GetAsync(CancellationToken cancellationToken) => Task.FromResult(organization);
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeMachineProfileRepository(params MachineProfile[] rows) : IMachineProfileRepository
+    {
+        public Task AddAsync(MachineProfile profile, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<MachineProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.Id == id));
+
+        public Task<IReadOnlyList<MachineProfile>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<MachineProfile>>(rows);
+
+        public Task<IReadOnlyList<MachineProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<MachineProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeProcessProfileRepository(params ProcessProfile[] rows) : IProcessProfileRepository
+    {
+        public Task AddAsync(ProcessProfile profile, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<ProcessProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.Id == id));
+
+        public Task<IReadOnlyList<ProcessProfile>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProcessProfile>>(rows);
+
+        public Task<IReadOnlyList<ProcessProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProcessProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeFilamentProfileRepository(params FilamentProfile[] rows) : IFilamentProfileRepository
+    {
+        public Task AddAsync(FilamentProfile profile, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<FilamentProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.Id == id));
+
+        public Task<IReadOnlyList<FilamentProfile>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FilamentProfile>>(rows);
+
+        public Task<IReadOnlyList<FilamentProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FilamentProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeOrganizationFilamentDefaultRepository(params OrganizationFilamentDefault[] rows) : IOrganizationFilamentDefaultRepository
+    {
+        public Task AddAsync(OrganizationFilamentDefault entry, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<OrganizationFilamentDefault?> FindByMaterialTypeAsync(string materialType, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(d => d.MaterialType == materialType));
+
+        public Task<IReadOnlyList<OrganizationFilamentDefault>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OrganizationFilamentDefault>>(rows);
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
     private sealed class FakeAvailableSlicerCatalog(params AvailableSlicer[] available) : IAvailableSlicerCatalog
     {

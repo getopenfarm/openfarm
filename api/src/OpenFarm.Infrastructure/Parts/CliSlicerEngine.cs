@@ -21,6 +21,7 @@ public sealed class CliSlicerEngine(
     IAvailableSlicerCatalog catalog,
     IHostPlatformProvider hostPlatform,
     IEnumerable<ISlicerInvocation> invocationStrategies,
+    ResolveSlicingProfileSelection profileSelection,
     IOptions<SlicerOptions> options) : ISlicerEngine
 {
     public async Task<SlicingResult> SliceAsync(
@@ -30,15 +31,17 @@ public sealed class CliSlicerEngine(
         {
             return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, cancellationToken);
         }
-        catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException && ex is not SlicerUnavailableException)
+        catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException
+            && ex is not SlicerUnavailableException && ex is not SlicingProfileUnconfiguredException)
         {
             // Closes the rest of the exception surface the Process.Start-specific catch below
             // doesn't cover — temp-dir/file I/O errors or unparseable output must surface as
             // SlicingFailedException too, or it escapes RunEstimateContinuationAsync's catch and
             // leaves the job/part silently stuck in "Resolving" forever (research.md §4).
-            // Genuine caller-requested cancellation, and an availability mismatch (which should have
-            // already been caught upstream by ResolveSlicerSelection), are deliberately left
-            // unconverted so they're still recognizable as what they are.
+            // Genuine caller-requested cancellation, an availability mismatch (which should have
+            // already been caught upstream by ResolveSlicerSelection), and an unconfigured slicing
+            // profile (ResolveSlicingProfileSelection) are deliberately left unconverted so they're
+            // still recognizable as what they are, each with its own distinct ProblemDetails title.
             throw new SlicingFailedException($"Slicing failed: {ex.Message}", ex);
         }
     }
@@ -62,7 +65,14 @@ public sealed class CliSlicerEngine(
                 await modelFileStream.CopyToAsync(inputFile, cancellationToken);
             }
 
-            var processInvocation = invocationStrategy.BuildInvocation(available, inputPath, materialType, nozzleDiameterMm, workDirectory.FullName);
+            // Only OrcaSlicer/Bambu Studio need real, complete presets (PrusaSliceFamilyInvocation) —
+            // SuperSlicer builds plain scalar flags and never looks at this.
+            var resolvedProfiles = slicer.Engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
+                ? await profileSelection.ResolveAsync(materialType, cancellationToken)
+                : null;
+
+            var processInvocation = invocationStrategy.BuildInvocation(
+                available, inputPath, materialType, nozzleDiameterMm, workDirectory.FullName, resolvedProfiles);
 
             var startInfo = new ProcessStartInfo(processInvocation.FileName, processInvocation.Arguments)
             {

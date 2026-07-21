@@ -28,11 +28,15 @@ public interface ISlicerInvocation
     /// directory <c>CliSlicerEngine</c> creates and deletes — a strategy that needs to write its own
     /// settings files (rather than pass raw values as flags) writes them there, and reports its own
     /// chosen output file name back via <see cref="SlicerProcessInvocation.OutputPath"/>.
+    /// <paramref name="resolvedProfiles"/> carries the real, flattened preset JSON a strategy that
+    /// needs complete presets (OrcaSlicer/Bambu Studio) requires — <c>null</c> for strategies that
+    /// build plain scalar flags instead (SuperSlicer), which ignore it entirely.
     /// </summary>
     SlicerProcessInvocation BuildInvocation(
         AvailableSlicer slicer,
         string modelFilePath,
         string materialType,
         decimal nozzleDiameterMm,
-        string workDirectoryPath);
+        string workDirectoryPath,
+        ResolvedSlicingProfiles? resolvedProfiles);
 }
