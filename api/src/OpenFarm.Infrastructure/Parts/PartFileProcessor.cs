@@ -55,10 +55,11 @@ public sealed class PartFileProcessor(
     public async Task<PartEstimateResolution> ResolveEstimateAsync(PartProcessingJob job, Stream fileStream, CancellationToken cancellationToken)
     {
         var engine = job.SlicerEngineUsed ?? throw new SlicingFailedException("No slicer engine was resolved for this job.");
+        var version = job.SlicerVersionUsed ?? throw new SlicingFailedException("No slicer version was resolved for this job.");
         var materialType = job.TargetMaterialType ?? throw new SlicingFailedException("No target material was resolved for this job.");
         var nozzleDiameterMm = job.TargetNozzleDiameterMm ?? throw new SlicingFailedException("No target nozzle diameter was resolved for this job.");
 
-        var result = await slicerEngine.SliceAsync(engine, fileStream, materialType, nozzleDiameterMm, cancellationToken);
+        var result = await slicerEngine.SliceAsync(new SlicerRef(engine, version), fileStream, materialType, nozzleDiameterMm, cancellationToken);
         return new PartEstimateResolution(result.EstimatedPrintTimeMinutes, result.EstimatedFilamentWeightGrams, result.Thumbnails);
     }
 }

@@ -134,13 +134,27 @@ export interface UnloadSpoolRequest {
   action?: string;
 }
 
+export interface EffectiveSlicerDefaultResponse {
+  engine?: string;
+  version?: string;
+  isExplicit?: boolean;
+}
+
+export interface AvailableSlicerResponse {
+  engine?: string;
+  version?: string;
+  platform?: string;
+}
+
 export interface SlicingDefaultsResponse {
   id?: string;
-  defaultSlicerEngine?: string;
+  default?: EffectiveSlicerDefaultResponse | null;
+  available?: AvailableSlicerResponse[];
 }
 
 export interface UpdateSlicingDefaultsRequest {
-  defaultSlicerEngine?: string;
+  engine?: string;
+  version?: string;
 }
 
 export interface CreatedProfileItem {
@@ -505,10 +519,17 @@ export interface CreatePartRequest {
   file?: Blob;
   /** @nullable */
   slicerEngine?: string | null;
+  /** @nullable */
+  slicerVersion?: string | null;
 }
 
 export interface DeletePartRequest {
   [key: string]: unknown;
+}
+
+export interface SlicerResponse {
+  engine?: string;
+  version?: string;
 }
 
 export interface PartFilamentRequirementResponse {
@@ -545,6 +566,7 @@ export interface PartResponse {
   estimatedPrintTimeMinutes?: number | null;
   /** @nullable */
   estimatedFilamentWeightGrams?: number | null;
+  slicer?: SlicerResponse | null;
   filamentRequirements?: PartFilamentRequirementResponse[];
   plateCount?: number;
   thumbnails?: ThumbnailResponse[];
@@ -581,6 +603,8 @@ export interface ReplacePartFileRequest {
   file?: Blob;
   /** @nullable */
   slicerEngine?: string | null;
+  /** @nullable */
+  slicerVersion?: string | null;
 }
 
 export interface PartTagsResponse {
@@ -642,6 +666,7 @@ export interface PartProcessingJobResponse {
   status?: string;
   /** @nullable */
   partId?: string | null;
+  slicer?: SlicerResponse | null;
   preview?: PartProcessingJobPreviewResponse | null;
   /** @nullable */
   errorMessage?: string | null;

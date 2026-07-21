@@ -4,4 +4,5 @@ public enum SlicerEngine
 {
     OrcaSlicer,
     BambuStudio,
+    SuperSlicer,
 }

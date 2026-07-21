@@ -54,6 +54,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             UnsupportedPartFileFormatException => (StatusCodes.Status400BadRequest, "Unrecognized part file format"),
             PartFileParsingFailedException => (StatusCodes.Status422UnprocessableEntity, "Could not parse the file's metadata"),
             SlicingFailedException => (StatusCodes.Status422UnprocessableEntity, "Slicing failed"),
+            SlicerUnavailableException => (StatusCodes.Status422UnprocessableEntity, "Slicer unavailable"),
             NoNozzleDiameterAvailableException => (StatusCodes.Status422UnprocessableEntity, "No printer with a known nozzle diameter is registered"),
             UnslicedProjectMaterialParsingFailedException => (StatusCodes.Status422UnprocessableEntity, "Could not parse the project's filament assignment"),
             InvalidConfirmPartProcessingJobRequestException => (StatusCodes.Status400BadRequest, "Invalid confirm request"),

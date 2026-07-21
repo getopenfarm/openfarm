@@ -22,6 +22,14 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type {
   PartProcessingJobResponse,
   PartProcessingJobSubmittedResponse,
@@ -38,10 +46,23 @@ import {
   useOpenFarmApiEndpointsPartsCreatePartEndpoint,
   useOpenFarmApiEndpointsPartsReplacePartFileEndpoint,
 } from '@/lib/api/generated/parts/parts';
+import { useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint } from '@/lib/api/generated/settings/settings';
 import { cn } from '@/lib/utils';
 import { PartProcessingReviewSection } from './PartProcessingReviewSection';
 
 const ACCEPTED_EXTENSIONS = '.stl,.3mf,.gcode,.gco,.g';
+
+// Whether a file requires slicing is only known server-side, after classification (an STL always
+// does, a 3MF only if it's not already sliced, a G-code export never does) — so the picker below
+// is shown before a file is even chosen (the dialog fires Create/Replace immediately on selection,
+// research.md §11) rather than gated on file type. The backend ignores both fields for a file that
+// turns out not to require slicing either way (contracts/slicer-management-api.md), so offering the
+// choice a moment early is harmless.
+const USE_DEFAULT_SLICER = '__use-organization-default__';
+
+function slicerSelectionKey(slicer: { engine?: string; version?: string }) {
+  return `${slicer.engine}::${slicer.version}`;
+}
 
 /** Backend errors surface as RFC 7807 ProblemDetails on the raw fetch Response httpClient
  * throws (CLAUDE.md: "Errors surface uniformly as RFC 7807 ProblemDetails") — extracts the
@@ -100,8 +121,14 @@ export function AddOrReplacePartDialog({
   const [jobId, setJobId] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<number, string | null>>({});
   const [isDragging, setIsDragging] = useState(false);
+  const [slicerSelection, setSlicerSelection] = useState(USE_DEFAULT_SLICER);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+
+  const slicingDefaultsQuery =
+    useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint();
+  const availableSlicers = slicingDefaultsQuery.data?.data?.available ?? [];
+  const effectiveDefault = slicingDefaultsQuery.data?.data?.default;
 
   const form = useForm<AddFormValues>({
     resolver: zodResolver(addSchema),
@@ -178,6 +205,7 @@ export function AddOrReplacePartDialog({
     setFile(null);
     setJobId(null);
     setOverrides({});
+    setSlicerSelection(USE_DEFAULT_SLICER);
     form.reset({ name: '', tags: '' });
   }
 
@@ -185,10 +213,21 @@ export function AddOrReplacePartDialog({
     setFile(selectedFile);
     setJobId(null);
     setOverrides({});
+
+    const [slicerEngine, slicerVersion] =
+      slicerSelection === USE_DEFAULT_SLICER
+        ? [undefined, undefined]
+        : slicerSelection.split('::');
+
     if (mode === 'add') {
-      createMutation.mutate({ data: { file: selectedFile } });
+      createMutation.mutate({
+        data: { file: selectedFile, slicerEngine, slicerVersion },
+      });
     } else if (partId) {
-      replaceMutation.mutate({ id: partId, data: { file: selectedFile } });
+      replaceMutation.mutate({
+        id: partId,
+        data: { file: selectedFile, slicerEngine, slicerVersion },
+      });
     }
   }
 
@@ -332,40 +371,75 @@ export function AddOrReplacePartDialog({
       >
         <div className="flex flex-col gap-4">
           {!file ? (
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                aria-label="Choose a part file, or drag and drop it here"
-                onClick={openFileDialog}
-                onDragOver={handleDragOver}
-                onDragEnter={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={cn(
-                  'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
-                  isDragging
-                    ? 'border-primary bg-primary/5'
-                    : 'border-input hover:border-primary/50',
-                )}
-              >
-                <Upload className="size-6 text-muted-foreground" />
-                <p className="text-sm">
-                  <span className="font-medium text-primary">
-                    Click to browse
-                  </span>{' '}
-                  or drag and drop a file
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  STL, 3MF, or G-code
-                </p>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={ACCEPTED_EXTENSIONS}
-                onChange={handleFileChange}
-                className="hidden"
-              />
+            <div className="flex flex-col gap-4">
+              {availableSlicers.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="part-slicer-override">Slicer</Label>
+                  <Select
+                    value={slicerSelection}
+                    onValueChange={setSlicerSelection}
+                  >
+                    <SelectTrigger id="part-slicer-override" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={USE_DEFAULT_SLICER}>
+                        Organization default
+                        {effectiveDefault
+                          ? ` (${effectiveDefault.engine} ${effectiveDefault.version})`
+                          : ''}
+                      </SelectItem>
+                      {availableSlicers.map((slicer) => (
+                        <SelectItem
+                          key={slicerSelectionKey(slicer)}
+                          value={slicerSelectionKey(slicer)}
+                        >
+                          {slicer.engine} {slicer.version}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-xs">
+                    Only used for files that need slicing (STL or an unsliced
+                    3MF) — ignored otherwise.
+                  </p>
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  aria-label="Choose a part file, or drag and drop it here"
+                  onClick={openFileDialog}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={cn(
+                    'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
+                    isDragging
+                      ? 'border-primary bg-primary/5'
+                      : 'border-input hover:border-primary/50',
+                  )}
+                >
+                  <Upload className="size-6 text-muted-foreground" />
+                  <p className="text-sm">
+                    <span className="font-medium text-primary">
+                      Click to browse
+                    </span>{' '}
+                    or drag and drop a file
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    STL, 3MF, or G-code
+                  </p>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_EXTENSIONS}
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
             </div>
           ) : (
             <>

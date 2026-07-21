@@ -30,6 +30,10 @@ public sealed class GetPartQueryHandler(
                 r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, variantUnresolved, profileUnresolved));
         }
 
+        var slicer = part.SlicerEngineOverride is { } engine && part.SlicerVersionUsed is { } version
+            ? new SlicerSelectionView(engine.ToString(), version)
+            : null;
+
         return new PartDetail(
             part.Id,
             part.Name,
@@ -41,6 +45,7 @@ public sealed class GetPartQueryHandler(
             part.EstimateStatus.ToString(),
             part.EstimatedPrintTimeMinutes,
             part.EstimatedFilamentWeightGrams,
+            slicer,
             requirements,
             part.PlateCount,
             part.Thumbnails.OrderBy(t => t.PlateIndex).Select(t => new ThumbnailView(t.PlateIndex, Convert.ToBase64String(t.Bytes))).ToList(),

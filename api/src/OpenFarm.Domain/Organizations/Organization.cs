@@ -11,6 +11,7 @@ public sealed class Organization
         Id = id;
         Name = name;
         DefaultSlicerEngine = SlicerEngine.OrcaSlicer;
+        DefaultSlicerVersion = null;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -18,8 +19,16 @@ public sealed class Organization
 
     public string Name { get; }
 
-    /// <summary>The only organization-level slicing setting this phase introduces (FR-007, research.md §10).</summary>
+    /// <summary>
+    /// The engine half of the optional default <see cref="SlicerRef"/> pair (FR-007, research.md
+    /// §5/§10). Meaningful only when <see cref="DefaultSlicerVersion"/> is also set — a
+    /// <c>null</c> version means no explicit default has ever been set, and the effective default
+    /// is computed at read time by <c>ResolveSlicerSelection</c> instead.
+    /// </summary>
     public SlicerEngine DefaultSlicerEngine { get; private set; }
+
+    /// <summary>The version half of the optional default pair; <c>null</c> ⇒ no explicit default set (data-model.md "Organization").</summary>
+    public string? DefaultSlicerVersion { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; }
 
@@ -33,5 +42,19 @@ public sealed class Organization
         return new Organization(WellKnownId, name, DateTimeOffset.UtcNow);
     }
 
-    public void SetDefaultSlicerEngine(SlicerEngine engine) => DefaultSlicerEngine = engine;
+    /// <summary>
+    /// Sets the explicit org default — the caller (<c>UpdateSlicingDefaultsCommandHandler</c>) MUST
+    /// have already validated <paramref name="slicer"/> against the bundle via
+    /// <c>ResolveSlicerSelection.EnsureAvailable</c> (FR-007); this method itself performs no
+    /// availability check.
+    /// </summary>
+    public void SetDefaultSlicer(SlicerRef slicer)
+    {
+        ArgumentNullException.ThrowIfNull(slicer);
+        DefaultSlicerEngine = slicer.Engine;
+        DefaultSlicerVersion = slicer.Version;
+    }
+
+    /// <summary>The explicit default as a <see cref="SlicerRef"/>, or <c>null</c> when none has ever been set.</summary>
+    public SlicerRef? DefaultSlicer => DefaultSlicerVersion is { } version ? new SlicerRef(DefaultSlicerEngine, version) : null;
 }

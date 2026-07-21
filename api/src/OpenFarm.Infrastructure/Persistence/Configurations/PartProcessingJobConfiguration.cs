@@ -27,6 +27,7 @@ public sealed class PartProcessingJobConfiguration : IEntityTypeConfiguration<Pa
 
         builder.Property(j => j.RequiresSlicing).IsRequired();
         builder.Property(j => j.SlicerEngineUsed).HasConversion<string>();
+        builder.Property(j => j.SlicerVersionUsed);
         builder.Property(j => j.TargetNozzleDiameterMm);
         builder.Property(j => j.TargetMaterialType);
 

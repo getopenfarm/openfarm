@@ -18,7 +18,8 @@ public sealed class ReplacePartFileCommandHandler(
     IMachineProfileRepository machineProfileRepository,
     IProfileBundleParser profileBundleParser,
     IOrganizationRepository organizationRepository,
-    ISlicerDefaultsProvider slicerDefaults) : ICommandHandler<ReplacePartFileCommand, AddPartResult>
+    ISlicerDefaultsProvider slicerDefaults,
+    ResolveSlicerSelection resolveSlicerSelection) : ICommandHandler<ReplacePartFileCommand, AddPartResult>
 {
     public async Task<AddPartResult> HandleAsync(ReplacePartFileCommand command, CancellationToken cancellationToken)
     {
@@ -32,7 +33,7 @@ public sealed class ReplacePartFileCommandHandler(
         }
 
         decimal? targetNozzleDiameterMm = null;
-        SlicerEngine? slicerEngineUsed = null;
+        SlicerRef? slicerUsed = null;
         string? targetMaterialType = null;
 
         if (classification.RequiresSlicing)
@@ -43,11 +44,11 @@ public sealed class ReplacePartFileCommandHandler(
                 ?? throw new NoNozzleDiameterAvailableException();
 
             var organization = await organizationRepository.GetAsync(cancellationToken);
-            slicerEngineUsed = command.SlicerEngineOverride ?? organization.DefaultSlicerEngine;
+            slicerUsed = resolveSlicerSelection.Resolve(command.SlicerEngineOverride, command.SlicerVersionOverride, organization.DefaultSlicer);
 
             if (classification.Format == PartFileFormat.Stl)
             {
-                targetMaterialType = slicerDefaults.GetGenericFallbackMaterialProfile(slicerEngineUsed.Value);
+                targetMaterialType = slicerDefaults.GetGenericFallbackMaterialProfile(slicerUsed.Engine);
             }
         }
 
@@ -59,7 +60,8 @@ public sealed class ReplacePartFileCommandHandler(
             storagePath: string.Empty,
             fileSizeBytes: 0,
             classification.RequiresSlicing,
-            slicerEngineUsed,
+            slicerUsed?.Engine,
+            slicerUsed?.Version,
             targetNozzleDiameterMm,
             targetMaterialType,
             command.RequestedByUserId);

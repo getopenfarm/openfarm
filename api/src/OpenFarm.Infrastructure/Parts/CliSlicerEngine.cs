@@ -6,38 +6,52 @@ using OpenFarm.Domain.Parts;
 namespace OpenFarm.Infrastructure.Parts;
 
 /// <summary>
-/// Invokes the configured headless OrcaSlicer/Bambu Studio CLI binary via
-/// <see cref="Process"/> against a temp working directory (research.md §4). The actual toolpath is
-/// never persisted (FR-005) — only the resulting estimate/thumbnail are read back, then the temp
-/// output is deleted. Developed against <see cref="FakeSlicerEngine"/> first; real-CLI argument
-/// shape validated manually against an actual OrcaSlicer install (infra/docker/api.Dockerfile), never
-/// a CI gate — see quickstart.md.
+/// Invokes the resolved <see cref="AvailableSlicer"/>'s headless CLI binary via <see cref="Process"/>
+/// against a temp working directory (research.md §4). Resolves the entry from
+/// <see cref="IAvailableSlicerCatalog"/> and delegates argument-building to the
+/// <see cref="ISlicerInvocation"/> strategy selected by engine — the orchestration itself (temp dir,
+/// process lifetime, timeout, failure → <see cref="SlicingFailedException"/>) is unchanged from the
+/// single-version Phase 4 implementation. The actual toolpath is never persisted (FR-005) — only the
+/// resulting estimate/thumbnail are read back, then the temp output is deleted. Developed against
+/// <see cref="FakeSlicerEngine"/> first; real-CLI argument shape validated manually against actual
+/// slicer installs (infra/docker/api.Dockerfile), never a CI gate — see quickstart.md.
 /// </summary>
-public sealed class CliSlicerEngine(IOptions<SlicerOptions> options) : ISlicerEngine
+public sealed class CliSlicerEngine(
+    IAvailableSlicerCatalog catalog,
+    IHostPlatformProvider hostPlatform,
+    IEnumerable<ISlicerInvocation> invocationStrategies,
+    IOptions<SlicerOptions> options) : ISlicerEngine
 {
     public async Task<SlicingResult> SliceAsync(
-        SlicerEngine engine, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
+        SlicerRef slicer, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
         try
         {
-            return await SliceCoreAsync(engine, modelFileStream, materialType, nozzleDiameterMm, cancellationToken);
+            return await SliceCoreAsync(slicer, modelFileStream, materialType, nozzleDiameterMm, cancellationToken);
         }
-        catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException && ex is not SlicerUnavailableException)
         {
             // Closes the rest of the exception surface the Process.Start-specific catch below
-            // doesn't cover — a misconfigured CLI path (e.g. BambuStudioCliPath unset),
-            // temp-dir/file I/O errors, or unparseable output must surface as
+            // doesn't cover — temp-dir/file I/O errors or unparseable output must surface as
             // SlicingFailedException too, or it escapes RunEstimateContinuationAsync's catch and
             // leaves the job/part silently stuck in "Resolving" forever (research.md §4).
-            // Genuine caller-requested cancellation is deliberately left unconverted so it's still
-            // recognizable as cancellation rather than a slicing failure.
+            // Genuine caller-requested cancellation, and an availability mismatch (which should have
+            // already been caught upstream by ResolveSlicerSelection), are deliberately left
+            // unconverted so they're still recognizable as what they are.
             throw new SlicingFailedException($"Slicing failed: {ex.Message}", ex);
         }
     }
 
     private async Task<SlicingResult> SliceCoreAsync(
-        SlicerEngine engine, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
+        SlicerRef slicer, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
+        var platform = hostPlatform.Current;
+        var available = catalog.Find(slicer, platform)
+            ?? throw new SlicerUnavailableException(slicer.Engine, slicer.Version, platform);
+
+        var invocationStrategy = invocationStrategies.FirstOrDefault(s => s.SupportsEngine(slicer.Engine))
+            ?? throw new SlicingFailedException($"No CLI invocation strategy is registered for {slicer.Engine}.");
+
         var workDirectory = Directory.CreateTempSubdirectory("openfarm-slice-");
         try
         {
@@ -48,13 +62,9 @@ public sealed class CliSlicerEngine(IOptions<SlicerOptions> options) : ISlicerEn
             }
 
             var outputPath = Path.Combine(workDirectory.FullName, "output.gcode");
-            var cliPath = options.Value.CliPathFor(engine);
+            var processInvocation = invocationStrategy.BuildInvocation(available, inputPath, materialType, nozzleDiameterMm, outputPath);
 
-            var arguments = $"--slice 0 --load-filaments \"{EscapeMaterial(materialType)}\" " +
-                $"--nozzle-diameter {nozzleDiameterMm.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
-                $"--export-gcode \"{outputPath}\" \"{inputPath}\"";
-
-            var startInfo = new ProcessStartInfo(cliPath, arguments)
+            var startInfo = new ProcessStartInfo(processInvocation.FileName, processInvocation.Arguments)
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -65,15 +75,15 @@ public sealed class CliSlicerEngine(IOptions<SlicerOptions> options) : ISlicerEn
             try
             {
                 process = Process.Start(startInfo)
-                    ?? throw new SlicingFailedException($"Could not start the {engine} CLI process.");
+                    ?? throw new SlicingFailedException($"Could not start the {slicer.Engine} CLI process.");
             }
             catch (Exception ex) when (ex is not SlicingFailedException)
             {
-                // Most commonly Win32Exception when the configured CLI path doesn't exist on this
+                // Most commonly Win32Exception when the bundled binary is missing/broken on this
                 // host — surfaced as SlicingFailedException so callers (RunEstimateContinuationAsync)
                 // mark the job/part failed instead of this escaping to the background service's
                 // generic catch, which only logs and leaves the job silently stuck (research.md §4).
-                throw new SlicingFailedException($"Could not start the {engine} CLI at '{cliPath}': {ex.Message}", ex);
+                throw new SlicingFailedException($"Could not start the {slicer.Engine} CLI at '{processInvocation.FileName}': {ex.Message}", ex);
             }
 
             using (process)
@@ -88,13 +98,13 @@ public sealed class CliSlicerEngine(IOptions<SlicerOptions> options) : ISlicerEn
                 catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
                 {
                     TryKill(process);
-                    throw new SlicingFailedException($"The {engine} CLI timed out after {options.Value.CliTimeout}.");
+                    throw new SlicingFailedException($"The {slicer.Engine} CLI timed out after {options.Value.CliTimeout}.");
                 }
 
                 if (process.ExitCode != 0 || !File.Exists(outputPath))
                 {
                     var stderr = await process.StandardError.ReadToEndAsync(CancellationToken.None);
-                    throw new SlicingFailedException($"The {engine} CLI exited with code {process.ExitCode}: {stderr}");
+                    throw new SlicingFailedException($"The {slicer.Engine} CLI exited with code {process.ExitCode}: {stderr}");
                 }
 
                 var gcode = await File.ReadAllTextAsync(outputPath, cancellationToken);
@@ -136,6 +146,4 @@ public sealed class CliSlicerEngine(IOptions<SlicerOptions> options) : ISlicerEn
             // Already exited between the timeout firing and this call.
         }
     }
-
-    private static string EscapeMaterial(string materialType) => materialType.Replace("\"", "\\\"");
 }

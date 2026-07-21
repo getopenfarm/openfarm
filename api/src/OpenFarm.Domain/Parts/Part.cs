@@ -22,6 +22,7 @@ public sealed class Part
         long fileSizeBytes,
         decimal nozzleDiameterMm,
         SlicerEngine? slicerEngineOverride,
+        string? slicerVersionUsed,
         EstimateStatus estimateStatus,
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
@@ -39,6 +40,7 @@ public sealed class Part
         FileUploadedAtUtc = createdAtUtc;
         NozzleDiameterMm = nozzleDiameterMm;
         SlicerEngineOverride = slicerEngineOverride;
+        SlicerVersionUsed = slicerVersionUsed;
         EstimateStatus = estimateStatus;
         EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
@@ -75,6 +77,9 @@ public sealed class Part
 
     public SlicerEngine? SlicerEngineOverride { get; private set; }
 
+    /// <summary>The exact upstream version actually produced with (FR-005) — <c>null</c> for a non-slicing file or a legacy pre-feature row.</summary>
+    public string? SlicerVersionUsed { get; private set; }
+
     public int PlateCount { get; private set; }
 
     public IReadOnlyList<PartFilamentRequirement> FilamentRequirements => _filamentRequirements;
@@ -97,6 +102,7 @@ public sealed class Part
         long fileSizeBytes,
         decimal nozzleDiameterMm,
         SlicerEngine? slicerEngineOverride,
+        string? slicerVersionUsed,
         EstimateStatus estimateStatus,
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
@@ -118,6 +124,7 @@ public sealed class Part
             fileSizeBytes,
             nozzleDiameterMm,
             slicerEngineOverride,
+            slicerVersionUsed,
             estimateStatus,
             estimatedPrintTimeMinutes,
             estimatedFilamentWeightGrams,
@@ -154,6 +161,7 @@ public sealed class Part
         long fileSizeBytes,
         decimal nozzleDiameterMm,
         SlicerEngine? slicerEngineOverride,
+        string? slicerVersionUsed,
         EstimateStatus estimateStatus,
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
@@ -171,6 +179,7 @@ public sealed class Part
         FileUploadedAtUtc = DateTimeOffset.UtcNow;
         NozzleDiameterMm = nozzleDiameterMm;
         SlicerEngineOverride = slicerEngineOverride;
+        SlicerVersionUsed = slicerVersionUsed;
         EstimateStatus = estimateStatus;
         EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;

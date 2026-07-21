@@ -20,5 +20,6 @@ public sealed record PartProcessingJobDetail(
     string Kind,
     string Status,
     Guid? PartId,
+    SlicerSelectionView? Slicer,
     PartProcessingJobPreviewDetail? Preview,
     string? ErrorMessage);

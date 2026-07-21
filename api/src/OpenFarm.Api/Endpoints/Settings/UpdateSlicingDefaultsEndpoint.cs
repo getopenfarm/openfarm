@@ -10,7 +10,9 @@ namespace OpenFarm.Api.Endpoints.Settings;
 
 public sealed class UpdateSlicingDefaultsRequest : IActivityLoggable
 {
-    public string DefaultSlicerEngine { get; set; } = string.Empty;
+    public string Engine { get; set; } = string.Empty;
+
+    public string Version { get; set; } = string.Empty;
 
     // No natural "Id" on this request/response pair — ActivityLogPostProcessor's default path
     // reflects for an "Id" property on Response first, so SlicingDefaultsResponse.Id below (the
@@ -24,13 +26,15 @@ public sealed class UpdateSlicingDefaultsRequestValidator : AbstractValidator<Up
 {
     public UpdateSlicingDefaultsRequestValidator()
     {
-        RuleFor(x => x.DefaultSlicerEngine)
+        RuleFor(x => x.Engine)
             .Must(v => Enum.TryParse<SlicerEngine>(v, ignoreCase: true, out _))
-            .WithMessage("DefaultSlicerEngine must be OrcaSlicer or BambuStudio.");
+            .WithMessage("Engine must be OrcaSlicer, BambuStudio, or SuperSlicer.");
+
+        RuleFor(x => x.Version).NotEmpty();
     }
 }
 
-// PUT /api/v1/settings/slicing-defaults (contracts/part-library-api.md).
+// PUT /api/v1/settings/slicing-defaults (contracts/slicer-management-api.md).
 [Permission("settings:slicing-defaults:update")]
 public sealed class UpdateSlicingDefaultsEndpoint(UpdateSlicingDefaultsHandler handler)
     : Endpoint<UpdateSlicingDefaultsRequest, SlicingDefaultsResponse>
@@ -43,9 +47,9 @@ public sealed class UpdateSlicingDefaultsEndpoint(UpdateSlicingDefaultsHandler h
 
     public override async Task HandleAsync(UpdateSlicingDefaultsRequest req, CancellationToken ct)
     {
-        var engine = Enum.Parse<SlicerEngine>(req.DefaultSlicerEngine, ignoreCase: true);
-        var result = await handler.HandleAsync(new UpdateSlicingDefaultsCommand(engine), ct);
+        var engine = Enum.Parse<SlicerEngine>(req.Engine, ignoreCase: true);
+        var result = await handler.HandleAsync(new UpdateSlicingDefaultsCommand(engine, req.Version), ct);
 
-        Response = new SlicingDefaultsResponse { DefaultSlicerEngine = result.DefaultSlicerEngine };
+        Response = SlicingDefaultsResponse.FromResult(result);
     }
 }

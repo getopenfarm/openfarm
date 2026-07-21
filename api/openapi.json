@@ -2546,7 +2546,48 @@
             "type": "string",
             "format": "guid"
           },
-          "defaultSlicerEngine": {
+          "default": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EffectiveSlicerDefaultResponse"
+              }
+            ]
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailableSlicerResponse"
+            }
+          }
+        }
+      },
+      "EffectiveSlicerDefaultResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "isExplicit": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AvailableSlicerResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "platform": {
             "type": "string"
           }
         }
@@ -2555,7 +2596,10 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "defaultSlicerEngine": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
             "type": "string"
           }
         }
@@ -3493,6 +3537,10 @@
           "slicerEngine": {
             "type": "string",
             "nullable": true
+          },
+          "slicerVersion": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -3540,6 +3588,14 @@
             "type": "number",
             "format": "decimal",
             "nullable": true
+          },
+          "slicer": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SlicerResponse"
+              }
+            ]
           },
           "filamentRequirements": {
             "type": "array",
@@ -3699,6 +3755,10 @@
           "slicerEngine": {
             "type": "string",
             "nullable": true
+          },
+          "slicerVersion": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -3790,6 +3850,14 @@
             "format": "guid",
             "nullable": true
           },
+          "slicer": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SlicerResponse"
+              }
+            ]
+          },
           "preview": {
             "nullable": true,
             "oneOf": [
@@ -3801,6 +3869,18 @@
           "errorMessage": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "SlicerResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
           }
         }
       },

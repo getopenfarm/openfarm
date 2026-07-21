@@ -31,6 +31,7 @@ public sealed class PartResponse
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
+    public SlicerResponse? Slicer { get; set; }
     public List<PartFilamentRequirementResponse> FilamentRequirements { get; set; } = [];
     public int PlateCount { get; set; }
     public List<ThumbnailResponse> Thumbnails { get; set; } = [];
@@ -48,6 +49,7 @@ public sealed class PartResponse
         EstimateStatus = detail.EstimateStatus,
         EstimatedPrintTimeMinutes = detail.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = detail.EstimatedFilamentWeightGrams,
+        Slicer = SlicerResponse.FromView(detail.Slicer),
         PlateCount = detail.PlateCount,
         FilamentRequirements = detail.FilamentRequirements.Select(r => new PartFilamentRequirementResponse
         {
@@ -81,6 +83,9 @@ public sealed class PartResponse
         EstimateStatus = part.EstimateStatus.ToString(),
         EstimatedPrintTimeMinutes = part.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = part.EstimatedFilamentWeightGrams,
+        Slicer = part.SlicerEngineOverride is { } engine && part.SlicerVersionUsed is { } version
+            ? new SlicerResponse { Engine = engine.ToString(), Version = version }
+            : null,
         PlateCount = part.PlateCount,
         FilamentRequirements = part.FilamentRequirements.Select(r => new PartFilamentRequirementResponse
         {

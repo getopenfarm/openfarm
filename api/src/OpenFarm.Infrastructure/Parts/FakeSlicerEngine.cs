@@ -1,6 +1,5 @@
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
-using SlicerEngineEnum = OpenFarm.Domain.Parts.SlicerEngine;
 
 namespace OpenFarm.Infrastructure.Parts;
 
@@ -21,7 +20,7 @@ public sealed class FakeSlicerEngine : ISlicerEngine
     ];
 
     public Task<SlicingResult> SliceAsync(
-        SlicerEngineEnum engine, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken) =>
+        SlicerRef slicer, Stream modelFileStream, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken) =>
         Task.FromResult(new SlicingResult(
             PlateCount: 1,
             EstimatedPrintTimeMinutes: 47,

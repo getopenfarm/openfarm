@@ -23,6 +23,7 @@ public sealed record PartDetail(
     string EstimateStatus,
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
+    SlicerSelectionView? Slicer,
     IReadOnlyList<PartFilamentRequirementDetail> FilamentRequirements,
     int PlateCount,
     IReadOnlyList<ThumbnailView> Thumbnails,

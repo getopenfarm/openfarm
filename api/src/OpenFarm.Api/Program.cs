@@ -37,6 +37,7 @@ using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Parts;
+using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Simulator;
@@ -271,6 +272,7 @@ builder.Services.AddScoped<RemoveFeedUnitHandlerType, RemoveFeedUnitCommandHandl
 
 builder.Services.Configure<PartFileStorageOptions>(builder.Configuration.GetSection(PartFileStorageOptions.SectionName));
 builder.Services.Configure<SlicerOptions>(builder.Configuration.GetSection(SlicerOptions.SectionName));
+builder.Services.Configure<SlicerBundleOptions>(builder.Configuration.GetSection(SlicerBundleOptions.SectionName));
 
 builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
 builder.Services.AddScoped<IPartRepository, PartRepository>();
@@ -281,6 +283,17 @@ builder.Services.AddScoped<IPartEventPublisher, FarmHubPartEventPublisher>();
 builder.Services.AddScoped<IPartFileClassifier, PartFileClassifier>();
 builder.Services.AddScoped<IAlreadySlicedFileMetadataParser, AlreadySlicedFileMetadataParser>();
 builder.Services.AddScoped<IUnslicedProjectMaterialResolver, UnslicedProjectMaterialResolver>();
+
+// Resolved once at process startup below (not lazily on first request, research.md §2) — the
+// eager-singleton registration avoids the race the spec calls out where a slice is requested while
+// the backend is still discovering.
+builder.Services.AddSingleton<IHostPlatformProvider, HostPlatform>();
+builder.Services.AddSingleton<BundledSlicerScanner>();
+builder.Services.AddSingleton<IAvailableSlicerCatalog, AvailableSlicerCatalog>();
+builder.Services.AddSingleton<ISlicerInvocation, PrusaSliceFamilyInvocation>();
+builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
+builder.Services.AddScoped<ResolveSlicerSelection>();
+
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
 builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();
 builder.Services.AddScoped<IPartFileProcessor, PartFileProcessor>();
@@ -376,6 +389,10 @@ using (var scope = app.Services.CreateScope())
     var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
     await seeder.SeedAsync();
 }
+
+// Forces the eager-singleton scan to run now, before the host starts accepting requests (research.md
+// §2) — a bare AddSingleton registration is otherwise only constructed lazily on first resolution.
+app.Services.GetRequiredService<IAvailableSlicerCatalog>();
 
 app.Run();
 
