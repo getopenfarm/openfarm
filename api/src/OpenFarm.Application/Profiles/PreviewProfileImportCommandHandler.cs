@@ -10,7 +10,8 @@ namespace OpenFarm.Application.Profiles;
 public sealed class PreviewProfileImportCommandHandler(
     IProfileBundleParser parser,
     IMachineProfileRepository machineProfileRepository,
-    IFilamentProfileRepository filamentProfileRepository)
+    IFilamentProfileRepository filamentProfileRepository,
+    IProcessProfileRepository processProfileRepository)
     : ICommandHandler<PreviewProfileImportCommand, PreviewProfileImportResult>
 {
     private const int MaxChainDepth = 32;
@@ -45,7 +46,19 @@ public sealed class PreviewProfileImportCommandHandler(
                 fields.MaxVolumetricSpeedMm3s, fields.FanPercent, fields.CompatiblePrinterNames));
         }
 
-        return new PreviewProfileImportResult(machineViews, filamentViews);
+        var processViews = new List<ParsedProcessPresetView>();
+        foreach (var preset in bundle.ProcessPresets)
+        {
+            var isDuplicate = (await processProfileRepository.FindByNameAsync(sourceFormat, preset.Name, cancellationToken)).Count > 0;
+            var (mergedJson, hasUnresolvedBase) = await ResolveProcessChainAsync(preset, bundle.ProcessPresets, sourceFormat, cancellationToken);
+            var fields = parser.ExtractProcessDisplayFields(mergedJson, sourceFormat);
+
+            processViews.Add(new ParsedProcessPresetView(
+                preset.Name, sourceFormat, preset.BaseProfileName, hasUnresolvedBase, isDuplicate,
+                fields.LayerHeightMm, fields.WallLoops, fields.CompatiblePrinterNames));
+        }
+
+        return new PreviewProfileImportResult(machineViews, filamentViews, processViews);
     }
 
     // Name-matched chain walk (research.md §10's preview-side variant of §3's resolution order):
@@ -152,6 +165,63 @@ public sealed class PreviewProfileImportCommandHandler(
 
         ancestorsOldestFirst.Add(preset.RawDataJson);
         return (ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst), hasUnresolvedBase);
+    }
+
+    private async Task<(string MergedJson, bool HasUnresolvedBase)> ResolveProcessChainAsync(
+        ParsedProcessPreset preset, IReadOnlyList<ParsedProcessPreset> batch, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken)
+    {
+        var ancestorsOldestFirst = new List<string>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var hasUnresolvedBase = false;
+        var baseName = preset.BaseProfileName;
+        var depth = 0;
+
+        while (baseName is not null)
+        {
+            if (depth++ >= MaxChainDepth || !visited.Add(baseName))
+            {
+                hasUnresolvedBase = true;
+                break;
+            }
+
+            var batchMatches = batch.Where(p => p.Name == baseName).ToList();
+            if (batchMatches.Count == 1)
+            {
+                ancestorsOldestFirst.Insert(0, batchMatches[0].RawDataJson);
+                baseName = batchMatches[0].BaseProfileName;
+                continue;
+            }
+
+            if (batchMatches.Count > 1)
+            {
+                hasUnresolvedBase = true;
+                break;
+            }
+
+            var catalogMatches = await processProfileRepository.FindByNameAsync(sourceFormat, baseName, cancellationToken);
+            if (catalogMatches.Count == 1)
+            {
+                var (rowAncestors, rowUnresolved) = await ProfileChainWalker.WalkByIdAsync(
+                    catalogMatches[0].Id, FetchProcessNode, cancellationToken);
+                ancestorsOldestFirst.InsertRange(0, rowAncestors);
+                hasUnresolvedBase = hasUnresolvedBase || rowUnresolved;
+            }
+            else
+            {
+                hasUnresolvedBase = true;
+            }
+
+            break;
+        }
+
+        ancestorsOldestFirst.Add(preset.RawDataJson);
+        return (ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst), hasUnresolvedBase);
+    }
+
+    private async Task<ProfileChainNode?> FetchProcessNode(Guid id, CancellationToken cancellationToken)
+    {
+        var row = await processProfileRepository.GetByIdAsync(id, cancellationToken);
+        return row is null ? null : new ProfileChainNode(row.RawDataJson, row.BaseProfileId, row.BaseProfileName);
     }
 
     private async Task<ProfileChainNode?> FetchMachineNode(Guid id, CancellationToken cancellationToken)

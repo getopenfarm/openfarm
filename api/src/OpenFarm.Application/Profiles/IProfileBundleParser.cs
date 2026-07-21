@@ -23,11 +23,17 @@ public interface IProfileBundleParser
     // (research.md §11).
     FilamentProfileDisplayFields ExtractFilamentDisplayFields(
         string rawDataJson, ProfileSourceFormat sourceFormat, string name, bool hasBaseProfileName);
+
+    // Surfaced purely as a UI hint for the operator picking which ProcessProfile to pair to a
+    // MachineProfile — never used to auto-apply a pairing. Orca's own machine/process compatibility
+    // check has zero tolerance for a wrong guess, so only an explicit operator action sets the pairing.
+    ProcessProfileDisplayFields ExtractProcessDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat);
 }
 
 public sealed record ParsedProfileBundle(
     IReadOnlyList<ParsedMachinePreset> MachinePresets,
-    IReadOnlyList<ParsedFilamentPreset> FilamentPresets);
+    IReadOnlyList<ParsedFilamentPreset> FilamentPresets,
+    IReadOnlyList<ParsedProcessPreset> ProcessPresets);
 
 // The parser's own raw extraction of one preset — Name/SourceFormat/BaseProfileName are three of
 // the four real persisted columns a confirmed import would write; RawDataJson feeds both display-field
@@ -38,6 +44,9 @@ public sealed record ParsedMachinePreset(
     string Name, ProfileSourceFormat SourceFormat, string? BaseProfileName, string RawDataJson);
 
 public sealed record ParsedFilamentPreset(
+    string Name, ProfileSourceFormat SourceFormat, string? BaseProfileName, string RawDataJson);
+
+public sealed record ParsedProcessPreset(
     string Name, ProfileSourceFormat SourceFormat, string? BaseProfileName, string RawDataJson);
 
 public sealed record MachineProfileDisplayFields(
@@ -57,4 +66,9 @@ public sealed record FilamentProfileDisplayFields(
     double? BedTempC,
     double? MaxVolumetricSpeedMm3s,
     int? FanPercent,
+    IReadOnlyList<string> CompatiblePrinterNames);
+
+public sealed record ProcessProfileDisplayFields(
+    double? LayerHeightMm,
+    int? WallLoops,
     IReadOnlyList<string> CompatiblePrinterNames);

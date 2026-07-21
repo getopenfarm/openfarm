@@ -12,7 +12,8 @@ namespace OpenFarm.Application.Profiles;
 public sealed class ConfirmProfileImportCommandHandler(
     IProfileBundleParser parser,
     IMachineProfileRepository machineProfileRepository,
-    IFilamentProfileRepository filamentProfileRepository)
+    IFilamentProfileRepository filamentProfileRepository,
+    IProcessProfileRepository processProfileRepository)
     : ICommandHandler<ConfirmProfileImportCommand, ConfirmProfileImportResult>
 {
     public async Task<ConfirmProfileImportResult> HandleAsync(ConfirmProfileImportCommand command, CancellationToken cancellationToken)
@@ -64,6 +65,25 @@ public sealed class ConfirmProfileImportCommandHandler(
             IndexBatchName(filamentBatchIndex, match.Name, profile.Id);
         }
 
+        var processBatchIndex = new Dictionary<string, Guid?>(StringComparer.Ordinal);
+        var createdProcessProfiles = new List<ProcessProfile>();
+        foreach (var selection in command.Selections.Where(s => s.Type == ProfileType.Process))
+        {
+            if (selection.DuplicateAction == ProfileDuplicateAction.Skip)
+            {
+                continue;
+            }
+
+            var match = bundle.ProcessPresets.FirstOrDefault(p => p.Name == selection.Name)
+                ?? throw new ProfileSelectionMismatchException(nameof(ProfileType.Process), selection.Name);
+
+            var profile = ProcessProfile.Create(
+                Organization.WellKnownId, match.Name, sourceFormat, match.BaseProfileName, match.RawDataJson);
+            await processProfileRepository.AddAsync(profile, cancellationToken);
+            createdProcessProfiles.Add(profile);
+            IndexBatchName(processBatchIndex, match.Name, profile.Id);
+        }
+
         // Pass 2 — resolve. Every unresolved outcome (no match, or an ambiguous match from either
         // source) leaves BaseProfileId null while BaseProfileName stays stored verbatim — the same
         // "unresolved reference is a normal, expected outcome" behavior FR-005 already establishes.
@@ -113,9 +133,33 @@ public sealed class ConfirmProfileImportCommandHandler(
             await filamentProfileRepository.SaveChangesAsync(cancellationToken);
         }
 
+        var processNeedsSave = false;
+        foreach (var profile in createdProcessProfiles)
+        {
+            if (profile.BaseProfileName is null)
+            {
+                continue;
+            }
+
+            var resolvedId = await ResolveBaseIdAsync(
+                processBatchIndex, profile.BaseProfileName,
+                name => processProfileRepository.FindByNameAsync(sourceFormat, name, cancellationToken));
+            if (resolvedId is not null)
+            {
+                profile.ResolveBaseProfile(resolvedId.Value);
+                processNeedsSave = true;
+            }
+        }
+
+        if (processNeedsSave)
+        {
+            await processProfileRepository.SaveChangesAsync(cancellationToken);
+        }
+
         return new ConfirmProfileImportResult(
             createdMachineProfiles.Select(p => new CreatedProfileSummary(p.Id, p.Name, p.BaseProfileId)).ToList(),
-            createdFilamentProfiles.Select(p => new CreatedProfileSummary(p.Id, p.Name, p.BaseProfileId)).ToList());
+            createdFilamentProfiles.Select(p => new CreatedProfileSummary(p.Id, p.Name, p.BaseProfileId)).ToList(),
+            createdProcessProfiles.Select(p => new CreatedProfileSummary(p.Id, p.Name, p.BaseProfileId)).ToList());
     }
 
     private static void IndexBatchName(Dictionary<string, Guid?> index, string name, Guid id)
@@ -151,6 +195,7 @@ public sealed class ConfirmProfileImportCommandHandler(
         {
             MachineProfile machineProfile => machineProfile.Id,
             FilamentProfile filamentProfile => filamentProfile.Id,
+            ProcessProfile processProfile => processProfile.Id,
             _ => null,
         };
     }

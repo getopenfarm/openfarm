@@ -107,5 +107,8 @@ public class NozzleDiameterResolverTests
 
         public FilamentProfileDisplayFields ExtractFilamentDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat, string name, bool hasBaseProfileName) =>
             throw new NotSupportedException();
+
+        public ProcessProfileDisplayFields ExtractProcessDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat) =>
+            throw new NotSupportedException();
     }
 }
