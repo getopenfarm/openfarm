@@ -24,6 +24,8 @@ public class BundledSlicerScannerTests : IDisposable
         catch (IOException)
         {
         }
+
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

@@ -47,8 +47,5 @@ public sealed class EmptySlicerBundleWebApplicationFactory : WebApplicationFacto
         catch (IOException)
         {
         }
-        catch (DirectoryNotFoundException)
-        {
-        }
     }
 }

@@ -80,8 +80,5 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         catch (IOException)
         {
         }
-        catch (DirectoryNotFoundException)
-        {
-        }
     }
 }
