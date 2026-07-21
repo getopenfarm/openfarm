@@ -152,6 +152,50 @@ export interface SlicingDefaultsResponse {
   available?: AvailableSlicerResponse[];
 }
 
+export interface DefaultProcessProfileResponse {
+  id?: string;
+  name?: string;
+}
+
+export interface DefaultMachineProfileResponseItem {
+  id?: string;
+  name?: string;
+  defaultProcessProfile?: DefaultProcessProfileResponse | null;
+}
+
+export interface FilamentDefaultResponseItem {
+  materialType?: string;
+  filamentProfileId?: string;
+  filamentProfileName?: string;
+}
+
+export interface SlicingProfileDefaultsResponse {
+  defaultMachineProfile?: DefaultMachineProfileResponseItem | null;
+  filamentDefaults?: FilamentDefaultResponseItem[];
+}
+
+export interface DefaultMachineProfileResponse {
+  id?: string;
+  machineProfileId?: string;
+  machineProfileName?: string;
+  /** @nullable */
+  defaultProcessProfileId?: string | null;
+}
+
+export interface UpdateDefaultMachineProfileRequest {
+  machineProfileId?: string;
+}
+
+export interface OrganizationFilamentDefaultResponse {
+  id?: string;
+  materialType?: string;
+  filamentProfileId?: string;
+}
+
+export interface UpdateOrganizationFilamentDefaultRequest {
+  filamentProfileId?: string;
+}
+
 export interface UpdateSlicingDefaultsRequest {
   engine?: string;
   version?: string;
@@ -167,6 +211,7 @@ export interface CreatedProfileItem {
 export interface ConfirmProfileImportResponse {
   createdMachineProfiles?: CreatedProfileItem[];
   createdFilamentProfiles?: CreatedProfileItem[];
+  createdProcessProfiles?: CreatedProfileItem[];
 }
 
 export interface ConfirmProfileImportRequest {
@@ -226,6 +271,28 @@ export interface MachineProfileDetailResponse {
   /** @nullable */
   hasEnclosure?: boolean | null;
   supportedMaterials?: string[];
+  /** @nullable */
+  defaultProcessProfileId?: string | null;
+  /** @nullable */
+  defaultProcessProfileName?: string | null;
+}
+
+export interface ProcessProfileDetailResponse {
+  id?: string;
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileId?: string | null;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  rawDataJson?: string;
+  createdAtUtc?: string;
+  /** @nullable */
+  layerHeightMm?: number | null;
+  /** @nullable */
+  wallLoops?: number | null;
+  compatiblePrinterNames?: string[];
 }
 
 export interface FilamentProfileResponse {
@@ -286,6 +353,26 @@ export interface ListMachineProfilesResponse {
   profiles?: MachineProfileResponse[];
 }
 
+export interface ProcessProfileResponse {
+  id?: string;
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileId?: string | null;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  /** @nullable */
+  layerHeightMm?: number | null;
+  /** @nullable */
+  wallLoops?: number | null;
+  compatiblePrinterNames?: string[];
+}
+
+export interface ListProcessProfilesResponse {
+  profiles?: ProcessProfileResponse[];
+}
+
 export interface MachinePresetPreviewItem {
   name?: string;
   sourceFormat?: string;
@@ -332,14 +419,39 @@ export interface FilamentPresetPreviewItem {
   compatiblePrinterNames?: string[];
 }
 
+export interface ProcessPresetPreviewItem {
+  name?: string;
+  sourceFormat?: string;
+  /** @nullable */
+  baseProfileName?: string | null;
+  hasUnresolvedBaseInChain?: boolean;
+  isDuplicate?: boolean;
+  /** @nullable */
+  layerHeightMm?: number | null;
+  /** @nullable */
+  wallLoops?: number | null;
+  compatiblePrinterNames?: string[];
+}
+
 export interface PreviewProfileImportResponse {
   sourceFileName?: string;
   machinePresets?: MachinePresetPreviewItem[];
   filamentPresets?: FilamentPresetPreviewItem[];
+  processPresets?: ProcessPresetPreviewItem[];
 }
 
 export interface PreviewProfileImportRequest {
   file?: Blob;
+}
+
+export interface MachineProfileDefaultProcessResponse {
+  id?: string;
+  processProfileId?: string;
+}
+
+export interface SetMachineProfileDefaultProcessRequest {
+  machineProfileId?: string;
+  processProfileId?: string;
 }
 
 export interface UpdateFilamentProfileRawDataRequest {
