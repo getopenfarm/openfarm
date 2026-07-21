@@ -22,6 +22,12 @@ An operator running a print farm needs to (a) have one or more specific OrcaSlic
 
 This specification does not itself re-slice existing parts, redesign the Part Library UI, or change how estimates are parsed — it makes *slicer versions a bundled, selectable, recorded capability* so the Part Library becomes functional.
 
+## Clarifications
+
+### Session 2026-07-21
+
+- Q: Should users ever deal with slicer binaries, filesystem paths, or system PATH? → A: No. Users have no concept of a binary or its location. The backend scans the bundled slicer directory at deploy/startup, populates the set of available versions itself, and the only user-facing concept is a **version** the user picks from. No manual path entry exists anywhere in the product.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Register and use a specific OrcaSlicer version (Priority: P1)
@@ -93,8 +99,8 @@ As a developer (today) and as the release/packaging process (later), I declare t
 
 #### Version registry & selection
 
-- **FR-001**: The system MUST build a registry of available OrcaSlicer versions primarily by auto-discovering the versions bundled in the application's slicer directory (each with a version label, its target platform, and its executable location). It MAY additionally allow an administrator to register a version by supplying an explicit executable path, for installs that keep OrcaSlicer outside the bundle.
-- **FR-002**: The system MUST validate each registry entry — confirming the executable resolves and is runnable on the host platform, and capturing the version it self-reports — and MUST expose each entry's availability status (e.g. available / unavailable / unverified).
+- **FR-001**: The system MUST build the set of available OrcaSlicer versions entirely by the backend auto-scanning the application's bundled slicer directory at deploy/startup. There MUST be no user- or administrator-facing concept of a slicer binary, filesystem path, or system PATH anywhere in the product — the only user-facing concept is a **version**. Manual path entry MUST NOT exist.
+- **FR-002**: The backend MUST validate each discovered version — confirming its executable resolves and is runnable on the host platform, and capturing the version it self-reports — and MUST expose each version's availability status (e.g. available / unavailable) to users without surfacing any path detail.
 - **FR-003**: The system MUST allow an administrator to designate one available version as the organization default used when no explicit version is chosen. When only one version is available, it MUST be usable as the default without further configuration.
 - **FR-004**: The system MUST allow an operator to override, per part add/replace, which available version is used to slice that part, defaulting to the organization default when not specified (mirroring the existing per-part engine-override behavior).
 - **FR-005**: The system MUST record the specific slicer version actually used on both the part processing job and the resulting part, so the result is reproducible and auditable.
@@ -120,14 +126,14 @@ As a developer (today) and as the release/packaging process (later), I declare t
 
 #### Cross-cutting
 
-- **FR-019**: Setting the organization default version, and (if manual path entries are supported in addition to bundled discovery) editing/removing them, MUST be restricted to an appropriately privileged administrator, and each such change MUST be captured in the activity log.
-- **FR-020**: The system MUST NOT require any hard-coded single slicer path as the only way to slice; the single-path configuration, if retained at all, MUST be expressible as one entry in the version registry alongside bundled versions.
+- **FR-019**: Setting the organization default version MUST be restricted to an appropriately privileged administrator, and each such change MUST be captured in the activity log. No path/binary management surface exists to gate.
+- **FR-020**: The system MUST NOT require or expose any hard-coded slicer path; the set of usable versions comes exclusively from the backend's scan of the bundled slicer directory.
 - **FR-021**: Error and status messaging around slicer availability MUST be actionable for a self-hosting operator (which version, which platform, what to do next), consistent with the project's uniform error surface.
 - **FR-022**: Multi-version management MUST apply to OrcaSlicer for this feature. Bambu Studio remains a single-configured-path engine, but the version registry MUST be designed engine-generically so Bambu Studio can be brought under the same model later without a redesign. (Resolved decision — see Assumptions.)
 
 ### Key Entities *(include if data involved)*
 
-- **Slicer Version Registry Entry**: An available slicer version the app can slice with — its version label, the platform it targets, the reported/verified version, its executable location, and its availability status. Populated primarily by discovering bundled versions; one entry may be marked the organization default.
+- **Available Slicer Version**: A version the app can slice with, discovered by the backend scanning the bundled slicer directory — its version label, target platform, reported/verified version, and availability status. The executable location is a backend-internal detail, never surfaced to users. One version may be marked the organization default.
 - **Version Manifest**: The maintainer-authored JSON declaration of which OrcaSlicer versions (and platforms) to bundle; the input the dev/build-time provisioning script reconciles against what is already present in the bundle.
 - **Part Processing Job** (existing): Extended so the concrete slicer version used to slice is captured alongside the already-recorded engine.
 - **Part** (existing): Extended so the slicer version it was produced with is recorded and displayed for reproducibility/audit.
