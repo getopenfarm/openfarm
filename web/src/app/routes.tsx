@@ -9,8 +9,7 @@ import { FilamentFormPage } from '../features/filament/FilamentFormPage';
 import { FilamentPage } from '../features/filament/FilamentPage';
 import { JobsPage } from '../features/jobs/JobsPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
-import { PartAddPage } from '../features/parts/PartAddPage';
-import { PartEditPage } from '../features/parts/PartEditPage';
+import { PartDetailPage } from '../features/parts/PartDetailPage';
 import { PartsPage } from '../features/parts/PartsPage';
 import { PrinterDetailPage } from '../features/printers/PrinterDetailPage';
 import { PrintersPage } from '../features/printers/PrintersPage';
@@ -77,14 +76,9 @@ export const router = createBrowserRouter([
             children: [
               { index: true, element: <PartsPage /> },
               {
-                path: 'new',
-                element: <PartAddPage />,
-                handle: { title: 'Add Part' },
-              },
-              {
-                path: ':id/edit',
-                element: <PartEditPage />,
-                handle: { title: 'Edit Part' },
+                path: ':id',
+                element: <PartDetailPage />,
+                handle: { title: 'Part' },
               },
             ],
           },

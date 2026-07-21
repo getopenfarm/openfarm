@@ -118,7 +118,9 @@ export function PrintersPage() {
       ) : printers.length === 0 ? (
         <EmptyState
           icon={<PrinterIcon className="size-8 text-muted-foreground" />}
+          title="No printers yet"
           description="No printers registered yet. Add one to see its live status here."
+          action={<AddPrinterDialog />}
         />
       ) : (
         <div className="flex flex-col gap-4">

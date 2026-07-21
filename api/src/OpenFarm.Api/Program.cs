@@ -13,6 +13,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenFarm.Api.ExceptionHandling;
 using OpenFarm.Api.Hubs;
@@ -23,14 +25,18 @@ using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Application.Organizations;
+using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ConnectionSecrets;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.ActivityLog;
 using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
+using OpenFarm.Infrastructure.Parts;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Simulator;
@@ -59,6 +65,15 @@ using RecordSpoolUsageHandlerType = OpenFarm.Application.Common.ICommandHandler<
 using CorrectRemainingWeightHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CorrectRemainingWeightCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 using AddFeedUnitHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.AddFeedUnitCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>;
 using RemoveFeedUnitHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RemoveFeedUnitCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>;
+using AddPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.AddPartCommand, OpenFarm.Application.Parts.AddPartResult>;
+using ReplacePartFileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.ReplacePartFileCommand, OpenFarm.Application.Parts.AddPartResult>;
+using ConfirmPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.ConfirmPartProcessingJobCommand, OpenFarm.Domain.Parts.Part>;
+using DiscardPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DiscardPartProcessingJobCommand, bool>;
+using DeletePartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DeletePartCommand, bool>;
+using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.TagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
+using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
+using LinkPrinterMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.LinkPrinterMachineProfileCommand, OpenFarm.Domain.Printers.Printer>;
+using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -70,7 +85,17 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
 
-builder.Services.AddDbContext<OpenFarmDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<OpenFarmDbContext>(options => options
+    .UseNpgsql(connectionString)
+    // The Part Library migrations (AddPartsCatalog/AddPrinterMachineProfileLink/
+    // AddOrganizationSlicingDefaults) were authored without `dotnet ef` tooling (no .NET SDK access
+    // in the sandbox that wrote them — see those migrations' own header comments), so
+    // OpenFarmDbContextModelSnapshot.cs was never regenerated to match. The migrations' Up()/Down()
+    // methods are themselves accurate; this only suppresses EF's design-time-oriented "did you use
+    // `dotnet ef migrations add`" check, which is the mitigation EF Core's own warning message
+    // recommends. Regenerate the snapshot for real (`dotnet ef migrations add`, expect an empty
+    // diff) once SDK access is available, then this can be removed.
+    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
 builder.Services
     .AddHealthChecks()
@@ -193,7 +218,12 @@ builder.Services.AddScoped<IPrinterConnectorFactory, PrinterConnectorFactory>();
 builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();
 builder.Services.AddSingleton<PrinterConnectionBackgroundService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
-builder.Services.AddScoped<IPrinterConnectionManager>(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
+// Must be Singleton, not Scoped — same reasoning as IPartProcessingDispatcher's registration
+// below: a Scoped factory returning an already-singleton IDisposable gets that instance disposed
+// at the end of whichever HTTP request scope first resolves it, killing the shared connection
+// manager's worker loops for the rest of the process's lifetime. Dormant here only because no
+// exercised code path happens to resolve IPrinterConnectionManager from within a request scope yet.
+builder.Services.AddSingleton<IPrinterConnectionManager>(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
 
 builder.Services.AddScoped<RegisterPrinterHandlerType, RegisterPrinterCommandHandler>();
 builder.Services.AddScoped<EditPrinterHandlerType, EditPrinterCommandHandler>();
@@ -238,6 +268,52 @@ builder.Services.AddScoped<RecordSpoolUsageHandlerType, RecordSpoolUsageCommandH
 builder.Services.AddScoped<CorrectRemainingWeightHandlerType, CorrectRemainingWeightCommandHandler>();
 builder.Services.AddScoped<AddFeedUnitHandlerType, AddFeedUnitCommandHandler>();
 builder.Services.AddScoped<RemoveFeedUnitHandlerType, RemoveFeedUnitCommandHandler>();
+
+builder.Services.Configure<PartFileStorageOptions>(builder.Configuration.GetSection(PartFileStorageOptions.SectionName));
+builder.Services.Configure<SlicerOptions>(builder.Configuration.GetSection(SlicerOptions.SectionName));
+
+builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
+builder.Services.AddScoped<IPartRepository, PartRepository>();
+builder.Services.AddScoped<ITagRepository, TagRepository>();
+builder.Services.AddScoped<IPartProcessingJobRepository, PartProcessingJobRepository>();
+builder.Services.AddScoped<IPartFileStorage, LocalDiskPartFileStorage>();
+builder.Services.AddScoped<IPartEventPublisher, FarmHubPartEventPublisher>();
+builder.Services.AddScoped<IPartFileClassifier, PartFileClassifier>();
+builder.Services.AddScoped<IAlreadySlicedFileMetadataParser, AlreadySlicedFileMetadataParser>();
+builder.Services.AddScoped<IUnslicedProjectMaterialResolver, UnslicedProjectMaterialResolver>();
+builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
+builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();
+builder.Services.AddScoped<IPartFileProcessor, PartFileProcessor>();
+
+builder.Services.AddSingleton(sp => new PartProcessingBackgroundService(
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<ILogger<PartProcessingBackgroundService>>(),
+    sp.GetRequiredService<IOptions<SlicerOptions>>().Value.MaxConcurrentSlicingOperations));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
+// Must be Singleton, not Scoped: the factory returns an already-singleton BackgroundService
+// (IDisposable via its base class). A Scoped registration whose factory returns a disposable
+// instance gets that instance added to the CURRENT scope's own disposables list — meaning every
+// HTTP request that resolves IPartProcessingDispatcher (i.e. every part upload) would dispose the
+// shared PartProcessingBackgroundService singleton when that request's scope ends, cancelling its
+// stoppingToken and permanently killing every worker loop after the very first upload. Silent: no
+// exception, just every future job stuck "Processing" forever since nothing ever picks it up again.
+builder.Services.AddSingleton<IPartProcessingDispatcher>(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
+
+builder.Services.AddScoped<AddPartHandlerType, AddPartCommandHandler>();
+builder.Services.AddScoped<ReplacePartFileHandlerType, ReplacePartFileCommandHandler>();
+builder.Services.AddScoped<ConfirmPartProcessingJobHandlerType, ConfirmPartProcessingJobCommandHandler>();
+builder.Services.AddScoped<DiscardPartProcessingJobHandlerType, DiscardPartProcessingJobCommandHandler>();
+builder.Services.AddScoped<DeletePartHandlerType, DeletePartCommandHandler>();
+builder.Services.AddScoped<TagPartHandlerType, TagPartCommandHandler>();
+builder.Services.AddScoped<UntagPartHandlerType, UntagPartCommandHandler>();
+builder.Services.AddScoped<LinkPrinterMachineProfileHandlerType, LinkPrinterMachineProfileCommandHandler>();
+builder.Services.AddScoped<UpdateSlicingDefaultsHandlerType, UpdateSlicingDefaultsCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>, GetPartProcessingJobQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPartsQuery, PartsPage>, GetPartsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPartQuery, PartDetail?>, GetPartQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPartFileQuery, PartFileDownload?>, GetPartFileQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<ListTagsQuery, IReadOnlyList<TagSummary>>, ListTagsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>, GetSlicingDefaultsQueryHandler>();
 
 builder.Services.AddSignalR();
 

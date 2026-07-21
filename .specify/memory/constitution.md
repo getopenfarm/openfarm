@@ -1,28 +1,27 @@
 <!--
 Sync Impact Report
-- Version change: (unratified template) → 1.0.0
-- Rationale: Initial ratification. The constitution had never been filled in — every placeholder token
-  was still present. This is a MAJOR bump per template rule ("Initial adoption").
-- Modified principles: none (first-time fill, nothing renamed)
-- Added principles:
-  - I. Clean Architecture, Enforced by the Compiler and CI
-  - II. Test Discipline Where It Pays, Not Uniformly
-  - III. Consistent User Experience Across the Fleet
-  - IV. Build for Expansion, Not Speculation
-  - V. Performance and Real-Time Responsiveness by Construction
-- Added sections:
-  - Security & Multi-Tenancy Isolation
-  - Development Workflow & Quality Gates
+- Version change: 1.0.0 → 1.1.0
+- Rationale: MINOR bump. Principle V gains a new, materially-expanded guardrail block ("Durable
+  Recovery of In-Flight Background Work") distilled from a real production bug: a part upload stuck
+  showing "Estimating…" forever after a mid-processing host restart, because the background service's
+  in-memory work queue is never durable across restarts and nothing reconciled the orphaned row. No
+  existing principle was removed or redefined, so this is not a MAJOR bump.
+- Modified principles:
+  - V. Performance and Real-Time Responsiveness by Construction — appended the background-work
+    durability/reconciliation guardrail (net-new guidance, existing text unchanged)
+- Added principles: none
+- Added sections: none (the guardrail lives inside Principle V)
 - Removed sections: none
 - Templates requiring updates:
-  - .specify/templates/plan-template.md — ✅ no change needed (Constitution Check section is a generic
-    pointer, doesn't hardcode principle names)
-  - .specify/templates/spec-template.md — ✅ no change needed (no constitution-specific references)
-  - .specify/templates/tasks-template.md — ✅ no change needed (no constitution-specific references)
-  - .claude/skills/speckit-*/SKILL.md — ✅ no change needed (generic command files)
-  - CLAUDE.md — ⚠ pending drive-by fix (stale docs/DEV_PLAN_PHASE_1.md reference), applied separately
-    in the same session, not part of this file
+  - .specify/templates/plan-template.md — ✅ no change needed (generic Constitution Check pointer)
+  - .specify/templates/spec-template.md — ✅ no change needed
+  - .specify/templates/tasks-template.md — ✅ no change needed
 - Follow-up TODOs: none deferred; no placeholders left unfilled.
+
+Prior report (1.0.0, retained for history):
+- Version change: (unratified template) → 1.0.0 — Initial ratification (every placeholder was still
+  present; MAJOR bump per "Initial adoption"). Added principles I–V, the Security & Multi-Tenancy
+  Isolation and Development Workflow & Quality Gates sections; no principles renamed or removed.
 -->
 
 # OpenFarm Constitution
@@ -98,6 +97,42 @@ auto-reload detection) runs as `BackgroundService`s inside the API host, and MUS
 can be extracted into a standalone worker host before the API needs multiple replicas — without a
 rewrite when that extraction happens.
 
+### Durable Recovery of In-Flight Background Work
+
+This guardrail was ratified after a real defect: a part upload sat showing "Estimating…" forever
+because the host restarted (crash, `dotnet watch` reload, deploy) while its job was mid-processing. The
+work queue is an in-memory `System.Threading.Channels.Channel`, which is never durable across restarts —
+so the job's row stayed at a non-terminal status, the queue was empty on the next boot, and nothing
+ever picked it back up. The three rules below are what make that failure mode structurally
+impossible rather than a bug to be re-fixed per feature.
+
+- **Every persisted entity a `BackgroundService` moves through non-terminal states MUST have a
+  startup reconciliation pass.** Because the queue is in-memory, any row still in an in-flight status
+  at process start was orphaned by a previous lifetime — not genuinely in progress — so it MUST be
+  driven to a terminal state (Failed/Unavailable, mirroring the feature's normal failure path) once,
+  before workers begin consuming. The recovery model is the feature's existing one (no silent
+  auto-retry unless the feature already specifies retry); a user re-submitting is an acceptable
+  terminal outcome, a permanently-spinning UI is not.
+- **An operation that can leave an entity non-terminal MUST route EVERY failure to a terminal
+  transition, not only the anticipated ones.** Narrow `catch (SpecificException)` blocks around such
+  work are a trap: any unmodeled exception (missing CLI binary, unconfigured path, I/O error, parse
+  failure) escapes to a generic log-and-continue and strands the row. Catch every non-cancellation
+  exception around the whole operation and route it to the terminal transition — either mark the row
+  failed directly with the exception's message, or convert it to the feature's domain failure type
+  where a lower layer owns that mapping (e.g. `SliceAsync` wrapping arbitrary failures as
+  `SlicingFailedException`) — so the single terminal-transition path always runs.
+- **Genuine host-shutdown cancellation MUST be distinguished from a real per-item failure.** Swallow
+  `OperationCanceledException` only when the stopping token is actually cancelled (shutdown) — never
+  mislabel ordinary shutdown as an error, and never let it crash the host via the default
+  `BackgroundServiceExceptionBehavior.StopHost`. Cleanup of whatever shutdown left behind is owned by
+  the next startup's reconciliation pass, not the consume loop.
+
+Corollary — **enqueue MUST NOT silently drop work.** A bounded channel's `TryWrite` returns `false`
+when full regardless of `FullMode`; ignoring that return value strands a row exactly like a restart
+does. Enqueue paths MUST either surface the drop (so the caller fails the command / marks the row
+terminal) or block until capacity is available — never discard the item and leave the persisted row
+behind. Reconciliation is the safety net of last resort, not a licence to lose work between restarts.
+
 ## Security & Multi-Tenancy Isolation
 
 - Tenant isolation is enforced exclusively through Finbuckle's EF Core global query filter. Hand-rolled
@@ -144,4 +179,4 @@ checked against these principles during review. Any deliberate deviation MUST be
 description, mirroring the `Complexity Tracking` table already present in `plan-template.md` for
 feature-plan-level violations.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-12 | **Last Amended**: 2026-07-12
+**Version**: 1.1.0 | **Ratified**: 2026-07-12 | **Last Amended**: 2026-07-20

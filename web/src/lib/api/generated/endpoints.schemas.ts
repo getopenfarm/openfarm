@@ -17,6 +17,15 @@ export interface ListVendorsResponse {
   vendors?: VendorResponse[];
 }
 
+export interface TagResponse {
+  id?: string;
+  name?: string;
+}
+
+export interface ListTagsResponse {
+  tags?: TagResponse[];
+}
+
 export interface SpoolResponseLite {
   id?: string;
   state?: string;
@@ -123,6 +132,15 @@ export interface RegisterSpoolRequest {
 
 export interface UnloadSpoolRequest {
   action?: string;
+}
+
+export interface SlicingDefaultsResponse {
+  id?: string;
+  defaultSlicerEngine?: string;
+}
+
+export interface UpdateSlicingDefaultsRequest {
+  defaultSlicerEngine?: string;
 }
 
 export interface CreatedProfileItem {
@@ -397,6 +415,21 @@ export interface PrinterDetailResponse {
   isReachable?: boolean;
   telemetry?: PrinterDetailTelemetryResponse;
   amsUnits?: AmsUnitResponse[];
+  /** @nullable */
+  machineProfileId?: string | null;
+  /** @nullable */
+  machineProfileName?: string | null;
+}
+
+export interface LinkPrinterMachineProfileResponse {
+  printerId?: string;
+  /** @nullable */
+  machineProfileId?: string | null;
+}
+
+export interface LinkPrinterMachineProfileRequest {
+  /** @nullable */
+  machineProfileId?: string | null;
 }
 
 export interface FleetPrinterResponse {
@@ -461,6 +494,157 @@ export interface PingResponse {
   status?: string;
   version?: string;
   timestampUtc?: string;
+}
+
+export interface PartProcessingJobSubmittedResponse {
+  jobId?: string;
+  status?: string;
+}
+
+export interface CreatePartRequest {
+  file?: Blob;
+  /** @nullable */
+  slicerEngine?: string | null;
+}
+
+export interface DeletePartRequest {
+  [key: string]: unknown;
+}
+
+export interface PartFilamentRequirementResponse {
+  id?: string;
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  detectedColorHex?: string | null;
+  /** @nullable */
+  detectedSubBrand?: string | null;
+  /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentProfileId?: string | null;
+  narrowFilamentVariantUnresolved?: boolean;
+  narrowFilamentProfileUnresolved?: boolean;
+}
+
+export interface ThumbnailResponse {
+  plateIndex?: number;
+  thumbnailBase64?: string;
+}
+
+export interface PartResponse {
+  id?: string;
+  name?: string;
+  fileFormat?: string;
+  requiresSlicing?: boolean;
+  originalFileName?: string;
+  fileSizeBytes?: number;
+  nozzleDiameterMm?: number;
+  estimateStatus?: string;
+  /** @nullable */
+  estimatedPrintTimeMinutes?: number | null;
+  /** @nullable */
+  estimatedFilamentWeightGrams?: number | null;
+  filamentRequirements?: PartFilamentRequirementResponse[];
+  plateCount?: number;
+  thumbnails?: ThumbnailResponse[];
+  tags?: string[];
+}
+
+export interface PartSummaryResponse {
+  id?: string;
+  name?: string;
+  fileFormat?: string;
+  requiresSlicing?: boolean;
+  nozzleDiameterMm?: number;
+  estimateStatus?: string;
+  /** @nullable */
+  estimatedPrintTimeMinutes?: number | null;
+  /** @nullable */
+  estimatedFilamentWeightGrams?: number | null;
+  /** @nullable */
+  thumbnailBase64?: string | null;
+  materialTypes?: string[];
+  tags?: string[];
+}
+
+export interface ListPartsResponse {
+  parts?: PartSummaryResponse[];
+  totalCount?: number;
+}
+
+export interface ListPartsRequest {
+  [key: string]: unknown;
+}
+
+export interface ReplacePartFileRequest {
+  file?: Blob;
+  /** @nullable */
+  slicerEngine?: string | null;
+}
+
+export interface PartTagsResponse {
+  tags?: string[];
+}
+
+export interface TagPartRequest {
+  name?: string;
+}
+
+export interface FilamentRequirementOverrideRequest {
+  requirementIndex?: number;
+  /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentProfileId?: string | null;
+}
+
+export interface ConfirmPartProcessingJobRequest {
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  tags?: string[] | null;
+  /** @nullable */
+  filamentRequirementOverrides?: FilamentRequirementOverrideRequest[] | null;
+}
+
+export interface DiscardPartProcessingJobRequest {
+  [key: string]: unknown;
+}
+
+export interface PreviewFilamentRequirementResponse {
+  requirementIndex?: number;
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  detectedColorHex?: string | null;
+  /** @nullable */
+  detectedSubBrand?: string | null;
+}
+
+export interface PartProcessingJobPreviewResponse {
+  /** @nullable */
+  nozzleDiameterMm?: number | null;
+  filamentRequirements?: PreviewFilamentRequirementResponse[];
+  estimateStatus?: string;
+  /** @nullable */
+  estimatedPrintTimeMinutes?: number | null;
+  /** @nullable */
+  estimatedFilamentWeightGrams?: number | null;
+  /** @nullable */
+  plateCount?: number | null;
+  thumbnails?: ThumbnailResponse[];
+}
+
+export interface PartProcessingJobResponse {
+  id?: string;
+  kind?: string;
+  status?: string;
+  /** @nullable */
+  partId?: string | null;
+  preview?: PartProcessingJobPreviewResponse | null;
+  /** @nullable */
+  errorMessage?: string | null;
 }
 
 export interface FilamentVariantResponse {
@@ -636,6 +820,15 @@ export type OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams = {
    * @nullable
    */
   vendorId?: string | null;
+};
+
+export type OpenFarmApiEndpointsPartsListPartsEndpointParams = {
+  /**
+   * @nullable
+   */
+  tag?: string[] | null;
+  page: number;
+  pageSize: number;
 };
 
 export type OpenFarmApiEndpointsActivityLogGetActivityLogEndpointParams = {

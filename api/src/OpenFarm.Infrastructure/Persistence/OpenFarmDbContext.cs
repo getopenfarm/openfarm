@@ -7,6 +7,7 @@ using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Organizations;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Identity;
@@ -49,6 +50,18 @@ public sealed class OpenFarmDbContext(
     public DbSet<Spool> Spools => Set<Spool>();
 
     public DbSet<SpoolUsageRecord> SpoolUsageRecords => Set<SpoolUsageRecord>();
+
+    public DbSet<Part> Parts => Set<Part>();
+
+    public DbSet<PartFilamentRequirement> PartFilamentRequirements => Set<PartFilamentRequirement>();
+
+    public DbSet<PartThumbnail> PartThumbnails => Set<PartThumbnail>();
+
+    public DbSet<Tag> Tags => Set<Tag>();
+
+    public DbSet<PartProcessingJob> PartProcessingJobs => Set<PartProcessingJob>();
+
+    public DbSet<PartProcessingJobPreviewThumbnail> PartProcessingJobPreviewThumbnails => Set<PartProcessingJobPreviewThumbnail>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

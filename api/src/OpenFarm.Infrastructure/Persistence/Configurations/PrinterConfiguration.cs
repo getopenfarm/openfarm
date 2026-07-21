@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Infrastructure.Persistence.Configurations;
 
@@ -62,6 +63,8 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
                 tray => JsonSerializer.Serialize(tray, (JsonSerializerOptions?)null),
                 json => JsonSerializer.Deserialize<AmsTray?>(json, (JsonSerializerOptions?)null));
 
+        builder.Property(p => p.MachineProfileId);
+
         builder.Property(p => p.CreatedAtUtc)
             .IsRequired();
 
@@ -69,6 +72,14 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         // stay unique per organization.
         builder.HasIndex(p => new { p.OrganizationId, p.SerialNumber })
             .IsUnique();
+
+        // Enforced FK, unlike PartFilamentRequirement's narrow overrides — FR-005a's nozzle-diameter
+        // auto-detection is a farm-wide correctness computation with no per-part tolerance for a
+        // dangling reference (research.md §6, Part Library Phase).
+        builder.HasOne<MachineProfile>()
+            .WithMany()
+            .HasForeignKey(p => p.MachineProfileId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.IsMultiTenant();
     }

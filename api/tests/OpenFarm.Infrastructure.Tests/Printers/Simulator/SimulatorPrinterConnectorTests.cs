@@ -7,7 +7,13 @@ namespace OpenFarm.Infrastructure.Tests.Printers.Simulator;
 
 public class SimulatorPrinterConnectorTests
 {
-    private static readonly TimeSpan ShortCycleDuration = TimeSpan.FromMilliseconds(50);
+    // A 50ms cycle (10ms ticks) used to be tight enough that CI runner contention (thread-pool
+    // scheduling, GC pauses) could delay a single PeriodicTimer continuation past the entire
+    // cycle, so Advance() jumped straight from Idle to AwaitingClear within one tick and the
+    // RUNNING phase was never observed — same class of flake fixed in
+    // PrinterConnectionBackgroundServiceTests' telemetry coalescing test. Widened to a 2s cycle
+    // (200ms ticks) for comfortable margin while staying well under this file's 5s timeouts.
+    private static readonly TimeSpan ShortCycleDuration = TimeSpan.FromSeconds(2);
 
     [Fact]
     public async Task VerifyAsync_AnyAccessCodeExceptSentinel_ReturnsTrue()

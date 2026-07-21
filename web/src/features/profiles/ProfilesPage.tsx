@@ -1,7 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { SettingsIcon, SwatchBookIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type {
   FilamentProfileDetailResponse,
@@ -127,16 +130,38 @@ export function ProfilesPage() {
           <TabsTrigger value="filament">Filament</TabsTrigger>
         </TabsList>
         <TabsContent value="machine">
-          <MachineProfilesTable
-            profiles={machineProfiles}
-            onRowClick={(id) => setSelected({ type: 'Machine', id })}
-          />
+          {machineListQuery.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : machineProfiles.length === 0 ? (
+            <EmptyState
+              icon={<SettingsIcon className="size-8 text-muted-foreground" />}
+              title="No machine profiles yet"
+              description="Import a slicer bundle to populate this catalog."
+              action={<ImportProfilesDialog />}
+            />
+          ) : (
+            <MachineProfilesTable
+              profiles={machineProfiles}
+              onRowClick={(id) => setSelected({ type: 'Machine', id })}
+            />
+          )}
         </TabsContent>
         <TabsContent value="filament">
-          <FilamentProfilesTable
-            profiles={filamentProfiles}
-            onRowClick={(id) => setSelected({ type: 'Filament', id })}
-          />
+          {filamentListQuery.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : filamentProfiles.length === 0 ? (
+            <EmptyState
+              icon={<SwatchBookIcon className="size-8 text-muted-foreground" />}
+              title="No filament profiles yet"
+              description="Import a slicer bundle to populate this catalog."
+              action={<ImportProfilesDialog />}
+            />
+          ) : (
+            <FilamentProfilesTable
+              profiles={filamentProfiles}
+              onRowClick={(id) => setSelected({ type: 'Filament', id })}
+            />
+          )}
         </TabsContent>
       </Tabs>
       <ProfileRawDataDialog

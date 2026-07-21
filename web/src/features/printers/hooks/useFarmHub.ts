@@ -1,4 +1,3 @@
-import * as signalR from '@microsoft/signalr';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import type {
@@ -12,11 +11,8 @@ import {
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
 } from '@/lib/api/generated/printers/printers';
-import { getToken } from '@/lib/auth/tokenStorage';
+import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
 import { filamentColorFromAms } from '../lib/filamentColor';
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8888';
 
 interface PrinterStatusChangedPayload {
   printerId: string;
@@ -101,15 +97,10 @@ export function useFarmHub() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl(`${API_BASE_URL}/hubs/farm`, {
-        accessTokenFactory: () => getToken() ?? '',
-        // Auth is via the JWT bearer token above, not cookies — disabling credentialed
-        // requests avoids requiring Access-Control-Allow-Credentials on the CORS policy.
-        withCredentials: false,
-      })
-      .withAutomaticReconnect()
-      .build();
+    const { connection, stop } = connectFarmHub({
+      onConnected: () => invalidatePrinterQueries(queryClient),
+      onReconnected: () => invalidatePrinterQueries(queryClient),
+    });
 
     connection.on(
       'PrinterStatusChanged',
@@ -246,45 +237,8 @@ export function useFarmHub() {
       },
     );
 
-    connection.onreconnecting((error) => {
-      console.warn(
-        '[useFarmHub] SignalR connection lost, reconnecting…',
-        error,
-      );
-    });
-
-    connection.onreconnected(() => {
-      console.info(
-        '[useFarmHub] SignalR reconnected — refetching printer data to catch up on any updates missed while disconnected.',
-      );
-      invalidatePrinterQueries(queryClient);
-    });
-
-    connection.onclose((error) => {
-      console.warn(
-        '[useFarmHub] SignalR connection closed — no more live updates until this component remounts.',
-        error,
-      );
-    });
-
-    const startPromise = connection
-      .start()
-      .then(() => {
-        console.info('[useFarmHub] SignalR connected.');
-        invalidatePrinterQueries(queryClient);
-      })
-      .catch((error: unknown) => {
-        // withAutomaticReconnect() handles retries; a failed initial connect just means no
-        // live updates until connectivity returns.
-        console.warn('[useFarmHub] SignalR failed to connect.', error);
-      });
-
     return () => {
-      // Calling stop() while start() is still negotiating throws ("connection was stopped
-      // during negotiation") and logs a console error — happens on every mount under React
-      // StrictMode's dev-only double-invoke. Wait for start() to settle first so stop() always
-      // acts on a connection that's actually in a stoppable state.
-      startPromise.finally(() => connection.stop());
+      stop();
     };
   }, [queryClient]);
 }

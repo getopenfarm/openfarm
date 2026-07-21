@@ -67,11 +67,5 @@ interface TaskTemplatesTableProps {
 }
 
 export function TaskTemplatesTable({ templates }: TaskTemplatesTableProps) {
-  return (
-    <DataTable
-      columns={columns}
-      data={templates}
-      emptyState={<>No task templates configured yet.</>}
-    />
-  );
+  return <DataTable columns={columns} data={templates} />;
 }

@@ -19,6 +19,7 @@ import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
 import { EditPrinterDialog } from './components/EditPrinterDialog';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
+import { MachineProfileLinkCard } from './components/MachineProfileLinkCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { RecentActivityCard } from './components/RecentActivityCard';
 import { printerStatusToBadge } from './lib/printerStatusBadge';
@@ -129,6 +130,10 @@ export function PrinterDetailPage() {
             </div>
             <div className="flex flex-col gap-4">
               <AmsSlotGrid amsUnits={printer.amsUnits ?? []} />
+              <MachineProfileLinkCard
+                printerId={printer.id ?? ''}
+                machineProfileId={printer.machineProfileId}
+              />
               <FeedUnitsCard printerId={printer.id ?? ''} />
               <RecentActivityCard printerId={printer.id ?? ''} />
             </div>

@@ -1,3 +1,5 @@
+using OpenFarm.Domain.Parts;
+
 namespace OpenFarm.Domain.Organizations;
 
 public sealed class Organization
@@ -8,12 +10,16 @@ public sealed class Organization
     {
         Id = id;
         Name = name;
+        DefaultSlicerEngine = SlicerEngine.OrcaSlicer;
         CreatedAtUtc = createdAtUtc;
     }
 
     public Guid Id { get; }
 
     public string Name { get; }
+
+    /// <summary>The only organization-level slicing setting this phase introduces (FR-007, research.md §10).</summary>
+    public SlicerEngine DefaultSlicerEngine { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; }
 
@@ -26,4 +32,6 @@ public sealed class Organization
 
         return new Organization(WellKnownId, name, DateTimeOffset.UtcNow);
     }
+
+    public void SetDefaultSlicerEngine(SlicerEngine engine) => DefaultSlicerEngine = engine;
 }

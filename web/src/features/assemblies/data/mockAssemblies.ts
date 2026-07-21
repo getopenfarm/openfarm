@@ -3,7 +3,7 @@
 // store by name at module-eval time (the same cross-referencing pattern the
 // Parts/Filament features use); if a named part isn't found, fall back to
 // any available part rather than crashing.
-import { partsStore } from '@/features/parts/data/mockPartsStore';
+import { partsStore } from '@/features/assemblies/data/mockPartsStore';
 import type { Assembly } from './mockAssembliesStore';
 
 function findPart(name: string) {

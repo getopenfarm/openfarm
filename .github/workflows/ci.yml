@@ -97,6 +97,7 @@ jobs:
       - working-directory: web
         run: bun install --frozen-lockfile && bun audit
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Pinned to the last MIT-licensed release before v2.0.0 introduced a GITLEAKS_LICENSE
+        # requirement (org/user-detection call to gitleaks.io, which itself started failing here) —
+        # avoids depending on an external license server for a plain default-ruleset scan.
+        uses: gitleaks/gitleaks-action@v1.6.0

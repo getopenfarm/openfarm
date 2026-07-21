@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { partsStore } from '@/features/parts/data/mockPartsStore';
+import { partsStore } from '@/features/assemblies/data/mockPartsStore';
 import { AssembliesPage } from './AssembliesPage';
 import { assembliesStore } from './data/mockAssembliesStore';
 import { computeAssemblyTotals } from './lib/computeAssemblyTotals';

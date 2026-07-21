@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { partsStore } from '@/features/parts/data/mockPartsStore';
+import { partsStore } from '@/features/assemblies/data/mockPartsStore';
 import { formatMinutes } from '@/lib/formatMinutes';
 
 export interface PartPickerResult {

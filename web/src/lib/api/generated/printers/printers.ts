@@ -25,6 +25,8 @@ import type {
   AddFeedUnitRequest,
   AddFeedUnitResponse,
   EditPrinterRequest,
+  LinkPrinterMachineProfileRequest,
+  LinkPrinterMachineProfileResponse,
   ListFeedUnitsResponse,
   ListFleetResponse,
   PrinterCatalogResponse,
@@ -804,6 +806,159 @@ export function useOpenFarmApiEndpointsPrintersGetPrinterCatalogEndpoint<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export type openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse200 =
+  {
+    data: LinkPrinterMachineProfileResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponseSuccess =
+  openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse401
+    | openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse =
+  | openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponseSuccess
+  | openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointUrl =
+  (id: string) => {
+    return `/api/v1/printers/${id}/machine-profile`;
+  };
+
+export const openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint =
+  async (
+    id: string,
+    linkPrinterMachineProfileRequest: LinkPrinterMachineProfileRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointResponse>(
+      getOpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointUrl(id),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(linkPrinterMachineProfileRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: LinkPrinterMachineProfileRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: LinkPrinterMachineProfileRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint
+        >
+      >,
+      { id: string; data: LinkPrinterMachineProfileRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint(
+        id,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointMutationBody =
+  LinkPrinterMachineProfileRequest;
+export type OpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint =
+  <TError = void, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint
+          >
+        >,
+        TError,
+        { id: string; data: LinkPrinterMachineProfileRequest },
+        TContext
+      >;
+    },
+    queryClient?: QueryClient,
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: LinkPrinterMachineProfileRequest },
+    TContext
+  > => {
+    return useMutation(
+      getOpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpointMutationOptions(
+        options,
+      ),
+      queryClient,
+    );
+  };
 export type openFarmApiEndpointsPrintersListFleetEndpointResponse200 = {
   data: ListFleetResponse;
   status: 200;

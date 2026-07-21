@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { formatMinutes } from '@/lib/formatMinutes';
@@ -104,19 +105,24 @@ export function AssembliesPage() {
         }
       />
 
-      <DataTable
-        columns={columns}
-        data={assemblies}
-        onRowClick={(row) => navigate(`/assemblies/${row.id}/edit`)}
-        emptyState={
-          <div className="flex flex-col items-center gap-1 py-4">
-            <p className="text-sm font-medium">No assemblies yet</p>
-            <p className="text-sm text-muted-foreground">
-              Create one to group parts into a bill of materials.
-            </p>
-          </div>
-        }
-      />
+      {assemblies.length === 0 ? (
+        <EmptyState
+          icon={<Layers3Icon className="size-8 text-muted-foreground" />}
+          title="No assemblies yet"
+          description="Create one to group parts into a bill of materials."
+          action={
+            <Button onClick={() => navigate('/assemblies/new')}>
+              <PlusIcon /> New assembly
+            </Button>
+          }
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={assemblies}
+          onRowClick={(row) => navigate(`/assemblies/${row.id}/edit`)}
+        />
+      )}
     </div>
   );
 }

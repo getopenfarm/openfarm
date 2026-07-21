@@ -1,4 +1,7 @@
+import { Package2Icon } from 'lucide-react';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { ListSpoolsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
 import { AddSpoolDialog } from './components/AddSpoolDialog';
@@ -34,7 +37,18 @@ export function SpoolsPage() {
         }
         action={<AddSpoolDialog />}
       />
-      <SpoolsTable spools={spools} />
+      {spoolsQuery.isLoading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : spools.length === 0 ? (
+        <EmptyState
+          icon={<Package2Icon className="size-8 text-muted-foreground" />}
+          title="No spools yet"
+          description="Add one to track it here."
+          action={<AddSpoolDialog />}
+        />
+      ) : (
+        <SpoolsTable spools={spools} />
+      )}
     </div>
   );
 }

@@ -12,11 +12,28 @@ across **every** plate and AMS slot in the file (not just the first plate) — a
 earlier "multi-plate 3MF is an accepted, unaddressed limitation" decision, scoped specifically to
 filament-requirement detection (`research.md` §7); `Part`'s estimated print time/weight are now explicitly
 the sum across every plate. `PartFilamentRequirement.MaterialType` (and its preview counterpart) is also now
-`string?`, not a required `string` — `null` represents a genuine "any material" wildcard (`research.md` §7a)
-for a requires-slicing file added with no Filament specified; `filamentId` is no longer required on submit
-even when the file requires slicing. Five new tables (`Tags`, `Parts`, `PartFilamentRequirements`,
-`PartTags`, `PartProcessingJobs`) plus two small additions to existing tables
-(`Printers.MachineProfileId`, `Organizations.DefaultSlicerEngine`).
+`string?`, not a required `string` — `null` represents a genuine "any material" wildcard (`research.md` §7a).
+
+**A sixth follow-up round supersedes three more things, further to the above:**
+
+1. **`filamentId` is removed from `PartProcessingJob` entirely** (and from every request that used to carry
+   it) — material is now always resolved from the file itself (`research.md` §1/§7a/§13), never
+   operator-supplied. "Any material" (`MaterialType = null`) is now reachable only for an STL.
+2. **`Part.ThumbnailBytes`/`PartProcessingJob.PreviewThumbnailBytes` (single columns) are replaced by
+   `PartThumbnail`/`PartProcessingJobPreviewThumbnail` (new per-plate child tables)** plus a new
+   `Part.PlateCount`/`PartProcessingJob.PreviewPlateCount` field — every plate of a multi-plate file now gets
+   its own derived thumbnail, not only the first (`research.md` §8).
+3. **`Part.EstimatedPrintTimeMinutes`/`EstimatedFilamentWeightGrams` become nullable, gated by a new
+   `Part.EstimateStatus` enum (`Resolving | Available | Unavailable`)**, and `PartProcessingJob` gains the
+   equivalent `PreviewEstimateStatus` (`Resolving | Available`) — nozzle diameter and material now resolve,
+   and gate `ReadyForReview`/save, independently of the estimate and thumbnails for a requires-slicing file;
+   a background continuation fills the estimate in afterward, targeting whichever of the job's preview or
+   the already-confirmed `Part` currently holds the truth (`research.md` §3b). This is the one legitimate
+   way a `Part` can carry incomplete derived data in this phase.
+
+Six new tables (`Tags`, `Parts`, `PartFilamentRequirements`, `PartTags`, `PartProcessingJobs`,
+`PartThumbnails`), one new small child table for job previews (`PartProcessingJobPreviewThumbnails`), plus
+two small additions to existing tables (`Printers.MachineProfileId`, `Organizations.DefaultSlicerEngine`).
 
 ## `Part` (new table)
 
@@ -32,21 +49,37 @@ even when the file requires slicing. Five new tables (`Tags`, `Parts`, `PartFila
 | `StoragePath` | `string` | Opaque key resolved by `IPartFileStorage` (`research.md` §8) — never exposed to the frontend directly; downloads go through an API endpoint. |
 | `FileSizeBytes` | `long` | |
 | `FileUploadedAtUtc` | `DateTimeOffset` | Updated on every replace. |
-| **Derived, always-complete print data** (FR-006/FR-011/FR-013 — never partially populated; a row only exists once all of these are successfully derived and the operator has confirmed) | | |
+| **Always-resolved compatibility data** (FR-006/FR-011 — never partially populated; a row only exists once these are successfully resolved and the operator has confirmed, whether or not the estimate below has finished, `research.md` §3b) | | |
 | `NozzleDiameterMm` | `decimal` | Parsed from an already-sliced file, or the farm's auto-detected value used to drive the in-app slice (`research.md` §5). |
-| `EstimatedPrintTimeMinutes` | `int` | `> 0`. Whole-print total — for an already-sliced multi-plate file, the **sum** across every plate's own parsed estimate (`research.md` §7), since a multi-plate file executes all its plates as one continuous print. |
-| `EstimatedFilamentWeightGrams` | `decimal` | `> 0`. Whole-print total, same sum-across-plates rule as above. |
+| **Estimate** (FR-013 — MAY still be resolving at the moment the row is created, for a requires-slicing file confirmed early; `research.md` §3b) | | |
+| `EstimateStatus` | enum: `Resolving` \| `Available` \| `Unavailable` | `Available` immediately for a file that doesn't require slicing (parsed atomically alongside `NozzleDiameterMm`/material — `research.md` §1). For a requires-slicing file, starts `Resolving` at row creation if the operator confirmed before the slice finished (FR-009c/FR-009d); a trailing background continuation (`research.md` §3b) flips it to `Available` (populating the two fields below) or, on a deferred slicing failure, `Unavailable` — permanently, with no retry in this phase. |
+| `EstimatedPrintTimeMinutes` | `int?` | `> 0` when set. `null` while `EstimateStatus != Available`. Whole-print total — for a multi-plate file, the **sum** across every plate's own parsed/sliced estimate (`research.md` §7), since a multi-plate file executes all its plates as one continuous print. |
+| `EstimatedFilamentWeightGrams` | `decimal?` | `> 0` when set. `null` while `EstimateStatus != Available`. Whole-print total, same sum-across-plates rule as above. |
 | **Slicing configuration** (only meaningful when `RequiresSlicing = true`; ignored otherwise) | | |
 | `SlicerEngineOverride` | enum `SlicerEngine?` (`OrcaSlicer` \| `BambuStudio`) | Per-part override of the organization default (FR-008). `null` → the org default (`Organization.DefaultSlicerEngine`) applies. |
-| **Thumbnail** (FR-014/FR-014a — best-effort, never blocks saving) | | |
-| `ThumbnailBytes` | `byte[]?` | Stored inline (`bytea`), always PNG when present (`research.md` §8 — normalized at ingestion, no content-type column needed). `null` if derivation failed or wasn't possible. Serialized over the API/SignalR as base64 (`thumbnailBase64`), never as a separate byte-stream URL — see `research.md` §8/`contracts/part-library-api.md` for why. |
+| **Thumbnails** (FR-014/FR-014a — per plate, best-effort, never blocks saving; `research.md` §8) | | |
+| `PlateCount` | `int` | `>= 1`. Known independently of thumbnail derivation, from the same metadata/project-settings scan that also produces filament-requirement grouping (`research.md` §7/§13). Always `1` for an STL. Tells the frontend how many thumbnail slots to render — see `PartThumbnail` below for which are actually filled. |
+| *(see `PartThumbnail`, new child table below)* | | Zero-to-`PlateCount` rows; `PlateIndex = 0`'s row (if present) is the catalog/list-view thumbnail. |
 | `CreatedAtUtc` | `DateTimeOffset` | |
-| `UpdatedAtUtc` | `DateTimeOffset` | Bumped whenever a `PartProcessingJob` is confirmed against this part, or its name/tags change. |
+| `UpdatedAtUtc` | `DateTimeOffset` | Bumped whenever a `PartProcessingJob` is confirmed against this part, its name/tags change, or the `research.md` §3b trailing continuation resolves/fails its estimate. |
 | *(xmin)* | Postgres system column | `UseXminAsConcurrencyToken()` — guards the concurrent-replace edge case, the same technique `Spool` already uses. |
 
-No `IsJobReady`/status field of any kind — by construction, every row in `Parts` is fully valid and usable.
-The only remaining status distinction a part carries is `RequiresSlicing` itself, and that now only affects
-which processor produced the data, not any operator-visible workflow shape.
+No `IsJobReady`/status field of any kind — by construction, every row in `Parts` has a fully resolved
+nozzle diameter and material the moment it exists. `EstimateStatus` is the one narrow exception where a
+saved row can legitimately be incomplete (`Resolving`) or permanently short a value (`Unavailable`) —
+everything else about the row is exactly as complete as before.
+
+## `PartThumbnail` (new child table — one row per plate that successfully produced a thumbnail, `research.md` §8)
+
+| Field | Type | Notes |
+|---|---|---|
+| `PartId` | `Guid` (FK → `Parts.Id`) | `ON DELETE CASCADE`. |
+| `PlateIndex` | `int` | `0`-based, `< Part.PlateCount`. |
+| `Bytes` | `byte[]` | Always PNG (normalized at ingestion — `research.md` §8). Never `null`; a plate with no derivable thumbnail simply has no row for it, rather than a row with `null` bytes. |
+
+Composite PK `(PartId, PlateIndex)`. Populated once, when a `PartProcessingJob` is confirmed (copied from
+`PartProcessingJobPreviewThumbnail`, below) or when the `research.md` §3b trailing continuation resolves a
+requires-slicing part's per-plate renders after an early confirm.
 
 ## `PartFilamentRequirement` (new table — one of a Part's one-or-more material needs, `research.md` §7)
 
@@ -72,9 +105,10 @@ other by default, which doesn't usefully express "no duplicate pairs" once `Mate
 §12) running once, at the `Application` layer, before any row is written; nothing downstream ever inserts a
 second row for a pair a `Part` already has.
 
-**The operator's slicing-target Filament selection is not stored as a column anywhere** — for a
-requires-slicing add/replace, `filamentId` is transient input to `PartProcessingJob` (below), consumed by
-`ISlicerEngine` via `IPartFileProcessor` and never persisted past the job; only the *resulting* derived
+**There is no operator-supplied slicing-target Filament to store anywhere** — `filamentId` no longer exists
+on any request (`research.md` §13). For a requires-slicing add/replace, the slicing target is resolved
+internally, from the file itself (an unsliced 3MF's own project settings) or a fixed fallback (an STL) —
+never a client-supplied value — and, like before, never persisted past the job; only the *resulting* derived
 `PartFilamentRequirement` row(s) are saved once the job is confirmed.
 
 ## `Tag` (new table)
@@ -112,18 +146,31 @@ requires-slicing uploads.
 | `RequiresSlicing` | `bool` | Snapshotted from `IPartFileClassifier` at job creation — tells `PartFileProcessingBackgroundService` (via `IPartFileProcessor`) which underlying mechanism to use; not otherwise operator-visible. |
 | `SlicerEngineUsed` | enum `SlicerEngine?` | The resolved engine actually invoked, when `RequiresSlicing = true`; `null` for an already-sliced file. |
 | `TargetNozzleDiameterMm` | `decimal?` | Snapshotted from `NozzleDiameterResolver` at job creation, when `RequiresSlicing = true`. `null` for an already-sliced file (its nozzle diameter comes from parsing, not a slicing target). |
-| `FilamentId` | `Guid?` | Transient slicing-target input, when `RequiresSlicing = true` and the operator specified one; `null` both for an already-sliced file and for the "any material" case (`research.md` §7a), which instead slices against `SlicerOptions`'s fixed fallback material profile for `SlicerEngineUsed` — never persisted past this job either way. |
-| **Preview fields** (`null` until `Status = ReadyForReview`; the source of what the operator reviews) | | |
-| `PreviewNozzleDiameterMm` | `decimal?` | |
-| `PreviewEstimatedPrintTimeMinutes` | `int?` | |
-| `PreviewEstimatedFilamentWeightGrams` | `decimal?` | |
-| `PreviewThumbnailBytes` | `byte[]?` | Always PNG when present. |
-| `PreviewFilamentRequirements` | `IReadOnlyList<PreviewFilamentRequirement>` (`jsonb`) | One entry per distinct `(MaterialType, DetectedColorHex)` pair `FilamentRequirementGrouper` derives across every plate/slot (`research.md` §7) — a single entry for an in-app slice, one per distinct pair for a multi-color/multi-plate already-sliced file. Each entry: `{ RequirementIndex: int, MaterialType: string?, DetectedColorHex: string?, DetectedSubBrand: string? }` — `MaterialType` is `null` only for the single-entry "any material" case (`research.md` §7a; never for an already-sliced file). `RequirementIndex` is a stable 0-based index (first-seen grouping order) that the `Confirm` request's override entries key against, replacing what `SlotIndex` would have done in a per-slot (rather than grouped) design. Stored as `jsonb` with `HasConversion`/a custom `ValueComparer`, the exact same technique `Printer.AmsUnits`/`Printer.ExternalSpoolTray` already use for a small, bounded, never-independently-queried value-object list (`research.md` §3) — **not** a separate child table. |
-| `ErrorMessage` | `string?` | Set only on `Failed`, surfaced to the operator (FR-006/edge cases). |
-| `RequestedByUserId` | `Guid?` | Captured at submission time — used to attribute a `Failed` job's direct activity-log write (`research.md` §3). |
+| `TargetMaterialType` | `string?` | The slicing target actually resolved for a requires-slicing file (`research.md` §13 — an unsliced 3MF's own project material) or the fixed fallback profile name (an STL, `research.md` §7a) — `null` for an already-sliced file. No longer a client-supplied `FilamentId`; that field is removed entirely (`research.md` §13). |
+| **Preview fields — nozzle diameter/material populate as soon as `Status = ReadyForReview`; estimate/thumbnails may trail (`PreviewEstimateStatus`, `research.md` §3b)** | | |
+| `PreviewNozzleDiameterMm` | `decimal?` | `null` until `Status = ReadyForReview`. |
+| `PreviewEstimateStatus` | enum: `Resolving` \| `Available` | Set the moment `Status` becomes `ReadyForReview`. `Available` immediately for a file that doesn't require slicing (its estimate parses atomically alongside nozzle diameter/material). `Resolving` for a requires-slicing file, until the `research.md` §3b continuation completes — at which point, if the job is *still* `ReadyForReview`, this flips to `Available` and the two fields below populate; if the slice instead fails while still `ReadyForReview`, the whole job transitions to `Failed` (there is no `Unavailable` value at the job level — only `Part.EstimateStatus`, post-confirm, can end up permanently short a value). |
+| `PreviewEstimatedPrintTimeMinutes` | `int?` | `null` while `PreviewEstimateStatus != Available`. |
+| `PreviewEstimatedFilamentWeightGrams` | `decimal?` | `null` while `PreviewEstimateStatus != Available`. |
+| `PreviewPlateCount` | `int?` | `null` until `Status = ReadyForReview`; `>= 1` after. Mirrors `Part.PlateCount` (`research.md` §8). |
+| *(see `PartProcessingJobPreviewThumbnail`, new child table below)* | | Zero-to-`PreviewPlateCount` rows, populated as each plate's thumbnail becomes available — for an already-sliced file, all at once at `ReadyForReview`; for a requires-slicing file, potentially trailing alongside the estimate. |
+| `PreviewFilamentRequirements` | `IReadOnlyList<PreviewFilamentRequirement>` (`jsonb`) | One entry per distinct `(MaterialType, DetectedColorHex)` pair `FilamentRequirementGrouper` derives across every plate/slot (`research.md` §7) — a single entry for an in-app slice, one per distinct pair for a multi-color/multi-plate already-sliced file. Each entry: `{ RequirementIndex: int, MaterialType: string?, DetectedColorHex: string?, DetectedSubBrand: string? }` — `MaterialType` is `null` only for the single-entry "any material" case, now STL-only (`research.md` §7a; never for a 3MF or G-code). `RequirementIndex` is a stable 0-based index (first-seen grouping order) that the `Confirm` request's override entries key against, replacing what `SlotIndex` would have done in a per-slot (rather than grouped) design. Populated the moment `Status` becomes `ReadyForReview` (does not wait on `PreviewEstimateStatus`). Stored as `jsonb` with `HasConversion`/a custom `ValueComparer`, the exact same technique `Printer.AmsUnits`/`Printer.ExternalSpoolTray` already use for a small, bounded, never-independently-queried value-object list (`research.md` §3) — **not** a separate child table. |
+| `ErrorMessage` | `string?` | Set only on `Failed` (reachable from either `Processing` or, now, `ReadyForReview` — `research.md` §3), surfaced to the operator (FR-006/edge cases). |
+| `RequestedByUserId` | `Guid?` | Captured at submission time — used to attribute a `Failed` job's direct activity-log write (`research.md` §3), and to attribute the `research.md` §3b trailing continuation's direct `Part` update when it targets an already-`Confirmed` job. |
 | `CreatedAtUtc` | `DateTimeOffset` | |
-| `ProcessedAtUtc` | `DateTimeOffset?` | Set when `Status` becomes `ReadyForReview` or `Failed`. |
+| `ProcessedAtUtc` | `DateTimeOffset?` | Set when `Status` first becomes `ReadyForReview` (nozzle diameter/material resolved — no longer tied to the estimate) or `Failed`. |
 | `ResolvedAtUtc` | `DateTimeOffset?` | Set when `Status` becomes `Confirmed` or `Discarded`. |
+
+## `PartProcessingJobPreviewThumbnail` (new child table — mirrors `PartThumbnail` for a job's preview, `research.md` §8)
+
+| Field | Type | Notes |
+|---|---|---|
+| `JobId` | `Guid` (FK → `PartProcessingJobs.Id`) | `ON DELETE CASCADE`. |
+| `PlateIndex` | `int` | `0`-based, `< PartProcessingJob.PreviewPlateCount`. |
+| `Bytes` | `byte[]` | Always PNG. |
+
+Composite PK `(JobId, PlateIndex)`. On `Confirm`, every row is copied into `PartThumbnail` against the new
+`Part.Id`; the job's own copy becomes historical only, same as `PreviewFilamentRequirements`.
 
 `PreviewFilamentRequirements` is populated once, at the moment a job reaches `ReadyForReview`, by running
 `FilamentRequirementGrouper` over whatever `IPartFileProcessor` derived. The operator attaches narrow
@@ -132,7 +179,11 @@ real `PartFilamentRequirement` row (`MaterialType`/`DetectedColorHex`/`DetectedS
 plus whichever narrow override the operator supplied) and the job's own JSON copy becomes historical only.
 
 No history/versioning beyond the current row — once terminal, a `PartProcessingJob` is a completed audit
-record. A job never restarts; a discarded or failed add/replace requires a brand-new request.
+record. A job never restarts; a discarded or failed add/replace requires a brand-new request. **One
+exception to "terminal means untouched"**: a `Confirmed` job's own row still never changes, but the
+`research.md` §3b background continuation it kicked off may still be running past that point, writing its
+eventual result onto the linked `Part` instead (never back onto the job row) — the job stays a frozen,
+accurate record of what was reviewed and confirmed at that moment, not a live-updating one.
 
 ## `Printer.MachineProfileId` (new column on the existing `Printers` table)
 
@@ -156,10 +207,12 @@ Organization 1───1 (DefaultSlicerEngine column, not a separate table)
 
 Organization 1───* Part
 Part 1───* PartFilamentRequirement
+Part 1───* PartThumbnail             (0..PlateCount rows, PlateIndex 0 = catalog thumbnail)
 PartFilamentRequirement *───1 FilamentVariant   (NarrowFilamentVariantId, bare reference, optional, mutually exclusive with below)
 PartFilamentRequirement *───1 FilamentProfile   (NarrowFilamentProfileId, bare reference, optional, mutually exclusive with above)
 Part *───* Tag                       (via PartTags)
 Part 1───* PartProcessingJob         (0 or 1 currently-non-terminal job at a time in practice)
+PartProcessingJob 1───* PartProcessingJobPreviewThumbnail   (0..PreviewPlateCount rows; copied into PartThumbnail on Confirm)
 PartProcessingJob.PreviewFilamentRequirements   (jsonb column, not a table — populated once, at ReadyForReview)
 ```
 
@@ -169,13 +222,17 @@ No relationship anywhere in this phase points from `Part` to `MachineProfile` di
 
 - Uploaded file: extension must resolve to `Stl`/`ThreeMf`/`GCode` via `IPartFileClassifier`, else `400`
   — checked synchronously at submit, before a job is created. `Name` is **not** validated at submit time —
-  it isn't part of the submit request at all (FR-001/FR-009b).
-- `filamentId` (transient slicing-target input) is always optional, including when the classified file
-  `RequiresSlicing` — if `filamentId` doesn't resolve to a real `Filament` when one *is* supplied, `404`; if
-  omitted, "any material" applies (FR-002a), not a rejection.
-- Requires-slicing path additionally requires `NozzleDiameterResolver` to return a non-null value at submit
-  time (else `422`, FR-006a) — checked before a `PartProcessingJob` is even created, regardless of whether
-  `filamentId` was supplied.
+  it isn't part of the submit request at all (FR-001/FR-009b). There is no `filamentId` field to validate —
+  it no longer exists on the request (`research.md` §13).
+- Requires-slicing path requires `NozzleDiameterResolver` to return a non-null value at submit time (else
+  `422`, FR-006a) — checked before a `PartProcessingJob` is even created. This is unconditional now (it no
+  longer varies by whether a `filamentId` was supplied, since none ever is).
+- An unsliced 3MF whose `IUnslicedProjectMaterialResolver` result can't be parsed rejects the whole add/
+  replace outright (`422`, FR-006) at the point processing reaches that step — **not** a synchronous
+  submit-time check like the two above, since it requires opening and reading the file's own project
+  settings, the same async-pipeline treatment already given to an already-sliced file's metadata parse
+  (`research.md` §13). An STL never hits this check at all — it always resolves via the fixed fallback
+  (`research.md` §7a).
 - On `Confirm`: `Name` required, non-empty, reasonable max length, **for an `Add`-kind job only** — a
   `Replace`-kind job's confirm request MUST NOT include `name`/`tags` (`400` if it does, since a replace
   never touches them, FR-004). At most one of `NarrowFilamentVariantId` / `NarrowFilamentProfileId` may be
@@ -183,37 +240,65 @@ No relationship anywhere in this phase points from `Part` to `MachineProfile` di
   the job's preview requirements (`PreviewFilamentRequirements`).
 - A `Confirm`/`Discard` action is only valid against a job whose `Status = ReadyForReview` (else `409`) —
   the frontend's Save control mirrors this: disabled while `Status != ReadyForReview`, and, for an `Add`,
-  additionally disabled until a name has been entered client-side (FR-009b).
+  additionally disabled until a name has been entered client-side (FR-009b). Notably, `Confirm` no longer
+  additionally requires `PreviewEstimateStatus = Available` — `ReadyForReview` itself is now reachable, and
+  Confirm-able, before the estimate/thumbnails finish resolving for a requires-slicing job (`research.md`
+  §3b).
 - Tag names: required non-empty when tagging; get-or-create is case-sensitive-exact-match per
   `(OrganizationId, Name)`.
 
 ## State/lifecycle notes
 
-Every add/replace, regardless of `FileFormat`, follows the same shape:
+Every add/replace, regardless of `FileFormat`, follows the same shape — now in two effective milestones
+rather than one (`research.md` §3b):
 
-1. **Submit** (file + `filamentId?` only — no `name`/`tags`, FR-001/FR-009b): `IPartFileClassifier` runs
-   synchronously to determine `RequiresSlicing` and validate `filamentId`/nozzle-diameter-availability as
-   applicable (`400`/`422` here, no job created if these fail). Otherwise, create
-   `PartProcessingJob{Status=Processing}` (`PartId=null` for Add, or the existing part's id for Replace),
-   enqueue, return `202`. The frontend opens its add/replace dialog at this point and lets the operator keep
-   editing name/tags locally while the steps below run in the background.
-2. **Background processing**: `PartFileProcessor` delegates to `ISlicerEngine` (if `RequiresSlicing`) or
-   `IAlreadySlicedFileMetadataParser` (if not) — the latter scanning every plate/slot in the file and running
-   `FilamentRequirementGrouper` over the results. On success: populate preview fields including
-   `PreviewFilamentRequirements` (one-or-more grouped entries), `Status=ReadyForReview`, `SignalR` push (the
-   frontend enables Save once this arrives *and* a name has been entered, for an Add). On failure:
-   `Status=Failed` + `ErrorMessage`, direct activity-log write, `SignalR` push. The existing `Part` (for a
-   Replace) or nothing (for an Add) is touched at any point during this step.
-3. **Confirm** (the Save action): `POST .../confirm` with `{ name (Add only, required), tags? (Add only),
+1. **Submit** (file only — no `filamentId`, `name`, or `tags`, FR-001/FR-002/FR-009b): `IPartFileClassifier`
+   runs synchronously to determine `RequiresSlicing`, and `NozzleDiameterResolver`'s availability is checked
+   (`400`/`422` here, no job created if either fails). Otherwise, create `PartProcessingJob{Status=Processing}`
+   (`PartId=null` for Add, or the existing part's id for Replace), enqueue, return `202`. The frontend opens
+   its add/replace dialog at this point and lets the operator keep editing name/tags locally while the steps
+   below run in the background.
+2. **Background processing, milestone 1 — nozzle diameter/material**: `PartFileProcessor` resolves the
+   target material — `IUnslicedProjectMaterialResolver` (unsliced 3MF, `research.md` §13), the fixed
+   fallback (STL, `research.md` §7a), or nothing extra needed yet (already-sliced file — its material is
+   part of the same parse as everything else, step 2b below). On success: populate
+   `PreviewNozzleDiameterMm`/`PreviewFilamentRequirements`, `Status=ReadyForReview`,
+   `PreviewEstimateStatus=Resolving` (requires-slicing) or proceed directly to 2b (already-sliced), `SignalR`
+   push (the frontend enables Save once this arrives *and* a name has been entered, for an Add — it no
+   longer waits on `PreviewEstimateStatus`). On failure (unparseable unsliced-3MF material): `Status=Failed`
+   + `ErrorMessage`, direct activity-log write, `SignalR` push.
+2b. **Background processing, milestone 2 — estimate/thumbnails** (`research.md` §3b): for an already-sliced
+   file, this runs as part of the same atomic parse as step 2 (`IAlreadySlicedFileMetadataParser`, scanning
+   every plate/slot and running `FilamentRequirementGrouper`) — success populates everything at once,
+   `PreviewEstimateStatus=Available` from the start; failure here means step 2 itself failed (`Status=Failed`,
+   as above), since parsing is all-or-nothing. For a requires-slicing file, `ISlicerEngine` runs as a
+   continuation *after* step 2 already moved the job to `ReadyForReview` — on success, populate
+   `PreviewEstimatedPrintTimeMinutes`/`PreviewEstimatedFilamentWeightGrams`/
+   `PartProcessingJobPreviewThumbnail` rows, `PreviewEstimateStatus=Available`, `SignalR` push refreshing the
+   open preview (`Status` stays `ReadyForReview`) — **unless the job has since become `Confirmed`**, in which
+   case the same success instead writes directly onto the linked `Part`
+   (`EstimatedPrintTimeMinutes`/`EstimatedFilamentWeightGrams`/`PartThumbnail` rows,
+   `EstimateStatus=Available`) and pushes a `PartEstimateResolved` event instead. On failure: if still
+   `ReadyForReview`, `Status=Failed` (retroactive rejection, FR-006/SC-007); if already `Confirmed`, instead
+   `Part.EstimateStatus=Unavailable` (permanent) and a `PartEstimateUnavailable` event — the job row itself is
+   never touched post-confirm either way.
+3. **Confirm** (the Save action, available as soon as `Status=ReadyForReview` regardless of
+   `PreviewEstimateStatus`): `POST .../confirm` with `{ name (Add only, required), tags? (Add only),
    filamentRequirementOverrides?: [{requirementIndex, narrowFilamentVariantId?, narrowFilamentProfileId?}] }`.
-   Creates the `Part` (Add) or replaces its file/derived fields/`PartFilamentRequirement`s (Replace)
-   transactionally from the job's preview data plus the supplied name/tags/narrow overrides — a supplied
-   override applies to the whole grouped requirement, i.e. every plate/slot the file detected as sharing
-   that requirement's `(MaterialType, DetectedColorHex)` pair, in one transaction; `Status=Confirmed`; a
-   replace's `name`/`tags` fields, if somehow supplied, are rejected rather than silently ignored (`400`).
-   `201`/`200`.
+   Creates the `Part` (Add) or replaces its file/derived fields/`PartFilamentRequirement`s/`PartThumbnail`s
+   (Replace) transactionally from whatever the job's preview holds *so far* — `EstimateStatus`/
+   `EstimatedPrintTimeMinutes`/`EstimatedFilamentWeightGrams`/`PartThumbnail` rows are copied verbatim from
+   `PreviewEstimateStatus`/the two preview estimate fields/`PartProcessingJobPreviewThumbnail`, whatever
+   state they're currently in — a supplied override applies to the whole grouped requirement, i.e. every
+   plate/slot the file detected as sharing that requirement's `(MaterialType, DetectedColorHex)` pair, in one
+   transaction; `Status=Confirmed`; a replace's `name`/`tags` fields, if somehow supplied, are rejected rather
+   than silently ignored (`400`). `201`/`200`. If `PreviewEstimateStatus=Resolving` at this moment, step 2b's
+   continuation is still running and will complete against the now-created/updated `Part` per above.
 4. **Discard** (the Cancel action, at any point — while `Processing` or once `ReadyForReview`):
-   `DELETE .../confirm`. `Status=Discarded`; no `Part` created/changed. `204`.
-- **Delete a part**: removes the `Part` row (cascades `PartTags` and `PartFilamentRequirement`s) and calls
-  `IPartFileStorage.DeleteAsync`. `PartProcessingJob` rows are historical and simply retain a now-dangling,
-  unenforced `PartId` once terminal.
+   `DELETE .../confirm`. `Status=Discarded`; no `Part` created/changed. `204`. Best-effort-cancels an
+   in-flight step-2b slice if one is still running; if it completes anyway, its result is simply dropped.
+- **Delete a part**: removes the `Part` row (cascades `PartTags`, `PartFilamentRequirement`s, and
+  `PartThumbnail`s) and calls `IPartFileStorage.DeleteAsync`. `PartProcessingJob` rows are historical and
+  simply retain a now-dangling, unenforced `PartId` once terminal; if a step-2b continuation is still
+  in-flight against a job whose `Part` was deleted in the meantime, its write is a no-op (the `Part` no
+  longer exists to update).

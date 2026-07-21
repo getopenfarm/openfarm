@@ -174,11 +174,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        data={spools}
-        emptyState={<>No spools yet. Add one to track it here.</>}
-      />
+      <DataTable columns={columns} data={spools} />
       {dialog?.mode === 'load' ? (
         <LoadSpoolDialog
           spoolId={dialog.spoolId}

@@ -4,6 +4,7 @@ using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Api.ExceptionHandling;
@@ -46,6 +47,18 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             InvalidSpoolStateTransitionException => (StatusCodes.Status422UnprocessableEntity, "Invalid spool state transition"),
             FeedSlotDeactivatedException => (StatusCodes.Status422UnprocessableEntity, "Feed slot is deactivated"),
             NotAnAutomaticFilamentReloaderException => (StatusCodes.Status422UnprocessableEntity, "Feed unit cannot be manually removed"),
+            PartNotFoundException => (StatusCodes.Status404NotFound, "Part not found"),
+            TagNotFoundException => (StatusCodes.Status404NotFound, "Tag not found"),
+            PartProcessingJobNotFoundException => (StatusCodes.Status404NotFound, "Part processing job not found"),
+            DuplicatePartTagException => (StatusCodes.Status409Conflict, "Tag already associated with this part"),
+            UnsupportedPartFileFormatException => (StatusCodes.Status400BadRequest, "Unrecognized part file format"),
+            PartFileParsingFailedException => (StatusCodes.Status422UnprocessableEntity, "Could not parse the file's metadata"),
+            SlicingFailedException => (StatusCodes.Status422UnprocessableEntity, "Slicing failed"),
+            NoNozzleDiameterAvailableException => (StatusCodes.Status422UnprocessableEntity, "No printer with a known nozzle diameter is registered"),
+            UnslicedProjectMaterialParsingFailedException => (StatusCodes.Status422UnprocessableEntity, "Could not parse the project's filament assignment"),
+            InvalidConfirmPartProcessingJobRequestException => (StatusCodes.Status400BadRequest, "Invalid confirm request"),
+            PartProcessingJobNotReadyForReviewException => (StatusCodes.Status409Conflict, "Part processing job is not ready for review"),
+            PartConcurrencyConflictException => (StatusCodes.Status409Conflict, "Part was concurrently modified"),
             _ => (0, null),
         };
 

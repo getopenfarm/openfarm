@@ -92,7 +92,6 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
       columns={columns}
       data={filaments}
       onRowClick={(row) => navigate(`/filament/${row.id}/edit`)}
-      emptyState="No filaments in the catalog yet."
     />
   );
 }

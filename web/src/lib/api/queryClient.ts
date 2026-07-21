@@ -7,4 +7,12 @@ import { QueryClient } from '@tanstack/react-query';
 // leave a query permanently stuck in limbo — neither loading, erroring, nor holding data —
 // without ever reaching that terminal state. Reacting to the response itself guarantees the
 // redirect fires for every real 401 regardless of what the query's retry bookkeeping does.
-export const queryClient = new QueryClient();
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    // Default staleTime is 0, so every remount (including revisiting a page after its query's
+    // gcTime elapses) shows a loading skeleton even though the data is usually still fresh —
+    // SignalR-driven invalidation/setQueryData (useFarmHub, usePartsHub) keeps cached data live
+    // in between, so a short window before background refetch is safe.
+    queries: { staleTime: 30_000 },
+  },
+});

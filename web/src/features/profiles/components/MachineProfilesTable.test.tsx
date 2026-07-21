@@ -53,16 +53,6 @@ describe('MachineProfilesTable', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows an empty state when no profiles have been imported', () => {
-    render(<MachineProfilesTable profiles={[]} onRowClick={vi.fn()} />);
-
-    expect(
-      screen.getByText(
-        'No machine profiles yet. Import a slicer bundle to populate this catalog.',
-      ),
-    ).toBeInTheDocument();
-  });
-
   it('calls onRowClick with the profile id when a row is clicked', async () => {
     const user = userEvent.setup();
     const onRowClick = vi.fn();

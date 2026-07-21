@@ -29,12 +29,6 @@ export function MachineProfilesTable({
       columns={columns}
       data={profiles}
       onRowClick={(row) => row.id && onRowClick(row.id)}
-      emptyState={
-        <>
-          No machine profiles yet. Import a slicer bundle to populate this
-          catalog.
-        </>
-      }
     />
   );
 }
