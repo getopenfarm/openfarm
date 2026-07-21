@@ -6,6 +6,9 @@ on:
     branches: [main]
 
 jobs:
+  # All three jobs below drive through the NUKE build (build/Build.cs via ./build.sh) instead of
+  # separate ad hoc steps — the same targets a developer runs locally, standardizing testing and
+  # slicer provisioning on one build definition (see build/Build.cs and quickstart.md).
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -13,17 +16,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: api/global.json
-      - name: dotnet format check
-        run: dotnet format api/OpenFarm.slnx --verify-no-changes
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - name: bun install
-        working-directory: web
-        run: bun install --frozen-lockfile
-      - name: Biome check
-        working-directory: web
-        run: bun run lint
+      - name: Format check (dotnet format + Biome)
+        run: ./build.sh FormatCheck FrontendLint
 
   backend-build-test:
     runs-on: ubuntu-latest
@@ -42,12 +39,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: api/global.json
-      - name: Restore
-        run: dotnet restore api/OpenFarm.slnx
-      - name: Build
-        run: dotnet build api/OpenFarm.slnx --configuration Release --no-restore
-      - name: Test
-        run: dotnet test api/OpenFarm.slnx --no-build --configuration Release
+      - name: Restore, build, and test
+        run: ./build.sh Test
         env:
           ConnectionStrings__Default: "Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=openfarm"
       # Migrations are applied for real as part of the Test step above: every
@@ -59,20 +52,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: api/global.json
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - working-directory: web
-        run: bun install --frozen-lockfile
-      - working-directory: web
-        run: bunx tsc -b
-      - working-directory: web
-        run: bun run test
-      - working-directory: web
-        run: bun run build
-      - name: Orval contract-drift check
-        working-directory: web
-        run: bunx orval && git diff --exit-code src/lib/api/generated
+      - name: Typecheck, test, build, and check for API-client drift
+        run: ./build.sh FrontendTypecheck FrontendTest FrontendBuild FrontendContractDriftCheck
 
   e2e:
     if: false # STUB: no Playwright suite yet — no meaningful user flow to test against

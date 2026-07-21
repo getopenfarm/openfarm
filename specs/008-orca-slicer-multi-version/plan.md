@@ -15,8 +15,10 @@ into an in-memory catalog; the org picks a default `(engine, version)` and an op
 per-part; the concrete engine+version used is recorded verbatim on both the `PartProcessingJob` and the
 `Part`. A per-engine CLI-invocation strategy replaces the single argument string so SuperSlicer's
 divergent CLI is handled alongside the PrusaSlicer-derived OrcaSlicer/Bambu Studio form. A **dev/build-time
-provisioning tool** (a .NET console app driven by a JSON manifest) fetches the declared builds from each
-engine's GitHub releases into the bundle; the running app never contacts GitHub.
+provisioning pipeline** (a JSON-manifest-driven library in `tools/provision-slicers`, invoked as a NUKE
+build target rather than its own CLI — see `build/Build.cs`) fetches the declared builds from each
+engine's GitHub releases into the bundle; the running app never contacts GitHub. The same NUKE build also
+standardizes backend/frontend build+test, replacing the ad hoc CI shell steps.
 
 Technical approach: extend the `SlicerEngine` enum (add `SuperSlicer`) and carry an engine+version pair
 through domain/application/persistence; introduce `IAvailableSlicerCatalog` (Application contract) backed
@@ -159,13 +161,20 @@ api/
 │       └── Parts/CreatePartEndpoint.cs + ReplacePartFileEndpoint.cs  # + SlicerVersion field
 └── tests/  # unit (Domain/Application), integration (Api), infra (scanner/invocation) mirrors above
 
+build/
+└── Build.cs                     # NEW NUKE build definition — Restore/Compile/Test/FormatCheck,
+                                  # Frontend* targets, and ProvisionSlicers (invokes the library below)
+_build.csproj                    # (in build/) references tools/provision-slicers as a library
+
 tools/
-└── provision-slicers/           # NEW .NET console tool (cross-platform, dev/build-time only)
+└── provision-slicers/           # NEW .NET class library (cross-platform, dev/build-time only,
+                                  # no CLI of its own — called from build/Build.cs's ProvisionSlicers Target)
     ├── ProvisionSlicers.csproj
-    ├── Program.cs               # read manifest → resolve → download → verify → extract → report
+    ├── Provisioner.cs           # resolve → download → verify → extract → report, per manifest entry
     ├── EngineReleaseSources.cs  # per-engine GitHub repo + asset-name resolution per platform
     └── (unit tests alongside)
 
+build.sh / build.cmd            # NEW repo-root wrappers: `./build.sh <Target>` runs build/Build.cs
 slicers.manifest.json           # NEW repo-root manifest: desired (engine, version, platforms)
 slicers.lock.json               # NEW generated: resolved asset URL + sha256 per entry (reproducibility)
 
@@ -180,10 +189,13 @@ infra/docker/api.Dockerfile      # bundle layout via provisioning tool, not a si
 **Structure Decision**: Retain the existing four-project Clean Architecture backend + React SPA monorepo.
 All new runtime contracts follow the established layering (value types/enums in `Domain`, catalog +
 invocation contracts in `Application`, scanner + strategies in `Infrastructure`, thin endpoints in `Api`).
-The provisioning tool is a **separate `tools/provision-slicers` .NET console project** deliberately kept
+The provisioning pipeline is a **separate `tools/provision-slicers` .NET class library** deliberately kept
 out of the runtime dependency graph, so nothing in the running app can reach GitHub-fetching code
-(FR-018). `slicers.manifest.json`/`slicers.lock.json` live at the repo root as the maintainer-authored
-bundling declaration.
+(FR-018) — it is invoked only from `build/Build.cs`'s `ProvisionSlicers` NUKE target (via `./build.sh
+ProvisionSlicers`), not from any app startup path. `slicers.manifest.json`/`slicers.lock.json` live at the
+repo root as the maintainer-authored bundling declaration. The NUKE build (`build/`) is a standalone
+project graph, referenced by nothing in `api/OpenFarm.slnx`, and standardizes build/test/provisioning
+across local dev and CI (`.github/workflows/ci.yml`).
 
 ## Complexity Tracking
 

@@ -17,8 +17,9 @@ services:
 
   api:
     build:
-      # Repo root, not api/ — the build now also needs tools/provision-slicers and the root
-      # slicers.manifest.json (infra/docker/api.Dockerfile provisions the bundle at build time).
+      # Repo root, not api/ — the build now also needs build/ (the NUKE build that drives
+      # provisioning), tools/provision-slicers, and the root slicers.manifest.json
+      # (infra/docker/api.Dockerfile provisions the bundle at build time).
       context: ..
       dockerfile: infra/docker/api.Dockerfile
     depends_on:

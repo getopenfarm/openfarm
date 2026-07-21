@@ -17,13 +17,11 @@ the data model (`data-model.md`) rather than restating them. Commands assume the
 1. Edit `slicers.manifest.json` to declare at least two entries spanning **two engines** for your host
    platform, e.g. an `OrcaSlicer` version and a `SuperSlicer` version on `Linux` (validate against
    `contracts/slicer-manifest.schema.json`).
-2. Run the provisioning tool:
+2. Run the provisioning target (via the repo's NUKE build, `build/Build.cs` — the same entry point
+   used in CI and by `infra/docker/api.Dockerfile`; there is no separate CLI tool):
 
    ```bash
-   dotnet run --project tools/provision-slicers -- \
-       --manifest slicers.manifest.json \
-       --out "$SlicerBundle__RootDirectory" \
-       --platform Linux
+   ./build.sh ProvisionSlicers --out "$SlicerBundle__RootDirectory" --platform Linux
    ```
 
    **Expected**: each declared `(engine, version, Linux)` is fetched from its official GitHub release,

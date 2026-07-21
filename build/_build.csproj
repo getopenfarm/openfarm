@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace></RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Nuke.Common" Version="10.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The build reuses the slicer provisioning pipeline directly as a library — this Target
+         replaces the standalone tools/provision-slicers console app (no more separate CLI/Program.cs;
+         see the ProvisionSlicers Target in Build.cs). -->
+    <ProjectReference Include="..\tools\provision-slicers\ProvisionSlicers.csproj" />
+  </ItemGroup>
+
+</Project>
