@@ -12,14 +12,14 @@ namespace OpenFarm.Infrastructure.Parts;
 /// </summary>
 public sealed partial class BundledSlicerScanner(IOptions<SlicerBundleOptions> options, ILogger<BundledSlicerScanner> logger)
 {
-    private static readonly IReadOnlyDictionary<string, SlicerEngine> EngineSlugs = new Dictionary<string, SlicerEngine>(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, SlicerEngine> EngineSlugs = new(StringComparer.OrdinalIgnoreCase)
     {
         ["orcaslicer"] = SlicerEngine.OrcaSlicer,
         ["bambustudio"] = SlicerEngine.BambuStudio,
         ["superslicer"] = SlicerEngine.SuperSlicer,
     };
 
-    private static readonly IReadOnlyDictionary<string, SlicerPlatform> PlatformSlugs = new Dictionary<string, SlicerPlatform>(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, SlicerPlatform> PlatformSlugs = new(StringComparer.OrdinalIgnoreCase)
     {
         ["linux"] = SlicerPlatform.Linux,
         ["windows"] = SlicerPlatform.Windows,
