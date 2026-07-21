@@ -27,6 +27,7 @@ This specification does not itself re-slice existing parts, redesign the Part Li
 ### Session 2026-07-21
 
 - Q: Should users ever deal with slicer binaries, filesystem paths, or system PATH? → A: No. Users have no concept of a binary or its location. The backend scans the bundled slicer directory at deploy/startup, populates the set of available versions itself, and the only user-facing concept is a **version** the user picks from. No manual path entry exists anywhere in the product.
+- Q: What happens to a part whose recorded slicer version is not bundled in a later deployment? → A: The part keeps its recorded version as-is, shown as "not available in this deployment"; nothing auto-changes. Re-slicing that part requires picking a currently-available version, which is recorded anew as a fresh slice.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -107,6 +108,7 @@ As a developer (today) and as the release/packaging process (later), I declare t
 - **FR-006**: When a slice is requested against a version that is not available (not bundled/registered, or failing validation), the system MUST fail (or refuse to start) that request promptly with a message naming the version, and MUST NOT leave a processing job stuck indefinitely.
 - **FR-007**: The system MUST prevent (or clearly warn about) selecting-as-default or slicing with a version that is not currently available, and MUST keep the default consistent when the set of available versions changes between deployments.
 - **FR-008**: Changing the available versions or the default MUST NOT retroactively alter parts already processed; each keeps the version it was originally sliced with.
+- **FR-008a**: When a part's recorded version is not present in the current deployment's scanned set, the system MUST display that version as "not available in this deployment" rather than altering, hiding, or silently substituting it. Re-slicing such a part MUST require the operator to pick a currently-available version, recorded as a fresh slice; the system MUST NOT auto-fall-back to another version or block startup over a missing historically-used version.
 
 #### Multi-platform
 
