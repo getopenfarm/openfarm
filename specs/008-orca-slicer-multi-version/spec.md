@@ -175,7 +175,7 @@ As a developer (today) and as the release/packaging process (later), I declare t
 - Existing already-processed parts (sliced under the single hard-coded OrcaSlicer path) remain valid; back-filling engine/version onto historical parts is best-effort and not required for this feature.
 - The supported (engine, version) set is **append-only**: once one ships it is retained in every later release (the manifest only grows). This is a product/packaging commitment that keeps every recorded slicer reproducible; the tradeoff is monotonically growing artifact size, accepted deliberately — and now larger, since it spans three engines.
 - Bundled binaries increase the shipped artifact size substantially; managing that size (which engines/versions to ship, storage/bandwidth) is a packaging decision the manifest expresses, not something the running app manages.
-- The organization remains single-tenant per self-hosted install (per project foundation), so the "organization default (engine, version)" is effectively the install-wide default.
+- The default (engine, version) is genuinely **per-organization (per-tenant)** — the application stays multi-tenant by design (tenant-scoped like other org-scoped state), even though the initial target is a single-tenant self-hosted install where only one organization exists in practice. The bundled slicer set itself is install-level (shared by all tenants); only the *default selection* is org-scoped.
 
 ## Dependencies
 
