@@ -30,6 +30,7 @@ import {
 } from '@/lib/api/generated/profiles/profiles';
 import { FilamentProfilesTable } from './components/FilamentProfilesTable';
 import { ImportProfilesDialog } from './components/ImportProfilesDialog';
+import { MachineDefaultProcessSelect } from './components/MachineDefaultProcessSelect';
 import { MachineProfilesTable } from './components/MachineProfilesTable';
 import { ProcessProfilesTable } from './components/ProcessProfilesTable';
 import { ProfileRawDataDialog } from './components/ProfileRawDataDialog';
@@ -217,6 +218,21 @@ export function ProfilesPage() {
         isLoading={detailQuery.isLoading}
         // Process profiles have no update endpoint yet — view-only (no onSave renders no Save button).
         onSave={selected?.type === 'Process' ? undefined : handleSaveRawData}
+        extraContent={
+          selected?.type === 'Machine' ? (
+            <MachineDefaultProcessSelect
+              machineId={selected.id}
+              machineSourceFormat={
+                (detail as MachineProfileDetailResponse | undefined)
+                  ?.sourceFormat ?? ''
+              }
+              defaultProcessProfileId={
+                (detail as MachineProfileDetailResponse | undefined)
+                  ?.defaultProcessProfileId
+              }
+            />
+          ) : undefined
+        }
         isSaving={
           updateMachineMutation.isPending || updateFilamentMutation.isPending
         }
