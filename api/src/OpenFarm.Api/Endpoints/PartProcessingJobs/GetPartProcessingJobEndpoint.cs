@@ -19,6 +19,15 @@ public sealed class ThumbnailResponse
     public string ThumbnailBase64 { get; set; } = string.Empty;
 }
 
+public sealed class SlicerResponse
+{
+    public string Engine { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+
+    public static SlicerResponse? FromView(SlicerSelectionView? view) =>
+        view is null ? null : new SlicerResponse { Engine = view.Engine, Version = view.Version };
+}
+
 public sealed class PartProcessingJobPreviewResponse
 {
     public decimal? NozzleDiameterMm { get; set; }
@@ -36,6 +45,7 @@ public sealed class PartProcessingJobResponse
     public string Kind { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public Guid? PartId { get; set; }
+    public SlicerResponse? Slicer { get; set; }
     public PartProcessingJobPreviewResponse? Preview { get; set; }
     public string? ErrorMessage { get; set; }
 
@@ -45,6 +55,7 @@ public sealed class PartProcessingJobResponse
         Kind = detail.Kind,
         Status = detail.Status,
         PartId = detail.PartId,
+        Slicer = SlicerResponse.FromView(detail.Slicer),
         ErrorMessage = detail.ErrorMessage,
         Preview = detail.Preview is null ? null : new PartProcessingJobPreviewResponse
         {

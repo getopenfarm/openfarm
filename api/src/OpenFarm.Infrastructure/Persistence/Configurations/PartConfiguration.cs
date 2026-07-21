@@ -31,6 +31,7 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.Property(p => p.EstimatedFilamentWeightGrams);
 
         builder.Property(p => p.SlicerEngineOverride).HasConversion<string>();
+        builder.Property(p => p.SlicerVersionUsed);
 
         builder.Property(p => p.PlateCount).IsRequired();
 

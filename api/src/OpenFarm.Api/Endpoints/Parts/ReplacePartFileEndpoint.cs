@@ -13,6 +13,8 @@ public sealed class ReplacePartFileRequest
     public IFormFile File { get; set; } = null!;
 
     public string? SlicerEngine { get; set; }
+
+    public string? SlicerVersion { get; set; }
 }
 
 // PUT /api/v1/parts/{id}/file (contracts/part-library-api.md) — same request shape as POST /api/v1/parts.
@@ -38,7 +40,7 @@ public sealed class ReplacePartFileEndpoint(ReplacePartFileHandler handler) : En
         {
             if (!Enum.TryParse<SlicerEngine>(req.SlicerEngine, ignoreCase: true, out var parsed))
             {
-                ThrowError("SlicerEngine must be OrcaSlicer or BambuStudio.");
+                ThrowError("SlicerEngine must be OrcaSlicer, BambuStudio, or SuperSlicer.");
                 return;
             }
 
@@ -49,7 +51,7 @@ public sealed class ReplacePartFileEndpoint(ReplacePartFileHandler handler) : En
         _ = Guid.TryParse(sub, out var userId);
 
         await using var stream = req.File.OpenReadStream();
-        var command = new ReplacePartFileCommand(partId, stream, req.File.FileName, slicerEngineOverride, userId);
+        var command = new ReplacePartFileCommand(partId, stream, req.File.FileName, slicerEngineOverride, req.SlicerVersion, userId);
         var result = await handler.HandleAsync(command, ct);
 
         Response = new PartProcessingJobSubmittedResponse { JobId = result.JobId, Status = result.Status.ToString() };

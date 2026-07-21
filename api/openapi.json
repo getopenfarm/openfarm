@@ -522,6 +522,135 @@
         ]
       }
     },
+    "/api/v1/settings/slicing-profile-defaults": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlicingProfileDefaultsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/default-machine-profile": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint",
+        "requestBody": {
+          "x-name": "UpdateDefaultMachineProfileRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDefaultMachineProfileRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultMachineProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/filament-defaults/{materialType}": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint",
+        "parameters": [
+          {
+            "name": "materialType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UpdateOrganizationFilamentDefaultRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationFilamentDefaultRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationFilamentDefaultResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/profiles/imports/confirm": {
       "post": {
         "tags": [
@@ -648,6 +777,47 @@
         ]
       }
     },
+    "/api/v1/profiles/process/{id}": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesGetProcessProfileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessProfileDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/profiles/filament": {
       "get": {
         "tags": [
@@ -710,6 +880,37 @@
         ]
       }
     },
+    "/api/v1/profiles/process": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesListProcessProfilesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListProcessProfilesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/profiles/imports/preview": {
       "post": {
         "tags": [
@@ -736,6 +937,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PreviewProfileImportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/profiles/machine/{id}/default-process-profile": {
+      "put": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "OpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SetMachineProfileDefaultProcessRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMachineProfileDefaultProcessRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineProfileDefaultProcessResponse"
                 }
               }
             }
@@ -2546,8 +2801,178 @@
             "type": "string",
             "format": "guid"
           },
-          "defaultSlicerEngine": {
+          "default": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EffectiveSlicerDefaultResponse"
+              }
+            ]
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailableSlicerResponse"
+            }
+          }
+        }
+      },
+      "EffectiveSlicerDefaultResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
             "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "isExplicit": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AvailableSlicerResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          }
+        }
+      },
+      "SlicingProfileDefaultsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "defaultMachineProfile": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DefaultMachineProfileResponseItem"
+              }
+            ]
+          },
+          "filamentDefaults": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentDefaultResponseItem"
+            }
+          }
+        }
+      },
+      "DefaultMachineProfileResponseItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "defaultProcessProfile": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DefaultProcessProfileResponse"
+              }
+            ]
+          }
+        }
+      },
+      "DefaultProcessProfileResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "FilamentDefaultResponseItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialType": {
+            "type": "string"
+          },
+          "filamentProfileId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "filamentProfileName": {
+            "type": "string"
+          }
+        }
+      },
+      "DefaultMachineProfileResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "machineProfileId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "machineProfileName": {
+            "type": "string"
+          },
+          "defaultProcessProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateDefaultMachineProfileRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "machineProfileId": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "OrganizationFilamentDefaultResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "materialType": {
+            "type": "string"
+          },
+          "filamentProfileId": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "UpdateOrganizationFilamentDefaultRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentProfileId": {
+            "type": "string",
+            "format": "guid"
           }
         }
       },
@@ -2555,7 +2980,10 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "defaultSlicerEngine": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
             "type": "string"
           }
         }
@@ -2571,6 +2999,12 @@
             }
           },
           "createdFilamentProfiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreatedProfileItem"
+            }
+          },
+          "createdProcessProfiles": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CreatedProfileItem"
@@ -2749,6 +3183,66 @@
             "items": {
               "type": "string"
             }
+          },
+          "defaultProcessProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "defaultProcessProfileName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ProcessProfileDetailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "rawDataJson": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "layerHeightMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "wallLoops": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "compatiblePrinterNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -2905,6 +3399,62 @@
           }
         }
       },
+      "ListProcessProfilesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessProfileResponse"
+            }
+          }
+        }
+      },
+      "ProcessProfileResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "layerHeightMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "wallLoops": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "compatiblePrinterNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "PreviewProfileImportResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -2922,6 +3472,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FilamentPresetPreviewItem"
+            }
+          },
+          "processPresets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPresetPreviewItem"
             }
           }
         }
@@ -3043,6 +3599,44 @@
           }
         }
       },
+      "ProcessPresetPreviewItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sourceFormat": {
+            "type": "string"
+          },
+          "baseProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedBaseInChain": {
+            "type": "boolean"
+          },
+          "isDuplicate": {
+            "type": "boolean"
+          },
+          "layerHeightMm": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "wallLoops": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "compatiblePrinterNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "PreviewProfileImportRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -3050,6 +3644,34 @@
           "file": {
             "type": "string",
             "format": "binary"
+          }
+        }
+      },
+      "MachineProfileDefaultProcessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "processProfileId": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "SetMachineProfileDefaultProcessRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "machineProfileId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "processProfileId": {
+            "type": "string",
+            "format": "guid"
           }
         }
       },
@@ -3493,6 +4115,10 @@
           "slicerEngine": {
             "type": "string",
             "nullable": true
+          },
+          "slicerVersion": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -3541,6 +4167,14 @@
             "format": "decimal",
             "nullable": true
           },
+          "slicer": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SlicerResponse"
+              }
+            ]
+          },
           "filamentRequirements": {
             "type": "array",
             "items": {
@@ -3562,6 +4196,18 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "SlicerResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
           }
         }
       },
@@ -3699,6 +4345,10 @@
           "slicerEngine": {
             "type": "string",
             "nullable": true
+          },
+          "slicerVersion": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -3789,6 +4439,14 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "slicer": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SlicerResponse"
+              }
+            ]
           },
           "preview": {
             "nullable": true,

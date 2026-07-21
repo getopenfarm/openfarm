@@ -39,7 +39,7 @@ public class PartProcessingBackgroundServiceTests
         var organizationId = Guid.NewGuid();
         var job = PartProcessingJob.CreateAdd(
             organizationId, PartFileFormat.Stl, "model.stl", "orgs/x/job.stl", 1024,
-            requiresSlicing: true, SlicerEngine.OrcaSlicer, 0.4m, "Generic PLA", requestedByUserId: null);
+            requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", requestedByUserId: null);
         var storage = new SequencedPartFileStorage(() => throw new UnauthorizedAccessException("permission denied"));
         var processor = new FixedPartFileProcessor();
         var publisher = new RecordingPartEventPublisher();
@@ -70,7 +70,7 @@ public class PartProcessingBackgroundServiceTests
         var organizationId = Guid.NewGuid();
         var job = PartProcessingJob.CreateAdd(
             organizationId, PartFileFormat.Stl, "model.stl", "orgs/x/job.stl", 1024,
-            requiresSlicing: true, SlicerEngine.OrcaSlicer, 0.4m, "Generic PLA", requestedByUserId: null);
+            requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", requestedByUserId: null);
         // First OpenReadAsync call (milestone 1) succeeds; second (milestone 2's estimate
         // continuation, since ImmediateEstimate is null below) throws a raw, unwrapped IOException —
         // exactly what LocalDiskPartFileStorage.OpenReadAsync's bare File.OpenRead can produce for a
@@ -302,8 +302,11 @@ public class PartProcessingBackgroundServiceTests
             service.Enqueue(new PartProcessingWorkItem(OrgId, poison.Id));
             service.Enqueue(new PartProcessingWorkItem(OrgId, healthy.Id));
 
-            await WaitUntilAsync(() => healthy.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(2));
-            await WaitUntilAsync(() => poison.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(2));
+            // A single worker (maxConcurrency: 1) processes both items sequentially, so this test needs
+            // more headroom than the other single-item waits in this file, especially under CI
+            // contention from concurrently-running test assemblies.
+            await WaitUntilAsync(() => healthy.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(5));
+            await WaitUntilAsync(() => poison.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(5));
 
             poison.Status.Should().Be(PartProcessingJobStatus.Failed);
             poison.ErrorMessage.Should().Be("boom");
@@ -353,17 +356,17 @@ public class PartProcessingBackgroundServiceTests
 
     private static PartProcessingJob ProcessingJob() =>
         PartProcessingJob.CreateAdd(OrgId, PartFileFormat.ThreeMf, "widget.3mf", storagePath: "path", fileSizeBytes: 10,
-            requiresSlicing: true, SlicerEngine.OrcaSlicer, targetNozzleDiameterMm: 0.4m, targetMaterialType: null, requestedByUserId: null);
+            requiresSlicing: true, SlicerEngine.OrcaSlicer, slicerVersionUsed: "2.2.0", targetNozzleDiameterMm: 0.4m, targetMaterialType: null, requestedByUserId: null);
 
     private static Part ResolvingPart() =>
         Part.Create(OrgId, "Resolving part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
-            fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, EstimateStatus.Resolving,
+            fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null, EstimateStatus.Resolving,
             estimatedPrintTimeMinutes: null, estimatedFilamentWeightGrams: null, plateCount: 1,
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
 
     private static Part AvailablePart() =>
         Part.Create(OrgId, "Available part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
-            fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, EstimateStatus.Available,
+            fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null, EstimateStatus.Available,
             estimatedPrintTimeMinutes: 42, estimatedFilamentWeightGrams: 12.5m, plateCount: 1,
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
 

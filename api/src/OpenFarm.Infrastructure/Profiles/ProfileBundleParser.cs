@@ -31,6 +31,7 @@ public sealed class ProfileBundleParser : IProfileBundleParser
 
         var machinePresets = new List<ParsedMachinePreset>();
         var filamentPresets = new List<ParsedFilamentPreset>();
+        var processPresets = new List<ParsedProcessPreset>();
 
         using (archive)
         {
@@ -85,19 +86,23 @@ public sealed class ProfileBundleParser : IProfileBundleParser
                         baseProfileName = null;
                     }
 
-                    if (kind == PresetKind.Machine)
+                    switch (kind)
                     {
-                        machinePresets.Add(new ParsedMachinePreset(name, sourceFormat, baseProfileName, content));
-                    }
-                    else
-                    {
-                        filamentPresets.Add(new ParsedFilamentPreset(name, sourceFormat, baseProfileName, content));
+                        case PresetKind.Machine:
+                            machinePresets.Add(new ParsedMachinePreset(name, sourceFormat, baseProfileName, content));
+                            break;
+                        case PresetKind.Filament:
+                            filamentPresets.Add(new ParsedFilamentPreset(name, sourceFormat, baseProfileName, content));
+                            break;
+                        case PresetKind.Process:
+                            processPresets.Add(new ParsedProcessPreset(name, sourceFormat, baseProfileName, content));
+                            break;
                     }
                 }
             }
         }
 
-        return new ParsedProfileBundle(machinePresets, filamentPresets);
+        return new ParsedProfileBundle(machinePresets, filamentPresets, processPresets);
     }
 
     public MachineProfileDisplayFields ExtractMachineDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat)
@@ -170,10 +175,28 @@ public sealed class ProfileBundleParser : IProfileBundleParser
             CompatiblePrinterNames: compatiblePrinterNames);
     }
 
+    public ProcessProfileDisplayFields ExtractProcessDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat)
+    {
+        using var document = JsonDocument.Parse(rawDataJson);
+        var root = document.RootElement;
+
+        // Same tolerant key-spelling as ExtractFilamentDisplayFields (research.md §11 / OrcaSlicer
+        // issue #12193) — a UI hint only, never used to auto-apply a machine/process pairing.
+        var hasCompatiblePrinters =
+            TryGetStringArray(root, "compatible_printers", out var compatiblePrinterNames)
+            || TryGetStringArray(root, "compatible_prints", out compatiblePrinterNames);
+
+        return new ProcessProfileDisplayFields(
+            LayerHeightMm: TryGetDouble(root, "layer_height"),
+            WallLoops: TryGetInt(root, "wall_loops"),
+            CompatiblePrinterNames: hasCompatiblePrinters ? compatiblePrinterNames : []);
+    }
+
     private enum PresetKind
     {
         Machine,
         Filament,
+        Process,
     }
 
     private static PresetKind? ClassifyBySubfolder(string entryFullName)
@@ -200,8 +223,12 @@ public sealed class ProfileBundleParser : IProfileBundleParser
             return PresetKind.Filament;
         }
 
-        // "process/" (print settings) and anything else, including bundle_structure.json, is out
-        // of scope per spec.md's Key Entities — only Machine and Filament profiles are imported.
+        if (firstSegment.Equals("process", StringComparison.OrdinalIgnoreCase))
+        {
+            return PresetKind.Process;
+        }
+
+        // Anything else, including bundle_structure.json, is out of scope.
         return null;
     }
 

@@ -19,9 +19,11 @@ public sealed record SlicingResult(
 public interface ISlicerEngine
 {
     /// <exception cref="SlicingFailedException">The CLI process failed, timed out, or produced unparseable output.</exception>
+    /// <exception cref="SlicerUnavailableException"><paramref name="slicer"/> is not bundled for the host platform.</exception>
     Task<SlicingResult> SliceAsync(
-        SlicerEngine engine,
+        SlicerRef slicer,
         Stream modelFileStream,
+        PartFileFormat modelFileFormat,
         string materialType,
         decimal nozzleDiameterMm,
         CancellationToken cancellationToken);

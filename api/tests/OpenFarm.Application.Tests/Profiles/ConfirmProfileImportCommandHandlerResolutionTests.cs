@@ -11,8 +11,9 @@ namespace OpenFarm.Application.Tests.Profiles;
 public class ConfirmProfileImportCommandHandlerResolutionTests
 {
     private static ConfirmProfileImportCommandHandler CreateHandler(
-        FakeProfileBundleParser parser, FakeMachineProfileRepository machineRepo, FakeFilamentProfileRepository filamentRepo) =>
-        new(parser, machineRepo, filamentRepo);
+        FakeProfileBundleParser parser, FakeMachineProfileRepository machineRepo, FakeFilamentProfileRepository filamentRepo,
+        FakeProcessProfileRepository? processRepo = null) =>
+        new(parser, machineRepo, filamentRepo, processRepo ?? new FakeProcessProfileRepository());
 
     private static ConfirmProfileImportCommand Command(IReadOnlyList<SelectedProfileKey> selections) =>
         new(new MemoryStream(), "bundle.zip", selections);
@@ -27,7 +28,8 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
                 [
                     new ParsedFilamentPreset("Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}"),
                     new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Generic PLA", "{}"),
-                ]),
+                ],
+                []),
         };
         var machineRepo = new FakeMachineProfileRepository();
         var filamentRepo = new FakeFilamentProfileRepository();
@@ -57,7 +59,8 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
         {
             Bundle = new ParsedProfileBundle(
                 [],
-                [new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Generic PLA", "{}")]),
+                [new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Generic PLA", "{}")],
+                []),
         };
         var handler = CreateHandler(parser, new FakeMachineProfileRepository(), filamentRepo);
 
@@ -75,7 +78,8 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
         {
             Bundle = new ParsedProfileBundle(
                 [],
-                [new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Some Built-In Default", "{}")]),
+                [new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Some Built-In Default", "{}")],
+                []),
         };
         var filamentRepo = new FakeFilamentProfileRepository();
         var handler = CreateHandler(parser, new FakeMachineProfileRepository(), filamentRepo);
@@ -101,7 +105,8 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
                     new ParsedFilamentPreset("Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}"),
                     new ParsedFilamentPreset("Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}"),
                     new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Generic PLA", "{}"),
-                ]),
+                ],
+                []),
         };
         var handler = CreateHandler(parser, new FakeMachineProfileRepository(), new FakeFilamentProfileRepository());
 
@@ -132,7 +137,8 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
         {
             Bundle = new ParsedProfileBundle(
                 [],
-                [new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Generic PLA", "{}")]),
+                [new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Generic PLA", "{}")],
+                []),
         };
         var handler = CreateHandler(parser, new FakeMachineProfileRepository(), filamentRepo);
 
@@ -157,7 +163,8 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
         {
             Bundle = new ParsedProfileBundle(
                 [],
-                [new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Generic PLA", "{}")]),
+                [new ParsedFilamentPreset("Generic PLA - Red", ProfileSourceFormat.OrcaSlicer, "Generic PLA", "{}")],
+                []),
         };
         var handler = CreateHandler(parser, new FakeMachineProfileRepository(), filamentRepo);
 
@@ -178,6 +185,7 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
                     new ParsedMachinePreset("Generic Printer", ProfileSourceFormat.OrcaSlicer, null, "{}"),
                     new ParsedMachinePreset("Generic Printer - Direct Drive", ProfileSourceFormat.OrcaSlicer, "Generic Printer", "{}"),
                 ],
+                [],
                 []),
         };
         var machineRepo = new FakeMachineProfileRepository();
@@ -192,5 +200,32 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
 
         var baseId = result.CreatedMachineProfiles.Single(p => p.Name == "Generic Printer").Id;
         result.CreatedMachineProfiles.Single(p => p.Name == "Generic Printer - Direct Drive").BaseProfileId.Should().Be(baseId);
+    }
+
+    [Fact]
+    public async Task Resolve_ProcessProfileBaseOverride_AlsoResolves()
+    {
+        var parser = new FakeProfileBundleParser
+        {
+            Bundle = new ParsedProfileBundle(
+                [],
+                [],
+                [
+                    new ParsedProcessPreset("0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, "{}"),
+                    new ParsedProcessPreset("0.20mm Standard - Fast", ProfileSourceFormat.OrcaSlicer, "0.20mm Standard", "{}"),
+                ]),
+        };
+        var processRepo = new FakeProcessProfileRepository();
+        var handler = CreateHandler(parser, new FakeMachineProfileRepository(), new FakeFilamentProfileRepository(), processRepo);
+
+        var result = await handler.HandleAsync(
+            Command([
+                new SelectedProfileKey(ProfileType.Process, "0.20mm Standard", null),
+                new SelectedProfileKey(ProfileType.Process, "0.20mm Standard - Fast", null),
+            ]),
+            CancellationToken.None);
+
+        var baseId = result.CreatedProcessProfiles.Single(p => p.Name == "0.20mm Standard").Id;
+        result.CreatedProcessProfiles.Single(p => p.Name == "0.20mm Standard - Fast").BaseProfileId.Should().Be(baseId);
     }
 }

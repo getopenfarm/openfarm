@@ -17,4 +17,17 @@ describe('SettingsPage', () => {
       screen.getByRole('link', { name: /Connection Secrets/ }),
     ).toHaveAttribute('href', '/settings/connection-secrets');
   });
+
+  it('links to Slicing Defaults', () => {
+    render(
+      <PreferencesProvider>
+        <MemoryRouter>
+          <SettingsPage />
+        </MemoryRouter>
+      </PreferencesProvider>,
+    );
+    expect(
+      screen.getByRole('link', { name: /Slicing Defaults/ }),
+    ).toHaveAttribute('href', '/settings/slicing-defaults');
+  });
 });

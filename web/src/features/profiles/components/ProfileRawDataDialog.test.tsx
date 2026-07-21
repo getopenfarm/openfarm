@@ -35,6 +35,22 @@ describe('ProfileRawDataDialog', () => {
     );
   });
 
+  it('renders view-only (no Save button, disabled textarea) when no onSave is provided', () => {
+    render(
+      <ProfileRawDataDialog
+        open
+        onOpenChange={vi.fn()}
+        name="0.20mm Standard @BIQU B1"
+        rawDataJson='{"layer_height":"0.2"}'
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'Save' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toBeDisabled();
+  });
+
   it('does not render when closed', () => {
     render(
       <ProfileRawDataDialog

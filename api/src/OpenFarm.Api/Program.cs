@@ -37,6 +37,7 @@ using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Parts;
+using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Simulator;
@@ -74,6 +75,9 @@ using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.
 using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
 using LinkPrinterMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.LinkPrinterMachineProfileCommand, OpenFarm.Domain.Printers.Printer>;
 using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
+using UpdateDefaultMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateDefaultMachineProfileCommand, OpenFarm.Application.Parts.DefaultMachineProfileResult>;
+using SetMachineProfileDefaultProcessHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.SetMachineProfileDefaultProcessCommand, OpenFarm.Application.Profiles.MachineProfileDefaultProcessResult>;
+using UpdateOrganizationFilamentDefaultHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateOrganizationFilamentDefaultCommand, OpenFarm.Application.Parts.OrganizationFilamentDefaultResult>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -235,13 +239,17 @@ builder.Services.AddScoped<IQueryHandler<GetPrinterCatalogQuery, PrinterCatalogR
 
 builder.Services.AddScoped<IMachineProfileRepository, MachineProfileRepository>();
 builder.Services.AddScoped<IFilamentProfileRepository, FilamentProfileRepository>();
+builder.Services.AddScoped<IProcessProfileRepository, ProcessProfileRepository>();
+builder.Services.AddScoped<IOrganizationFilamentDefaultRepository, OrganizationFilamentDefaultRepository>();
 builder.Services.AddScoped<IProfileBundleParser, ProfileBundleParser>();
 builder.Services.AddScoped<PreviewProfileImportHandlerType, PreviewProfileImportCommandHandler>();
 builder.Services.AddScoped<ConfirmProfileImportHandlerType, ConfirmProfileImportCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMachineProfilesQuery, IReadOnlyList<MachineProfileSummary>>, GetMachineProfilesQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentProfilesQuery, IReadOnlyList<FilamentProfileSummary>>, GetFilamentProfilesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetProcessProfilesQuery, IReadOnlyList<ProcessProfileSummary>>, GetProcessProfilesQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMachineProfileQuery, MachineProfileDetail?>, GetMachineProfileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentProfileQuery, FilamentProfileDetail?>, GetFilamentProfileQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetProcessProfileQuery, ProcessProfileDetail?>, GetProcessProfileQueryHandler>();
 builder.Services.AddScoped<UpdateMachineProfileRawDataHandlerType, UpdateMachineProfileRawDataCommandHandler>();
 builder.Services.AddScoped<UpdateFilamentProfileRawDataHandlerType, UpdateFilamentProfileRawDataCommandHandler>();
 
@@ -271,6 +279,7 @@ builder.Services.AddScoped<RemoveFeedUnitHandlerType, RemoveFeedUnitCommandHandl
 
 builder.Services.Configure<PartFileStorageOptions>(builder.Configuration.GetSection(PartFileStorageOptions.SectionName));
 builder.Services.Configure<SlicerOptions>(builder.Configuration.GetSection(SlicerOptions.SectionName));
+builder.Services.Configure<SlicerBundleOptions>(builder.Configuration.GetSection(SlicerBundleOptions.SectionName));
 
 builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
 builder.Services.AddScoped<IPartRepository, PartRepository>();
@@ -281,6 +290,18 @@ builder.Services.AddScoped<IPartEventPublisher, FarmHubPartEventPublisher>();
 builder.Services.AddScoped<IPartFileClassifier, PartFileClassifier>();
 builder.Services.AddScoped<IAlreadySlicedFileMetadataParser, AlreadySlicedFileMetadataParser>();
 builder.Services.AddScoped<IUnslicedProjectMaterialResolver, UnslicedProjectMaterialResolver>();
+
+// Resolved once at process startup below (not lazily on first request, research.md §2) — the
+// eager-singleton registration avoids the race the spec calls out where a slice is requested while
+// the backend is still discovering.
+builder.Services.AddSingleton<IHostPlatformProvider, HostPlatform>();
+builder.Services.AddSingleton<BundledSlicerScanner>();
+builder.Services.AddSingleton<IAvailableSlicerCatalog, AvailableSlicerCatalog>();
+builder.Services.AddSingleton<ISlicerInvocation, PrusaSliceFamilyInvocation>();
+builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
+builder.Services.AddScoped<ResolveSlicerSelection>();
+builder.Services.AddScoped<ResolveSlicingProfileSelection>();
+
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
 builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();
 builder.Services.AddScoped<IPartFileProcessor, PartFileProcessor>();
@@ -308,12 +329,16 @@ builder.Services.AddScoped<TagPartHandlerType, TagPartCommandHandler>();
 builder.Services.AddScoped<UntagPartHandlerType, UntagPartCommandHandler>();
 builder.Services.AddScoped<LinkPrinterMachineProfileHandlerType, LinkPrinterMachineProfileCommandHandler>();
 builder.Services.AddScoped<UpdateSlicingDefaultsHandlerType, UpdateSlicingDefaultsCommandHandler>();
+builder.Services.AddScoped<UpdateDefaultMachineProfileHandlerType, UpdateDefaultMachineProfileCommandHandler>();
+builder.Services.AddScoped<SetMachineProfileDefaultProcessHandlerType, SetMachineProfileDefaultProcessCommandHandler>();
+builder.Services.AddScoped<UpdateOrganizationFilamentDefaultHandlerType, UpdateOrganizationFilamentDefaultCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>, GetPartProcessingJobQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartsQuery, PartsPage>, GetPartsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartQuery, PartDetail?>, GetPartQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartFileQuery, PartFileDownload?>, GetPartFileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ListTagsQuery, IReadOnlyList<TagSummary>>, ListTagsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>, GetSlicingDefaultsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetSlicingProfileDefaultsQuery, SlicingProfileDefaults>, GetSlicingProfileDefaultsQueryHandler>();
 
 builder.Services.AddSignalR();
 
@@ -376,6 +401,10 @@ using (var scope = app.Services.CreateScope())
     var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
     await seeder.SeedAsync();
 }
+
+// Forces the eager-singleton scan to run now, before the host starts accepting requests (research.md
+// §2) — a bare AddSingleton registration is otherwise only constructed lazily on first resolution.
+app.Services.GetRequiredService<IAvailableSlicerCatalog>();
 
 app.Run();
 

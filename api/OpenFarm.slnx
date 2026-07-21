@@ -11,4 +11,10 @@
     <Project Path="tests/OpenFarm.Domain.Tests/OpenFarm.Domain.Tests.csproj" />
     <Project Path="tests/OpenFarm.Infrastructure.Tests/OpenFarm.Infrastructure.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <!-- Deliberately outside the /src/ runtime dependency graph (plan.md "Structure Decision") —
+         nothing in the running app can reach GitHub-fetching code (FR-018). -->
+    <Project Path="../tools/provision-slicers/ProvisionSlicers.csproj" />
+    <Project Path="../tools/provision-slicers.Tests/ProvisionSlicers.Tests.csproj" />
+  </Folder>
 </Solution>

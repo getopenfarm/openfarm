@@ -1,4 +1,4 @@
-import { KeyRoundIcon } from 'lucide-react';
+import { KeyRoundIcon, Layers3Icon, PackageIcon } from 'lucide-react';
 import { Link } from 'react-router';
 import {
   Card,
@@ -21,6 +21,38 @@ export function SettingsPage() {
               <CardTitle>Connection Secrets</CardTitle>
               <CardDescription>
                 Manage encrypted printer access codes.
+              </CardDescription>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+      <Link to="/settings/slicing-defaults" className="block">
+        <Card className="transition-colors hover:bg-accent">
+          <CardContent className="flex items-center gap-3">
+            <PackageIcon
+              className="size-5 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <div>
+              <CardTitle>Slicing Defaults</CardTitle>
+              <CardDescription>
+                Choose the default bundled slicer engine and version.
+              </CardDescription>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+      <Link to="/settings/slicing-profile-defaults" className="block">
+        <Card className="transition-colors hover:bg-accent">
+          <CardContent className="flex items-center gap-3">
+            <Layers3Icon
+              className="size-5 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <div>
+              <CardTitle>Slicing Profile Defaults</CardTitle>
+              <CardDescription>
+                Choose the default machine and filament profiles used to slice.
               </CardDescription>
             </div>
           </CardContent>

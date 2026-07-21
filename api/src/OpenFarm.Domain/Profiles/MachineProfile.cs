@@ -35,6 +35,14 @@ public sealed class MachineProfile
     public string RawDataJson { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
+    /// <summary>
+    /// The process preset paired to this machine for headless slicing — Orca/Bambu Studio enforce
+    /// strict machine/process compatibility (only a preset authored/shipped for this exact machine
+    /// passes), so a process preset is only ever meaningful in the context of one specific machine.
+    /// Set explicitly via a dedicated pairing command, never inferred at import time.
+    /// </summary>
+    public Guid? DefaultProcessProfileId { get; private set; }
+
     public static MachineProfile Create(
         Guid organizationId,
         string name,
@@ -77,4 +85,8 @@ public sealed class MachineProfile
 
         RawDataJson = rawDataJson;
     }
+
+    public void SetDefaultProcessProfile(Guid processProfileId) => DefaultProcessProfileId = processProfileId;
+
+    public void ClearDefaultProcessProfile() => DefaultProcessProfileId = null;
 }

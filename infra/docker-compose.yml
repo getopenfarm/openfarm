@@ -17,18 +17,21 @@ services:
 
   api:
     build:
-      context: ../api
-      dockerfile: ../infra/docker/api.Dockerfile
+      # Repo root, not api/ — the build now also needs tools/provision-slicers and the root
+      # slicers.manifest.json (infra/docker/api.Dockerfile provisions the bundle at build time).
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      SlicerBundle__RootDirectory: /opt/slicers
     ports:
       - "${API_HTTP_PORT}:8888"
     volumes:
-      - ../api:/src
+      - ..:/src
       - openfarm_part_files:/data/part-files
 
   web:

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "slicers": [
+    {
+      "engine": "OrcaSlicer",
+      "version": "2.3.2",
+      "assets": {
+        "Linux": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.2.AppImage",
+        "Windows": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Windows_V2.3.2_portable.zip",
+        "MacOs": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Mac_universal_V2.3.2.dmg"
+      },
+      "notes": "The project moved from SoftFever/OrcaSlicer to OrcaSlicer/OrcaSlicer — verify the repo/org in these links hasn't moved again before re-pinning a newer version."
+    },
+    {
+      "engine": "BambuStudio",
+      "version": "2.7.1",
+      "assets": {
+        "Linux": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/BambuStudio_ubuntu-24.04-v02.07.01.57-20260601192128.AppImage",
+        "Windows": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_win-v02.07.01.57-20260601165745.zip",
+        "MacOs": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_mac-v02.07.01.57-20260601165745.dmg"
+      },
+      "notes": "\"version\" is the maintainer-chosen display string (FR-005), not the literal upstream release tag — Bambu Studio's actual tag/asset-embedded string for this build is \"02.07.01.57\"; \"2.7.1\" is how Bambu markets it and is what users will see. The download URLs below are explicit literals and don't depend on this field matching the tag."
+    }
+  ]
+}

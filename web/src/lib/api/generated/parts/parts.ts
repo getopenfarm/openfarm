@@ -98,6 +98,12 @@ export const openFarmApiEndpointsPartsCreatePartEndpoint = async (
   ) {
     formData.append(`slicerEngine`, createPartRequest.slicerEngine);
   }
+  if (
+    createPartRequest.slicerVersion !== undefined &&
+    createPartRequest.slicerVersion !== null
+  ) {
+    formData.append(`slicerVersion`, createPartRequest.slicerVersion);
+  }
 
   return httpClient<openFarmApiEndpointsPartsCreatePartEndpointResponse>(
     getOpenFarmApiEndpointsPartsCreatePartEndpointUrl(),
@@ -988,6 +994,12 @@ export const openFarmApiEndpointsPartsReplacePartFileEndpoint = async (
     replacePartFileRequest.slicerEngine !== null
   ) {
     formData.append(`slicerEngine`, replacePartFileRequest.slicerEngine);
+  }
+  if (
+    replacePartFileRequest.slicerVersion !== undefined &&
+    replacePartFileRequest.slicerVersion !== null
+  ) {
+    formData.append(`slicerVersion`, replacePartFileRequest.slicerVersion);
   }
 
   return httpClient<openFarmApiEndpointsPartsReplacePartFileEndpointResponse>(

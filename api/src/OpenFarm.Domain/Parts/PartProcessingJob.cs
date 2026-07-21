@@ -21,6 +21,7 @@ public sealed class PartProcessingJob
         long fileSizeBytes,
         bool requiresSlicing,
         SlicerEngine? slicerEngineUsed,
+        string? slicerVersionUsed,
         decimal? targetNozzleDiameterMm,
         string? targetMaterialType,
         Guid? requestedByUserId,
@@ -37,6 +38,7 @@ public sealed class PartProcessingJob
         FileSizeBytes = fileSizeBytes;
         RequiresSlicing = requiresSlicing;
         SlicerEngineUsed = slicerEngineUsed;
+        SlicerVersionUsed = slicerVersionUsed;
         TargetNozzleDiameterMm = targetNozzleDiameterMm;
         TargetMaterialType = targetMaterialType;
         RequestedByUserId = requestedByUserId;
@@ -65,6 +67,9 @@ public sealed class PartProcessingJob
     public bool RequiresSlicing { get; }
 
     public SlicerEngine? SlicerEngineUsed { get; }
+
+    /// <summary>The exact upstream version resolved alongside <see cref="SlicerEngineUsed"/> at job creation (FR-005) — <c>null</c> for a non-slicing job.</summary>
+    public string? SlicerVersionUsed { get; }
 
     public decimal? TargetNozzleDiameterMm { get; }
 
@@ -108,10 +113,11 @@ public sealed class PartProcessingJob
         long fileSizeBytes,
         bool requiresSlicing,
         SlicerEngine? slicerEngineUsed,
+        string? slicerVersionUsed,
         decimal? targetNozzleDiameterMm,
         string? targetMaterialType,
         Guid? requestedByUserId) =>
-        new(Guid.NewGuid(), organizationId, null, PartProcessingJobKind.Add, fileFormat, originalFileName, storagePath, fileSizeBytes, requiresSlicing, slicerEngineUsed, targetNozzleDiameterMm, targetMaterialType, requestedByUserId, DateTimeOffset.UtcNow);
+        new(Guid.NewGuid(), organizationId, null, PartProcessingJobKind.Add, fileFormat, originalFileName, storagePath, fileSizeBytes, requiresSlicing, slicerEngineUsed, slicerVersionUsed, targetNozzleDiameterMm, targetMaterialType, requestedByUserId, DateTimeOffset.UtcNow);
 
     public static PartProcessingJob CreateReplace(
         Guid organizationId,
@@ -122,10 +128,11 @@ public sealed class PartProcessingJob
         long fileSizeBytes,
         bool requiresSlicing,
         SlicerEngine? slicerEngineUsed,
+        string? slicerVersionUsed,
         decimal? targetNozzleDiameterMm,
         string? targetMaterialType,
         Guid? requestedByUserId) =>
-        new(Guid.NewGuid(), organizationId, partId, PartProcessingJobKind.Replace, fileFormat, originalFileName, storagePath, fileSizeBytes, requiresSlicing, slicerEngineUsed, targetNozzleDiameterMm, targetMaterialType, requestedByUserId, DateTimeOffset.UtcNow);
+        new(Guid.NewGuid(), organizationId, partId, PartProcessingJobKind.Replace, fileFormat, originalFileName, storagePath, fileSizeBytes, requiresSlicing, slicerEngineUsed, slicerVersionUsed, targetNozzleDiameterMm, targetMaterialType, requestedByUserId, DateTimeOffset.UtcNow);
 
     /// <summary>
     /// The job's own id is the storage key an Add's target file is saved under (its target

@@ -8,7 +8,8 @@ public sealed record PreviewProfileImportCommand(Stream FileStream, string FileN
 
 public sealed record PreviewProfileImportResult(
     IReadOnlyList<ParsedMachinePresetView> MachinePresets,
-    IReadOnlyList<ParsedFilamentPresetView> FilamentPresets);
+    IReadOnlyList<ParsedFilamentPresetView> FilamentPresets,
+    IReadOnlyList<ParsedProcessPresetView> ProcessPresets);
 
 // Preview response item — see data-model.md's "Transient (non-persisted) shapes". RawDataJson is
 // deliberately not part of this shape (parsed into memory to compute the fields below, then
@@ -40,4 +41,14 @@ public sealed record ParsedFilamentPresetView(
     double? BedTempC,
     double? MaxVolumetricSpeedMm3s,
     int? FanPercent,
+    IReadOnlyList<string> CompatiblePrinterNames);
+
+public sealed record ParsedProcessPresetView(
+    string Name,
+    ProfileSourceFormat SourceFormat,
+    string? BaseProfileName,
+    bool HasUnresolvedBaseInChain,
+    bool IsDuplicate,
+    double? LayerHeightMm,
+    int? WallLoops,
     IReadOnlyList<string> CompatiblePrinterNames);

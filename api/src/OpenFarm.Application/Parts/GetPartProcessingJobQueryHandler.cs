@@ -28,6 +28,10 @@ public sealed class GetPartProcessingJobQueryHandler(IPartProcessingJobRepositor
                 job.PreviewThumbnails.Select(t => new ThumbnailView(t.PlateIndex, Convert.ToBase64String(t.Bytes))).ToList())
             : null;
 
-        return new PartProcessingJobDetail(job.Id, job.Kind.ToString(), job.Status.ToString(), job.PartId, preview, job.ErrorMessage);
+        var slicer = job.SlicerEngineUsed is { } engine && job.SlicerVersionUsed is { } version
+            ? new SlicerSelectionView(engine.ToString(), version)
+            : null;
+
+        return new PartProcessingJobDetail(job.Id, job.Kind.ToString(), job.Status.ToString(), job.PartId, slicer, preview, job.ErrorMessage);
     }
 }

@@ -22,7 +22,12 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
+  DefaultMachineProfileResponse,
+  OrganizationFilamentDefaultResponse,
   SlicingDefaultsResponse,
+  SlicingProfileDefaultsResponse,
+  UpdateDefaultMachineProfileRequest,
+  UpdateOrganizationFilamentDefaultRequest,
   UpdateSlicingDefaultsRequest,
 } from '../endpoints.schemas';
 
@@ -440,3 +445,573 @@ export const useOpenFarmApiEndpointsSettingsUpdateSlicingDefaultsEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse200 =
+  {
+    data: SlicingProfileDefaultsResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse401
+    | openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse =
+  | openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointUrl =
+  () => {
+    return `/api/v1/settings/slicing-profile-defaults`;
+  };
+
+export const openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint =
+  async (
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointResponse>(
+      getOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointUrl(),
+      {
+        ...options,
+        method: 'GET',
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointQueryKey =
+  () => {
+    return [`/api/v1/settings/slicing-profile-defaults`] as const;
+  };
+
+export const getOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+      >
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+        >
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+    >
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+    >
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+    >
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+    >
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpointQueryOptions(
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse200 =
+  {
+    data: DefaultMachineProfileResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse401
+    | openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointUrl =
+  () => {
+    return `/api/v1/settings/default-machine-profile`;
+  };
+
+export const openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint =
+  async (
+    updateDefaultMachineProfileRequest: UpdateDefaultMachineProfileRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointResponse>(
+      getOpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointUrl(),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(updateDefaultMachineProfileRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint
+        >
+      >,
+      TError,
+      { data: UpdateDefaultMachineProfileRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint
+      >
+    >,
+    TError,
+    { data: UpdateDefaultMachineProfileRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint
+        >
+      >,
+      { data: UpdateDefaultMachineProfileRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint(
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointMutationBody =
+  UpdateDefaultMachineProfileRequest;
+export type OpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint =
+  <TError = void, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint
+          >
+        >,
+        TError,
+        { data: UpdateDefaultMachineProfileRequest },
+        TContext
+      >;
+    },
+    queryClient?: QueryClient,
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint
+      >
+    >,
+    TError,
+    { data: UpdateDefaultMachineProfileRequest },
+    TContext
+  > => {
+    return useMutation(
+      getOpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpointMutationOptions(
+        options,
+      ),
+      queryClient,
+    );
+  };
+export type openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse200 =
+  {
+    data: OrganizationFilamentDefaultResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse401
+    | openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointUrl =
+  (materialType: string) => {
+    return `/api/v1/settings/filament-defaults/${materialType}`;
+  };
+
+export const openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint =
+  async (
+    materialType: string,
+    updateOrganizationFilamentDefaultRequest: UpdateOrganizationFilamentDefaultRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointResponse>(
+      getOpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointUrl(
+        materialType,
+      ),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(updateOrganizationFilamentDefaultRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint
+        >
+      >,
+      TError,
+      { materialType: string; data: UpdateOrganizationFilamentDefaultRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint
+      >
+    >,
+    TError,
+    { materialType: string; data: UpdateOrganizationFilamentDefaultRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint
+        >
+      >,
+      { materialType: string; data: UpdateOrganizationFilamentDefaultRequest }
+    > = (props) => {
+      const { materialType, data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint(
+        materialType,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointMutationBody =
+  UpdateOrganizationFilamentDefaultRequest;
+export type OpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint =
+  <TError = void, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint
+          >
+        >,
+        TError,
+        {
+          materialType: string;
+          data: UpdateOrganizationFilamentDefaultRequest;
+        },
+        TContext
+      >;
+    },
+    queryClient?: QueryClient,
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint
+      >
+    >,
+    TError,
+    { materialType: string; data: UpdateOrganizationFilamentDefaultRequest },
+    TContext
+  > => {
+    return useMutation(
+      getOpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpointMutationOptions(
+        options,
+      ),
+      queryClient,
+    );
+  };

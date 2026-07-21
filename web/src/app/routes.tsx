@@ -15,6 +15,8 @@ import { PrinterDetailPage } from '../features/printers/PrinterDetailPage';
 import { PrintersPage } from '../features/printers/PrintersPage';
 import { ProfilesPage } from '../features/profiles/ProfilesPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
+import { SlicingDefaultsPage } from '../features/settings/SlicingDefaultsPage';
+import { SlicingProfileDefaultsPage } from '../features/settings/SlicingProfileDefaultsPage';
 import { SpoolsPage } from '../features/spools/SpoolsPage';
 import { AppShell } from './layout/AppShell';
 import { ProtectedRoute } from './layout/ProtectedRoute';
@@ -123,6 +125,16 @@ export const router = createBrowserRouter([
                 path: 'connection-secrets',
                 element: <ConnectionSecretsPage />,
                 handle: { title: 'Connection Secrets' },
+              },
+              {
+                path: 'slicing-defaults',
+                element: <SlicingDefaultsPage />,
+                handle: { title: 'Slicing Defaults' },
+              },
+              {
+                path: 'slicing-profile-defaults',
+                element: <SlicingProfileDefaultsPage />,
+                handle: { title: 'Slicing Profile Defaults' },
               },
             ],
           },

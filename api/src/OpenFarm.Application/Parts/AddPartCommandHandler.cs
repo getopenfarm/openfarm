@@ -8,7 +8,7 @@ using OpenFarm.Domain.Parts;
 namespace OpenFarm.Application.Parts;
 
 /// <summary>
-/// Classifies synchronously, resolves a requires-slicing file's nozzle diameter/engine/fallback
+/// Classifies synchronously, resolves a requires-slicing file's nozzle diameter/slicer/fallback
 /// material up front (data-model.md's Submit step — <c>400</c>/<c>422</c> here, no job created if
 /// either fails), persists the file, creates the job, and enqueues background processing. Never
 /// creates a <see cref="Part"/> itself (research.md §2).
@@ -22,7 +22,8 @@ public sealed class AddPartCommandHandler(
     IMachineProfileRepository machineProfileRepository,
     IProfileBundleParser profileBundleParser,
     IOrganizationRepository organizationRepository,
-    ISlicerDefaultsProvider slicerDefaults) : ICommandHandler<AddPartCommand, AddPartResult>
+    ISlicerDefaultsProvider slicerDefaults,
+    ResolveSlicerSelection resolveSlicerSelection) : ICommandHandler<AddPartCommand, AddPartResult>
 {
     public async Task<AddPartResult> HandleAsync(AddPartCommand command, CancellationToken cancellationToken)
     {
@@ -33,7 +34,7 @@ public sealed class AddPartCommandHandler(
         }
 
         decimal? targetNozzleDiameterMm = null;
-        SlicerEngine? slicerEngineUsed = null;
+        SlicerRef? slicerUsed = null;
         string? targetMaterialType = null;
 
         if (classification.RequiresSlicing)
@@ -44,13 +45,16 @@ public sealed class AddPartCommandHandler(
                 ?? throw new NoNozzleDiameterAvailableException();
 
             var organization = await organizationRepository.GetAsync(cancellationToken);
-            slicerEngineUsed = command.SlicerEngineOverride ?? organization.DefaultSlicerEngine;
+
+            // Throws SlicerUnavailableException before any job/processing starts when the resolved
+            // pair (explicit override or effective default) isn't bundled for the host (FR-006).
+            slicerUsed = resolveSlicerSelection.Resolve(command.SlicerEngineOverride, command.SlicerVersionOverride, organization.DefaultSlicer);
 
             // An STL's fallback material is known synchronously (research.md §7a); an unsliced 3MF's
             // real target is only discovered during background milestone-1 processing (research.md §13).
             if (classification.Format == PartFileFormat.Stl)
             {
-                targetMaterialType = slicerDefaults.GetGenericFallbackMaterialProfile(slicerEngineUsed.Value);
+                targetMaterialType = slicerDefaults.GetGenericFallbackMaterialProfile(slicerUsed.Engine);
             }
         }
 
@@ -61,7 +65,8 @@ public sealed class AddPartCommandHandler(
             storagePath: string.Empty,
             fileSizeBytes: 0,
             classification.RequiresSlicing,
-            slicerEngineUsed,
+            slicerUsed?.Engine,
+            slicerUsed?.Version,
             targetNozzleDiameterMm,
             targetMaterialType,
             command.RequestedByUserId);

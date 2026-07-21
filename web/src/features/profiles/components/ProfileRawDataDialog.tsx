@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -31,6 +32,8 @@ interface ProfileRawDataDialogProps {
   isLoading?: boolean;
   onSave?: (rawDataJson: string) => Promise<void>;
   isSaving?: boolean;
+  /** Extra chrome rendered above the raw-data form once content has loaded — e.g. the machine's process-profile pairing control. */
+  extraContent?: ReactNode;
 }
 
 function formatRawDataJson(rawDataJson: string): string {
@@ -54,6 +57,7 @@ export function ProfileRawDataDialog({
   isLoading,
   onSave,
   isSaving,
+  extraContent,
 }: ProfileRawDataDialogProps) {
   const form = useForm<RawDataFormValues>({
     resolver: zodResolver(rawDataFormSchema),
@@ -92,7 +96,7 @@ export function ProfileRawDataDialog({
         className="max-w-2xl sm:max-w-2xl"
         header={<DialogTitle>{name ?? 'Profile'}</DialogTitle>}
         footer={
-          hasContent ? (
+          hasContent && onSave ? (
             <Button
               type="submit"
               form="profile-raw-data-form"
@@ -104,6 +108,7 @@ export function ProfileRawDataDialog({
         }
       >
         {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {hasContent && extraContent}
         {hasContent && (
           <Form {...form}>
             <form
@@ -119,6 +124,7 @@ export function ProfileRawDataDialog({
                     <FormControl>
                       <Textarea
                         {...field}
+                        disabled={!onSave}
                         className="h-96 font-mono text-xs"
                         spellCheck={false}
                       />

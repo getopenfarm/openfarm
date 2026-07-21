@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   FilamentPresetPreviewItem,
   MachinePresetPreviewItem,
+  ProcessPresetPreviewItem,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
   ProfileReviewList,
@@ -25,6 +26,19 @@ const machinePresets: MachinePresetPreviewItem[] = [
     maxHeightMm: null,
     hasEnclosure: null,
     supportedMaterials: [],
+  },
+];
+
+const processPresets: ProcessPresetPreviewItem[] = [
+  {
+    name: '0.20mm Standard @BIQU B1',
+    sourceFormat: 'OrcaSlicer',
+    baseProfileName: null,
+    hasUnresolvedBaseInChain: false,
+    isDuplicate: false,
+    layerHeightMm: 0.2,
+    wallLoops: 3,
+    compatiblePrinterNames: [],
   },
 ];
 
@@ -72,6 +86,7 @@ function StatefulReviewList() {
   return (
     <ProfileReviewList
       machinePresets={machinePresets}
+      processPresets={processPresets}
       filamentPresets={filamentPresets}
       selections={selections}
       onChange={(key, next) =>
@@ -87,12 +102,19 @@ describe('ProfileReviewList', () => {
 
     expect(screen.getByText('Base Printer')).toBeInTheDocument();
     expect(screen.getByText('Existing PLA')).toBeInTheDocument();
-    expect(screen.getAllByText('Base')).toHaveLength(2);
+    expect(screen.getAllByText('Base')).toHaveLength(3);
     expect(
       screen.getByRole('combobox', {
         name: 'Duplicate action for Existing PLA',
       }),
     ).toBeInTheDocument();
+  });
+
+  it('renders the process presets section', () => {
+    render(<StatefulReviewList />);
+
+    expect(screen.getByText('Process profiles')).toBeInTheDocument();
+    expect(screen.getByText('0.20mm Standard @BIQU B1')).toBeInTheDocument();
   });
 
   it('unchecking a preset toggles its selection state', async () => {

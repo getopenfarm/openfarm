@@ -2,13 +2,10 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Infrastructure.Parts;
 
+/// <summary>The path-centric fields have moved to <see cref="SlicerBundleOptions"/> (FR-020) — this retains only the operational knobs that are still fixed/never surfaced (data-model.md "Configuration delta").</summary>
 public sealed class SlicerOptions
 {
     public const string SectionName = "Slicing";
-
-    public string OrcaSlicerCliPath { get; set; } = "/usr/local/bin/orca-slicer-cli";
-
-    public string? BambuStudioCliPath { get; set; }
 
     public TimeSpan CliTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -23,13 +20,6 @@ public sealed class SlicerOptions
     {
         [SlicerEngine.OrcaSlicer] = "Generic PLA",
         [SlicerEngine.BambuStudio] = "Bambu PLA Basic",
-    };
-
-    public string CliPathFor(SlicerEngine engine) => engine switch
-    {
-        SlicerEngine.OrcaSlicer => OrcaSlicerCliPath,
-        SlicerEngine.BambuStudio => BambuStudioCliPath
-            ?? throw new InvalidOperationException("Slicing:BambuStudioCliPath is not configured."),
-        _ => throw new ArgumentOutOfRangeException(nameof(engine)),
+        [SlicerEngine.SuperSlicer] = "Generic PLA",
     };
 }

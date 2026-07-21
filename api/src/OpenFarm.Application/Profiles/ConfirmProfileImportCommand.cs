@@ -6,6 +6,7 @@ public enum ProfileType
 {
     Machine,
     Filament,
+    Process,
 }
 
 public enum ProfileDuplicateAction
@@ -25,4 +26,5 @@ public sealed record CreatedProfileSummary(Guid Id, string Name, Guid? BaseProfi
 
 public sealed record ConfirmProfileImportResult(
     IReadOnlyList<CreatedProfileSummary> CreatedMachineProfiles,
-    IReadOnlyList<CreatedProfileSummary> CreatedFilamentProfiles);
+    IReadOnlyList<CreatedProfileSummary> CreatedFilamentProfiles,
+    IReadOnlyList<CreatedProfileSummary> CreatedProcessProfiles);
