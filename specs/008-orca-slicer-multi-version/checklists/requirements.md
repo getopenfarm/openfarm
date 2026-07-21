@@ -39,5 +39,8 @@
   - **Version retention**: the supported version set is append-only — once shipped, a version stays bundled forever — so a recorded version is always available and no "version disappeared" case exists (FR-008a, FR-007).
   - **Selection granularity**: org default + optional per-part override retained (FR-003, FR-004).
   - **Version identity**: exact upstream OrcaSlicer release version, verbatim, no friendly-label scheme (FR-005).
+- Clarification session 2026-07-21 (second pass) resolved two more:
+  - **No runtime validation**: the backend only *discovers* bundled versions at startup (present == available); a broken binary surfaces as a normal slice failure at slice time, not a pre-flight check (FR-002, FR-006; US1 scenario 3).
+  - **Default when unset**: with no admin-set default, auto-default to the newest bundled version (by release-version comparison) so the system is usable out of the box (FR-003).
 - The spec references the concrete current-state code path (`Slicing:OrcaSlicerCliPath`, single baked-in version) only to establish the problem being solved, not as implementation prescription for the solution.
 - Spec is ready for `/speckit-plan`.

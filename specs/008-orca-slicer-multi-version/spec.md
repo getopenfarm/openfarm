@@ -31,6 +31,7 @@ This specification does not itself re-slice existing parts, redesign the Part Li
 - Q: At what granularity does a user choose a slicer version? → A: Both an org-wide default (applied automatically, admin-set) and an optional per-part override at upload/replace time. Most uploads take the default with no decision; the override exists for parts authored against a different version.
 - Q: What identifies a "version" to the user? → A: The exact OrcaSlicer release version as published upstream (e.g. "2.2.0"), displayed in the picker and recorded on the part verbatim — no separate friendly-label scheme.
 - Q: When/how does the backend validate a bundled version? → A: It does not validate. The backend simply **discovers** the versions present in the bundle at startup — a version's availability means it is present. No executing binaries to verify runnability, no self-report probing. A genuinely broken binary surfaces as a normal, prompt slice failure at slice time (existing slicer-failure handling), not a pre-flight check.
+- Q: With multiple versions bundled and no default explicitly set, which version does an upload use? → A: Auto-default to the newest (highest) bundled version until an admin sets one explicitly. The system is always usable out of the box; the admin can override the choice.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -38,7 +39,7 @@ This specification does not itself re-slice existing parts, redesign the Part Li
 
 As an operator, I upload a part and it is sliced with a known OrcaSlicer version that the backend already discovered from the bundle — without me knowing or touching any binary or path — so that slicing works predictably instead of failing.
 
-**Why this priority**: This is the minimum that makes the Part Library functional at all — without at least one discovered, validated slicer version, no part that requires slicing can ever be processed. Everything else builds on this.
+**Why this priority**: This is the minimum that makes the Part Library functional at all — without at least one discovered slicer version, no part that requires slicing can ever be processed. Everything else builds on this.
 
 **Independent Test**: With an OrcaSlicer version present in the bundle, upload a part that requires slicing and confirm it slices successfully and the resulting part records the version used. With the bundled binary absent/broken, confirm the upload fails fast with a clear message instead of hanging.
 
@@ -95,7 +96,7 @@ As a developer (today) and as the release/packaging process (later), I declare t
 - Insufficient disk space for one or more versions during provisioning (each OrcaSlicer build is large).
 - A bundled version's files are deleted out from under the app after the startup discovery — surfaces as a prompt slice failure when next used, not a hang.
 - The host platform of the running app does not match the platform of any bundled version.
-- A very large number of versions is bundled — the version picker and validation must stay usable.
+- A very large number of versions is bundled — the version picker and default resolution must stay usable.
 
 ## Requirements *(mandatory)*
 
@@ -105,7 +106,7 @@ As a developer (today) and as the release/packaging process (later), I declare t
 
 - **FR-001**: The system MUST build the set of available OrcaSlicer versions entirely by the backend auto-scanning the application's bundled slicer directory at deploy/startup. There MUST be no user- or administrator-facing concept of a slicer binary, filesystem path, or system PATH anywhere in the product — the only user-facing concept is a **version**. Manual path entry MUST NOT exist.
 - **FR-002**: The backend MUST determine the available versions purely by **discovering** what is present in the bundled slicer directory at startup — a version counts as available if it is present. The system MUST NOT validate versions by executing them (no runnability probe, no self-report capture) as a pre-flight step, and MUST expose each version to users without surfacing any path detail. A binary that turns out to be broken surfaces as a normal slice failure at slice time (FR-006), not a pre-check.
-- **FR-003**: The system MUST allow an administrator to designate one available version as the organization default used when no explicit version is chosen. When only one version is available, it MUST be usable as the default without further configuration.
+- **FR-003**: The system MUST allow an administrator to designate one available version as the organization default used when no explicit version is chosen. Until an admin sets a default explicitly, the system MUST auto-default to the newest bundled version — "newest" determined by comparing the upstream release versions — so it is always usable out of the box, whether one or many versions are present.
 - **FR-004**: The system MUST allow an operator to override, per part add/replace, which available version is used to slice that part, defaulting to the organization default when not specified (mirroring the existing per-part engine-override behavior).
 - **FR-005**: The system MUST record the specific slicer version actually used — the exact upstream OrcaSlicer release version (e.g. "2.2.0"), verbatim — on both the part processing job and the resulting part, and MUST display that same value in any version picker, so the result is reproducible and auditable. No separate friendly-label scheme is introduced.
 - **FR-006**: When a slice is requested against a version that is not present in the bundle, OR when the invoked binary fails at slice time, the system MUST fail that request promptly with a message naming the version, and MUST NOT leave a processing job stuck indefinitely.
