@@ -21,6 +21,8 @@ public sealed class MachineProfileDetailResponse
     public double? MaxHeightMm { get; set; }
     public bool? HasEnclosure { get; set; }
     public List<string> SupportedMaterials { get; set; } = [];
+    public Guid? DefaultProcessProfileId { get; set; }
+    public string? DefaultProcessProfileName { get; set; }
 
     public static MachineProfileDetailResponse FromDetail(MachineProfileDetail detail) => new()
     {
@@ -38,6 +40,8 @@ public sealed class MachineProfileDetailResponse
         MaxHeightMm = detail.MaxHeightMm,
         HasEnclosure = detail.HasEnclosure,
         SupportedMaterials = detail.SupportedMaterials.ToList(),
+        DefaultProcessProfileId = detail.DefaultProcessProfileId,
+        DefaultProcessProfileName = detail.DefaultProcessProfileName,
     };
 }
 
