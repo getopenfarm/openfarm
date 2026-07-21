@@ -84,7 +84,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
             // Failed. Stopping here (as this helper used to) raced that continuation and
             // intermittently returned "ReadyForReview" a moment before it turned into "Failed".
             var stillSettling = job!.Status == "Processing"
-                || (job.Status == "ReadyForReview" && job.EstimateStatus == "Resolving");
+                || (job.Status == "ReadyForReview" && job.Preview?.EstimateStatus == "Resolving");
 
             if (!stillSettling)
             {
