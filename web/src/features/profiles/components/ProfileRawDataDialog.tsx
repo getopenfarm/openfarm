@@ -92,7 +92,7 @@ export function ProfileRawDataDialog({
         className="max-w-2xl sm:max-w-2xl"
         header={<DialogTitle>{name ?? 'Profile'}</DialogTitle>}
         footer={
-          hasContent ? (
+          hasContent && onSave ? (
             <Button
               type="submit"
               form="profile-raw-data-form"
@@ -119,6 +119,7 @@ export function ProfileRawDataDialog({
                     <FormControl>
                       <Textarea
                         {...field}
+                        disabled={!onSave}
                         className="h-96 font-mono text-xs"
                         spellCheck={false}
                       />
