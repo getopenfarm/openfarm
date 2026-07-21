@@ -78,7 +78,15 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         {
             var response = await client.GetAsync(new Uri($"/api/v1/part-processing-jobs/{jobId}", UriKind.Relative));
             var job = await response.Content.ReadFromJsonAsync<PartProcessingJobResponse>();
-            if (job!.Status != "Processing")
+
+            // "ReadyForReview" with EstimateStatus "Resolving" is not yet terminal either — the
+            // trailing async slice continuation hasn't settled, and can still flip Status to
+            // Failed. Stopping here (as this helper used to) raced that continuation and
+            // intermittently returned "ReadyForReview" a moment before it turned into "Failed".
+            var stillSettling = job!.Status == "Processing"
+                || (job.Status == "ReadyForReview" && job.EstimateStatus == "Resolving");
+
+            if (!stillSettling)
             {
                 return job;
             }
