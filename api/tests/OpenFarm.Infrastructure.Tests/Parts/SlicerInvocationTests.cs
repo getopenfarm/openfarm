@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.Parts.SlicerInvocation;
@@ -20,15 +21,42 @@ public class SlicerInvocationTests
     }
 
     [Fact]
-    public void PrusaSliceFamilyInvocation_BuildInvocation_ProducesExpectedArgumentList()
+    public void PrusaSliceFamilyInvocation_BuildInvocation_ExportsAGCodeBearingThreeMfViaGeneratedSettingsJson()
     {
-        var invocation = new PrusaSliceFamilyInvocation();
+        var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");
+        try
+        {
+            var invocation = new PrusaSliceFamilyInvocation();
 
-        var result = invocation.BuildInvocation(Orca, "/tmp/model.3mf", "Generic PLA", 0.4m, "/tmp/output.gcode");
+            var result = invocation.BuildInvocation(Orca, "/tmp/model.3mf", "PETG", 0.4m, workDirectory.FullName);
 
-        result.FileName.Should().Be(Orca.ExecutablePath);
-        result.Arguments.Should().Be(
-            "--slice 0 --load-filaments \"Generic PLA\" --nozzle-diameter 0.4 --export-gcode \"/tmp/output.gcode\" \"/tmp/model.3mf\"");
+            result.FileName.Should().Be(Orca.ExecutablePath);
+            result.ProducesGCodeBearingThreeMf.Should().BeTrue();
+            result.OutputPath.Should().Be(Path.Combine(workDirectory.FullName, "output.gcode.3mf"));
+
+            var machineSettingsPath = Path.Combine(workDirectory.FullName, "machine_settings.json");
+            var filamentSettingsPath = Path.Combine(workDirectory.FullName, "filament_settings.json");
+
+            result.Arguments.Should().Be(
+                $"--slice 0 --load-settings \"{machineSettingsPath}\" --load-filaments \"{filamentSettingsPath}\" " +
+                $"--export-3mf \"{result.OutputPath}\" \"/tmp/model.3mf\"");
+
+            File.Exists(machineSettingsPath).Should().BeTrue();
+            using (var doc = JsonDocument.Parse(File.ReadAllText(machineSettingsPath)))
+            {
+                doc.RootElement.GetProperty("nozzle_diameter")[0].GetString().Should().Be("0.4");
+            }
+
+            File.Exists(filamentSettingsPath).Should().BeTrue();
+            using (var doc = JsonDocument.Parse(File.ReadAllText(filamentSettingsPath)))
+            {
+                doc.RootElement.GetProperty("filament_type")[0].GetString().Should().Be("PETG");
+            }
+        }
+        finally
+        {
+            workDirectory.Delete(recursive: true);
+        }
     }
 
     [Fact]
@@ -46,9 +74,11 @@ public class SlicerInvocationTests
     {
         var invocation = new SuperSlicerInvocation();
 
-        var result = invocation.BuildInvocation(SuperSlicerBinary, "/tmp/model.3mf", "Generic PLA", 0.4m, "/tmp/output.gcode");
+        var result = invocation.BuildInvocation(SuperSlicerBinary, "/tmp/model.3mf", "Generic PLA", 0.4m, "/tmp");
 
         result.FileName.Should().Be(SuperSlicerBinary.ExecutablePath);
+        result.ProducesGCodeBearingThreeMf.Should().BeFalse();
+        result.OutputPath.Should().Be(Path.Combine("/tmp", "output.gcode"));
         result.Arguments.Should().Be(
             "--slice --filament-type \"Generic PLA\" --nozzle-diameter 0.4 --export-gcode \"/tmp/output.gcode\" \"/tmp/model.3mf\"");
     }

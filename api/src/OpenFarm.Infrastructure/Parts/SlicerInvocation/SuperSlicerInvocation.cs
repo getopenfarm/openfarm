@@ -18,13 +18,15 @@ public sealed class SuperSlicerInvocation : ISlicerInvocation
     public bool SupportsEngine(SlicerEngine engine) => engine == SlicerEngine.SuperSlicer;
 
     public SlicerProcessInvocation BuildInvocation(
-        AvailableSlicer slicer, string modelFilePath, string materialType, decimal nozzleDiameterMm, string outputPath)
+        AvailableSlicer slicer, string modelFilePath, string materialType, decimal nozzleDiameterMm, string workDirectoryPath)
     {
+        var outputPath = Path.Combine(workDirectoryPath, "output.gcode");
+
         var arguments = $"--slice --filament-type \"{EscapeMaterial(materialType)}\" " +
             $"--nozzle-diameter {nozzleDiameterMm.ToString(CultureInfo.InvariantCulture)} " +
             $"--export-gcode \"{outputPath}\" \"{modelFilePath}\"";
 
-        return new SlicerProcessInvocation(slicer.ExecutablePath, arguments);
+        return new SlicerProcessInvocation(slicer.ExecutablePath, arguments, outputPath, ProducesGCodeBearingThreeMf: false);
     }
 
     private static string EscapeMaterial(string materialType) => materialType.Replace("\"", "\\\"");
