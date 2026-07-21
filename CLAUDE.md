@@ -68,6 +68,7 @@ Key backend decisions (rationale in `docs/TECH_STACKS.md` § Key technical decis
 - **Server state**: TanStack Query exclusively for API data — no separate client cache/store for it.
 - **Typed API client**: generated from the backend's OpenAPI spec via Orval into `src/lib/api/generated` (`useGetPrinters`, `useCreateJob`, etc.) — **never hand-edit generated files**; regenerate from the spec instead.
 - **Forms**: react-hook-form + zod.
+- **Add/Edit flows** follow a **Page-first** rule (routed `/<feature>/new` and `/<feature>/:id/edit` pages by default; modals only for confirmations, quick actions, and in-form pickers) — see `docs/UI_CONVENTIONS.md` for the decision rule and the per-flow migration status.
 - **UI kit**: Tailwind CSS + shadcn/ui primitives in `src/components/ui/`.
 - **Tables**: TanStack Table + TanStack Virtual (the job queue needs virtualization for "unlimited depth").
 - **Real-time**: `@microsoft/signalr` client wired directly into TanStack Query's cache (`setQueryData`/invalidation on hub events), not a separate state store.
