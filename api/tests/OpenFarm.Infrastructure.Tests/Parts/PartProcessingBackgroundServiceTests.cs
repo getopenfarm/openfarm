@@ -302,8 +302,11 @@ public class PartProcessingBackgroundServiceTests
             service.Enqueue(new PartProcessingWorkItem(OrgId, poison.Id));
             service.Enqueue(new PartProcessingWorkItem(OrgId, healthy.Id));
 
-            await WaitUntilAsync(() => healthy.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(2));
-            await WaitUntilAsync(() => poison.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(2));
+            // A single worker (maxConcurrency: 1) processes both items sequentially, so this test needs
+            // more headroom than the other single-item waits in this file, especially under CI
+            // contention from concurrently-running test assemblies.
+            await WaitUntilAsync(() => healthy.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(5));
+            await WaitUntilAsync(() => poison.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(5));
 
             poison.Status.Should().Be(PartProcessingJobStatus.Failed);
             poison.ErrorMessage.Should().Be("boom");
