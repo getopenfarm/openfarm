@@ -28,6 +28,7 @@ This specification does not itself re-slice existing parts, redesign the Part Li
 
 - Q: Should users ever deal with slicer binaries, filesystem paths, or system PATH? → A: No. Users have no concept of a binary or its location. The backend scans the bundled slicer directory at deploy/startup, populates the set of available versions itself, and the only user-facing concept is a **version** the user picks from. No manual path entry exists anywhere in the product.
 - Q: What happens to a part whose recorded slicer version is not bundled in a later deployment? → A: The part keeps its recorded version as-is, shown as "not available in this deployment"; nothing auto-changes. Re-slicing that part requires picking a currently-available version, which is recorded anew as a fresh slice.
+- Q: At what granularity does a user choose a slicer version? → A: Both an org-wide default (applied automatically, admin-set) and an optional per-part override at upload/replace time. Most uploads take the default with no decision; the override exists for parts authored against a different version.
 
 ## User Scenarios & Testing *(mandatory)*
 
