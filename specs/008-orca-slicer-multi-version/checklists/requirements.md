@@ -36,7 +36,7 @@
   - **Engine scope**: OrcaSlicer only for this feature; registry designed engine-generically so Bambu Studio can join later (FR-022).
 - Clarification session 2026-07-21 resolved four further decisions and tightened the spec:
   - **No user-facing binary/path**: the backend scans the bundled slicer directory and populates available versions; users only pick a version (FR-001, FR-002, FR-019, FR-020; User Stories 1–2 reworded off "register a path").
-  - **Missing recorded version on redeploy**: shown as "not available in this deployment", never auto-substituted; re-slice requires an available version recorded anew (FR-008a).
+  - **Version retention**: the supported version set is append-only — once shipped, a version stays bundled forever — so a recorded version is always available and no "version disappeared" case exists (FR-008a, FR-007).
   - **Selection granularity**: org default + optional per-part override retained (FR-003, FR-004).
   - **Version identity**: exact upstream OrcaSlicer release version, verbatim, no friendly-label scheme (FR-005).
 - The spec references the concrete current-state code path (`Slicing:OrcaSlicerCliPath`, single baked-in version) only to establish the problem being solved, not as implementation prescription for the solution.

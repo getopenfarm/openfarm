@@ -27,7 +27,7 @@ This specification does not itself re-slice existing parts, redesign the Part Li
 ### Session 2026-07-21
 
 - Q: Should users ever deal with slicer binaries, filesystem paths, or system PATH? → A: No. Users have no concept of a binary or its location. The backend scans the bundled slicer directory at deploy/startup, populates the set of available versions itself, and the only user-facing concept is a **version** the user picks from. No manual path entry exists anywhere in the product.
-- Q: What happens to a part whose recorded slicer version is not bundled in a later deployment? → A: The part keeps its recorded version as-is, shown as "not available in this deployment"; nothing auto-changes. Re-slicing that part requires picking a currently-available version, which is recorded anew as a fresh slice.
+- Q: What happens to a part whose recorded slicer version is not bundled in a later deployment? → A: Not applicable by design — once a version is supported it is bundled **forever** (the version set is append-only across releases; a shipped version is never dropped). Therefore a recorded version is always still available, and there is no "version disappeared" case to handle.
 - Q: At what granularity does a user choose a slicer version? → A: Both an org-wide default (applied automatically, admin-set) and an optional per-part override at upload/replace time. Most uploads take the default with no decision; the override exists for parts authored against a different version.
 - Q: What identifies a "version" to the user? → A: The exact OrcaSlicer release version as published upstream (e.g. "2.2.0"), displayed in the picker and recorded on the part verbatim — no separate friendly-label scheme.
 
@@ -108,9 +108,9 @@ As a developer (today) and as the release/packaging process (later), I declare t
 - **FR-004**: The system MUST allow an operator to override, per part add/replace, which available version is used to slice that part, defaulting to the organization default when not specified (mirroring the existing per-part engine-override behavior).
 - **FR-005**: The system MUST record the specific slicer version actually used — the exact upstream OrcaSlicer release version (e.g. "2.2.0"), verbatim — on both the part processing job and the resulting part, and MUST display that same value in any version picker, so the result is reproducible and auditable. No separate friendly-label scheme is introduced.
 - **FR-006**: When a slice is requested against a version that is not available (not bundled, or failing validation), the system MUST fail (or refuse to start) that request promptly with a message naming the version, and MUST NOT leave a processing job stuck indefinitely.
-- **FR-007**: The system MUST prevent (or clearly warn about) selecting-as-default or slicing with a version that is not currently available, and MUST keep the default consistent when the set of available versions changes between deployments.
-- **FR-008**: Changing the available versions or the default MUST NOT retroactively alter parts already processed; each keeps the version it was originally sliced with.
-- **FR-008a**: When a part's recorded version is not present in the current deployment's scanned set, the system MUST display that version as "not available in this deployment" rather than altering, hiding, or silently substituting it. Re-slicing such a part MUST require the operator to pick a currently-available version, recorded as a fresh slice; the system MUST NOT auto-fall-back to another version or block startup over a missing historically-used version.
+- **FR-007**: The system MUST prevent (or clearly warn about) selecting-as-default or slicing with a version that fails validation. Because the version set is append-only (FR-008a), the configured default can never be invalidated by a version being dropped; newly-bundled versions simply become additionally available.
+- **FR-008**: Changing the default MUST NOT retroactively alter parts already processed; each keeps the version it was originally sliced with.
+- **FR-008a**: Once a version has shipped in any release, it MUST remain bundled in all subsequent releases — the supported version set is append-only and a version is never dropped. Consequently every version ever recorded on a part MUST remain available for display and re-slicing, and the system need not handle a "recorded version no longer present" case.
 
 #### Multi-platform
 
@@ -163,6 +163,7 @@ As a developer (today) and as the release/packaging process (later), I declare t
 - This feature does not change how estimates, thumbnails, or filament requirements are parsed from slicer output — only which slicer binary/version produces that output.
 - "Multi-platform" means the app and its bundled slicer versions run natively on each host OS; cross-compiling or emulating one platform's slicer on another is out of scope.
 - Existing already-processed parts (sliced under the single hard-coded version) remain valid; back-filling a version label onto historical parts is best-effort and not required for this feature.
+- The supported version set is **append-only**: once a version ships it is retained in every later release (the manifest only grows). This is a product/packaging commitment that keeps every recorded version reproducible; the tradeoff is monotonically growing artifact size, accepted deliberately.
 - Bundled binaries increase the shipped artifact size substantially; managing that size (which versions to ship, storage/bandwidth) is a packaging decision the manifest expresses, not something the running app manages.
 - The organization remains single-tenant per self-hosted install (per project foundation), so "organization default version" is effectively the install-wide default.
 
