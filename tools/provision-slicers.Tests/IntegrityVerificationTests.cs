@@ -26,7 +26,7 @@ public class IntegrityVerificationTests : IDisposable
         var expectedDigest = Convert.ToHexStringLower(SHA256.HashData(assetBytes));
         var provisioner = new Provisioner(new FakeAssetDownloader(assetBytes), new FakeAssetExtractor());
         var lockfile = Lockfile.CreateEmpty();
-        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux);
+        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux, "https://example.test/asset");
 
         var result = await provisioner.ProvisionAsync(request, _outputRoot, lockfile, CancellationToken.None);
 
@@ -38,7 +38,7 @@ public class IntegrityVerificationTests : IDisposable
     public async Task ProvisionAsync_DownloadedBytesDoNotMatchLockfileDigest_ReportsFailedWithoutThrowing()
     {
         var lockfile = Lockfile.CreateEmpty();
-        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux);
+        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux, "https://example.test/asset");
         lockfile.Set(new LockfileEntry(Engine.OrcaSlicer, "2.2.0", Platform.Linux, "https://example.test/asset", "0000000000000000000000000000000000000000000000000000000000000000"));
 
         // The leaf directory does not exist on disk yet, so the "already present" short-circuit

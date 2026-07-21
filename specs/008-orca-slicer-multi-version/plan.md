@@ -45,8 +45,9 @@ slicer set itself lives on the filesystem (install-level), **not** in the databa
 **Testing**: xUnit + FluentAssertions (Domain/Application unit), `WebApplicationFactory` +
 Testcontainers.PostgreSql (API integration), Vitest + React Testing Library (frontend). The real CLI
 invocation is validated manually against actual binaries (same carve-out as the existing `CliSlicerEngine`);
-`FakeSlicerEngine` remains the automated seam. The provisioning tool's pure logic (manifest parse, asset
-resolution, idempotency, integrity check) is unit-tested; live GitHub download is manual.
+`FakeSlicerEngine` remains the automated seam. The provisioning tool's pure logic (manifest parse,
+idempotency, integrity check, the non-macOS `.dmg` fallback) is unit-tested; live GitHub download and
+real macOS `hdiutil` extraction are manual.
 
 **Target Platform**: Linux, Windows, and macOS self-hosted hosts (FR-009). The shipped artifact is
 platform-specific; the running app resolves and invokes only the bundled build whose platform matches the
@@ -162,11 +163,10 @@ api/
 tools/
 └── provision-slicers/           # NEW .NET console tool (cross-platform, dev/build-time only)
     ├── ProvisionSlicers.csproj
-    ├── Program.cs               # read manifest → resolve → download → verify → extract → report
-    ├── EngineReleaseSources.cs  # per-engine GitHub repo + asset-name resolution per platform
+    ├── Program.cs               # read manifest → download (manifest-supplied URL) → verify → extract → report
     └── (unit tests alongside)
 
-slicers.manifest.json           # NEW repo-root manifest: desired (engine, version, platforms)
+slicers.manifest.json           # NEW repo-root manifest: desired (engine, version, assets: {platform: url})
 slicers.lock.json               # NEW generated: resolved asset URL + sha256 per entry (reproducibility)
 
 web/src/features/

@@ -31,13 +31,16 @@ public static class ManifestParser
 
         var errors = new List<string>();
 
-        var schemaVersion = 1;
+        // schemaVersion 2 replaced schemaVersion 1's platforms-array + code-derived-filename form
+        // with explicit per-platform asset URLs (contracts/slicer-manifest.schema.json) — 1 is no
+        // longer accepted.
+        var schemaVersion = 2;
         if (obj.TryGetPropertyValue("schemaVersion", out var schemaVersionNode) && schemaVersionNode is not null)
         {
             schemaVersion = schemaVersionNode.GetValue<int>();
-            if (schemaVersion != 1)
+            if (schemaVersion != 2)
             {
-                errors.Add($"Unsupported schemaVersion {schemaVersion}; expected 1.");
+                errors.Add($"Unsupported schemaVersion {schemaVersion}; expected 2.");
             }
         }
 
@@ -99,30 +102,40 @@ public static class ManifestParser
             errors.Add($"slicers[{index}].version is required.");
         }
 
-        var platforms = new List<Platform>();
-        if (entryObj["platforms"] is JsonArray platformsArray)
+        var assets = new Dictionary<Platform, string>();
+        if (entryObj["assets"] is JsonObject assetsObj)
         {
-            if (platformsArray.Count == 0)
+            if (assetsObj.Count == 0)
             {
-                errors.Add($"slicers[{index}].platforms must not be empty.");
+                errors.Add($"slicers[{index}].assets must not be empty.");
             }
 
-            foreach (var platformNode in platformsArray)
+            foreach (var (platformRaw, urlNode) in assetsObj)
             {
-                var platformRaw = platformNode?.GetValue<string>();
-                if (!string.IsNullOrWhiteSpace(platformRaw) && Enum.TryParse<Platform>(platformRaw, out var platform))
+                if (!Enum.TryParse<Platform>(platformRaw, out var platform))
                 {
-                    platforms.Add(platform);
+                    errors.Add($"slicers[{index}].assets contains an unknown platform '{platformRaw}'.");
+                    continue;
+                }
+
+                var url = urlNode?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(url))
+                {
+                    errors.Add($"slicers[{index}].assets['{platformRaw}'] must be a non-empty URL.");
+                }
+                else if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUrl) || parsedUrl.Scheme is not ("http" or "https"))
+                {
+                    errors.Add($"slicers[{index}].assets['{platformRaw}'] must be an absolute http(s) URL, got '{url}'.");
                 }
                 else
                 {
-                    errors.Add($"slicers[{index}].platforms contains an unknown platform '{platformRaw}'.");
+                    assets[platform] = url;
                 }
             }
         }
         else
         {
-            errors.Add($"slicers[{index}].platforms is required.");
+            errors.Add($"slicers[{index}].assets is required.");
         }
 
         if (errors.Count > 0)
@@ -131,7 +144,7 @@ public static class ManifestParser
         }
 
         var notes = entryObj["notes"]?.GetValue<string>();
-        entry = new SlicerManifestEntry(engine, version!, platforms, notes);
+        entry = new SlicerManifestEntry(engine, version!, assets, notes);
         return errors;
     }
 }

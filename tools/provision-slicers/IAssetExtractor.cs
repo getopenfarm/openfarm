@@ -10,13 +10,18 @@ public interface IAssetExtractor
 }
 
 /// <summary>
-/// Real implementation — a <c>.zip</c> is extracted directly (built-in, no external dependency); an
-/// <c>.AppImage</c> is extracted via its own <c>--appimage-extract</c> flag (matching
-/// <c>BundledSlicerScanner</c>'s expectation of an <c>AppRun</c> entry point inside the leaf, since
-/// AppImages need FUSE to run directly and containers typically lack it — the same reasoning
-/// infra/docker/api.Dockerfile already applied). A <c>.dmg</c> has no cross-platform .NET extraction
-/// API — it's written to the leaf as-is and left for manual completion on a macOS host. Manual-only,
-/// never a CI gate (research.md §8/§9).
+/// Real implementation — a <c>.zip</c> (e.g. OrcaSlicer/Bambu Studio/SuperSlicer's Windows portable
+/// build) is extracted directly (built-in, no external dependency; <see cref="SlicerExecutableResolver"/>-
+/// equivalent lookup on the app side searches the leaf recursively, so a single wrapping folder inside
+/// the zip needs no special flattening here). An <c>.AppImage</c> is extracted via its own
+/// <c>--appimage-extract</c> flag (matching the scanner's expectation of an <c>AppRun</c> entry point
+/// inside the leaf, since AppImages need FUSE to run directly and containers typically lack it — the
+/// same reasoning infra/docker/api.Dockerfile already applied). A <c>.dmg</c> is mounted and its
+/// <c>.app</c> bundle copied out via <c>hdiutil</c> — real extraction, but only possible when this tool
+/// itself runs on macOS (Apple's disk-image format has no cross-platform .NET reader); on any other
+/// host the raw <c>.dmg</c> is written to the leaf and extraction is reported as failed with an
+/// actionable message; a maintainer completes it on a Mac. Manual-only, never a CI gate (research.md
+/// §8/§9) — same carve-out as the real Bambu LAN connector / physical printer hardware.
 /// </summary>
 public sealed class DefaultAssetExtractor : IAssetExtractor
 {
@@ -46,9 +51,83 @@ public sealed class DefaultAssetExtractor : IAssetExtractor
             return;
         }
 
-        // .dmg (and anything else unrecognized): no portable extraction available — place the raw
-        // asset in the leaf and let a maintainer complete extraction manually on the target platform.
+        if (assetFileName.EndsWith(".dmg", StringComparison.OrdinalIgnoreCase))
+        {
+            await ExtractDmgAsync(assetBytes, destinationLeafDirectory, cancellationToken);
+            return;
+        }
+
+        // Anything else unrecognized: no known extraction — place the raw asset in the leaf so at
+        // least the download/integrity-verified bytes aren't lost, and let a maintainer complete it.
         await File.WriteAllBytesAsync(Path.Combine(destinationLeafDirectory, assetFileName), assetBytes, cancellationToken);
+    }
+
+    private static async Task ExtractDmgAsync(byte[] assetBytes, string destinationLeafDirectory, CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            await File.WriteAllBytesAsync(Path.Combine(destinationLeafDirectory, "unextracted.dmg"), assetBytes, cancellationToken);
+            throw new InvalidOperationException(
+                "Extracting a macOS .dmg requires running this tool on macOS (hdiutil) — Apple's disk-image " +
+                $"format has no cross-platform .NET reader. The raw .dmg was written to '{destinationLeafDirectory}'; " +
+                "mount it, copy the .app bundle into that same directory, and re-run to pick it up as already present.");
+        }
+
+        var workDirectory = Directory.CreateTempSubdirectory("openfarm-provision-dmg-");
+        var mountPoint = Path.Combine(workDirectory.FullName, "mount");
+        try
+        {
+            var dmgPath = Path.Combine(workDirectory.FullName, "asset.dmg");
+            await File.WriteAllBytesAsync(dmgPath, assetBytes, cancellationToken);
+            Directory.CreateDirectory(mountPoint);
+
+            await RunProcessAsync(
+                "hdiutil", ["attach", dmgPath, "-nobrowse", "-readonly", "-mountpoint", mountPoint], cancellationToken);
+
+            try
+            {
+                var appBundle = Directory.EnumerateDirectories(mountPoint, "*.app", SearchOption.TopDirectoryOnly).FirstOrDefault()
+                    ?? throw new InvalidOperationException("No .app bundle found inside the mounted disk image.");
+
+                CopyDirectory(appBundle, Path.Combine(destinationLeafDirectory, Path.GetFileName(appBundle)));
+            }
+            finally
+            {
+                await RunProcessAsync("hdiutil", ["detach", mountPoint, "-quiet"], cancellationToken, throwOnNonZeroExit: false);
+            }
+        }
+        finally
+        {
+            try
+            {
+                workDirectory.Delete(recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private static async Task RunProcessAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken, bool throwOnNonZeroExit = true)
+    {
+        var startInfo = new ProcessStartInfo(fileName)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Could not start '{fileName}'.");
+        await process.WaitForExitAsync(cancellationToken);
+        if (throwOnNonZeroExit && process.ExitCode != 0)
+        {
+            var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+            throw new InvalidOperationException($"'{fileName}' exited with code {process.ExitCode}: {stderr}");
+        }
     }
 
     private static async Task ExtractAppImageAsync(byte[] assetBytes, string destinationLeafDirectory, CancellationToken cancellationToken)

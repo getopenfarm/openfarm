@@ -10,10 +10,15 @@ public class ManifestParserTests
     {
         const string json = """
             {
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "slicers": [
-                { "engine": "OrcaSlicer", "version": "2.2.0", "platforms": ["Linux", "Windows"] },
-                { "engine": "SuperSlicer", "version": "2.5.59.13", "platforms": ["Linux"], "notes": "pinned" }
+                { "engine": "OrcaSlicer", "version": "2.2.0", "assets": {
+                    "Linux": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Linux.AppImage",
+                    "Windows": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Windows.zip"
+                  } },
+                { "engine": "SuperSlicer", "version": "2.5.59.13", "assets": {
+                    "Linux": "https://github.com/supermerill/SuperSlicer/releases/download/2.5.59.13/SuperSlicer.AppImage"
+                  }, "notes": "pinned" }
               ]
             }
             """;
@@ -21,10 +26,14 @@ public class ManifestParserTests
         var result = ManifestParser.Parse(json);
 
         result.Success.Should().BeTrue();
-        result.Manifest!.SchemaVersion.Should().Be(1);
+        result.Manifest!.SchemaVersion.Should().Be(2);
         result.Manifest.Slicers.Should().HaveCount(2);
         result.Manifest.Slicers[0].Engine.Should().Be(Engine.OrcaSlicer);
-        result.Manifest.Slicers[0].Platforms.Should().BeEquivalentTo([Platform.Linux, Platform.Windows]);
+        result.Manifest.Slicers[0].Assets.Should().BeEquivalentTo(new Dictionary<Platform, string>
+        {
+            [Platform.Linux] = "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Linux.AppImage",
+            [Platform.Windows] = "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Windows.zip",
+        });
         result.Manifest.Slicers[1].Notes.Should().Be("pinned");
     }
 
@@ -52,7 +61,7 @@ public class ManifestParserTests
         const string json = """
             {
               "slicers": [
-                { "engine": "Cura", "version": "5.0.0", "platforms": ["Linux"] }
+                { "engine": "Cura", "version": "5.0.0", "assets": { "Linux": "https://example.test/cura.AppImage" } }
               ]
             }
             """;
@@ -64,12 +73,12 @@ public class ManifestParserTests
     }
 
     [Fact]
-    public void Parse_EmptyPlatformsArray_ReportsError()
+    public void Parse_EmptyAssetsObject_ReportsError()
     {
         const string json = """
             {
               "slicers": [
-                { "engine": "OrcaSlicer", "version": "2.2.0", "platforms": [] }
+                { "engine": "OrcaSlicer", "version": "2.2.0", "assets": {} }
               ]
             }
             """;
@@ -77,7 +86,41 @@ public class ManifestParserTests
         var result = ManifestParser.Parse(json);
 
         result.Success.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("platforms"));
+        result.Errors.Should().Contain(e => e.Contains("assets"));
+    }
+
+    [Fact]
+    public void Parse_UnknownPlatformKeyInAssets_ReportsError()
+    {
+        const string json = """
+            {
+              "slicers": [
+                { "engine": "OrcaSlicer", "version": "2.2.0", "assets": { "FreeBsd": "https://example.test/x" } }
+              ]
+            }
+            """;
+
+        var result = ManifestParser.Parse(json);
+
+        result.Success.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("FreeBsd"));
+    }
+
+    [Fact]
+    public void Parse_AssetValueNotAnAbsoluteUrl_ReportsError()
+    {
+        const string json = """
+            {
+              "slicers": [
+                { "engine": "OrcaSlicer", "version": "2.2.0", "assets": { "Linux": "not-a-url" } }
+              ]
+            }
+            """;
+
+        var result = ManifestParser.Parse(json);
+
+        result.Success.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("absolute http(s) URL"));
     }
 
     [Fact]

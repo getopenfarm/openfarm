@@ -24,7 +24,7 @@ public class ProvisioningIdempotencyTests : IDisposable
         var downloader = new FakeAssetDownloader([1, 2, 3]);
         var provisioner = new Provisioner(downloader, new FakeAssetExtractor());
         var lockfile = Lockfile.CreateEmpty();
-        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux);
+        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux, "https://example.test/asset");
 
         var result = await provisioner.ProvisionAsync(request, _outputRoot, lockfile, CancellationToken.None);
 
@@ -38,7 +38,7 @@ public class ProvisioningIdempotencyTests : IDisposable
         var downloader = new FakeAssetDownloader([1, 2, 3]);
         var provisioner = new Provisioner(downloader, new FakeAssetExtractor());
         var lockfile = Lockfile.CreateEmpty();
-        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux);
+        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux, "https://example.test/asset");
 
         await provisioner.ProvisionAsync(request, _outputRoot, lockfile, CancellationToken.None);
         var secondResult = await provisioner.ProvisionAsync(request, _outputRoot, lockfile, CancellationToken.None);
@@ -51,7 +51,7 @@ public class ProvisioningIdempotencyTests : IDisposable
     public async Task ProvisionAsync_RunTwiceEndToEnd_ProducesIdenticalLockfileEntries()
     {
         var lockfilePath = Path.Combine(_outputRoot, "slicers.lock.json");
-        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux);
+        var request = new ProvisionEntryRequest(Engine.OrcaSlicer, "2.2.0", Platform.Linux, "https://example.test/asset");
 
         var lockfile1 = Lockfile.CreateEmpty();
         var provisioner1 = new Provisioner(new FakeAssetDownloader([1, 2, 3]), new FakeAssetExtractor());

@@ -160,27 +160,50 @@ prevented up front).
 **Decision**: A standalone **.NET console project** `tools/provision-slicers`, run via `dotnet run`
 (cross-platform on the SDK the repo already requires). It:
 
-- reads `slicers.manifest.json` (engine, version, platforms — see contract schema);
-- for each `(engine, version, platform)`, resolves the correct GitHub release asset via each engine's
-  official repo (`SoftFever/OrcaSlicer`, `bambulab/BambuStudio`, `supermerill/SuperSlicer`) using a
-  per-engine asset-name resolver (`EngineReleaseSources`);
-- downloads, **verifies SHA-256** against `slicers.lock.json` (pinned per entry; on first fetch of a new
-  entry it records the computed digest into the lockfile), then extracts into the §1 bundle layout;
+- reads `slicers.manifest.json` (engine, version, and an explicit per-platform download URL — see
+  contract schema v2). The manifest is the **sole source of the download URL**; the tool does not
+  derive or guess an asset filename from a naming-convention pattern, because each engine's release
+  asset naming can and does change between versions (this superseded schemaVersion 1's
+  platforms-array + code-derived-filename form, which broke silently whenever an engine renamed an
+  asset — there is no `EngineReleaseSources`/pattern-resolver anymore);
+- downloads from that URL, **verifies SHA-256** against `slicers.lock.json` (pinned per entry; on first
+  fetch of a new entry it records the computed digest into the lockfile), then extracts into the §1
+  bundle layout;
 - is **idempotent** — a present, digest-matching leaf is skipped and reported "already present" (FR-015);
-- reports **per-entry** success/failure and never lets one failed/unavailable entry abort the others
-  (FR-015/FR-017), exiting non-zero if any required entry failed.
+- reports **per-entry** success/failure and never lets one failed entry abort the others (FR-015/FR-017),
+  exiting non-zero if any entry failed;
+- reports **progress as it happens** (resolving → downloading with byte count → verifying → extracting),
+  not just a final per-entry line — a large binary download/extract with no console output in between
+  is otherwise indistinguishable from a hang.
+
+**Extraction, per platform**: a `.zip` (Windows portable builds) is extracted directly
+(`ZipFile.ExtractToDirectory`) — the app's executable lookup searches the leaf recursively, so a zip
+that wraps everything in one subfolder still resolves correctly, no flattening needed. An `.AppImage`
+(Linux) is extracted via its own `--appimage-extract` flag, matching the scanner's `AppRun` expectation.
+A `.dmg` (macOS) is mounted and its `.app` bundle copied out via `hdiutil` — genuine extraction, but only
+possible when the tool itself runs on macOS (Apple's disk-image format has no cross-platform .NET
+reader); on any other host the raw `.dmg` is written to the leaf and that entry is reported **failed**
+with an explicit "run this on macOS" message, rather than a false-positive "Provisioned" for a leaf the
+scanner can never actually resolve an executable from.
 
 **Rationale**: A .NET tool keeps everything in one toolchain, runs identically on Linux/Windows/macOS,
-and can unit-test its pure logic (manifest parse, asset resolution, idempotency, integrity) with the same
-xUnit stack. GitHub does not universally publish per-asset checksums, so a repo-committed
+and can unit-test its pure logic (manifest parse, idempotency, integrity, the non-macOS dmg fallback)
+with the same xUnit stack. GitHub does not universally publish per-asset checksums, so a repo-committed
 `slicers.lock.json` gives reproducible integrity verification (FR-014) and turns the manifest into a
 desired-state / lock pair a maintainer can reconcile (FR-017). Keeping it a **separate project** guarantees
-no runtime code path can reach GitHub-fetching logic (FR-018).
+no runtime code path can reach GitHub-fetching logic (FR-018). Manifest-supplied URLs (rather than a
+derived pattern) trade a slightly more verbose manifest for removing an entire class of "the tool guessed
+wrong because the asset name changed" failure — the maintainer editing the manifest is exactly the
+person who can see the real, current link.
 
 **Alternatives rejected**: A Bun/TypeScript script (web already uses Bun) — viable, but splits slicer
 logic across two toolchains and can't share the version comparer / engine constants with the backend; a
 bash + PowerShell pair (double the maintenance, no shared tests); an in-app "download on demand" action
-(explicitly out of scope, and forbidden by FR-018).
+(explicitly out of scope, and forbidden by FR-018); a per-engine asset-name pattern resolver (the
+original schemaVersion 1 design) — fragile against upstream naming changes, which is exactly the failure
+mode this revision removes; shelling out to `7z` to attempt cross-platform `.dmg` reading — unreliable
+for compressed/encrypted DMGs and adds an external-tool dependency for marginal benefit over the
+honest "run this on macOS" failure.
 
 ## §9 — Bundling in the shipped artifact (Dockerfile / packaging)
 

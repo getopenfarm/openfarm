@@ -28,14 +28,17 @@ using var downloader = new HttpAssetDownloader();
 var provisioner = new Provisioner(downloader, new DefaultAssetExtractor());
 
 var entriesForPlatform = parseResult.Manifest!.Slicers
-    .Where(entry => entry.Platforms.Contains(options.Platform))
+    .Where(entry => entry.Assets.ContainsKey(options.Platform))
     .ToList();
+
+Console.WriteLine($"Provisioning {entriesForPlatform.Count} entr{(entriesForPlatform.Count == 1 ? "y" : "ies")} for platform {options.Platform} into '{options.OutputDirectory}'…");
 
 var anyFailed = false;
 foreach (var entry in entriesForPlatform)
 {
-    var request = new ProvisionEntryRequest(entry.Engine, entry.Version, options.Platform);
-    var result = await provisioner.ProvisionAsync(request, options.OutputDirectory, lockfile, CancellationToken.None);
+    var assetUrl = entry.Assets[options.Platform];
+    var request = new ProvisionEntryRequest(entry.Engine, entry.Version, options.Platform, assetUrl);
+    var result = await provisioner.ProvisionAsync(request, options.OutputDirectory, lockfile, CancellationToken.None, onProgress: Console.WriteLine);
 
     Console.WriteLine($"[{result.Outcome}] {result.Engine} {result.Version} ({result.Platform}): {result.Message}");
     if (result.Outcome == ProvisionOutcome.Failed)
@@ -48,8 +51,10 @@ lockfile.Save(lockfilePath);
 
 if (entriesForPlatform.Count == 0)
 {
-    Console.WriteLine($"No manifest entries declare platform {options.Platform} — nothing to provision.");
+    Console.WriteLine($"No manifest entries declare an asset for platform {options.Platform} — nothing to provision.");
 }
+
+Console.WriteLine(anyFailed ? "Done — one or more entries failed (see above)." : "Done — all entries provisioned or already present.");
 
 return anyFailed ? 1 : 0;
 

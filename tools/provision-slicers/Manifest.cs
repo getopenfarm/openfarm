@@ -16,8 +16,14 @@ public enum Platform
     MacOs,
 }
 
-/// <summary>One maintainer-declared desired <c>(engine, version, platforms[])</c> entry (contracts/slicer-manifest.schema.json).</summary>
-public sealed record SlicerManifestEntry(Engine Engine, string Version, IReadOnlyList<Platform> Platforms, string? Notes);
+/// <summary>
+/// One maintainer-declared desired <c>(engine, version)</c> entry, with the exact download URL for
+/// each platform it should be fetched for (contracts/slicer-manifest.schema.json). The tool never
+/// derives/guesses an asset URL from a naming pattern — each engine's release asset naming can and
+/// does change between versions, so the manifest is the sole source of truth for where to download
+/// from; a maintainer copies the real link from the engine's GitHub releases page.
+/// </summary>
+public sealed record SlicerManifestEntry(Engine Engine, string Version, IReadOnlyDictionary<Platform, string> Assets, string? Notes);
 
 /// <summary>The full parsed manifest — the desired bundle state (research.md §8).</summary>
 public sealed record SlicerManifest(int SchemaVersion, IReadOnlyList<SlicerManifestEntry> Slicers);

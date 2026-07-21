@@ -1,16 +1,22 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "slicers": [
     {
       "engine": "OrcaSlicer",
       "version": "2.2.0",
-      "platforms": ["Linux", "Windows", "MacOs"]
+      "assets": {
+        "Linux": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.2.0.AppImage",
+        "Windows": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Windows_V2.2.0.zip",
+        "MacOs": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Mac_arm64_V2.2.0.dmg"
+      }
     },
     {
       "engine": "SuperSlicer",
       "version": "2.5.59.13",
-      "platforms": ["Linux"],
-      "notes": "PrusaSlicer-fork CLI form — see SuperSlicerInvocation"
+      "assets": {
+        "Linux": "https://github.com/supermerill/SuperSlicer/releases/download/2.5.59.13/SuperSlicer-ubuntu_2.5.59.13-linux-x64-GTK3.AppImage"
+      },
+      "notes": "PrusaSlicer-fork CLI form — see SuperSlicerInvocation. Verify this URL against the actual release assets page before relying on it: asset naming isn't guaranteed stable across versions, which is exactly why this manifest carries the literal link instead of a derived pattern."
     }
   ]
 }

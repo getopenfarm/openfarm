@@ -15,7 +15,9 @@ the data model (`data-model.md`) rather than restating them. Commands assume the
 ## Setup — provision a bundle from the manifest (Story 3)
 
 1. Edit `slicers.manifest.json` to declare at least two entries spanning **two engines** for your host
-   platform, e.g. an `OrcaSlicer` version and a `SuperSlicer` version on `Linux` (validate against
+   platform. Each entry's `assets` object maps platform → the **exact download URL**, copied verbatim
+   from that engine's GitHub releases page — the tool never derives or guesses a filename from a
+   pattern, since asset naming can and does change between releases (validate against
    `contracts/slicer-manifest.schema.json`).
 2. Run the provisioning tool:
 
@@ -26,16 +28,26 @@ the data model (`data-model.md`) rather than restating them. Commands assume the
        --platform Linux
    ```
 
-   **Expected**: each declared `(engine, version, Linux)` is fetched from its official GitHub release,
-   SHA-256-verified against `slicers.lock.json`, and extracted to
-   `<out>/<engineSlug>/<version>/linux/…` (research §1). Per-entry success/failure is printed; an
+   **Expected**: the tool first prints how many entries it found for the platform, then for each one
+   prints its own progress as it happens (resolving → downloading, with byte count → verifying SHA-256
+   → extracting) rather than staying silent until the end — a large binary download with no output in
+   between is otherwise indistinguishable from a hang. Each declared `(engine, version, Linux)` is
+   fetched from the manifest-supplied URL, SHA-256-verified against `slicers.lock.json`, and extracted
+   to `<out>/<engineSlug>/<version>/linux/…` (research §1). Per-entry success/failure is printed; an
    unavailable/failed entry does not abort the others (FR-015/FR-017). A missing lockfile digest is
-   computed and recorded on first fetch.
+   computed and recorded on first fetch. A final summary line reports overall success/failure.
 
 3. Re-run the exact same command → every entry reports **"already present"** and nothing re-downloads
    (idempotent, FR-015 / SC-004).
-4. Add a bogus entry (nonexistent version) and re-run → that one entry fails with a clear
-   engine/version/platform message; the real entries still complete (SC-004).
+4. Add a bogus entry (nonexistent URL) and re-run → that one entry fails with a clear
+   engine/version/platform message (a 404 download failure); the real entries still complete (SC-004).
+5. For a `MacOs` entry's `.dmg` asset: running the tool **on macOS** actually mounts the disk image
+   (`hdiutil`) and copies its `.app` bundle into the leaf — real extraction, not a manual step. Running
+   it anywhere else fails that entry with an explicit "requires running this tool on macOS" message
+   (the raw `.dmg` is still written to the leaf so nothing downloaded is lost); a maintainer completes
+   it by hand on an actual Mac. Windows `.zip` builds need no such carve-out — extraction is a plain
+   `ZipFile.ExtractToDirectory`, and the app's executable lookup searches the leaf recursively so a
+   zip that wraps everything in one folder still resolves correctly.
 
 ## Story 1 — Slice with a backend-discovered slicer, no path anywhere
 
