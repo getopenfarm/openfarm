@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OpenFarm.Domain.Parts;
@@ -48,6 +49,29 @@ public class BundledSlicerScannerTests : IDisposable
         var result = scanner.Scan();
 
         result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Scan_RootDoesNotExist_LogsWarning()
+    {
+        var missingRoot = Path.Combine(_root, "does-not-exist");
+        var logger = new RecordingLogger<BundledSlicerScanner>();
+        var scanner = new BundledSlicerScanner(Options.Create(new SlicerBundleOptions { RootDirectory = missingRoot }), logger);
+
+        scanner.Scan();
+
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning && e.Message.Contains(missingRoot));
+    }
+
+    [Fact]
+    public void Scan_RootExistsButHasNoLeaves_LogsWarning()
+    {
+        var logger = new RecordingLogger<BundledSlicerScanner>();
+        var scanner = new BundledSlicerScanner(Options.Create(new SlicerBundleOptions { RootDirectory = _root }), logger);
+
+        scanner.Scan();
+
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning && e.Message.Contains(_root));
     }
 
     [Fact]
@@ -128,5 +152,17 @@ public class BundledSlicerScannerTests : IDisposable
         var leaf = Path.Combine(_root, engineSlug, version, platformSlug);
         Directory.CreateDirectory(leaf);
         File.WriteAllText(Path.Combine(leaf, "AppRun"), "#!/bin/sh\nexit 0\n");
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception)));
     }
 }

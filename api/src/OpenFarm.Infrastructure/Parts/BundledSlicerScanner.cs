@@ -33,6 +33,7 @@ public sealed partial class BundledSlicerScanner(IOptions<SlicerBundleOptions> o
 
         if (!Directory.Exists(root))
         {
+            LogRootDirectoryMissing(logger, root);
             return results;
         }
 
@@ -78,8 +79,19 @@ public sealed partial class BundledSlicerScanner(IOptions<SlicerBundleOptions> o
             }
         }
 
+        if (results.Count == 0)
+        {
+            LogNoSlicersFound(logger, root);
+        }
+
         return results;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Bundled slicer root directory '{Path}' does not exist — no slicers will be available until it is created and populated (e.g. via tools/provision-slicers).")]
+    private static partial void LogRootDirectoryMissing(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Bundled slicer root directory '{Path}' exists but contains no usable (engine, version, platform) leaves — no slicers will be available.")]
+    private static partial void LogNoSlicersFound(ILogger logger, string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Duplicate bundled slicer leaf for {Engine} {Version} ({Platform}) at '{Path}' — ignored, an earlier leaf already claimed this entry.")]
     private static partial void LogDuplicateLeaf(ILogger logger, SlicerEngine engine, string version, SlicerPlatform platform, string path);
