@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Process Profiles (Fleet-Driven, Imported Like Machine Profiles)
+# Specification Quality Checklist: Process Profiles (Fleet-Selected, Sourced From the Bundled Slicer)
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-07-21
@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,7 +31,8 @@
 
 ## Notes
 
-- Two [NEEDS CLARIFICATION] markers intentionally remain, both scope-defining and neither resolvable by a reasonable default:
-  - **Q1 (FR-012 / User Story 5)** — whether OpenFarm ships/seeds predefined process profiles per supported machine model. Reverses a ratified `docs/FEATURE_PLAN.md` design decision ("import-your-own-bundle only") and carries licensing + cross-slicer-portability implications.
-  - **Q2 (FR-006)** — whether a process profile is attached directly per-printer or paired to a machine profile that printers inherit.
-- All other checklist items pass. Items marked incomplete require resolving Q1/Q2 before `/speckit-plan`.
+- Both open clarifications were resolved in the 2026-07-21 session (see spec.md § Clarifications) and folded into the spec:
+  - **Q1** — Process profiles are **sourced from the bundled slicer** (built-in per-model presets); no user import, no custom/hand-authored process profiles. The "predefined per supported machine model" idea is satisfied by the slicer's own presets, so no separate seeding/licensing is introduced.
+  - **Q2** — A process profile is attached **directly per-printer** (Option A), alongside the machine-profile link.
+- All checklist items pass. Spec is ready for `/speckit-plan`.
+- One item is deliberately deferred to planning research (not a spec gap): validating machine⇄process compatibility between a user-imported machine profile and the slicer's built-in process presets, including behaviour when the active slicer engine/version changes.
