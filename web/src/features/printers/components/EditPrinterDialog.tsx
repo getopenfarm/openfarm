@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import {
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
   useOpenFarmApiEndpointsPrintersEditPrinterEndpoint,
@@ -43,6 +44,10 @@ export interface EditPrinterDialogProps {
   modelCode: string;
   serialNumber: string;
   currentIpAddress: string;
+  machineProfileId: string | null | undefined;
+  machineProfileName: string | null | undefined;
+  processProfileId: string | null | undefined;
+  processProfileName: string | null | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -54,11 +59,26 @@ export function EditPrinterDialog({
   modelCode,
   serialNumber,
   currentIpAddress,
+  machineProfileId,
+  machineProfileName,
+  processProfileId,
+  processProfileName,
   open,
   onOpenChange,
 }: EditPrinterDialogProps) {
   const [verified, setVerified] = useState(false);
   const queryClient = useQueryClient();
+
+  const [selectedMachineProfileId, setSelectedMachineProfileId] = useState(
+    machineProfileId ?? null,
+  );
+  const [selectedMachineProfileName, setSelectedMachineProfileName] =
+    useState(machineProfileName ?? null);
+  const [selectedProcessProfileId, setSelectedProcessProfileId] = useState(
+    processProfileId ?? null,
+  );
+  const [selectedProcessProfileName, setSelectedProcessProfileName] =
+    useState(processProfileName ?? null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -78,8 +98,13 @@ export function EditPrinterDialog({
         accessCode: '',
       });
       setVerified(false);
+      setSelectedMachineProfileId(machineProfileId ?? null);
+      setSelectedMachineProfileName(machineProfileName ?? null);
+      setSelectedProcessProfileId(processProfileId ?? null);
+      setSelectedProcessProfileName(processProfileName ?? null);
     }
-  }, [open, printerName, currentIpAddress, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, printerName, currentIpAddress, machineProfileId, processProfileId]);
 
   const ipAddress = form.watch('ipAddress');
   const accessCode = form.watch('accessCode');
@@ -134,6 +159,21 @@ export function EditPrinterDialog({
     });
   }
 
+  function handleMachineProfileChange(id: string | null) {
+    setSelectedMachineProfileId(id);
+    setSelectedMachineProfileName(null);
+    // FR-007: any machine profile change (clear or switch to a different one) clears the process
+    // profile too — a process selection can never outlive the exact machine it was validated
+    // against, so it always needs re-picking once the machine changes.
+    setSelectedProcessProfileId(null);
+    setSelectedProcessProfileName(null);
+  }
+
+  function handleProcessProfileChange(id: string | null) {
+    setSelectedProcessProfileId(id);
+    setSelectedProcessProfileName(null);
+  }
+
   function onSubmit(values: FormValues) {
     editMutation.mutate({
       id: printerId,
@@ -142,8 +182,14 @@ export function EditPrinterDialog({
             name: values.name,
             ipAddress: values.ipAddress,
             accessCode: values.accessCode,
+            machineProfileId: selectedMachineProfileId,
+            processProfileId: selectedProcessProfileId,
           }
-        : { name: values.name },
+        : {
+            name: values.name,
+            machineProfileId: selectedMachineProfileId,
+            processProfileId: selectedProcessProfileId,
+          },
     });
   }
 
@@ -237,6 +283,29 @@ export function EditPrinterDialog({
                 Connection verified.
               </p>
             )}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Machine profile</span>
+              <ProfilePickerCombobox
+                kind="machine"
+                value={selectedMachineProfileId}
+                onChange={handleMachineProfileChange}
+                selectedLabel={selectedMachineProfileName}
+                placeholder="No machine profile linked"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Process profile</span>
+              <ProfilePickerCombobox
+                kind="process"
+                value={selectedProcessProfileId}
+                onChange={handleProcessProfileChange}
+                selectedLabel={selectedProcessProfileName}
+                placeholder="No process profile linked"
+                disabled={!selectedMachineProfileId}
+                disabledPlaceholder="Select a machine profile first"
+                printerId={printerId}
+              />
+            </div>
             <DialogFooter>
               <Button type="submit" disabled={saveDisabled}>
                 {editMutation.isPending ? 'Saving…' : 'Save'}

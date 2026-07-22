@@ -19,7 +19,6 @@ import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
 import { EditPrinterDialog } from './components/EditPrinterDialog';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
-import { MachineProfileLinkCard } from './components/MachineProfileLinkCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { RecentActivityCard } from './components/RecentActivityCard';
 import { printerStatusToBadge } from './lib/printerStatusBadge';
@@ -130,12 +129,36 @@ export function PrinterDetailPage() {
             </div>
             <div className="flex flex-col gap-4">
               <AmsSlotGrid amsUnits={printer.amsUnits ?? []} />
-              <MachineProfileLinkCard
-                printerId={printer.id ?? ''}
-                printerName={printer.name ?? ''}
-                machineProfileId={printer.machineProfileId}
-                processProfileId={printer.processProfileId}
-              />
+              <div className="flex flex-col gap-0 rounded-lg border">
+                <div className="border-b px-[18px] py-3.5">
+                  <h3 className="text-sm font-semibold">
+                    Machine &amp; process profile
+                  </h3>
+                </div>
+                <div className="flex flex-col gap-2 px-[18px] py-3.5">
+                  <p className="text-sm">
+                    Machine:{' '}
+                    <span className="text-muted-foreground">
+                      {printer.machineProfileName ?? 'Not linked'}
+                    </span>
+                  </p>
+                  <p className="text-sm">
+                    Process:{' '}
+                    <span className="text-muted-foreground">
+                      {printer.processProfileName ?? 'Not linked'}
+                    </span>
+                  </p>
+                  {!printer.machineProfileId && (
+                    <p className="text-xs text-muted-foreground">
+                      No profile linked — this printer won't count toward the
+                      farm's auto-detected nozzle diameter, so uploads of
+                      files that need slicing (STL, unsliced 3MF) may be
+                      rejected if no other printer provides one. Edit via
+                      settings.
+                    </p>
+                  )}
+                </div>
+              </div>
               <FeedUnitsCard printerId={printer.id ?? ''} />
               <RecentActivityCard printerId={printer.id ?? ''} />
             </div>
@@ -147,6 +170,10 @@ export function PrinterDetailPage() {
             modelCode={printer.modelCode ?? ''}
             serialNumber={printer.serialNumber ?? ''}
             currentIpAddress={printer.ipAddress ?? ''}
+            machineProfileId={printer.machineProfileId}
+            machineProfileName={printer.machineProfileName}
+            processProfileId={printer.processProfileId}
+            processProfileName={printer.processProfileName}
             open={settingsOpen}
             onOpenChange={setSettingsOpen}
           />

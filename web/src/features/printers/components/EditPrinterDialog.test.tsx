@@ -1,11 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { EditPrinterDialog } from './EditPrinterDialog';
 
-function renderDialog(onOpenChange: (open: boolean) => void = () => {}) {
+function renderDialog(
+  onOpenChange: (open: boolean) => void = () => {},
+  overrides: Partial<React.ComponentProps<typeof EditPrinterDialog>> = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -27,8 +31,13 @@ function renderDialog(onOpenChange: (open: boolean) => void = () => {}) {
       modelCode="P1S"
       serialNumber="SN-0001"
       currentIpAddress="10.0.0.50"
+      machineProfileId={null}
+      machineProfileName={null}
+      processProfileId={null}
+      processProfileName={null}
       open
       onOpenChange={onOpenChange}
+      {...overrides}
     />,
     { wrapper: Wrapper },
   );
@@ -104,7 +113,11 @@ describe('EditPrinterDialog', () => {
     expect(editCall).toBeDefined();
     const editRequestInit = editCall![1] as RequestInit;
     const requestBody = JSON.parse(editRequestInit.body as string);
-    expect(requestBody).toEqual({ name: 'Renamed Printer' });
+    expect(requestBody).toEqual({
+      name: 'Renamed Printer',
+      machineProfileId: null,
+      processProfileId: null,
+    });
   });
 
   it('requires a successful verify before enabling Save when connection fields change', async () => {
@@ -142,5 +155,84 @@ describe('EditPrinterDialog', () => {
     );
 
     await waitFor(() => expect(saveButton).not.toBeDisabled());
+  });
+
+  it('disables the process profile picker until a machine profile is linked (FR-007)', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse({}))),
+    );
+
+    renderDialog();
+
+    expect(
+      screen.getByRole('button', { name: 'Select a machine profile first' }),
+    ).toBeDisabled();
+  });
+
+  it('enables the process profile picker once a machine profile is already linked', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse({}))),
+    );
+
+    renderDialog(undefined, {
+      machineProfileId: 'm1',
+      machineProfileName: 'Bambu X1 Carbon 0.4 nozzle',
+      processProfileId: null,
+      processProfileName: null,
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Bambu X1 Carbon 0.4 nozzle' }),
+    ).not.toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'No process profile linked' }),
+    ).not.toBeDisabled();
+  });
+
+  it('selecting a machine profile from the picker clears any linked process profile locally', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/profiles/machine')) {
+        return Promise.resolve(
+          jsonResponse({
+            items: [
+              {
+                id: 'm2',
+                name: 'Another Machine',
+                origin: 'User',
+              },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderDialog(undefined, {
+      machineProfileId: 'm1',
+      machineProfileName: 'Bambu X1 Carbon 0.4 nozzle',
+      processProfileId: 'p1',
+      processProfileName: '0.20mm Standard',
+    });
+
+    expect(
+      screen.getByRole('button', { name: '0.20mm Standard' }),
+    ).not.toBeDisabled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Bambu X1 Carbon 0.4 nozzle' }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText('Another Machine')).toBeInTheDocument(),
+    );
+    await user.click(screen.getByText('Another Machine'));
+
+    expect(
+      screen.getByRole('button', { name: 'No process profile linked' }),
+    ).toBeInTheDocument();
   });
 });
