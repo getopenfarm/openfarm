@@ -23,9 +23,9 @@ the repo conventions in `CLAUDE.md`.
    ```
 
 2. **Expected**: a summary reporting vendors scanned, vendors skipped (unsupported models), and rows
-   created per kind. `GET /api/v1/profiles/machine/search?q=X1` returns rows with `origin: "System"`,
+   created per kind. `GET /api/v1/profiles/machine?origin=All&q=X1` returns rows with `origin: "System"`,
    `vendorName: "Bambulab"`.
-3. Query `GET /api/v1/profiles/process/search?compatibleWithMachineName=Bambu%20Lab%20X1%20Carbon%200.4%20nozzle`
+3. Query `GET /api/v1/profiles/process?origin=All&compatibleWithMachineName=Bambu%20Lab%20X1%20Carbon%200.4%20nozzle`
    → returns only process presets whose `compatibleMachineNames` includes that exact machine preset name.
 4. Re-run step 1 with unchanged bundle data → summary reports zero created/updated (idempotent, Acceptance
    Scenario 5).
@@ -40,16 +40,17 @@ the repo conventions in `CLAUDE.md`.
 
 ## Story 2 — Select a printer's machine and process profile
 
-1. Open a printer's page (`PUT /api/v1/printers/{id}/machine-profile`, existing 005 endpoint) → select a
-   `System`-labeled machine profile from `GET /api/v1/profiles/machine/search`.
-2. `GET /api/v1/printers/{id}/process-profile-choices` → `available: true`, items limited to
+1. Open a printer's edit dialog (`PATCH /api/v1/printers/{id}`, extended 005 endpoint) → select a
+   `System`-labeled machine profile from `GET /api/v1/profiles/machine?origin=All` and save
+   `{ machineProfileId: "..." }` (other existing fields unchanged).
+2. `GET /api/v1/profiles/process?origin=All&printerId={id}` → `available: true`, items limited to
    process profiles compatible with the just-selected machine (Acceptance Scenario 2).
-3. `PUT /api/v1/printers/{id}/process-profile` with a compatible `processProfileId` → `200`; verify the
+3. Save the same edit dialog again with a compatible `processProfileId` added → `200`; verify the
    activity log records the change (FR-016).
-4. Attempt the same call with a process profile **not** in that machine's compatible set → `422`
+4. Attempt the same save with a process profile **not** in that machine's compatible set → `422`
    (Acceptance Scenario, FR-006).
-5. On a printer with no machine profile selected: `GET .../process-profile-choices` → `available: false`
-   (FR-007, Acceptance Scenario 5).
+5. On a printer with no machine profile selected: `GET /api/v1/profiles/process?origin=All&printerId={id}`
+   → `available: false` (FR-007, Acceptance Scenario 5).
 6. Repeat steps 1–3 on a **second** printer of the same model with a **different** machine/process pair →
    confirm both printers keep independent selections (Acceptance Scenario 4, SC-007).
 
@@ -61,9 +62,9 @@ the repo conventions in `CLAUDE.md`.
    OrcaSlicer-sourced) and inspect the JSON actually written to `machine_settings.json`/
    `filament_settings.json` in the CLI invocation's temp work directory → confirm `machine_start_gcode`/
    `change_filament_gcode`/etc. are present (research.md §0a) rather than silently absent.
-2. Clear one printer's process selection (`PUT .../process-profile` with `null`) and request a slice for
-   it → refused, message names that printer and the missing process selection, no partial slice (Acceptance
-   Scenario 2, SC-003).
+2. Clear one printer's process selection (`PATCH /api/v1/printers/{id}` with `processProfileId: null`) and
+   request a slice for it → refused, message names that printer and the missing process selection, no
+   partial slice (Acceptance Scenario 2, SC-003).
 3. Confirm `Organization` no longer exposes a default-machine-profile field anywhere (schema/API) and that
    no code path reads one (FR-009, SC-005) — `grep -r DefaultMachineProfileId api/src` returns nothing.
 4. Request an estimate-only slice (no target printer, e.g. at part upload) with a non-empty fleet where at
@@ -77,9 +78,10 @@ the repo conventions in `CLAUDE.md`.
 
 ## Story 4 — Narrow a part's filament requirement, from the part detail page
 
-1. Open a part with an unnarrowed filament requirement; call the new
-   `PUT /api/v1/parts/{id}/filament-requirements/{index}/narrow` with a `System`-labeled filament profile
-   id → `200`, requirement reflects the narrowed choice (Acceptance Scenario 1/2).
+1. Open a part with an unnarrowed filament requirement (its real `Id`, e.g. `"3fa..."`, already returned by
+   `GetPartEndpoint`); call the new `PATCH /api/v1/parts/{id}/filament-requirements/{requirementId}` with a
+   `System`-labeled filament profile id → `200`, requirement reflects the narrowed choice (Acceptance
+   Scenario 1/2).
 2. Clear it (`narrowFilamentProfileId: null`) → `200`, activity log records the clear (Acceptance Scenario
    3, FR-016).
 

@@ -5,32 +5,37 @@ FastEndpoints classes under `OpenFarm.Api`, JWT-authenticated, permission-gated,
 mutation, and surface failures as RFC 7807 `ProblemDetails`. `origin` values on the wire: `"System"` |
 `"User"`.
 
+Revised after review to minimize new routes: rather than adding parallel `/search` endpoints or
+printer/part-scoped sub-routes, this extends the three existing list endpoints in place and folds the two
+new printer-profile mutations into the existing printer edit endpoint.
+
 ---
 
-## GET `/api/v1/profiles/machine/search`, `/api/v1/profiles/process/search`, `/api/v1/profiles/filament/search`
+## GET `/api/v1/profiles/machine`, `/api/v1/profiles/process`, `/api/v1/profiles/filament`
 
-The combined System+User picker query backing the printer page (machine, process) and part detail page
-(filament) — replaces an unbounded `ListAsync` for these new call sites (research.md §6). The existing
-`GET /api/v1/profiles/machine` / `/filament` (unbounded, feature 003) are unchanged and stay scoped to
-`origin=User` only for the import/browse page (FR-013) — these are new, additional endpoints, not
-replacements.
+**Same routes feature 003 already ships** — extended in place with optional query parameters rather than
+a separate `/search` endpoint, so there is exactly one GET per profile kind, not two.
 
-**Permission**: same read policy as the existing profile-browse endpoints.
+**Permission**: unchanged (`profiles:list-machine` / `profiles:list-process` / `profiles:list-filament`).
 
-**Query parameters** (all optional except pagination):
+**Query parameters** (all optional):
 
 | Param | Type | Notes |
 |---|---|---|
+| `origin` | `"System"` \| `"User"` \| `"All"`, default `"User"` | Defaulting to `"User"` preserves today's exact behavior (feature 003's browse page, FR-013) with **zero query-string change** for that caller. The new printer-page/part-detail pickers explicitly pass `origin=All`. |
 | `q` | string | free-text match against `Name` |
 | `compatibleWithMachineName` | string | process/filament only: filters to rows whose `compatibleMachineNames` contains this exact machine preset name (or is universally compatible, i.e. empty, for filament's vendor-generic bases) |
+| `printerId` | Guid | **process only** — sugar over `compatibleWithMachineName`: resolves the printer's current `machineProfileId` server-side and filters to compatible process profiles, so the frontend never has to look up a machine profile's name itself. Replaces the separate `GET /api/v1/printers/{id}/process-profile-choices` endpoint from the prior draft of this contract (see removal note below). |
 | `materialType` | string | filament only |
-| `page` | int, default 1 | |
-| `pageSize` | int, default 25, max 100 | |
+| `page` | int | omit to get every matching row in one response (today's browse-page behavior — safe because User-origin catalogs stay small by construction); provide to paginate (the picker's large-vendor-scale case, SC-010) |
+| `pageSize` | int, max 100 | only meaningful together with `page` |
 
 Every result row is `isSelectable = true AND isCurrentlyOffered = true` **or** `origin = "User"` — a
 `User` row has no such gating (unchanged from today).
 
-**200 Response**
+**200 Response** — one envelope shape regardless of whether pagination was requested (`page`/`totalCount`
+simply describe "one page containing everything" when omitted, so the frontend has exactly one shape to
+handle, not two):
 
 ```jsonc
 {
@@ -41,60 +46,77 @@ Every result row is `isSelectable = true AND isCurrentlyOffered = true` **or** `
     },
     { "id": "a91...", "name": "My Tuned PLA", "origin": "User" }
   ],
-  "page": 1, "pageSize": 25, "totalCount": 187
+  "page": 1, "pageSize": 187, "totalCount": 187
 }
 ```
 
 - Every item's `origin` MUST be present so the frontend can render the "System: …" / "User: …" label
   (SC-008) without a second lookup.
+- `GET /api/v1/profiles/process?printerId={id}` on a printer with no `machineProfileId` set returns
+  `{ "available": false, "items": [], "page": 1, "pageSize": 0, "totalCount": 0 }` — the `available` field is
+  present only on this `printerId`-driven call shape, giving the frontend the same explicit "nothing to
+  select yet" signal the removed dedicated endpoint provided (FR-007).
+
+**Removed from the prior draft of this contract**: `GET /api/v1/profiles/{kind}/search` (folded into the
+existing routes above) and `GET /api/v1/printers/{id}/process-profile-choices` (folded into
+`GET /api/v1/profiles/process?printerId={id}` above).
 
 ---
 
-## PUT `/api/v1/printers/{id}/process-profile`
+## PATCH `/api/v1/printers/{id}`
 
-Selects a printer's process profile — parallel to the existing `LinkPrinterMachineProfileEndpoint`.
+**Extends the existing `EditPrinterEndpoint`** (name + optional connection details, `EditPrinterRequest`)
+rather than adding separate `PUT .../machine-profile` / `PUT .../process-profile` endpoints — one printer
+configuration form, one save call, matching how IP/access code already work on this same endpoint and
+directly addressing the requested UX consolidation.
 
-**Permission**: same as `LinkPrinterMachineProfileEndpoint`.
-
-**Request**
+**Request** (new fields added to the existing `EditPrinterRequest`; every existing field/rule is
+unchanged):
 
 ```jsonc
-{ "processProfileId": "b3f..." }   // or { "processProfileId": null } to clear (FR-016 logs a clear the same as a change)
+{
+  "name": "Printer 3",
+  "ipAddress": "10.0.0.12", "accessCode": "...",     // existing, unchanged
+  "brand": "Bambu", "modelCode": "X1C", "serialNumber": "...",  // existing, unchanged
+  "machineProfileId": "b3f...",   // NEW — omit/null to clear the link, same as today's dedicated endpoint
+  "processProfileId": "a91..."    // NEW — omit/null to clear the link
+}
 ```
 
-**Validation / responses**
+`machineProfileId`/`processProfileId` are applied exactly as sent (`null` = clear) — **not** "omitted means
+leave unchanged" the way the paired `ipAddress`/`accessCode` fields work. This keeps their semantics
+identical to today's dedicated link endpoints and avoids a partial-vs-omitted ambiguity: the printer
+configuration form is expected to submit its full current state (as it already does for every other field
+on this endpoint), not a sparse diff.
+
+**Validation / responses** (adds to the existing rule set):
 
 | Case | Result |
 |---|---|
-| printer has no `machineProfileId` set | `422` ProblemDetails — `"Select a machine profile before selecting a process profile."` (FR-007) |
-| `processProfileId` doesn't exist or `origin != System` | `400` ProblemDetails |
-| process profile's `compatibleMachineNames` doesn't contain the printer's machine profile `Name` | `422` ProblemDetails — `"'<process>' is not compatible with '<machine>'."` (FR-006) |
-| valid | `200`, activity-logged (`PrinterProcessProfileLinked`/`Unlinked`, entity `Printer`) |
+| `processProfileId` set while `machineProfileId` is (or is being set to) null | `422` ProblemDetails — `"Select a machine profile before selecting a process profile."` (FR-007) |
+| `machineProfileId`/`processProfileId` doesn't exist, or wrong `origin` (a process profile must be `System`) | `400` ProblemDetails |
+| `processProfileId`'s `compatibleMachineNames` doesn't contain the resolved machine profile's `Name` | `422` ProblemDetails — `"'<process>' is not compatible with '<machine>'."` (FR-006) |
+| valid | `200`, same `PrinterSummaryResponse` shape as today; activity-logged per changed aspect (`PrinterEdited` for name/connection, `PrinterMachineProfileLinked`/`Unlinked`, `PrinterProcessProfileLinked`/`Unlinked` for the profile fields — FR-016) |
+
+**Permission note (explicit tradeoff)**: this consolidation gates the whole endpoint on the existing
+`printers:edit-connection` permission, replacing `printers:link-machine-profile` as a separate, narrower
+gate. Anyone who can edit a printer's connection details can now also change its machine/process profile
+in the same call. Flagged here as a deliberate simplification, not a silent scope change — a narrower
+permission model was possible (checking `printers:link-machine-profile` only when those two fields are
+present) but adds real complexity for a permission split nothing in this feature's requirements calls for.
+
+**Removed from the prior draft of this contract**: `PUT /api/v1/printers/{id}/process-profile` (folded in
+above). The existing `PUT /api/v1/printers/{id}/machine-profile` (`LinkPrinterMachineProfileEndpoint`) is
+also removed, folded into the same consolidated `PATCH`.
 
 ---
 
-## GET `/api/v1/printers/{id}/process-profile-choices`
+## PATCH `/api/v1/parts/{id}/filament-requirements/{requirementId}`
 
-Backs the process-profile picker's compatibility filtering (User Story 2, Acceptance Scenario 2/5) — same
-shape as the `/search` endpoints above but pre-filtered to the printer's currently-selected machine and
-returning an explicit "unavailable" signal when no machine is selected yet, so the frontend doesn't have to
-infer it from an empty list vs. a real empty-choices state.
-
-**200 Response**
-
-```jsonc
-{ "available": true, "items": [ /* same item shape as /search, no origin=User entries ever (FR-011) */ ] }
-// or, when the printer has no machine profile selected:
-{ "available": false, "items": [] }
-```
-
----
-
-## PUT `/api/v1/parts/{id}/filament-requirements/{requirementIndex}/narrow`
-
-Standalone narrow/change/clear for one filament requirement from the part detail page (FR-012) — the new
-surface data-model.md's `PartFilamentRequirement` section calls for, distinct from the existing
-one-time confirm-flow override on `ConfirmPartProcessingJobEndpoint`.
+Standalone narrow/change/clear for one filament requirement from the part detail page (FR-012), addressed
+by the requirement's own real `Id` — already returned as `PartFilamentRequirementDetail.Id` by the existing
+`GetPartEndpoint`, so no positional index needs inventing. Uses `PATCH`, not `PUT`, for the same reason
+`EditPrinterEndpoint` does: every request here is a partial modification by construction.
 
 **Permission**: same as existing part-mutation endpoints.
 
@@ -110,7 +132,7 @@ one-time confirm-flow override on `ConfirmPartProcessingJobEndpoint`.
 | Case | Result |
 |---|---|
 | both `narrowFilamentVariantId` and `narrowFilamentProfileId` set | `400` ProblemDetails (validation) |
-| `requirementIndex` doesn't exist on this part | `404` |
+| `requirementId` doesn't exist on this part | `404` |
 | `narrowFilamentProfileId` doesn't exist | `400` ProblemDetails |
 | valid | `200`, returns the updated requirement (same shape `GetPartEndpoint` already returns), activity-logged (FR-016) |
 
@@ -122,6 +144,7 @@ one-time confirm-flow override on `ConfirmPartProcessingJobEndpoint`.
 |---|---|
 | `GET/PUT /api/v1/settings/slicing-profile-defaults` | `GetSlicingProfileDefaultsEndpoint.cs`, `UpdateDefaultMachineProfileEndpoint.cs`, `UpdateOrganizationFilamentDefaultEndpoint.cs` |
 | `PUT /api/v1/profiles/machine/{id}/default-process` | `SetMachineProfileDefaultProcessEndpoint.cs` |
+| `PUT /api/v1/printers/{id}/machine-profile` | `LinkPrinterMachineProfileEndpoint.cs` — folded into `PATCH /api/v1/printers/{id}` above |
 | process-profile bundle import path | folded out of `ProfileBundleParser`/`ConfirmProfileImportCommandHandler`/`PreviewProfileImportCommandHandler` — process presets are never accepted from an uploaded bundle |
 | `PUT /api/v1/profiles/process/{id}/raw-data` | (no such endpoint exists standalone today per the survey — process raw-editing goes through the same generic raw-data path as machine/filament; that path is removed for `ProcessProfile` specifically, kept for `MachineProfile`/`FilamentProfile` `User` rows) |
 

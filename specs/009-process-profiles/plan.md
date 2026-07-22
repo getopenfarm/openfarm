@@ -18,6 +18,14 @@ part's filament requirement narrows to a specific profile or auto-resolves a det
 System filament profile per material type (replacing the org-level default-filament-per-material setting).
 The entire interim "Slicing Profile Defaults" settings page is removed.
 
+HTTP surface is kept deliberately small (contracts/profiles-api.md, revised after review): no new
+`/search` routes — the three existing `GET /api/v1/profiles/{machine,process,filament}` endpoints gain
+optional query params instead; no separate process-profile-link or process-profile-choices endpoints — both
+fold into the existing `PATCH /api/v1/printers/{id}` (which already handles name + optional connection
+details) and the extended `GET .../profiles/process?printerId=` respectively; and the part filament-
+narrowing endpoint addresses a requirement by its own real `Id` (already returned by `GetPartEndpoint`)
+rather than an invented positional index.
+
 Technical approach: add `Origin`/`VendorName`/`ExternalId`/`IsCurrentlyOffered`/`IsSelectable` (+
 kind-specific `CompatibleMachineNames`/`MaterialType`/`VendorMachineModelName`/`IncludedTemplateNames`)
 columns to the three existing profile tables rather than new System-specific tables (research.md §3) —
@@ -181,34 +189,37 @@ api/
 │   │   │   ├── IFilamentProfileRepository.cs     # + SearchAsync(...)
 │   │   │   ├── ProfileRawDataMerger.cs           # + fold in IncludedTemplateNames after the ancestor-chain merge (research.md §0a/§5, TDD)
 │   │   │   ├── RepresentativeFilamentResolver.cs # NEW: research.md §2 tie-break (TDD)
-│   │   │   ├── UpdatePartFilamentRequirementNarrowingCommand*.cs  # NEW (FR-012)
+│   │   │   ├── UpdatePartFilamentRequirementNarrowingCommand*.cs  # NEW (FR-012), addressed by the requirement's real Id
 │   │   │   ├── SetMachineProfileDefaultProcessCommand*.cs         # REMOVED
 │   │   │   ├── UpdateDefaultMachineProfileCommand*.cs             # REMOVED
 │   │   │   ├── IOrganizationFilamentDefaultRepository.cs          # REMOVED
 │   │   │   └── GetSlicingProfileDefaultsQueryHandler.cs           # REMOVED
+│   │   ├── Printers/
+│   │   │   ├── EditPrinterCommand.cs             # + MachineProfileId/ProcessProfileId (contracts/profiles-api.md — folds in the two link mutations, no separate command)
+│   │   │   ├── EditPrinterCommandHandler.cs      # + machine-first/compatibility gate (FR-006/FR-007), moved in from the removed LinkPrinterProcessProfileCommandHandler
+│   │   │   └── LinkPrinterMachineProfileCommand*.cs  # REMOVED — folded into EditPrinterCommand
 │   │   └── Parts/
 │   │       ├── ResolveSlicingProfileSelection.cs # rewritten: printer-targeted / fleet-representative (research.md §5)
-│   │       ├── LinkPrinterProcessProfileCommand*.cs  # NEW, mirrors existing machine-profile link command
 │   │       └── CliSlicerEngine.cs                # call-site change only: pass printerId through
 │   ├── OpenFarm.Infrastructure/
 │   │   ├── Profiles/
 │   │   │   ├── SystemProfileIngestionService.cs  # NEW: filesystem walk + vendor JSON parse + upsert
 │   │   │   ├── VendorProfileIndexReader.cs        # NEW: parses one Vendor.json + its referenced preset files; filters fetched files by declared "type" (research.md §0a — Bambu Studio's machine_list is 60% untyped include-target fragments)
 │   │   │   ├── ResourcesProfilesLocator.cs        # NEW: recursive search per research.md §0
-│   │   │   └── Repositories: extend Machine/Process/FilamentProfileRepository with SearchAsync
+│   │   │   └── Repositories: extend Machine/Process/FilamentProfileRepository with SearchAsync (backs the existing GET routes' new query params, contracts/profiles-api.md — no new HTTP routes)
 │   │   └── Persistence/
 │   │       ├── Configurations/{MachineProfileConfiguration,ProcessProfileConfiguration,FilamentProfileConfiguration,PrinterConfiguration}.cs  # updated
 │   │       ├── Configurations/OrganizationFilamentDefaultConfiguration.cs  # REMOVED
 │   │       └── Migrations/2026..._AddSystemProfilesAndProcessLink.cs       # NEW hand-authored migration
 │   └── OpenFarm.Api/Endpoints/
 │       ├── Profiles/
-│       │   ├── SearchMachineProfilesEndpoint.cs / SearchProcessProfilesEndpoint.cs / SearchFilamentProfilesEndpoint.cs  # NEW
+│       │   ├── ListMachineProfilesEndpoint.cs / ListProcessProfilesEndpoint.cs / ListFilamentProfilesEndpoint.cs  # EXTENDED IN PLACE — existing routes gain origin/q/compatibleWithMachineName/printerId/materialType/page/pageSize query params and a paginated response envelope (contracts/profiles-api.md); no new routes, no separate Search*Endpoint.cs files
 │       │   └── SetMachineProfileDefaultProcessEndpoint.cs  # REMOVED
 │       ├── Printers/
-│       │   ├── LinkPrinterProcessProfileEndpoint.cs         # NEW
-│       │   └── GetPrinterProcessProfileChoicesEndpoint.cs   # NEW
+│       │   ├── EditPrinterEndpoint.cs                       # EXTENDED IN PLACE — request gains machineProfileId/processProfileId (contracts/profiles-api.md); replaces both the link-machine-profile endpoint below and the separate process-profile-choices endpoint via the extended GET above
+│       │   └── LinkPrinterMachineProfileEndpoint.cs         # REMOVED — folded into EditPrinterEndpoint
 │       ├── Parts/
-│       │   └── UpdatePartFilamentRequirementNarrowingEndpoint.cs  # NEW
+│       │   └── UpdatePartFilamentRequirementNarrowingEndpoint.cs  # NEW: PATCH .../filament-requirements/{requirementId}, addressed by the requirement's real Id, not an invented index
 │       └── Settings/
 │           ├── GetSlicingProfileDefaultsEndpoint.cs         # REMOVED
 │           ├── UpdateDefaultMachineProfileEndpoint.cs       # REMOVED
@@ -217,16 +228,21 @@ api/
 
 web/src/features/
 ├── printers/components/
-│   ├── MachineProfileLinkCard.tsx        # extended: search picker with origin labels, replaces plain Select-of-all
-│   └── ProcessProfileLinkCard.tsx        # NEW, parallel component
+│   ├── EditPrinterDialog.tsx              # EXTENDED: machine + process profile pickers added as fields in
+│   │                                      # the SAME dialog as name/IP/access code, one Save action → one
+│   │                                      # PATCH /api/v1/printers/{id} call (contracts/profiles-api.md) —
+│   │                                      # not two separate cards with independent save buttons, per the
+│   │                                      # requested UX consolidation
+│   └── MachineProfileLinkCard.tsx        # REMOVED — its picker moves into the edit form above; its
+│                                          # standalone save action is superseded by the form's single save
 ├── parts/components/
 │   └── PartFilamentRequirementsList.tsx  # + narrow action wired to the new endpoint, used from PartDetailPage
 ├── profiles/components/
-│   ├── ProfilePickerCombobox.tsx         # NEW: shared searchable, paginated, origin-labeled picker (SC-008/SC-010)
+│   ├── ProfilePickerCombobox.tsx         # NEW: shared searchable, paginated, origin-labeled picker (SC-008/SC-010) — backs both the printer edit form's two pickers and the part detail narrowing picker, calling the extended GET routes above
 │   ├── ProcessProfilesTable.tsx          # REMOVED (no more process import/browse table)
 │   ├── ProfileRawDataDialog.tsx          # kept for Machine/Filament User rows only; process usage removed
 │   ├── ImportProfilesDialog.tsx          # process option removed from the bundle-kind selector
-│   └── MachineDefaultProcessSelect.tsx   # REMOVED (superseded by ProcessProfileLinkCard on the printer page)
+│   └── MachineDefaultProcessSelect.tsx   # REMOVED (superseded by the printer edit form's process picker)
 └── settings/
     ├── SlicingProfileDefaultsPage.tsx (+ .test.tsx)  # REMOVED
     └── SlicingDefaultsPage.tsx           # UNCHANGED — this is 008's slicer engine/version default, a distinct page
