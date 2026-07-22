@@ -34,7 +34,7 @@ public class UpdatePartFilamentRequirementNarrowingEndpointTests(CustomWebApplic
 
     private async Task<(Guid PartId, Guid RequirementId)> SeedPartWithFilamentRequirementAsync()
     {
-        using var scope = factory.Services.CreateScope();
+        using var scope = await factory.CreateTenantScopeAsync();
         var partRepository = scope.ServiceProvider.GetRequiredService<IPartRepository>();
 
         var part = Part.Create(
@@ -63,7 +63,7 @@ public class UpdatePartFilamentRequirementNarrowingEndpointTests(CustomWebApplic
 
     private async Task<Guid> SeedSystemFilamentProfileAsync()
     {
-        using var scope = factory.Services.CreateScope();
+        using var scope = await factory.CreateTenantScopeAsync();
         var filamentRepo = scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>();
 
         var profile = FilamentProfile.CreateSystemProfile(

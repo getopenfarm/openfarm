@@ -1,6 +1,8 @@
+using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Printers.Simulator;
 using Testcontainers.PostgreSql;
 
@@ -66,6 +68,28 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         var leaf = Path.Combine(_slicerBundleDirectory, engineSlug, version, "linux");
         Directory.CreateDirectory(leaf);
         File.WriteAllText(Path.Combine(leaf, "AppRun"), "#!/bin/sh\nexit 1\n");
+    }
+
+    /// <summary>
+    /// A DI scope off <see cref="WebApplicationFactory{TEntryPoint}.Services"/> with the single
+    /// organization's tenant context pre-populated. Finbuckle's tenant resolution is HTTP-middleware-
+    /// based (<c>UseMultiTenant()</c>), which never runs for a scope a test creates directly this way
+    /// — without this, every tenant-scoped EF query/save throws (a <see cref="NullReferenceException"/>
+    /// on read, a <c>MultiTenantException</c> on write) against a null <c>TenantInfo</c>. Same
+    /// established pattern as <c>PrinterConnectionBackgroundService.CreateTenantScope</c> and 009's
+    /// <c>ingest-system-profiles</c> CLI entry point. Use this instead of a bare <c>Services.CreateScope()</c>
+    /// whenever a test talks to a tenant-scoped repository/DbContext without going through
+    /// <see cref="WebApplicationFactory{TEntryPoint}.CreateClient"/>'s real HTTP pipeline.
+    /// </summary>
+    public async Task<IServiceScope> CreateTenantScopeAsync()
+    {
+        var scope = Services.CreateScope();
+        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+        var tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
+            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before this test.");
+        var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
+        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenantInfo);
+        return scope;
     }
 
     public new async Task DisposeAsync()

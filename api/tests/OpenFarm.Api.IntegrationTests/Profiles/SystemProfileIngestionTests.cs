@@ -28,7 +28,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var filamentVendorSuffix = Guid.NewGuid().ToString("N");
         var leaf = StageLeaf(filamentVendorSuffix, ("OrcaSlicer", vendorName), ("UnsupportedVendor", null));
 
-        using var scope = factory.Services.CreateScope();
+        using var scope = await factory.CreateTenantScopeAsync();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
@@ -68,7 +68,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var filamentVendorSuffix = Guid.NewGuid().ToString("N");
         var leaf = StageLeaf(filamentVendorSuffix, ("OrcaSlicer", vendorName));
 
-        using var scope = factory.Services.CreateScope();
+        using var scope = await factory.CreateTenantScopeAsync();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var filamentRepo = scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>();
         var vendorRepo = scope.ServiceProvider.GetRequiredService<IVendorRepository>();
@@ -96,7 +96,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", vendorName));
 
-        using var scope = factory.Services.CreateScope();
+        using var scope = await factory.CreateTenantScopeAsync();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
 
         var first = await ingestionService.IngestAsync(leaf, CancellationToken.None);
@@ -118,7 +118,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", vendorName));
 
-        using var scope = factory.Services.CreateScope();
+        using var scope = await factory.CreateTenantScopeAsync();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
 
@@ -150,7 +150,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("BambuStudio", vendorName));
 
-        using var scope = factory.Services.CreateScope();
+        using var scope = await factory.CreateTenantScopeAsync();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
 

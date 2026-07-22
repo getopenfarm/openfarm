@@ -54,7 +54,7 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
     // vendor bundle and running ingestion just to get one compatible pair).
     private async Task<(Guid MachineProfileId, Guid ProcessProfileId, string MachineProfileName)> SeedCompatibleSystemProfilePairAsync()
     {
-        using var scope = factory.Services.CreateScope();
+        using var scope = await factory.CreateTenantScopeAsync();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
 
