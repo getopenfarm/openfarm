@@ -25,11 +25,13 @@ import type {
   CreatePartRequest,
   ListPartsResponse,
   OpenFarmApiEndpointsPartsListPartsEndpointParams,
+  PartFilamentRequirementResponse,
   PartProcessingJobSubmittedResponse,
   PartResponse,
   PartTagsResponse,
   ReplacePartFileRequest,
   TagPartRequest,
+  UpdatePartFilamentRequirementNarrowingRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -1326,3 +1328,181 @@ export const useOpenFarmApiEndpointsPartsUntagPartEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse200 =
+  {
+    data: PartFilamentRequirementResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponseSuccess =
+  openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponseError =
+  (
+    | openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse401
+    | openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse =
+  | openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponseSuccess
+  | openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointUrl =
+  (id: string, requirementId: string) => {
+    return `/api/v1/parts/${id}/filament-requirements/${requirementId}`;
+  };
+
+export const openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint =
+  async (
+    id: string,
+    requirementId: string,
+    updatePartFilamentRequirementNarrowingRequest: UpdatePartFilamentRequirementNarrowingRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse>(
+      getOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointUrl(
+        id,
+        requirementId,
+      ),
+      {
+        ...options,
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(updatePartFilamentRequirementNarrowingRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
+        >
+      >,
+      TError,
+      {
+        id: string;
+        requirementId: string;
+        data: UpdatePartFilamentRequirementNarrowingRequest;
+      },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
+      >
+    >,
+    TError,
+    {
+      id: string;
+      requirementId: string;
+      data: UpdatePartFilamentRequirementNarrowingRequest;
+    },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
+        >
+      >,
+      {
+        id: string;
+        requirementId: string;
+        data: UpdatePartFilamentRequirementNarrowingRequest;
+      }
+    > = (props) => {
+      const { id, requirementId, data } = props ?? {};
+
+      return openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint(
+        id,
+        requirementId,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationBody =
+  UpdatePartFilamentRequirementNarrowingRequest;
+export type OpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint =
+  <TError = void, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
+          >
+        >,
+        TError,
+        {
+          id: string;
+          requirementId: string;
+          data: UpdatePartFilamentRequirementNarrowingRequest;
+        },
+        TContext
+      >;
+    },
+    queryClient?: QueryClient,
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
+      >
+    >,
+    TError,
+    {
+      id: string;
+      requirementId: string;
+      data: UpdatePartFilamentRequirementNarrowingRequest;
+    },
+    TContext
+  > => {
+    return useMutation(
+      getOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationOptions(
+        options,
+      ),
+      queryClient,
+    );
+  };

@@ -60,7 +60,7 @@ public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository r
 
         var leanSummaries = rows.Select(r => new FilamentProfileSummary(
             r.Id, r.Name, r.Origin, r.VendorName, r.SourceFormat, r.BaseProfileId, r.BaseProfileName,
-            false, null, null, null, null, null, null, null, [])
+            false, null, null, null, null, null, null, null, null, [])
         {
             MaterialType = r.MaterialType,
         }).ToList();

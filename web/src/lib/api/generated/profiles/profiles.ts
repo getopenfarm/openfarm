@@ -28,12 +28,13 @@ import type {
   ListFilamentProfilesResponse,
   ListMachineProfilesResponse,
   ListProcessProfilesResponse,
-  MachineProfileDefaultProcessResponse,
   MachineProfileDetailResponse,
+  OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams,
+  OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams,
+  OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams,
   PreviewProfileImportRequest,
   PreviewProfileImportResponse,
   ProcessProfileDetailResponse,
-  SetMachineProfileDefaultProcessRequest,
   UpdateFilamentProfileRawDataRequest,
   UpdateMachineProfileRawDataRequest,
 } from '../endpoints.schemas';
@@ -1020,16 +1021,30 @@ export type openFarmApiEndpointsProfilesListFilamentProfilesEndpointResponse =
   | openFarmApiEndpointsProfilesListFilamentProfilesEndpointResponseSuccess
   | openFarmApiEndpointsProfilesListFilamentProfilesEndpointResponseError;
 
-export const getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointUrl =
-  () => {
-    return `/api/v1/profiles/filament`;
-  };
+export const getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointUrl = (
+  params?: OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/profiles/filament?${stringifiedParams}`
+    : `/api/v1/profiles/filament`;
+};
 
 export const openFarmApiEndpointsProfilesListFilamentProfilesEndpoint = async (
+  params?: OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams,
   options?: RequestInit,
 ): Promise<openFarmApiEndpointsProfilesListFilamentProfilesEndpointResponse> => {
   return httpClient<openFarmApiEndpointsProfilesListFilamentProfilesEndpointResponse>(
-    getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointUrl(),
+    getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointUrl(params),
     {
       ...options,
       method: 'GET',
@@ -1038,8 +1053,8 @@ export const openFarmApiEndpointsProfilesListFilamentProfilesEndpoint = async (
 };
 
 export const getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey =
-  () => {
-    return [`/api/v1/profiles/filament`] as const;
+  (params?: OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams) => {
+    return [`/api/v1/profiles/filament`, ...(params ? [params] : [])] as const;
   };
 
 export const getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryOptions =
@@ -1050,24 +1065,29 @@ export const getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryOpt
       >
     >,
     TError = void,
-  >(options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof openFarmApiEndpointsProfilesListFilamentProfilesEndpoint
-          >
-        >,
-        TError,
-        TData
-      >
-    >;
-  }) => {
+  >(
+    params?: OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsProfilesListFilamentProfilesEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
     const { query: queryOptions } = options ?? {};
 
     const queryKey =
       queryOptions?.queryKey ??
-      getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey();
+      getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey(
+        params,
+      );
 
     const queryFn: QueryFunction<
       Awaited<
@@ -1076,7 +1096,9 @@ export const getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryOpt
         >
       >
     > = ({ signal }) =>
-      openFarmApiEndpointsProfilesListFilamentProfilesEndpoint({ signal });
+      openFarmApiEndpointsProfilesListFilamentProfilesEndpoint(params, {
+        signal,
+      });
 
     return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
       Awaited<
@@ -1106,6 +1128,9 @@ export function useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint<
   >,
   TError = void,
 >(
+  params:
+    | undefined
+    | OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1145,6 +1170,7 @@ export function useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1184,6 +1210,7 @@ export function useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1208,6 +1235,7 @@ export function useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1227,6 +1255,7 @@ export function useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint<
 } {
   const queryOptions =
     getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryOptions(
+      params,
       options,
     );
 
@@ -1272,16 +1301,30 @@ export type openFarmApiEndpointsProfilesListMachineProfilesEndpointResponse =
   | openFarmApiEndpointsProfilesListMachineProfilesEndpointResponseSuccess
   | openFarmApiEndpointsProfilesListMachineProfilesEndpointResponseError;
 
-export const getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointUrl =
-  () => {
-    return `/api/v1/profiles/machine`;
-  };
+export const getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointUrl = (
+  params?: OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/profiles/machine?${stringifiedParams}`
+    : `/api/v1/profiles/machine`;
+};
 
 export const openFarmApiEndpointsProfilesListMachineProfilesEndpoint = async (
+  params?: OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams,
   options?: RequestInit,
 ): Promise<openFarmApiEndpointsProfilesListMachineProfilesEndpointResponse> => {
   return httpClient<openFarmApiEndpointsProfilesListMachineProfilesEndpointResponse>(
-    getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointUrl(),
+    getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointUrl(params),
     {
       ...options,
       method: 'GET',
@@ -1290,8 +1333,8 @@ export const openFarmApiEndpointsProfilesListMachineProfilesEndpoint = async (
 };
 
 export const getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey =
-  () => {
-    return [`/api/v1/profiles/machine`] as const;
+  (params?: OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams) => {
+    return [`/api/v1/profiles/machine`, ...(params ? [params] : [])] as const;
   };
 
 export const getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryOptions =
@@ -1300,24 +1343,29 @@ export const getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryOpti
       ReturnType<typeof openFarmApiEndpointsProfilesListMachineProfilesEndpoint>
     >,
     TError = void,
-  >(options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof openFarmApiEndpointsProfilesListMachineProfilesEndpoint
-          >
-        >,
-        TError,
-        TData
-      >
-    >;
-  }) => {
+  >(
+    params?: OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsProfilesListMachineProfilesEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
     const { query: queryOptions } = options ?? {};
 
     const queryKey =
       queryOptions?.queryKey ??
-      getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey();
+      getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey(
+        params,
+      );
 
     const queryFn: QueryFunction<
       Awaited<
@@ -1326,7 +1374,9 @@ export const getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryOpti
         >
       >
     > = ({ signal }) =>
-      openFarmApiEndpointsProfilesListMachineProfilesEndpoint({ signal });
+      openFarmApiEndpointsProfilesListMachineProfilesEndpoint(params, {
+        signal,
+      });
 
     return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
       Awaited<
@@ -1354,6 +1404,9 @@ export function useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint<
   >,
   TError = void,
 >(
+  params:
+    | undefined
+    | OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1393,6 +1446,7 @@ export function useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1432,6 +1486,7 @@ export function useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1456,6 +1511,7 @@ export function useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1475,6 +1531,7 @@ export function useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint<
 } {
   const queryOptions =
     getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryOptions(
+      params,
       options,
     );
 
@@ -1520,16 +1577,30 @@ export type openFarmApiEndpointsProfilesListProcessProfilesEndpointResponse =
   | openFarmApiEndpointsProfilesListProcessProfilesEndpointResponseSuccess
   | openFarmApiEndpointsProfilesListProcessProfilesEndpointResponseError;
 
-export const getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointUrl =
-  () => {
-    return `/api/v1/profiles/process`;
-  };
+export const getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointUrl = (
+  params?: OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/profiles/process?${stringifiedParams}`
+    : `/api/v1/profiles/process`;
+};
 
 export const openFarmApiEndpointsProfilesListProcessProfilesEndpoint = async (
+  params?: OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams,
   options?: RequestInit,
 ): Promise<openFarmApiEndpointsProfilesListProcessProfilesEndpointResponse> => {
   return httpClient<openFarmApiEndpointsProfilesListProcessProfilesEndpointResponse>(
-    getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointUrl(),
+    getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointUrl(params),
     {
       ...options,
       method: 'GET',
@@ -1538,8 +1609,8 @@ export const openFarmApiEndpointsProfilesListProcessProfilesEndpoint = async (
 };
 
 export const getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointQueryKey =
-  () => {
-    return [`/api/v1/profiles/process`] as const;
+  (params?: OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams) => {
+    return [`/api/v1/profiles/process`, ...(params ? [params] : [])] as const;
   };
 
 export const getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointQueryOptions =
@@ -1548,24 +1619,29 @@ export const getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointQueryOpti
       ReturnType<typeof openFarmApiEndpointsProfilesListProcessProfilesEndpoint>
     >,
     TError = void,
-  >(options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof openFarmApiEndpointsProfilesListProcessProfilesEndpoint
-          >
-        >,
-        TError,
-        TData
-      >
-    >;
-  }) => {
+  >(
+    params?: OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsProfilesListProcessProfilesEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
     const { query: queryOptions } = options ?? {};
 
     const queryKey =
       queryOptions?.queryKey ??
-      getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointQueryKey();
+      getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointQueryKey(
+        params,
+      );
 
     const queryFn: QueryFunction<
       Awaited<
@@ -1574,7 +1650,9 @@ export const getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointQueryOpti
         >
       >
     > = ({ signal }) =>
-      openFarmApiEndpointsProfilesListProcessProfilesEndpoint({ signal });
+      openFarmApiEndpointsProfilesListProcessProfilesEndpoint(params, {
+        signal,
+      });
 
     return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
       Awaited<
@@ -1602,6 +1680,9 @@ export function useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint<
   >,
   TError = void,
 >(
+  params:
+    | undefined
+    | OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1641,6 +1722,7 @@ export function useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1680,6 +1762,7 @@ export function useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1704,6 +1787,7 @@ export function useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint<
   >,
   TError = void,
 >(
+  params?: OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1723,6 +1807,7 @@ export function useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint<
 } {
   const queryOptions =
     getOpenFarmApiEndpointsProfilesListProcessProfilesEndpointQueryOptions(
+      params,
       options,
     );
 
@@ -1886,161 +1971,6 @@ export const useOpenFarmApiEndpointsProfilesPreviewProfileImportEndpoint = <
     queryClient,
   );
 };
-export type openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse200 =
-  {
-    data: MachineProfileDefaultProcessResponse;
-    status: 200;
-  };
-
-export type openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse401 =
-  {
-    data: void;
-    status: 401;
-  };
-
-export type openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse403 =
-  {
-    data: void;
-    status: 403;
-  };
-
-export type openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponseSuccess =
-  openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponseError =
-  (
-    | openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse401
-    | openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse403
-  ) & {
-    headers: Headers;
-  };
-
-export type openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse =
-  | openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponseSuccess
-  | openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponseError;
-
-export const getOpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointUrl =
-  (id: string) => {
-    return `/api/v1/profiles/machine/${id}/default-process-profile`;
-  };
-
-export const openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint =
-  async (
-    id: string,
-    setMachineProfileDefaultProcessRequest: SetMachineProfileDefaultProcessRequest,
-    options?: RequestInit,
-  ): Promise<openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse> => {
-    return httpClient<openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointResponse>(
-      getOpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointUrl(
-        id,
-      ),
-      {
-        ...options,
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(setMachineProfileDefaultProcessRequest),
-      },
-    );
-  };
-
-export const getOpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint
-        >
-      >,
-      TError,
-      { id: string; data: SetMachineProfileDefaultProcessRequest },
-      TContext
-    >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint
-      >
-    >,
-    TError,
-    { id: string; data: SetMachineProfileDefaultProcessRequest },
-    TContext
-  > => {
-    const mutationKey = [
-      'openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint',
-    ];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        'mutationKey' in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint
-        >
-      >,
-      { id: string; data: SetMachineProfileDefaultProcessRequest }
-    > = (props) => {
-      const { id, data } = props ?? {};
-
-      return openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint(
-        id,
-        data,
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type OpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint
-      >
-    >
-  >;
-export type OpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointMutationBody =
-  SetMachineProfileDefaultProcessRequest;
-export type OpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointMutationError =
-  void;
-
-export const useOpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint =
-  <TError = void, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint
-          >
-        >,
-        TError,
-        { id: string; data: SetMachineProfileDefaultProcessRequest },
-        TContext
-      >;
-    },
-    queryClient?: QueryClient,
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint
-      >
-    >,
-    TError,
-    { id: string; data: SetMachineProfileDefaultProcessRequest },
-    TContext
-  > => {
-    return useMutation(
-      getOpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpointMutationOptions(
-        options,
-      ),
-      queryClient,
-    );
-  };
 export type openFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpointResponse200 =
   {
     data: FilamentProfileDetailResponse;

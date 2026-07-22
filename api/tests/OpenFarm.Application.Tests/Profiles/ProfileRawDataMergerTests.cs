@@ -120,7 +120,7 @@ public class ProfileRawDataMergerTests
     {
         var ancestorsOldestFirst = new List<string>
         {
-            """{"type":"machine","machine_start_gcode":"target's own explicit gcode"}""",
+            """{"type":"machine","machine_start_gcode":"targets own explicit gcode"}""",
         };
         var includedTemplateNames = new List<string> { "template machine_start_gcode" };
 
@@ -129,7 +129,7 @@ public class ProfileRawDataMergerTests
             includedTemplateNames,
             _ => """{"machine_start_gcode":"fragment gcode, should lose"}""");
 
-        merged.Should().Contain("target's own explicit gcode");
+        merged.Should().Contain("targets own explicit gcode");
         merged.Should().NotContain("should lose");
     }
 

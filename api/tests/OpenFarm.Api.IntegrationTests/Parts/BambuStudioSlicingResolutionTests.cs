@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Application.Parts;
+using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;

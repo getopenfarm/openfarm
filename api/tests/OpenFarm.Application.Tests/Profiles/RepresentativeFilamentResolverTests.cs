@@ -2,6 +2,7 @@ using FluentAssertions;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Application.Tests.Profiles.Fakes;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Tests.Profiles;

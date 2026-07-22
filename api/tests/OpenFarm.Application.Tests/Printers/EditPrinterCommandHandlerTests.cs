@@ -130,8 +130,10 @@ public class EditPrinterCommandHandlerTests
     {
         var printer = CreatePrinter();
         var repository = new InMemoryPrinterRepository(printer);
-        var processRepo = new FakeProcessProfileRepository(
-            ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", true, null));
+        var processRepo = new FakeProcessProfileRepository();
+        var process = ProcessProfile.CreateSystemProfile(
+            printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", true, null);
+        await processRepo.AddAsync(process, CancellationToken.None);
         var handler = CreateHandler(repository, processRepo: processRepo);
 
         var act = () => handler.HandleAsync(

@@ -106,11 +106,12 @@ public class CliSlicerEngineTests
         CreateProfileSelection(),
         Options.Create(new SlicerOptions()));
 
-    // A fully configured (machine, process, filament) triple for a printer with material "PLA" —
-    // these tests only exercise failure paths that occur before or after profile resolution, so
-    // resolution itself must succeed rather than mask the behavior under test with an unrelated
-    // unconfigured error. Named "Generic PLA" for readability; material resolution keys off
-    // FilamentProfile.MaterialType, not the profile's Name.
+    // A fully configured (machine, process, filament) triple for a printer with material
+    // "Generic PLA" — these tests only exercise failure paths that occur before or after profile
+    // resolution, so resolution itself must succeed rather than mask the behavior under test with
+    // an unrelated unconfigured error. Material resolution keys off FilamentProfile.MaterialType
+    // (not the profile's Name), so MaterialType is set to the same "Generic PLA" string the tests
+    // pass as SliceAsync's materialType argument.
     private static ResolveSlicingProfileSelection CreateProfileSelection()
     {
         var organizationId = Guid.NewGuid();
@@ -118,7 +119,7 @@ public class CliSlicerEngineTests
         var process = ProcessProfile.CreateSystemProfile(organizationId, "Test Process", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: null);
         var filament = FilamentProfile.CreateSystemProfile(
             organizationId, "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, """{"type":"filament","filament_type":["PLA"]}""",
-            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "Generic PLA", includedTemplateNames: null);
 
         var printer = Printer.Create(organizationId, "Test Printer", "Bambu", "X1C", "10.0.0.5", "SN-TEST");
         printer.LinkMachineProfile(machine.Id);

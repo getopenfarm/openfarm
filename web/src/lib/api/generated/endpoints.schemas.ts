@@ -152,50 +152,6 @@ export interface SlicingDefaultsResponse {
   available?: AvailableSlicerResponse[];
 }
 
-export interface DefaultProcessProfileResponse {
-  id?: string;
-  name?: string;
-}
-
-export interface DefaultMachineProfileResponseItem {
-  id?: string;
-  name?: string;
-  defaultProcessProfile?: DefaultProcessProfileResponse | null;
-}
-
-export interface FilamentDefaultResponseItem {
-  materialType?: string;
-  filamentProfileId?: string;
-  filamentProfileName?: string;
-}
-
-export interface SlicingProfileDefaultsResponse {
-  defaultMachineProfile?: DefaultMachineProfileResponseItem | null;
-  filamentDefaults?: FilamentDefaultResponseItem[];
-}
-
-export interface DefaultMachineProfileResponse {
-  id?: string;
-  machineProfileId?: string;
-  machineProfileName?: string;
-  /** @nullable */
-  defaultProcessProfileId?: string | null;
-}
-
-export interface UpdateDefaultMachineProfileRequest {
-  machineProfileId?: string;
-}
-
-export interface OrganizationFilamentDefaultResponse {
-  id?: string;
-  materialType?: string;
-  filamentProfileId?: string;
-}
-
-export interface UpdateOrganizationFilamentDefaultRequest {
-  filamentProfileId?: string;
-}
-
 export interface UpdateSlicingDefaultsRequest {
   engine?: string;
   version?: string;
@@ -211,7 +167,6 @@ export interface CreatedProfileItem {
 export interface ConfirmProfileImportResponse {
   createdMachineProfiles?: CreatedProfileItem[];
   createdFilamentProfiles?: CreatedProfileItem[];
-  createdProcessProfiles?: CreatedProfileItem[];
 }
 
 export interface ConfirmProfileImportRequest {
@@ -271,10 +226,9 @@ export interface MachineProfileDetailResponse {
   /** @nullable */
   hasEnclosure?: boolean | null;
   supportedMaterials?: string[];
+  origin?: string;
   /** @nullable */
-  defaultProcessProfileId?: string | null;
-  /** @nullable */
-  defaultProcessProfileName?: string | null;
+  vendorName?: string | null;
 }
 
 export interface ProcessProfileDetailResponse {
@@ -335,6 +289,10 @@ export interface ListFilamentProfilesResponse {
   totalCount?: number;
 }
 
+export interface ListFilamentProfilesRequest {
+  [key: string]: unknown;
+}
+
 export interface MachineProfileResponse {
   id?: string;
   name?: string;
@@ -367,6 +325,10 @@ export interface ListMachineProfilesResponse {
   totalCount?: number;
 }
 
+export interface ListMachineProfilesRequest {
+  [key: string]: unknown;
+}
+
 export interface ProcessProfileResponse {
   id?: string;
   name?: string;
@@ -393,6 +355,10 @@ export interface ListProcessProfilesResponse {
   totalCount?: number;
   /** @nullable */
   available?: boolean | null;
+}
+
+export interface ListProcessProfilesRequest {
+  [key: string]: unknown;
 }
 
 export interface MachinePresetPreviewItem {
@@ -441,39 +407,14 @@ export interface FilamentPresetPreviewItem {
   compatiblePrinterNames?: string[];
 }
 
-export interface ProcessPresetPreviewItem {
-  name?: string;
-  sourceFormat?: string;
-  /** @nullable */
-  baseProfileName?: string | null;
-  hasUnresolvedBaseInChain?: boolean;
-  isDuplicate?: boolean;
-  /** @nullable */
-  layerHeightMm?: number | null;
-  /** @nullable */
-  wallLoops?: number | null;
-  compatiblePrinterNames?: string[];
-}
-
 export interface PreviewProfileImportResponse {
   sourceFileName?: string;
   machinePresets?: MachinePresetPreviewItem[];
   filamentPresets?: FilamentPresetPreviewItem[];
-  processPresets?: ProcessPresetPreviewItem[];
 }
 
 export interface PreviewProfileImportRequest {
   file?: Blob;
-}
-
-export interface MachineProfileDefaultProcessResponse {
-  id?: string;
-  processProfileId?: string;
-}
-
-export interface SetMachineProfileDefaultProcessRequest {
-  machineProfileId?: string;
-  processProfileId?: string;
 }
 
 export interface UpdateFilamentProfileRawDataRequest {
@@ -575,17 +516,6 @@ export interface PrinterDetailResponse {
   processProfileId?: string | null;
   /** @nullable */
   processProfileName?: string | null;
-}
-
-export interface LinkPrinterMachineProfileResponse {
-  printerId?: string;
-  /** @nullable */
-  machineProfileId?: string | null;
-}
-
-export interface LinkPrinterMachineProfileRequest {
-  /** @nullable */
-  machineProfileId?: string | null;
 }
 
 export interface FleetPrinterResponse {
@@ -755,6 +685,13 @@ export interface PartTagsResponse {
 
 export interface TagPartRequest {
   name?: string;
+}
+
+export interface UpdatePartFilamentRequirementNarrowingRequest {
+  /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentProfileId?: string | null;
 }
 
 export interface FilamentRequirementOverrideRequest {
@@ -987,6 +924,79 @@ export type OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams = {
    * @nullable
    */
   vendorId?: string | null;
+};
+
+export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {
+  /**
+   * @nullable
+   */
+  origin?: string | null;
+  /**
+   * @nullable
+   */
+  q?: string | null;
+  /**
+   * @nullable
+   */
+  compatibleWithMachineName?: string | null;
+  /**
+   * @nullable
+   */
+  materialType?: string | null;
+  /**
+   * @nullable
+   */
+  page?: number | null;
+  /**
+   * @nullable
+   */
+  pageSize?: number | null;
+};
+
+export type OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams = {
+  /**
+   * @nullable
+   */
+  origin?: string | null;
+  /**
+   * @nullable
+   */
+  q?: string | null;
+  /**
+   * @nullable
+   */
+  page?: number | null;
+  /**
+   * @nullable
+   */
+  pageSize?: number | null;
+};
+
+export type OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams = {
+  /**
+   * @nullable
+   */
+  origin?: string | null;
+  /**
+   * @nullable
+   */
+  q?: string | null;
+  /**
+   * @nullable
+   */
+  compatibleWithMachineName?: string | null;
+  /**
+   * @nullable
+   */
+  printerId?: string | null;
+  /**
+   * @nullable
+   */
+  page?: number | null;
+  /**
+   * @nullable
+   */
+  pageSize?: number | null;
 };
 
 export type OpenFarmApiEndpointsPartsListPartsEndpointParams = {
