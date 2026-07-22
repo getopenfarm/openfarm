@@ -69,6 +69,14 @@ public sealed class Printer
     /// </summary>
     public Guid? MachineProfileId { get; private set; }
 
+    /// <summary>
+    /// Optional link to a Process Profile (009), parallel to <see cref="MachineProfileId"/> — one
+    /// process selection per printer, not per machine profile, so two printers sharing a machine
+    /// profile can independently pick different processes. Gated on machine-selected-first and
+    /// machine/process compatibility in the Application-layer command handler, not here (data-model.md).
+    /// </summary>
+    public Guid? ProcessProfileId { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public static Printer Create(
@@ -192,4 +200,8 @@ public sealed class Printer
     public void LinkMachineProfile(Guid machineProfileId) => MachineProfileId = machineProfileId;
 
     public void UnlinkMachineProfile() => MachineProfileId = null;
+
+    public void LinkProcessProfile(Guid processProfileId) => ProcessProfileId = processProfileId;
+
+    public void UnlinkProcessProfile() => ProcessProfileId = null;
 }

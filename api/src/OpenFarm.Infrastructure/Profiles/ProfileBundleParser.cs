@@ -31,7 +31,6 @@ public sealed class ProfileBundleParser : IProfileBundleParser
 
         var machinePresets = new List<ParsedMachinePreset>();
         var filamentPresets = new List<ParsedFilamentPreset>();
-        var processPresets = new List<ParsedProcessPreset>();
 
         using (archive)
         {
@@ -94,15 +93,12 @@ public sealed class ProfileBundleParser : IProfileBundleParser
                         case PresetKind.Filament:
                             filamentPresets.Add(new ParsedFilamentPreset(name, sourceFormat, baseProfileName, content));
                             break;
-                        case PresetKind.Process:
-                            processPresets.Add(new ParsedProcessPreset(name, sourceFormat, baseProfileName, content));
-                            break;
                     }
                 }
             }
         }
 
-        return new ParsedProfileBundle(machinePresets, filamentPresets, processPresets);
+        return new ParsedProfileBundle(machinePresets, filamentPresets);
     }
 
     public MachineProfileDisplayFields ExtractMachineDisplayFields(string rawDataJson, ProfileSourceFormat sourceFormat)
@@ -196,7 +192,6 @@ public sealed class ProfileBundleParser : IProfileBundleParser
     {
         Machine,
         Filament,
-        Process,
     }
 
     private static PresetKind? ClassifyBySubfolder(string entryFullName)
@@ -223,12 +218,8 @@ public sealed class ProfileBundleParser : IProfileBundleParser
             return PresetKind.Filament;
         }
 
-        if (firstSegment.Equals("process", StringComparison.OrdinalIgnoreCase))
-        {
-            return PresetKind.Process;
-        }
-
-        // Anything else, including bundle_structure.json, is out of scope.
+        // A "process/" subfolder is deliberately never classified — process profiles are exclusively
+        // System-sourced after 009 (FR-011); no bundle-import path ever creates a User process row.
         return null;
     }
 

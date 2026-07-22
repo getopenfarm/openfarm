@@ -9,13 +9,13 @@ public static class PrinterModelCatalog
     private static readonly Dictionary<(PrinterBrand Brand, string ModelCode), PrinterModel> Entries =
         new Dictionary<(PrinterBrand, string), PrinterModel>
         {
-            [(PrinterBrand.Bambu, "X1")] = new PrinterModel(PrinterBrand.Bambu, "X1", CameraTransport.Rtsp),
-            [(PrinterBrand.Bambu, "X1C")] = new PrinterModel(PrinterBrand.Bambu, "X1C", CameraTransport.Rtsp),
-            [(PrinterBrand.Bambu, "X1E")] = new PrinterModel(PrinterBrand.Bambu, "X1E", CameraTransport.Rtsp),
-            [(PrinterBrand.Bambu, "P1P")] = new PrinterModel(PrinterBrand.Bambu, "P1P", CameraTransport.BinaryImage),
-            [(PrinterBrand.Bambu, "P1S")] = new PrinterModel(PrinterBrand.Bambu, "P1S", CameraTransport.BinaryImage),
-            [(PrinterBrand.Bambu, "A1")] = new PrinterModel(PrinterBrand.Bambu, "A1", CameraTransport.BinaryImage),
-            [(PrinterBrand.Bambu, "A1MINI")] = new PrinterModel(PrinterBrand.Bambu, "A1MINI", CameraTransport.BinaryImage),
+            [(PrinterBrand.Bambu, "X1")] = new PrinterModel(PrinterBrand.Bambu, "X1", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1"),
+            [(PrinterBrand.Bambu, "X1C")] = new PrinterModel(PrinterBrand.Bambu, "X1C", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1 Carbon"),
+            [(PrinterBrand.Bambu, "X1E")] = new PrinterModel(PrinterBrand.Bambu, "X1E", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1E"),
+            [(PrinterBrand.Bambu, "P1P")] = new PrinterModel(PrinterBrand.Bambu, "P1P", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1P"),
+            [(PrinterBrand.Bambu, "P1S")] = new PrinterModel(PrinterBrand.Bambu, "P1S", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1S"),
+            [(PrinterBrand.Bambu, "A1")] = new PrinterModel(PrinterBrand.Bambu, "A1", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab A1"),
+            [(PrinterBrand.Bambu, "A1MINI")] = new PrinterModel(PrinterBrand.Bambu, "A1MINI", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab A1 mini"),
             [(PrinterBrand.System, "Simulation")] = new PrinterModel(PrinterBrand.System, "Simulation", CameraTransport.BinaryImage),
         };
 

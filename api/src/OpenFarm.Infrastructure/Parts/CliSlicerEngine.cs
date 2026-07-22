@@ -25,11 +25,12 @@ public sealed class CliSlicerEngine(
     IOptions<SlicerOptions> options) : ISlicerEngine
 {
     public async Task<SlicingResult> SliceAsync(
-        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
+        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
+        Guid? printerId, CancellationToken cancellationToken)
     {
         try
         {
-            return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, cancellationToken);
+            return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, printerId, cancellationToken);
         }
         catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException
             && ex is not SlicerUnavailableException && ex is not SlicingProfileUnconfiguredException)
@@ -47,7 +48,8 @@ public sealed class CliSlicerEngine(
     }
 
     private async Task<SlicingResult> SliceCoreAsync(
-        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken)
+        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
+        Guid? printerId, CancellationToken cancellationToken)
     {
         var platform = hostPlatform.Current;
         var available = catalog.Find(slicer, platform)
@@ -68,7 +70,7 @@ public sealed class CliSlicerEngine(
             // Only OrcaSlicer/Bambu Studio need real, complete presets (PrusaSliceFamilyInvocation) —
             // SuperSlicer builds plain scalar flags and never looks at this.
             var resolvedProfiles = slicer.Engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
-                ? await profileSelection.ResolveAsync(materialType, cancellationToken)
+                ? await profileSelection.ResolveAsync(printerId, materialType, narrowedFilamentProfileId: null, cancellationToken)
                 : null;
 
             var processInvocation = invocationStrategy.BuildInvocation(

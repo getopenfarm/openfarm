@@ -39,8 +39,6 @@ public sealed class OpenFarmDbContext(
 
     public DbSet<ProcessProfile> ProcessProfiles => Set<ProcessProfile>();
 
-    public DbSet<OrganizationFilamentDefault> OrganizationFilamentDefaults => Set<OrganizationFilamentDefault>();
-
     public DbSet<Vendor> Vendors => Set<Vendor>();
 
     public DbSet<Filament> Filaments => Set<Filament>();

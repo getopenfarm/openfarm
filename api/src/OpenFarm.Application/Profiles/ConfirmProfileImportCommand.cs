@@ -2,11 +2,12 @@ using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Profiles;
 
+// Process is deliberately absent — process profiles are exclusively System-sourced after 009
+// (FR-011); no import selection can ever target one.
 public enum ProfileType
 {
     Machine,
     Filament,
-    Process,
 }
 
 public enum ProfileDuplicateAction
@@ -26,5 +27,4 @@ public sealed record CreatedProfileSummary(Guid Id, string Name, Guid? BaseProfi
 
 public sealed record ConfirmProfileImportResult(
     IReadOnlyList<CreatedProfileSummary> CreatedMachineProfiles,
-    IReadOnlyList<CreatedProfileSummary> CreatedFilamentProfiles,
-    IReadOnlyList<CreatedProfileSummary> CreatedProcessProfiles);
+    IReadOnlyList<CreatedProfileSummary> CreatedFilamentProfiles);

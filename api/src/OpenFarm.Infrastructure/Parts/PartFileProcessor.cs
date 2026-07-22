@@ -59,7 +59,10 @@ public sealed class PartFileProcessor(
         var materialType = job.TargetMaterialType ?? throw new SlicingFailedException("No target material was resolved for this job.");
         var nozzleDiameterMm = job.TargetNozzleDiameterMm ?? throw new SlicingFailedException("No target nozzle diameter was resolved for this job.");
 
-        var result = await slicerEngine.SliceAsync(new SlicerRef(engine, version), fileStream, job.FileFormat, materialType, nozzleDiameterMm, cancellationToken);
+        // No specific target printer at pre-print estimate time (research.md §5's estimate-only,
+        // fleet-representative case, FR-015) — this is the pipeline's only slicing call site.
+        var result = await slicerEngine.SliceAsync(
+            new SlicerRef(engine, version), fileStream, job.FileFormat, materialType, nozzleDiameterMm, printerId: null, cancellationToken);
         return new PartEstimateResolution(result.EstimatedPrintTimeMinutes, result.EstimatedFilamentWeightGrams, result.Thumbnails);
     }
 }

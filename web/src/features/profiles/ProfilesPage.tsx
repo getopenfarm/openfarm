@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { LayersIcon, SettingsIcon, SwatchBookIcon } from 'lucide-react';
+import { SettingsIcon, SwatchBookIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state/EmptyState';
@@ -10,9 +10,7 @@ import type {
   FilamentProfileDetailResponse,
   ListFilamentProfilesResponse,
   ListMachineProfilesResponse,
-  ListProcessProfilesResponse,
   MachineProfileDetailResponse,
-  ProcessProfileDetailResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsProfilesGetFilamentProfileEndpointQueryKey,
@@ -21,25 +19,24 @@ import {
   getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey,
   useOpenFarmApiEndpointsProfilesGetFilamentProfileEndpoint,
   useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint,
-  useOpenFarmApiEndpointsProfilesGetProcessProfileEndpoint,
   useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint,
   useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint,
-  useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint,
   useOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint,
   useOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint,
 } from '@/lib/api/generated/profiles/profiles';
 import { FilamentProfilesTable } from './components/FilamentProfilesTable';
 import { ImportProfilesDialog } from './components/ImportProfilesDialog';
-import { MachineDefaultProcessSelect } from './components/MachineDefaultProcessSelect';
 import { MachineProfilesTable } from './components/MachineProfilesTable';
-import { ProcessProfilesTable } from './components/ProcessProfilesTable';
 import { ProfileRawDataDialog } from './components/ProfileRawDataDialog';
 
 type SelectedProfile = {
-  type: 'Machine' | 'Filament' | 'Process';
+  type: 'Machine' | 'Filament';
   id: string;
 } | null;
 
+// User-imported profiles only (FR-013) — process profiles are exclusively System-sourced after 009
+// and never appear on this browse/import page; select/narrow them from the printer page and part
+// detail page instead.
 export function ProfilesPage() {
   const [selected, setSelected] = useState<SelectedProfile>(null);
   const queryClient = useQueryClient();
@@ -48,8 +45,6 @@ export function ProfilesPage() {
     useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint();
   const filamentListQuery =
     useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
-  const processListQuery =
-    useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint();
 
   const machineDetailQuery =
     useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint(
@@ -61,11 +56,6 @@ export function ProfilesPage() {
       selected?.type === 'Filament' ? selected.id : '',
       { query: { enabled: selected?.type === 'Filament' } },
     );
-  const processDetailQuery =
-    useOpenFarmApiEndpointsProfilesGetProcessProfileEndpoint(
-      selected?.type === 'Process' ? selected.id : '',
-      { query: { enabled: selected?.type === 'Process' } },
-    );
 
   const machineProfiles =
     (machineListQuery.data?.data as ListMachineProfilesResponse | undefined)
@@ -73,20 +63,12 @@ export function ProfilesPage() {
   const filamentProfiles =
     (filamentListQuery.data?.data as ListFilamentProfilesResponse | undefined)
       ?.profiles ?? [];
-  const processProfiles =
-    (processListQuery.data?.data as ListProcessProfilesResponse | undefined)
-      ?.profiles ?? [];
 
   const detailQuery =
-    selected?.type === 'Machine'
-      ? machineDetailQuery
-      : selected?.type === 'Filament'
-        ? filamentDetailQuery
-        : processDetailQuery;
+    selected?.type === 'Machine' ? machineDetailQuery : filamentDetailQuery;
   const detail = detailQuery.data?.data as
     | MachineProfileDetailResponse
     | FilamentProfileDetailResponse
-    | ProcessProfileDetailResponse
     | undefined;
 
   const updateMachineMutation =
@@ -145,13 +127,12 @@ export function ProfilesPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Profiles"
-        description="Machine, process, and filament profiles imported from slicer bundles"
+        description="Machine and filament profiles imported from slicer bundles"
         action={<ImportProfilesDialog />}
       />
       <Tabs defaultValue="machine">
         <TabsList>
           <TabsTrigger value="machine">Machine</TabsTrigger>
-          <TabsTrigger value="process">Process</TabsTrigger>
           <TabsTrigger value="filament">Filament</TabsTrigger>
         </TabsList>
         <TabsContent value="machine">
@@ -168,23 +149,6 @@ export function ProfilesPage() {
             <MachineProfilesTable
               profiles={machineProfiles}
               onRowClick={(id) => setSelected({ type: 'Machine', id })}
-            />
-          )}
-        </TabsContent>
-        <TabsContent value="process">
-          {processListQuery.isLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : processProfiles.length === 0 ? (
-            <EmptyState
-              icon={<LayersIcon className="size-8 text-muted-foreground" />}
-              title="No process profiles yet"
-              description="Import a slicer bundle to populate this catalog."
-              action={<ImportProfilesDialog />}
-            />
-          ) : (
-            <ProcessProfilesTable
-              profiles={processProfiles}
-              onRowClick={(id) => setSelected({ type: 'Process', id })}
             />
           )}
         </TabsContent>
@@ -216,23 +180,7 @@ export function ProfilesPage() {
         name={detail?.name}
         rawDataJson={detail?.rawDataJson}
         isLoading={detailQuery.isLoading}
-        // Process profiles have no update endpoint yet — view-only (no onSave renders no Save button).
-        onSave={selected?.type === 'Process' ? undefined : handleSaveRawData}
-        extraContent={
-          selected?.type === 'Machine' ? (
-            <MachineDefaultProcessSelect
-              machineId={selected.id}
-              machineSourceFormat={
-                (detail as MachineProfileDetailResponse | undefined)
-                  ?.sourceFormat ?? ''
-              }
-              defaultProcessProfileId={
-                (detail as MachineProfileDetailResponse | undefined)
-                  ?.defaultProcessProfileId
-              }
-            />
-          ) : undefined
-        }
+        onSave={handleSaveRawData}
         isSaving={
           updateMachineMutation.isPending || updateFilamentMutation.isPending
         }

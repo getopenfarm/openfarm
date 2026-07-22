@@ -53,18 +53,6 @@ const previewResponseBody = {
       supportedMaterials: [],
     },
   ],
-  processPresets: [
-    {
-      name: 'Test Process',
-      sourceFormat: 'OrcaSlicer',
-      baseProfileName: null,
-      hasUnresolvedBaseInChain: false,
-      isDuplicate: false,
-      layerHeightMm: 0.2,
-      wallLoops: 3,
-      compatiblePrinterNames: [],
-    },
-  ],
   filamentPresets: [
     {
       name: 'Test PLA',
@@ -123,10 +111,9 @@ describe('ImportProfilesDialog', () => {
     await user.upload(input, file);
 
     expect(await screen.findByText('Test Printer')).toBeInTheDocument();
-    expect(screen.getByText('Test Process')).toBeInTheDocument();
     expect(screen.getByText('Test PLA')).toBeInTheDocument();
 
-    // Uncheck the filament preset, keeping the machine and process presets selected.
+    // Uncheck the filament preset, keeping the machine preset selected.
     const filamentCheckbox = screen.getByRole('checkbox', {
       name: 'Select Test PLA',
     });
@@ -155,7 +142,6 @@ describe('ImportProfilesDialog', () => {
     const selections = JSON.parse(formData.get('selections') as string);
     expect(selections).toEqual([
       { type: 'Machine', name: 'Test Printer', duplicateAction: null },
-      { type: 'Process', name: 'Test Process', duplicateAction: null },
     ]);
   });
 
@@ -179,7 +165,6 @@ describe('ImportProfilesDialog', () => {
     fireEvent.drop(dropzone, { dataTransfer });
 
     expect(await screen.findByText('Test Printer')).toBeInTheDocument();
-    expect(screen.getByText('Test Process')).toBeInTheDocument();
     expect(screen.getByText('Test PLA')).toBeInTheDocument();
   });
 

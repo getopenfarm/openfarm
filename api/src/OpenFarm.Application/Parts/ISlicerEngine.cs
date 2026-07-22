@@ -18,6 +18,11 @@ public sealed record SlicingResult(
 /// </summary>
 public interface ISlicerEngine
 {
+    /// <param name="printerId">
+    /// The specific printer this slice targets, or <c>null</c> for the pre-print, estimate-only case
+    /// with no specific target (009, research.md §5) — resolved via
+    /// <see cref="ResolveSlicingProfileSelection"/>'s printer-targeted vs. fleet-representative branch.
+    /// </param>
     /// <exception cref="SlicingFailedException">The CLI process failed, timed out, or produced unparseable output.</exception>
     /// <exception cref="SlicerUnavailableException"><paramref name="slicer"/> is not bundled for the host platform.</exception>
     Task<SlicingResult> SliceAsync(
@@ -26,5 +31,6 @@ public interface ISlicerEngine
         PartFileFormat modelFileFormat,
         string materialType,
         decimal nozzleDiameterMm,
+        Guid? printerId,
         CancellationToken cancellationToken);
 }

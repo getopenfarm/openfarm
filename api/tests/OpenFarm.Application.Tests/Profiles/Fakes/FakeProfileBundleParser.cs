@@ -7,7 +7,7 @@ namespace OpenFarm.Application.Tests.Profiles.Fakes;
 // under test doesn't care about real bundle parsing (that's ProfileBundleParserTests' job).
 public sealed class FakeProfileBundleParser : IProfileBundleParser
 {
-    public ParsedProfileBundle Bundle { get; set; } = new([], [], []);
+    public ParsedProfileBundle Bundle { get; set; } = new([], []);
 
     public Task<ParsedProfileBundle> ParseAsync(
         Stream bundleStream, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken) =>

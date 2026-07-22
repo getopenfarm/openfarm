@@ -75,9 +75,6 @@ using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.
 using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
 using LinkPrinterMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.LinkPrinterMachineProfileCommand, OpenFarm.Domain.Printers.Printer>;
 using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
-using UpdateDefaultMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateDefaultMachineProfileCommand, OpenFarm.Application.Parts.DefaultMachineProfileResult>;
-using SetMachineProfileDefaultProcessHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.SetMachineProfileDefaultProcessCommand, OpenFarm.Application.Profiles.MachineProfileDefaultProcessResult>;
-using UpdateOrganizationFilamentDefaultHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateOrganizationFilamentDefaultCommand, OpenFarm.Application.Parts.OrganizationFilamentDefaultResult>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -240,7 +237,6 @@ builder.Services.AddScoped<IQueryHandler<GetPrinterCatalogQuery, PrinterCatalogR
 builder.Services.AddScoped<IMachineProfileRepository, MachineProfileRepository>();
 builder.Services.AddScoped<IFilamentProfileRepository, FilamentProfileRepository>();
 builder.Services.AddScoped<IProcessProfileRepository, ProcessProfileRepository>();
-builder.Services.AddScoped<IOrganizationFilamentDefaultRepository, OrganizationFilamentDefaultRepository>();
 builder.Services.AddScoped<IProfileBundleParser, ProfileBundleParser>();
 builder.Services.AddScoped<PreviewProfileImportHandlerType, PreviewProfileImportCommandHandler>();
 builder.Services.AddScoped<ConfirmProfileImportHandlerType, ConfirmProfileImportCommandHandler>();
@@ -300,6 +296,7 @@ builder.Services.AddSingleton<IAvailableSlicerCatalog, AvailableSlicerCatalog>()
 builder.Services.AddSingleton<ISlicerInvocation, PrusaSliceFamilyInvocation>();
 builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
 builder.Services.AddScoped<ResolveSlicerSelection>();
+builder.Services.AddScoped<RepresentativeFilamentResolver>();
 builder.Services.AddScoped<ResolveSlicingProfileSelection>();
 
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
@@ -329,16 +326,12 @@ builder.Services.AddScoped<TagPartHandlerType, TagPartCommandHandler>();
 builder.Services.AddScoped<UntagPartHandlerType, UntagPartCommandHandler>();
 builder.Services.AddScoped<LinkPrinterMachineProfileHandlerType, LinkPrinterMachineProfileCommandHandler>();
 builder.Services.AddScoped<UpdateSlicingDefaultsHandlerType, UpdateSlicingDefaultsCommandHandler>();
-builder.Services.AddScoped<UpdateDefaultMachineProfileHandlerType, UpdateDefaultMachineProfileCommandHandler>();
-builder.Services.AddScoped<SetMachineProfileDefaultProcessHandlerType, SetMachineProfileDefaultProcessCommandHandler>();
-builder.Services.AddScoped<UpdateOrganizationFilamentDefaultHandlerType, UpdateOrganizationFilamentDefaultCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>, GetPartProcessingJobQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartsQuery, PartsPage>, GetPartsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartQuery, PartDetail?>, GetPartQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartFileQuery, PartFileDownload?>, GetPartFileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ListTagsQuery, IReadOnlyList<TagSummary>>, ListTagsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>, GetSlicingDefaultsQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetSlicingProfileDefaultsQuery, SlicingProfileDefaults>, GetSlicingProfileDefaultsQueryHandler>();
 
 builder.Services.AddSignalR();
 
