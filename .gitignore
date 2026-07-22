@@ -35,3 +35,4 @@ Thumbs.db
 !.vscode/extensions.json
 *.swp
 .slicers
+.scratch-repro/
