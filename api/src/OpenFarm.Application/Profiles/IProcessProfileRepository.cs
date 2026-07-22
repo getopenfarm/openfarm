@@ -15,5 +15,11 @@ public interface IProcessProfileRepository
     Task<IReadOnlyList<ProcessProfile>> FindByNameAsync(
         ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken);
 
+    // Ingestion-only upsert lookups (research.md §1's identity key) — distinct from the paginated
+    // picker SearchAsync (US2). FindByNameAsync above stays scoped to base-name resolution.
+    Task<ProcessProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken);
+
+    Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

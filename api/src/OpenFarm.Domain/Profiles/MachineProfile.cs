@@ -99,7 +99,7 @@ public sealed class MachineProfile
             isSelectable: true,
             vendorMachineModelName: null,
             includedTemplateNames: null,
-            DateTimeOffset.UtcNow);
+            createdAtUtc: DateTimeOffset.UtcNow);
     }
 
     /// <summary>Ingestion-only factory (research.md §0/§1) — never invoked from any User-facing import path.</summary>

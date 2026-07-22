@@ -33,7 +33,7 @@ public class GetMachineProfileQueryHandlerTests
 
         var machine = MachineProfile.CreateSystemProfile(
             Guid.NewGuid(), "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
-            "Bambulab", "GM001", isSelectable: true, "Bambu Lab X1 Carbon", includedTemplateNames: null);
+            "Bambulab", "GM001", isSelectable: true, vendorMachineModelName: "Bambu Lab X1 Carbon", includedTemplateNames: null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var handler = CreateHandler(machineRepo);

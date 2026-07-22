@@ -31,4 +31,14 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Single source of truth stays in OpenFarm.Infrastructure.Tests (VendorProfileIndexReaderTests'
+         own fixtures, see that project's Fixtures/VendorIndex/README.md for provenance) — linked here
+         rather than duplicated so System Profile ingestion's own integration tests can stage a real
+         bundle leaf from the same real vendor JSON. -->
+    <None Include="..\OpenFarm.Infrastructure.Tests\Profiles\Fixtures\VendorIndex\**\*"
+          LinkBase="Profiles\Fixtures\VendorIndex"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

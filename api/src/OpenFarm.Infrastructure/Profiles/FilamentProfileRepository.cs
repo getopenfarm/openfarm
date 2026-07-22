@@ -26,5 +26,13 @@ public sealed class FilamentProfileRepository(OpenFarmDbContext dbContext) : IFi
             .Where(p => p.SourceFormat == sourceFormat && p.Name == name)
             .ToListAsync(cancellationToken);
 
+    public Task<FilamentProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+        dbContext.FilamentProfiles.FirstOrDefaultAsync(
+            p => p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId, cancellationToken);
+
+    public Task<FilamentProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+        dbContext.FilamentProfiles.FirstOrDefaultAsync(
+            p => p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name, cancellationToken);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

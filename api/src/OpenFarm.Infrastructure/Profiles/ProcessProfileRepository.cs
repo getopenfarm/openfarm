@@ -26,5 +26,13 @@ public sealed class ProcessProfileRepository(OpenFarmDbContext dbContext) : IPro
             .Where(p => p.SourceFormat == sourceFormat && p.Name == name)
             .ToListAsync(cancellationToken);
 
+    public Task<ProcessProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+        dbContext.ProcessProfiles.FirstOrDefaultAsync(
+            p => p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId, cancellationToken);
+
+    public Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+        dbContext.ProcessProfiles.FirstOrDefaultAsync(
+            p => p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name, cancellationToken);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

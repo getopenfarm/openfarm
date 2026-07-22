@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Profiles;
+using static OpenFarm.Infrastructure.Profiles.JsonPresetFieldHelpers;
 
 namespace OpenFarm.Infrastructure.Profiles;
 
@@ -221,76 +222,5 @@ public sealed class ProfileBundleParser : IProfileBundleParser
         // A "process/" subfolder is deliberately never classified — process profiles are exclusively
         // System-sourced after 009 (FR-011); no bundle-import path ever creates a User process row.
         return null;
-    }
-
-    private static string? TryGetScalarOrFirstArrayElement(JsonElement root, string propertyName)
-    {
-        if (!root.TryGetProperty(propertyName, out var value))
-        {
-            return null;
-        }
-
-        return value.ValueKind switch
-        {
-            JsonValueKind.String => value.GetString(),
-            JsonValueKind.Number => value.GetRawText(),
-            JsonValueKind.Array when value.GetArrayLength() > 0 => value[0].ValueKind switch
-            {
-                JsonValueKind.String => value[0].GetString(),
-                JsonValueKind.Number => value[0].GetRawText(),
-                _ => null,
-            },
-            _ => null,
-        };
-    }
-
-    private static bool TryGetStringArray(JsonElement root, string propertyName, out IReadOnlyList<string> values)
-    {
-        if (root.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Array)
-        {
-            values = value.EnumerateArray()
-                .Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : null)
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s!)
-                .ToList();
-            return values.Count > 0;
-        }
-
-        values = [];
-        return false;
-    }
-
-    private static double? TryGetDouble(JsonElement root, string propertyName)
-    {
-        var raw = TryGetScalarOrFirstArrayElement(root, propertyName);
-        return raw is not null && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : null;
-    }
-
-    private static int? TryGetInt(JsonElement root, string propertyName)
-    {
-        var raw = TryGetScalarOrFirstArrayElement(root, propertyName);
-        return raw is not null && int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var asDouble)
-                ? (int)Math.Round(asDouble)
-                : null;
-    }
-
-    private static bool? TryGetBool(JsonElement root, string propertyName)
-    {
-        var raw = TryGetScalarOrFirstArrayElement(root, propertyName);
-        if (raw is null)
-        {
-            return null;
-        }
-
-        return raw switch
-        {
-            "1" or "true" => true,
-            "0" or "false" => false,
-            _ => null,
-        };
     }
 }

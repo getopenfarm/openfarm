@@ -87,6 +87,44 @@ public sealed partial class BundledSlicerScanner(IOptions<SlicerBundleOptions> o
         return results;
     }
 
+    /// <summary>
+    /// Every (engine, version, platform) leaf directory present under the root, regardless of whether
+    /// a resolvable executable exists there — used by System Profile ingestion (009), which only needs
+    /// each leaf directory to search it for <c>resources/profiles/</c> (<see cref="ResourcesProfilesLocator"/>),
+    /// not the bundled slicer's own binary.
+    /// </summary>
+    public IReadOnlyList<string> ScanLeafDirectories()
+    {
+        var root = options.Value.RootDirectory;
+        var results = new List<string>();
+
+        if (!Directory.Exists(root))
+        {
+            return results;
+        }
+
+        foreach (var engineDir in Directory.EnumerateDirectories(root).OrderBy(d => d, StringComparer.Ordinal))
+        {
+            if (!EngineSlugs.ContainsKey(Path.GetFileName(engineDir)))
+            {
+                continue;
+            }
+
+            foreach (var versionDir in Directory.EnumerateDirectories(engineDir).OrderBy(d => d, StringComparer.Ordinal))
+            {
+                foreach (var platformDir in Directory.EnumerateDirectories(versionDir).OrderBy(d => d, StringComparer.Ordinal))
+                {
+                    if (PlatformSlugs.ContainsKey(Path.GetFileName(platformDir)))
+                    {
+                        results.Add(platformDir);
+                    }
+                }
+            }
+        }
+
+        return results;
+    }
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Bundled slicer root directory '{Path}' does not exist — no slicers will be available until it is created and populated (e.g. via tools/provision-slicers).")]
     private static partial void LogRootDirectoryMissing(ILogger logger, string path);
 

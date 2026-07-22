@@ -163,6 +163,12 @@ public class CliSlicerEngineTests
         public Task<IReadOnlyList<MachineProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MachineProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
+        public Task<MachineProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+
+        public Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
@@ -179,6 +185,12 @@ public class CliSlicerEngineTests
         public Task<IReadOnlyList<ProcessProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProcessProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
+        public Task<ProcessProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+
+        public Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
@@ -194,6 +206,12 @@ public class CliSlicerEngineTests
 
         public Task<IReadOnlyList<FilamentProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<FilamentProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
+
+        public Task<FilamentProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+
+        public Task<FilamentProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

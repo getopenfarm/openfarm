@@ -30,7 +30,7 @@ public class ResolveSlicingProfileSelectionTests
         FilamentProfile.CreateSystemProfile(
             organizationId, $"{vendorName} {materialType} {externalId}", ProfileSourceFormat.OrcaSlicer, null,
             $$"""{"type":"filament","filament_type":["{{materialType}}"]}""",
-            vendorName, externalId, isSelectable: true, compatibleMachineNames: null, materialType, includedTemplateNames: null);
+            vendorName, externalId, isSelectable: true, compatibleMachineNames: null, materialType: materialType, includedTemplateNames: null);
 
     [Fact]
     public async Task ResolveAsync_PrinterTargetedAndFullyConfigured_ReturnsAllThreeMergedJson()

@@ -238,6 +238,8 @@ builder.Services.AddScoped<IMachineProfileRepository, MachineProfileRepository>(
 builder.Services.AddScoped<IFilamentProfileRepository, FilamentProfileRepository>();
 builder.Services.AddScoped<IProcessProfileRepository, ProcessProfileRepository>();
 builder.Services.AddScoped<IProfileBundleParser, ProfileBundleParser>();
+builder.Services.AddScoped<VendorProfileIndexReader>();
+builder.Services.AddScoped<ISystemProfileIngestionService, SystemProfileIngestionService>();
 builder.Services.AddScoped<PreviewProfileImportHandlerType, PreviewProfileImportCommandHandler>();
 builder.Services.AddScoped<ConfirmProfileImportHandlerType, ConfirmProfileImportCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMachineProfilesQuery, IReadOnlyList<MachineProfileSummary>>, GetMachineProfilesQueryHandler>();
@@ -393,6 +395,36 @@ using (var scope = app.Services.CreateScope())
 
     var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
     await seeder.SeedAsync();
+}
+
+// System Profile ingestion CLI entry point (009, contracts/system-profile-ingestion.md) — re-runnable
+// any time against the same bundle root BundledSlicerScanner already reads, not just at provisioning.
+// Runs against the fully-migrated/seeded host above, then exits before the web server ever starts.
+if (args.Contains("ingest-system-profiles"))
+{
+    using var scope = app.Services.CreateScope();
+    var scanner = scope.ServiceProvider.GetRequiredService<BundledSlicerScanner>();
+    var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
+    var ingestionLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    var leaves = scanner.ScanLeafDirectories();
+    ingestionLogger.LogInformation("System Profile ingestion: found {LeafCount} bundled slicer leaf/leaves under the configured root.", leaves.Count);
+
+    foreach (var leaf in leaves)
+    {
+        var summary = await ingestionService.IngestAsync(leaf, CancellationToken.None);
+        ingestionLogger.LogInformation(
+            "Ingested '{Leaf}': vendors scanned={VendorsScanned}, skipped={VendorsSkipped}; " +
+            "machine created={MachineCreated} updated={MachineUpdated} stale={MachineStale}; " +
+            "process created={ProcessCreated} updated={ProcessUpdated} stale={ProcessStale}; " +
+            "filament created={FilamentCreated} updated={FilamentUpdated} stale={FilamentStale}.",
+            leaf, summary.VendorsScanned, summary.VendorsSkipped,
+            summary.Machine.Created, summary.Machine.Updated, summary.Machine.MarkedStale,
+            summary.Process.Created, summary.Process.Updated, summary.Process.MarkedStale,
+            summary.Filament.Created, summary.Filament.Updated, summary.Filament.MarkedStale);
+    }
+
+    return;
 }
 
 // Forces the eager-singleton scan to run now, before the host starts accepting requests (research.md

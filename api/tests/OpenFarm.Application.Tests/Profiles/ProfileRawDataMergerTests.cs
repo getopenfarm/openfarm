@@ -78,4 +78,105 @@ public class ProfileRawDataMergerTests
 
         result.Should().Be("{}");
     }
+
+    // TDD (write-first) per plan.md's Constitution Check — the IncludedTemplateNames fold-in is the
+    // one path with no OrcaSlicer-sourced equivalent to catch a regression (research.md §0a), so it
+    // needs its own direct coverage.
+
+    [Fact]
+    public void MergeAncestorChainWithIncludes_ResolvedFragment_FoldsItsFieldsIntoTheResult()
+    {
+        var ancestorsOldestFirst = new List<string>
+        {
+            """{"type":"machine","inherits":"fdm_bbl_3dp_001_common"}""",
+        };
+        var includedTemplateNames = new List<string> { "template machine_start_gcode" };
+
+        var merged = ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst,
+            includedTemplateNames,
+            name => name == "template machine_start_gcode" ? """{"machine_start_gcode":"G28\n"}""" : null);
+
+        merged.Should().Contain("\"machine_start_gcode\"");
+        merged.Should().Contain("\"inherits\"");
+    }
+
+    [Fact]
+    public void MergeAncestorChainWithIncludes_UnresolvedIncludeName_IsAGapNotAnError()
+    {
+        var ancestorsOldestFirst = new List<string> { """{"type":"machine"}""" };
+        var includedTemplateNames = new List<string> { "does not exist" };
+
+        string? result = null;
+        var act = () => result = ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst, includedTemplateNames, _ => null);
+
+        act.Should().NotThrow();
+        result.Should().Contain("\"type\"");
+    }
+
+    [Fact]
+    public void MergeAncestorChainWithIncludes_TargetsOwnKeyWinsOverAnIncludedFragment()
+    {
+        var ancestorsOldestFirst = new List<string>
+        {
+            """{"type":"machine","machine_start_gcode":"target's own explicit gcode"}""",
+        };
+        var includedTemplateNames = new List<string> { "template machine_start_gcode" };
+
+        var merged = ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst,
+            includedTemplateNames,
+            _ => """{"machine_start_gcode":"fragment gcode, should lose"}""");
+
+        merged.Should().Contain("target's own explicit gcode");
+        merged.Should().NotContain("should lose");
+    }
+
+    [Fact]
+    public void MergeAncestorChainWithIncludes_IncludedFragmentWinsOverAnAncestorLayer()
+    {
+        var ancestorsOldestFirst = new List<string>
+        {
+            """{"machine_start_gcode":"ancestor gcode, should lose"}""",
+            """{"type":"machine"}""",
+        };
+        var includedTemplateNames = new List<string> { "template machine_start_gcode" };
+
+        var merged = ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst,
+            includedTemplateNames,
+            _ => """{"machine_start_gcode":"fragment gcode, should win"}""");
+
+        merged.Should().Contain("fragment gcode, should win");
+        merged.Should().NotContain("ancestor gcode");
+    }
+
+    [Fact]
+    public void MergeAncestorChainWithIncludes_NoIncludedTemplateNames_BehavesLikePlainMerge()
+    {
+        var ancestorsOldestFirst = new List<string> { """{"type":"machine","nozzle_diameter":["0.4"]}""" };
+
+        var merged = ProfileRawDataMerger.MergeAncestorChainWithIncludes(ancestorsOldestFirst, [], _ => null);
+
+        merged.Should().Be(ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst));
+    }
+
+    [Fact]
+    public void MergeAncestorChainWithIncludes_MultipleIncludedFragments_AllFoldIn()
+    {
+        var ancestorsOldestFirst = new List<string> { """{"type":"machine"}""" };
+        var includedTemplateNames = new List<string> { "template start", "template end" };
+        var fragments = new Dictionary<string, string>
+        {
+            ["template start"] = """{"machine_start_gcode":"G28"}""",
+            ["template end"] = """{"machine_end_gcode":"M104 S0"}""",
+        };
+
+        var merged = ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst, includedTemplateNames, name => fragments.GetValueOrDefault(name));
+
+        merged.Should().Contain("\"machine_start_gcode\"");
+        merged.Should().Contain("\"machine_end_gcode\"");
+    }
 }

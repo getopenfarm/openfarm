@@ -15,5 +15,12 @@ public interface IMachineProfileRepository
     Task<IReadOnlyList<MachineProfile>> FindByNameAsync(
         ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken);
 
+    // Ingestion-only upsert lookups (research.md §1's identity key) — distinct from the paginated
+    // picker SearchAsync (US2) and from FindByNameAsync above, which stays scoped to User-imported
+    // base-name resolution and is keyed by SourceFormat, not VendorName.
+    Task<MachineProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken);
+
+    Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

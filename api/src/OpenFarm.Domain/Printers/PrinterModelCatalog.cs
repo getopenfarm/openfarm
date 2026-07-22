@@ -55,6 +55,20 @@ public static class PrinterModelCatalog
                 group.Key,
                 group.Select(key => key.ModelCode).ToList()))
             .ToList();
+
+    /// <summary>
+    /// Every distinct <see cref="PrinterModel.VendorMachineModelName"/> currently registered — System
+    /// Profile ingestion scoping (009, FR-001) cross-references a vendor's own
+    /// <c>machine_model_list[].name</c> values against this set rather than a hardcoded vendor name,
+    /// so a new vendor's rows appear automatically once a catalog entry maps to it.
+    /// </summary>
+    public static IReadOnlyList<string> AllVendorMachineModelNames =>
+        Entries.Values
+            .Select(m => m.VendorMachineModelName)
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 }
 
 public sealed record PrinterCatalogBrandGroup(PrinterBrand Brand, IReadOnlyList<string> Models);
