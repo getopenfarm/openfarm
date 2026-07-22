@@ -67,7 +67,7 @@ public sealed partial class SystemProfileIngestionService(
             VendorIndexSummary summary;
             try
             {
-                summary = indexReader.ReadSummary(vendorIndexFile);
+                summary = VendorProfileIndexReader.ReadSummary(vendorIndexFile);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidDataException)
             {

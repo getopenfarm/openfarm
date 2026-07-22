@@ -419,6 +419,10 @@ if (args.Contains("ingest-system-profiles"))
     var ingestionLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     var leaves = scanner.ScanLeafDirectories();
+    // CA1848 (LoggerMessage source-generation) and CA1873 (avoid evaluating log arguments when the
+    // level is disabled) are both hot-path optimizations — this CLI entry point logs a handful of
+    // times total per process lifetime, never in a request/loop-processing path.
+#pragma warning disable CA1848, CA1873
     ingestionLogger.LogInformation("System Profile ingestion: found {LeafCount} bundled slicer leaf/leaves under the configured root.", leaves.Count);
 
     foreach (var leaf in leaves)
@@ -433,6 +437,7 @@ if (args.Contains("ingest-system-profiles"))
             summary.Machine.Created, summary.Machine.Updated, summary.Machine.MarkedStale,
             summary.Process.Created, summary.Process.Updated, summary.Process.MarkedStale,
             summary.Filament.Created, summary.Filament.Updated, summary.Filament.MarkedStale);
+#pragma warning restore CA1848, CA1873
     }
 
     return;

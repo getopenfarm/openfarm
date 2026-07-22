@@ -185,9 +185,7 @@ export function ImportProfilesDialog() {
   const machinePresets = preview?.machinePresets ?? [];
   const filamentPresets = preview?.filamentPresets ?? [];
   const nothingImportable =
-    hasPreview &&
-    machinePresets.length === 0 &&
-    filamentPresets.length === 0;
+    hasPreview && machinePresets.length === 0 && filamentPresets.length === 0;
   const nothingSelected = Object.values(selections).every(
     (state) => !state.selected,
   );

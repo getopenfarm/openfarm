@@ -20,7 +20,7 @@ public class VendorProfileIndexReaderTests
     [Fact]
     public void ReadSummary_OrcaSlicerIndex_ReturnsVendorNameAndMachineModelNames()
     {
-        var summary = Reader.ReadSummary(OrcaIndexPath);
+        var summary = VendorProfileIndexReader.ReadSummary(OrcaIndexPath);
 
         summary.VendorName.Should().Be("Bambulab");
         summary.MachineModelNames.Should().Contain("Bambu Lab X1 Carbon");

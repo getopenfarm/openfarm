@@ -40,14 +40,14 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
 {
     private const int MaxChainDepth = 32;
 
-    private static readonly IReadOnlyDictionary<ProfileKind, string> ListKeys = new Dictionary<ProfileKind, string>
+    private static readonly Dictionary<ProfileKind, string> ListKeys = new()
     {
         [ProfileKind.Machine] = "machine_list",
         [ProfileKind.Process] = "process_list",
         [ProfileKind.Filament] = "filament_list",
     };
 
-    private static readonly IReadOnlyDictionary<ProfileKind, string> ExpectedTypeStrings = new Dictionary<ProfileKind, string>
+    private static readonly Dictionary<ProfileKind, string> ExpectedTypeStrings = new()
     {
         [ProfileKind.Machine] = "machine",
         [ProfileKind.Process] = "process",
@@ -55,7 +55,7 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
     };
 
     /// <summary>The vendor index's own <c>name</c> and <c>machine_model_list</c> — read-only-for-scoping input (contracts/system-profile-ingestion.md).</summary>
-    public VendorIndexSummary ReadSummary(string vendorIndexFilePath)
+    public static VendorIndexSummary ReadSummary(string vendorIndexFilePath)
     {
         using var stream = File.OpenRead(vendorIndexFilePath);
         using var document = JsonDocument.Parse(stream);
