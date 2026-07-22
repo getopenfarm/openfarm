@@ -125,6 +125,100 @@ vendor's own file.
    ingestion time, the same merge OpenFarm already performs for slicing (`ProfileRawDataMerger`), not read
    directly off the leaf's own JSON.
 
+### §0a. Bambu Studio vs. OrcaSlicer — a real fork divergence: the `include` gcode-template mechanism
+
+The spec assumed OrcaSlicer and Bambu Studio "share the same underlying bundle structure" (003's own
+Assumptions) and this plan's §0 verified the vendor-index/preset shape against OrcaSlicer only. Per the
+user's explicit request, the same tree was independently cloned from **Bambu Studio's own upstream repo**
+(`github.com/bambulab/BambuStudio`, `master`, `resources/profiles/BBL`) and diffed against OrcaSlicer's.
+Where they overlap, they agree exactly — the "Bambu Lab X1 Carbon 0.4 nozzle" leaf has byte-identical
+`setting_id`/`inherits`/`printer_model`/`default_print_profile` in both (OrcaSlicer periodically syncs BBL
+profile updates from upstream Bambu Studio, per its own project convention). But **Bambu Studio's current
+`machine` and `filament` presets universally carry a second field, `"include"`, that OrcaSlicer's tree does
+not use anywhere — 0 occurrences across all 66 of its vendors** — and this is not cosmetic:
+
+```jsonc
+// BambuStudio: resources/profiles/BBL/machine/Bambu Lab X1 Carbon 0.4 nozzle.json
+{
+  "type": "machine", "name": "Bambu Lab X1 Carbon 0.4 nozzle", "inherits": "fdm_bbl_3dp_001_common",
+  "instantiation": "true", "printer_model": "Bambu Lab X1 Carbon",
+  "include": [
+    "Bambu Lab X1 Carbon 0.4 nozzle template machine_start_gcode",
+    "Bambu Lab X1 Carbon 0.4 nozzle template machine_end_gcode",
+    "Bambu Lab X1 Carbon 0.4 nozzle template time_lapse_gcode",
+    "Bambu Lab X1 Carbon 0.4 nozzle template change_filament_gcode",
+    "Bambu Lab X1 Carbon 0.4 nozzle template layer_change_gcode"
+  ]
+  // no "machine_start_gcode"/"change_filament_gcode"/etc. key present directly on this leaf at all —
+  // ONLY reachable through the include-named files below.
+}
+// BBL.json's own machine_list carries these include targets too, but with NO "type" field at all —
+// they are not type:"machine" presets, they are raw named gcode-template fragments:
+{ "name": "Bambu Lab X1 Carbon 0.4 nozzle template change_filament_gcode", "instantiation": "false",
+  "change_filament_gcode": "; filament change gcode ..." }
+```
+
+**Scope, verified concretely, not assumed:**
+- **Machine**: `include` is present on **every** current Bambu Studio machine leaf checked (X1 Carbon, P1S,
+  A1, A1 mini — i.e. every model in OpenFarm's own supported catalog, not just the newest hardware) — 89 of
+  Bambu Studio BBL's 148 `machine_list` entries are these untyped include-target fragments, only 59 are
+  real `type:"machine"` presets.
+- **Filament**: `include` appears on 1,393 of ~2,050 BBL filament presets — here the include targets **do**
+  carry `type:"filament"`/`instantiation:"false"` (e.g. `fdm_filament_template_direct_bowden`), so they're
+  ordinary-looking abstract rows, just reached through a second field the existing chain-walk never reads.
+- **Process**: 0 occurrences — this mechanism doesn't touch process presets in either engine.
+
+**Why this isn't cosmetic — traced into real OpenFarm code, not speculative:** `PrusaSliceFamilyInvocation`
+(`api/src/OpenFarm.Infrastructure/Parts/SlicerInvocation/PrusaSliceFamilyInvocation.cs`) writes
+`ResolvedSlicingProfiles.MachineSettingsJson`/`FilamentSettingsJson` — the output of
+`ProfileRawDataMerger.MergeAncestorChain` over `ProfileChainWalker`'s single-parent `BaseProfileId` walk —
+to a **standalone temp file** and hands it to the CLI via `--load-settings`/`--load-filaments`. OpenFarm
+never invokes the CLI against the live `resources/profiles` tree by preset name (which would let the real
+binary resolve `include`/`inherits` itself, the same way the GUI does); it always hands over a
+self-contained flattened JSON it built itself. `ProfileChainWalker` only ever follows one `BaseProfileId`
+per node — it has no concept of a node also pulling in N named peer fragments. **Consequence**: for every
+Bambu-Studio-sourced machine/filament preset, `machine_start_gcode`/`machine_end_gcode`/
+`change_filament_gcode`/`layer_change_gcode`/`time_lapse_gcode` (and `wrapping_detection_gcode` on the
+newest multi-tool models) are silently absent from what OpenFarm currently hands the CLI — not a hypothetical
+edge case, but the default outcome for 100% of Bambu-Studio-driven slices once this feature makes Bambu
+Studio a first-class ingestion source, and (pre-existing, not introduced by this feature) already latently
+true today for any **User**-imported profile whose source preset happened to use `include` — feature 003
+never surfaced this because no fixture/manual-validation pass has exercised a current Bambu-Studio export.
+
+**Decision**: extend both the storage shape and the merge step, scoped to where `include` is actually used:
+
+1. **Storage** (extends data-model.md): add `IncludedTemplateNames : IReadOnlyList<string>?` (`jsonb`) to
+   `MachineProfile` and `FilamentProfile` only (never `ProcessProfile` — confirmed 0 usage) — populated
+   verbatim from the vendor leaf's own `include` array for `System` rows; `null` for `User` rows and for
+   `System` rows from an engine/vendor that doesn't use it (OrcaSlicer today). Include-target fragments
+   themselves are ingested as ordinary rows of the same kind (they already satisfy the existing
+   type/instantiation filter — machine-kind ones need the new explicit `type == "machine"` ingestion guard
+   from §0's own note below to be excluded from being ingested *as if* they were regular abstract machine
+   presets, since they carry no `type` at all and would otherwise fail/misparsed by a type-keyed ingester).
+2. **Resolution** (extends `ResolveSlicingProfileSelection`'s successor, research.md §5): after the
+   existing `ProfileChainWalker` single-parent walk + `ProfileRawDataMerger` merge produces the base
+   flattened JSON, resolve each name in the target's own `IncludedTemplateNames` (by name, scoped to the
+   same `VendorName`+`Kind`+`Origin=System`, the same lookup shape as existing base-name resolution) and
+   fold each resolved fragment's `RawDataJson` into the accumulator the same shallow-overwrite way, applied
+   **before** the target's own final layer (so the target's own explicit keys, if any, still win on a
+   genuine collision — none observed in samples, but this keeps the rule consistent with how a base layer
+   already behaves). A named include target that fails to resolve is treated the same as an unresolved
+   `BaseProfileName` (§ elsewhere) — not a hard error, but the resulting merged JSON is then missing those
+   specific gcode fields, which is reported as a normal resolve-time gap rather than silently swallowed.
+3. **Explicit type-filter guard** (extends §0's ingestion note): ingestion MUST filter every entry fetched
+   via a vendor index's `machine_list`/`process_list`/`filament_list` by the fetched file's own `type` field
+   matching the expected kind (`"machine"`/`"process"`/`"filament"`) — Bambu Studio's `machine_list` proves
+   list-membership alone is not a reliable "this is a preset of this kind" signal (89 of its 148 entries are
+   untyped gcode fragments, not machine presets); a fragment with no `type` (or a mismatched one) is ingested
+   as a plain named row available for `IncludedTemplateNames` resolution, never surfaced in a machine picker
+   (it also fails the existing `instantiation:"false"` picker-visibility filter independently, so this is a
+   defense-in-depth guard, not the only thing preventing it from appearing in a picker).
+
+**Scope call**: this plan fixes `include` resolution for **System**-origin rows only (guaranteed to matter,
+100% of Bambu-Studio-ingested machine/filament presets). Whether to also backport the same fix path to
+**User**-imported profiles (pre-existing latent gap, feature 003) is left to a follow-up decision — flagged
+here, not silently expanded into this feature's scope.
+
 ### Model-name ↔ `PrinterModelCatalog` mapping (Assumptions § "concrete mapping approach")
 
 `PrinterModelCatalog` (`api/src/OpenFarm.Domain/Printers/PrinterModelCatalog.cs`) keys entries by
@@ -278,6 +372,10 @@ FR-015) — and drop the `IOrganizationFilamentDefaultRepository`/org-default re
   the part's `NarrowFilamentProfileId` (when narrowed, FR-012) or §2's representative-System-filament
   resolution for the target material type (when not) — never `OrganizationFilamentDefault`, which is
   deleted along with its table/repository/endpoints per FR-017.
+- **`include` fold-in** (machine and filament only, §0a): after each of the above resolves its
+  single-parent ancestor chain via `ProfileChainWalker`/`ProfileRawDataMerger` as today, resolve and fold in
+  any `IncludedTemplateNames` the same way — required for Bambu-Studio-sourced presets to produce a complete
+  settings JSON; a no-op for OrcaSlicer-sourced presets (empty/absent on that engine's data today).
 
 `CliSlicerEngine` only changes its call site (pass `printerId` through from the job/part being sliced);
 its own JSON-building/CLI-invocation logic is unaffected.
@@ -301,3 +399,4 @@ still used only by the unchanged, User-scoped feature-003 browse page (FR-013) a
 | Re-ingestion idempotency mechanics | §1 — upsert by `(VendorName, ExternalId or Name)`, never delete |
 | Stale-selection detection | §1 — `IsCurrentlyOffered` flag, existing missing-selection error path |
 | Representative filament tie-break rule | §2 — smallest `(VendorName, ExternalId)` ordinal |
+| Bambu Studio vs. OrcaSlicer format divergence | §0a — verified against real Bambu Studio upstream source: `include` gcode-template composition (machine + filament, never process), used by every current Bambu Studio machine preset and 68% of its filament presets, absent from OrcaSlicer's tree entirely; traced into `PrusaSliceFamilyInvocation` to confirm it's a real gap (fields silently missing from what's handed to the CLI today), not cosmetic |

@@ -32,6 +32,11 @@ the repo conventions in `CLAUDE.md`.
 5. Confirm scoping: a vendor in the bundle whose `machine_model_list` has no overlap with
    `PrinterModelCatalog.All`'s `VendorMachineModelName` values produces **zero** rows for that vendor
    (Acceptance Scenario 3) — verify via the summary's "vendors skipped" count.
+6. **Bambu Studio-specific**: run ingestion against a Bambu Studio bundle leaf (not OrcaSlicer) and confirm
+   (a) no `MachineProfile`/`FilamentProfile` rows were created from the untyped `include`-target gcode
+   fragments in its `machine_list`/`filament_list` (research.md §0a — list membership alone is not a
+   type signal), and (b) a real machine preset's `IncludedTemplateNames` is populated and each named entry
+   resolves to an ingested row of the same kind.
 
 ## Story 2 — Select a printer's machine and process profile
 
@@ -52,7 +57,10 @@ the repo conventions in `CLAUDE.md`.
 
 1. With two printers of different models each fully configured (Story 2), trigger a slice targeted at each
    → confirm each slice's recorded machine/process match that printer's own selections (Acceptance
-   Scenario 1, SC-001).
+   Scenario 1, SC-001). Repeat with a printer whose machine/process are Bambu-Studio-sourced (as opposed to
+   OrcaSlicer-sourced) and inspect the JSON actually written to `machine_settings.json`/
+   `filament_settings.json` in the CLI invocation's temp work directory → confirm `machine_start_gcode`/
+   `change_filament_gcode`/etc. are present (research.md §0a) rather than silently absent.
 2. Clear one printer's process selection (`PUT .../process-profile` with `null`) and request a slice for
    it → refused, message names that printer and the missing process selection, no partial slice (Acceptance
    Scenario 2, SC-003).

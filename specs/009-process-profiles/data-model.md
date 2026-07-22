@@ -30,6 +30,7 @@ import flow, unchanged.
 | `IsCurrentlyOffered : bool` | **new**, default `true` | `false` once a re-ingestion no longer contains this `ExternalId`/`(VendorName, Name)` — research.md §1; irrelevant for `User` rows (always `true`) |
 | `IsSelectable : bool` | **new**, default `true` | from vendor `instantiation`; `true` for every `User` row (unchanged import behavior) |
 | `VendorMachineModelName : string?` | **new** | System machine rows only: the leaf preset's own `printer_model` field, linking to `PrinterModelCatalog` via the new `VendorMachineModelName` catalog field (research.md §0) |
+| `IncludedTemplateNames : IReadOnlyList<string>?` | **new**, `jsonb` | System rows only, verbatim from the vendor leaf's own `include` array — populated for Bambu-Studio-sourced rows (universal on its machine presets), `null` for OrcaSlicer-sourced rows (format doesn't use it) and all `User` rows — research.md §0a |
 
 `DefaultProcessProfileId`/`SetDefaultProcessProfile`/`ClearDefaultProcessProfile` are **removed** —
 superseded by `Printer.ProcessProfileId` (below). Everything else (`BaseProfileId`/`BaseProfileName`
@@ -59,6 +60,7 @@ Same five fields as `MachineProfile`/`ProcessProfile`, plus:
 |---|---|---|
 | `CompatibleMachineNames : IReadOnlyList<string>?` | **new**, `jsonb` | same shape/source as `ProcessProfile`'s |
 | `MaterialType : string?` | **new** | System rows only: the *resolved* (chain-merged, research.md §0 point 5) `filament_type`, e.g. `"PLA"`/`"PETG"`/`"ABS"` — cached at ingestion time, not re-derived per read |
+| `IncludedTemplateNames : IReadOnlyList<string>?` | **new**, `jsonb` | same shape/source as `MachineProfile`'s (research.md §0a) — populated for the 68% of Bambu-Studio-sourced filament rows that use `include`; include-target fragments (e.g. `fdm_filament_template_direct_bowden`) are themselves ordinary ingested `FilamentProfile` rows (`type:"filament"`, `instantiation:"false"`), just reached via this field rather than `BaseProfileId` |
 
 ### `Printer` (changed)
 
@@ -116,6 +118,7 @@ MachineProfiles   ADD COLUMN "ExternalId"                text NULL
 MachineProfiles   ADD COLUMN "IsCurrentlyOffered"        boolean NOT NULL DEFAULT true
 MachineProfiles   ADD COLUMN "IsSelectable"              boolean NOT NULL DEFAULT true
 MachineProfiles   ADD COLUMN "VendorMachineModelName"    text NULL
+MachineProfiles   ADD COLUMN "IncludedTemplateNames"     jsonb NULL
 MachineProfiles   DROP COLUMN "DefaultProcessProfileId"
 
 ProcessProfiles   ADD COLUMN "Origin"                  text NOT NULL DEFAULT 'User'
@@ -132,6 +135,7 @@ FilamentProfiles  ADD COLUMN "IsCurrentlyOffered"        boolean NOT NULL DEFAUL
 FilamentProfiles  ADD COLUMN "IsSelectable"              boolean NOT NULL DEFAULT true
 FilamentProfiles  ADD COLUMN "CompatibleMachineNames"    jsonb NULL
 FilamentProfiles  ADD COLUMN "MaterialType"              text NULL
+FilamentProfiles  ADD COLUMN "IncludedTemplateNames"     jsonb NULL
 
 Printers          ADD COLUMN "ProcessProfileId"          uuid NULL  (FK -> ProcessProfiles, ON DELETE SET NULL)
 
@@ -166,12 +170,15 @@ DROP TABLE "OrganizationFilamentDefaults"
 - **Ingestion** (new step, alongside binary provisioning — research.md §0 "Locating resources/profiles"):
   recursively find each vendor index JSON in the bundled slicer's leaf, keep only vendors whose
   `machine_model_list` overlaps `PrinterModelCatalog.All` (via `VendorMachineModelName`), then for
-  machine/process/filament in turn: fetch every listed preset, upsert by the research.md §1 key, resolve
-  each row's `BaseProfileId` by name **within the same ingested batch** (mirrors
-  `ConfirmProfileImportCommandHandler`'s existing two-pass import: pass 1 creates/updates rows, pass 2
-  resolves `BaseProfileId`/`FilamentProfile.MaterialType` now that every sibling row exists to resolve
-  against), then mark any previously-`System` row *not* seen in this run as `IsCurrentlyOffered = false`.
-  Idempotent and safe to re-run (Acceptance Scenario 5).
+  machine/process/filament in turn: fetch every listed preset **filtered to the fetched file's own `type`
+  matching the expected kind** (research.md §0a point 3 — a vendor's `machine_list`/`filament_list` can
+  contain untyped or mismatched-type include-target fragments, confirmed on Bambu Studio's data; list
+  membership alone is not sufficient), upsert by the research.md §1 key (capturing `IncludedTemplateNames`
+  verbatim where present), resolve each row's `BaseProfileId` by name **within the same ingested batch**
+  (mirrors `ConfirmProfileImportCommandHandler`'s existing two-pass import: pass 1 creates/updates rows,
+  pass 2 resolves `BaseProfileId`/`FilamentProfile.MaterialType` now that every sibling row exists to
+  resolve against), then mark any previously-`System` row *not* seen in this run as `IsCurrentlyOffered =
+  false`. Idempotent and safe to re-run (Acceptance Scenario 5).
 - **Selection** (printer page): `LinkMachineProfile` unchanged; `LinkProcessProfile` gated on
   machine-selected-first + compatibility (§ above). Both logged via the existing activity-log
   post-processor (FR-016), same as today's `LinkMachineProfile`.
@@ -179,4 +186,8 @@ DROP TABLE "OrganizationFilamentDefaults"
   are (FR-016).
 - **Slicing resolution**: `ResolveSlicingProfileSelection`'s successor takes a target (printer or none) —
   research.md §5 — and produces the same `ResolvedSlicingProfiles(MachineSettingsJson, ProcessSettingsJson,
-  FilamentSettingsJson)` shape `CliSlicerEngine` already consumes, so nothing downstream of it changes.
+  FilamentSettingsJson)` shape `CliSlicerEngine`/`PrusaSliceFamilyInvocation` already consume, so nothing
+  downstream of it changes. Its machine/filament resolution additionally folds in `IncludedTemplateNames`
+  after the existing ancestor-chain merge (research.md §0a/§5) — without this, every Bambu-Studio-sourced
+  slice would silently omit `machine_start_gcode`/`change_filament_gcode`/etc. from the JSON handed to the
+  CLI via `--load-settings`/`--load-filaments`.

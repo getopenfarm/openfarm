@@ -29,6 +29,16 @@ implementation detail for tasks.md, not fixed here:
 - `MachineProfile`/`ProcessProfile`/`FilamentProfile` rows with `Origin = System`, upserted per research.md
   §1's identity key. Every previously-`System` row not re-seen in this run has `IsCurrentlyOffered` set to
   `false` (never deleted).
+- Each fetched preset file is kept only if its own declared `type` matches the list it was fetched from
+  (`machine`/`process`/`filament`) — a vendor's `machine_list`/`filament_list` can reference untyped or
+  mismatched-type files (confirmed on Bambu Studio: 89 of 148 `machine_list` entries are untyped
+  gcode-template fragments, not machine presets — research.md §0a); anything failing this check is still
+  ingested as a plain named row (so `IncludedTemplateNames` resolution below has something to resolve
+  against) but is excluded from ever being treated as a selectable preset of that kind.
+- Machine and filament rows additionally capture `IncludedTemplateNames` verbatim from the source preset's
+  own `include` array where present (Bambu Studio only, as of this research — universal on its machine
+  presets, ~68% of its filament presets; absent from OrcaSlicer's data entirely). Process rows never carry
+  this field (research.md §0a confirms zero usage there in either engine).
 - A summary report (counts: vendors scanned, vendors skipped as unsupported, rows created / updated /
   marked stale, per kind) — logged, not persisted; mirrors `Provisioner.ProvisionAsync`'s own
   per-entry `ProvisionEntryResult` reporting convention (never throws for one bad vendor file; a

@@ -19,18 +19,23 @@ System filament profile per material type (replacing the org-level default-filam
 The entire interim "Slicing Profile Defaults" settings page is removed.
 
 Technical approach: add `Origin`/`VendorName`/`ExternalId`/`IsCurrentlyOffered`/`IsSelectable` (+
-kind-specific `CompatibleMachineNames`/`MaterialType`/`VendorMachineModelName`) columns to the three
-existing profile tables rather than new System-specific tables (research.md §3) — System and User rows
-share one table per kind, so base-reference resolution (FR-014) and the existing
-`ProfileChainWalker`/`ProfileRawDataMerger` merge machinery work unchanged across origins. Add
+kind-specific `CompatibleMachineNames`/`MaterialType`/`VendorMachineModelName`/`IncludedTemplateNames`)
+columns to the three existing profile tables rather than new System-specific tables (research.md §3) —
+System and User rows share one table per kind, so base-reference resolution (FR-014) and the existing
+`ProfileChainWalker`/`ProfileRawDataMerger` merge machinery work unchanged across origins, extended once
+(research.md §0a/§5) to also fold in Bambu Studio's `include`-referenced gcode-template fragments — a real,
+independently-verified fork divergence from OrcaSlicer (which uses none) that would otherwise silently drop
+`machine_start_gcode`/`change_filament_gcode`/etc. from every Bambu-Studio-sourced slice. Add
 `Printer.ProcessProfileId` parallel to the existing `Printer.MachineProfileId`. Add a new,
 provisioning-time (or on-demand) ingestion step that walks a bundled slicer's vendor index files,
 cross-references `machine_model_list` against a hand-authored `PrinterModelCatalog.VendorMachineModelName`
-mapping (research.md §0), and upserts rows idempotently by `(VendorName, ExternalId-or-Name)`
-(research.md §1). Rewrite `ResolveSlicingProfileSelection` to resolve per-printer (or per-fleet-
-representative for estimate-only slices) instead of per-organization-default (research.md §5), and delete
-`Organization.DefaultMachineProfileId`, `MachineProfile.DefaultProcessProfileId`, and the
-`OrganizationFilamentDefault` entity/table/repository/endpoints entirely.
+mapping (research.md §0), filters fetched presets by their own declared `type` (not just list membership —
+Bambu Studio's `machine_list` is 60% untyped gcode-template fragments, research.md §0a), and upserts rows
+idempotently by `(VendorName, ExternalId-or-Name)` (research.md §1). Rewrite `ResolveSlicingProfileSelection`
+to resolve per-printer (or per-fleet-representative for estimate-only slices) instead of
+per-organization-default (research.md §5), and delete `Organization.DefaultMachineProfileId`,
+`MachineProfile.DefaultProcessProfileId`, and the `OrganizationFilamentDefault` entity/table/repository/
+endpoints entirely.
 
 ## Technical Context
 
@@ -43,20 +48,24 @@ react-hook-form + zod, shadcn/ui, TanStack Table (for the searchable picker list
 existing.
 
 **Storage**: PostgreSQL via `OpenFarmDbContext`. Schema deltas: new columns on `MachineProfiles`,
-`ProcessProfiles`, `FilamentProfiles`, `Printers`; dropped `Organizations.DefaultMachineProfileId` and
+`ProcessProfiles`, `FilamentProfiles` (incl. `IncludedTemplateNames jsonb` on `MachineProfiles`/
+`FilamentProfiles` only, research.md §0a), `Printers`; dropped `Organizations.DefaultMachineProfileId` and
 `MachineProfiles.DefaultProcessProfileId`; dropped `OrganizationFilamentDefaults` table entirely
 (data-model.md). System Profile *content* (the ingested vendor data) lives in these same tables as
 ordinary rows — no separate store.
 
 **Testing**: xUnit + FluentAssertions (Domain/Application unit — TDD for the deterministic new logic: the
 idempotency-key upsert matcher, the representative-filament tie-break, the fleet-representative-printer
-pick, the machine↔process compatibility gate); `WebApplicationFactory` + Testcontainers.PostgreSql (API
-integration — ingestion against real fixture vendor JSON, end-to-end printer selection, slice resolution);
-Vitest + React Testing Library (frontend pickers, printer page, part detail narrowing). Real ingestion
-against the actual bundled binary's on-disk `resources/profiles/` tree is exercised in integration tests
-using the same real, MIT-licensed vendor JSON fixtures feature 003 already established the precedent for
-(`api/tests/.../Profiles/Fixtures/`) — extended with a small real `BBL.json` + a handful of real
-machine/process/filament preset files (this plan's own research.md §0 fetches), not synthetic data.
+pick, the machine↔process compatibility gate, the `include` fold-in merge step); `WebApplicationFactory` +
+Testcontainers.PostgreSql (API integration — ingestion against real fixture vendor JSON, end-to-end printer
+selection, slice resolution); Vitest + React Testing Library (frontend pickers, printer page, part detail
+narrowing). Real ingestion against the actual bundled binary's on-disk `resources/profiles/` tree is
+exercised in integration tests using the same real, MIT-licensed vendor JSON fixtures feature 003 already
+established the precedent for (`api/tests/.../Profiles/Fixtures/`) — extended with a small real `BBL.json` +
+a handful of real machine/process/filament preset files **from both bundled engines, not OrcaSlicer alone**
+(this plan's own research.md §0/§0a fetches) — specifically including at least one Bambu-Studio-sourced
+machine and filament fixture that exercises `include`, since that path has no OrcaSlicer-sourced analogue to
+catch it.
 
 **Target Platform**: Same self-hosted Linux/Windows/macOS hosts as 008. Ingestion runs against whichever
 platform leaf `BundledSlicerScanner` already resolves for the host — no new platform-specific code beyond
@@ -100,10 +109,12 @@ is sized for that, not just today's single vendor.
   `Domain`/`Application`. **PASS.**
 - **II. Test discipline where it pays.** TDD for: the upsert-by-idempotency-key matcher, the
   representative-filament tie-break (research.md §2), the fleet-representative-printer pick (research.md
-  §5), the machine↔process compatibility gate, and the vendor-index → System-Profile field mapping
-  (deterministic, well-specified transforms). Test-after/fixture-based for the ingestion filesystem walk
-  itself, the EF repository/configuration code, and React components — consistent with how feature 003
-  already tests `ProfileBundleParser` (fixture-replay, test-after) rather than TDD. **PASS.**
+  §5), the machine↔process compatibility gate, the vendor-index → System-Profile field mapping, and the
+  `IncludedTemplateNames` fold-in merge (research.md §0a — deterministic, well-specified transforms, and the
+  one path with no OrcaSlicer-sourced equivalent to catch a regression, so it needs its own direct
+  coverage). Test-after/fixture-based for the ingestion filesystem walk itself, the EF repository/
+  configuration code, and React components — consistent with how feature 003 already tests
+  `ProfileBundleParser` (fixture-replay, test-after) rather than TDD. **PASS.**
 - **III. Consistent UX.** New pickers gate on the `permissions` catalog, never role names; all new errors
   surface as RFC 7807 `ProblemDetails`; forms use react-hook-form + zod + shadcn/ui primitives; the printer
   page's machine/process selections and part detail's filament narrowing are not currently real-time-pushed
@@ -154,9 +165,9 @@ api/
 │   ├── OpenFarm.Domain/
 │   │   ├── Profiles/
 │   │   │   ├── ProfileOrigin.cs                 # NEW enum: System | User
-│   │   │   ├── MachineProfile.cs                # + Origin/VendorName/ExternalId/IsCurrentlyOffered/IsSelectable/VendorMachineModelName; DefaultProcessProfileId REMOVED
-│   │   │   ├── ProcessProfile.cs                # + same 5 fields + CompatibleMachineNames
-│   │   │   └── FilamentProfile.cs               # + same 5 fields + CompatibleMachineNames + MaterialType
+│   │   │   ├── MachineProfile.cs                # + Origin/VendorName/ExternalId/IsCurrentlyOffered/IsSelectable/VendorMachineModelName/IncludedTemplateNames; DefaultProcessProfileId REMOVED
+│   │   │   ├── ProcessProfile.cs                # + same 5 base fields + CompatibleMachineNames
+│   │   │   └── FilamentProfile.cs               # + same 5 base fields + CompatibleMachineNames + MaterialType + IncludedTemplateNames
 │   │   ├── Printers/
 │   │   │   ├── Printer.cs                       # + ProcessProfileId, LinkProcessProfile/UnlinkProcessProfile
 │   │   │   └── PrinterModelCatalog.cs            # PrinterModel + VendorMachineModelName
@@ -168,6 +179,7 @@ api/
 │   │   │   ├── IMachineProfileRepository.cs      # + SearchAsync(...)
 │   │   │   ├── IProcessProfileRepository.cs      # + SearchAsync(...); remove default-process-pairing method(s)
 │   │   │   ├── IFilamentProfileRepository.cs     # + SearchAsync(...)
+│   │   │   ├── ProfileRawDataMerger.cs           # + fold in IncludedTemplateNames after the ancestor-chain merge (research.md §0a/§5, TDD)
 │   │   │   ├── RepresentativeFilamentResolver.cs # NEW: research.md §2 tie-break (TDD)
 │   │   │   ├── UpdatePartFilamentRequirementNarrowingCommand*.cs  # NEW (FR-012)
 │   │   │   ├── SetMachineProfileDefaultProcessCommand*.cs         # REMOVED
@@ -181,7 +193,7 @@ api/
 │   ├── OpenFarm.Infrastructure/
 │   │   ├── Profiles/
 │   │   │   ├── SystemProfileIngestionService.cs  # NEW: filesystem walk + vendor JSON parse + upsert
-│   │   │   ├── VendorProfileIndexReader.cs        # NEW: parses one Vendor.json + its referenced preset files
+│   │   │   ├── VendorProfileIndexReader.cs        # NEW: parses one Vendor.json + its referenced preset files; filters fetched files by declared "type" (research.md §0a — Bambu Studio's machine_list is 60% untyped include-target fragments)
 │   │   │   ├── ResourcesProfilesLocator.cs        # NEW: recursive search per research.md §0
 │   │   │   └── Repositories: extend Machine/Process/FilamentProfileRepository with SearchAsync
 │   │   └── Persistence/
