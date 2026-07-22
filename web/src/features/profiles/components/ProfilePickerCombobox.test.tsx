@@ -118,7 +118,7 @@ describe('ProfilePickerCombobox', () => {
 
     await user.click(screen.getByText('Bambu X1 Carbon 0.4 nozzle'));
 
-    expect(onChange).toHaveBeenCalledWith('m1');
+    expect(onChange).toHaveBeenCalledWith('m1', 'Bambu X1 Carbon 0.4 nozzle');
     expect(
       fetchMock.mock.calls.some((call) =>
         call[0].toString().includes('origin=All'),

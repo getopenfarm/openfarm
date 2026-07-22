@@ -39,7 +39,8 @@ interface PickerItem {
 export interface ProfilePickerComboboxProps {
   kind: ProfilePickerKind;
   value: string | null | undefined;
-  onChange: (id: string | null) => void;
+  /** `name` is the picked item's display name — already known from the list render, no extra lookup. */
+  onChange: (id: string | null, name?: string | null) => void;
   /** The current selection's display name — the picker has no id-to-name lookup of its own. */
   selectedLabel?: string | null;
   disabled?: boolean;
@@ -187,8 +188,8 @@ export function ProfilePickerCombobox({
       ?.map(toPickerItem)
       .filter((item): item is PickerItem => item !== null) ?? [];
 
-  function handleSelect(id: string | null) {
-    onChange(id);
+  function handleSelect(id: string | null, name: string | null) {
+    onChange(id, name);
     setOpen(false);
     setSearch('');
   }
@@ -227,7 +228,7 @@ export function ProfilePickerCombobox({
           <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
             <button
               type="button"
-              onClick={() => handleSelect(null)}
+              onClick={() => handleSelect(null, null)}
               className={cn(
                 'flex items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
                 value === null || value === undefined
@@ -251,7 +252,7 @@ export function ProfilePickerCombobox({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => handleSelect(item.id)}
+                onClick={() => handleSelect(item.id, item.name)}
                 className={cn(
                   'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
                   value === item.id ? 'bg-muted font-medium' : '',

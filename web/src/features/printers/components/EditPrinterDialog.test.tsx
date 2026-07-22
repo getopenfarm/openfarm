@@ -240,6 +240,64 @@ describe('EditPrinterDialog', () => {
     ).toBeInTheDocument();
   });
 
+  // Regression: linking a machine profile in this still-open, unsaved dialog used to leave the
+  // process profile dropdown empty. The picker's process query used to be wired to `printerId`,
+  // which the backend resolves against the printer's already-*persisted* MachineProfileId — not
+  // whatever was just picked here — so a freshly-linked, not-yet-saved machine profile never made
+  // it into the process query's compatibility filter.
+  it('populates the process profile dropdown with a freshly-picked, unsaved machine profile', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/profiles/machine')) {
+        return Promise.resolve(
+          jsonResponse({
+            items: [
+              {
+                id: 'm1',
+                name: 'Bambu X1 Carbon 0.4 nozzle',
+                origin: 'System',
+              },
+            ],
+          }),
+        );
+      }
+      if (url.includes('/profiles/process')) {
+        const params = new URL(url, 'http://localhost').searchParams;
+        expect(params.get('compatibleWithMachineName')).toBe(
+          'Bambu X1 Carbon 0.4 nozzle',
+        );
+        expect(params.has('printerId')).toBe(false);
+        return Promise.resolve(
+          jsonResponse({
+            items: [{ id: 'p1', name: '0.20mm Standard', origin: 'System' }],
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderDialog();
+
+    await user.click(
+      screen.getByRole('button', { name: 'No machine profile linked' }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText('Bambu X1 Carbon 0.4 nozzle'),
+      ).toBeInTheDocument(),
+    );
+    await user.click(screen.getByText('Bambu X1 Carbon 0.4 nozzle'));
+
+    await user.click(
+      screen.getByRole('button', { name: 'No process profile linked' }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText('0.20mm Standard')).toBeInTheDocument(),
+    );
+  });
+
   // Regression: a real live-browser walkthrough found that saving used to leave the printer detail
   // page and its activity feed showing stale data (the summary card kept reading "Not linked" right
   // after a successful save, only correcting itself on a manual reload) because the edit mutation's

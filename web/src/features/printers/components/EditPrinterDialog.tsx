@@ -184,10 +184,9 @@ export function EditPrinterDialog({
     });
   }
 
-  function handleMachineProfileChange(id: string | null) {
+  function handleMachineProfileChange(id: string | null, name?: string | null) {
     setSelectedMachineProfileId(id);
-    // undefined (not null) after a real pick — lets the picker resolve the new name itself.
-    setSelectedMachineProfileName(id ? undefined : null);
+    setSelectedMachineProfileName(name ?? null);
     // FR-007: any machine profile change (clear or switch to a different one) clears the process
     // profile too — a process selection can never outlive the exact machine it was validated
     // against, so it always needs re-picking once the machine changes.
@@ -195,9 +194,9 @@ export function EditPrinterDialog({
     setSelectedProcessProfileName(null);
   }
 
-  function handleProcessProfileChange(id: string | null) {
+  function handleProcessProfileChange(id: string | null, name?: string | null) {
     setSelectedProcessProfileId(id);
-    setSelectedProcessProfileName(id ? undefined : null);
+    setSelectedProcessProfileName(name ?? null);
   }
 
   function onSubmit(values: FormValues) {
@@ -329,7 +328,9 @@ export function EditPrinterDialog({
                 placeholder="No process profile linked"
                 disabled={!selectedMachineProfileId}
                 disabledPlaceholder="Select a machine profile first"
-                printerId={printerId}
+                compatibleWithMachineName={
+                  selectedMachineProfileName ?? undefined
+                }
               />
             </div>
             <DialogFooter>
