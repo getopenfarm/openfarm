@@ -1,6 +1,8 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Profiles;
 
@@ -23,7 +25,8 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
     public async Task IngestAsync_OrcaSlicerFixtureAlongsideUnsupportedVendor_CreatesSystemRowsOnlyForTheSupportedVendor()
     {
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
-        var leaf = StageLeaf(("OrcaSlicer", vendorName), ("UnsupportedVendor", null));
+        var filamentVendorSuffix = Guid.NewGuid().ToString("N");
+        var leaf = StageLeaf(filamentVendorSuffix, ("OrcaSlicer", vendorName), ("UnsupportedVendor", null));
 
         using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
@@ -44,8 +47,13 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var processRows = await processRepo.ListAsync(CancellationToken.None);
         processRows.Should().ContainSingle(p => p.VendorName == vendorName && p.ExternalId == "GP004");
 
+        // Filament rows are keyed by their own resolved filament_vendor, NOT the vendor index's own
+        // (renamed) name — "Bambu PLA Basic @BBL X1C" resolves to its "Bambu Lab" ancestor override,
+        // never the outer "Bambulab-..." index name (this is the "Generic imported as Bambulab" bug fix).
         var filamentRows = await filamentRepo.ListAsync(CancellationToken.None);
-        var filamentLeaf = filamentRows.Should().ContainSingle(p => p.VendorName == vendorName && p.ExternalId == "GFSA00").Subject;
+        var filamentLeaf = filamentRows.Should().ContainSingle(p => p.ExternalId == "GFSA00").Subject;
+        filamentLeaf.VendorName.Should().Be($"Bambu Lab-{filamentVendorSuffix}");
+        filamentLeaf.VendorName.Should().NotBe(vendorName);
         filamentLeaf.MaterialType.Should().Be("PLA");
 
         machineRows.Should().NotContain(p => p.VendorName == "Creality");
@@ -54,10 +62,39 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
     }
 
     [Fact]
+    public async Task IngestAsync_OrcaSlicerFixture_GenericAncestorRowResolvesToGenericVendorAndCreatesMatchingVendorRows()
+    {
+        var vendorName = $"Bambulab-{Guid.NewGuid():N}";
+        var filamentVendorSuffix = Guid.NewGuid().ToString("N");
+        var leaf = StageLeaf(filamentVendorSuffix, ("OrcaSlicer", vendorName));
+
+        using var scope = factory.Services.CreateScope();
+        var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
+        var filamentRepo = scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>();
+        var vendorRepo = scope.ServiceProvider.GetRequiredService<IVendorRepository>();
+
+        await ingestionService.IngestAsync(leaf, CancellationToken.None);
+
+        var genericVendorName = $"Generic-{filamentVendorSuffix}";
+        var brandedVendorName = $"Bambu Lab-{filamentVendorSuffix}";
+
+        // fdm_filament_common is the material-family root every filament in this fixture ultimately
+        // inherits from, and declares filament_vendor "Generic" directly — it must resolve to that,
+        // never the vendor index's own "Bambulab-..." name.
+        var filamentRows = await filamentRepo.ListAsync(CancellationToken.None);
+        filamentRows.Should().ContainSingle(p => p.Name == "fdm_filament_common" && p.VendorName == genericVendorName);
+
+        // Both real brands seen during ingestion get their own Vendor row — the profile is tied to a
+        // vendor, so ingesting it makes that brand available for logging physical filament stock too.
+        (await vendorRepo.GetByNameAsync(genericVendorName, CancellationToken.None)).Should().NotBeNull();
+        (await vendorRepo.GetByNameAsync(brandedVendorName, CancellationToken.None)).Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task IngestAsync_RerunAgainstUnchangedData_ReportsZeroCreatedOrUpdated()
     {
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
-        var leaf = StageLeaf(("OrcaSlicer", vendorName));
+        var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", vendorName));
 
         using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
@@ -79,7 +116,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
     public async Task IngestAsync_RenamedLeafBetweenRuns_UpdatesTheSameRowInPlaceRatherThanDuplicating()
     {
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
-        var leaf = StageLeaf(("OrcaSlicer", vendorName));
+        var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", vendorName));
 
         using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
@@ -111,7 +148,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
     public async Task IngestAsync_BambuStudioFixture_NeverCreatesRowsFromUntypedIncludeTargetFragmentsAndResolvesIncludedTemplateNames()
     {
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
-        var leaf = StageLeaf(("BambuStudio", vendorName));
+        var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("BambuStudio", vendorName));
 
         using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
@@ -136,9 +173,12 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
     /// directory shaped like a real bundle leaf (<c>&lt;root&gt;/orcaslicer/&lt;version&gt;/linux/resources/profiles/…</c>,
     /// matching <see cref="OpenFarm.Infrastructure.Parts.BundledSlicerScanner"/>'s own convention),
     /// optionally rewriting each fixture's vendor index top-level <c>"name"</c> to a unique value for
-    /// test isolation (machine model names / setting_ids / preset content are left untouched).
+    /// test isolation (machine model names / setting_ids / preset content are left untouched). Every
+    /// filament fixture's own <c>filament_vendor</c> value(s) are also suffixed with
+    /// <paramref name="filamentVendorSuffix"/> — filament rows key off that resolved per-preset value now
+    /// (research.md §0), not the renamed vendor index name above, so it needs its own isolation knob.
     /// </summary>
-    private static string StageLeaf(params (string FixtureFolder, string? RenamedVendorName)[] vendors)
+    private static string StageLeaf(string filamentVendorSuffix, params (string FixtureFolder, string? RenamedVendorName)[] vendors)
     {
         var engineSlug = vendors.Any(v => v.FixtureFolder == "BambuStudio") ? "bambustudio" : "orcaslicer";
         var leaf = Path.Combine(Path.GetTempPath(), "openfarm-ingestion-tests", Guid.NewGuid().ToString(), engineSlug, "1.0.0", "linux");
@@ -156,7 +196,31 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
             }
         }
 
+        MakeFilamentVendorNamesTestUnique(profilesDir, filamentVendorSuffix);
+
         return leaf;
+    }
+
+    // Suffixes whatever brand a fixture's own filament_vendor already declares (e.g. "Generic" ->
+    // "Generic-<suffix>", "Bambu Lab" -> "Bambu Lab-<suffix>") rather than collapsing every filament
+    // preset onto one identical name — that would defeat the very resolution behavior under test, since
+    // "Generic" and "Bambu Lab" need to stay distinguishable from each other while still being unique to
+    // this staged leaf.
+    private static void MakeFilamentVendorNamesTestUnique(string profilesDir, string filamentVendorSuffix)
+    {
+        foreach (var file in Directory.EnumerateFiles(profilesDir, "*.json", SearchOption.AllDirectories))
+        {
+            var json = File.ReadAllText(file);
+            var rewritten = Regex.Replace(
+                json,
+                "\"filament_vendor\"\\s*:\\s*\\[\\s*\"([^\"]*)\"\\s*\\]",
+                m => $"\"filament_vendor\": [\"{m.Groups[1].Value}-{filamentVendorSuffix}\"]");
+
+            if (rewritten != json)
+            {
+                File.WriteAllText(file, rewritten);
+            }
+        }
     }
 
     private static void CopyDirectoryContents(string sourceDir, string destinationDir)

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
@@ -20,6 +22,7 @@ public sealed partial class SystemProfileIngestionService(
     IMachineProfileRepository machineProfileRepository,
     IProcessProfileRepository processProfileRepository,
     IFilamentProfileRepository filamentProfileRepository,
+    IVendorRepository vendorRepository,
     VendorProfileIndexReader indexReader,
     ILogger<SystemProfileIngestionService> logger) : ISystemProfileIngestionService
 {
@@ -55,6 +58,7 @@ public sealed partial class SystemProfileIngestionService(
         var seenMachineIds = new HashSet<Guid>();
         var seenProcessIds = new HashSet<Guid>();
         var seenFilamentIds = new HashSet<Guid>();
+        var filamentVendorNamesSeen = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var vendorIndexFile in vendorIndexFiles)
         {
@@ -96,6 +100,13 @@ public sealed partial class SystemProfileIngestionService(
             var machineByName = await UpsertMachineAsync(organizationId, summary.VendorName, sourceFormat.Value, machineResult.Presets, machineCounts, seenMachineIds, cancellationToken);
             var processByName = await UpsertProcessAsync(organizationId, summary.VendorName, sourceFormat.Value, processResult.Presets, processCounts, seenProcessIds, cancellationToken);
             var filamentByName = await UpsertFilamentAsync(organizationId, summary.VendorName, sourceFormat.Value, filamentResult.Presets, filamentCounts, seenFilamentIds, cancellationToken);
+            foreach (var filamentProfile in filamentByName.Values)
+            {
+                if (filamentProfile.VendorName is { } filamentVendorName)
+                {
+                    filamentVendorNamesSeen.Add(filamentVendorName);
+                }
+            }
 
             ResolveMachineBaseIds(machineByName);
             ResolveProcessBaseIds(processByName);
@@ -105,6 +116,8 @@ public sealed partial class SystemProfileIngestionService(
             await processProfileRepository.SaveChangesAsync(cancellationToken);
             await filamentProfileRepository.SaveChangesAsync(cancellationToken);
         }
+
+        await EnsureVendorsExistAsync(organizationId, filamentVendorNamesSeen, cancellationToken);
 
         machineCounts.MarkedStale += await MarkStaleAsync(machineProfileRepository, seenMachineIds, cancellationToken);
         processCounts.MarkedStale += await MarkStaleAsync(processProfileRepository, seenProcessIds, cancellationToken);
@@ -211,9 +224,14 @@ public sealed partial class SystemProfileIngestionService(
 
         foreach (var preset in presets)
         {
+            // Falls back to the vendor index's own name only if this preset's ancestor chain never
+            // declares filament_vendor — the resolved per-preset brand (research.md §0, VendorProfileIndexReader)
+            // is what a real bundle actually means, since one filament index file bundles many brands.
+            var resolvedVendorName = preset.VendorName ?? vendorName;
+
             var existing = preset.ExternalId is not null
-                ? await filamentProfileRepository.FindByExternalIdAsync(vendorName, preset.ExternalId, cancellationToken)
-                : await filamentProfileRepository.FindSystemByNameAsync(vendorName, preset.Name, cancellationToken);
+                ? await filamentProfileRepository.FindByExternalIdAsync(resolvedVendorName, preset.ExternalId, cancellationToken)
+                : await filamentProfileRepository.FindSystemByNameAsync(resolvedVendorName, preset.Name, cancellationToken);
 
             if (existing is not null)
             {
@@ -238,7 +256,7 @@ public sealed partial class SystemProfileIngestionService(
 
             var created = FilamentProfile.CreateSystemProfile(
                 organizationId, preset.Name, sourceFormat, preset.BaseProfileName, preset.RawJson,
-                vendorName, preset.ExternalId, preset.IsSelectable, preset.CompatibleMachineNames, preset.MaterialType, preset.IncludedTemplateNames);
+                resolvedVendorName, preset.ExternalId, preset.IsSelectable, preset.CompatibleMachineNames, preset.MaterialType, preset.IncludedTemplateNames);
             await filamentProfileRepository.AddAsync(created, cancellationToken);
             counts.Created++;
             seenIds.Add(created.Id);
@@ -280,6 +298,22 @@ public sealed partial class SystemProfileIngestionService(
             if (profile.BaseProfileName is { } baseName && byName.TryGetValue(baseName, out var baseProfile))
             {
                 profile.ResolveBaseProfile(baseProfile.Id);
+            }
+        }
+    }
+
+    // The profile is tied to a vendor, so ingesting it should make that brand available to pick from
+    // when logging physical filament stock/spools too — scoped to filament brands only (machine/process
+    // index-level vendor names like "Bambulab" aren't filament brands and don't share spelling with the
+    // filament-side "Bambu Lab").
+    private async Task EnsureVendorsExistAsync(Guid organizationId, IReadOnlySet<string> vendorNames, CancellationToken cancellationToken)
+    {
+        foreach (var vendorName in vendorNames)
+        {
+            var existing = await vendorRepository.GetByNameAsync(vendorName, cancellationToken);
+            if (existing is null)
+            {
+                await vendorRepository.AddAsync(Vendor.Create(organizationId, vendorName), cancellationToken);
             }
         }
     }

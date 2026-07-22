@@ -24,7 +24,8 @@ public sealed record ParsedVendorPreset(
     IReadOnlyList<string>? CompatibleMachineNames,
     string? VendorMachineModelName,
     IReadOnlyList<string>? IncludedTemplateNames,
-    string? MaterialType);
+    string? MaterialType,
+    string? VendorName);
 
 public sealed record VendorPresetReadResult(IReadOnlyList<ParsedVendorPreset> Presets, IReadOnlyList<string> SkippedEntries);
 
@@ -171,13 +172,14 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
                     compatibleMachineNames,
                     string.IsNullOrWhiteSpace(vendorMachineModelName) ? null : vendorMachineModelName,
                     includedTemplateNames,
+                    null,
                     null));
             }
         }
 
         if (kind == ProfileKind.Filament)
         {
-            presets = ResolveFilamentMaterialTypes(presets);
+            presets = ResolveFilamentDerivedFields(presets);
         }
 
         return new VendorPresetReadResult(presets, skipped);
@@ -186,8 +188,13 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
     // research.md §0 point 5: filament_type is set once on the material-family root and inherited
     // down, never re-declared per leaf — resolved here the same way ProfileRawDataMerger already
     // flattens a persisted ancestor chain, just walked by Name within this in-memory batch instead of
-    // by BaseProfileId against the database (nothing has been persisted yet at read time).
-    private static List<ParsedVendorPreset> ResolveFilamentMaterialTypes(List<ParsedVendorPreset> presets)
+    // by BaseProfileId against the database (nothing has been persisted yet at read time). filament_vendor
+    // (OrcaSlicer's own filament-edit "Vendor" field) follows the identical shape — declared once on the
+    // material-family root (e.g. "Generic") and overridden further down for branded presets (e.g. "Bambu
+    // Lab") — so it's resolved off the same merged ancestor document rather than the vendor index's own
+    // top-level name, which real bundles mix many actual brands under (a single BBL.json filament index
+    // covers Bambu-branded presets alongside Generic/eSUN/SUNLU/etc.).
+    private static List<ParsedVendorPreset> ResolveFilamentDerivedFields(List<ParsedVendorPreset> presets)
     {
         var byName = presets
             .GroupBy(p => p.Name, StringComparer.Ordinal)
@@ -210,8 +217,9 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
             var merged = ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);
             using var mergedDocument = JsonDocument.Parse(merged);
             var materialType = TryGetScalarOrFirstArrayElement(mergedDocument.RootElement, "filament_type");
+            var vendorName = TryGetScalarOrFirstArrayElement(mergedDocument.RootElement, "filament_vendor");
 
-            resolved.Add(preset with { MaterialType = materialType });
+            resolved.Add(preset with { MaterialType = materialType, VendorName = vendorName });
         }
 
         return resolved;

@@ -77,6 +77,22 @@ public class VendorProfileIndexReaderTests
     }
 
     [Fact]
+    public void ReadPresets_FilamentKind_ResolvesVendorNameByWalkingAncestorChainRatherThanUsingTheVendorIndexsOwnName()
+    {
+        var result = Reader.ReadPresets(OrcaIndexPath, ProfileKind.Filament);
+
+        // A real BBL.json filament index bundles presets from many actual brands, not just Bambu's own
+        // — filament_vendor is declared once on the material-family root ("Generic") and overridden
+        // further down for branded presets ("Bambu Lab"), and must never be replaced by the vendor
+        // index's own top-level "name" ("Bambulab") the way MaterialType is resolved above.
+        var abstractRoot = result.Presets.Should().ContainSingle(p => p.Name == "fdm_filament_common").Subject;
+        abstractRoot.VendorName.Should().Be("Generic");
+
+        var leaf = result.Presets.Should().ContainSingle(p => p.Name == "Bambu PLA Basic @BBL X1C").Subject;
+        leaf.VendorName.Should().Be("Bambu Lab");
+    }
+
+    [Fact]
     public void ReadPresets_FilamentKind_ResolvesConsistentlyAcrossRepeatedCalls()
     {
         var first = Reader.ReadPresets(OrcaIndexPath, ProfileKind.Filament);
