@@ -260,6 +260,18 @@ public sealed class Part
         }
     }
 
+    /// <summary>FR-012 (US4) — standalone narrow/change/clear of one filament requirement's choice, reachable at any time after confirm.</summary>
+    public PartFilamentRequirement NarrowFilamentRequirement(Guid requirementId, Guid? narrowFilamentVariantId, Guid? narrowFilamentProfileId)
+    {
+        var requirement = _filamentRequirements.FirstOrDefault(r => r.Id == requirementId)
+            ?? throw new PartFilamentRequirementNotFoundException(Id, requirementId);
+
+        requirement.Narrow(narrowFilamentVariantId, narrowFilamentProfileId);
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        return requirement;
+    }
+
     private static void ValidateSharedFields(
         string name,
         string originalFileName,

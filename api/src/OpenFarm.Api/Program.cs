@@ -73,6 +73,7 @@ using DiscardPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommand
 using DeletePartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DeletePartCommand, bool>;
 using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.TagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
 using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
+using UpdatePartFilamentRequirementNarrowingHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdatePartFilamentRequirementNarrowingCommand, OpenFarm.Domain.Parts.PartFilamentRequirement>;
 using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -325,6 +326,7 @@ builder.Services.AddScoped<DiscardPartProcessingJobHandlerType, DiscardPartProce
 builder.Services.AddScoped<DeletePartHandlerType, DeletePartCommandHandler>();
 builder.Services.AddScoped<TagPartHandlerType, TagPartCommandHandler>();
 builder.Services.AddScoped<UntagPartHandlerType, UntagPartCommandHandler>();
+builder.Services.AddScoped<UpdatePartFilamentRequirementNarrowingHandlerType, UpdatePartFilamentRequirementNarrowingCommandHandler>();
 builder.Services.AddScoped<UpdateSlicingDefaultsHandlerType, UpdateSlicingDefaultsCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>, GetPartProcessingJobQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartsQuery, PartsPage>, GetPartsQueryHandler>();

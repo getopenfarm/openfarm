@@ -53,6 +53,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             FeedSlotDeactivatedException => (StatusCodes.Status422UnprocessableEntity, "Feed slot is deactivated"),
             NotAnAutomaticFilamentReloaderException => (StatusCodes.Status422UnprocessableEntity, "Feed unit cannot be manually removed"),
             PartNotFoundException => (StatusCodes.Status404NotFound, "Part not found"),
+            PartFilamentRequirementNotFoundException => (StatusCodes.Status404NotFound, "Filament requirement not found"),
             TagNotFoundException => (StatusCodes.Status404NotFound, "Tag not found"),
             PartProcessingJobNotFoundException => (StatusCodes.Status404NotFound, "Part processing job not found"),
             DuplicatePartTagException => (StatusCodes.Status409Conflict, "Tag already associated with this part"),
