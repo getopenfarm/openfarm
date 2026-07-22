@@ -35,9 +35,7 @@ function renderPicker(
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
   }
 
@@ -80,7 +78,9 @@ describe('ProfilePickerCombobox', () => {
     });
     expect(trigger).toBeDisabled();
     await user.click(trigger);
-    expect(screen.queryByPlaceholderText('Search profiles…')).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText('Search profiles…'),
+    ).not.toBeInTheDocument();
   });
 
   it('opens on click, lists origin-labeled results, and selects one', async () => {
@@ -88,7 +88,12 @@ describe('ProfilePickerCombobox', () => {
     const fetchMock = stubFetch({
       '/profiles/machine': {
         items: [
-          { id: 'm1', name: 'Bambu X1 Carbon 0.4 nozzle', origin: 'System', vendorName: 'Bambulab' },
+          {
+            id: 'm1',
+            name: 'Bambu X1 Carbon 0.4 nozzle',
+            origin: 'System',
+            vendorName: 'Bambulab',
+          },
           { id: 'm2', name: 'My Tuned Printer', origin: 'User' },
         ],
       },

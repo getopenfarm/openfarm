@@ -60,16 +60,19 @@ public sealed class GetMachineProfilesQueryHandler(IMachineProfileRepository rep
         return new ProfilePage<MachineProfileSummary>(leanSummaries, page, reportedPageSize, totalCount);
     }
 
-    // Identical to this handler's pre-US2 behavior (feature 003, FR-010/US3) — every User row's
-    // display fields, derived by merging its BaseProfileId chain purely in memory (research.md §10).
+    // Feature 003, FR-010/US3's original browse page, restricted to User rows only now that System
+    // rows exist in the same table (009 FR-013 — System profiles are picker-only, never browsable/
+    // importable here). `byId` still spans every origin so a User row's BaseProfileId chain can
+    // resolve through a System ancestor; only the emitted top-level rows are User-filtered.
     private async Task<ProfilePage<MachineProfileSummary>> BuildLegacyBrowsePageResultAsync(CancellationToken cancellationToken)
     {
         var rows = await repository.ListAsync(cancellationToken);
         var byId = rows.ToDictionary(r => r.Id);
+        var userRows = rows.Where(r => r.Origin == ProfileOrigin.User).ToList();
 
-        var summaries = new List<MachineProfileSummary>(rows.Count);
+        var summaries = new List<MachineProfileSummary>(userRows.Count);
 
-        foreach (var row in rows)
+        foreach (var row in userRows)
         {
             var (ancestorsOldestFirst, hasUnresolvedBase) = WalkInMemory(row.Id, byId);
             var merged = ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);

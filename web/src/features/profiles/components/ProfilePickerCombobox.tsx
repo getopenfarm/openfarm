@@ -7,14 +7,20 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import type {
+  FilamentProfileDetailResponse,
   FilamentProfileResponse,
   ListFilamentProfilesResponse,
   ListMachineProfilesResponse,
   ListProcessProfilesResponse,
+  MachineProfileDetailResponse,
   MachineProfileResponse,
+  ProcessProfileDetailResponse,
   ProcessProfileResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
+  useOpenFarmApiEndpointsProfilesGetFilamentProfileEndpoint,
+  useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint,
+  useOpenFarmApiEndpointsProfilesGetProcessProfileEndpoint,
   useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint,
   useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint,
   useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint,
@@ -60,7 +66,10 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 function toPickerItem(
-  item: MachineProfileResponse | ProcessProfileResponse | FilamentProfileResponse,
+  item:
+    | MachineProfileResponse
+    | ProcessProfileResponse
+    | FilamentProfileResponse,
 ): PickerItem | null {
   if (!item.id || !item.name) {
     return null;
@@ -98,32 +107,65 @@ export function ProfilePickerCombobox({
   const debouncedSearch = useDebouncedValue(search, 250);
   const q = debouncedSearch.trim() || undefined;
 
-  const machineQuery = useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint(
-    { origin: 'All', q, page: 1, pageSize: 50 },
-    { query: { enabled: open && kind === 'machine' } },
-  );
-  const processQuery = useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint(
-    {
-      origin: 'All',
-      q,
-      compatibleWithMachineName: compatibleWithMachineName ?? undefined,
-      printerId: printerId ?? undefined,
-      page: 1,
-      pageSize: 50,
-    },
-    { query: { enabled: open && kind === 'process' } },
-  );
-  const filamentQuery = useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint(
-    {
-      origin: 'All',
-      q,
-      compatibleWithMachineName: compatibleWithMachineName ?? undefined,
-      materialType: materialType ?? undefined,
-      page: 1,
-      pageSize: 50,
-    },
-    { query: { enabled: open && kind === 'filament' } },
-  );
+  const machineQuery =
+    useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint(
+      { origin: 'All', q, page: 1, pageSize: 50 },
+      { query: { enabled: open && kind === 'machine' } },
+    );
+  const processQuery =
+    useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint(
+      {
+        origin: 'All',
+        q,
+        compatibleWithMachineName: compatibleWithMachineName ?? undefined,
+        printerId: printerId ?? undefined,
+        page: 1,
+        pageSize: 50,
+      },
+      { query: { enabled: open && kind === 'process' } },
+    );
+  const filamentQuery =
+    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint(
+      {
+        origin: 'All',
+        q,
+        compatibleWithMachineName: compatibleWithMachineName ?? undefined,
+        materialType: materialType ?? undefined,
+        page: 1,
+        pageSize: 50,
+      },
+      { query: { enabled: open && kind === 'filament' } },
+    );
+
+  // Resolves the current selection's display name when the caller doesn't already know it
+  // (`selectedLabel` omitted) — a single GET-by-id lookup, gated to only run when actually needed.
+  const needsLabelLookup = Boolean(value) && selectedLabel === undefined;
+  const machineDetailQuery =
+    useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint(value ?? '', {
+      query: { enabled: needsLabelLookup && kind === 'machine' },
+    });
+  const processDetailQuery =
+    useOpenFarmApiEndpointsProfilesGetProcessProfileEndpoint(value ?? '', {
+      query: { enabled: needsLabelLookup && kind === 'process' },
+    });
+  const filamentDetailQuery =
+    useOpenFarmApiEndpointsProfilesGetFilamentProfileEndpoint(value ?? '', {
+      query: { enabled: needsLabelLookup && kind === 'filament' },
+    });
+  const resolvedLabel = needsLabelLookup
+    ? ((kind === 'machine'
+        ? (machineDetailQuery.data?.data as
+            | MachineProfileDetailResponse
+            | undefined)
+        : kind === 'process'
+          ? (processDetailQuery.data?.data as
+              | ProcessProfileDetailResponse
+              | undefined)
+          : (filamentDetailQuery.data?.data as
+              | FilamentProfileDetailResponse
+              | undefined)
+      )?.name ?? null)
+    : (selectedLabel ?? null);
 
   const isLoading =
     kind === 'machine'
@@ -132,24 +174,18 @@ export function ProfilePickerCombobox({
         ? processQuery.isLoading
         : filamentQuery.isLoading;
 
-  const items: PickerItem[] = (
-    kind === 'machine'
+  const items: PickerItem[] =
+    (kind === 'machine'
       ? (machineQuery.data?.data as ListMachineProfilesResponse | undefined)
           ?.items
       : kind === 'process'
-        ? (
-            processQuery.data?.data as
-              | ListProcessProfilesResponse
-              | undefined
-          )?.items
-        : (
-            filamentQuery.data?.data as
-              | ListFilamentProfilesResponse
-              | undefined
-          )?.items
-  )
-    ?.map(toPickerItem)
-    .filter((item): item is PickerItem => item !== null) ?? [];
+        ? (processQuery.data?.data as ListProcessProfilesResponse | undefined)
+            ?.items
+        : (filamentQuery.data?.data as ListFilamentProfilesResponse | undefined)
+            ?.items
+    )
+      ?.map(toPickerItem)
+      .filter((item): item is PickerItem => item !== null) ?? [];
 
   function handleSelect(id: string | null) {
     onChange(id);
@@ -177,9 +213,7 @@ export function ProfilePickerCombobox({
           disabled={disabled}
           className="w-full justify-start font-normal"
         >
-          {disabled
-            ? disabledPlaceholder
-            : (selectedLabel ?? placeholder)}
+          {disabled ? disabledPlaceholder : (resolvedLabel ?? placeholder)}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="start">

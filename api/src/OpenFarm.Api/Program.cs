@@ -403,6 +403,17 @@ using (var scope = app.Services.CreateScope())
 if (args.Contains("ingest-system-profiles"))
 {
     using var scope = app.Services.CreateScope();
+
+    // Finbuckle's tenant resolution is HTTP-middleware-based (UseMultiTenant()), which never runs
+    // for this CLI-only scope — without setting it explicitly, every tenant-scoped EF query filter
+    // (e.g. MachineProfiles', ProcessProfiles', FilamentProfiles') throws a NullReferenceException
+    // against a null TenantInfo. Same pattern as PrinterConnectionBackgroundService.CreateTenantScope.
+    var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+    var tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
+        ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before system profile ingestion.");
+    var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
+    contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenantInfo);
+
     var scanner = scope.ServiceProvider.GetRequiredService<BundledSlicerScanner>();
     var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
     var ingestionLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();

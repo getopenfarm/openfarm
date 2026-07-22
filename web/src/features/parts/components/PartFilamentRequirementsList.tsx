@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import type {
   FilamentResponse,
   ListFilamentsResponse,
@@ -21,6 +22,9 @@ export interface DisplayFilamentRequirement {
   detectedSubBrand: string | null | undefined;
   narrowFilamentVariantId?: string | null;
   narrowFilamentVariantUnresolved?: boolean;
+  /** Only meaningful together with onNarrowToProfile (PartDetailPage, US4). */
+  narrowFilamentProfileId?: string | null;
+  narrowFilamentProfileUnresolved?: boolean;
 }
 
 interface PartFilamentRequirementsListProps {
@@ -29,6 +33,17 @@ interface PartFilamentRequirementsListProps {
    * Filament Profile/color-variant override per requirement (FR-012a). Absent = read-only
    * display, used on PartDetailPage where narrowing already happened at confirm time. */
   onNarrow?: (key: string | number, filamentVariantId: string | null) => void;
+  /**
+   * Present only on PartDetailPage — the standalone narrow/change/clear control reachable at any
+   * time after confirm (FR-012, US4), calling `PATCH .../filament-requirements/{requirementId}`
+   * with the requirement's own real id (never `requirementIndex`). Distinct from `onNarrow` above,
+   * which only ever narrows to a FilamentVariant color pick at Confirm time; this narrows to the
+   * combined System+User FilamentProfile catalog via `ProfilePickerCombobox`.
+   */
+  onNarrowToProfile?: (
+    requirementId: string,
+    filamentProfileId: string | null,
+  ) => void;
 }
 
 const NO_NARROW_VALUE = '__any__';
@@ -48,6 +63,7 @@ function requirementLabel(requirement: DisplayFilamentRequirement): string {
 export function PartFilamentRequirementsList({
   requirements,
   onNarrow,
+  onNarrowToProfile,
 }: PartFilamentRequirementsListProps) {
   const filamentsQuery = useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint({
     query: { enabled: Boolean(onNarrow) },
@@ -81,7 +97,23 @@ export function PartFilamentRequirementsList({
           {requirement.narrowFilamentVariantUnresolved ? (
             <Badge variant="destructive">Narrowed filament deleted</Badge>
           ) : null}
-          {onNarrow ? (
+          {requirement.narrowFilamentProfileUnresolved ? (
+            <Badge variant="destructive">Narrowed profile deleted</Badge>
+          ) : null}
+          {onNarrowToProfile ? (
+            <div className="ml-auto w-64">
+              <ProfilePickerCombobox
+                kind="filament"
+                value={requirement.narrowFilamentProfileId ?? null}
+                onChange={(filamentProfileId) =>
+                  onNarrowToProfile(String(requirement.key), filamentProfileId)
+                }
+                placeholder="Match by generic type only"
+                searchPlaceholder="Search filament profiles…"
+                materialType={requirement.materialType ?? undefined}
+              />
+            </div>
+          ) : onNarrow ? (
             <Select
               value={requirement.narrowFilamentVariantId ?? NO_NARROW_VALUE}
               onValueChange={(value) =>

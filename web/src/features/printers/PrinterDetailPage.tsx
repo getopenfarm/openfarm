@@ -151,10 +151,9 @@ export function PrinterDetailPage() {
                   {!printer.machineProfileId && (
                     <p className="text-xs text-muted-foreground">
                       No profile linked — this printer won't count toward the
-                      farm's auto-detected nozzle diameter, so uploads of
-                      files that need slicing (STL, unsliced 3MF) may be
-                      rejected if no other printer provides one. Edit via
-                      settings.
+                      farm's auto-detected nozzle diameter, so uploads of files
+                      that need slicing (STL, unsliced 3MF) may be rejected if
+                      no other printer provides one. Edit via settings.
                     </p>
                   )}
                 </div>

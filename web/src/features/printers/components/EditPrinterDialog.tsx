@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import {
+  getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
   useOpenFarmApiEndpointsPrintersEditPrinterEndpoint,
   useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint,
@@ -72,13 +73,18 @@ export function EditPrinterDialog({
   const [selectedMachineProfileId, setSelectedMachineProfileId] = useState(
     machineProfileId ?? null,
   );
-  const [selectedMachineProfileName, setSelectedMachineProfileName] =
-    useState(machineProfileName ?? null);
+  // undefined (distinct from null) tells ProfilePickerCombobox to resolve the display name itself
+  // via a GET-by-id lookup — used right after a fresh pick, when this component doesn't yet know
+  // the newly-selected item's name.
+  const [selectedMachineProfileName, setSelectedMachineProfileName] = useState<
+    string | null | undefined
+  >(machineProfileName);
   const [selectedProcessProfileId, setSelectedProcessProfileId] = useState(
     processProfileId ?? null,
   );
-  const [selectedProcessProfileName, setSelectedProcessProfileName] =
-    useState(processProfileName ?? null);
+  const [selectedProcessProfileName, setSelectedProcessProfileName] = useState<
+    string | null | undefined
+  >(processProfileName);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -103,8 +109,16 @@ export function EditPrinterDialog({
       setSelectedProcessProfileId(processProfileId ?? null);
       setSelectedProcessProfileName(processProfileName ?? null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, printerName, currentIpAddress, machineProfileId, processProfileId]);
+  }, [
+    open,
+    printerName,
+    currentIpAddress,
+    machineProfileId,
+    machineProfileName,
+    processProfileId,
+    processProfileName,
+    form.reset,
+  ]);
 
   const ipAddress = form.watch('ipAddress');
   const accessCode = form.watch('accessCode');
@@ -129,6 +143,17 @@ export function EditPrinterDialog({
         onOpenChange(false);
         queryClient.invalidateQueries({
           queryKey: getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
+        });
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey(
+              printerId,
+            ),
+        });
+        // RecentActivityCard fetches org-wide and filters client-side to this printer — no
+        // printer-scoped params to key off, so invalidate the endpoint's URL prefix broadly.
+        queryClient.invalidateQueries({
+          queryKey: ['/api/v1/activity-log'],
         });
       },
       onError: () => {
@@ -161,7 +186,8 @@ export function EditPrinterDialog({
 
   function handleMachineProfileChange(id: string | null) {
     setSelectedMachineProfileId(id);
-    setSelectedMachineProfileName(null);
+    // undefined (not null) after a real pick — lets the picker resolve the new name itself.
+    setSelectedMachineProfileName(id ? undefined : null);
     // FR-007: any machine profile change (clear or switch to a different one) clears the process
     // profile too — a process selection can never outlive the exact machine it was validated
     // against, so it always needs re-picking once the machine changes.
@@ -171,7 +197,7 @@ export function EditPrinterDialog({
 
   function handleProcessProfileChange(id: string | null) {
     setSelectedProcessProfileId(id);
-    setSelectedProcessProfileName(null);
+    setSelectedProcessProfileName(id ? undefined : null);
   }
 
   function onSubmit(values: FormValues) {

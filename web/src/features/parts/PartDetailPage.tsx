@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  getOpenFarmApiEndpointsPartsGetPartEndpointQueryKey,
   getOpenFarmApiEndpointsPartsListPartsEndpointQueryKey,
   useOpenFarmApiEndpointsPartsDeletePartEndpoint,
   useOpenFarmApiEndpointsPartsGetPartEndpoint,
+  useOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint,
 } from '@/lib/api/generated/parts/parts';
 import { AddOrReplacePartDialog } from './components/AddOrReplacePartDialog';
 import {
@@ -53,6 +55,34 @@ export function PartDetailPage() {
     }
   }
 
+  const narrowMutation =
+    useOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint({
+      mutation: {
+        onSuccess: () => {
+          toast.success('Filament requirement updated.');
+          queryClient.invalidateQueries({
+            queryKey: getOpenFarmApiEndpointsPartsGetPartEndpointQueryKey(
+              part?.id ?? '',
+            ),
+          });
+        },
+        onError: () =>
+          toast.error('Could not update the filament requirement.'),
+      },
+    });
+
+  function handleNarrowToProfile(
+    requirementId: string,
+    filamentProfileId: string | null,
+  ) {
+    if (!part?.id) return;
+    narrowMutation.mutate({
+      id: part.id,
+      requirementId,
+      data: { narrowFilamentProfileId: filamentProfileId },
+    });
+  }
+
   const requirements: DisplayFilamentRequirement[] =
     part?.filamentRequirements?.map((requirement) => ({
       key: requirement.id ?? '',
@@ -62,6 +92,9 @@ export function PartDetailPage() {
       narrowFilamentVariantId: requirement.narrowFilamentVariantId,
       narrowFilamentVariantUnresolved:
         requirement.narrowFilamentVariantUnresolved,
+      narrowFilamentProfileId: requirement.narrowFilamentProfileId,
+      narrowFilamentProfileUnresolved:
+        requirement.narrowFilamentProfileUnresolved,
     })) ?? [];
 
   return (
@@ -137,7 +170,10 @@ export function PartDetailPage() {
               <p className="mb-1.5 text-sm text-muted-foreground">
                 Filament requirements
               </p>
-              <PartFilamentRequirementsList requirements={requirements} />
+              <PartFilamentRequirementsList
+                requirements={requirements}
+                onNarrowToProfile={handleNarrowToProfile}
+              />
             </div>
           </div>
 

@@ -4,7 +4,10 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
+import { getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey } from '@/lib/api/generated/printers/printers';
 import { EditPrinterDialog } from './EditPrinterDialog';
+
+const PRINTER_ID = '11111111-1111-1111-1111-111111111111';
 
 function renderDialog(
   onOpenChange: (open: boolean) => void = () => {},
@@ -23,9 +26,9 @@ function renderDialog(
     );
   }
 
-  return render(
+  const utils = render(
     <EditPrinterDialog
-      printerId="11111111-1111-1111-1111-111111111111"
+      printerId={PRINTER_ID}
       printerName="Test Printer"
       brand="Bambu"
       modelCode="P1S"
@@ -41,6 +44,7 @@ function renderDialog(
     />,
     { wrapper: Wrapper },
   );
+  return { ...utils, queryClient };
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -111,7 +115,7 @@ describe('EditPrinterDialog', () => {
         .includes('/api/v1/printers/11111111-1111-1111-1111-111111111111'),
     );
     expect(editCall).toBeDefined();
-    const editRequestInit = editCall![1] as RequestInit;
+    const editRequestInit = editCall?.[1] as RequestInit;
     const requestBody = JSON.parse(editRequestInit.body as string);
     expect(requestBody).toEqual({
       name: 'Renamed Printer',
@@ -234,5 +238,36 @@ describe('EditPrinterDialog', () => {
     expect(
       screen.getByRole('button', { name: 'No process profile linked' }),
     ).toBeInTheDocument();
+  });
+
+  // Regression: a real live-browser walkthrough found that saving used to leave the printer detail
+  // page and its activity feed showing stale data (the summary card kept reading "Not linked" right
+  // after a successful save, only correcting itself on a manual reload) because the edit mutation's
+  // onSuccess only invalidated the fleet-list query, never the detail page's own query or the
+  // activity-log feed it also depends on.
+  it('invalidates the printer detail and activity log queries on a successful save', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse({}))),
+    );
+
+    const { queryClient } = renderDialog();
+    const detailKey =
+      getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey(
+        PRINTER_ID,
+      );
+    const activityKey = ['/api/v1/activity-log'];
+    queryClient.setQueryData(detailKey, { data: { id: PRINTER_ID } });
+    queryClient.setQueryData(activityKey, { data: { items: [] } });
+
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Renamed Printer' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true);
+    });
+    expect(queryClient.getQueryState(activityKey)?.isInvalidated).toBe(true);
   });
 });
