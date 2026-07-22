@@ -1,11 +1,11 @@
 using System.IO.Compression;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
-using OpenFarm.Application.Organizations;
 using OpenFarm.Application.Parts;
+using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Parts;
 using OpenFarm.Infrastructure.Parts.SlicerInvocation;
@@ -28,7 +28,7 @@ public class CliSlicerEngineTests
         var engine = CreateEngine(new FakeAvailableSlicerCatalog());
         using var modelStream = new MemoryStream([1, 2, 3]);
 
-        var act = async () => await engine.SliceAsync(Orca220, modelStream, PartFileFormat.Stl, "Generic PLA", 0.4m, CancellationToken.None);
+        var act = async () => await engine.SliceAsync(Orca220, modelStream, PartFileFormat.Stl, "Generic PLA", 0.4m, printerId: null, CancellationToken.None);
 
         await act.Should().ThrowAsync<SlicerUnavailableException>();
     }
@@ -41,7 +41,7 @@ public class CliSlicerEngineTests
         var engine = CreateEngine(catalog);
         using var modelStream = new MemoryStream([1, 2, 3]);
 
-        var act = async () => await engine.SliceAsync(Orca220, modelStream, PartFileFormat.Stl, "Generic PLA", 0.4m, CancellationToken.None);
+        var act = async () => await engine.SliceAsync(Orca220, modelStream, PartFileFormat.Stl, "Generic PLA", 0.4m, printerId: null, CancellationToken.None);
 
         (await act.Should().ThrowAsync<SlicingFailedException>())
             .WithMessage("*Could not start the OrcaSlicer CLI*");
@@ -106,30 +106,47 @@ public class CliSlicerEngineTests
         CreateProfileSelection(),
         Options.Create(new SlicerOptions()));
 
-    // A fully configured (machine, process, filament) triple for "Generic PLA" — these tests only
-    // exercise failure paths that occur before or after profile resolution, so resolution itself
-    // must succeed rather than mask the behavior under test with an unrelated unconfigured error.
+    // A fully configured (machine, process, filament) triple for a printer with material
+    // "Generic PLA" — these tests only exercise failure paths that occur before or after profile
+    // resolution, so resolution itself must succeed rather than mask the behavior under test with
+    // an unrelated unconfigured error. Material resolution keys off FilamentProfile.MaterialType
+    // (not the profile's Name), so MaterialType is set to the same "Generic PLA" string the tests
+    // pass as SliceAsync's materialType argument.
     private static ResolveSlicingProfileSelection CreateProfileSelection()
     {
-        var organization = Organization.Create("Test Org");
-        var machine = MachineProfile.Create(organization.Id, "Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
-        var process = ProcessProfile.Create(organization.Id, "Test Process", ProfileSourceFormat.OrcaSlicer, null, "{}");
-        var filament = FilamentProfile.Create(organization.Id, "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}");
-        machine.SetDefaultProcessProfile(process.Id);
-        organization.SetDefaultMachineProfile(machine.Id);
-        var filamentDefault = OrganizationFilamentDefault.Create(organization.Id, "Generic PLA", filament.Id);
+        var organizationId = Guid.NewGuid();
+        var machine = MachineProfile.Create(organizationId, "Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        var process = ProcessProfile.CreateSystemProfile(organizationId, "Test Process", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: null);
+        var filament = FilamentProfile.CreateSystemProfile(
+            organizationId, "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, """{"type":"filament","filament_type":["PLA"]}""",
+            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "Generic PLA", includedTemplateNames: null);
+
+        var printer = Printer.Create(organizationId, "Test Printer", "Bambu", "X1C", "10.0.0.5", "SN-TEST");
+        printer.LinkMachineProfile(machine.Id);
+        printer.LinkProcessProfile(process.Id);
 
         return new ResolveSlicingProfileSelection(
-            new FakeOrganizationRepository(organization),
+            new FakePrinterRepository(printer),
             new FakeMachineProfileRepository(machine),
             new FakeProcessProfileRepository(process),
             new FakeFilamentProfileRepository(filament),
-            new FakeOrganizationFilamentDefaultRepository(filamentDefault));
+            new RepresentativeFilamentResolver(new FakeFilamentProfileRepository(filament)));
     }
 
-    private sealed class FakeOrganizationRepository(Organization organization) : IOrganizationRepository
+    private sealed class FakePrinterRepository(params Printer[] rows) : IPrinterRepository
     {
-        public Task<Organization> GetAsync(CancellationToken cancellationToken) => Task.FromResult(organization);
+        public Task AddAsync(Printer printer, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<Printer?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.Id == id));
+
+        public Task<Printer?> GetBySerialNumberAsync(string serialNumber, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.SerialNumber == serialNumber));
+
+        public Task<IReadOnlyList<Printer>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Printer>>(rows);
+
+        public Task RemoveAsync(Printer printer, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
@@ -147,6 +164,17 @@ public class CliSlicerEngineTests
         public Task<IReadOnlyList<MachineProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MachineProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
+        public Task<MachineProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+
+        public Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+
+        public Task<(IReadOnlyList<MachineProfile> Items, int TotalCount)> SearchAsync(
+            ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
+            string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not exercised by CliSlicerEngineTests.");
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
@@ -162,6 +190,17 @@ public class CliSlicerEngineTests
 
         public Task<IReadOnlyList<ProcessProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProcessProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
+
+        public Task<ProcessProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+
+        public Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+
+        public Task<(IReadOnlyList<ProcessProfile> Items, int TotalCount)> SearchAsync(
+            ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
+            string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not exercised by CliSlicerEngineTests.");
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
@@ -179,18 +218,16 @@ public class CliSlicerEngineTests
         public Task<IReadOnlyList<FilamentProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<FilamentProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-    }
+        public Task<FilamentProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
 
-    private sealed class FakeOrganizationFilamentDefaultRepository(params OrganizationFilamentDefault[] rows) : IOrganizationFilamentDefaultRepository
-    {
-        public Task AddAsync(OrganizationFilamentDefault entry, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<FilamentProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
-        public Task<OrganizationFilamentDefault?> FindByMaterialTypeAsync(string materialType, CancellationToken cancellationToken) =>
-            Task.FromResult(rows.FirstOrDefault(d => d.MaterialType == materialType));
-
-        public Task<IReadOnlyList<OrganizationFilamentDefault>> ListAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<OrganizationFilamentDefault>>(rows);
+        public Task<(IReadOnlyList<FilamentProfile> Items, int TotalCount)> SearchAsync(
+            ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
+            string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not exercised by CliSlicerEngineTests.");
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

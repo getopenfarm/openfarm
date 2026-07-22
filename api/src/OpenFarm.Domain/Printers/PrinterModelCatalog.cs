@@ -9,13 +9,13 @@ public static class PrinterModelCatalog
     private static readonly Dictionary<(PrinterBrand Brand, string ModelCode), PrinterModel> Entries =
         new Dictionary<(PrinterBrand, string), PrinterModel>
         {
-            [(PrinterBrand.Bambu, "X1")] = new PrinterModel(PrinterBrand.Bambu, "X1", CameraTransport.Rtsp),
-            [(PrinterBrand.Bambu, "X1C")] = new PrinterModel(PrinterBrand.Bambu, "X1C", CameraTransport.Rtsp),
-            [(PrinterBrand.Bambu, "X1E")] = new PrinterModel(PrinterBrand.Bambu, "X1E", CameraTransport.Rtsp),
-            [(PrinterBrand.Bambu, "P1P")] = new PrinterModel(PrinterBrand.Bambu, "P1P", CameraTransport.BinaryImage),
-            [(PrinterBrand.Bambu, "P1S")] = new PrinterModel(PrinterBrand.Bambu, "P1S", CameraTransport.BinaryImage),
-            [(PrinterBrand.Bambu, "A1")] = new PrinterModel(PrinterBrand.Bambu, "A1", CameraTransport.BinaryImage),
-            [(PrinterBrand.Bambu, "A1MINI")] = new PrinterModel(PrinterBrand.Bambu, "A1MINI", CameraTransport.BinaryImage),
+            [(PrinterBrand.Bambu, "X1")] = new PrinterModel(PrinterBrand.Bambu, "X1", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1"),
+            [(PrinterBrand.Bambu, "X1C")] = new PrinterModel(PrinterBrand.Bambu, "X1C", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1 Carbon"),
+            [(PrinterBrand.Bambu, "X1E")] = new PrinterModel(PrinterBrand.Bambu, "X1E", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1E"),
+            [(PrinterBrand.Bambu, "P1P")] = new PrinterModel(PrinterBrand.Bambu, "P1P", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1P"),
+            [(PrinterBrand.Bambu, "P1S")] = new PrinterModel(PrinterBrand.Bambu, "P1S", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1S"),
+            [(PrinterBrand.Bambu, "A1")] = new PrinterModel(PrinterBrand.Bambu, "A1", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab A1"),
+            [(PrinterBrand.Bambu, "A1MINI")] = new PrinterModel(PrinterBrand.Bambu, "A1MINI", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab A1 mini"),
             [(PrinterBrand.System, "Simulation")] = new PrinterModel(PrinterBrand.System, "Simulation", CameraTransport.BinaryImage),
         };
 
@@ -54,6 +54,20 @@ public static class PrinterModelCatalog
             .Select(group => new PrinterCatalogBrandGroup(
                 group.Key,
                 group.Select(key => key.ModelCode).ToList()))
+            .ToList();
+
+    /// <summary>
+    /// Every distinct <see cref="PrinterModel.VendorMachineModelName"/> currently registered — System
+    /// Profile ingestion scoping (009, FR-001) cross-references a vendor's own
+    /// <c>machine_model_list[].name</c> values against this set rather than a hardcoded vendor name,
+    /// so a new vendor's rows appear automatically once a catalog entry maps to it.
+    /// </summary>
+    public static IReadOnlyList<string> AllVendorMachineModelNames =>
+        Entries.Values
+            .Select(m => m.VendorMachineModelName)
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .Distinct(StringComparer.Ordinal)
             .ToList();
 }
 

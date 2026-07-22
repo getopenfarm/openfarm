@@ -61,8 +61,8 @@ public class PreviewProfileImportEndpointTests(CustomWebApplicationFactory facto
         var afterFilament = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(
             new Uri("/api/v1/profiles/filament", UriKind.Relative));
 
-        afterMachine!.Profiles.Should().HaveCount(beforeMachine!.Profiles.Count);
-        afterFilament!.Profiles.Should().HaveCount(beforeFilament!.Profiles.Count);
-        afterMachine.Profiles.Should().NotContain(p => p.Name.Contains(suffix));
+        afterMachine!.Items.Should().HaveCount(beforeMachine!.Items.Count);
+        afterFilament!.Items.Should().HaveCount(beforeFilament!.Items.Count);
+        afterMachine.Items.Should().NotContain(p => p.Name.Contains(suffix));
     }
 }

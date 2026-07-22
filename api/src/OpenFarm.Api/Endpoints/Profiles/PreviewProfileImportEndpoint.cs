@@ -45,24 +45,11 @@ public sealed class FilamentPresetPreviewItem
     public List<string> CompatiblePrinterNames { get; set; } = [];
 }
 
-public sealed class ProcessPresetPreviewItem
-{
-    public string Name { get; set; } = string.Empty;
-    public string SourceFormat { get; set; } = string.Empty;
-    public string? BaseProfileName { get; set; }
-    public bool HasUnresolvedBaseInChain { get; set; }
-    public bool IsDuplicate { get; set; }
-    public double? LayerHeightMm { get; set; }
-    public int? WallLoops { get; set; }
-    public List<string> CompatiblePrinterNames { get; set; } = [];
-}
-
 public sealed class PreviewProfileImportResponse
 {
     public string SourceFileName { get; set; } = string.Empty;
     public List<MachinePresetPreviewItem> MachinePresets { get; set; } = [];
     public List<FilamentPresetPreviewItem> FilamentPresets { get; set; } = [];
-    public List<ProcessPresetPreviewItem> ProcessPresets { get; set; } = [];
 }
 
 // POST /api/v1/profiles/imports/preview — parses the uploaded bundle and returns everything it
@@ -121,17 +108,6 @@ public sealed class PreviewProfileImportEndpoint(PreviewProfileImportHandler han
                 BedTempC = p.BedTempC,
                 MaxVolumetricSpeedMm3s = p.MaxVolumetricSpeedMm3s,
                 FanPercent = p.FanPercent,
-                CompatiblePrinterNames = p.CompatiblePrinterNames.ToList(),
-            }).ToList(),
-            ProcessPresets = result.ProcessPresets.Select(p => new ProcessPresetPreviewItem
-            {
-                Name = p.Name,
-                SourceFormat = p.SourceFormat.ToString(),
-                BaseProfileName = p.BaseProfileName,
-                HasUnresolvedBaseInChain = p.HasUnresolvedBaseInChain,
-                IsDuplicate = p.IsDuplicate,
-                LayerHeightMm = p.LayerHeightMm,
-                WallLoops = p.WallLoops,
                 CompatiblePrinterNames = p.CompatiblePrinterNames.ToList(),
             }).ToList(),
         };

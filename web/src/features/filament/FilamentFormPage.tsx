@@ -16,8 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import type {
-  ListFilamentProfilesResponse,
   ListFilamentsResponse,
   ListVendorsResponse,
 } from '@/lib/api/generated/endpoints.schemas';
@@ -27,14 +27,12 @@ import {
   useOpenFarmApiEndpointsFilamentsCreateFilamentEndpoint,
   useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint,
 } from '@/lib/api/generated/filaments/filaments';
-import { useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint } from '@/lib/api/generated/profiles/profiles';
 import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
 import { CreateVendorDialog } from './components/CreateVendorDialog';
 import type { NewFilamentVariant } from './components/VariantDialog';
 import { VariantsCard } from './components/VariantsCard';
 
 const MATERIAL_TYPES = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PC'];
-const NO_PROFILE = '__none__';
 
 interface FilamentFormPageProps {
   mode: 'add' | 'edit';
@@ -49,15 +47,6 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
   const vendors =
     (vendorsQuery.data?.data as ListVendorsResponse | undefined)?.vendors ?? [];
 
-  const filamentProfilesQuery =
-    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
-  const filamentProfiles =
-    (
-      filamentProfilesQuery.data?.data as
-        | ListFilamentProfilesResponse
-        | undefined
-    )?.profiles ?? [];
-
   const filamentsQuery =
     useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
   const filaments =
@@ -67,7 +56,9 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
   const [vendorId, setVendorId] = useState('');
   const [material, setMaterial] = useState('');
   const [materialType, setMaterialType] = useState(MATERIAL_TYPES[0]);
-  const [filamentProfileId, setFilamentProfileId] = useState(NO_PROFILE);
+  const [filamentProfileId, setFilamentProfileId] = useState<string | null>(
+    null,
+  );
   const [variants, setVariants] = useState<NewFilamentVariant[]>([]);
 
   const createMutation = useOpenFarmApiEndpointsFilamentsCreateFilamentEndpoint(
@@ -122,8 +113,7 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
         vendorId,
         material: material.trim(),
         materialType,
-        filamentProfileId:
-          filamentProfileId === NO_PROFILE ? null : filamentProfileId,
+        filamentProfileId,
         variants: variants.map((variant) => ({
           colorName: variant.colorName,
           colorHex: variant.colorHex,
@@ -246,23 +236,17 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="filamentProfile">Filament profile (optional)</Label>
-            <Select
+            <span className="text-sm font-medium">
+              Filament profile (optional)
+            </span>
+            <ProfilePickerCombobox
+              kind="filament"
               value={filamentProfileId}
-              onValueChange={setFilamentProfileId}
-            >
-              <SelectTrigger id="filamentProfile" className="w-full">
-                <SelectValue placeholder="No default profile" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_PROFILE}>No default profile</SelectItem>
-                {filamentProfiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id ?? ''}>
-                    {profile.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(id) => setFilamentProfileId(id)}
+              placeholder="No default profile"
+              searchPlaceholder="Search filament profiles…"
+              materialType={materialType}
+            />
           </div>
         </CardContent>
       </Card>

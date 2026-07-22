@@ -10,7 +10,6 @@ import {
 import type {
   FilamentPresetPreviewItem,
   MachinePresetPreviewItem,
-  ProcessPresetPreviewItem,
 } from '@/lib/api/generated/endpoints.schemas';
 
 export type ProfileDuplicateAction = 'Skip' | 'ImportAsNew';
@@ -23,7 +22,7 @@ export interface ProfileSelectionState {
 export type ProfileSelectionMap = Record<string, ProfileSelectionState>;
 
 export function profileSelectionKey(
-  type: 'Machine' | 'Filament' | 'Process',
+  type: 'Machine' | 'Filament',
   name: string,
 ): string {
   return `${type}:${name}`;
@@ -37,7 +36,6 @@ interface PresetLike {
 
 interface ProfileReviewListProps {
   machinePresets: MachinePresetPreviewItem[];
-  processPresets: ProcessPresetPreviewItem[];
   filamentPresets: FilamentPresetPreviewItem[];
   selections: ProfileSelectionMap;
   onChange: (key: string, next: ProfileSelectionState) => void;
@@ -45,7 +43,6 @@ interface ProfileReviewListProps {
 
 export function ProfileReviewList({
   machinePresets,
-  processPresets,
   filamentPresets,
   selections,
   onChange,
@@ -56,13 +53,6 @@ export function ProfileReviewList({
         title="Machine profiles"
         type="Machine"
         presets={machinePresets}
-        selections={selections}
-        onChange={onChange}
-      />
-      <PresetSection
-        title="Process profiles"
-        type="Process"
-        presets={processPresets}
         selections={selections}
         onChange={onChange}
       />
@@ -85,7 +75,7 @@ function PresetSection({
   onChange,
 }: {
   title: string;
-  type: 'Machine' | 'Filament' | 'Process';
+  type: 'Machine' | 'Filament';
   presets: PresetLike[];
   selections: ProfileSelectionMap;
   onChange: (key: string, next: ProfileSelectionState) => void;

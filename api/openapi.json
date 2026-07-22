@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8888"
+      "url": "http://localhost:5000"
     }
   ],
   "paths": {
@@ -522,135 +522,6 @@
         ]
       }
     },
-    "/api/v1/settings/slicing-profile-defaults": {
-      "get": {
-        "tags": [
-          "Settings"
-        ],
-        "operationId": "OpenFarmApiEndpointsSettingsGetSlicingProfileDefaultsEndpoint",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SlicingProfileDefaultsResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/settings/default-machine-profile": {
-      "put": {
-        "tags": [
-          "Settings"
-        ],
-        "operationId": "OpenFarmApiEndpointsSettingsUpdateDefaultMachineProfileEndpoint",
-        "requestBody": {
-          "x-name": "UpdateDefaultMachineProfileRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateDefaultMachineProfileRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DefaultMachineProfileResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/settings/filament-defaults/{materialType}": {
-      "put": {
-        "tags": [
-          "Settings"
-        ],
-        "operationId": "OpenFarmApiEndpointsSettingsUpdateOrganizationFilamentDefaultEndpoint",
-        "parameters": [
-          {
-            "name": "materialType",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "UpdateOrganizationFilamentDefaultRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateOrganizationFilamentDefaultRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrganizationFilamentDefaultResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
     "/api/v1/profiles/imports/confirm": {
       "post": {
         "tags": [
@@ -824,6 +695,58 @@
           "Profiles"
         ],
         "operationId": "OpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint",
+        "parameters": [
+          {
+            "name": "origin",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "compatibleWithMachineName",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "materialType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -855,6 +778,42 @@
           "Profiles"
         ],
         "operationId": "OpenFarmApiEndpointsProfilesListMachineProfilesEndpoint",
+        "parameters": [
+          {
+            "name": "origin",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -886,6 +845,59 @@
           "Profiles"
         ],
         "operationId": "OpenFarmApiEndpointsProfilesListProcessProfilesEndpoint",
+        "parameters": [
+          {
+            "name": "origin",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "compatibleWithMachineName",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "printerId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -937,60 +949,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PreviewProfileImportResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/profiles/machine/{id}/default-process-profile": {
-      "put": {
-        "tags": [
-          "Profiles"
-        ],
-        "operationId": "OpenFarmApiEndpointsProfilesSetMachineProfileDefaultProcessEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "SetMachineProfileDefaultProcessRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetMachineProfileDefaultProcessRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MachineProfileDefaultProcessResponse"
                 }
               }
             }
@@ -1259,60 +1217,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PrinterCatalogResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/printers/{id}/machine-profile": {
-      "put": {
-        "tags": [
-          "Printers"
-        ],
-        "operationId": "OpenFarmApiEndpointsPrintersLinkPrinterMachineProfileEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "LinkPrinterMachineProfileRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LinkPrinterMachineProfileRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LinkPrinterMachineProfileResponse"
                 }
               }
             }
@@ -1861,6 +1765,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PartTagsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/filament-requirements/{requirementId}": {
+      "patch": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requirementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UpdatePartFilamentRequirementNarrowingRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePartFilamentRequirementNarrowingRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartFilamentRequirementResponse"
                 }
               }
             }
@@ -2847,135 +2813,6 @@
           }
         }
       },
-      "SlicingProfileDefaultsResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "defaultMachineProfile": {
-            "nullable": true,
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DefaultMachineProfileResponseItem"
-              }
-            ]
-          },
-          "filamentDefaults": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FilamentDefaultResponseItem"
-            }
-          }
-        }
-      },
-      "DefaultMachineProfileResponseItem": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "defaultProcessProfile": {
-            "nullable": true,
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DefaultProcessProfileResponse"
-              }
-            ]
-          }
-        }
-      },
-      "DefaultProcessProfileResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "FilamentDefaultResponseItem": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "materialType": {
-            "type": "string"
-          },
-          "filamentProfileId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "filamentProfileName": {
-            "type": "string"
-          }
-        }
-      },
-      "DefaultMachineProfileResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "machineProfileId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "machineProfileName": {
-            "type": "string"
-          },
-          "defaultProcessProfileId": {
-            "type": "string",
-            "format": "guid",
-            "nullable": true
-          }
-        }
-      },
-      "UpdateDefaultMachineProfileRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "machineProfileId": {
-            "type": "string",
-            "format": "guid"
-          }
-        }
-      },
-      "OrganizationFilamentDefaultResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "materialType": {
-            "type": "string"
-          },
-          "filamentProfileId": {
-            "type": "string",
-            "format": "guid"
-          }
-        }
-      },
-      "UpdateOrganizationFilamentDefaultRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "filamentProfileId": {
-            "type": "string",
-            "format": "guid"
-          }
-        }
-      },
       "UpdateSlicingDefaultsRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -2999,12 +2836,6 @@
             }
           },
           "createdFilamentProfiles": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CreatedProfileItem"
-            }
-          },
-          "createdProcessProfiles": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CreatedProfileItem"
@@ -3184,12 +3015,10 @@
               "type": "string"
             }
           },
-          "defaultProcessProfileId": {
-            "type": "string",
-            "format": "guid",
-            "nullable": true
+          "origin": {
+            "type": "string"
           },
-          "defaultProcessProfileName": {
+          "vendorName": {
             "type": "string",
             "nullable": true
           }
@@ -3250,11 +3079,23 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "profiles": {
+          "items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FilamentProfileResponse"
             }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -3268,6 +3109,17 @@
           },
           "name": {
             "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "vendorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "materialType": {
+            "type": "string",
+            "nullable": true
           },
           "sourceFormat": {
             "type": "string"
@@ -3329,15 +3181,31 @@
           }
         }
       },
+      "ListFilamentProfilesRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "ListMachineProfilesResponse": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "profiles": {
+          "items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MachineProfileResponse"
             }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -3351,6 +3219,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "vendorName": {
+            "type": "string",
+            "nullable": true
           },
           "sourceFormat": {
             "type": "string"
@@ -3399,15 +3274,35 @@
           }
         }
       },
+      "ListMachineProfilesRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "ListProcessProfilesResponse": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "profiles": {
+          "items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ProcessProfileResponse"
             }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "available": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },
@@ -3421,6 +3316,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "vendorName": {
+            "type": "string",
+            "nullable": true
           },
           "sourceFormat": {
             "type": "string"
@@ -3455,6 +3357,10 @@
           }
         }
       },
+      "ListProcessProfilesRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "PreviewProfileImportResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -3472,12 +3378,6 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FilamentPresetPreviewItem"
-            }
-          },
-          "processPresets": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProcessPresetPreviewItem"
             }
           }
         }
@@ -3599,44 +3499,6 @@
           }
         }
       },
-      "ProcessPresetPreviewItem": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "sourceFormat": {
-            "type": "string"
-          },
-          "baseProfileName": {
-            "type": "string",
-            "nullable": true
-          },
-          "hasUnresolvedBaseInChain": {
-            "type": "boolean"
-          },
-          "isDuplicate": {
-            "type": "boolean"
-          },
-          "layerHeightMm": {
-            "type": "number",
-            "format": "double",
-            "nullable": true
-          },
-          "wallLoops": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "compatiblePrinterNames": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
       "PreviewProfileImportRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -3644,34 +3506,6 @@
           "file": {
             "type": "string",
             "format": "binary"
-          }
-        }
-      },
-      "MachineProfileDefaultProcessResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "processProfileId": {
-            "type": "string",
-            "format": "guid"
-          }
-        }
-      },
-      "SetMachineProfileDefaultProcessRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "machineProfileId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "processProfileId": {
-            "type": "string",
-            "format": "guid"
           }
         }
       },
@@ -3750,6 +3584,16 @@
           "serialNumber": {
             "type": "string",
             "nullable": true
+          },
+          "machineProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "processProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
           }
         }
       },
@@ -3824,6 +3668,15 @@
             "nullable": true
           },
           "machineProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "processProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "processProfileName": {
             "type": "string",
             "nullable": true
           }
@@ -3909,32 +3762,6 @@
           },
           "active": {
             "type": "boolean"
-          }
-        }
-      },
-      "LinkPrinterMachineProfileResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "printerId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "machineProfileId": {
-            "type": "string",
-            "format": "guid",
-            "nullable": true
-          }
-        }
-      },
-      "LinkPrinterMachineProfileRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "machineProfileId": {
-            "type": "string",
-            "format": "guid",
-            "nullable": true
           }
         }
       },
@@ -4370,6 +4197,22 @@
         "properties": {
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "UpdatePartFilamentRequirementNarrowingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "narrowFilamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "narrowFilamentProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
           }
         }
       },

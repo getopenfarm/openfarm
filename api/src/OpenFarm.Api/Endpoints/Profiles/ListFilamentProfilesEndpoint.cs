@@ -5,10 +5,23 @@ using OpenFarm.Application.Profiles;
 
 namespace OpenFarm.Api.Endpoints.Profiles;
 
+public sealed class ListFilamentProfilesRequest
+{
+    public string? Origin { get; set; }
+    public string? Q { get; set; }
+    public string? CompatibleWithMachineName { get; set; }
+    public string? MaterialType { get; set; }
+    public int? Page { get; set; }
+    public int? PageSize { get; set; }
+}
+
 public sealed class FilamentProfileResponse
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string Origin { get; set; } = string.Empty;
+    public string? VendorName { get; set; }
+    public string? MaterialType { get; set; }
     public string SourceFormat { get; set; } = string.Empty;
     public Guid? BaseProfileId { get; set; }
     public string? BaseProfileName { get; set; }
@@ -27,6 +40,9 @@ public sealed class FilamentProfileResponse
     {
         Id = summary.Id,
         Name = summary.Name,
+        Origin = summary.Origin.ToString(),
+        VendorName = summary.VendorName,
+        MaterialType = summary.MaterialType,
         SourceFormat = summary.SourceFormat.ToString(),
         BaseProfileId = summary.BaseProfileId,
         BaseProfileName = summary.BaseProfileName,
@@ -45,13 +61,16 @@ public sealed class FilamentProfileResponse
 
 public sealed class ListFilamentProfilesResponse
 {
-    public List<FilamentProfileResponse> Profiles { get; set; } = [];
+    public List<FilamentProfileResponse> Items { get; set; } = [];
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
 }
 
-// GET /api/v1/profiles/filament (FR-010, US3).
+// GET /api/v1/profiles/filament (FR-010, US3; extended for US2/US4 picker use, contracts/profiles-api.md).
 [Permission("profiles:list-filament")]
-public sealed class ListFilamentProfilesEndpoint(IQueryHandler<GetFilamentProfilesQuery, IReadOnlyList<FilamentProfileSummary>> handler)
-    : EndpointWithoutRequest<ListFilamentProfilesResponse>
+public sealed class ListFilamentProfilesEndpoint(IQueryHandler<GetFilamentProfilesQuery, ProfilePage<FilamentProfileSummary>> handler)
+    : Endpoint<ListFilamentProfilesRequest, ListFilamentProfilesResponse>
 {
     public override void Configure()
     {
@@ -59,9 +78,17 @@ public sealed class ListFilamentProfilesEndpoint(IQueryHandler<GetFilamentProfil
         Policies("Permission");
     }
 
-    public override async Task HandleAsync(CancellationToken ct)
+    public override async Task HandleAsync(ListFilamentProfilesRequest req, CancellationToken ct)
     {
-        var summaries = await handler.HandleAsync(new GetFilamentProfilesQuery(), ct);
-        Response = new ListFilamentProfilesResponse { Profiles = summaries.Select(FilamentProfileResponse.FromSummary).ToList() };
+        var result = await handler.HandleAsync(
+            new GetFilamentProfilesQuery(req.Origin, req.Q, req.CompatibleWithMachineName, req.MaterialType, req.Page, req.PageSize), ct);
+
+        Response = new ListFilamentProfilesResponse
+        {
+            Items = result.Items.Select(FilamentProfileResponse.FromSummary).ToList(),
+            Page = result.Page,
+            PageSize = result.PageSize,
+            TotalCount = result.TotalCount,
+        };
     }
 }

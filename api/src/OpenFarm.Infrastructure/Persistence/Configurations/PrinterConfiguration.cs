@@ -64,6 +64,7 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
                 json => JsonSerializer.Deserialize<AmsTray?>(json, (JsonSerializerOptions?)null));
 
         builder.Property(p => p.MachineProfileId);
+        builder.Property(p => p.ProcessProfileId);
 
         builder.Property(p => p.CreatedAtUtc)
             .IsRequired();
@@ -79,6 +80,13 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.HasOne<MachineProfile>()
             .WithMany()
             .HasForeignKey(p => p.MachineProfileId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Parallel to MachineProfileId (009) — one process selection per printer, matching
+        // MachineProfileId's own FK treatment.
+        builder.HasOne<ProcessProfile>()
+            .WithMany()
+            .HasForeignKey(p => p.ProcessProfileId)
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.IsMultiTenant();

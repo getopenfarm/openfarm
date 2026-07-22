@@ -71,4 +71,16 @@ public sealed class PartFilamentRequirement
             spec.NarrowFilamentVariantId,
             spec.NarrowFilamentProfileId,
             DateTimeOffset.UtcNow);
+
+    /// <summary>
+    /// FR-012 (US4) — narrow/change/clear this requirement's filament choice at any time after
+    /// confirm, from the part detail page. Mutually-exclusive enforcement (at most one of the two
+    /// ids set) is the caller's validator's job (mirrors <c>ConfirmPartProcessingJobCommandValidator</c>),
+    /// not re-checked here.
+    /// </summary>
+    public void Narrow(Guid? narrowFilamentVariantId, Guid? narrowFilamentProfileId)
+    {
+        NarrowFilamentVariantId = narrowFilamentVariantId;
+        NarrowFilamentProfileId = narrowFilamentProfileId;
+    }
 }

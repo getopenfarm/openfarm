@@ -3,7 +3,12 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './app/App.tsx';
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Could not find #root element to mount the app into.');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <App />
   </StrictMode>,

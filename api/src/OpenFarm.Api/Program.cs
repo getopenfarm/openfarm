@@ -73,11 +73,8 @@ using DiscardPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommand
 using DeletePartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DeletePartCommand, bool>;
 using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.TagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
 using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
-using LinkPrinterMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.LinkPrinterMachineProfileCommand, OpenFarm.Domain.Printers.Printer>;
+using UpdatePartFilamentRequirementNarrowingHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdatePartFilamentRequirementNarrowingCommand, OpenFarm.Domain.Parts.PartFilamentRequirement>;
 using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
-using UpdateDefaultMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateDefaultMachineProfileCommand, OpenFarm.Application.Parts.DefaultMachineProfileResult>;
-using SetMachineProfileDefaultProcessHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.SetMachineProfileDefaultProcessCommand, OpenFarm.Application.Profiles.MachineProfileDefaultProcessResult>;
-using UpdateOrganizationFilamentDefaultHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateOrganizationFilamentDefaultCommand, OpenFarm.Application.Parts.OrganizationFilamentDefaultResult>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -240,13 +237,14 @@ builder.Services.AddScoped<IQueryHandler<GetPrinterCatalogQuery, PrinterCatalogR
 builder.Services.AddScoped<IMachineProfileRepository, MachineProfileRepository>();
 builder.Services.AddScoped<IFilamentProfileRepository, FilamentProfileRepository>();
 builder.Services.AddScoped<IProcessProfileRepository, ProcessProfileRepository>();
-builder.Services.AddScoped<IOrganizationFilamentDefaultRepository, OrganizationFilamentDefaultRepository>();
 builder.Services.AddScoped<IProfileBundleParser, ProfileBundleParser>();
+builder.Services.AddScoped<VendorProfileIndexReader>();
+builder.Services.AddScoped<ISystemProfileIngestionService, SystemProfileIngestionService>();
 builder.Services.AddScoped<PreviewProfileImportHandlerType, PreviewProfileImportCommandHandler>();
 builder.Services.AddScoped<ConfirmProfileImportHandlerType, ConfirmProfileImportCommandHandler>();
-builder.Services.AddScoped<IQueryHandler<GetMachineProfilesQuery, IReadOnlyList<MachineProfileSummary>>, GetMachineProfilesQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetFilamentProfilesQuery, IReadOnlyList<FilamentProfileSummary>>, GetFilamentProfilesQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetProcessProfilesQuery, IReadOnlyList<ProcessProfileSummary>>, GetProcessProfilesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetMachineProfilesQuery, ProfilePage<MachineProfileSummary>>, GetMachineProfilesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFilamentProfilesQuery, ProfilePage<FilamentProfileSummary>>, GetFilamentProfilesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetProcessProfilesQuery, ProfilePage<ProcessProfileSummary>>, GetProcessProfilesQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMachineProfileQuery, MachineProfileDetail?>, GetMachineProfileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentProfileQuery, FilamentProfileDetail?>, GetFilamentProfileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProcessProfileQuery, ProcessProfileDetail?>, GetProcessProfileQueryHandler>();
@@ -300,6 +298,7 @@ builder.Services.AddSingleton<IAvailableSlicerCatalog, AvailableSlicerCatalog>()
 builder.Services.AddSingleton<ISlicerInvocation, PrusaSliceFamilyInvocation>();
 builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
 builder.Services.AddScoped<ResolveSlicerSelection>();
+builder.Services.AddScoped<RepresentativeFilamentResolver>();
 builder.Services.AddScoped<ResolveSlicingProfileSelection>();
 
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
@@ -327,18 +326,14 @@ builder.Services.AddScoped<DiscardPartProcessingJobHandlerType, DiscardPartProce
 builder.Services.AddScoped<DeletePartHandlerType, DeletePartCommandHandler>();
 builder.Services.AddScoped<TagPartHandlerType, TagPartCommandHandler>();
 builder.Services.AddScoped<UntagPartHandlerType, UntagPartCommandHandler>();
-builder.Services.AddScoped<LinkPrinterMachineProfileHandlerType, LinkPrinterMachineProfileCommandHandler>();
+builder.Services.AddScoped<UpdatePartFilamentRequirementNarrowingHandlerType, UpdatePartFilamentRequirementNarrowingCommandHandler>();
 builder.Services.AddScoped<UpdateSlicingDefaultsHandlerType, UpdateSlicingDefaultsCommandHandler>();
-builder.Services.AddScoped<UpdateDefaultMachineProfileHandlerType, UpdateDefaultMachineProfileCommandHandler>();
-builder.Services.AddScoped<SetMachineProfileDefaultProcessHandlerType, SetMachineProfileDefaultProcessCommandHandler>();
-builder.Services.AddScoped<UpdateOrganizationFilamentDefaultHandlerType, UpdateOrganizationFilamentDefaultCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>, GetPartProcessingJobQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartsQuery, PartsPage>, GetPartsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartQuery, PartDetail?>, GetPartQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartFileQuery, PartFileDownload?>, GetPartFileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ListTagsQuery, IReadOnlyList<TagSummary>>, ListTagsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>, GetSlicingDefaultsQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetSlicingProfileDefaultsQuery, SlicingProfileDefaults>, GetSlicingProfileDefaultsQueryHandler>();
 
 builder.Services.AddSignalR();
 
@@ -400,6 +395,52 @@ using (var scope = app.Services.CreateScope())
 
     var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
     await seeder.SeedAsync();
+}
+
+// System Profile ingestion CLI entry point (009, contracts/system-profile-ingestion.md) — re-runnable
+// any time against the same bundle root BundledSlicerScanner already reads, not just at provisioning.
+// Runs against the fully-migrated/seeded host above, then exits before the web server ever starts.
+if (args.Contains("ingest-system-profiles"))
+{
+    using var scope = app.Services.CreateScope();
+
+    // Finbuckle's tenant resolution is HTTP-middleware-based (UseMultiTenant()), which never runs
+    // for this CLI-only scope — without setting it explicitly, every tenant-scoped EF query filter
+    // (e.g. MachineProfiles', ProcessProfiles', FilamentProfiles') throws a NullReferenceException
+    // against a null TenantInfo. Same pattern as PrinterConnectionBackgroundService.CreateTenantScope.
+    var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+    var tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
+        ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before system profile ingestion.");
+    var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
+    contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenantInfo);
+
+    var scanner = scope.ServiceProvider.GetRequiredService<BundledSlicerScanner>();
+    var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
+    var ingestionLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    var leaves = scanner.ScanLeafDirectories();
+    // CA1848 (LoggerMessage source-generation) and CA1873 (avoid evaluating log arguments when the
+    // level is disabled) are both hot-path optimizations — this CLI entry point logs a handful of
+    // times total per process lifetime, never in a request/loop-processing path.
+#pragma warning disable CA1848, CA1873
+    ingestionLogger.LogInformation("System Profile ingestion: found {LeafCount} bundled slicer leaf/leaves under the configured root.", leaves.Count);
+
+    foreach (var leaf in leaves)
+    {
+        var summary = await ingestionService.IngestAsync(leaf, CancellationToken.None);
+        ingestionLogger.LogInformation(
+            "Ingested '{Leaf}': vendors scanned={VendorsScanned}, skipped={VendorsSkipped}; " +
+            "machine created={MachineCreated} updated={MachineUpdated} stale={MachineStale}; " +
+            "process created={ProcessCreated} updated={ProcessUpdated} stale={ProcessStale}; " +
+            "filament created={FilamentCreated} updated={FilamentUpdated} stale={FilamentStale}.",
+            leaf, summary.VendorsScanned, summary.VendorsSkipped,
+            summary.Machine.Created, summary.Machine.Updated, summary.Machine.MarkedStale,
+            summary.Process.Created, summary.Process.Updated, summary.Process.MarkedStale,
+            summary.Filament.Created, summary.Filament.Updated, summary.Filament.MarkedStale);
+#pragma warning restore CA1848, CA1873
+    }
+
+    return;
 }
 
 // Forces the eager-singleton scan to run now, before the host starts accepting requests (research.md

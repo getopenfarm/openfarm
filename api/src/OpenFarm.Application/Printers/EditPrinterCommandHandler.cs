@@ -1,8 +1,12 @@
+using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
+using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Printers;
 
@@ -11,7 +15,10 @@ public sealed class EditPrinterCommandHandler(
     IPrinterRepository printerRepository,
     IConnectionSecretRepository connectionSecretRepository,
     ISecretProtector secretProtector,
-    IPrinterConnectionManager connectionManager) : ICommandHandler<EditPrinterCommand, Printer>
+    IPrinterConnectionManager connectionManager,
+    IMachineProfileRepository machineProfileRepository,
+    IProcessProfileRepository processProfileRepository,
+    IActivityLogWriter activityLogWriter) : ICommandHandler<EditPrinterCommand, Printer>
 {
     public async Task<Printer> HandleAsync(EditPrinterCommand command, CancellationToken cancellationToken)
     {
@@ -57,6 +64,40 @@ public sealed class EditPrinterCommandHandler(
             }
         }
 
+        // 009 US2 — machine/process profile selection, validated before any mutation lands (same
+        // zero-partial-success philosophy as the identity-field and connection checks above).
+        if (command.ProcessProfileId is not null && command.MachineProfileId is null)
+        {
+            throw new ProcessProfileRequiresMachineProfileException();
+        }
+
+        MachineProfile? machineProfile = null;
+        if (command.MachineProfileId is { } machineProfileId)
+        {
+            machineProfile = await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken)
+                ?? throw new InvalidProfileReferenceException("machine", machineProfileId);
+        }
+
+        ProcessProfile? processProfile = null;
+        if (command.ProcessProfileId is { } processProfileId)
+        {
+            processProfile = await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken)
+                ?? throw new InvalidProfileReferenceException("process", processProfileId);
+
+            if (processProfile.Origin != ProfileOrigin.System)
+            {
+                throw new InvalidProfileReferenceException("process", processProfileId);
+            }
+
+            if (processProfile.CompatibleMachineNames is null || !processProfile.CompatibleMachineNames.Contains(machineProfile!.Name, StringComparer.Ordinal))
+            {
+                throw new ProcessProfileIncompatibleWithMachineException(processProfile.Name, machineProfile!.Name);
+            }
+        }
+
+        var previousMachineProfileId = printer.MachineProfileId;
+        var previousProcessProfileId = printer.ProcessProfileId;
+
         printer.Rename(command.Name);
 
         if (connectionChanged)
@@ -68,6 +109,24 @@ public sealed class EditPrinterCommandHandler(
             await connectionSecretRepository.AddAsync(secret, cancellationToken);
         }
 
+        if (machineProfile is not null)
+        {
+            printer.LinkMachineProfile(machineProfile.Id);
+        }
+        else
+        {
+            printer.UnlinkMachineProfile();
+        }
+
+        if (processProfile is not null)
+        {
+            printer.LinkProcessProfile(processProfile.Id);
+        }
+        else
+        {
+            printer.UnlinkProcessProfile();
+        }
+
         await printerRepository.SaveChangesAsync(cancellationToken);
 
         if (connectionChanged)
@@ -75,6 +134,28 @@ public sealed class EditPrinterCommandHandler(
             // Force a reconnect so the running connection loop picks up the new IP/access code.
             connectionManager.StopConnection(printer.Id);
             connectionManager.StartConnection(printer.Id, CancellationToken.None);
+        }
+
+        // FR-016 — granular events alongside the base PrinterEdited event the endpoint's
+        // IActivityLoggable/global post-processor already writes for every successful call here.
+        // Written directly (not via the post-processor, which only ever writes one event type per
+        // request) only when the aspect actually changed — resending the same already-linked id on
+        // every save (the printer form's own "submit full current state" convention) must not spam
+        // a Linked event with no real change.
+        if (printer.MachineProfileId != previousMachineProfileId)
+        {
+            var eventType = printer.MachineProfileId is not null ? "PrinterMachineProfileLinked" : "PrinterMachineProfileUnlinked";
+            await activityLogWriter.WriteAsync(
+                ActivityLogEntry.Create(printer.OrganizationId, "Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
+                cancellationToken);
+        }
+
+        if (printer.ProcessProfileId != previousProcessProfileId)
+        {
+            var eventType = printer.ProcessProfileId is not null ? "PrinterProcessProfileLinked" : "PrinterProcessProfileUnlinked";
+            await activityLogWriter.WriteAsync(
+                ActivityLogEntry.Create(printer.OrganizationId, "Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
+                cancellationToken);
         }
 
         return printer;

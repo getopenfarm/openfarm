@@ -50,9 +50,9 @@ public class ConfirmProfileImportEndpointTests(CustomWebApplicationFactory facto
         var machineList = await client.GetFromJsonAsync<ListMachineProfilesResponse>(new Uri("/api/v1/profiles/machine", UriKind.Relative));
         var filamentList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
 
-        machineList!.Profiles.Should().ContainSingle(p => p.Name == $"Test Printer {suffix}");
-        filamentList!.Profiles.Should().ContainSingle(p => p.Name == $"Test PLA {suffix}");
-        filamentList.Profiles.Should().NotContain(p => p.Name == $"Test PETG {suffix}");
+        machineList!.Items.Should().ContainSingle(p => p.Name == $"Test Printer {suffix}");
+        filamentList!.Items.Should().ContainSingle(p => p.Name == $"Test PLA {suffix}");
+        filamentList.Items.Should().NotContain(p => p.Name == $"Test PETG {suffix}");
     }
 
     [Fact]
@@ -72,6 +72,6 @@ public class ConfirmProfileImportEndpointTests(CustomWebApplicationFactory facto
         body.CreatedFilamentProfiles.Should().BeEmpty();
 
         var machineList = await client.GetFromJsonAsync<ListMachineProfilesResponse>(new Uri("/api/v1/profiles/machine", UriKind.Relative));
-        machineList!.Profiles.Should().NotContain(p => p.Name.Contains(suffix));
+        machineList!.Items.Should().NotContain(p => p.Name.Contains(suffix));
     }
 }

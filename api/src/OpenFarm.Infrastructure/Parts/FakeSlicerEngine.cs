@@ -20,7 +20,8 @@ public sealed class FakeSlicerEngine : ISlicerEngine
     ];
 
     public Task<SlicingResult> SliceAsync(
-        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm, CancellationToken cancellationToken) =>
+        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
+        Guid? printerId, CancellationToken cancellationToken) =>
         Task.FromResult(new SlicingResult(
             PlateCount: 1,
             EstimatedPrintTimeMinutes: 47,

@@ -1,3 +1,5 @@
+using OpenFarm.Domain.ActivityLog;
+
 namespace OpenFarm.Application.Printers;
 
 /// <summary>
@@ -7,8 +9,18 @@ namespace OpenFarm.Application.Printers;
 /// <see cref="Brand"/>/<see cref="ModelCode"/>/<see cref="SerialNumber"/> are optional and, when
 /// supplied, are checked (never applied) against the printer's current value — a caller sending a
 /// mismatched value is rejected outright (FR-002/FR-010) rather than having the value silently
-/// dropped.
+/// dropped. <see cref="MachineProfileId"/>/<see cref="ProcessProfileId"/> (009, US2) are applied
+/// exactly as sent — <c>null</c> clears the link — unlike the paired connection fields above; the
+/// caller is expected to submit the printer's full current state, not a sparse diff
+/// (contracts/profiles-api.md).
 /// </summary>
+/// <param name="ActorId">
+/// The requesting operator's id (or <c>null</c> for a system-initiated call), threaded through so the
+/// handler can attribute the granular <c>PrinterMachineProfileLinked</c>/<c>Unlinked</c>/
+/// <c>PrinterProcessProfileLinked</c>/<c>Unlinked</c> activity-log entries it writes directly (FR-016)
+/// — distinct from the base <c>PrinterEdited</c> event the endpoint's <c>IActivityLoggable</c>/global
+/// post-processor already writes for every successful call to this same endpoint.
+/// </param>
 public sealed record EditPrinterCommand(
     Guid PrinterId,
     string Name,
@@ -16,4 +28,8 @@ public sealed record EditPrinterCommand(
     string? AccessCode,
     string? Brand,
     string? ModelCode,
-    string? SerialNumber);
+    string? SerialNumber,
+    Guid? MachineProfileId,
+    Guid? ProcessProfileId,
+    Guid? ActorId,
+    ActorType ActorType);

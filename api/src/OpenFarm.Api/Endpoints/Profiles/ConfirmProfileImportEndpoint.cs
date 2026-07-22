@@ -35,7 +35,6 @@ public sealed class ConfirmProfileImportResponse : IHasEntityIds
 {
     public List<CreatedProfileItem> CreatedMachineProfiles { get; set; } = [];
     public List<CreatedProfileItem> CreatedFilamentProfiles { get; set; } = [];
-    public List<CreatedProfileItem> CreatedProcessProfiles { get; set; } = [];
 
     // Internal to the post-processor extension only (research.md §7) — not part of the public
     // response contract (contracts/profiles-api.md), so excluded from JSON serialization.
@@ -43,7 +42,6 @@ public sealed class ConfirmProfileImportResponse : IHasEntityIds
     public IReadOnlyList<string> EntityIds =>
         CreatedMachineProfiles.Select(p => p.Id.ToString())
             .Concat(CreatedFilamentProfiles.Select(p => p.Id.ToString()))
-            .Concat(CreatedProcessProfiles.Select(p => p.Id.ToString()))
             .ToList();
 }
 
@@ -80,9 +78,6 @@ public sealed class ConfirmProfileImportEndpoint(ConfirmProfileImportHandler han
                 .Select(p => new CreatedProfileItem { Id = p.Id, Name = p.Name, BaseProfileId = p.BaseProfileId })
                 .ToList(),
             CreatedFilamentProfiles = result.CreatedFilamentProfiles
-                .Select(p => new CreatedProfileItem { Id = p.Id, Name = p.Name, BaseProfileId = p.BaseProfileId })
-                .ToList(),
-            CreatedProcessProfiles = result.CreatedProcessProfiles
                 .Select(p => new CreatedProfileItem { Id = p.Id, Name = p.Name, BaseProfileId = p.BaseProfileId })
                 .ToList(),
         };

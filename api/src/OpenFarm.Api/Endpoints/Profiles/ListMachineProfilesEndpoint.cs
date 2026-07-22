@@ -5,10 +5,20 @@ using OpenFarm.Application.Profiles;
 
 namespace OpenFarm.Api.Endpoints.Profiles;
 
+public sealed class ListMachineProfilesRequest
+{
+    public string? Origin { get; set; }
+    public string? Q { get; set; }
+    public int? Page { get; set; }
+    public int? PageSize { get; set; }
+}
+
 public sealed class MachineProfileResponse
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string Origin { get; set; } = string.Empty;
+    public string? VendorName { get; set; }
     public string SourceFormat { get; set; } = string.Empty;
     public Guid? BaseProfileId { get; set; }
     public string? BaseProfileName { get; set; }
@@ -24,6 +34,8 @@ public sealed class MachineProfileResponse
     {
         Id = summary.Id,
         Name = summary.Name,
+        Origin = summary.Origin.ToString(),
+        VendorName = summary.VendorName,
         SourceFormat = summary.SourceFormat.ToString(),
         BaseProfileId = summary.BaseProfileId,
         BaseProfileName = summary.BaseProfileName,
@@ -39,13 +51,16 @@ public sealed class MachineProfileResponse
 
 public sealed class ListMachineProfilesResponse
 {
-    public List<MachineProfileResponse> Profiles { get; set; } = [];
+    public List<MachineProfileResponse> Items { get; set; } = [];
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
 }
 
-// GET /api/v1/profiles/machine (FR-010, US3).
+// GET /api/v1/profiles/machine (FR-010, US3; extended for US2 picker use, contracts/profiles-api.md).
 [Permission("profiles:list-machine")]
-public sealed class ListMachineProfilesEndpoint(IQueryHandler<GetMachineProfilesQuery, IReadOnlyList<MachineProfileSummary>> handler)
-    : EndpointWithoutRequest<ListMachineProfilesResponse>
+public sealed class ListMachineProfilesEndpoint(IQueryHandler<GetMachineProfilesQuery, ProfilePage<MachineProfileSummary>> handler)
+    : Endpoint<ListMachineProfilesRequest, ListMachineProfilesResponse>
 {
     public override void Configure()
     {
@@ -53,9 +68,16 @@ public sealed class ListMachineProfilesEndpoint(IQueryHandler<GetMachineProfiles
         Policies("Permission");
     }
 
-    public override async Task HandleAsync(CancellationToken ct)
+    public override async Task HandleAsync(ListMachineProfilesRequest req, CancellationToken ct)
     {
-        var summaries = await handler.HandleAsync(new GetMachineProfilesQuery(), ct);
-        Response = new ListMachineProfilesResponse { Profiles = summaries.Select(MachineProfileResponse.FromSummary).ToList() };
+        var result = await handler.HandleAsync(new GetMachineProfilesQuery(req.Origin, req.Q, req.Page, req.PageSize), ct);
+
+        Response = new ListMachineProfilesResponse
+        {
+            Items = result.Items.Select(MachineProfileResponse.FromSummary).ToList(),
+            Page = result.Page,
+            PageSize = result.PageSize,
+            TotalCount = result.TotalCount,
+        };
     }
 }

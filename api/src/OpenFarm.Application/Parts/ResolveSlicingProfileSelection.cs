@@ -1,6 +1,7 @@
-using OpenFarm.Application.Organizations;
+using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Parts;
 
@@ -8,53 +9,154 @@ namespace OpenFarm.Application.Parts;
 public sealed record ResolvedSlicingProfiles(string MachineSettingsJson, string ProcessSettingsJson, string FilamentSettingsJson);
 
 /// <summary>
-/// Resolves an organization's configured default machine profile, that machine's paired process
-/// profile, and the material's default filament profile into complete, standalone preset JSON —
-/// mirroring <see cref="ResolveSlicerSelection"/>'s role as the single gate fronting both
-/// "set as default" and "slice this part". OrcaSlicer/Bambu Studio reject a bare scalar-derived
-/// settings file outright (it must be a real preset with "type"/"name"/"inherits"/"from" etc.) and
-/// only ever accept one machine paired to the exact process it was authored/shipped for — never
-/// bypassable via a fixed generic process (confirmed empirically against the real bundled binary:
-/// no combination of --no-check, an absent process file, or a stripped compatible_printers list ever
-/// satisfied Orca's machine/process compatibility gate for a mismatched pair). Every unconfigured
-/// piece — no org default machine, no paired process, no default filament for the material, or an
-/// unresolved ancestor chain in any of the three — throws <see cref="SlicingProfileUnconfiguredException"/>
-/// naming exactly what's missing, rather than silently attempting a slice. Real-CLI compatibility of
-/// whatever the operator actually configures (e.g. the "G92 E0" gcode-generation validator possibly
-/// firing on some machine profiles) is a manual-validation carve-out, same as the rest of this
-/// CLI-invocation layer — this service's job ends at "handed the CLI a compatible, complete triple".
+/// Resolves a slice target's machine, process, and filament profiles into complete, standalone
+/// preset JSON (research.md §5) — either a specific printer's own selections, or, when no printer is
+/// targeted (the pre-print estimate case, FR-015), a deterministic fleet-representative printer's
+/// selections. Filament resolves from an explicit narrowed profile when supplied (FR-012, US4) or
+/// else <see cref="RepresentativeFilamentResolver"/>'s deterministic per-material-type pick
+/// (FR-018/FR-019). Organization-level defaults (machine/process/filament) no longer exist anywhere
+/// in this resolution path — removed entirely per FR-009/FR-017. OrcaSlicer/Bambu Studio reject a
+/// bare scalar-derived settings file outright (it must be a real preset with "type"/"name"/"inherits"/
+/// "from" etc.) and only ever accept one machine paired to the exact process it was authored/shipped
+/// for. Every unconfigured piece — no printer selection, no printers in the fleet, no representative
+/// filament for the material, or an unresolved ancestor chain in any of the three — throws
+/// <see cref="SlicingProfileUnconfiguredException"/> naming exactly what's missing, rather than
+/// silently attempting a slice.
 /// </summary>
 public sealed class ResolveSlicingProfileSelection(
-    IOrganizationRepository organizationRepository,
+    IPrinterRepository printerRepository,
     IMachineProfileRepository machineProfileRepository,
     IProcessProfileRepository processProfileRepository,
     IFilamentProfileRepository filamentProfileRepository,
-    IOrganizationFilamentDefaultRepository filamentDefaultRepository)
+    RepresentativeFilamentResolver representativeFilamentResolver)
 {
-    public async Task<ResolvedSlicingProfiles> ResolveAsync(string materialType, CancellationToken cancellationToken)
+    public async Task<ResolvedSlicingProfiles> ResolveAsync(
+        Guid? printerId, string materialType, Guid? narrowedFilamentProfileId, CancellationToken cancellationToken)
     {
-        var organization = await organizationRepository.GetAsync(cancellationToken);
+        var (machineProfileId, processProfileId) = printerId is { } targetPrinterId
+            ? await ResolveForPrinterAsync(targetPrinterId, cancellationToken)
+            : await ResolveForFleetRepresentativeAsync(cancellationToken);
 
-        var machineProfileId = organization.DefaultMachineProfileId
-            ?? throw new SlicingProfileUnconfiguredException("No default machine profile is configured for this organization.");
         var machineProfile = await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException("The organization's default machine profile no longer exists.");
-
-        var processProfileId = machineProfile.DefaultProcessProfileId
-            ?? throw new SlicingProfileUnconfiguredException($"Machine profile '{machineProfile.Name}' has no paired default process profile.");
+            ?? throw new SlicingProfileUnconfiguredException("The selected machine profile no longer exists.");
         var processProfile = await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException($"Machine profile '{machineProfile.Name}''s paired process profile no longer exists.");
+            ?? throw new SlicingProfileUnconfiguredException("The selected process profile no longer exists.");
 
-        var filamentDefault = await filamentDefaultRepository.FindByMaterialTypeAsync(materialType, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException($"No default filament profile is configured for material '{materialType}'.");
-        var filamentProfile = await filamentProfileRepository.GetByIdAsync(filamentDefault.FilamentProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException($"The organization's default filament profile for material '{materialType}' no longer exists.");
+        var filamentProfile = narrowedFilamentProfileId is { } narrowedId
+            ? await filamentProfileRepository.GetByIdAsync(narrowedId, cancellationToken)
+                ?? throw new SlicingProfileUnconfiguredException("The part's narrowed filament profile no longer exists.")
+            : await representativeFilamentResolver.ResolveAsync(materialType, cancellationToken);
 
-        var machineJson = await MergeChainOrThrowAsync(machineProfile.Id, "machine", FetchMachineNode, cancellationToken);
+        var machineJson = await MergeMachineChainWithIncludesOrThrowAsync(machineProfile, cancellationToken);
         var processJson = await MergeChainOrThrowAsync(processProfile.Id, "process", FetchProcessNode, cancellationToken);
-        var filamentJson = await MergeChainOrThrowAsync(filamentProfile.Id, "filament", FetchFilamentNode, cancellationToken);
+        var filamentJson = await MergeFilamentChainWithIncludesOrThrowAsync(filamentProfile, cancellationToken);
 
         return new ResolvedSlicingProfiles(machineJson, processJson, filamentJson);
+    }
+
+    // research.md §0a/§5 — Bambu Studio's `include` gcode-template fold-in, folded in after the
+    // ancestor chain merge but before the target's own final layer (ProfileRawDataMerger.
+    // MergeAncestorChainWithIncludes' own ordering guarantee). OrcaSlicer never sets
+    // IncludedTemplateNames, so this is a no-op there.
+    private async Task<string> MergeMachineChainWithIncludesOrThrowAsync(
+        MachineProfile target, CancellationToken cancellationToken)
+    {
+        var (ancestorsOldestFirst, hasUnresolvedBase) = await ProfileChainWalker.WalkByIdAsync(target.Id, FetchMachineNode, cancellationToken);
+        if (hasUnresolvedBase)
+        {
+            throw new SlicingProfileUnconfiguredException(
+                "The selected machine profile has an unresolved ancestor in its inheritance chain and cannot be used to slice.");
+        }
+
+        var includedTemplateNames = target.IncludedTemplateNames;
+        if (includedTemplateNames is null or { Count: 0 } || target.VendorName is null)
+        {
+            return ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);
+        }
+
+        var resolvedFragments = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in includedTemplateNames)
+        {
+            if (resolvedFragments.ContainsKey(name))
+            {
+                continue;
+            }
+
+            var fragment = await machineProfileRepository.FindSystemByNameAsync(target.VendorName, name, cancellationToken);
+            if (fragment is not null)
+            {
+                resolvedFragments[name] = fragment.RawDataJson;
+            }
+        }
+
+        return ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst, includedTemplateNames, name => resolvedFragments.GetValueOrDefault(name));
+    }
+
+    private async Task<string> MergeFilamentChainWithIncludesOrThrowAsync(
+        FilamentProfile target, CancellationToken cancellationToken)
+    {
+        var (ancestorsOldestFirst, hasUnresolvedBase) = await ProfileChainWalker.WalkByIdAsync(target.Id, FetchFilamentNode, cancellationToken);
+        if (hasUnresolvedBase)
+        {
+            throw new SlicingProfileUnconfiguredException(
+                "The selected filament profile has an unresolved ancestor in its inheritance chain and cannot be used to slice.");
+        }
+
+        var includedTemplateNames = target.IncludedTemplateNames;
+        if (includedTemplateNames is null or { Count: 0 } || target.VendorName is null)
+        {
+            return ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);
+        }
+
+        var resolvedFragments = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in includedTemplateNames)
+        {
+            if (resolvedFragments.ContainsKey(name))
+            {
+                continue;
+            }
+
+            var fragment = await filamentProfileRepository.FindSystemByNameAsync(target.VendorName, name, cancellationToken);
+            if (fragment is not null)
+            {
+                resolvedFragments[name] = fragment.RawDataJson;
+            }
+        }
+
+        return ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst, includedTemplateNames, name => resolvedFragments.GetValueOrDefault(name));
+    }
+
+    private async Task<(Guid MachineProfileId, Guid ProcessProfileId)> ResolveForPrinterAsync(Guid printerId, CancellationToken cancellationToken)
+    {
+        var printer = await printerRepository.GetByIdAsync(printerId, cancellationToken)
+            ?? throw new SlicingProfileUnconfiguredException($"Printer '{printerId}' was not found.");
+
+        var machineProfileId = printer.MachineProfileId
+            ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no machine profile selected.");
+        var processProfileId = printer.ProcessProfileId
+            ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no process profile selected.");
+
+        return (machineProfileId, processProfileId);
+    }
+
+    /// <summary>
+    /// FR-015 — no target printer (the pre-print, estimate-only case). Picks the fleet printer with
+    /// the smallest <see cref="Guid"/> among those with both selections set — arbitrary but stable,
+    /// so a repeated resolution against an unchanged fleet always picks the same printer
+    /// (research.md §5, mirroring §2's representative-filament determinism requirement).
+    /// </summary>
+    private async Task<(Guid MachineProfileId, Guid ProcessProfileId)> ResolveForFleetRepresentativeAsync(CancellationToken cancellationToken)
+    {
+        var printers = await printerRepository.ListAsync(cancellationToken);
+        var representative = printers
+            .Where(p => p.MachineProfileId is not null && p.ProcessProfileId is not null)
+            .OrderBy(p => p.Id)
+            .FirstOrDefault()
+            ?? throw new SlicingProfileUnconfiguredException("No printers configured with both a machine and process profile selected.");
+
+        return (representative.MachineProfileId!.Value, representative.ProcessProfileId!.Value);
     }
 
     private static async Task<string> MergeChainOrThrowAsync(
@@ -64,7 +166,7 @@ public sealed class ResolveSlicingProfileSelection(
         if (hasUnresolvedBase)
         {
             throw new SlicingProfileUnconfiguredException(
-                $"The default {kindLabel} profile has an unresolved ancestor in its inheritance chain and cannot be used to slice.");
+                $"The selected {kindLabel} profile has an unresolved ancestor in its inheritance chain and cannot be used to slice.");
         }
 
         return ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);

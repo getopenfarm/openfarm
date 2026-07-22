@@ -9,6 +9,12 @@ public sealed class MachineProfile
         ProfileSourceFormat sourceFormat,
         string? baseProfileName,
         string rawDataJson,
+        ProfileOrigin origin,
+        string? vendorName,
+        string? externalId,
+        bool isSelectable,
+        string? vendorMachineModelName,
+        IReadOnlyList<string>? includedTemplateNames,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
@@ -18,6 +24,13 @@ public sealed class MachineProfile
         BaseProfileName = baseProfileName;
         BaseProfileId = null;
         RawDataJson = rawDataJson;
+        Origin = origin;
+        VendorName = vendorName;
+        ExternalId = externalId;
+        IsCurrentlyOffered = true;
+        IsSelectable = isSelectable;
+        VendorMachineModelName = vendorMachineModelName;
+        IncludedTemplateNames = includedTemplateNames;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -35,13 +48,26 @@ public sealed class MachineProfile
     public string RawDataJson { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
-    /// <summary>
-    /// The process preset paired to this machine for headless slicing — Orca/Bambu Studio enforce
-    /// strict machine/process compatibility (only a preset authored/shipped for this exact machine
-    /// passes), so a process preset is only ever meaningful in the context of one specific machine.
-    /// Set explicitly via a dedicated pairing command, never inferred at import time.
-    /// </summary>
-    public Guid? DefaultProcessProfileId { get; private set; }
+    /// <summary>User-imported vs. ingested from the bundled slicer's own vendor data (009's Origin split).</summary>
+    public ProfileOrigin Origin { get; private set; }
+
+    /// <summary>The vendor index's own <c>name</c> field (e.g. "Bambulab"); <c>null</c> for <see cref="ProfileOrigin.User"/> rows.</summary>
+    public string? VendorName { get; private set; }
+
+    /// <summary>The vendor's <c>setting_id</c> for a selectable leaf; <c>null</c> for abstract-base System rows and all User rows (research.md §1 idempotency key).</summary>
+    public string? ExternalId { get; private set; }
+
+    /// <summary>Flips to <c>false</c> once a re-ingestion no longer contains this row's identity key (research.md §1). Always <c>true</c> for User rows.</summary>
+    public bool IsCurrentlyOffered { get; private set; }
+
+    /// <summary>From the vendor's <c>instantiation</c> flag; always <c>true</c> for User rows (unchanged import behavior).</summary>
+    public bool IsSelectable { get; private set; }
+
+    /// <summary>System machine rows only: the leaf preset's own <c>printer_model</c>, linking to <c>PrinterModelCatalog.VendorMachineModelName</c>.</summary>
+    public string? VendorMachineModelName { get; private set; }
+
+    /// <summary>System rows only, verbatim from the vendor leaf's own <c>include</c> array (Bambu Studio's gcode-template fold-in, research.md §0a); <c>null</c> otherwise.</summary>
+    public IReadOnlyList<string>? IncludedTemplateNames { get; private set; }
 
     public static MachineProfile Create(
         Guid organizationId,
@@ -67,6 +93,56 @@ public sealed class MachineProfile
             sourceFormat,
             string.IsNullOrWhiteSpace(baseProfileName) ? null : baseProfileName,
             rawDataJson,
+            ProfileOrigin.User,
+            vendorName: null,
+            externalId: null,
+            isSelectable: true,
+            vendorMachineModelName: null,
+            includedTemplateNames: null,
+            createdAtUtc: DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>Ingestion-only factory (research.md §0/§1) — never invoked from any User-facing import path.</summary>
+    public static MachineProfile CreateSystemProfile(
+        Guid organizationId,
+        string name,
+        ProfileSourceFormat sourceFormat,
+        string? baseProfileName,
+        string rawDataJson,
+        string vendorName,
+        string? externalId,
+        bool isSelectable,
+        string? vendorMachineModelName,
+        IReadOnlyList<string>? includedTemplateNames)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Machine profile name is required.", nameof(name));
+        }
+
+        if (string.IsNullOrWhiteSpace(rawDataJson))
+        {
+            throw new ArgumentException("Machine profile raw data is required.", nameof(rawDataJson));
+        }
+
+        if (string.IsNullOrWhiteSpace(vendorName))
+        {
+            throw new ArgumentException("Vendor name is required for a System profile.", nameof(vendorName));
+        }
+
+        return new MachineProfile(
+            Guid.NewGuid(),
+            organizationId,
+            name,
+            sourceFormat,
+            string.IsNullOrWhiteSpace(baseProfileName) ? null : baseProfileName,
+            rawDataJson,
+            ProfileOrigin.System,
+            vendorName,
+            externalId,
+            isSelectable,
+            vendorMachineModelName,
+            includedTemplateNames,
             DateTimeOffset.UtcNow);
     }
 
@@ -86,7 +162,32 @@ public sealed class MachineProfile
         RawDataJson = rawDataJson;
     }
 
-    public void SetDefaultProcessProfile(Guid processProfileId) => DefaultProcessProfileId = processProfileId;
+    /// <summary>
+    /// Re-ingestion upsert (research.md §1): refreshes every derived field from the newly-fetched
+    /// vendor data in place — same row <see cref="Id"/>, so a printer/part FK pointing at it stays
+    /// valid — and marks the row as currently offered again (it was just re-seen this run).
+    /// </summary>
+    public void RefreshFromSystemSource(
+        string name, string rawDataJson, bool isSelectable, string? vendorMachineModelName, IReadOnlyList<string>? includedTemplateNames)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Machine profile name is required.", nameof(name));
+        }
 
-    public void ClearDefaultProcessProfile() => DefaultProcessProfileId = null;
+        if (string.IsNullOrWhiteSpace(rawDataJson))
+        {
+            throw new ArgumentException("Machine profile raw data is required.", nameof(rawDataJson));
+        }
+
+        Name = name;
+        RawDataJson = rawDataJson;
+        IsSelectable = isSelectable;
+        VendorMachineModelName = vendorMachineModelName;
+        IncludedTemplateNames = includedTemplateNames;
+        IsCurrentlyOffered = true;
+    }
+
+    /// <summary>A previously-System row not re-seen this ingestion run (research.md §1) — never deleted, just hidden from pickers.</summary>
+    public void MarkStale() => IsCurrentlyOffered = false;
 }

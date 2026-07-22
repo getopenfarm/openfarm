@@ -67,9 +67,9 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         var created = await confirmResponse.Content.ReadFromJsonAsync<ConfirmProfileImportResponse>();
         var machineProfileId = created!.CreatedMachineProfiles.Single().Id;
 
-        await client.PutAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer!.Id}/machine-profile", UriKind.Relative),
-            new LinkPrinterMachineProfileRequest { MachineProfileId = machineProfileId });
+        await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer!.Id}", UriKind.Relative),
+            new EditPrinterRequest { Name = printer.Name, MachineProfileId = machineProfileId });
     }
 
     private static async Task<PartProcessingJobResponse> WaitForTerminalStatusAsync(HttpClient client, Guid jobId)

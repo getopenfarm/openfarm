@@ -44,11 +44,33 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
         );
       }
       if (method === 'GET' && url.includes('/api/v1/profiles/filament')) {
+        // System-origin profiles only surface via the picker-style query (origin/materialType
+        // params) — a call with none of those params hits the legacy User-only browse path and
+        // must NOT be what feeds this picker (that was the bug: the dropdown looked empty because
+        // it went down that path and only System rows existed for most material types).
+        if (!url.includes('origin=') && !url.includes('materialType=')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ items: [] }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+          );
+        }
         return Promise.resolve(
-          new Response(JSON.stringify({ profiles: [] }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          }),
+          new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 'fp-1',
+                  name: 'Generic PETG',
+                  origin: 'System',
+                  vendorName: 'Generic',
+                  materialType: 'PETG',
+                },
+              ],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
         );
       }
       if (method === 'POST' && url.includes('/variants')) {
@@ -160,6 +182,39 @@ describe('FilamentFormPage', () => {
     expect(
       await screen.findByText('Filament catalog page'),
     ).toBeInTheDocument();
+  });
+
+  it('lists System-origin profiles matching the selected material type and links one', async () => {
+    const user = userEvent.setup();
+    let createBody: unknown;
+    renderAddPage((url, init) => {
+      if (init?.method === 'POST' && url.endsWith('/api/v1/filaments')) {
+        createBody = JSON.parse(init.body as string);
+      }
+    });
+
+    await user.click(await screen.findByRole('combobox', { name: 'Vendor' }));
+    await user.click(await screen.findByRole('option', { name: 'Prusament' }));
+    await user.type(screen.getByLabelText('Material name'), 'PETG Basic');
+
+    await user.click(
+      screen.getByRole('button', { name: 'No default profile' }),
+    );
+    expect(
+      await screen.findByRole('button', { name: /Generic PETG/ }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Generic PETG/ }));
+
+    await user.click(screen.getByRole('button', { name: /add variant/i }));
+    await user.type(screen.getByLabelText('Name'), 'Galaxy Black');
+    await user.click(screen.getByRole('button', { name: 'Black' }));
+    await user.click(screen.getByRole('button', { name: 'Add variant' }));
+
+    await user.click(screen.getByRole('button', { name: 'Add filament' }));
+
+    await waitFor(() => {
+      expect(createBody).toMatchObject({ filamentProfileId: 'fp-1' });
+    });
   });
 
   it('shows existing filament details and variants in edit mode', async () => {

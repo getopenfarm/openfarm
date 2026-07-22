@@ -30,12 +30,12 @@ const ACCEPTED_EXTENSIONS =
   '.zip,.orca_printer,.orca_filament,.bbscfg,.bbsflmt';
 
 function splitSelectionKey(key: string): {
-  type: 'Machine' | 'Filament' | 'Process';
+  type: 'Machine' | 'Filament';
   name: string;
 } {
   const separatorIndex = key.indexOf(':');
   return {
-    type: key.slice(0, separatorIndex) as 'Machine' | 'Filament' | 'Process',
+    type: key.slice(0, separatorIndex) as 'Machine' | 'Filament',
     name: key.slice(separatorIndex + 1),
   };
 }
@@ -62,13 +62,6 @@ export function ImportProfilesDialog() {
           for (const preset of data.machinePresets ?? []) {
             if (preset.name) {
               initial[profileSelectionKey('Machine', preset.name)] = {
-                selected: true,
-              };
-            }
-          }
-          for (const preset of data.processPresets ?? []) {
-            if (preset.name) {
-              initial[profileSelectionKey('Process', preset.name)] = {
                 selected: true,
               };
             }
@@ -190,13 +183,9 @@ export function ImportProfilesDialog() {
 
   const hasPreview = preview !== null;
   const machinePresets = preview?.machinePresets ?? [];
-  const processPresets = preview?.processPresets ?? [];
   const filamentPresets = preview?.filamentPresets ?? [];
   const nothingImportable =
-    hasPreview &&
-    machinePresets.length === 0 &&
-    processPresets.length === 0 &&
-    filamentPresets.length === 0;
+    hasPreview && machinePresets.length === 0 && filamentPresets.length === 0;
   const nothingSelected = Object.values(selections).every(
     (state) => !state.selected,
   );
@@ -288,7 +277,6 @@ export function ImportProfilesDialog() {
         {hasPreview && !nothingImportable && (
           <ProfileReviewList
             machinePresets={machinePresets}
-            processPresets={processPresets}
             filamentPresets={filamentPresets}
             selections={selections}
             onChange={handleSelectionChange}

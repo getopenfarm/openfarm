@@ -3,11 +3,21 @@ using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Profiles;
 
-public sealed record GetFilamentProfilesQuery;
+// All fields null/omitted reproduces feature 003's exact original call (FR-013) — every other
+// combination is the US2/US4 picker's paginated/searchable path (research.md §6).
+public sealed record GetFilamentProfilesQuery(
+    string? Origin = null,
+    string? SearchText = null,
+    string? CompatibleWithMachineName = null,
+    string? MaterialType = null,
+    int? Page = null,
+    int? PageSize = null);
 
 public sealed record FilamentProfileSummary(
     Guid Id,
     string Name,
+    ProfileOrigin Origin,
+    string? VendorName,
     ProfileSourceFormat SourceFormat,
     Guid? BaseProfileId,
     string? BaseProfileName,
@@ -20,33 +30,74 @@ public sealed record FilamentProfileSummary(
     double? BedTempC,
     double? MaxVolumetricSpeedMm3s,
     int? FanPercent,
-    IReadOnlyList<string> CompatiblePrinterNames);
+    IReadOnlyList<string> CompatiblePrinterNames)
+{
+    // Domain-level canonical field (set at ingestion, research.md §0), distinct from the
+    // parsed/display-only `Material` above which only ever gets populated for User rows.
+    public string? MaterialType { get; init; }
+}
 
 public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository repository, IProfileBundleParser parser)
-    : IQueryHandler<GetFilamentProfilesQuery, IReadOnlyList<FilamentProfileSummary>>
+    : IQueryHandler<GetFilamentProfilesQuery, ProfilePage<FilamentProfileSummary>>
 {
     private const int MaxChainDepth = 32;
 
-    public async Task<IReadOnlyList<FilamentProfileSummary>> HandleAsync(GetFilamentProfilesQuery query, CancellationToken cancellationToken)
+    public async Task<ProfilePage<FilamentProfileSummary>> HandleAsync(GetFilamentProfilesQuery query, CancellationToken cancellationToken)
+    {
+        var isPickerStyleCall = query.Origin is not null || query.SearchText is not null
+            || query.CompatibleWithMachineName is not null || query.MaterialType is not null
+            || query.Page is not null || query.PageSize is not null;
+
+        if (!isPickerStyleCall)
+        {
+            return await BuildLegacyBrowsePageResultAsync(cancellationToken);
+        }
+
+        var page = query.Page ?? 1;
+        var (rows, totalCount) = await repository.SearchAsync(
+            ProfileOriginQueryParser.ParseEffectiveFilter(query.Origin), true, query.CompatibleWithMachineName,
+            query.MaterialType, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken);
+
+        var leanSummaries = rows.Select(r => new FilamentProfileSummary(
+            r.Id, r.Name, r.Origin, r.VendorName, r.SourceFormat, r.BaseProfileId, r.BaseProfileName,
+            false, null, null, null, null, null, null, null, null, [])
+        {
+            MaterialType = r.MaterialType,
+        }).ToList();
+
+        var reportedPageSize = query.PageSize ?? totalCount;
+
+        return new ProfilePage<FilamentProfileSummary>(leanSummaries, page, reportedPageSize, totalCount);
+    }
+
+    // Feature 003, FR-010/US3's original browse page, restricted to User rows only now that System
+    // rows exist in the same table (009 FR-013 — System profiles are picker-only, never browsable/
+    // importable here). `byId` still spans every origin so a User row's BaseProfileId chain can
+    // resolve through a System ancestor; only the emitted top-level rows are User-filtered.
+    private async Task<ProfilePage<FilamentProfileSummary>> BuildLegacyBrowsePageResultAsync(CancellationToken cancellationToken)
     {
         var rows = await repository.ListAsync(cancellationToken);
         var byId = rows.ToDictionary(r => r.Id);
+        var userRows = rows.Where(r => r.Origin == ProfileOrigin.User).ToList();
 
-        var summaries = new List<FilamentProfileSummary>(rows.Count);
+        var summaries = new List<FilamentProfileSummary>(userRows.Count);
 
-        foreach (var row in rows)
+        foreach (var row in userRows)
         {
             var (ancestorsOldestFirst, hasUnresolvedBase) = WalkInMemory(row.Id, byId);
             var merged = ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);
             var fields = parser.ExtractFilamentDisplayFields(merged, row.SourceFormat, row.Name, hasBaseProfileName: row.BaseProfileName is not null);
 
             summaries.Add(new FilamentProfileSummary(
-                row.Id, row.Name, row.SourceFormat, row.BaseProfileId, row.BaseProfileName, hasUnresolvedBase,
+                row.Id, row.Name, row.Origin, row.VendorName, row.SourceFormat, row.BaseProfileId, row.BaseProfileName, hasUnresolvedBase,
                 fields.Material, fields.Brand, fields.ColorHex, fields.NozzleSizeMm, fields.NozzleTempC, fields.BedTempC,
-                fields.MaxVolumetricSpeedMm3s, fields.FanPercent, fields.CompatiblePrinterNames));
+                fields.MaxVolumetricSpeedMm3s, fields.FanPercent, fields.CompatiblePrinterNames)
+            {
+                MaterialType = row.MaterialType,
+            });
         }
 
-        return summaries;
+        return new ProfilePage<FilamentProfileSummary>(summaries, 1, summaries.Count, summaries.Count);
     }
 
     private static (List<string> AncestorsOldestFirst, bool HasUnresolvedBase) WalkInMemory(

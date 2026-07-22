@@ -5,10 +5,22 @@ using OpenFarm.Application.Profiles;
 
 namespace OpenFarm.Api.Endpoints.Profiles;
 
+public sealed class ListProcessProfilesRequest
+{
+    public string? Origin { get; set; }
+    public string? Q { get; set; }
+    public string? CompatibleWithMachineName { get; set; }
+    public Guid? PrinterId { get; set; }
+    public int? Page { get; set; }
+    public int? PageSize { get; set; }
+}
+
 public sealed class ProcessProfileResponse
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string Origin { get; set; } = string.Empty;
+    public string? VendorName { get; set; }
     public string SourceFormat { get; set; } = string.Empty;
     public Guid? BaseProfileId { get; set; }
     public string? BaseProfileName { get; set; }
@@ -21,6 +33,8 @@ public sealed class ProcessProfileResponse
     {
         Id = summary.Id,
         Name = summary.Name,
+        Origin = summary.Origin.ToString(),
+        VendorName = summary.VendorName,
         SourceFormat = summary.SourceFormat.ToString(),
         BaseProfileId = summary.BaseProfileId,
         BaseProfileName = summary.BaseProfileName,
@@ -33,13 +47,19 @@ public sealed class ProcessProfileResponse
 
 public sealed class ListProcessProfilesResponse
 {
-    public List<ProcessProfileResponse> Profiles { get; set; } = [];
+    public List<ProcessProfileResponse> Items { get; set; } = [];
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+
+    // Only meaningful on a `printerId`-driven call (contracts/profiles-api.md) — null otherwise.
+    public bool? Available { get; set; }
 }
 
-// GET /api/v1/profiles/process.
+// GET /api/v1/profiles/process (extended for US2 picker use, contracts/profiles-api.md).
 [Permission("profiles:list-process")]
-public sealed class ListProcessProfilesEndpoint(IQueryHandler<GetProcessProfilesQuery, IReadOnlyList<ProcessProfileSummary>> handler)
-    : EndpointWithoutRequest<ListProcessProfilesResponse>
+public sealed class ListProcessProfilesEndpoint(IQueryHandler<GetProcessProfilesQuery, ProfilePage<ProcessProfileSummary>> handler)
+    : Endpoint<ListProcessProfilesRequest, ListProcessProfilesResponse>
 {
     public override void Configure()
     {
@@ -47,9 +67,18 @@ public sealed class ListProcessProfilesEndpoint(IQueryHandler<GetProcessProfiles
         Policies("Permission");
     }
 
-    public override async Task HandleAsync(CancellationToken ct)
+    public override async Task HandleAsync(ListProcessProfilesRequest req, CancellationToken ct)
     {
-        var summaries = await handler.HandleAsync(new GetProcessProfilesQuery(), ct);
-        Response = new ListProcessProfilesResponse { Profiles = summaries.Select(ProcessProfileResponse.FromSummary).ToList() };
+        var result = await handler.HandleAsync(
+            new GetProcessProfilesQuery(req.Origin, req.Q, req.CompatibleWithMachineName, req.PrinterId, req.Page, req.PageSize), ct);
+
+        Response = new ListProcessProfilesResponse
+        {
+            Items = result.Items.Select(ProcessProfileResponse.FromSummary).ToList(),
+            Page = result.Page,
+            PageSize = result.PageSize,
+            TotalCount = result.TotalCount,
+            Available = result.Available,
+        };
     }
 }

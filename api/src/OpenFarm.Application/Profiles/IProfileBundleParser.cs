@@ -32,8 +32,7 @@ public interface IProfileBundleParser
 
 public sealed record ParsedProfileBundle(
     IReadOnlyList<ParsedMachinePreset> MachinePresets,
-    IReadOnlyList<ParsedFilamentPreset> FilamentPresets,
-    IReadOnlyList<ParsedProcessPreset> ProcessPresets);
+    IReadOnlyList<ParsedFilamentPreset> FilamentPresets);
 
 // The parser's own raw extraction of one preset — Name/SourceFormat/BaseProfileName are three of
 // the four real persisted columns a confirmed import would write; RawDataJson feeds both display-field
@@ -44,9 +43,6 @@ public sealed record ParsedMachinePreset(
     string Name, ProfileSourceFormat SourceFormat, string? BaseProfileName, string RawDataJson);
 
 public sealed record ParsedFilamentPreset(
-    string Name, ProfileSourceFormat SourceFormat, string? BaseProfileName, string RawDataJson);
-
-public sealed record ParsedProcessPreset(
     string Name, ProfileSourceFormat SourceFormat, string? BaseProfileName, string RawDataJson);
 
 public sealed record MachineProfileDisplayFields(

@@ -46,12 +46,12 @@ public class ListProfilesEndpointTests(CustomWebApplicationFactory factory) : IC
         confirmResponse.EnsureSuccessStatusCode();
 
         var machineList = await client.GetFromJsonAsync<ListMachineProfilesResponse>(new Uri("/api/v1/profiles/machine", UriKind.Relative));
-        var machineEntry = machineList!.Profiles.Should().ContainSingle(p => p.Name == machineName).Subject;
+        var machineEntry = machineList!.Items.Should().ContainSingle(p => p.Name == machineName).Subject;
         machineEntry.SourceFormat.Should().Be("OrcaSlicer");
         machineEntry.NozzleSizeMm.Should().Be(0.4);
 
         var filamentList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
-        var filamentEntry = filamentList!.Profiles.Should().ContainSingle(p => p.Name == filamentName).Subject;
+        var filamentEntry = filamentList!.Items.Should().ContainSingle(p => p.Name == filamentName).Subject;
         filamentEntry.SourceFormat.Should().Be("OrcaSlicer");
         filamentEntry.Material.Should().Be("PLA");
     }

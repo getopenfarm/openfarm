@@ -67,10 +67,10 @@ public class CompatiblePrinterNamesTests(CustomWebApplicationFactory factory) : 
 
         var filamentList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
 
-        var withExisting = filamentList!.Profiles.Should().ContainSingle(p => p.Name == filamentWithExistingPrinterName).Subject;
+        var withExisting = filamentList!.Items.Should().ContainSingle(p => p.Name == filamentWithExistingPrinterName).Subject;
         withExisting.CompatiblePrinterNames.Should().ContainSingle().Which.Should().Be(printerName);
 
-        var withUnknown = filamentList.Profiles.Should().ContainSingle(p => p.Name == filamentWithUnknownPrinterName).Subject;
+        var withUnknown = filamentList.Items.Should().ContainSingle(p => p.Name == filamentWithUnknownPrinterName).Subject;
         withUnknown.CompatiblePrinterNames.Should().ContainSingle().Which.Should().Be(unknownPrinterName);
     }
 
@@ -84,7 +84,7 @@ public class CompatiblePrinterNamesTests(CustomWebApplicationFactory factory) : 
         await ConfirmSingleFilamentAsync(client, filamentName, $$"""{"name":"{{filamentName}}"}""");
 
         var filamentList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
-        var entry = filamentList!.Profiles.Should().ContainSingle(p => p.Name == filamentName).Subject;
+        var entry = filamentList!.Items.Should().ContainSingle(p => p.Name == filamentName).Subject;
 
         entry.CompatiblePrinterNames.Should().ContainSingle().Which.Should().Be($"Bambu X1 Carbon {suffix}");
     }

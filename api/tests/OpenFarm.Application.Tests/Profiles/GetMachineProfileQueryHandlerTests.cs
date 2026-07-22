@@ -7,61 +7,52 @@ namespace OpenFarm.Application.Tests.Profiles;
 
 public class GetMachineProfileQueryHandlerTests
 {
-    private static GetMachineProfileQueryHandler CreateHandler(
-        FakeMachineProfileRepository machineRepo, FakeProcessProfileRepository processRepo) =>
-        new(machineRepo, processRepo, new StubProfileBundleParser());
+    private static GetMachineProfileQueryHandler CreateHandler(FakeMachineProfileRepository machineRepo) =>
+        new(machineRepo, new StubProfileBundleParser());
 
     [Fact]
-    public async Task HandleAsync_MachineHasPairedProcessProfile_ReturnsItsIdAndName()
+    public async Task HandleAsync_UserImportedRow_ReturnsUserOriginAndNoVendorName()
     {
         var machineRepo = new FakeMachineProfileRepository();
-        var processRepo = new FakeProcessProfileRepository();
 
         var machine = MachineProfile.Create(Guid.NewGuid(), "Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
-        var process = ProcessProfile.Create(machine.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, "{}");
-        machine.SetDefaultProcessProfile(process.Id);
         await machineRepo.AddAsync(machine, CancellationToken.None);
-        await processRepo.AddAsync(process, CancellationToken.None);
 
-        var handler = CreateHandler(machineRepo, processRepo);
+        var handler = CreateHandler(machineRepo);
 
         var detail = await handler.HandleAsync(new GetMachineProfileQuery(machine.Id), CancellationToken.None);
 
-        detail!.DefaultProcessProfileId.Should().Be(process.Id);
-        detail.DefaultProcessProfileName.Should().Be("0.20mm Standard");
+        detail!.Origin.Should().Be(ProfileOrigin.User);
+        detail.VendorName.Should().BeNull();
     }
 
     [Fact]
-    public async Task HandleAsync_PairedProcessProfileRowIsMissing_DegradesToNullRatherThanThrowing()
+    public async Task HandleAsync_SystemIngestedRow_ReturnsSystemOriginAndVendorName()
     {
         var machineRepo = new FakeMachineProfileRepository();
-        var processRepo = new FakeProcessProfileRepository();
 
-        var machine = MachineProfile.Create(Guid.NewGuid(), "Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
-        machine.SetDefaultProcessProfile(Guid.NewGuid());
+        var machine = MachineProfile.CreateSystemProfile(
+            Guid.NewGuid(), "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambulab", "GM001", isSelectable: true, vendorMachineModelName: "Bambu Lab X1 Carbon", includedTemplateNames: null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
-        var handler = CreateHandler(machineRepo, processRepo);
+        var handler = CreateHandler(machineRepo);
 
         var detail = await handler.HandleAsync(new GetMachineProfileQuery(machine.Id), CancellationToken.None);
 
-        detail!.DefaultProcessProfileId.Should().Be(machine.DefaultProcessProfileId);
-        detail.DefaultProcessProfileName.Should().BeNull();
+        detail!.Origin.Should().Be(ProfileOrigin.System);
+        detail.VendorName.Should().Be("Bambulab");
     }
 
     [Fact]
-    public async Task HandleAsync_MachineHasNoPairedProcessProfile_BothAreNull()
+    public async Task HandleAsync_UnknownId_ReturnsNull()
     {
         var machineRepo = new FakeMachineProfileRepository();
-        var machine = MachineProfile.Create(Guid.NewGuid(), "Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
-        await machineRepo.AddAsync(machine, CancellationToken.None);
+        var handler = CreateHandler(machineRepo);
 
-        var handler = CreateHandler(machineRepo, new FakeProcessProfileRepository());
+        var detail = await handler.HandleAsync(new GetMachineProfileQuery(Guid.NewGuid()), CancellationToken.None);
 
-        var detail = await handler.HandleAsync(new GetMachineProfileQuery(machine.Id), CancellationToken.None);
-
-        detail!.DefaultProcessProfileId.Should().BeNull();
-        detail.DefaultProcessProfileName.Should().BeNull();
+        detail.Should().BeNull();
     }
 
     private sealed class StubProfileBundleParser : IProfileBundleParser

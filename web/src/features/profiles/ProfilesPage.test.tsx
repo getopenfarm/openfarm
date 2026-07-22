@@ -15,10 +15,9 @@ function jsonResponse(body: unknown, status = 200) {
 function stubFetch(routes: Record<string, unknown>) {
   // Longest path first, so a specific route (e.g. "/profiles/machine/m1") is matched before a
   // more general one that's also a substring of it (e.g. "/profiles/machine").
-  const sortedRoutes = Object.entries({
-    '/profiles/process': { profiles: [] },
-    ...routes,
-  }).sort(([a], [b]) => b.length - a.length);
+  const sortedRoutes = Object.entries(routes).sort(
+    ([a], [b]) => b.length - a.length,
+  );
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input.toString();
     for (const [path, body] of sortedRoutes) {
@@ -49,25 +48,27 @@ function renderPage() {
 describe('ProfilesPage', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('renders the Machine/Process/Filament tabs and the Import trigger', async () => {
+  it('renders the Machine/Filament tabs (no Process tab, FR-011/FR-013) and the Import trigger', async () => {
     stubFetch({
-      '/profiles/machine': { profiles: [] },
-      '/profiles/filament': { profiles: [] },
+      '/profiles/machine': { items: [] },
+      '/profiles/filament': { items: [] },
     });
 
     renderPage();
 
     expect(screen.getByText('Profiles')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Machine' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Process' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Filament' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: 'Process' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
   });
 
   it('shows an empty-state message before any profiles are imported', async () => {
     stubFetch({
-      '/profiles/machine': { profiles: [] },
-      '/profiles/filament': { profiles: [] },
+      '/profiles/machine': { items: [] },
+      '/profiles/filament': { items: [] },
     });
 
     renderPage();
@@ -83,7 +84,7 @@ describe('ProfilesPage', () => {
   it('renders imported profiles in the catalog tables', async () => {
     stubFetch({
       '/profiles/machine': {
-        profiles: [
+        items: [
           {
             id: 'm1',
             name: 'Bambu X1 Carbon 0.4 nozzle',
@@ -100,7 +101,7 @@ describe('ProfilesPage', () => {
           },
         ],
       },
-      '/profiles/filament': { profiles: [] },
+      '/profiles/filament': { items: [] },
     });
 
     renderPage();
@@ -110,42 +111,11 @@ describe('ProfilesPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders imported process profiles in the Process tab', async () => {
-    const user = userEvent.setup();
-    stubFetch({
-      '/profiles/machine': { profiles: [] },
-      '/profiles/filament': { profiles: [] },
-      '/profiles/process': {
-        profiles: [
-          {
-            id: 'p1',
-            name: '0.20mm Standard @BIQU B1',
-            sourceFormat: 'OrcaSlicer',
-            baseProfileId: null,
-            baseProfileName: null,
-            hasUnresolvedBaseInChain: false,
-            layerHeightMm: 0.2,
-            wallLoops: 3,
-            compatiblePrinterNames: [],
-          },
-        ],
-      },
-    });
-
-    renderPage();
-
-    await user.click(screen.getByRole('tab', { name: 'Process' }));
-
-    expect(
-      await screen.findByText('0.20mm Standard @BIQU B1'),
-    ).toBeInTheDocument();
-  });
-
   it('opens the raw data dialog within one interaction from a catalog row (SC-006)', async () => {
     const user = userEvent.setup();
     stubFetch({
       '/profiles/machine': {
-        profiles: [
+        items: [
           {
             id: 'm1',
             name: 'Bambu X1 Carbon 0.4 nozzle',
@@ -162,7 +132,7 @@ describe('ProfilesPage', () => {
           },
         ],
       },
-      '/profiles/filament': { profiles: [] },
+      '/profiles/filament': { items: [] },
       '/profiles/machine/m1': {
         id: 'm1',
         name: 'Bambu X1 Carbon 0.4 nozzle',
@@ -188,53 +158,5 @@ describe('ProfilesPage', () => {
 
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
     expect(await screen.findByText(/nozzle_diameter/)).toBeInTheDocument();
-  });
-
-  it('opens a process profile view-only, with no Save button', async () => {
-    const user = userEvent.setup();
-    stubFetch({
-      '/profiles/machine': { profiles: [] },
-      '/profiles/filament': { profiles: [] },
-      '/profiles/process': {
-        profiles: [
-          {
-            id: 'p1',
-            name: '0.20mm Standard @BIQU B1',
-            sourceFormat: 'OrcaSlicer',
-            baseProfileId: null,
-            baseProfileName: null,
-            hasUnresolvedBaseInChain: false,
-            layerHeightMm: 0.2,
-            wallLoops: 3,
-            compatiblePrinterNames: [],
-          },
-        ],
-      },
-      '/profiles/process/p1': {
-        id: 'p1',
-        name: '0.20mm Standard @BIQU B1',
-        sourceFormat: 'OrcaSlicer',
-        baseProfileId: null,
-        baseProfileName: null,
-        hasUnresolvedBaseInChain: false,
-        rawDataJson: '{"layer_height":"0.2"}',
-        createdAtUtc: '2026-01-01T00:00:00Z',
-        layerHeightMm: 0.2,
-        wallLoops: 3,
-        compatiblePrinterNames: [],
-      },
-    });
-
-    renderPage();
-
-    await user.click(screen.getByRole('tab', { name: 'Process' }));
-    const row = await screen.findByText('0.20mm Standard @BIQU B1');
-    await user.click(row);
-
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-    expect(await screen.findByText(/layer_height/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Save' }),
-    ).not.toBeInTheDocument();
   });
 });

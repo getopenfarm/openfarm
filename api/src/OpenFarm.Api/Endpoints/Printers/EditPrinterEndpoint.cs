@@ -1,9 +1,11 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using FastEndpoints;
 using FluentValidation;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Printers;
 using EditPrinterHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.EditPrinterCommand, OpenFarm.Domain.Printers.Printer>;
 
@@ -24,6 +26,12 @@ public sealed class EditPrinterRequest : IActivityLoggable
     public string? ModelCode { get; set; }
 
     public string? SerialNumber { get; set; }
+
+    // 009 US2 — applied exactly as sent (null = clear), unlike IpAddress/AccessCode above
+    // (contracts/profiles-api.md).
+    public Guid? MachineProfileId { get; set; }
+
+    public Guid? ProcessProfileId { get; set; }
 
     public string EntityType => "Printer";
 
@@ -75,7 +83,17 @@ public sealed class EditPrinterEndpoint(EditPrinterHandler handler)
     {
         req.Id = Route<Guid>("id");
 
-        var command = new EditPrinterCommand(req.Id, req.Name, req.IpAddress, req.AccessCode, req.Brand, req.ModelCode, req.SerialNumber);
+        // Same JWT-claim resolution ActivityLogPostProcessor uses for the base PrinterEdited event —
+        // needed here too so the handler's own granular profile-link events (FR-016) attribute the
+        // same actor, not a second, possibly-inconsistent extraction.
+        var sub = HttpContext.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        var (actorId, actorType) = Guid.TryParse(sub, out var parsedActorId)
+            ? (parsedActorId, ActorType.Operator)
+            : ((Guid?)null, ActorType.System);
+
+        var command = new EditPrinterCommand(
+            req.Id, req.Name, req.IpAddress, req.AccessCode, req.Brand, req.ModelCode, req.SerialNumber,
+            req.MachineProfileId, req.ProcessProfileId, actorId, actorType);
         var printer = await handler.HandleAsync(command, ct);
 
         Response = PrinterSummaryResponse.FromDomain(printer);

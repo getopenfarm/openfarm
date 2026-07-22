@@ -53,8 +53,8 @@ public class BaseOverrideResolutionTests(CustomWebApplicationFactory factory) : 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var filamentList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
-        var basePresetId = filamentList!.Profiles.Single(p => p.Name == baseName).Id;
-        var overridePreset = filamentList.Profiles.Single(p => p.Name == overrideName);
+        var basePresetId = filamentList!.Items.Single(p => p.Name == baseName).Id;
+        var overridePreset = filamentList.Items.Single(p => p.Name == overrideName);
 
         overridePreset.BaseProfileId.Should().Be(basePresetId);
         overridePreset.BaseProfileName.Should().Be(baseName);
@@ -81,7 +81,7 @@ public class BaseOverrideResolutionTests(CustomWebApplicationFactory factory) : 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var filamentList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
-        var overridePreset = filamentList!.Profiles.Single(p => p.Name == overrideName);
+        var overridePreset = filamentList!.Items.Single(p => p.Name == overrideName);
 
         overridePreset.BaseProfileId.Should().BeNull();
         overridePreset.BaseProfileName.Should().Be(baseName);
@@ -113,7 +113,7 @@ public class BaseOverrideResolutionTests(CustomWebApplicationFactory factory) : 
         }
 
         var beforeList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
-        beforeList!.Profiles.Count(p => p.Name == baseName).Should().Be(2);
+        beforeList!.Items.Count(p => p.Name == baseName).Should().Be(2);
 
         var overrideName = $"Generic PLA {suffix} - Third";
         var thirdBundle = ProfileBundleTestHelper.BuildZip(
@@ -127,7 +127,7 @@ public class BaseOverrideResolutionTests(CustomWebApplicationFactory factory) : 
         thirdResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var afterList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
-        var overridePreset = afterList!.Profiles.Single(p => p.Name == overrideName);
+        var overridePreset = afterList!.Items.Single(p => p.Name == overrideName);
 
         // Ambiguous (2 same-named candidates) collapses to the identical shape as no match at all —
         // resolving to one arbitrarily would be a silent wrong guess (research.md §3).
