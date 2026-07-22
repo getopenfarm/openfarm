@@ -167,4 +167,44 @@ public class VendorProfileIndexReaderTests
             tempDir.Delete(recursive: true);
         }
     }
+
+    // Regression: a real installed Bambu Studio bundle nests every preset one level deeper than the
+    // vendor index file itself (resources/profiles/BBL.json indexes resources/profiles/BBL/machine/…,
+    // not resources/profiles/machine/…, in a subdirectory named after the index file's own stem) — the
+    // OrcaSlicer/BambuStudio fixtures above use a flattened layout that never exercised this, so
+    // ingestion against a real bundle silently skipped every single preset file as "missing".
+    [Fact]
+    public void ReadPresets_RealBundleLayout_ResolvesPresetsNestedUnderAVendorNamedSubdirectory()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("vendor-index-nested-layout-");
+        try
+        {
+            var indexPath = Path.Combine(tempDir.FullName, "BBL.json");
+            File.WriteAllText(indexPath, """
+                {
+                  "name": "Bambulab",
+                  "machine_model_list": [],
+                  "machine_list": [
+                    { "name": "fdm_machine_common", "sub_path": "machine/fdm_machine_common.json" }
+                  ],
+                  "process_list": [],
+                  "filament_list": []
+                }
+                """);
+
+            var nestedMachineDir = Directory.CreateDirectory(Path.Combine(tempDir.FullName, "BBL", "machine"));
+            File.WriteAllText(
+                Path.Combine(nestedMachineDir.FullName, "fdm_machine_common.json"),
+                """{ "name": "fdm_machine_common", "type": "machine", "instantiation": "false" }""");
+
+            var result = Reader.ReadPresets(indexPath, ProfileKind.Machine);
+
+            result.SkippedEntries.Should().BeEmpty();
+            result.Presets.Should().ContainSingle(p => p.Name == "fdm_machine_common");
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
 }

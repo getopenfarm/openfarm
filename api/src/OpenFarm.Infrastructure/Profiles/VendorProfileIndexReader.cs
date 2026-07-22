@@ -96,6 +96,11 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
         var listKey = ListKeys[kind];
         var expectedType = ExpectedTypeStrings[kind];
         var baseDirectory = Path.GetDirectoryName(vendorIndexFilePath) ?? string.Empty;
+        // A real bundle (confirmed against a real Bambu Studio install, not just this repo's
+        // simplified/flattened test fixtures) nests every preset one level deeper than the vendor
+        // index file itself — resources/profiles/BBL.json indexes resources/profiles/BBL/machine/…,
+        // not resources/profiles/machine/… — in a subdirectory named after the index file's own stem.
+        var vendorSubdirectory = Path.Combine(baseDirectory, Path.GetFileNameWithoutExtension(vendorIndexFilePath));
 
         var presets = new List<ParsedVendorPreset>();
         var skipped = new List<string>();
@@ -115,7 +120,10 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
                 continue;
             }
 
-            var presetPath = Path.Combine(baseDirectory, subPath.Replace('/', Path.DirectorySeparatorChar));
+            var relativePath = subPath.Replace('/', Path.DirectorySeparatorChar);
+            var flatPath = Path.Combine(baseDirectory, relativePath);
+            var nestedPath = Path.Combine(vendorSubdirectory, relativePath);
+            var presetPath = File.Exists(nestedPath) ? nestedPath : flatPath;
 
             string rawJson;
             JsonDocument presetDocument;
