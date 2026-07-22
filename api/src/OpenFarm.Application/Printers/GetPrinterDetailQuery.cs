@@ -21,4 +21,6 @@ public sealed record PrinterDetail(
     string? CurrentJobName,
     IReadOnlyList<AmsUnit> AmsUnits,
     Guid? MachineProfileId,
-    string? MachineProfileName);
+    string? MachineProfileName,
+    Guid? ProcessProfileId,
+    string? ProcessProfileName);

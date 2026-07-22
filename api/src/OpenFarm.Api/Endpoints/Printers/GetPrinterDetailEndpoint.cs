@@ -71,6 +71,10 @@ public sealed class PrinterDetailResponse
     public Guid? MachineProfileId { get; set; }
 
     public string? MachineProfileName { get; set; }
+
+    public Guid? ProcessProfileId { get; set; }
+
+    public string? ProcessProfileName { get; set; }
 }
 
 [Permission("printers:get-detail")]
@@ -133,6 +137,8 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                 .ToList(),
             MachineProfileId = detail.MachineProfileId,
             MachineProfileName = detail.MachineProfileName,
+            ProcessProfileId = detail.ProcessProfileId,
+            ProcessProfileName = detail.ProcessProfileName,
         };
     }
 }

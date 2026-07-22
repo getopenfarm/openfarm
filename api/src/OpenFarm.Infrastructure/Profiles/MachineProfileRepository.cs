@@ -34,5 +34,47 @@ public sealed class MachineProfileRepository(OpenFarmDbContext dbContext) : IMac
         dbContext.MachineProfiles.FirstOrDefaultAsync(
             p => p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name, cancellationToken);
 
+    public async Task<(IReadOnlyList<MachineProfile> Items, int TotalCount)> SearchAsync(
+        ProfileOrigin? origin,
+        bool? isSelectable,
+        string? compatibleWithMachineName,
+        string? materialType,
+        string? searchText,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        // compatibleWithMachineName/materialType have no matching column on MachineProfile — a
+        // machine profile IS a machine, so neither filter applies here (research.md §6).
+        var query = dbContext.MachineProfiles.AsNoTracking().AsQueryable();
+
+        if (origin is { } requestedOrigin)
+        {
+            query = query.Where(p => p.Origin == requestedOrigin);
+        }
+
+        query = ApplySelectabilityGate(query, isSelectable);
+
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            query = query.Where(p => EF.Functions.ILike(p.Name, $"%{searchText}%"));
+        }
+
+        query = query.OrderBy(p => p.Name);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
+    private static IQueryable<MachineProfile> ApplySelectabilityGate(IQueryable<MachineProfile> query, bool? isSelectable) =>
+        isSelectable switch
+        {
+            true => query.Where(p => (p.IsSelectable && p.IsCurrentlyOffered) || p.Origin == ProfileOrigin.User),
+            false => query.Where(p => !((p.IsSelectable && p.IsCurrentlyOffered) || p.Origin == ProfileOrigin.User)),
+            null => query,
+        };
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

@@ -132,7 +132,9 @@ export function PrinterDetailPage() {
               <AmsSlotGrid amsUnits={printer.amsUnits ?? []} />
               <MachineProfileLinkCard
                 printerId={printer.id ?? ''}
+                printerName={printer.name ?? ''}
                 machineProfileId={printer.machineProfileId}
+                processProfileId={printer.processProfileId}
               />
               <FeedUnitsCard printerId={printer.id ?? ''} />
               <RecentActivityCard printerId={printer.id ?? ''} />

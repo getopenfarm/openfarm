@@ -73,7 +73,6 @@ using DiscardPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommand
 using DeletePartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DeletePartCommand, bool>;
 using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.TagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
 using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
-using LinkPrinterMachineProfileHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.LinkPrinterMachineProfileCommand, OpenFarm.Domain.Printers.Printer>;
 using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -242,9 +241,9 @@ builder.Services.AddScoped<VendorProfileIndexReader>();
 builder.Services.AddScoped<ISystemProfileIngestionService, SystemProfileIngestionService>();
 builder.Services.AddScoped<PreviewProfileImportHandlerType, PreviewProfileImportCommandHandler>();
 builder.Services.AddScoped<ConfirmProfileImportHandlerType, ConfirmProfileImportCommandHandler>();
-builder.Services.AddScoped<IQueryHandler<GetMachineProfilesQuery, IReadOnlyList<MachineProfileSummary>>, GetMachineProfilesQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetFilamentProfilesQuery, IReadOnlyList<FilamentProfileSummary>>, GetFilamentProfilesQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetProcessProfilesQuery, IReadOnlyList<ProcessProfileSummary>>, GetProcessProfilesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetMachineProfilesQuery, ProfilePage<MachineProfileSummary>>, GetMachineProfilesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFilamentProfilesQuery, ProfilePage<FilamentProfileSummary>>, GetFilamentProfilesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetProcessProfilesQuery, ProfilePage<ProcessProfileSummary>>, GetProcessProfilesQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMachineProfileQuery, MachineProfileDetail?>, GetMachineProfileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentProfileQuery, FilamentProfileDetail?>, GetFilamentProfileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProcessProfileQuery, ProcessProfileDetail?>, GetProcessProfileQueryHandler>();
@@ -326,7 +325,6 @@ builder.Services.AddScoped<DiscardPartProcessingJobHandlerType, DiscardPartProce
 builder.Services.AddScoped<DeletePartHandlerType, DeletePartCommandHandler>();
 builder.Services.AddScoped<TagPartHandlerType, TagPartCommandHandler>();
 builder.Services.AddScoped<UntagPartHandlerType, UntagPartCommandHandler>();
-builder.Services.AddScoped<LinkPrinterMachineProfileHandlerType, LinkPrinterMachineProfileCommandHandler>();
 builder.Services.AddScoped<UpdateSlicingDefaultsHandlerType, UpdateSlicingDefaultsCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>, GetPartProcessingJobQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartsQuery, PartsPage>, GetPartsQueryHandler>();

@@ -298,6 +298,11 @@ export interface ProcessProfileDetailResponse {
 export interface FilamentProfileResponse {
   id?: string;
   name?: string;
+  origin?: string;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  materialType?: string | null;
   sourceFormat?: string;
   /** @nullable */
   baseProfileId?: string | null;
@@ -324,12 +329,18 @@ export interface FilamentProfileResponse {
 }
 
 export interface ListFilamentProfilesResponse {
-  profiles?: FilamentProfileResponse[];
+  items?: FilamentProfileResponse[];
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
 }
 
 export interface MachineProfileResponse {
   id?: string;
   name?: string;
+  origin?: string;
+  /** @nullable */
+  vendorName?: string | null;
   sourceFormat?: string;
   /** @nullable */
   baseProfileId?: string | null;
@@ -350,12 +361,18 @@ export interface MachineProfileResponse {
 }
 
 export interface ListMachineProfilesResponse {
-  profiles?: MachineProfileResponse[];
+  items?: MachineProfileResponse[];
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
 }
 
 export interface ProcessProfileResponse {
   id?: string;
   name?: string;
+  origin?: string;
+  /** @nullable */
+  vendorName?: string | null;
   sourceFormat?: string;
   /** @nullable */
   baseProfileId?: string | null;
@@ -370,7 +387,12 @@ export interface ProcessProfileResponse {
 }
 
 export interface ListProcessProfilesResponse {
-  profiles?: ProcessProfileResponse[];
+  items?: ProcessProfileResponse[];
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+  /** @nullable */
+  available?: boolean | null;
 }
 
 export interface MachinePresetPreviewItem {
@@ -485,6 +507,10 @@ export interface EditPrinterRequest {
   modelCode?: string | null;
   /** @nullable */
   serialNumber?: string | null;
+  /** @nullable */
+  machineProfileId?: string | null;
+  /** @nullable */
+  processProfileId?: string | null;
 }
 
 export interface PrinterCatalogBrandResponse {
@@ -545,6 +571,10 @@ export interface PrinterDetailResponse {
   machineProfileId?: string | null;
   /** @nullable */
   machineProfileName?: string | null;
+  /** @nullable */
+  processProfileId?: string | null;
+  /** @nullable */
+  processProfileName?: string | null;
 }
 
 export interface LinkPrinterMachineProfileResponse {

@@ -21,5 +21,16 @@ public interface IFilamentProfileRepository
 
     Task<FilamentProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken);
 
+    // US2 picker query (research.md §6) — paginated/searchable, unlike ListAsync above.
+    Task<(IReadOnlyList<FilamentProfile> Items, int TotalCount)> SearchAsync(
+        ProfileOrigin? origin,
+        bool? isSelectable,
+        string? compatibleWithMachineName,
+        string? materialType,
+        string? searchText,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

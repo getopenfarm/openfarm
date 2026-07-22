@@ -50,8 +50,8 @@ describe('ProfilesPage', () => {
 
   it('renders the Machine/Filament tabs (no Process tab, FR-011/FR-013) and the Import trigger', async () => {
     stubFetch({
-      '/profiles/machine': { profiles: [] },
-      '/profiles/filament': { profiles: [] },
+      '/profiles/machine': { items: [] },
+      '/profiles/filament': { items: [] },
     });
 
     renderPage();
@@ -67,8 +67,8 @@ describe('ProfilesPage', () => {
 
   it('shows an empty-state message before any profiles are imported', async () => {
     stubFetch({
-      '/profiles/machine': { profiles: [] },
-      '/profiles/filament': { profiles: [] },
+      '/profiles/machine': { items: [] },
+      '/profiles/filament': { items: [] },
     });
 
     renderPage();
@@ -84,7 +84,7 @@ describe('ProfilesPage', () => {
   it('renders imported profiles in the catalog tables', async () => {
     stubFetch({
       '/profiles/machine': {
-        profiles: [
+        items: [
           {
             id: 'm1',
             name: 'Bambu X1 Carbon 0.4 nozzle',
@@ -101,7 +101,7 @@ describe('ProfilesPage', () => {
           },
         ],
       },
-      '/profiles/filament': { profiles: [] },
+      '/profiles/filament': { items: [] },
     });
 
     renderPage();
@@ -115,7 +115,7 @@ describe('ProfilesPage', () => {
     const user = userEvent.setup();
     stubFetch({
       '/profiles/machine': {
-        profiles: [
+        items: [
           {
             id: 'm1',
             name: 'Bambu X1 Carbon 0.4 nozzle',
@@ -132,7 +132,7 @@ describe('ProfilesPage', () => {
           },
         ],
       },
-      '/profiles/filament': { profiles: [] },
+      '/profiles/filament': { items: [] },
       '/profiles/machine/m1': {
         id: 'm1',
         name: 'Bambu X1 Carbon 0.4 nozzle',

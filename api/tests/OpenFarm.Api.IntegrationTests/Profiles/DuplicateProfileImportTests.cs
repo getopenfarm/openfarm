@@ -62,7 +62,7 @@ public class DuplicateProfileImportTests(CustomWebApplicationFactory factory) : 
         await ConfirmSingleFilamentAsync(client, name, duplicateAction: "Skip");
 
         var filamentList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
-        filamentList!.Profiles.Count(p => p.Name == name).Should().Be(1);
+        filamentList!.Items.Count(p => p.Name == name).Should().Be(1);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class DuplicateProfileImportTests(CustomWebApplicationFactory factory) : 
         await ConfirmSingleFilamentAsync(client, name, duplicateAction: "ImportAsNew");
 
         var filamentList = await client.GetFromJsonAsync<ListFilamentProfilesResponse>(new Uri("/api/v1/profiles/filament", UriKind.Relative));
-        filamentList!.Profiles.Count(p => p.Name == name).Should().Be(2);
+        filamentList!.Items.Count(p => p.Name == name).Should().Be(2);
     }
 
     private static async Task ConfirmSingleFilamentAsync(HttpClient client, string name, string? duplicateAction)

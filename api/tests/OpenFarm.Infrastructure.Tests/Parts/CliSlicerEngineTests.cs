@@ -169,6 +169,11 @@ public class CliSlicerEngineTests
         public Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
             Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
+        public Task<(IReadOnlyList<MachineProfile> Items, int TotalCount)> SearchAsync(
+            ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
+            string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not exercised by CliSlicerEngineTests.");
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
@@ -191,6 +196,11 @@ public class CliSlicerEngineTests
         public Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
             Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
+        public Task<(IReadOnlyList<ProcessProfile> Items, int TotalCount)> SearchAsync(
+            ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
+            string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not exercised by CliSlicerEngineTests.");
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
@@ -212,6 +222,11 @@ public class CliSlicerEngineTests
 
         public Task<FilamentProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
             Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+
+        public Task<(IReadOnlyList<FilamentProfile> Items, int TotalCount)> SearchAsync(
+            ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
+            string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not exercised by CliSlicerEngineTests.");
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

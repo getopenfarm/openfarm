@@ -3,11 +3,19 @@ using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Profiles;
 
-public sealed record GetMachineProfilesQuery;
+// All fields null/omitted reproduces feature 003's exact original call (FR-013) — every other
+// combination is the US2 picker's paginated/searchable path (research.md §6).
+public sealed record GetMachineProfilesQuery(
+    string? Origin = null,
+    string? SearchText = null,
+    int? Page = null,
+    int? PageSize = null);
 
 public sealed record MachineProfileSummary(
     Guid Id,
     string Name,
+    ProfileOrigin Origin,
+    string? VendorName,
     ProfileSourceFormat SourceFormat,
     Guid? BaseProfileId,
     string? BaseProfileName,
@@ -19,15 +27,42 @@ public sealed record MachineProfileSummary(
     bool? HasEnclosure,
     IReadOnlyList<string> SupportedMaterials);
 
-// One ListAsync call, then walks each row's BaseProfileId chain purely in memory over that same
-// fetched set (research.md §10) — no extra DB round trips, no recursive CTE (this feature's scale
-// doesn't share BOM decomposition's unlimited-depth story, constitution Principle V's own carve-out).
 public sealed class GetMachineProfilesQueryHandler(IMachineProfileRepository repository, IProfileBundleParser parser)
-    : IQueryHandler<GetMachineProfilesQuery, IReadOnlyList<MachineProfileSummary>>
+    : IQueryHandler<GetMachineProfilesQuery, ProfilePage<MachineProfileSummary>>
 {
     private const int MaxChainDepth = 32;
 
-    public async Task<IReadOnlyList<MachineProfileSummary>> HandleAsync(GetMachineProfilesQuery query, CancellationToken cancellationToken)
+    public async Task<ProfilePage<MachineProfileSummary>> HandleAsync(GetMachineProfilesQuery query, CancellationToken cancellationToken)
+    {
+        var isPickerStyleCall = query.Origin is not null || query.SearchText is not null || query.Page is not null || query.PageSize is not null;
+
+        if (!isPickerStyleCall)
+        {
+            return await BuildLegacyBrowsePageResultAsync(cancellationToken);
+        }
+
+        // US2 picker path (research.md §6) — the DB/repository already narrowed and paginated the
+        // rows, so lean fields are returned directly with no per-row ancestor-chain merge, keeping
+        // this responsive at a vendor's full ingested scale (SC-010) regardless of total catalog size.
+        var page = query.Page ?? 1;
+        var (rows, totalCount) = await repository.SearchAsync(
+            ProfileOriginQueryParser.ParseEffectiveFilter(query.Origin), true, null,
+            null, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken);
+
+        var leanSummaries = rows.Select(r => new MachineProfileSummary(
+            r.Id, r.Name, r.Origin, r.VendorName, r.SourceFormat, r.BaseProfileId, r.BaseProfileName,
+            false, null, null, null, null, null, [])).ToList();
+
+        // "Omit page" means one page containing everything (contracts/profiles-api.md) — the
+        // reported pageSize then reflects the actual row count, not the internal unbounded cap.
+        var reportedPageSize = query.PageSize ?? totalCount;
+
+        return new ProfilePage<MachineProfileSummary>(leanSummaries, page, reportedPageSize, totalCount);
+    }
+
+    // Identical to this handler's pre-US2 behavior (feature 003, FR-010/US3) — every User row's
+    // display fields, derived by merging its BaseProfileId chain purely in memory (research.md §10).
+    private async Task<ProfilePage<MachineProfileSummary>> BuildLegacyBrowsePageResultAsync(CancellationToken cancellationToken)
     {
         var rows = await repository.ListAsync(cancellationToken);
         var byId = rows.ToDictionary(r => r.Id);
@@ -41,11 +76,11 @@ public sealed class GetMachineProfilesQueryHandler(IMachineProfileRepository rep
             var fields = parser.ExtractMachineDisplayFields(merged, row.SourceFormat);
 
             summaries.Add(new MachineProfileSummary(
-                row.Id, row.Name, row.SourceFormat, row.BaseProfileId, row.BaseProfileName, hasUnresolvedBase,
+                row.Id, row.Name, row.Origin, row.VendorName, row.SourceFormat, row.BaseProfileId, row.BaseProfileName, hasUnresolvedBase,
                 fields.NozzleSizeMm, fields.BedSizeXMm, fields.BedSizeYMm, fields.MaxHeightMm, fields.HasEnclosure, fields.SupportedMaterials));
         }
 
-        return summaries;
+        return new ProfilePage<MachineProfileSummary>(summaries, 1, summaries.Count, summaries.Count);
     }
 
     private static (List<string> AncestorsOldestFirst, bool HasUnresolvedBase) WalkInMemory(

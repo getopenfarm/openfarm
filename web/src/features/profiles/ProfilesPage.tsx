@@ -59,10 +59,10 @@ export function ProfilesPage() {
 
   const machineProfiles =
     (machineListQuery.data?.data as ListMachineProfilesResponse | undefined)
-      ?.profiles ?? [];
+      ?.items ?? [];
   const filamentProfiles =
     (filamentListQuery.data?.data as ListFilamentProfilesResponse | undefined)
-      ?.profiles ?? [];
+      ?.items ?? [];
 
   const detailQuery =
     selected?.type === 'Machine' ? machineDetailQuery : filamentDetailQuery;

@@ -22,5 +22,19 @@ public interface IMachineProfileRepository
 
     Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken);
 
+    // US2 picker query (research.md §6) — paginated/searchable, unlike ListAsync above.
+    // `compatibleWithMachineName`/`materialType` have no meaning for machine profiles (a machine
+    // profile IS a machine) and are ignored here; kept in the signature so all three profile
+    // repositories share one shape.
+    Task<(IReadOnlyList<MachineProfile> Items, int TotalCount)> SearchAsync(
+        ProfileOrigin? origin,
+        bool? isSelectable,
+        string? compatibleWithMachineName,
+        string? materialType,
+        string? searchText,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

@@ -45,7 +45,7 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
       }
       if (method === 'GET' && url.includes('/api/v1/profiles/filament')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ profiles: [] }), {
+          new Response(JSON.stringify({ items: [] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           }),

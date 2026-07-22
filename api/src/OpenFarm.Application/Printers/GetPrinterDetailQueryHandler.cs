@@ -4,7 +4,9 @@ using OpenFarm.Application.Profiles;
 namespace OpenFarm.Application.Printers;
 
 public sealed class GetPrinterDetailQueryHandler(
-    IPrinterRepository printerRepository, IMachineProfileRepository machineProfileRepository)
+    IPrinterRepository printerRepository,
+    IMachineProfileRepository machineProfileRepository,
+    IProcessProfileRepository processProfileRepository)
     : IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>
 {
     public async Task<PrinterDetail?> HandleAsync(GetPrinterDetailQuery query, CancellationToken cancellationToken)
@@ -15,10 +17,14 @@ public sealed class GetPrinterDetailQueryHandler(
             return null;
         }
 
-        // The link can dangle if its Machine Profile was deleted independently — treated as
+        // The link can dangle if its Machine/Process Profile was deleted independently — treated as
         // unlinked for display purposes rather than surfacing as an error here.
-        var machineProfileName = printer.MachineProfileId is { } profileId
-            ? (await machineProfileRepository.GetByIdAsync(profileId, cancellationToken))?.Name
+        var machineProfileName = printer.MachineProfileId is { } machineProfileId
+            ? (await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken))?.Name
+            : null;
+
+        var processProfileName = printer.ProcessProfileId is { } processProfileId
+            ? (await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken))?.Name
             : null;
 
         return new PrinterDetail(
@@ -38,6 +44,8 @@ public sealed class GetPrinterDetailQueryHandler(
             printer.CurrentJobName,
             printer.AmsUnits,
             printer.MachineProfileId,
-            machineProfileName);
+            machineProfileName,
+            printer.ProcessProfileId,
+            processProfileName);
     }
 }

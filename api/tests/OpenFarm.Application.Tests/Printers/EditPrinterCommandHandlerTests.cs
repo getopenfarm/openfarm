@@ -1,9 +1,13 @@
 using FluentAssertions;
+using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.Printers;
+using OpenFarm.Application.Tests.Profiles.Fakes;
+using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Tests.Printers;
 
@@ -18,9 +22,7 @@ public class EditPrinterCommandHandlerTests
         var connectionManager = new RecordingPrinterConnectionManager();
         var handler = CreateHandler(repository, connectorFactory, connectionManager);
 
-        var result = await handler.HandleAsync(
-            new EditPrinterCommand(printer.Id, "Renamed", null, null, null, null, null),
-            CancellationToken.None);
+        var result = await handler.HandleAsync(Command(printer.Id, "Renamed"), CancellationToken.None);
 
         result.Name.Should().Be("Renamed");
         result.IpAddress.Should().Be(printer.IpAddress);
@@ -39,7 +41,7 @@ public class EditPrinterCommandHandlerTests
         var handler = CreateHandler(repository, connectorFactory, connectionManager);
 
         var result = await handler.HandleAsync(
-            new EditPrinterCommand(printer.Id, "Renamed", "10.0.0.99", "12345678", null, null, null),
+            Command(printer.Id, "Renamed", ipAddress: "10.0.0.99", accessCode: "12345678"),
             CancellationToken.None);
 
         result.Name.Should().Be("Renamed");
@@ -59,7 +61,7 @@ public class EditPrinterCommandHandlerTests
         var handler = CreateHandler(repository, connectorFactory, connectionManager);
 
         var act = () => handler.HandleAsync(
-            new EditPrinterCommand(printer.Id, "Renamed", "10.0.0.99", "wrong", null, null, null),
+            Command(printer.Id, "Renamed", ipAddress: "10.0.0.99", accessCode: "wrong"),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<PrinterConnectionVerificationFailedException>();
@@ -83,7 +85,7 @@ public class EditPrinterCommandHandlerTests
         var handler = CreateHandler(repository, connectorFactory, connectionManager);
 
         var act = () => handler.HandleAsync(
-            new EditPrinterCommand(printer.Id, "Renamed", null, null, brand, modelCode, serialNumber),
+            Command(printer.Id, "Renamed", brand: brand, modelCode: modelCode, serialNumber: serialNumber),
             CancellationToken.None);
 
         var thrown = await act.Should().ThrowAsync<ImmutablePrinterFieldMismatchException>();
@@ -102,7 +104,7 @@ public class EditPrinterCommandHandlerTests
         var handler = CreateHandler(repository, connectorFactory, connectionManager);
 
         var result = await handler.HandleAsync(
-            new EditPrinterCommand(printer.Id, "Renamed", null, null, printer.Brand, printer.ModelCode, printer.SerialNumber),
+            Command(printer.Id, "Renamed", brand: printer.Brand, modelCode: printer.ModelCode, serialNumber: printer.SerialNumber),
             CancellationToken.None);
 
         result.Name.Should().Be("Renamed");
@@ -116,18 +118,168 @@ public class EditPrinterCommandHandlerTests
         var connectionManager = new RecordingPrinterConnectionManager();
         var handler = CreateHandler(repository, connectorFactory, connectionManager);
 
-        var act = () => handler.HandleAsync(
-            new EditPrinterCommand(Guid.NewGuid(), "Renamed", null, null, null, null, null),
-            CancellationToken.None);
+        var act = () => handler.HandleAsync(Command(Guid.NewGuid(), "Renamed"), CancellationToken.None);
 
         await act.Should().ThrowAsync<PrinterNotFoundException>();
     }
 
+    // --- 009 US2: machine/process profile selection + compatibility gate (TDD, plan.md's Constitution Check) ---
+
+    [Fact]
+    public async Task HandleAsync_ProcessProfileWithNoMachineProfile_ThrowsRequiresMachineProfile()
+    {
+        var printer = CreatePrinter();
+        var repository = new InMemoryPrinterRepository(printer);
+        var processRepo = new FakeProcessProfileRepository(
+            ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", true, null));
+        var handler = CreateHandler(repository, processRepo: processRepo);
+
+        var act = () => handler.HandleAsync(
+            Command(printer.Id, "Printer 1", processProfileId: processRepo.Rows[0].Id),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ProcessProfileRequiresMachineProfileException>();
+    }
+
+    [Fact]
+    public async Task HandleAsync_ProcessProfileNotCompatibleWithMachine_ThrowsIncompatible()
+    {
+        var printer = CreatePrinter();
+        var repository = new InMemoryPrinterRepository(printer);
+        var machineRepo = new FakeMachineProfileRepository();
+        var machine = MachineProfile.CreateSystemProfile(
+            printer.OrganizationId, "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambulab", "GM010", true, "Bambu Lab P1S", null);
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+
+        var processRepo = new FakeProcessProfileRepository();
+        var process = ProcessProfile.CreateSystemProfile(
+            printer.OrganizationId, "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambulab", "GP004", true, ["Bambu Lab X1 Carbon 0.4 nozzle"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+
+        var handler = CreateHandler(repository, machineRepo: machineRepo, processRepo: processRepo);
+
+        var act = () => handler.HandleAsync(
+            Command(printer.Id, "Printer 1", machineProfileId: machine.Id, processProfileId: process.Id),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ProcessProfileIncompatibleWithMachineException>();
+    }
+
+    [Fact]
+    public async Task HandleAsync_UnknownMachineProfileId_ThrowsInvalidProfileReference()
+    {
+        var printer = CreatePrinter();
+        var repository = new InMemoryPrinterRepository(printer);
+        var handler = CreateHandler(repository);
+
+        var act = () => handler.HandleAsync(
+            Command(printer.Id, "Printer 1", machineProfileId: Guid.NewGuid()),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidProfileReferenceException>();
+    }
+
+    [Fact]
+    public async Task HandleAsync_CompatibleMachineAndProcess_LinksBothAndLogsGranularEvents()
+    {
+        var printer = CreatePrinter();
+        var repository = new InMemoryPrinterRepository(printer);
+        var machineRepo = new FakeMachineProfileRepository();
+        var machine = MachineProfile.CreateSystemProfile(
+            printer.OrganizationId, "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambulab", "GM001", true, "Bambu Lab X1 Carbon", null);
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+
+        var processRepo = new FakeProcessProfileRepository();
+        var process = ProcessProfile.CreateSystemProfile(
+            printer.OrganizationId, "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambulab", "GP004", true, ["Bambu Lab X1 Carbon 0.4 nozzle"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+
+        var activityLogWriter = new RecordingActivityLogWriter();
+        var handler = CreateHandler(repository, machineRepo: machineRepo, processRepo: processRepo, activityLogWriter: activityLogWriter);
+
+        var result = await handler.HandleAsync(
+            Command(printer.Id, "Printer 1", machineProfileId: machine.Id, processProfileId: process.Id),
+            CancellationToken.None);
+
+        result.MachineProfileId.Should().Be(machine.Id);
+        result.ProcessProfileId.Should().Be(process.Id);
+        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterMachineProfileLinked");
+        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterProcessProfileLinked");
+    }
+
+    [Fact]
+    public async Task HandleAsync_ResendingTheSameAlreadyLinkedProfiles_DoesNotLogAnyGranularEvent()
+    {
+        var printer = CreatePrinter();
+        var machineRepo = new FakeMachineProfileRepository();
+        var machine = MachineProfile.CreateSystemProfile(
+            printer.OrganizationId, "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambulab", "GM001", true, "Bambu Lab X1 Carbon", null);
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+
+        var repository = new InMemoryPrinterRepository(printer);
+        var activityLogWriter = new RecordingActivityLogWriter();
+        var handler = CreateHandler(repository, machineRepo: machineRepo, activityLogWriter: activityLogWriter);
+
+        await handler.HandleAsync(Command(printer.Id, "Printer 1", machineProfileId: machine.Id), CancellationToken.None);
+
+        activityLogWriter.Entries.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task HandleAsync_ClearingMachineProfile_LogsUnlinkedEvent()
+    {
+        var printer = CreatePrinter();
+        var machineRepo = new FakeMachineProfileRepository();
+        var machine = MachineProfile.CreateSystemProfile(
+            printer.OrganizationId, "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambulab", "GM001", true, "Bambu Lab X1 Carbon", null);
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+
+        var repository = new InMemoryPrinterRepository(printer);
+        var activityLogWriter = new RecordingActivityLogWriter();
+        var handler = CreateHandler(repository, machineRepo: machineRepo, activityLogWriter: activityLogWriter);
+
+        var result = await handler.HandleAsync(Command(printer.Id, "Printer 1"), CancellationToken.None);
+
+        result.MachineProfileId.Should().BeNull();
+        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterMachineProfileUnlinked");
+    }
+
+    private static EditPrinterCommand Command(
+        Guid printerId,
+        string name,
+        string? ipAddress = null,
+        string? accessCode = null,
+        string? brand = null,
+        string? modelCode = null,
+        string? serialNumber = null,
+        Guid? machineProfileId = null,
+        Guid? processProfileId = null) =>
+        new(printerId, name, ipAddress, accessCode, brand, modelCode, serialNumber, machineProfileId, processProfileId, null, ActorType.System);
+
     private static EditPrinterCommandHandler CreateHandler(
         InMemoryPrinterRepository repository,
-        RecordingPrinterConnectorFactory connectorFactory,
-        RecordingPrinterConnectionManager connectionManager) =>
-        new(connectorFactory, repository, new InMemoryConnectionSecretRepository(), new PassthroughSecretProtector(), connectionManager);
+        RecordingPrinterConnectorFactory? connectorFactory = null,
+        RecordingPrinterConnectionManager? connectionManager = null,
+        FakeMachineProfileRepository? machineRepo = null,
+        FakeProcessProfileRepository? processRepo = null,
+        RecordingActivityLogWriter? activityLogWriter = null) =>
+        new(
+            connectorFactory ?? new RecordingPrinterConnectorFactory(verifies: true),
+            repository,
+            new InMemoryConnectionSecretRepository(),
+            new PassthroughSecretProtector(),
+            connectionManager ?? new RecordingPrinterConnectionManager(),
+            machineRepo ?? new FakeMachineProfileRepository(),
+            processRepo ?? new FakeProcessProfileRepository(),
+            activityLogWriter ?? new RecordingActivityLogWriter());
 
     private static Printer CreatePrinter() =>
         Printer.Create(Guid.NewGuid(), "Printer 1", "Bambu", "P1S", "10.0.0.5", "SN-0001");
@@ -215,6 +367,17 @@ public class EditPrinterCommandHandlerTests
 
             public IAsyncEnumerable<PrinterConnectorEvent> ConnectAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
                 throw new NotSupportedException();
+        }
+    }
+
+    private sealed class RecordingActivityLogWriter : IActivityLogWriter
+    {
+        public List<ActivityLogEntry> Entries { get; } = [];
+
+        public Task WriteAsync(ActivityLogEntry entry, CancellationToken cancellationToken)
+        {
+            Entries.Add(entry);
+            return Task.CompletedTask;
         }
     }
 }

@@ -56,7 +56,7 @@ export function FilamentFormPage({ mode }: FilamentFormPageProps) {
       filamentProfilesQuery.data?.data as
         | ListFilamentProfilesResponse
         | undefined
-    )?.profiles ?? [];
+    )?.items ?? [];
 
   const filamentsQuery =
     useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();

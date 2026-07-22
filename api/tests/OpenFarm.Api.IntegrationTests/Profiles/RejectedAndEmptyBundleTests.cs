@@ -41,7 +41,7 @@ public class RejectedAndEmptyBundleTests(CustomWebApplicationFactory factory) : 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
 
         var afterMachine = await client.GetFromJsonAsync<ListMachineProfilesResponse>(new Uri("/api/v1/profiles/machine", UriKind.Relative));
-        afterMachine!.Profiles.Should().HaveCount(beforeMachine!.Profiles.Count);
+        afterMachine!.Items.Should().HaveCount(beforeMachine!.Items.Count);
     }
 
     [Fact]
