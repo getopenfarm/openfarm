@@ -17,6 +17,14 @@ public sealed class UpdatePartFilamentRequirementNarrowingCommandHandler(
         var part = await partRepository.GetByIdAsync(command.PartId, cancellationToken)
             ?? throw new PartNotFoundException(command.PartId);
 
+        // The URL path's own resource (the requirement) is checked before the request body's
+        // profile reference — an unknown requirement is a 404 regardless of what else is wrong
+        // with the body, not a 400.
+        if (!part.FilamentRequirements.Any(r => r.Id == command.RequirementId))
+        {
+            throw new PartFilamentRequirementNotFoundException(part.Id, command.RequirementId);
+        }
+
         // Validated before any mutation lands (same zero-partial-success philosophy as
         // EditPrinterCommandHandler's own profile-reference checks).
         if (command.NarrowFilamentProfileId is { } profileId

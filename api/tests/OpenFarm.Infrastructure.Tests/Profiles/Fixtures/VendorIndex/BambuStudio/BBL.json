@@ -50,6 +50,10 @@
       "sub_path": "process/fdm_process_common.json"
     },
     {
+      "name": "fdm_process_single_common",
+      "sub_path": "process/fdm_process_single_common.json"
+    },
+    {
       "name": "fdm_process_single_0.20",
       "sub_path": "process/fdm_process_single_0.20.json"
     },

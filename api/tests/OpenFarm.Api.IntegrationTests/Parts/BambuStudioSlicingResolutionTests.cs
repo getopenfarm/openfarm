@@ -23,7 +23,8 @@ public class BambuStudioSlicingResolutionTests(CustomWebApplicationFactory facto
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageBambuStudioLeaf(vendorName);
 
-        using var scope = await factory.CreateTenantScopeAsync();
+        await factory.EnsureTenantInfoResolvedAsync();
+        using var scope = factory.CreateTenantScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         await ingestionService.IngestAsync(leaf, CancellationToken.None);
 

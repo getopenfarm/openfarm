@@ -28,7 +28,8 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var filamentVendorSuffix = Guid.NewGuid().ToString("N");
         var leaf = StageLeaf(filamentVendorSuffix, ("OrcaSlicer", vendorName), ("UnsupportedVendor", null));
 
-        using var scope = await factory.CreateTenantScopeAsync();
+        await factory.EnsureTenantInfoResolvedAsync();
+        using var scope = factory.CreateTenantScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
@@ -51,8 +52,8 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         // (renamed) name — "Bambu PLA Basic @BBL X1C" resolves to its "Bambu Lab" ancestor override,
         // never the outer "Bambulab-..." index name (this is the "Generic imported as Bambulab" bug fix).
         var filamentRows = await filamentRepo.ListAsync(CancellationToken.None);
-        var filamentLeaf = filamentRows.Should().ContainSingle(p => p.ExternalId == "GFSA00").Subject;
-        filamentLeaf.VendorName.Should().Be($"Bambu Lab-{filamentVendorSuffix}");
+        var filamentLeaf = filamentRows.Should().ContainSingle(
+            p => p.ExternalId == "GFSA00" && p.VendorName == $"Bambu Lab-{filamentVendorSuffix}").Subject;
         filamentLeaf.VendorName.Should().NotBe(vendorName);
         filamentLeaf.MaterialType.Should().Be("PLA");
 
@@ -68,7 +69,8 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var filamentVendorSuffix = Guid.NewGuid().ToString("N");
         var leaf = StageLeaf(filamentVendorSuffix, ("OrcaSlicer", vendorName));
 
-        using var scope = await factory.CreateTenantScopeAsync();
+        await factory.EnsureTenantInfoResolvedAsync();
+        using var scope = factory.CreateTenantScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var filamentRepo = scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>();
         var vendorRepo = scope.ServiceProvider.GetRequiredService<IVendorRepository>();
@@ -96,7 +98,8 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", vendorName));
 
-        using var scope = await factory.CreateTenantScopeAsync();
+        await factory.EnsureTenantInfoResolvedAsync();
+        using var scope = factory.CreateTenantScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
 
         var first = await ingestionService.IngestAsync(leaf, CancellationToken.None);
@@ -118,7 +121,8 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", vendorName));
 
-        using var scope = await factory.CreateTenantScopeAsync();
+        await factory.EnsureTenantInfoResolvedAsync();
+        using var scope = factory.CreateTenantScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
 
@@ -150,7 +154,8 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("BambuStudio", vendorName));
 
-        using var scope = await factory.CreateTenantScopeAsync();
+        await factory.EnsureTenantInfoResolvedAsync();
+        using var scope = factory.CreateTenantScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
 

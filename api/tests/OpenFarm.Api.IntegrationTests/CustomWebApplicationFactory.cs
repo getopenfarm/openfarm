@@ -70,25 +70,51 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         File.WriteAllText(Path.Combine(leaf, "AppRun"), "#!/bin/sh\nexit 1\n");
     }
 
+    private AppTenantInfo? _cachedTenantInfo;
+
+    /// <summary>
+    /// Resolves and caches the single organization's tenant info, once per factory instance. Call
+    /// this (awaited) before <see cref="CreateTenantScope"/> — split into two members rather than one
+    /// combined async method because of a confirmed, reproduced Finbuckle/AsyncLocal footgun: a
+    /// <c>IMultiTenantContextSetter.MultiTenantContext</c> assignment made *inside* an async method
+    /// that itself awaits something, then returns its scope to an awaiting caller, does not reliably
+    /// propagate — the caller ends up with a scope whose ambient tenant context is still null even
+    /// though the assignment executed without error. Verified via a standalone repro against a real
+    /// Postgres: the combined shape failed 3/3 runs; this split shape (await the resolver, then call
+    /// the synchronous scope-creator directly, with no intervening awaited wrapper) succeeded 3/3.
+    /// Same underlying bug as <c>PrinterConnectionBackgroundService.CreateTenantScope</c>'s own
+    /// documented caveat and 009's <c>ingest-system-profiles</c> CLI entry point.
+    /// </summary>
+    public async Task EnsureTenantInfoResolvedAsync()
+    {
+        if (_cachedTenantInfo is not null)
+        {
+            return;
+        }
+
+        using var scope = Services.CreateScope();
+        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+        _cachedTenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
+            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before this test.");
+    }
+
     /// <summary>
     /// A DI scope off <see cref="WebApplicationFactory{TEntryPoint}.Services"/> with the single
     /// organization's tenant context pre-populated. Finbuckle's tenant resolution is HTTP-middleware-
     /// based (<c>UseMultiTenant()</c>), which never runs for a scope a test creates directly this way
     /// — without this, every tenant-scoped EF query/save throws (a <see cref="NullReferenceException"/>
-    /// on read, a <c>MultiTenantException</c> on write) against a null <c>TenantInfo</c>. Same
-    /// established pattern as <c>PrinterConnectionBackgroundService.CreateTenantScope</c> and 009's
-    /// <c>ingest-system-profiles</c> CLI entry point. Use this instead of a bare <c>Services.CreateScope()</c>
-    /// whenever a test talks to a tenant-scoped repository/DbContext without going through
+    /// on read, a <c>MultiTenantException</c> on write) against a null <c>TenantInfo</c>. Deliberately
+    /// synchronous — see <see cref="EnsureTenantInfoResolvedAsync"/>'s doc comment for why. Callers
+    /// must <c>await EnsureTenantInfoResolvedAsync()</c> first, then call this directly (not through
+    /// another awaited helper) instead of a bare <c>Services.CreateScope()</c> whenever a test talks
+    /// to a tenant-scoped repository/DbContext without going through
     /// <see cref="WebApplicationFactory{TEntryPoint}.CreateClient"/>'s real HTTP pipeline.
     /// </summary>
-    public async Task<IServiceScope> CreateTenantScopeAsync()
+    public IServiceScope CreateTenantScope()
     {
         var scope = Services.CreateScope();
-        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-        var tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
-            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before this test.");
         var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenantInfo);
+        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(_cachedTenantInfo!);
         return scope;
     }
 
