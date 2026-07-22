@@ -103,7 +103,50 @@ public class ResolveSlicingProfileSelectionTests
 
         var act = async () => await selection.ResolveAsync(printer.Id, "PLA", null, CancellationToken.None);
 
-        await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>();
+        // Acceptance Scenario 2/SC-003 — names the printer and the missing selection, no partial result.
+        (await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>())
+            .WithMessage("*Printer A*process profile*");
+    }
+
+    [Fact]
+    public async Task ResolveAsync_TwoPrintersOfDifferentModelsEachWithOwnSelections_EachResolvesItsOwnPresetsNeverAShared()
+    {
+        // Acceptance Scenario 1 — two printers, two independent selections, no shared default anywhere.
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+
+        var printerA = Printer.Create(Guid.NewGuid(), "Printer A", "Bambu", "X1C", "10.0.0.10", "SN-A");
+        var machineA = MachineProfile.Create(printerA.OrganizationId, "Machine A", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        await machineRepo.AddAsync(machineA, CancellationToken.None);
+        printerA.LinkMachineProfile(machineA.Id);
+        var processA = ProcessProfile.CreateSystemProfile(printerA.OrganizationId, "Process A", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.1"}""", "Bambulab", "GPA", true, ["Machine A"]);
+        await processRepo.AddAsync(processA, CancellationToken.None);
+        printerA.LinkProcessProfile(processA.Id);
+        await printerRepo.AddAsync(printerA, CancellationToken.None);
+
+        var printerB = Printer.Create(Guid.NewGuid(), "Printer B", "Bambu", "P1S", "10.0.0.11", "SN-B");
+        var machineB = MachineProfile.Create(printerB.OrganizationId, "Machine B", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.2"]}""");
+        await machineRepo.AddAsync(machineB, CancellationToken.None);
+        printerB.LinkMachineProfile(machineB.Id);
+        var processB = ProcessProfile.CreateSystemProfile(printerB.OrganizationId, "Process B", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.3"}""", "Bambulab", "GPB", true, ["Machine B"]);
+        await processRepo.AddAsync(processB, CancellationToken.None);
+        printerB.LinkProcessProfile(processB.Id);
+        await printerRepo.AddAsync(printerB, CancellationToken.None);
+
+        var filament = CreateSystemFilament(printerA.OrganizationId, "Bambulab", "GFSA00", "PLA");
+        await filamentRepo.AddAsync(filament, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
+
+        var resultA = await selection.ResolveAsync(printerA.Id, "PLA", null, CancellationToken.None);
+        var resultB = await selection.ResolveAsync(printerB.Id, "PLA", null, CancellationToken.None);
+
+        resultA.MachineSettingsJson.Should().Contain("\"0.4\"");
+        resultA.ProcessSettingsJson.Should().Contain("\"0.1\"");
+        resultB.MachineSettingsJson.Should().Contain("\"0.2\"");
+        resultB.ProcessSettingsJson.Should().Contain("\"0.3\"");
     }
 
     [Fact]
@@ -157,6 +200,50 @@ public class ResolveSlicingProfileSelectionTests
         var act = async () => await selection.ResolveAsync(printer.Id, "PLA", null, CancellationToken.None);
 
         await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_MachineProfileHasIncludedTemplateNames_FoldsResolvedFragmentIntoMachineSettingsJson()
+    {
+        // research.md §0a/§5 — Bambu Studio's `include` gcode-template fold-in: the leaf machine
+        // preset itself carries no machine_start_gcode, only its named template fragment does.
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+
+        var printer = CreatePrinter();
+
+        var fragment = MachineProfile.CreateSystemProfile(
+            printer.OrganizationId, "X1C template machine_start_gcode", ProfileSourceFormat.BambuStudio, null,
+            """{"machine_start_gcode":"G28\n"}""",
+            "Bambulab", null, isSelectable: false, vendorMachineModelName: null, includedTemplateNames: null);
+        await machineRepo.AddAsync(fragment, CancellationToken.None);
+
+        var machine = MachineProfile.CreateSystemProfile(
+            printer.OrganizationId, "X1C 0.4 nozzle", ProfileSourceFormat.BambuStudio, null,
+            """{"type":"machine","nozzle_diameter":["0.4"]}""",
+            "Bambulab", "GM001", isSelectable: true, vendorMachineModelName: null,
+            includedTemplateNames: ["X1C template machine_start_gcode"]);
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+
+        var process = ProcessProfile.CreateSystemProfile(
+            printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.BambuStudio, null,
+            """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["X1C 0.4 nozzle"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+        printer.LinkProcessProfile(process.Id);
+
+        var filament = CreateSystemFilament(printer.OrganizationId, "Bambulab", "GFSA00", "PLA");
+        await filamentRepo.AddAsync(filament, CancellationToken.None);
+        await printerRepo.AddAsync(printer, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
+
+        var result = await selection.ResolveAsync(printer.Id, "PLA", narrowedFilamentProfileId: null, CancellationToken.None);
+
+        result.MachineSettingsJson.Should().Contain("\"machine_start_gcode\"");
+        result.MachineSettingsJson.Should().Contain("\"nozzle_diameter\"");
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Parts;
 
@@ -46,11 +47,85 @@ public sealed class ResolveSlicingProfileSelection(
                 ?? throw new SlicingProfileUnconfiguredException("The part's narrowed filament profile no longer exists.")
             : await representativeFilamentResolver.ResolveAsync(materialType, cancellationToken);
 
-        var machineJson = await MergeChainOrThrowAsync(machineProfile.Id, "machine", FetchMachineNode, cancellationToken);
+        var machineJson = await MergeMachineChainWithIncludesOrThrowAsync(machineProfile, cancellationToken);
         var processJson = await MergeChainOrThrowAsync(processProfile.Id, "process", FetchProcessNode, cancellationToken);
-        var filamentJson = await MergeChainOrThrowAsync(filamentProfile.Id, "filament", FetchFilamentNode, cancellationToken);
+        var filamentJson = await MergeFilamentChainWithIncludesOrThrowAsync(filamentProfile, cancellationToken);
 
         return new ResolvedSlicingProfiles(machineJson, processJson, filamentJson);
+    }
+
+    // research.md §0a/§5 — Bambu Studio's `include` gcode-template fold-in, folded in after the
+    // ancestor chain merge but before the target's own final layer (ProfileRawDataMerger.
+    // MergeAncestorChainWithIncludes' own ordering guarantee). OrcaSlicer never sets
+    // IncludedTemplateNames, so this is a no-op there.
+    private async Task<string> MergeMachineChainWithIncludesOrThrowAsync(
+        MachineProfile target, CancellationToken cancellationToken)
+    {
+        var (ancestorsOldestFirst, hasUnresolvedBase) = await ProfileChainWalker.WalkByIdAsync(target.Id, FetchMachineNode, cancellationToken);
+        if (hasUnresolvedBase)
+        {
+            throw new SlicingProfileUnconfiguredException(
+                "The selected machine profile has an unresolved ancestor in its inheritance chain and cannot be used to slice.");
+        }
+
+        var includedTemplateNames = target.IncludedTemplateNames;
+        if (includedTemplateNames is null or { Count: 0 } || target.VendorName is null)
+        {
+            return ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);
+        }
+
+        var resolvedFragments = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in includedTemplateNames)
+        {
+            if (resolvedFragments.ContainsKey(name))
+            {
+                continue;
+            }
+
+            var fragment = await machineProfileRepository.FindSystemByNameAsync(target.VendorName, name, cancellationToken);
+            if (fragment is not null)
+            {
+                resolvedFragments[name] = fragment.RawDataJson;
+            }
+        }
+
+        return ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst, includedTemplateNames, name => resolvedFragments.GetValueOrDefault(name));
+    }
+
+    private async Task<string> MergeFilamentChainWithIncludesOrThrowAsync(
+        FilamentProfile target, CancellationToken cancellationToken)
+    {
+        var (ancestorsOldestFirst, hasUnresolvedBase) = await ProfileChainWalker.WalkByIdAsync(target.Id, FetchFilamentNode, cancellationToken);
+        if (hasUnresolvedBase)
+        {
+            throw new SlicingProfileUnconfiguredException(
+                "The selected filament profile has an unresolved ancestor in its inheritance chain and cannot be used to slice.");
+        }
+
+        var includedTemplateNames = target.IncludedTemplateNames;
+        if (includedTemplateNames is null or { Count: 0 } || target.VendorName is null)
+        {
+            return ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);
+        }
+
+        var resolvedFragments = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in includedTemplateNames)
+        {
+            if (resolvedFragments.ContainsKey(name))
+            {
+                continue;
+            }
+
+            var fragment = await filamentProfileRepository.FindSystemByNameAsync(target.VendorName, name, cancellationToken);
+            if (fragment is not null)
+            {
+                resolvedFragments[name] = fragment.RawDataJson;
+            }
+        }
+
+        return ProfileRawDataMerger.MergeAncestorChainWithIncludes(
+            ancestorsOldestFirst, includedTemplateNames, name => resolvedFragments.GetValueOrDefault(name));
     }
 
     private async Task<(Guid MachineProfileId, Guid ProcessProfileId)> ResolveForPrinterAsync(Guid printerId, CancellationToken cancellationToken)
