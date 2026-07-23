@@ -62,6 +62,6 @@ same fields as today) or the matching capability's own return value directly at 
   `filamentRequirementOverrides`) still uses the narrowed profile directly — the matching capability is never
   invoked for that part at all (`FR-011`, already guaranteed by `ResolveSlicingProfileSelection`'s existing
   branch).
-- `dotnet test api/OpenFarm.slnx --filter "FullyQualifiedName~RepresentativeFilamentResolver|FullyQualifiedName~SlicerOptions|FullyQualifiedName~ResolveSlicingProfileSelection"` — existing unit/integration tests for the touched classes still pass (adjusted for the new signature, per `data-model.md`).
+- `dotnet test api/OpenFarm.slnx --filter "FullyQualifiedName~RepresentativeFilamentResolver|FullyQualifiedName~SlicerDefaultsProvider|FullyQualifiedName~ResolveSlicingProfileSelection"` — existing unit/integration tests for the touched classes still pass (adjusted for the new signature, per `data-model.md`).
 - `dotnet format api/OpenFarm.slnx --verify-no-changes` stays clean. No frontend/`bun run lint` impact — this
   feature touches no `web/` code.

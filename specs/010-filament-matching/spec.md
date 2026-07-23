@@ -192,8 +192,9 @@ profile as it does today.
 - **FR-009**: Within any tier, when more than one candidate is otherwise equally eligible, the matching
   capability MUST select deterministically and stably, so that repeating resolution against an unchanged
   fleet and filament library always yields the same choice.
-- **FR-010**: A filament library entry (spool) that matches on material but has no usable link to slicing
-  profile data MUST be skipped in favor of the next eligible candidate, rather than causing a failure.
+- **FR-010**: A spool candidate at any tier — fleet-loaded or filament library — that matches on material but
+  has no usable link to slicing profile data MUST be skipped in favor of the next eligible candidate, rather
+  than causing a failure.
 - **FR-011**: Intelligent matching MUST never override a part's filament requirement that has already been
   manually narrowed to a specific profile or library filament by an operator.
 - **FR-012**: A part's computed material/time estimate MUST use the specific filament settings of whichever

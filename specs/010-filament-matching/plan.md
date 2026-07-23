@@ -119,6 +119,8 @@ api/
 │       └── Parts/SlicerDefaultsProvider.cs             # CHANGED — matches new interface
 └── tests/
     ├── OpenFarm.Application.Tests/Profiles/            # CHANGED/NEW — matching-resolver tier tests
+    ├── OpenFarm.Application.Tests/Parts/                # CHANGED — ResolveSlicingProfileSelectionTests' CreateSelection helper + new narrowed/printer-targeted cases
+    ├── OpenFarm.Infrastructure.Tests/Parts/              # NEW — SlicerDefaultsProviderTests
     └── OpenFarm.Api.IntegrationTests/Parts/             # CHANGED/NEW — STL-add regression + tiered end-to-end
 ```
 

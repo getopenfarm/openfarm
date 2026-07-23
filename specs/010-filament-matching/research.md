@@ -82,7 +82,7 @@ would need its own justification and edge-case handling (a freshly-registered sp
 
 **Alternatives considered**:
 - *Prefer the spool with the most `RemainingWeightGrams` within a tier* — rejected for this iteration: adds a
-  second sort dimension for no requirement in the spec (SC-004 only asks for determinism, not "most
+  second sort dimension for no requirement in the spec (SC-003 only asks for determinism, not "most
   usable"), and is trivial to add later as a one-line `.ThenBy` if an operator asks for it.
 - *Skip the per-printer tier and always search fleet-wide* — rejected: FR-006 (validated with the user) is
   explicit that a specific printer's own loaded filament is the strongest signal when a printer is known,
@@ -127,7 +127,7 @@ this to "whatever the fleet management feature already defines" — today, that'
 
 **Alternatives considered**:
 - *Filter out unreachable printers' loaded spools* — rejected for the reason above; also would make an
-  estimate flap between two answers purely based on transient connectivity, undermining SC-004's determinism
+  estimate flap between two answers purely based on transient connectivity, undermining SC-003's determinism
   goal.
 
 ## R5 — Shape of the reusable matching capability
