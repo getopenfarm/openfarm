@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Parts;
@@ -106,7 +107,8 @@ public class CliSlicerEngineTests
         new FakeHostPlatformProvider(SlicerPlatform.Linux),
         [new PrusaSliceFamilyInvocation(), new SuperSlicerInvocation()],
         CreateProfileSelection(),
-        Options.Create(new SlicerOptions()));
+        Options.Create(new SlicerOptions()),
+        NullLogger<CliSlicerEngine>.Instance);
 
     // A fully configured (machine, process, filament) triple for a printer with material
     // "Generic PLA" — these tests only exercise failure paths that occur before or after profile

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
@@ -17,12 +18,13 @@ namespace OpenFarm.Infrastructure.Parts;
 /// <see cref="FakeSlicerEngine"/> first; real-CLI argument shape validated manually against actual
 /// slicer installs (infra/docker/api.Dockerfile), never a CI gate — see quickstart.md.
 /// </summary>
-public sealed class CliSlicerEngine(
+public sealed partial class CliSlicerEngine(
     IAvailableSlicerCatalog catalog,
     IHostPlatformProvider hostPlatform,
     IEnumerable<ISlicerInvocation> invocationStrategies,
     ResolveSlicingProfileSelection profileSelection,
-    IOptions<SlicerOptions> options) : ISlicerEngine
+    IOptions<SlicerOptions> options,
+    ILogger<CliSlicerEngine> logger) : ISlicerEngine
 {
     public async Task<SlicingResult> SliceAsync(
         SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
@@ -83,7 +85,10 @@ public sealed class CliSlicerEngine(
                 UseShellExecute = false,
             };
 
+            LogInvokingSlicer(logger, slicer.Engine, processInvocation.FileName, processInvocation.Arguments);
+
             Process process;
+            var stopwatch = Stopwatch.StartNew();
             try
             {
                 process = Process.Start(startInfo)
@@ -112,6 +117,9 @@ public sealed class CliSlicerEngine(
                     TryKill(process);
                     throw new SlicingFailedException($"The {slicer.Engine} CLI timed out after {options.Value.CliTimeout}.");
                 }
+
+                stopwatch.Stop();
+                LogSlicerExited(logger, slicer.Engine, process.ExitCode, stopwatch.ElapsedMilliseconds);
 
                 if (process.ExitCode != 0 || !File.Exists(processInvocation.OutputPath))
                 {
@@ -185,4 +193,10 @@ public sealed class CliSlicerEngine(
             // Already exited between the timeout firing and this call.
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Invoking {Engine} CLI: {FileName} {Arguments}")]
+    private static partial void LogInvokingSlicer(ILogger logger, SlicerEngine engine, string fileName, string arguments);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{Engine} CLI exited with code {ExitCode} after {ElapsedMilliseconds}ms")]
+    private static partial void LogSlicerExited(ILogger logger, SlicerEngine engine, int exitCode, long elapsedMilliseconds);
 }
