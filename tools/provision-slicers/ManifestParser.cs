@@ -31,16 +31,16 @@ public static class ManifestParser
 
         var errors = new List<string>();
 
-        // schemaVersion 2 replaced schemaVersion 1's platforms-array + code-derived-filename form
-        // with explicit per-platform asset URLs (contracts/slicer-manifest.schema.json) — 1 is no
-        // longer accepted.
-        var schemaVersion = 2;
+        // schemaVersion 3 replaced schemaVersion 2's single entry-level version (shared across every
+        // platform's asset URL) with a per-platform "builds" object, each carrying its own version +
+        // URL (contracts/slicer-manifest.schema.json) — 1 and 2 are no longer accepted.
+        var schemaVersion = 3;
         if (obj.TryGetPropertyValue("schemaVersion", out var schemaVersionNode) && schemaVersionNode is not null)
         {
             schemaVersion = schemaVersionNode.GetValue<int>();
-            if (schemaVersion != 2)
+            if (schemaVersion != 3)
             {
-                errors.Add($"Unsupported schemaVersion {schemaVersion}; expected 2.");
+                errors.Add($"Unsupported schemaVersion {schemaVersion}; expected 3.");
             }
         }
 
@@ -96,46 +96,52 @@ public static class ManifestParser
             errors.Add($"slicers[{index}].engine '{engineRaw}' is not a known engine (OrcaSlicer, BambuStudio, SuperSlicer).");
         }
 
-        var version = entryObj["version"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(version))
+        var builds = new Dictionary<Platform, PlatformBuild>();
+        if (entryObj["builds"] is JsonObject buildsObj)
         {
-            errors.Add($"slicers[{index}].version is required.");
-        }
-
-        var assets = new Dictionary<Platform, string>();
-        if (entryObj["assets"] is JsonObject assetsObj)
-        {
-            if (assetsObj.Count == 0)
+            if (buildsObj.Count == 0)
             {
-                errors.Add($"slicers[{index}].assets must not be empty.");
+                errors.Add($"slicers[{index}].builds must not be empty.");
             }
 
-            foreach (var (platformRaw, urlNode) in assetsObj)
+            foreach (var (platformRaw, buildNode) in buildsObj)
             {
                 if (!Enum.TryParse<Platform>(platformRaw, out var platform))
                 {
-                    errors.Add($"slicers[{index}].assets contains an unknown platform '{platformRaw}'.");
+                    errors.Add($"slicers[{index}].builds contains an unknown platform '{platformRaw}'.");
                     continue;
                 }
 
-                var url = urlNode?.GetValue<string>();
+                if (buildNode is not JsonObject buildObj)
+                {
+                    errors.Add($"slicers[{index}].builds['{platformRaw}'] must be an object with 'version' and 'assetUrl'.");
+                    continue;
+                }
+
+                var version = buildObj["version"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(version))
+                {
+                    errors.Add($"slicers[{index}].builds['{platformRaw}'].version is required.");
+                }
+
+                var url = buildObj["assetUrl"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(url))
                 {
-                    errors.Add($"slicers[{index}].assets['{platformRaw}'] must be a non-empty URL.");
+                    errors.Add($"slicers[{index}].builds['{platformRaw}'].assetUrl must be a non-empty URL.");
                 }
                 else if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUrl) || parsedUrl.Scheme is not ("http" or "https"))
                 {
-                    errors.Add($"slicers[{index}].assets['{platformRaw}'] must be an absolute http(s) URL, got '{url}'.");
+                    errors.Add($"slicers[{index}].builds['{platformRaw}'].assetUrl must be an absolute http(s) URL, got '{url}'.");
                 }
-                else
+                else if (!string.IsNullOrWhiteSpace(version))
                 {
-                    assets[platform] = url;
+                    builds[platform] = new PlatformBuild(version!, url);
                 }
             }
         }
         else
         {
-            errors.Add($"slicers[{index}].assets is required.");
+            errors.Add($"slicers[{index}].builds is required.");
         }
 
         if (errors.Count > 0)
@@ -144,7 +150,7 @@ public static class ManifestParser
         }
 
         var notes = entryObj["notes"]?.GetValue<string>();
-        entry = new SlicerManifestEntry(engine, version!, assets, notes);
+        entry = new SlicerManifestEntry(engine, builds, notes);
         return errors;
     }
 }

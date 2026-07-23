@@ -2,15 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://openfarm.dev/schemas/slicers.manifest.schema.json",
   "title": "OpenFarm Slicer Provisioning Manifest",
-  "description": "Maintainer-authored declaration of which (engine, version, platform) slicer builds to fetch into the application's bundled slicer directory, and the exact URL to fetch each from. Consumed only by the dev/build-time provisioning tool (tools/provision-slicers) — never read by the running application (FR-012/FR-018). The tool never derives or guesses an asset URL from a naming pattern: each engine's release asset naming can and does change between versions, so the manifest itself is the sole source of truth — copy the real link from the engine's GitHub releases page for each platform you want.",
+  "description": "Maintainer-authored declaration of which (engine, version, platform) slicer builds to fetch into the application's bundled slicer directory, and the exact URL to fetch each from. Consumed only by the dev/build-time provisioning tool (tools/provision-slicers) — never read by the running application (FR-012/FR-018). The tool never derives or guesses an asset URL from a naming pattern: each engine's release asset naming can and does change between versions, so the manifest itself is the sole source of truth — copy the real link from the engine's GitHub releases page for each platform you want. Each platform pins its own version independently (schemaVersion 3) — different platforms commonly need different versions pinned, e.g. because a given release has a platform-specific regression.",
   "type": "object",
   "additionalProperties": false,
   "required": ["slicers"],
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "description": "Manifest format version for forward-compat; current = 2 (assets carry explicit URLs; schemaVersion 1's platforms-array + derived-filename form is no longer supported).",
-      "const": 2
+      "description": "Manifest format version for forward-compat; current = 3 (each platform build carries its own version; schemaVersion 2's single entry-level version shared across all platforms is no longer supported).",
+      "const": 3
     },
     "slicers": {
       "type": "array",
@@ -30,56 +30,76 @@
       "description": "Target host platform for the fetched build (FR-009/FR-010).",
       "enum": ["Linux", "Windows", "MacOs"]
     },
-    "slicerEntry": {
+    "platformBuild": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["engine", "version", "assets"],
+      "required": ["version", "assetUrl"],
       "properties": {
-        "engine": { "$ref": "#/$defs/engine" },
         "version": {
           "type": "string",
-          "description": "Maintainer-chosen display version (FR-005) — stored/shown verbatim everywhere (bundle directory name, discovery, pickers, recorded values). It need not match the engine's literal upstream release tag; a maintainer may use a friendlier marketed string instead (e.g. \"2.7.1\" for a Bambu Studio build whose actual tag/asset-embedded string is \"02.07.01.57\"). It does need to stay a dotted-numeric shape (e.g. \"2.2.0\", \"2.5.59.13\", \"01.10.00.00\") for \"newest\" ordering to work meaningfully, and must stay stable once a build has shipped — it is not the same string used to construct download URLs, which come entirely from `assets` below. No leading 'v'.",
+          "description": "Maintainer-chosen display version (FR-005) for this specific platform's build — stored/shown verbatim everywhere (bundle directory name, discovery, pickers, recorded values). It need not match the engine's literal upstream release tag; a maintainer may use a friendlier marketed string instead (e.g. \"2.7.1\" for a Bambu Studio build whose actual tag/asset-embedded string is \"02.07.01.57\"). It does need to stay a dotted-numeric shape (e.g. \"2.2.0\", \"2.5.59.13\", \"01.10.00.00\") for \"newest\" ordering to work meaningfully, and must stay stable once a build has shipped. Different platforms are not required to share the same version string — e.g. macOS may need to stay pinned behind Linux/Windows if a given release regressed only on macOS (or vice versa).",
           "minLength": 1,
           "examples": ["2.2.0", "2.5.59.13", "01.10.00.00", "2.7.1"]
         },
-        "assets": {
+        "assetUrl": {
+          "type": "string",
+          "description": "The exact download URL for this platform's build of the pinned version — copied verbatim from the engine's GitHub releases page (the asset filename/naming convention is not assumed or derived by the tool, since it can change between releases).",
+          "format": "uri",
+          "pattern": "^https?://"
+        }
+      }
+    },
+    "slicerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "builds"],
+      "properties": {
+        "engine": { "$ref": "#/$defs/engine" },
+        "builds": {
           "type": "object",
-          "description": "The exact download URL for each platform build of this (engine, version) to fetch — copied verbatim from the engine's GitHub releases page (the asset filename/naming convention is not assumed or derived by the tool, since it can change between releases). A platform omitted here is simply not provisioned for this entry (not a failure, FR-015).",
+          "description": "Per-platform (version, download URL) pin for this engine. A platform omitted here is simply not provisioned for this entry (not a failure, FR-015). Platforms are independent: they may pin different versions of the same engine.",
           "minProperties": 1,
           "propertyNames": { "$ref": "#/$defs/platform" },
-          "additionalProperties": {
-            "type": "string",
-            "format": "uri",
-            "pattern": "^https?://"
-          }
+          "additionalProperties": { "$ref": "#/$defs/platformBuild" }
         },
         "notes": {
           "type": "string",
-          "description": "Optional free-text maintainer note (e.g. why this version is pinned)."
+          "description": "Optional free-text maintainer note (e.g. why this version is pinned, or why platforms diverge)."
         }
       }
     }
   },
   "examples": [
     {
-      "schemaVersion": 2,
+      "schemaVersion": 3,
       "slicers": [
         {
           "engine": "OrcaSlicer",
-          "version": "2.2.0",
-          "assets": {
-            "Linux": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.2.0.AppImage",
-            "Windows": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Windows_V2.2.0.zip",
-            "MacOs": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Mac_arm64_V2.2.0.dmg"
-          }
+          "builds": {
+            "Linux": {
+              "version": "2.3.1",
+              "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.1.AppImage"
+            },
+            "Windows": {
+              "version": "2.3.1",
+              "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Windows_V2.3.1_portable.zip"
+            },
+            "MacOs": {
+              "version": "2.3.1",
+              "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Mac_universal_V2.3.1.dmg"
+            }
+          },
+          "notes": "Pinned to 2.3.1 on every platform: 2.3.2 through the current latest (2.4.2) segfault (SIGSEGV) in Print::apply() whenever a machine settings file and a process settings file are loaded together via --load-settings, reproduced with OrcaSlicer's own unmodified shipped presets. See docs/superpowers/plans/im-running-in-macos-cuddly-matsumoto.md for the investigation."
         },
         {
           "engine": "SuperSlicer",
-          "version": "2.5.59.13",
-          "assets": {
-            "Linux": "https://github.com/supermerill/SuperSlicer/releases/download/2.5.59.13/SuperSlicer-ubuntu_2.5.59.13-linux-x64-GTK3.AppImage"
+          "builds": {
+            "Linux": {
+              "version": "2.5.59.13",
+              "assetUrl": "https://github.com/supermerill/SuperSlicer/releases/download/2.5.59.13/SuperSlicer-ubuntu_2.5.59.13-linux-x64-GTK3.AppImage"
+            }
           },
-          "notes": "PrusaSlicer-fork CLI form — see SuperSlicerInvocation. SuperSlicer doesn't consistently publish macOS builds, so no MacOs asset here."
+          "notes": "PrusaSlicer-fork CLI form — see SuperSlicerInvocation. SuperSlicer doesn't consistently publish macOS builds, so no MacOs build here."
         }
       ]
     }

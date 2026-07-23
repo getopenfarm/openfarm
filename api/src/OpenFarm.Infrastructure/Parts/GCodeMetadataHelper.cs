@@ -21,6 +21,23 @@ public static partial class GCodeMetadataHelper
             values.TryAdd(key, value);
         }
 
+        // OrcaSlicer's HEADER_BLOCK reports these two on one colon-delimited summary line —
+        // "; model printing time: 5m 56s; total estimated time: 12m 25s" — not the "; key = value"
+        // convention every other comment uses, so CommentLineRegex above never matches it (confirmed
+        // against the real bundled 2.3.1 binary's output; TryAdd below still prefers an "=" match if
+        // one is ever present, e.g. in older fixtures).
+        var modelPrintingTimeMatch = ModelPrintingTimeRegex().Match(content);
+        if (modelPrintingTimeMatch.Success)
+        {
+            values.TryAdd("model printing time", modelPrintingTimeMatch.Groups[1].Value.Trim());
+        }
+
+        var totalEstimatedTimeMatch = TotalEstimatedTimeRegex().Match(content);
+        if (totalEstimatedTimeMatch.Success)
+        {
+            values.TryAdd("total estimated time", totalEstimatedTimeMatch.Groups[1].Value.Trim());
+        }
+
         return values;
     }
 
@@ -127,6 +144,12 @@ public static partial class GCodeMetadataHelper
 
     [GeneratedRegex(@"^\s*;\s*([A-Za-z0-9_\[\]\(\) ]+?)\s*=\s*(.+?)\s*$", RegexOptions.Multiline)]
     private static partial Regex CommentLineRegex();
+
+    [GeneratedRegex(@"model printing time:\s*([^;\r\n]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex ModelPrintingTimeRegex();
+
+    [GeneratedRegex(@"total estimated time:\s*([^;\r\n]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex TotalEstimatedTimeRegex();
 
     [GeneratedRegex(@"(\d+)h")]
     private static partial Regex DurationHoursRegex();

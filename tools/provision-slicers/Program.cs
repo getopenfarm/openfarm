@@ -28,7 +28,7 @@ using var downloader = new HttpAssetDownloader();
 var provisioner = new Provisioner(downloader, new DefaultAssetExtractor());
 
 var entriesForPlatform = parseResult.Manifest!.Slicers
-    .Where(entry => entry.Assets.ContainsKey(options.Platform))
+    .Where(entry => entry.Builds.ContainsKey(options.Platform))
     .ToList();
 
 Console.WriteLine($"Provisioning {entriesForPlatform.Count} entr{(entriesForPlatform.Count == 1 ? "y" : "ies")} for platform {options.Platform} into '{options.OutputDirectory}'…");
@@ -36,8 +36,8 @@ Console.WriteLine($"Provisioning {entriesForPlatform.Count} entr{(entriesForPlat
 var anyFailed = false;
 foreach (var entry in entriesForPlatform)
 {
-    var assetUrl = entry.Assets[options.Platform];
-    var request = new ProvisionEntryRequest(entry.Engine, entry.Version, options.Platform, assetUrl);
+    var build = entry.Builds[options.Platform];
+    var request = new ProvisionEntryRequest(entry.Engine, build.Version, options.Platform, build.AssetUrl);
     var result = await provisioner.ProvisionAsync(request, options.OutputDirectory, lockfile, CancellationToken.None, onProgress: Console.WriteLine);
 
     Console.WriteLine($"[{result.Outcome}] {result.Engine} {result.Version} ({result.Platform}): {result.Message}");

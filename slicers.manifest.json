@@ -1,25 +1,41 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "slicers": [
     {
       "engine": "OrcaSlicer",
-      "version": "2.3.2",
-      "assets": {
-        "Linux": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.2.AppImage",
-        "Windows": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Windows_V2.3.2_portable.zip",
-        "MacOs": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Mac_universal_V2.3.2.dmg"
+      "builds": {
+        "Linux": {
+          "version": "2.3.1",
+          "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.1.AppImage"
+        },
+        "Windows": {
+          "version": "2.3.1",
+          "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Windows_V2.3.1_portable.zip"
+        },
+        "MacOs": {
+          "version": "2.3.1",
+          "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Mac_universal_V2.3.1.dmg"
+        }
       },
-      "notes": "The project moved from SoftFever/OrcaSlicer to OrcaSlicer/OrcaSlicer — verify the repo/org in these links hasn't moved again before re-pinning a newer version."
+      "notes": "Pinned to 2.3.1 on every platform, deliberately one version behind: 2.3.2 through the current latest (2.4.2) segfault (SIGSEGV, exit 139) in Print::apply() -> update_values_to_printer_extruders_for_multiple_filaments whenever a machine settings file and a process settings file are loaded together via --load-settings, reproduced with OrcaSlicer's own unmodified shipped presets (not an OpenFarm data issue). The crash is in shared, platform-agnostic slicing-core code with no OS-specific branches, so treat 2.3.2+ as suspect on Linux/Windows too until proven otherwise there. See docs/superpowers/plans/im-running-in-macos-cuddly-matsumoto.md for the full investigation. The project also previously moved from SoftFever/OrcaSlicer to OrcaSlicer/OrcaSlicer — verify the repo/org hasn't moved again before re-pinning a newer version once this regression is fixed upstream."
     },
     {
       "engine": "BambuStudio",
-      "version": "2.7.1",
-      "assets": {
-        "Linux": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/BambuStudio_ubuntu-24.04-v02.07.01.57-20260601192128.AppImage",
-        "Windows": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_win-v02.07.01.57-20260601165745.zip",
-        "MacOs": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_mac-v02.07.01.57-20260601165745.dmg"
+      "builds": {
+        "Linux": {
+          "version": "2.7.1",
+          "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/BambuStudio_ubuntu-24.04-v02.07.01.57-20260601192128.AppImage"
+        },
+        "Windows": {
+          "version": "2.7.1",
+          "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_win-v02.07.01.57-20260601165745.zip"
+        },
+        "MacOs": {
+          "version": "2.7.1",
+          "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_mac-v02.07.01.57-20260601165745.dmg"
+        }
       },
-      "notes": "\"version\" is the maintainer-chosen display string (FR-005), not the literal upstream release tag — Bambu Studio's actual tag/asset-embedded string for this build is \"02.07.01.57\"; \"2.7.1\" is how Bambu markets it and is what users will see. The download URLs below are explicit literals and don't depend on this field matching the tag."
+      "notes": "\"version\" is the maintainer-chosen display string (FR-005), not the literal upstream release tag — Bambu Studio's actual tag/asset-embedded string for this build is \"02.07.01.57\"; \"2.7.1\" is how Bambu markets it and is what users will see. The download URLs below are explicit literals and don't depend on this field matching the tag. Note: Bambu Studio 2.7.1's macOS CLI was independently confirmed during the OrcaSlicer 2.3.2 investigation to crash the same way (same shared PrusaSlicer-derived codebase) on the equivalent machine+process combination — not yet re-pinned to an older version because no working Bambu Studio version has been bisected yet; treat it as similarly suspect."
     }
   ]
 }
