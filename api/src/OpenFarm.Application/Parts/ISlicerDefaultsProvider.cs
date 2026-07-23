@@ -1,5 +1,3 @@
-using OpenFarm.Domain.Parts;
-
 namespace OpenFarm.Application.Parts;
 
 /// <summary>
@@ -9,6 +7,6 @@ namespace OpenFarm.Application.Parts;
 /// </summary>
 public interface ISlicerDefaultsProvider
 {
-    /// <summary>The fixed fallback material profile an STL slices against — the only remaining "any material" case (research.md §7a).</summary>
-    string GetGenericFallbackMaterialProfile(SlicerEngine engine);
+    /// <summary>The fixed fallback material type an STL slices against — the only remaining "any material" case (research.md §7a), engine-independent.</summary>
+    string GetFallbackMaterialType();
 }

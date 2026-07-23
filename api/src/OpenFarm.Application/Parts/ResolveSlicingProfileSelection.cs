@@ -12,14 +12,17 @@ public sealed record ResolvedSlicingProfiles(string MachineSettingsJson, string 
 /// Resolves a slice target's machine, process, and filament profiles into complete, standalone
 /// preset JSON (research.md §5) — either a specific printer's own selections, or, when no printer is
 /// targeted (the pre-print estimate case, FR-015), a deterministic fleet-representative printer's
-/// selections. Filament resolves from an explicit narrowed profile when supplied (FR-012, US4) or
-/// else <see cref="RepresentativeFilamentResolver"/>'s deterministic per-material-type pick
-/// (FR-018/FR-019). Organization-level defaults (machine/process/filament) no longer exist anywhere
-/// in this resolution path — removed entirely per FR-009/FR-017. OrcaSlicer/Bambu Studio reject a
+/// selections. Filament resolves from an explicit narrowed profile when supplied (FR-012, US4) or else
+/// <see cref="RepresentativeFilamentResolver"/>'s deterministic, tiered match for the material type —
+/// a spool loaded on this target printer, then loaded anywhere in the fleet, then the filament
+/// library (storage), and only then a generic System catalog profile (010-filament-matching's
+/// research.md R2, superseding 009-process-profiles's original single-tier System-catalog-only pick,
+/// FR-018/FR-019). Organization-level defaults (machine/process/filament) no longer exist anywhere in
+/// this resolution path — removed entirely per FR-009/FR-017. OrcaSlicer/Bambu Studio reject a
 /// bare scalar-derived settings file outright (it must be a real preset with "type"/"name"/"inherits"/
 /// "from" etc.) and only ever accept one machine paired to the exact process it was authored/shipped
-/// for. Every unconfigured piece — no printer selection, no printers in the fleet, no representative
-/// filament for the material, or an unresolved ancestor chain in any of the three — throws
+/// for. Every unconfigured piece — no printer selection, no printers in the fleet, no matching
+/// filament for the material at any tier, or an unresolved ancestor chain in any of the three — throws
 /// <see cref="SlicingProfileUnconfiguredException"/> naming exactly what's missing, rather than
 /// silently attempting a slice.
 /// </summary>
@@ -45,7 +48,7 @@ public sealed class ResolveSlicingProfileSelection(
         var filamentProfile = narrowedFilamentProfileId is { } narrowedId
             ? await filamentProfileRepository.GetByIdAsync(narrowedId, cancellationToken)
                 ?? throw new SlicingProfileUnconfiguredException("The part's narrowed filament profile no longer exists.")
-            : await representativeFilamentResolver.ResolveAsync(materialType, cancellationToken);
+            : (await representativeFilamentResolver.ResolveAsync(printerId, materialType, cancellationToken)).Profile;
 
         var machineJson = await MergeMachineChainWithIncludesOrThrowAsync(machineProfile, cancellationToken);
         var processJson = await MergeChainOrThrowAsync(processProfile.Id, "process", FetchProcessNode, cancellationToken);

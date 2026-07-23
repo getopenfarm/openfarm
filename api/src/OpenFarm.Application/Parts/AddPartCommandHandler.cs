@@ -54,7 +54,7 @@ public sealed class AddPartCommandHandler(
             // real target is only discovered during background milestone-1 processing (research.md §13).
             if (classification.Format == PartFileFormat.Stl)
             {
-                targetMaterialType = slicerDefaults.GetGenericFallbackMaterialProfile(slicerUsed.Engine);
+                targetMaterialType = slicerDefaults.GetFallbackMaterialType();
             }
         }
 

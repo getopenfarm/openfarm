@@ -1,9 +1,11 @@
 using System.IO.Compression;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
+using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
@@ -130,7 +132,8 @@ public class CliSlicerEngineTests
             new FakeMachineProfileRepository(machine),
             new FakeProcessProfileRepository(process),
             new FakeFilamentProfileRepository(filament),
-            new RepresentativeFilamentResolver(new FakeFilamentProfileRepository(filament)));
+            new RepresentativeFilamentResolver(
+                new FakeFilamentProfileRepository(filament), new FakeSpoolRepository(), new FakeFilamentRepository(), new FakeFeedUnitRepository()));
     }
 
     private sealed class FakePrinterRepository(params Printer[] rows) : IPrinterRepository
@@ -228,6 +231,66 @@ public class CliSlicerEngineTests
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
             string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not exercised by CliSlicerEngineTests.");
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    // Always-empty — these tests only exercise the System-catalog tier (FakeFilamentProfileRepository
+    // above); none of them register a spool, so the fleet-loaded/library tiers never find candidates.
+    private sealed class FakeSpoolRepository : ISpoolRepository
+    {
+        public Task AddAsync(Spool spool, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<Spool?> GetByIdAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<Spool?>(null);
+
+        public Task<IReadOnlyList<Spool>> ListAsync(SpoolState? state, Guid? filamentVariantId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Spool>>([]);
+
+        public Task<IReadOnlyList<Spool>> FindLoadedInFeedUnitAsync(Guid feedUnitId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Spool>>([]);
+
+        public Task<Spool?> FindUsingFeedSlotAsync(Guid feedSlotId, CancellationToken cancellationToken) => Task.FromResult<Spool?>(null);
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeFilamentRepository : IFilamentRepository
+    {
+        public Task AddAsync(Filament filament, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<Filament?> GetByIdAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<Filament?>(null);
+
+        public Task<IReadOnlyList<Filament>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Filament>>([]);
+
+        public Task<FilamentVariant?> FindVariantByIdAsync(Guid filamentVariantId, CancellationToken cancellationToken) =>
+            Task.FromResult<FilamentVariant?>(null);
+
+        public Task AddVariantAsync(FilamentVariant variant, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeFeedUnitRepository : IFeedUnitRepository
+    {
+        public Task AddAsync(FeedUnit feedUnit, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<FeedUnit?> GetByIdAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<FeedUnit?>(null);
+
+        public Task<IReadOnlyList<FeedUnit>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<FeedUnit>>([]);
+
+        public Task<IReadOnlyList<FeedUnit>> GetByPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FeedUnit>>([]);
+
+        public Task<FeedUnit?> FindByPrinterKindUnitIndexAsync(Guid printerId, string kind, int unitIndex, CancellationToken cancellationToken) =>
+            Task.FromResult<FeedUnit?>(null);
+
+        public Task<FeedSlot?> GetFeedSlotByIdAsync(Guid feedSlotId, CancellationToken cancellationToken) => Task.FromResult<FeedSlot?>(null);
+
+        public Task<FeedUnit?> GetByFeedSlotIdAsync(Guid feedSlotId, CancellationToken cancellationToken) => Task.FromResult<FeedUnit?>(null);
+
+        public void TrackNewFeedSlot(FeedSlot feedSlot)
+        {
+        }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

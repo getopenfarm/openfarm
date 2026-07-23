@@ -3,6 +3,7 @@ using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Application.Tests.Profiles.Fakes;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
@@ -20,8 +21,16 @@ public class ResolveSlicingProfileSelectionTests
         FakePrinterRepository printerRepo,
         FakeMachineProfileRepository machineRepo,
         FakeProcessProfileRepository processRepo,
-        FakeFilamentProfileRepository filamentRepo) =>
-        new(printerRepo, machineRepo, processRepo, filamentRepo, new RepresentativeFilamentResolver(filamentRepo));
+        FakeFilamentProfileRepository filamentRepo,
+        FakeSpoolRepository? spoolRepo = null,
+        FakeFilamentRepository? filamentTrackingRepo = null,
+        FakeFeedUnitRepository? feedUnitRepo = null) =>
+        new(printerRepo, machineRepo, processRepo, filamentRepo,
+            new RepresentativeFilamentResolver(
+                filamentRepo,
+                spoolRepo ?? new FakeSpoolRepository(),
+                filamentTrackingRepo ?? new FakeFilamentRepository(),
+                feedUnitRepo ?? new FakeFeedUnitRepository()));
 
     private static Printer CreatePrinter(string serial = "SN-1") =>
         Printer.Create(Guid.NewGuid(), "Printer A", "Bambu", "X1C", "10.0.0.5", serial);
@@ -295,6 +304,118 @@ public class ResolveSlicingProfileSelectionTests
 
         firstResult.Should().BeEquivalentTo(secondResult);
         expectedRepresentativeId.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_PrinterTargeted_PrefersItsOwnLoadedSpoolOverSystemCatalog()
+    {
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+        var spoolRepo = new FakeSpoolRepository();
+        var filamentTrackingRepo = new FakeFilamentRepository();
+        var feedUnitRepo = new FakeFeedUnitRepository();
+
+        var printer = CreatePrinter();
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+
+        var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+        printer.LinkProcessProfile(process.Id);
+        await printerRepo.AddAsync(printer, CancellationToken.None);
+
+        // Catalog profile — must lose to the printer's own loaded spool.
+        var catalogFilament = FilamentProfile.CreateSystemProfile(
+            printer.OrganizationId, "Catalog PLA", ProfileSourceFormat.OrcaSlicer, null,
+            """{"type":"filament","filament_type":["PLA"],"marker":"catalog-pick"}""",
+            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+        await filamentRepo.AddAsync(catalogFilament, CancellationToken.None);
+
+        // The printer's own loaded spool's linked profile — must win.
+        var loadedFilamentProfile = FilamentProfile.CreateSystemProfile(
+            printer.OrganizationId, "Loaded PLA", ProfileSourceFormat.OrcaSlicer, null,
+            """{"type":"filament","filament_type":["PLA"],"marker":"loaded-pick"}""",
+            "Polymaker", "P001", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+        await filamentRepo.AddAsync(loadedFilamentProfile, CancellationToken.None);
+
+        var trackedFilament = Filament.Create(printer.OrganizationId, Guid.NewGuid(), "PLA", "PLA", loadedFilamentProfile.Id);
+        var variant = trackedFilament.AddVariant("Black", "#000000");
+        await filamentTrackingRepo.AddAsync(trackedFilament, CancellationToken.None);
+
+        var spool = Spool.Create(printer.OrganizationId, variant.Id, label: null, spoolWeightGrams: 1000, remainingWeightGrams: 800);
+        await spoolRepo.AddAsync(spool, CancellationToken.None);
+
+        var feedUnit = FeedUnit.CreateConnectorDerived(printer.OrganizationId, printer.Id, FeedUnitKindCatalog.ExternalSpool, unitIndex: 0);
+        var feedSlot = feedUnit.AddFeedSlot(slotPosition: 0);
+        await feedUnitRepo.AddAsync(feedUnit, CancellationToken.None);
+        spool.LoadOntoFeedSlot(feedSlot.Id);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo, spoolRepo, filamentTrackingRepo, feedUnitRepo);
+
+        var result = await selection.ResolveAsync(printer.Id, "PLA", narrowedFilamentProfileId: null, CancellationToken.None);
+
+        result.FilamentSettingsJson.Should().Contain("loaded-pick");
+        result.FilamentSettingsJson.Should().NotContain("catalog-pick");
+    }
+
+    [Fact]
+    public async Task ResolveAsync_NarrowedFilamentProfile_NeverInvokesMatchingCapabilityEvenWhenAFleetLoadedSpoolWouldWin()
+    {
+        // FR-011 regression — a manually narrowed filament requirement must bypass the matching
+        // capability entirely, even when a fleet-loaded spool would otherwise win tier 1/2.
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+        var spoolRepo = new FakeSpoolRepository();
+        var filamentTrackingRepo = new FakeFilamentRepository();
+        var feedUnitRepo = new FakeFeedUnitRepository();
+
+        var printer = CreatePrinter();
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+
+        var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+        printer.LinkProcessProfile(process.Id);
+        await printerRepo.AddAsync(printer, CancellationToken.None);
+
+        // A fleet-loaded spool that would win tier 1 if matching ran at all.
+        var wouldWinProfile = FilamentProfile.CreateSystemProfile(
+            printer.OrganizationId, "Would-Win PLA", ProfileSourceFormat.OrcaSlicer, null,
+            """{"type":"filament","filament_type":["PLA"],"marker":"would-win"}""",
+            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+        await filamentRepo.AddAsync(wouldWinProfile, CancellationToken.None);
+
+        var trackedFilament = Filament.Create(printer.OrganizationId, Guid.NewGuid(), "PLA", "PLA", wouldWinProfile.Id);
+        var variant = trackedFilament.AddVariant("Black", "#000000");
+        await filamentTrackingRepo.AddAsync(trackedFilament, CancellationToken.None);
+
+        var spool = Spool.Create(printer.OrganizationId, variant.Id, label: null, spoolWeightGrams: 1000, remainingWeightGrams: 800);
+        await spoolRepo.AddAsync(spool, CancellationToken.None);
+
+        var feedUnit = FeedUnit.CreateConnectorDerived(printer.OrganizationId, printer.Id, FeedUnitKindCatalog.ExternalSpool, unitIndex: 0);
+        var feedSlot = feedUnit.AddFeedSlot(slotPosition: 0);
+        await feedUnitRepo.AddAsync(feedUnit, CancellationToken.None);
+        spool.LoadOntoFeedSlot(feedSlot.Id);
+
+        // The manually narrowed, distinguishable target — must be the one that's actually used.
+        var narrowedProfile = FilamentProfile.CreateSystemProfile(
+            printer.OrganizationId, "Narrowed PETG", ProfileSourceFormat.OrcaSlicer, null,
+            """{"type":"filament","filament_type":["PETG"],"marker":"narrowed-pick"}""",
+            "Prusament", "PT001", isSelectable: true, compatibleMachineNames: null, materialType: "PETG", includedTemplateNames: null);
+        await filamentRepo.AddAsync(narrowedProfile, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo, spoolRepo, filamentTrackingRepo, feedUnitRepo);
+
+        var result = await selection.ResolveAsync(printer.Id, "PLA", narrowedFilamentProfileId: narrowedProfile.Id, CancellationToken.None);
+
+        result.FilamentSettingsJson.Should().Contain("narrowed-pick");
+        result.FilamentSettingsJson.Should().NotContain("would-win");
     }
 
     private sealed class FakePrinterRepository : IPrinterRepository

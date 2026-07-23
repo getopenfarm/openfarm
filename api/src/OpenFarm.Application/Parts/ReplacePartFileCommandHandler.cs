@@ -48,7 +48,7 @@ public sealed class ReplacePartFileCommandHandler(
 
             if (classification.Format == PartFileFormat.Stl)
             {
-                targetMaterialType = slicerDefaults.GetGenericFallbackMaterialProfile(slicerUsed.Engine);
+                targetMaterialType = slicerDefaults.GetFallbackMaterialType();
             }
         }
 
