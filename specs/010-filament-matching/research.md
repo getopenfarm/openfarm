@@ -152,28 +152,29 @@ nothing about its shape is specific to adding a part.
   flow* — rejected: directly contradicts FR-004's "shared, reusable capability... rather than logic specific
   to one flow," and would leave two competing "pick a filament" code paths to keep in sync.
 
-## R6 — Making the matched source visible on an estimate (FR-013)
+## R6 — Match-source visibility is deferred, not built this iteration
 
-**Decision**: Carry the match source through the existing estimate pipeline —
-`PartEstimateResolution` → `PartProcessingJob.ResolveEstimate(...)` (which already sets
-`PreviewEstimatedPrintTimeMinutes`/`PreviewEstimatedFilamentWeightGrams`,
-`api/src/OpenFarm.Domain/Parts/PartProcessingJob.cs:192-201`) → `Part.Create`/`Part.ReplaceFile` at confirm
-time (`ConfirmPartProcessingJobCommandHandler.cs:92-93,117-118`, which already copies the job's preview
-estimate fields onto the `Part`) — by adding a parallel `FilamentMatchSource` + human-readable label pair at
-each of those same three hand-off points, and surfacing it on `PartDetail` (`GetPartQuery.cs`) next to the
-existing `EstimatedPrintTimeMinutes`/`EstimatedFilamentWeightGrams` fields.
+**Decision**: The matching capability internally classifies which tier produced its pick
+(`FilamentMatchResult.Source`, `data-model.md`), because the tiering algorithm has to know this to implement
+itself — but nothing carries that classification onto `PartProcessingJob`, `Part`, `PartDetail`, or the
+frontend in this feature. No migration, no new DTO fields, no UI change.
 
-**Rationale**: This is the smallest change that satisfies FR-013/SC-003 — it rides the exact same
-already-proven hand-off path the estimate values themselves use, rather than inventing a second, parallel
-storage/propagation mechanism. For the label text, reuse the existing origin-labeling convention already
-shipped in `web/src/features/profiles/components/ProfilePickerCombobox.tsx` (`"System: {vendorName}"` /
-`"User"`) — extended here to three kinds: `"Fleet: {printer name}"`, `"Library: {filament label}"`,
-`"System: {vendor name}"` — so an operator sees one consistent labeling idiom for "where did this profile
-come from" everywhere it appears, per Constitution Principle III (consistent UX across the fleet).
+**Rationale**: The original ask ("if we have that then our estimate will be more realistic") is about the
+*estimate value* being grounded in real inventory — satisfied entirely by FR-012 (the estimate already uses
+whichever filament's settings the matching capability picked; that's just how the existing
+`ResolveSlicingProfileSelection` → slice pipeline works, no new plumbing needed). Making the *pick's origin*
+visible to an operator is a separate, additive concern that nobody asked for explicitly, and building it now
+means a migration plus three hand-off points plus frontend work for a capability with no confirmed consumer
+yet. Deferred until there's a concrete need — most likely an audit trail or a live "why was this filament
+chosen" debugging view, both of which are naturally served by this same `FilamentMatchResult.Source`
+classification once that need is real, without having to touch the resolver's shape again.
 
 **Alternatives considered**:
-- *Only expose the source via a debug/log field, not the UI* — rejected: directly contradicts SC-003 ("An
-  operator reviewing any part's estimate can tell, without leaving the page...").
-- *Store the full `FilamentMatchResult` as a JSON blob on `Part`* — rejected as unnecessary; a small enum
-  plus a precomputed label string is enough to render the requirement and keeps the schema change minimal
-  (Constitution Principle IV: no speculative structure beyond what's asked for).
+- *Build the visibility now, since it's cheap given the resolver already computes the tier* — rejected: the
+  computation is cheap, but propagating and rendering it (migration, three hand-off points, frontend) is not
+  free, and speculative schema/API surface is exactly what Constitution Principle IV warns against building
+  ahead of a real second consumer.
+- *Log the match source via structured logging as a lightweight debugging aid, short of full persistence* —
+  considered reasonable but also deferred here to keep this iteration to the minimum that resolves the
+  reported bug and the core matching behavior; can be added later alongside whichever future
+  audit-trail/live-view feature actually needs it.

@@ -129,34 +129,6 @@ profile as it does today.
 
 ---
 
-### User Story 4 - Estimates reflect the matched filament (Priority: P2)
-
-Once a stand-in filament has been intelligently matched (fleet-loaded, library, or catalog), the part's
-material/time estimate is computed using that specific filament's own settings, not a generic placeholder —
-so an operator reviewing an estimate is seeing a number grounded in what the farm can actually do, and can
-tell (via the same origin labeling already used elsewhere in the system) whether the estimate assumed
-fleet-loaded filament, library stock, or a generic catalog guess.
-
-**Why this priority**: Turns User Stories 2–3's improved matching into the operator-visible value the request
-was actually motivated by ("our estimate will be more realistic"); depends on those stories existing first.
-
-**Independent Test**: Add the same STL part twice — once when a matching fleet-loaded spool exists, once
-when only a generic catalog profile is available (no matching spool anywhere) — and verify the two resulting
-estimates can differ (reflecting each filament's own settings) and each estimate is traceable to which kind
-of filament source produced it.
-
-**Acceptance Scenarios**:
-
-1. **Given** a part's stand-in filament was matched from a fleet-loaded spool, **When** its estimate is
-   computed, **Then** the estimate uses that filament's own settings and the part indicates its filament
-   source was a loaded fleet spool.
-2. **Given** a part's stand-in filament was matched from filament library stock, **When** its estimate is
-   computed, **Then** the part indicates its filament source was library stock rather than a loaded spool or
-   a generic catalog pick.
-3. **Given** a part's stand-in filament fell back to a generic System catalog profile, **When** its estimate
-   is computed, **Then** the part indicates its filament source was a generic catalog pick, distinguishing it
-   from the two more specific sources above.
-
 ### Edge Cases
 
 - What happens when a fleet-loaded spool's material matches but the printer it's loaded on is offline,
@@ -210,10 +182,7 @@ of filament source produced it.
   manually narrowed to a specific profile or library filament by an operator.
 - **FR-012**: A part's computed material/time estimate MUST use the specific filament settings of whichever
   filament the matching capability actually selected, not a placeholder distinct from that selection.
-- **FR-013**: The system MUST make it visible, wherever a resolved filament's estimate is shown, which kind
-  of source produced it — fleet-loaded, filament library, or generic catalog — consistent with how other
-  profile origins are already labeled elsewhere in the system.
-- **FR-014**: When the fleet has no printers and the filament library has no entries at all, the matching
+- **FR-013**: When the fleet has no printers and the filament library has no entries at all, the matching
   capability MUST still reach the generic System catalog fallback rather than failing differently than the
   system does today in that situation.
 
@@ -230,7 +199,8 @@ of filament source produced it.
   owned spool — the existing, always-available fallback.
 - **Filament Match Result**: The outcome of the matching capability for a given material (and, when
   applicable, a given target printer) — which filament was selected and which of the three source kinds
-  (fleet-loaded, library, catalog) it came from, carried through to the estimate that consumes it.
+  (fleet-loaded, library, catalog) it came from. Computed internally by the matching capability for every
+  resolution; not persisted or exposed to the operator in this feature (see Assumptions).
 
 ## Success Criteria *(mandatory)*
 
@@ -242,9 +212,7 @@ of filament source produced it.
 - **SC-002**: When a matching filament is loaded somewhere in the fleet, the estimate produced for a newly
   added part reflects that specific filament's own settings rather than a generic placeholder, verifiable by
   comparing estimates for the same file under fleet-loaded-available vs. no-match-available conditions.
-- **SC-003**: An operator reviewing any part's estimate can tell, without leaving the page, whether the
-  filament behind it came from the fleet, the filament library, or a generic catalog guess.
-- **SC-004**: Repeating filament resolution against an unchanged fleet and filament library always produces
+- **SC-003**: Repeating filament resolution against an unchanged fleet and filament library always produces
   the identical choice, with no observed flapping between equally-eligible candidates across repeated runs.
 
 ## Assumptions
@@ -267,3 +235,8 @@ of filament source produced it.
   defines; this feature does not introduce a new availability concept.
 - Keeping a part's matched filament in sync with later inventory changes (a spool depleting or being
   swapped after the match was made) is out of scope; matching happens at add/estimate time only.
+- Exposing *which* tier produced a given match to the operator — e.g. as a labeled field on the part's
+  estimate, an audit trail, or a live "why was this chosen" debugging view — is explicitly deferred to a
+  future feature. This feature's matching capability still internally distinguishes the three source kinds
+  (it has to, to implement the tiering itself), so that future feature can consume it without redesigning the
+  resolver; this iteration just doesn't persist or surface that result anywhere.
