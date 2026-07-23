@@ -8,6 +8,22 @@
 
 **Input**: User description: "after we have fix the slicer provision and implemented profile ingestion we're almost there, but when I add STL part it still failed saying Generic PLA not found, due to the fall back. I think we have 2 problem here, since we implemented ingestion we should already have Generic PLA profile. 2nd problem it should choose filament based on what we have, in the machine or filament library (I don't have the idea yet. What I am thinking is something like intelligent matching logic I think we should have it sooner or later because when we implement job queuing we will need that too. If we have that then our estimate will be more realistic as it's based on the fleet and filament repository."
 
+## Clarifications
+
+### Session 2026-07-23
+
+- Q: Should this feature also extract machine/process profile resolution (today two private methods inline
+  in `ResolveSlicingProfileSelection`) into a separate reusable resolver — mirroring the new filament
+  matching capability — so a future job-queuing feature and part estimation can both reuse it, or is
+  `ResolveSlicingProfileSelection` itself already sufficient as that shared capability for all three profile
+  kinds? → A: No extraction needed. `ResolveSlicingProfileSelection` takes only `printerId`/`materialType`/
+  `narrowedFilamentProfileId` — no dependency on any `Part`-specific business type — and already returns
+  fully-merged machine+process+filament JSON; a future job-queuing feature can call it directly, unchanged.
+  Machine/process resolution itself has no matching logic to extract (it's a direct
+  `Printer.MachineProfileId`/`ProcessProfileId` field read, never a search over candidates), so there is
+  nothing there for a resolver to encapsulate. This feature's only change to that class is the filament
+  piece it internally calls.
+
 ## Context & Problem *(informative)*
 
 Adding a part file that structurally carries no material data (an STL) requires the system to pick a
@@ -227,6 +243,13 @@ profile as it does today.
   than introducing a new inventory concept.
 - Job queuing itself (assigning queued jobs to specific printers/filament) is explicitly out of scope for
   this feature; only the shared matching capability it will depend on is delivered here.
+- Machine/process profile resolution (today two private methods inline in `ResolveSlicingProfileSelection`)
+  is not being extracted into a separate reusable resolver by this feature. `ResolveSlicingProfileSelection`
+  itself already has no dependency on any `Part`-specific type and already returns fully-merged
+  machine+process+filament settings, so it already serves as the shared capability a future job-queuing
+  feature (and part estimation) would call for all three profile kinds — a dedicated machine/process resolver
+  would have no matching logic to encapsulate (resolution there is a direct field read, never a search over
+  candidates) and would just duplicate reusability that already exists (per Clarifications).
 - A filament library spool's linkage to usable slicing profile data is optional and may be absent for some
   spools (consistent with the existing filament-tracking design); this feature treats an unlinked spool as
   ineligible for matching rather than requiring every spool to carry that link retroactively.
