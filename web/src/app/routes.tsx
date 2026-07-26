@@ -3,6 +3,7 @@ import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
 import { AssemblyFormPage } from '../features/assemblies/AssemblyFormPage';
 import { LoginPage } from '../features/auth/LoginPage';
+import { ConnectionSecretFormPage } from '../features/connection-secrets/ConnectionSecretFormPage';
 import { ConnectionSecretsPage } from '../features/connection-secrets/ConnectionSecretsPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { FilamentFormPage } from '../features/filament/FilamentFormPage';
@@ -10,12 +11,16 @@ import { FilamentPage } from '../features/filament/FilamentPage';
 import { JobsPage } from '../features/jobs/JobsPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
 import { PartDetailPage } from '../features/parts/PartDetailPage';
+import { PartFormPage } from '../features/parts/PartFormPage';
 import { PartsPage } from '../features/parts/PartsPage';
 import { PrinterDetailPage } from '../features/printers/PrinterDetailPage';
+import { PrinterFormPage } from '../features/printers/PrinterFormPage';
 import { PrintersPage } from '../features/printers/PrintersPage';
+import { ProfilesImportPage } from '../features/profiles/ProfilesImportPage';
 import { ProfilesPage } from '../features/profiles/ProfilesPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { SlicingDefaultsPage } from '../features/settings/SlicingDefaultsPage';
+import { SpoolFormPage } from '../features/spools/SpoolFormPage';
 import { SpoolsPage } from '../features/spools/SpoolsPage';
 import { AppShell } from './layout/AppShell';
 import { ProtectedRoute } from './layout/ProtectedRoute';
@@ -42,9 +47,19 @@ export const router = createBrowserRouter([
             children: [
               { index: true, element: <PrintersPage /> },
               {
+                path: 'new',
+                element: <PrinterFormPage mode="add" />,
+                handle: { title: 'Add Printer' },
+              },
+              {
                 path: ':id',
                 element: <PrinterDetailPage />,
                 handle: { title: 'Printer Detail' },
+              },
+              {
+                path: ':id/edit',
+                element: <PrinterFormPage mode="edit" />,
+                handle: { title: 'Edit Printer' },
               },
             ],
           },
@@ -68,14 +83,26 @@ export const router = createBrowserRouter([
           },
           {
             path: '/spools',
-            element: <SpoolsPage />,
             handle: { title: 'Spools' },
+            children: [
+              { index: true, element: <SpoolsPage /> },
+              {
+                path: 'new',
+                element: <SpoolFormPage />,
+                handle: { title: 'Add Spool' },
+              },
+            ],
           },
           {
             path: '/parts',
             handle: { title: 'Parts' },
             children: [
               { index: true, element: <PartsPage /> },
+              {
+                path: 'new',
+                element: <PartFormPage />,
+                handle: { title: 'Add Part' },
+              },
               {
                 path: ':id',
                 element: <PartDetailPage />,
@@ -102,8 +129,15 @@ export const router = createBrowserRouter([
           },
           {
             path: '/profiles',
-            element: <ProfilesPage />,
             handle: { title: 'Profiles' },
+            children: [
+              { index: true, element: <ProfilesPage /> },
+              {
+                path: 'import',
+                element: <ProfilesImportPage />,
+                handle: { title: 'Import Profiles' },
+              },
+            ],
           },
           {
             path: '/maintenance',
@@ -122,8 +156,15 @@ export const router = createBrowserRouter([
               { index: true, element: <SettingsPage /> },
               {
                 path: 'connection-secrets',
-                element: <ConnectionSecretsPage />,
                 handle: { title: 'Connection Secrets' },
+                children: [
+                  { index: true, element: <ConnectionSecretsPage /> },
+                  {
+                    path: 'new',
+                    element: <ConnectionSecretFormPage />,
+                    handle: { title: 'Add Connection Secret' },
+                  },
+                ],
               },
               {
                 path: 'slicing-defaults',

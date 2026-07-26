@@ -17,7 +17,7 @@ function notImplemented(action: string) {
   toast(`${action} isn't implemented yet.`);
 }
 
-/** Only "Mark ready", "Settings" (→ EditPrinterDialog), and "Remove" are backed by real mutations
+/** Only "Mark ready", "Settings" (→ /printers/:id/edit), and "Remove" are backed by real mutations
  * today — every other status-driven action here is intentionally decorative, matching the redesign
  * mockup's own lack of wiring for them. Don't fake a state change for the disabled ones. Remove is
  * never blocked by status (FR-006) and is offered from every branch below, matching today's

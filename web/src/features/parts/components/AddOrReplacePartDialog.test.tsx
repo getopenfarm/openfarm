@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { AddOrReplacePartDialog } from './AddOrReplacePartDialog';
 
+const PART_ID = '11111111-1111-1111-1111-111111111111';
+
 function renderDialog() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -21,7 +23,12 @@ function renderDialog() {
   }
 
   return render(
-    <AddOrReplacePartDialog mode="add" open onOpenChange={() => {}} />,
+    <AddOrReplacePartDialog
+      partId={PART_ID}
+      partName="Widget Bracket"
+      open
+      onOpenChange={() => {}}
+    />,
     { wrapper: Wrapper },
   );
 }
@@ -41,9 +48,22 @@ const slicingDefaults = {
   ],
 };
 
-describe('AddOrReplacePartDialog', () => {
+describe('AddOrReplacePartDialog (replace mode)', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('titles the dialog for the part being replaced and never shows name/tags fields', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(slicingDefaults));
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderDialog();
+
+    expect(
+      await screen.findByText('Replace file for Widget Bracket'),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Tags')).not.toBeInTheDocument();
   });
 
   it('defaults the slicer picker to the organization default', async () => {
@@ -57,13 +77,16 @@ describe('AddOrReplacePartDialog', () => {
     ).toBeInTheDocument();
   });
 
-  it('sends the chosen slicer override with the upload', async () => {
+  it('sends the chosen slicer override with the upload, against the replace-file endpoint', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/settings/slicing-defaults')) {
         return Promise.resolve(jsonResponse(slicingDefaults));
       }
-      if (url.includes('/api/v1/parts') && init?.method === 'POST') {
+      if (
+        url.includes(`/api/v1/parts/${PART_ID}/file`) &&
+        init?.method === 'PUT'
+      ) {
         return Promise.resolve(
           jsonResponse({ jobId: 'job-1', status: 'Processing' }, 202),
         );
@@ -72,9 +95,9 @@ describe('AddOrReplacePartDialog', () => {
         return Promise.resolve(
           jsonResponse({
             id: 'job-1',
-            kind: 'Add',
+            kind: 'Replace',
             status: 'Processing',
-            partId: null,
+            partId: PART_ID,
             slicer: null,
             preview: null,
             errorMessage: null,
@@ -109,17 +132,26 @@ describe('AddOrReplacePartDialog', () => {
       const postCall = fetchMock.mock.calls.find(([reqInput, reqInit]) => {
         const reqUrl =
           typeof reqInput === 'string' ? reqInput : reqInput.toString();
-        return reqUrl.includes('/api/v1/parts') && reqInit?.method === 'POST';
+        return (
+          reqUrl.includes(`/api/v1/parts/${PART_ID}/file`) &&
+          reqInit?.method === 'PUT'
+        );
       });
       expect(postCall).toBeDefined();
     });
 
-    const [, postInit] = fetchMock.mock.calls.find(([reqInput, reqInit]) => {
+    const putCall = fetchMock.mock.calls.find(([reqInput, reqInit]) => {
       const reqUrl =
         typeof reqInput === 'string' ? reqInput : reqInput.toString();
-      return reqUrl.includes('/api/v1/parts') && reqInit?.method === 'POST';
-    })!;
-    const body = (postInit as RequestInit).body as FormData;
+      return (
+        reqUrl.includes(`/api/v1/parts/${PART_ID}/file`) &&
+        reqInit?.method === 'PUT'
+      );
+    });
+    if (!putCall) {
+      throw new Error('Expected a PUT call to the replace-file endpoint');
+    }
+    const body = (putCall[1] as RequestInit).body as FormData;
     expect(body.get('slicerEngine')).toBe('SuperSlicer');
     expect(body.get('slicerVersion')).toBe('2.5.59.13');
   });

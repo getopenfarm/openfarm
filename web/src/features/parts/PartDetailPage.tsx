@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
+import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,6 +29,7 @@ export function PartDetailPage() {
   usePartsHub();
 
   const [replaceOpen, setReplaceOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const partQuery = useOpenFarmApiEndpointsPartsGetPartEndpoint(id ?? '');
   const part = partQuery.data?.data;
@@ -45,14 +47,9 @@ export function PartDetailPage() {
     },
   });
 
-  function handleDelete() {
+  function handleConfirmDelete() {
     if (!part?.id) return;
-    const confirmed = window.confirm(
-      `Delete ${part.name}? This can't be undone.`,
-    );
-    if (confirmed) {
-      deleteMutation.mutate({ id: part.id });
-    }
+    deleteMutation.mutate({ id: part.id });
   }
 
   const narrowMutation =
@@ -130,7 +127,7 @@ export function PartDetailPage() {
               </Button>
               <Button
                 variant="outline"
-                onClick={handleDelete}
+                onClick={() => setConfirmDeleteOpen(true)}
                 disabled={deleteMutation.isPending}
               >
                 Delete
@@ -178,11 +175,19 @@ export function PartDetailPage() {
           </div>
 
           <AddOrReplacePartDialog
-            mode="replace"
             partId={part.id}
             partName={part.name}
             open={replaceOpen}
             onOpenChange={setReplaceOpen}
+          />
+
+          <ConfirmDialog
+            open={confirmDeleteOpen}
+            onOpenChange={setConfirmDeleteOpen}
+            title="Delete part?"
+            description={`Delete ${part.name}? This can't be undone.`}
+            confirmLabel="Delete"
+            onConfirm={handleConfirmDelete}
           />
         </>
       )}

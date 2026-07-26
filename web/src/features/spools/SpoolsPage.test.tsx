@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
 import { SpoolsPage } from './SpoolsPage';
@@ -69,7 +70,9 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <SpoolsPage />
+      <MemoryRouter>
+        <SpoolsPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }

@@ -1,39 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { Toaster } from 'sonner';
+import { createMemoryRouter, Link, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ImportProfilesDialog } from './ImportProfilesDialog';
+import { Toaster } from '@/components/ui/sonner';
+import { ProfilesImportPage } from './ProfilesImportPage';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
-}
-
-function renderDialog() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-
-  function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        {children}
-        <Toaster />
-      </QueryClientProvider>
-    );
-  }
-
-  return render(<ImportProfilesDialog />, { wrapper: Wrapper });
 }
 
 const previewResponseBody = {
@@ -73,10 +51,49 @@ const previewResponseBody = {
   ],
 };
 
-describe('ImportProfilesDialog', () => {
+function TestLayout() {
+  return (
+    <div>
+      <Link to="/profiles">Nav away</Link>
+      <Outlet />
+    </div>
+  );
+}
+
+function renderRoute() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+
+  function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        {children}
+        <Toaster />
+      </QueryClientProvider>
+    );
+  }
+
+  const router = createMemoryRouter(
+    [
+      {
+        element: <TestLayout />,
+        children: [
+          { path: '/profiles/import', element: <ProfilesImportPage /> },
+          { path: '/profiles', element: <div>Profiles list page</div> },
+        ],
+      },
+    ],
+    { initialEntries: ['/profiles/import'] },
+  );
+
+  render(<RouterProvider router={router} />, { wrapper: Wrapper });
+}
+
+describe('ProfilesImportPage', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('walks file select -> preview -> select subset -> confirm', async () => {
+  it('walks file select -> preview -> select subset -> confirm, shows a toast, and navigates to /profiles', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
@@ -100,15 +117,13 @@ describe('ImportProfilesDialog', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderDialog();
-    await user.click(screen.getByRole('button', { name: 'Import' }));
+    renderRoute();
 
-    const dialog = await screen.findByRole('dialog');
-    const input = dialog.querySelector(
+    const fileInput = document.querySelector(
       'input[type="file"]',
     ) as HTMLInputElement;
     const file = new File(['{}'], 'bundle.zip', { type: 'application/zip' });
-    await user.upload(input, file);
+    await user.upload(fileInput, file);
 
     expect(await screen.findByText('Test Printer')).toBeInTheDocument();
     expect(screen.getByText('Test PLA')).toBeInTheDocument();
@@ -121,23 +136,17 @@ describe('ImportProfilesDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'Confirm import' }));
 
-    await waitFor(() => {
-      const confirmCall = fetchMock.mock.calls.find(([reqInput]) =>
-        (typeof reqInput === 'string'
-          ? reqInput
-          : reqInput.toString()
-        ).includes('/imports/confirm'),
-      );
-      expect(confirmCall).toBeDefined();
-    });
+    expect(await screen.findByText('Profiles list page')).toBeInTheDocument();
 
     const confirmCall = fetchMock.mock.calls.find(([reqInput]) =>
       (typeof reqInput === 'string' ? reqInput : reqInput.toString()).includes(
         '/imports/confirm',
       ),
     );
-    expect(confirmCall).toBeDefined();
-    const confirmInit = confirmCall?.[1] as RequestInit;
+    if (!confirmCall) {
+      throw new Error('Expected a confirm-import call');
+    }
+    const confirmInit = confirmCall[1] as RequestInit;
     const formData = confirmInit.body as FormData;
     const selections = JSON.parse(formData.get('selections') as string);
     expect(selections).toEqual([
@@ -146,16 +155,14 @@ describe('ImportProfilesDialog', () => {
   });
 
   it('accepts a file dropped onto the dropzone', async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
-      Promise.resolve(jsonResponse(previewResponseBody)),
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(previewResponseBody))),
     );
-    vi.stubGlobal('fetch', fetchMock);
 
-    renderDialog();
-    await user.click(screen.getByRole('button', { name: 'Import' }));
-    const dialog = await screen.findByRole('dialog');
-    const dropzone = within(dialog).getByRole('button', {
+    renderRoute();
+
+    const dropzone = screen.getByRole('button', {
       name: 'Choose a profile bundle file, or drag and drop it here',
     });
 
@@ -175,62 +182,43 @@ describe('ImportProfilesDialog', () => {
       vi.fn(() => Promise.resolve(jsonResponse(previewResponseBody))),
     );
 
-    renderDialog();
-    await user.click(screen.getByRole('button', { name: 'Import' }));
-    const dialog = await screen.findByRole('dialog');
-    const dropzone = within(dialog).getByRole('button', {
+    renderRoute();
+
+    const dropzone = screen.getByRole('button', {
       name: 'Choose a profile bundle file, or drag and drop it here',
     });
-    const input = dialog.querySelector(
+    const fileInput = document.querySelector(
       'input[type="file"]',
     ) as HTMLInputElement;
-    const clickSpy = vi.spyOn(input, 'click');
+    const clickSpy = vi.spyOn(fileInput, 'click');
 
     await user.click(dropzone);
 
     expect(clickSpy).toHaveBeenCalled();
   });
 
-  it('closing before confirm leaves nothing selected on reopen', async () => {
+  it('blocks in-app navigation away while a file is selected', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
-      Promise.resolve(jsonResponse(previewResponseBody)),
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(previewResponseBody))),
     );
-    vi.stubGlobal('fetch', fetchMock);
 
-    renderDialog();
-    await user.click(screen.getByRole('button', { name: 'Import' }));
-    const dialog = await screen.findByRole('dialog');
-    const input = dialog.querySelector(
+    renderRoute();
+
+    const fileInput = document.querySelector(
       'input[type="file"]',
     ) as HTMLInputElement;
     const file = new File(['{}'], 'bundle.zip', { type: 'application/zip' });
-    await user.upload(input, file);
+    await user.upload(fileInput, file);
 
     await screen.findByText('Test Printer');
 
-    // Close without confirming (Escape closes a Radix dialog).
-    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('link', { name: 'Nav away' }));
 
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
-    );
-
-    // Reopening starts a fresh, empty flow — no leftover selection or preview state.
-    await user.click(screen.getByRole('button', { name: 'Import' }));
-    const reopenedDialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('alertdialog');
     expect(
-      within(reopenedDialog).queryByText('Test Printer'),
-    ).not.toBeInTheDocument();
-    expect(
-      reopenedDialog.querySelector('input[type="file"]'),
+      within(dialog).getByText('Discard unsaved changes?'),
     ).toBeInTheDocument();
-
-    const confirmCalls = fetchMock.mock.calls.filter(([reqInput]) =>
-      (typeof reqInput === 'string' ? reqInput : reqInput.toString()).includes(
-        '/imports/confirm',
-      ),
-    );
-    expect(confirmCalls).toHaveLength(0);
   });
 });

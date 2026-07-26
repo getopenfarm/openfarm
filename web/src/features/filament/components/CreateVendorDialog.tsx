@@ -83,7 +83,15 @@ export function CreateVendorDialog({ onCreated }: CreateVendorDialogProps) {
         </DialogHeader>
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={(event) => {
+              // Also stops the submit from bubbling to an ancestor <form> in the React tree —
+              // this dialog is a self-contained quick action that may be rendered inside a
+              // page's own form (e.g. FilamentFormPage), and React's portal event bubbling
+              // follows the component tree, not the DOM tree, so an un-stopped submit here
+              // would also trigger the outer form's onSubmit.
+              event.stopPropagation();
+              form.handleSubmit(onSubmit)(event);
+            }}
             className="flex flex-col gap-4"
           >
             <FormField

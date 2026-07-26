@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ListPartsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPartsListPartsEndpoint } from '@/lib/api/generated/parts/parts';
-import { AddOrReplacePartDialog } from './components/AddOrReplacePartDialog';
 import { PartFilterBar } from './components/PartFilterBar';
 import { PartsTable } from './components/PartsTable';
 import { usePartsHub } from './hooks/usePartsHub';
@@ -19,7 +18,6 @@ export function PartsPage() {
   usePartsHub();
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [addOpen, setAddOpen] = useState(false);
 
   const partsQuery = useOpenFarmApiEndpointsPartsListPartsEndpoint({
     tag: selectedTags.length > 0 ? selectedTags : undefined,
@@ -44,7 +42,7 @@ export function PartsPage() {
           listData ? `${listData.totalCount ?? parts.length} parts` : undefined
         }
         action={
-          <Button onClick={() => setAddOpen(true)}>
+          <Button onClick={() => navigate('/parts/new')}>
             <PlusIcon /> Add part
           </Button>
         }
@@ -64,7 +62,7 @@ export function PartsPage() {
           title="No parts yet"
           description="Add an STL, 3MF, or G-code file to start your catalog."
           action={
-            <Button onClick={() => setAddOpen(true)}>
+            <Button onClick={() => navigate('/parts/new')}>
               <PlusIcon /> Add part
             </Button>
           }
@@ -75,12 +73,6 @@ export function PartsPage() {
           onRowClick={(part) => navigate(`/parts/${part.id}`)}
         />
       )}
-
-      <AddOrReplacePartDialog
-        mode="add"
-        open={addOpen}
-        onOpenChange={setAddOpen}
-      />
     </div>
   );
 }

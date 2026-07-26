@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
+import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,7 +18,6 @@ import {
 import { AmsSlotGrid } from './components/AmsSlotGrid';
 import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
-import { EditPrinterDialog } from './components/EditPrinterDialog';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { RecentActivityCard } from './components/RecentActivityCard';
@@ -27,7 +27,7 @@ export function PrinterDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
   const detailQuery = useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint(
     id ?? '',
   );
@@ -65,13 +65,7 @@ export function PrinterDetailPage() {
     },
   });
 
-  function handleRemove(printerId: string, printerName: string) {
-    const confirmed = window.confirm(
-      `Remove ${printerName}? This can't be undone. Removal isn't blocked by its current print status.`,
-    );
-    if (!confirmed) {
-      return;
-    }
+  function handleConfirmRemove(printerId: string) {
     removeMutation.mutate({ id: printerId });
   }
 
@@ -113,10 +107,8 @@ export function PrinterDetailPage() {
               onMarkReady={() =>
                 markReadyMutation.mutate({ id: printer.id ?? '' })
               }
-              onOpenSettings={() => setSettingsOpen(true)}
-              onRemove={() =>
-                handleRemove(printer.id ?? '', printer.name ?? '')
-              }
+              onOpenSettings={() => navigate(`/printers/${printer.id}/edit`)}
+              onRemove={() => setConfirmRemoveOpen(true)}
             />
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
@@ -162,19 +154,13 @@ export function PrinterDetailPage() {
               <RecentActivityCard printerId={printer.id ?? ''} />
             </div>
           </div>
-          <EditPrinterDialog
-            printerId={printer.id ?? ''}
-            printerName={printer.name ?? ''}
-            brand={printer.brand ?? ''}
-            modelCode={printer.modelCode ?? ''}
-            serialNumber={printer.serialNumber ?? ''}
-            currentIpAddress={printer.ipAddress ?? ''}
-            machineProfileId={printer.machineProfileId}
-            machineProfileName={printer.machineProfileName}
-            processProfileId={printer.processProfileId}
-            processProfileName={printer.processProfileName}
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
+          <ConfirmDialog
+            open={confirmRemoveOpen}
+            onOpenChange={setConfirmRemoveOpen}
+            title="Remove printer?"
+            description={`Remove ${printer.name}? This can't be undone. Removal isn't blocked by its current print status.`}
+            confirmLabel="Remove"
+            onConfirm={() => handleConfirmRemove(printer.id ?? '')}
           />
         </>
       )}

@@ -1,15 +1,17 @@
 import { Package2Icon } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ListSpoolsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
-import { AddSpoolDialog } from './components/AddSpoolDialog';
 import { SpoolsTable } from './components/SpoolsTable';
 
 const LOW_REMAINING_FRACTION = 0.25;
 
 export function SpoolsPage() {
+  const navigate = useNavigate();
   const spoolsQuery = useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint();
   const spools =
     (spoolsQuery.data?.data as ListSpoolsResponse | undefined)?.spools ?? [];
@@ -35,7 +37,9 @@ export function SpoolsPage() {
             · <span className="text-kind-red font-medium">{lowCount} low</span>
           </>
         }
-        action={<AddSpoolDialog />}
+        action={
+          <Button onClick={() => navigate('/spools/new')}>Add spool</Button>
+        }
       />
       {spoolsQuery.isLoading ? (
         <Skeleton className="h-64 w-full" />
@@ -44,7 +48,9 @@ export function SpoolsPage() {
           icon={<Package2Icon className="size-8 text-muted-foreground" />}
           title="No spools yet"
           description="Add one to track it here."
-          action={<AddSpoolDialog />}
+          action={
+            <Button onClick={() => navigate('/spools/new')}>Add spool</Button>
+          }
         />
       ) : (
         <SpoolsTable spools={spools} />

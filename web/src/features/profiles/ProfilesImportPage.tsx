@@ -2,15 +2,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Upload } from 'lucide-react';
 import type { ChangeEvent, DragEvent } from 'react';
 import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { BackLink } from '@/components/back-link/BackLink';
+import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogDescription,
-  DialogScrollableContent,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import type { PreviewProfileImportResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey,
@@ -24,7 +23,7 @@ import {
   type ProfileSelectionMap,
   type ProfileSelectionState,
   profileSelectionKey,
-} from './ProfileReviewList';
+} from './components/ProfileReviewList';
 
 const ACCEPTED_EXTENSIONS =
   '.zip,.orca_printer,.orca_filament,.bbscfg,.bbsflmt';
@@ -40,8 +39,8 @@ function splitSelectionKey(key: string): {
   };
 }
 
-export function ImportProfilesDialog() {
-  const [open, setOpen] = useState(false);
+export function ProfilesImportPage() {
+  const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewProfileImportResponse | null>(
     null,
@@ -50,6 +49,10 @@ export function ImportProfilesDialog() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+
+  const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
+    file !== null,
+  );
 
   const previewMutation =
     useOpenFarmApiEndpointsProfilesPreviewProfileImportEndpoint({
@@ -97,18 +100,12 @@ export function ImportProfilesDialog() {
             queryKey:
               getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey(),
           });
-          resetAndClose();
+          markClean();
+          navigate('/profiles');
         },
         onError: () => toast.error('Could not import the selected profiles.'),
       },
     });
-
-  function resetAndClose() {
-    setOpen(false);
-    setFile(null);
-    setPreview(null);
-    setSelections({});
-  }
 
   function processFile(selectedFile: File) {
     setFile(selectedFile);
@@ -191,31 +188,86 @@ export function ImportProfilesDialog() {
   );
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) {
-          setOpen(true);
-        } else {
-          resetAndClose();
+    <div className="flex flex-col gap-6">
+      <BackLink to="/profiles">Back to profiles</BackLink>
+
+      <PageHeader
+        title="Import profiles"
+        description="Upload an OrcaSlicer or Bambu Studio profile bundle, then choose which presets to keep. Nothing is saved until you confirm."
+      />
+
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          {!hasPreview && (
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                aria-label="Choose a profile bundle file, or drag and drop it here"
+                disabled={previewMutation.isPending}
+                onClick={openFileDialog}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={cn(
+                  'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
+                  isDragging
+                    ? 'border-primary bg-primary/5'
+                    : 'border-input hover:border-primary/50',
+                  previewMutation.isPending &&
+                    'pointer-events-none cursor-default opacity-60',
+                )}
+              >
+                <Upload className="size-6 text-muted-foreground" />
+                <p className="text-sm">
+                  <span className="font-medium text-primary">
+                    Click to browse
+                  </span>{' '}
+                  or drag and drop a profile bundle
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {ACCEPTED_EXTENSIONS.split(',').join(', ')}
+                </p>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_EXTENSIONS}
+                onChange={handleFileChange}
+                disabled={previewMutation.isPending}
+                className="hidden"
+              />
+            </div>
+          )}
+
+          {nothingImportable && (
+            <p className="text-sm text-muted-foreground">
+              Nothing importable was found in this bundle.
+            </p>
+          )}
+
+          {hasPreview && !nothingImportable && (
+            <ProfileReviewList
+              machinePresets={machinePresets}
+              filamentPresets={filamentPresets}
+              selections={selections}
+              onChange={handleSelectionChange}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <FormFooter
+        start={
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => navigate('/profiles')}
+          >
+            Cancel
+          </Button>
         }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button>Import</Button>
-      </DialogTrigger>
-      <DialogScrollableContent
-        className="max-w-3xl sm:max-w-4xl"
-        header={
-          <>
-            <DialogTitle>Import profiles</DialogTitle>
-            <DialogDescription>
-              Upload an OrcaSlicer or Bambu Studio profile bundle, then choose
-              which presets to keep. Nothing is saved until you confirm.
-            </DialogDescription>
-          </>
-        }
-        footer={
+        end={
           hasPreview && !nothingImportable ? (
             <Button
               onClick={handleConfirm}
@@ -225,64 +277,9 @@ export function ImportProfilesDialog() {
             </Button>
           ) : undefined
         }
-      >
-        {!hasPreview && (
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              aria-label="Choose a profile bundle file, or drag and drop it here"
-              disabled={previewMutation.isPending}
-              onClick={openFileDialog}
-              onDragOver={handleDragOver}
-              onDragEnter={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={cn(
-                'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
-                isDragging
-                  ? 'border-primary bg-primary/5'
-                  : 'border-input hover:border-primary/50',
-                previewMutation.isPending &&
-                  'pointer-events-none cursor-default opacity-60',
-              )}
-            >
-              <Upload className="size-6 text-muted-foreground" />
-              <p className="text-sm">
-                <span className="font-medium text-primary">
-                  Click to browse
-                </span>{' '}
-                or drag and drop a profile bundle
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {ACCEPTED_EXTENSIONS.split(',').join(', ')}
-              </p>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPTED_EXTENSIONS}
-              onChange={handleFileChange}
-              disabled={previewMutation.isPending}
-              className="hidden"
-            />
-          </div>
-        )}
+      />
 
-        {nothingImportable && (
-          <p className="text-sm text-muted-foreground">
-            Nothing importable was found in this bundle.
-          </p>
-        )}
-
-        {hasPreview && !nothingImportable && (
-          <ProfileReviewList
-            machinePresets={machinePresets}
-            filamentPresets={filamentPresets}
-            selections={selections}
-            onChange={handleSelectionChange}
-          />
-        )}
-      </DialogScrollableContent>
-    </Dialog>
+      <ConfirmLeaveDialog />
+    </div>
   );
 }

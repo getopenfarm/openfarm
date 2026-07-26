@@ -1,17 +1,28 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { PlusIcon } from 'lucide-react';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { partsStore } from '@/features/assemblies/data/mockPartsStore';
+import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { ComponentRow } from './components/ComponentRow';
 import {
   PartPickerDialog,
@@ -24,6 +35,21 @@ import {
   assembliesStore,
   useAssemblies,
 } from './data/mockAssembliesStore';
+
+const schema = z.object({
+  name: z.string().min(1, 'Give this assembly a name first.'),
+  description: z.string().optional(),
+  components: z.array(
+    z.object({
+      id: z.string(),
+      partId: z.string().optional(),
+      subAssemblyId: z.string().optional(),
+      quantity: z.number(),
+    }),
+  ),
+});
+
+type FormValues = z.infer<typeof schema>;
 
 interface AssemblyFormPageProps {
   mode: 'add' | 'edit';
@@ -38,10 +64,17 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
   const existing =
     mode === 'edit' ? assemblies.find((a) => a.id === id) : undefined;
 
-  const [name, setName] = useState(existing?.name ?? '');
-  const [description, setDescription] = useState(existing?.description ?? '');
-  const [components, setComponents] = useState<AssemblyComponent[]>(
-    existing?.components ?? [],
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: existing?.name ?? '',
+      description: existing?.description ?? '',
+      components: existing?.components ?? [],
+    },
+  });
+
+  const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
+    form.formState.isDirty,
   );
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -63,6 +96,7 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
     );
   }
 
+  const components = form.watch('components');
   const editingComponent = editingComponentId
     ? (components.find((c) => c.id === editingComponentId) ?? null)
     : null;
@@ -79,37 +113,41 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
 
   function handlePickerSubmit({ partId, quantity }: PartPickerResult) {
     if (editingComponentId) {
-      setComponents((prev) =>
-        prev.map((c) =>
+      form.setValue(
+        'components',
+        components.map((c) =>
           c.id === editingComponentId ? { ...c, partId, quantity } : c,
         ),
+        { shouldDirty: true },
       );
     } else {
-      setComponents((prev) => [
-        ...prev,
-        { id: `component-${crypto.randomUUID()}`, partId, quantity },
-      ]);
+      form.setValue(
+        'components',
+        [
+          ...components,
+          { id: `component-${crypto.randomUUID()}`, partId, quantity },
+        ],
+        { shouldDirty: true },
+      );
     }
     setPickerOpen(false);
     setEditingComponentId(null);
   }
 
   function removeComponent(componentId: string) {
-    setComponents((prev) => prev.filter((c) => c.id !== componentId));
+    form.setValue(
+      'components',
+      components.filter((c) => c.id !== componentId),
+      { shouldDirty: true },
+    );
   }
 
-  function handleSave() {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      toast.error('Give this assembly a name first.');
-      return;
-    }
-
+  function onSubmit(values: FormValues) {
     const savedAssembly: Assembly = {
       id: existing?.id ?? `assembly-${crypto.randomUUID()}`,
-      name: trimmedName,
-      description: description.trim(),
-      components,
+      name: values.name.trim(),
+      description: (values.description ?? '').trim(),
+      components: values.components as AssemblyComponent[],
     };
 
     if (mode === 'add') {
@@ -121,6 +159,7 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
       );
       toast.success('Assembly updated.');
     }
+    markClean();
     navigate('/assemblies');
   }
 
@@ -140,76 +179,95 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
         }
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_18rem]">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="assembly-name">Assembly name</Label>
-            <Input
-              id="assembly-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col gap-6"
+        >
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_18rem]">
+            <div className="flex flex-col gap-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assembly name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Card>
+                <CardHeader className="flex-row items-center justify-between">
+                  <CardTitle>Parts · {components.length}</CardTitle>
+                  <Button type="button" size="sm" onClick={openAddPicker}>
+                    <PlusIcon /> Add part
+                  </Button>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                  {components.length === 0 ? (
+                    <EmptyState
+                      size="sm"
+                      title="No parts yet"
+                      description='Use "Add part" to build the bill of materials.'
+                    />
+                  ) : (
+                    components.map((component) => (
+                      <ComponentRow
+                        key={component.id}
+                        component={component as AssemblyComponent}
+                        parts={parts}
+                        allAssemblies={assemblies}
+                        onEdit={() => openEditPicker(component.id)}
+                        onRemove={() => removeComponent(component.id)}
+                      />
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <SummarySidebar
+              components={components as AssemblyComponent[]}
+              allAssemblies={assemblies}
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="assembly-description">Description</Label>
-            <Textarea
-              id="assembly-description"
-              rows={2}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </div>
-
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>Parts · {components.length}</CardTitle>
-              <Button type="button" size="sm" onClick={openAddPicker}>
-                <PlusIcon /> Add part
-              </Button>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              {components.length === 0 ? (
-                <EmptyState
-                  size="sm"
-                  title="No parts yet"
-                  description='Use "Add part" to build the bill of materials.'
-                />
-              ) : (
-                components.map((component) => (
-                  <ComponentRow
-                    key={component.id}
-                    component={component}
-                    parts={parts}
-                    allAssemblies={assemblies}
-                    onEdit={() => openEditPicker(component.id)}
-                    onRemove={() => removeComponent(component.id)}
-                  />
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <SummarySidebar components={components} allAssemblies={assemblies} />
-      </div>
-
-      <FormFooter
-        end={
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => navigate('/assemblies')}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleSave}>
-              {mode === 'add' ? 'Create assembly' : 'Save changes'}
-            </Button>
-          </>
-        }
-      />
+          <FormFooter
+            end={
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => navigate('/assemblies')}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {mode === 'add' ? 'Create assembly' : 'Save changes'}
+                </Button>
+              </>
+            }
+          />
+        </form>
+      </Form>
 
       <PartPickerDialog
         open={pickerOpen}
@@ -219,6 +277,8 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
         initialQuantity={editingComponent?.quantity}
         onSubmit={handlePickerSubmit}
       />
+
+      <ConfirmLeaveDialog />
     </div>
   );
 }

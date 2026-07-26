@@ -1,9 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { SettingsIcon, SwatchBookIcon } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type {
@@ -25,7 +27,6 @@ import {
   useOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint,
 } from '@/lib/api/generated/profiles/profiles';
 import { FilamentProfilesTable } from './components/FilamentProfilesTable';
-import { ImportProfilesDialog } from './components/ImportProfilesDialog';
 import { MachineProfilesTable } from './components/MachineProfilesTable';
 import { ProfileRawDataDialog } from './components/ProfileRawDataDialog';
 
@@ -38,6 +39,7 @@ type SelectedProfile = {
 // and never appear on this browse/import page; select/narrow them from the printer page and part
 // detail page instead.
 export function ProfilesPage() {
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<SelectedProfile>(null);
   const queryClient = useQueryClient();
 
@@ -128,7 +130,9 @@ export function ProfilesPage() {
       <PageHeader
         title="Profiles"
         description="Machine and filament profiles imported from slicer bundles"
-        action={<ImportProfilesDialog />}
+        action={
+          <Button onClick={() => navigate('/profiles/import')}>Import</Button>
+        }
       />
       <Tabs defaultValue="machine">
         <TabsList>
@@ -143,7 +147,11 @@ export function ProfilesPage() {
               icon={<SettingsIcon className="size-8 text-muted-foreground" />}
               title="No machine profiles yet"
               description="Import a slicer bundle to populate this catalog."
-              action={<ImportProfilesDialog />}
+              action={
+                <Button onClick={() => navigate('/profiles/import')}>
+                  Import
+                </Button>
+              }
             />
           ) : (
             <MachineProfilesTable
@@ -160,7 +168,11 @@ export function ProfilesPage() {
               icon={<SwatchBookIcon className="size-8 text-muted-foreground" />}
               title="No filament profiles yet"
               description="Import a slicer bundle to populate this catalog."
-              action={<ImportProfilesDialog />}
+              action={
+                <Button onClick={() => navigate('/profiles/import')}>
+                  Import
+                </Button>
+              }
             />
           ) : (
             <FilamentProfilesTable

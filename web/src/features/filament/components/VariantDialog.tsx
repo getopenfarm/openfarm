@@ -43,7 +43,12 @@ export function VariantDialog({
   }, [open]);
 
   function handleSubmit(event: FormEvent) {
+    // Also stops the submit from bubbling to an ancestor <form> in the React tree — this dialog
+    // is a self-contained quick action that may be rendered inside a page's own form (e.g.
+    // FilamentFormPage), and React's portal event bubbling follows the component tree, not the
+    // DOM tree, so an un-stopped submit here would also trigger the outer form's onSubmit.
     event.preventDefault();
+    event.stopPropagation();
     onSave(variant);
   }
 

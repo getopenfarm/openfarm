@@ -7,6 +7,7 @@ import { DensityToggle } from '@/components/density-toggle/DensityToggle';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
+import { Button } from '@/components/ui/button';
 import { ViewToggle } from '@/components/view-toggle/ViewToggle';
 import { MAINTENANCE_FLAG_SEEDS } from '@/features/maintenance/data/mockMaintenance';
 import { matchMaintenanceToFleet } from '@/features/maintenance/lib/matchMaintenanceToFleet';
@@ -17,7 +18,6 @@ import {
   useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint,
 } from '@/lib/api/generated/printers/printers';
 import { usePreferences } from '@/lib/preferences/usePreferences';
-import { AddPrinterDialog } from './components/AddPrinterDialog';
 import {
   PrinterFilterBar,
   type PrinterStatusFilter,
@@ -104,7 +104,9 @@ export function PrintersPage() {
       <PageHeader
         title="Printers"
         description="Fleet status updates live — no refresh needed."
-        action={<AddPrinterDialog />}
+        action={
+          <Button onClick={() => navigate('/printers/new')}>Add printer</Button>
+        }
       />
 
       {fleetQuery.isLoading ? (
@@ -120,7 +122,11 @@ export function PrintersPage() {
           icon={<PrinterIcon className="size-8 text-muted-foreground" />}
           title="No printers yet"
           description="No printers registered yet. Add one to see its live status here."
-          action={<AddPrinterDialog />}
+          action={
+            <Button onClick={() => navigate('/printers/new')}>
+              Add printer
+            </Button>
+          }
         />
       ) : (
         <div className="flex flex-col gap-4">

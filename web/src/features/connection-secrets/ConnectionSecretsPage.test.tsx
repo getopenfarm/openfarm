@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
+import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Toaster } from '@/components/ui/sonner';
 import { ConnectionSecretsPage } from './ConnectionSecretsPage';
 
 function renderPage() {
@@ -14,8 +14,7 @@ function renderPage() {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        {children}
-        <Toaster />
+        <MemoryRouter>{children}</MemoryRouter>
       </QueryClientProvider>
     );
   }
@@ -35,55 +34,56 @@ describe('ConnectionSecretsPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows the masked value in the table after a successful create', async () => {
-    const created = {
+  it('renders existing secrets in the table', async () => {
+    const secret = {
       id: '11111111-1111-1111-1111-111111111111',
       printerSerialNumber: 'AC12345',
       maskedAccessCode: '***',
       createdAtUtc: '2026-01-01T00:00:00Z',
     };
-    let hasCreated = false;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse([secret])));
 
-    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === 'POST') {
-        hasCreated = true;
-        return Promise.resolve(jsonResponse(created, 201));
-      }
-      return Promise.resolve(jsonResponse(hasCreated ? [created] : []));
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByRole('button', { name: 'Add credential' }));
-    await user.type(screen.getByLabelText('Printer serial number'), 'AC12345');
-    await user.type(screen.getByLabelText('Access code'), 'real-secret');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => expect(screen.getByText('***')).toBeInTheDocument());
-    expect(screen.getByText('AC12345')).toBeInTheDocument();
+    expect(await screen.findByText('AC12345')).toBeInTheDocument();
+    expect(screen.getByText('***')).toBeInTheDocument();
   });
 
-  it('blocks submission with an empty access code and sends no create request', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
-    vi.stubGlobal('fetch', fetchMock);
-
+  it('"Add credential" navigates to /settings/connection-secrets/new', async () => {
     const user = userEvent.setup();
-    renderPage();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse([])));
 
-    await user.click(screen.getByRole('button', { name: 'Add credential' }));
-    await user.type(screen.getByLabelText('Printer serial number'), 'AC12345');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-
-    expect(
-      await screen.findByText('Access code is required'),
-    ).toBeInTheDocument();
-
-    const postCalls = fetchMock.mock.calls.filter(
-      ([, init]) => (init as RequestInit | undefined)?.method === 'POST',
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/settings/connection-secrets',
+          element: <ConnectionSecretsPage />,
+        },
+        {
+          path: '/settings/connection-secrets/new',
+          element: <div>New credential page</div>,
+        },
+      ],
+      { initialEntries: ['/settings/connection-secrets'] },
     );
-    expect(postCalls).toHaveLength(0);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    const addButton = await screen.findByRole('button', {
+      name: 'Add credential',
+    });
+    await user.click(addButton);
+
+    expect(await screen.findByText('New credential page')).toBeInTheDocument();
   });
 
   it('shows an error state with a retry button when the list request fails', async () => {

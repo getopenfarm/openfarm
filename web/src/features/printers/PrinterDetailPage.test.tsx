@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -187,7 +188,7 @@ describe('PrinterDetailPage', () => {
 
   it('shows a working Remove action that navigates back to the fleet list (SC-003/SC-004)', async () => {
     const printerId = '44444444-4444-4444-4444-444444444444';
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/hubs/farm')) {
@@ -227,9 +228,15 @@ describe('PrinterDetailPage', () => {
 
     expect(await screen.findByText('Removable Printer')).toBeInTheDocument();
     const removeButton = screen.getByRole('button', { name: /remove/i });
-    removeButton.click();
+    await user.click(removeButton);
 
-    expect(confirmSpy).toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Remove printer?')).toBeInTheDocument();
+    const confirmButton = within(dialog).getByRole('button', {
+      name: 'Remove',
+    });
+    await user.click(confirmButton);
+
     expect(await screen.findByText('Fleet list page')).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(
@@ -238,13 +245,11 @@ describe('PrinterDetailPage', () => {
           (call[1] as RequestInit | undefined)?.method === 'DELETE',
       ),
     ).toBe(true);
-
-    confirmSpy.mockRestore();
   });
 
   it('does not remove the printer when the confirmation is declined', async () => {
     const printerId = '55555555-5555-5555-5555-555555555555';
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/hubs/farm')) {
@@ -286,11 +291,16 @@ describe('PrinterDetailPage', () => {
 
     expect(await screen.findByText('Kept Printer')).toBeInTheDocument();
     const removeButton = screen.getByRole('button', { name: /remove/i });
-    removeButton.click();
+    await user.click(removeButton);
 
-    expect(confirmSpy).toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Remove printer?')).toBeInTheDocument();
+    const cancelButton = within(dialog).getByRole('button', {
+      name: 'Cancel',
+    });
+    await user.click(cancelButton);
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(screen.getByText('Kept Printer')).toBeInTheDocument();
-
-    confirmSpy.mockRestore();
   });
 });
