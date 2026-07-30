@@ -16,7 +16,7 @@ public class WhoAmIEndpointTests(CustomWebApplicationFactory factory) : IClassFi
     {
         var response = await _client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin@openfarm.local", "ChangeMe123!"));
+            new LoginCommand("admin", "admin-openfarm"));
 
         var body = await response.Content.ReadFromJsonAsync<LoginResponse>();
         return body!.Token;
@@ -36,7 +36,7 @@ public class WhoAmIEndpointTests(CustomWebApplicationFactory factory) : IClassFi
 
         var body = await response.Content.ReadFromJsonAsync<WhoAmIResult>();
         body.Should().NotBeNull();
-        body!.Username.Should().Be("admin@openfarm.local");
+        body!.Username.Should().Be("admin");
         body.OrganizationId.Should().Be(Organization.WellKnownId);
     }
 

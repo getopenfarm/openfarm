@@ -10,7 +10,7 @@ public class LoginCommandValidatorTests
     [Fact]
     public void Validate_WithValidCommand_IsValid()
     {
-        var result = _validator.Validate(new LoginCommand("admin@openfarm.local", "ChangeMe123!"));
+        var result = _validator.Validate(new LoginCommand("admin", "admin-openfarm"));
 
         result.IsValid.Should().BeTrue();
     }
@@ -20,7 +20,7 @@ public class LoginCommandValidatorTests
     [InlineData("   ")]
     public void Validate_WithEmptyUsername_IsInvalid(string username)
     {
-        var result = _validator.Validate(new LoginCommand(username, "ChangeMe123!"));
+        var result = _validator.Validate(new LoginCommand(username, "admin-openfarm"));
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == nameof(LoginCommand.Username));
@@ -31,7 +31,7 @@ public class LoginCommandValidatorTests
     [InlineData("   ")]
     public void Validate_WithEmptyPassword_IsInvalid(string password)
     {
-        var result = _validator.Validate(new LoginCommand("admin@openfarm.local", password));
+        var result = _validator.Validate(new LoginCommand("admin", password));
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == nameof(LoginCommand.Password));

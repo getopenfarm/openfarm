@@ -94,8 +94,11 @@ Modeled via ASP.NET Core Identity, not a `Domain` entity (see `research.md` §1)
 | `ApplicationRole : IdentityRole<Guid>` | `OpenFarm.Infrastructure/Identity/ApplicationRole.cs` (added now even though unused, to avoid an Identity-table migration diff when Phase 4's real roles land) |
 
 - **Provisioning**: Exactly one seeded account, created idempotently by `FirstBootSeeder`
-  from configuration (`Seed:AdminEmail` / `Seed:AdminPassword`), check-then-create via
-  `UserManager.FindByEmailAsync`. No self-registration endpoint exists (FR-001).
+  from configuration (`Seed:AdminUsername` / `Seed:AdminEmail` / `Seed:AdminPassword`),
+  check-then-create via `UserManager.FindByNameAsync`. Login is by `UserName` (not `Email`)
+  so the seeded username can be a bare string like `admin` — `Email` is still populated and
+  unique (`RequireUniqueEmail = true`) but only `UserName` is used to authenticate. No
+  self-registration endpoint exists (FR-001).
 - **Authorization level**: Administrator-equivalent by default this phase — the real
   permission catalog doesn't exist yet (FR-005's coarse "authenticated or not" gate is the
   only check), but the seeded identity is intended to carry full capability once Phase 4

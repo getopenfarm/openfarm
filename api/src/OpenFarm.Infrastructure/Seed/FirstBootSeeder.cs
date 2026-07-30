@@ -33,16 +33,17 @@ public sealed partial class FirstBootSeeder(
 
     private async Task EnsureAdminUserAsync(CancellationToken cancellationToken)
     {
+        var username = configuration["Seed:AdminUsername"];
         var email = configuration["Seed:AdminEmail"];
         var password = configuration["Seed:AdminPassword"];
 
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
             LogAdminSeedSkipped(logger);
             return;
         }
 
-        var existingUser = await userManager.FindByEmailAsync(email);
+        var existingUser = await userManager.FindByNameAsync(username);
         if (existingUser is not null)
         {
             return;
@@ -50,7 +51,7 @@ public sealed partial class FirstBootSeeder(
 
         var user = new ApplicationUser
         {
-            UserName = email,
+            UserName = username,
             Email = email,
             EmailConfirmed = true,
         };
@@ -63,6 +64,6 @@ public sealed partial class FirstBootSeeder(
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Seed:AdminEmail/Seed:AdminPassword are not configured; skipping operator seeding.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Seed:AdminUsername/Seed:AdminEmail/Seed:AdminPassword are not configured; skipping operator seeding.")]
     private static partial void LogAdminSeedSkipped(ILogger logger);
 }

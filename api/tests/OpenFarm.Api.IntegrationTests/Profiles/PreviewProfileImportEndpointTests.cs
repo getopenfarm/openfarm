@@ -18,7 +18,7 @@ public class PreviewProfileImportEndpointTests(CustomWebApplicationFactory facto
     {
         var loginResponse = await _client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin@openfarm.local", "ChangeMe123!"));
+            new LoginCommand("admin", "admin-openfarm"));
         var body = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);

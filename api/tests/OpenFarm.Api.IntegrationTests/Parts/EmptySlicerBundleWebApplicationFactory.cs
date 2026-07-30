@@ -29,8 +29,9 @@ public sealed class EmptySlicerBundleWebApplicationFactory : WebApplicationFacto
         Environment.SetEnvironmentVariable("Jwt__Issuer", "OpenFarm.Tests");
         Environment.SetEnvironmentVariable("Jwt__Audience", "OpenFarm.Tests");
         Environment.SetEnvironmentVariable("Jwt__SigningKey", "integration-test-signing-key-0123456789ABCDEF");
+        Environment.SetEnvironmentVariable("Seed__AdminUsername", "admin");
         Environment.SetEnvironmentVariable("Seed__AdminEmail", "admin@openfarm.local");
-        Environment.SetEnvironmentVariable("Seed__AdminPassword", "ChangeMe123!");
+        Environment.SetEnvironmentVariable("Seed__AdminPassword", "admin-openfarm");
         Environment.SetEnvironmentVariable("DataProtection__KeysDirectory", _keysDirectory);
         Environment.SetEnvironmentVariable("SlicerBundle__RootDirectory", _emptySlicerBundleDirectory);
     }

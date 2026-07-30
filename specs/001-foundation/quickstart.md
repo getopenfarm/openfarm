@@ -7,7 +7,7 @@ request/response bodies.
 ## Prerequisites
 
 ```bash
-cp .env.example infra/.env   # adjust Seed:AdminEmail / Seed:AdminPassword if desired
+cp .env.example infra/.env   # adjust Seed:AdminUsername / Seed:AdminEmail / Seed:AdminPassword if desired
 cd infra && docker compose up   # postgres + api (dotnet watch, applies InitialFoundation migration + seeds) + web (bun run dev)
 ```
 
@@ -22,7 +22,7 @@ curl -f http://localhost:8888/health/ready
 ```bash
 curl -i -X POST http://localhost:8888/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username": "<Seed:AdminEmail value>", "password": "<Seed:AdminPassword value>"}'
+  -d '{"username": "<Seed:AdminUsername value>", "password": "<Seed:AdminPassword value>"}'
 ```
 
 **Expected**: `200`, body contains a `token`. Then:

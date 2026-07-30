@@ -11,7 +11,7 @@ public sealed class IdentityAuthenticationService(
 {
     public async Task<LoginResult?> AuthenticateAsync(string username, string password, CancellationToken cancellationToken)
     {
-        var user = await userManager.FindByEmailAsync(username);
+        var user = await userManager.FindByNameAsync(username);
         if (user is null)
         {
             return null;

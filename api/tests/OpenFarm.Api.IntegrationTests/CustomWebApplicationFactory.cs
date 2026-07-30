@@ -41,8 +41,9 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Jwt__Issuer", "OpenFarm.Tests");
         Environment.SetEnvironmentVariable("Jwt__Audience", "OpenFarm.Tests");
         Environment.SetEnvironmentVariable("Jwt__SigningKey", "integration-test-signing-key-0123456789ABCDEF");
+        Environment.SetEnvironmentVariable("Seed__AdminUsername", "admin");
         Environment.SetEnvironmentVariable("Seed__AdminEmail", "admin@openfarm.local");
-        Environment.SetEnvironmentVariable("Seed__AdminPassword", "ChangeMe123!");
+        Environment.SetEnvironmentVariable("Seed__AdminPassword", "admin-openfarm");
         Environment.SetEnvironmentVariable("DataProtection__KeysDirectory", _keysDirectory);
 
         // A default, non-empty bundle so a requires-slicing upload always gets a job created

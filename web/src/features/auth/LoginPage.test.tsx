@@ -81,8 +81,8 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
 
     renderLoginPage();
-    await user.type(screen.getByLabelText('Username'), 'admin@openfarm.local');
-    await user.type(screen.getByLabelText('Password'), 'ChangeMe123!');
+    await user.type(screen.getByLabelText('Username'), 'admin');
+    await user.type(screen.getByLabelText('Password'), 'admin-openfarm');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(getToken()).toBe('test-token'));
@@ -96,7 +96,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
 
     renderLoginPage();
-    await user.type(screen.getByLabelText('Username'), 'admin@openfarm.local');
+    await user.type(screen.getByLabelText('Username'), 'admin');
     await user.type(screen.getByLabelText('Password'), 'wrong-password');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 

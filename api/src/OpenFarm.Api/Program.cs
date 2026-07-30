@@ -129,6 +129,11 @@ builder.Services
         options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+        // Relaxed from Identity's defaults (uppercase/digit no longer required) so the seeded
+        // operator password can be a plain lowercase phrase; operators are expected to rotate it
+        // after first login regardless.
+        options.Password.RequireUppercase = false;
+        options.Password.RequireDigit = false;
     })
     .AddRoles<ApplicationRole>()
     .AddEntityFrameworkStores<OpenFarmDbContext>();

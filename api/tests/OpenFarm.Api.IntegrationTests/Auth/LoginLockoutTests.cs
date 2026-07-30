@@ -22,13 +22,13 @@ public class LoginLockoutTests(CustomWebApplicationFactory factory) : IClassFixt
         {
             var failedResponse = await _client.PostAsJsonAsync(
                 new Uri("/api/v1/auth/login", UriKind.Relative),
-                new LoginCommand("admin@openfarm.local", "wrong-password"));
+                new LoginCommand("admin", "wrong-password"));
             failedResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         }
 
         var lockedOutResponse = await _client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin@openfarm.local", "ChangeMe123!"));
+            new LoginCommand("admin", "admin-openfarm"));
 
         lockedOutResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }

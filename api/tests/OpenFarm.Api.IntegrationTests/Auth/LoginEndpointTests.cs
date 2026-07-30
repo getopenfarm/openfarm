@@ -15,7 +15,7 @@ public class LoginEndpointTests(CustomWebApplicationFactory factory) : IClassFix
     {
         var response = await _client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin@openfarm.local", "ChangeMe123!"));
+            new LoginCommand("admin", "admin-openfarm"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -29,7 +29,7 @@ public class LoginEndpointTests(CustomWebApplicationFactory factory) : IClassFix
     {
         var response = await _client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin@openfarm.local", "wrong-password"));
+            new LoginCommand("admin", "wrong-password"));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -39,7 +39,7 @@ public class LoginEndpointTests(CustomWebApplicationFactory factory) : IClassFix
     {
         var response = await _client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand(string.Empty, "ChangeMe123!"));
+            new LoginCommand(string.Empty, "admin-openfarm"));
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }

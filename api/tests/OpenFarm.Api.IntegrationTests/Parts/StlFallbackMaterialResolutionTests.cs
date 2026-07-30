@@ -76,7 +76,7 @@ internal static class StlFallbackTestHelpers
     {
         var loginResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin@openfarm.local", "ChangeMe123!"));
+            new LoginCommand("admin", "admin-openfarm"));
         var body = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);

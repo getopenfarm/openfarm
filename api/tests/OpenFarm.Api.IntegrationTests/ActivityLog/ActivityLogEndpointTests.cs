@@ -17,7 +17,7 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
     {
         var loginResponse = await _client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin@openfarm.local", "ChangeMe123!"));
+            new LoginCommand("admin", "admin-openfarm"));
         var body = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);
@@ -45,7 +45,7 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
         entry.EntityType.Should().Be("ConnectionSecret");
         entry.EventType.Should().Be("Created");
         entry.ActorType.Should().Be("Operator");
-        entry.ActorDisplayName.Should().Be("admin@openfarm.local");
+        entry.ActorDisplayName.Should().Be("admin");
         entry.TimestampUtc.Should().BeOnOrAfter(DateTimeOffset.UtcNow.AddMinutes(-1));
 
         page.Items.Should().BeInDescendingOrder(e => e.TimestampUtc);
