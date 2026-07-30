@@ -1,0 +1,10 @@
+{
+  "modelFileName": "3DBenchy.3mf",
+  "modelFileFormat": "stl",
+  "expectedGCodeFileName": "3DBenchy_PLA_35m31s.gcode",
+  "materialType": "PLA",
+  "nozzleDiameterMm": 0.4,
+  "machineProfileName": "Bambu Lab P1S 0.4 nozzle",
+  "processProfileName": "0.20mm Standard @BBL X1C",
+  "filamentProfileName": "Bambu PLA Basic @BBL X1C"
+}

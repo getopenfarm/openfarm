@@ -1,0 +1,122 @@
+using System.Text.Json.Nodes;
+using FluentAssertions;
+using OpenFarm.Application.Parts;
+using OpenFarm.Domain.Parts;
+using OpenFarm.Infrastructure.Parts;
+using OpenFarm.Infrastructure.Parts.SlicerInvocation;
+using OpenFarm.Infrastructure.Tests.Parts.RealSlicer;
+
+namespace OpenFarm.Infrastructure.Tests.Parts;
+
+// Drives a real slicer CLI (not a stub — see CustomWebApplicationFactory's deliberately-broken
+// bundle used by every other slicing test) against a golden STL/3MF -> G-code fixture the user
+// manually sliced once with the real slicer, so the actual toolpath output is verified, not just
+// the estimate/error orchestration around it. Self-skips when no real slicer bundle is installed
+// (RealSlicerFactAttribute) — see Parts/Fixtures/RealSlicer/README.md to add a new case.
+//
+// .stl cases only compare estimated print time/filament weight within tolerance, not the full
+// toolpath: a bare .stl carries no object position/rotation, so OrcaSlicer has to auto-arrange it
+// onto the bed, and that placement can legitimately differ between a GUI session and a headless
+// CLI invocation even with identical settings — a full G-code diff would fail on placement noise,
+// not real regressions. .3mf cases keep the full normalized diff, since the project file preserves
+// the object's exact transform, making an identical toolpath both meaningful and achievable.
+public class RealSlicerGoldenFileTests
+{
+    private static readonly string FixturesRoot = Path.Combine(AppContext.BaseDirectory, "Parts", "Fixtures", "RealSlicer");
+
+    [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
+    public Task OrcaSlicer231_Benchy_ProducesExpectedGCode() =>
+        RunCaseAsync("orcaslicer-2.3.1-benchy-stl", SlicerEngine.OrcaSlicer, "2.3.1");
+
+    private static async Task RunCaseAsync(string caseName, SlicerEngine engine, string version)
+    {
+        RealSlicerBundleLocator.GetManifestPinnedVersion(engine).Should().Be(version,
+            "the test case's requested version must match slicers.manifest.json's pin, or this test " +
+            "may silently exercise a different, possibly crash-prone, slicer build");
+
+        var caseDir = Path.Combine(FixturesRoot, caseName);
+        var manifest = GoldenCaseManifest.Load(caseDir);
+        var (available, reason) = RealSlicerBundleLocator.TryResolve(engine, version);
+        available.Should().NotBeNull(reason);
+
+        ISlicerInvocation invocation = engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
+            ? new PrusaSliceFamilyInvocation()
+            : new SuperSlicerInvocation();
+
+        ResolvedSlicingProfiles? resolvedProfiles = null;
+        if (manifest.MachineProfileName is not null)
+        {
+            var staging = await VendorProfileFixtureStaging.StageAndIngestAsync(
+                engine, version, manifest.MachineProfileName, manifest.ProcessProfileName!, manifest.FilamentProfileName!,
+                CancellationToken.None);
+            resolvedProfiles = await staging.Resolver.ResolveAsync(
+                staging.PrinterId, manifest.MaterialType, narrowedFilamentProfileId: staging.FilamentProfileId, CancellationToken.None);
+
+            if (manifest.BedType is not null)
+            {
+                resolvedProfiles = WithBedTypeOverride(resolvedProfiles, manifest.BedType);
+            }
+        }
+
+        var modelBytes = await File.ReadAllBytesAsync(Path.Combine(caseDir, manifest.ModelFileName));
+        var actualGCode = await RealSlicerProcessRunner.SliceAsync(
+            available!, invocation, modelBytes, manifest.ModelFileFormat,
+            manifest.MaterialType, manifest.NozzleDiameterMm, resolvedProfiles, CancellationToken.None);
+
+        var expectedGCode = await File.ReadAllTextAsync(Path.Combine(caseDir, manifest.ExpectedGCodeFileName));
+
+        if (manifest.ModelFileFormat == PartFileFormat.ThreeMf)
+        {
+            var diff = GCodeNormalizer.Diff(GCodeNormalizer.Normalize(expectedGCode), GCodeNormalizer.Normalize(actualGCode));
+            diff.IsMatch.Should().BeTrue($"the normalized G-code should match the golden fixture:\n{diff.Message}");
+        }
+        else
+        {
+            AssertMetadataWithinTolerance(expectedGCode, actualGCode);
+        }
+    }
+
+    // curr_bed_type isn't declared in any BBL machine/process preset file (research confirmed no
+    // default anywhere in the bundle) — it's a per-slice plate selection the GUI applies, so a
+    // fixture sliced against a non-default plate needs it injected directly into the process JSON.
+    private static ResolvedSlicingProfiles WithBedTypeOverride(ResolvedSlicingProfiles profiles, string bedType)
+    {
+        var processSettings = JsonNode.Parse(profiles.ProcessSettingsJson)!.AsObject();
+        processSettings["curr_bed_type"] = bedType;
+
+        return profiles with { ProcessSettingsJson = processSettings.ToJsonString() };
+    }
+
+    // 5% relative tolerance against the same estimated-print-time/filament-weight values the app
+    // itself parses out of the sliced G-code (GCodeMetadataHelper, the source of SlicingResult in
+    // production) — a placement-driven few-mm travel difference shouldn't move either by much, so
+    // this still catches a real regression (wrong material, wrong layer height, wrong profile)
+    // without depending on an exact, unreproducible object position.
+    private const decimal ToleranceFraction = 0.05m;
+
+    private static void AssertMetadataWithinTolerance(string expectedGCode, string actualGCode)
+    {
+        var expectedValues = GCodeMetadataHelper.ParseComments(expectedGCode);
+        var actualValues = GCodeMetadataHelper.ParseComments(actualGCode);
+
+        var expectedMinutes = GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(expectedValues);
+        var actualMinutes = GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(actualValues);
+        expectedMinutes.Should().NotBeNull("the golden fixture should contain a parseable estimated print time");
+        actualMinutes.Should().NotBeNull("the real slice should contain a parseable estimated print time");
+
+        var minutesTolerance = Math.Max(1, (int)Math.Round(expectedMinutes!.Value * ToleranceFraction));
+        actualMinutes!.Value.Should().BeInRange(
+            expectedMinutes.Value - minutesTolerance, expectedMinutes.Value + minutesTolerance,
+            "estimated print time should match the golden fixture within tolerance");
+
+        var expectedWeight = GCodeMetadataHelper.ParseFilamentWeightGrams(expectedValues);
+        var actualWeight = GCodeMetadataHelper.ParseFilamentWeightGrams(actualValues);
+        expectedWeight.Should().NotBeNull("the golden fixture should contain a parseable filament weight");
+        actualWeight.Should().NotBeNull("the real slice should contain a parseable filament weight");
+
+        var weightTolerance = Math.Max(0.5m, expectedWeight!.Value * ToleranceFraction);
+        actualWeight!.Value.Should().BeInRange(
+            expectedWeight.Value - weightTolerance, expectedWeight.Value + weightTolerance,
+            "estimated filament weight should match the golden fixture within tolerance");
+    }
+}
