@@ -13,7 +13,10 @@ public class SlicerInvocationTests
     private static readonly ResolvedSlicingProfiles ResolvedProfiles = new(
         MachineSettingsJson: """{"type":"machine","name":"Test Machine","nozzle_diameter":["0.4"]}""",
         ProcessSettingsJson: """{"type":"process","name":"0.20mm Standard","layer_height":"0.2"}""",
-        FilamentSettingsJson: """{"type":"filament","name":"Generic PETG","filament_type":["PETG"]}""");
+        FilamentSettingsJson: """{"type":"filament","name":"Generic PETG","filament_type":["PETG"]}""",
+        MachineProfileName: "Test Machine",
+        ProcessProfileName: "0.20mm Standard",
+        FilamentProfileName: "Generic PETG");
 
     [Fact]
     public void PrusaSliceFamilyInvocation_SupportsOrcaSlicerAndBambuStudioOnly()

@@ -75,6 +75,11 @@ public sealed partial class CliSlicerEngine(
                 ? await profileSelection.ResolveAsync(printerId, materialType, narrowedFilamentProfileId: null, cancellationToken)
                 : null;
 
+            if (resolvedProfiles is not null)
+            {
+                LogResolvedSlicingProfiles(logger, slicer.Engine, resolvedProfiles.MachineProfileName, resolvedProfiles.ProcessProfileName, resolvedProfiles.FilamentProfileName);
+            }
+
             var processInvocation = invocationStrategy.BuildInvocation(
                 available, inputPath, materialType, nozzleDiameterMm, workDirectory.FullName, resolvedProfiles);
 
@@ -199,4 +204,7 @@ public sealed partial class CliSlicerEngine(
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{Engine} CLI exited with code {ExitCode} after {ElapsedMilliseconds}ms")]
     private static partial void LogSlicerExited(ILogger logger, SlicerEngine engine, int exitCode, long elapsedMilliseconds);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Using slicing profiles for {Engine}: machine={MachineProfileName} process={ProcessProfileName} filament={FilamentProfileName}")]
+    private static partial void LogResolvedSlicingProfiles(ILogger logger, SlicerEngine engine, string machineProfileName, string processProfileName, string filamentProfileName);
 }

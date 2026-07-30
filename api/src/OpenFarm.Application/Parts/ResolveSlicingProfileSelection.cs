@@ -5,8 +5,10 @@ using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Parts;
 
-/// <summary>The three real, flattened (ancestor-chain-merged) preset JSON blobs OrcaSlicer/Bambu Studio need to slice.</summary>
-public sealed record ResolvedSlicingProfiles(string MachineSettingsJson, string ProcessSettingsJson, string FilamentSettingsJson);
+/// <summary>The three real, flattened (ancestor-chain-merged) preset JSON blobs OrcaSlicer/Bambu Studio need to slice, plus the selected profiles' own names (for logging/diagnostics — never sliced into the CLI args).</summary>
+public sealed record ResolvedSlicingProfiles(
+    string MachineSettingsJson, string ProcessSettingsJson, string FilamentSettingsJson,
+    string MachineProfileName, string ProcessProfileName, string FilamentProfileName);
 
 /// <summary>
 /// Resolves a slice target's machine, process, and filament profiles into complete, standalone
@@ -54,7 +56,9 @@ public sealed class ResolveSlicingProfileSelection(
         var processJson = await MergeChainOrThrowAsync(processProfile.Id, "process", FetchProcessNode, cancellationToken);
         var filamentJson = await MergeFilamentChainWithIncludesOrThrowAsync(filamentProfile, cancellationToken);
 
-        return new ResolvedSlicingProfiles(machineJson, processJson, filamentJson);
+        return new ResolvedSlicingProfiles(
+            machineJson, processJson, filamentJson,
+            machineProfile.Name, processProfile.Name, filamentProfile.Name);
     }
 
     // research.md §0a/§5 — Bambu Studio's `include` gcode-template fold-in, folded in after the
