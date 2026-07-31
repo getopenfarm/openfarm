@@ -39,9 +39,12 @@ other real OrcaSlicer-supported machines (e.g. Snapmaker U1, Flashforge AD5X) th
 in the future without another enum change.
 
 The C#-name ↔ vendor-string mapping lives in one place (a small static lookup alongside the enum,
-e.g. `BuildPlateTypeVendorNames`) so both the compatibility gate (validates against
-`PrinterModelCatalog`) and the slicing resolver (writes `curr_bed_type`, reads the temp key) share a
-single source of truth — no duplicated string literals.
+e.g. `BuildPlateTypeVendorNames`) so the compatibility gate (validates against `PrinterModelCatalog`),
+the slicing resolver (writes `curr_bed_type`, reads the temp key), **and** `GetPrinterDetailQuery`
+(resolves the friendly label served to the frontend, FR-012) share a single source of truth — no
+duplicated string literals, and critically, no second copy of this mapping in `web/`. The same vendor
+string doubles as the operator-facing label (e.g. `TexturedPei` → `"Textured PEI Plate"`) — there is no
+separate "display name" table to keep in sync with it.
 
 ### `Printer` (existing entity, extended — `Domain/Printers/Printer.cs`)
 
@@ -204,13 +207,19 @@ public sealed record PrinterDetail(
     int? RemainingTimeMinutes, string? CurrentJobName, IReadOnlyList<AmsUnit> AmsUnits,
     Guid? MachineProfileId, string? MachineProfileName,
     Guid? ProcessProfileId, string? ProcessProfileName,
-    BuildPlateType? BuildPlateType,
-    IReadOnlyList<BuildPlateType> CompatibleBuildPlateTypes);
+    BuildPlateType? BuildPlateType, string? BuildPlateTypeLabel,
+    IReadOnlyList<BuildPlateTypeOption> CompatibleBuildPlateTypes);
+
+public sealed record BuildPlateTypeOption(BuildPlateType Value, string Label);
 ```
 
-`CompatibleBuildPlateTypes` is always populated (non-nullable list) — a pure, non-throwing
+`CompatibleBuildPlateTypes` is always populated (non-empty list) — a pure, non-throwing
 `PrinterModelCatalog.Resolve(...)` lookup, since every registered printer's Brand/ModelCode already
-passed catalog resolution at registration and can never change afterward.
+passed catalog resolution at registration and can never change afterward. Each entry's `Label` and the
+top-level `BuildPlateTypeLabel` (`null` iff `BuildPlateType` is `null`) are both resolved from the same
+`BuildPlateTypeVendorNames` lookup the slicing resolver already uses (FR-012) — `GetPrinterDetailQueryHandler`
+is the only place that reads it for display purposes; nothing in `web/` re-derives a label from the
+enum code.
 
 ## API response/request shapes (backend DTOs, mirrored by orval on the frontend)
 

@@ -76,15 +76,20 @@ new response fields.
   "machineProfileName": "Bambu Lab A1 0.4 nozzle",
   "processProfileId": "a91...",
   "processProfileName": "0.20mm Standard",
-  "buildPlateType": "TexturedPei",                          // new, nullable
-  "compatibleBuildPlateTypes": ["TexturedPei", "HighTemp"]    // new, always populated
+  "buildPlateType": "TexturedPei",                                                        // new, nullable
+  "buildPlateTypeLabel": "Textured PEI Plate",                                             // new, nullable — null iff buildPlateType is null
+  "compatibleBuildPlateTypes": [                                                           // new, always non-empty
+    { "value": "TexturedPei", "label": "Textured PEI Plate" },
+    { "value": "HighTemp", "label": "High Temp Plate" }
+  ]
 }
 ```
 
 | Field | Type | Notes |
 |---|---|---|
-| `buildPlateType` | string enum \| `null` | The printer's current selection; `null` for any printer that hasn't had one selected yet (every printer, until an operator acts). |
-| `compatibleBuildPlateTypes` | string enum array | **Always non-empty for a registered printer** — derived purely from the printer's own registered `brand`/`modelCode` via `PrinterModelCatalog`, independent of `machineProfileId`/`machineProfileName` above. Present even when `machineProfileId` is `null` (FR-002 Acceptance Scenario #2) — this is what lets the frontend render build-plate choices immediately on a freshly registered printer, before any machine profile has ever been linked. |
+| `buildPlateType` | string enum \| `null` | The printer's current selection; `null` for any printer that hasn't had one selected yet (every printer, until an operator acts). This is the value the frontend submits back on `PATCH`. |
+| `buildPlateTypeLabel` | string \| `null` | Backend-resolved display label for `buildPlateType` (FR-012), e.g. `"Textured PEI Plate"` — sourced from the same `BuildPlateTypeVendorNames` lookup the slicing resolver uses, so it never drifts from the vendor string actually written into `curr_bed_type`. `null` exactly when `buildPlateType` is `null`. The frontend renders this string as-is; it holds no enum-to-label table of its own, matching how `machineProfileName`/`processProfileName` are already consumed. |
+| `compatibleBuildPlateTypes` | array of `{ value, label }` | **Always non-empty for a registered printer** — `value` (enum code) and `label` (display string, same source as `buildPlateTypeLabel`) are derived purely from the printer's own registered `brand`/`modelCode` via `PrinterModelCatalog`, independent of `machineProfileId`/`machineProfileName` above. Present even when `machineProfileId` is `null` (FR-002 Acceptance Scenario #2) — this is what lets the frontend render build-plate choices immediately on a freshly registered printer, before any machine profile has ever been linked. The frontend's `<Select>` renders `label` and submits `value` on `PATCH`. |
 
 No new endpoint is needed to "browse build plate choices" the way `GET /api/v1/profiles/machine`
 exists for machine profiles — the fixed, ≤6-item, printer-specific choice list rides along on the
