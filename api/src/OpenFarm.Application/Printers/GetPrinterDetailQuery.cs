@@ -23,4 +23,9 @@ public sealed record PrinterDetail(
     Guid? MachineProfileId,
     string? MachineProfileName,
     Guid? ProcessProfileId,
-    string? ProcessProfileName);
+    string? ProcessProfileName,
+    BuildPlateType? BuildPlateType,
+    string? BuildPlateTypeLabel,
+    IReadOnlyList<BuildPlateTypeOption> CompatibleBuildPlateTypes);
+
+public sealed record BuildPlateTypeOption(BuildPlateType Value, string Label);

@@ -95,8 +95,23 @@ public sealed class EditPrinterCommandHandler(
             }
         }
 
+        // 012 US1 — gated purely by the printer's own registered Brand/ModelCode (PrinterModelCatalog),
+        // never by whichever machine profile happens to be linked (FR-002, clarification Q4); no
+        // machine-profile prerequisite, unlike process profile above. PrinterModelCatalog.Resolve
+        // cannot fail here — this printer's Brand/ModelCode already passed catalog resolution at
+        // registration and are immutable thereafter.
+        if (command.BuildPlateType is { } requestedBuildPlateType)
+        {
+            var model = PrinterModelCatalog.Resolve(printer.Brand, printer.ModelCode);
+            if (model.CompatiblePlateTypes is null || !model.CompatiblePlateTypes.Contains(requestedBuildPlateType))
+            {
+                throw new IncompatibleBuildPlateException(requestedBuildPlateType, printer.Brand, printer.ModelCode);
+            }
+        }
+
         var previousMachineProfileId = printer.MachineProfileId;
         var previousProcessProfileId = printer.ProcessProfileId;
+        var previousBuildPlateType = printer.BuildPlateType;
 
         printer.Rename(command.Name);
 
@@ -127,6 +142,15 @@ public sealed class EditPrinterCommandHandler(
             printer.UnlinkProcessProfile();
         }
 
+        if (command.BuildPlateType is { } buildPlateType)
+        {
+            printer.SelectBuildPlate(buildPlateType);
+        }
+        else
+        {
+            printer.ClearBuildPlate();
+        }
+
         await printerRepository.SaveChangesAsync(cancellationToken);
 
         if (connectionChanged)
@@ -153,6 +177,14 @@ public sealed class EditPrinterCommandHandler(
         if (printer.ProcessProfileId != previousProcessProfileId)
         {
             var eventType = printer.ProcessProfileId is not null ? "PrinterProcessProfileLinked" : "PrinterProcessProfileUnlinked";
+            await activityLogWriter.WriteAsync(
+                ActivityLogEntry.Create(printer.OrganizationId, "Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
+                cancellationToken);
+        }
+
+        if (printer.BuildPlateType != previousBuildPlateType)
+        {
+            var eventType = printer.BuildPlateType is not null ? "PrinterBuildPlateSelected" : "PrinterBuildPlateCleared";
             await activityLogWriter.WriteAsync(
                 ActivityLogEntry.Create(printer.OrganizationId, "Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
                 cancellationToken);

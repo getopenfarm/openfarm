@@ -66,6 +66,9 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.Property(p => p.MachineProfileId);
         builder.Property(p => p.ProcessProfileId);
 
+        builder.Property(p => p.BuildPlateType)
+            .HasConversion<string>();
+
         builder.Property(p => p.CreatedAtUtc)
             .IsRequired();
 

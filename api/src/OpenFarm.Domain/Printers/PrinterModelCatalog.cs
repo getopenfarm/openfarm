@@ -6,17 +6,36 @@ namespace OpenFarm.Domain.Printers;
 /// </summary>
 public static class PrinterModelCatalog
 {
+    // 012 research.md R2: two-signal method per model (not_support_bed_type when the model's own
+    // machine preset declares it, else which *_plate_temp keys the model's own filament presets leave
+    // genuinely non-"0") applied directly against the real OrcaSlicer BBL vendor bundle. X1/X1C/X1E/
+    // P1P/P1S share the same result: none of their own PLA-basic filament presets declare
+    // not_support_bed_type, and each one's own preset (or its unoverridden fdm_filament_pla ancestor)
+    // leaves cool_plate_temp/hot_plate_temp/textured_plate_temp/supertack_plate_temp non-zero while
+    // eng_plate_temp resolves to "0" — textured_cool_plate_temp has no default anywhere in the Bambu
+    // vendor chain for any of them (data-model.md: no catalogued Bambu model uses TexturedCool).
+    private static readonly IReadOnlySet<BuildPlateType> BambuXAndP1SeriesPlateTypes =
+        new HashSet<BuildPlateType> { BuildPlateType.Cool, BuildPlateType.HighTemp, BuildPlateType.TexturedPei, BuildPlateType.Supertack };
+
     private static readonly Dictionary<(PrinterBrand Brand, string ModelCode), PrinterModel> Entries =
         new Dictionary<(PrinterBrand, string), PrinterModel>
         {
-            [(PrinterBrand.Bambu, "X1")] = new PrinterModel(PrinterBrand.Bambu, "X1", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1"),
-            [(PrinterBrand.Bambu, "X1C")] = new PrinterModel(PrinterBrand.Bambu, "X1C", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1 Carbon"),
-            [(PrinterBrand.Bambu, "X1E")] = new PrinterModel(PrinterBrand.Bambu, "X1E", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1E"),
-            [(PrinterBrand.Bambu, "P1P")] = new PrinterModel(PrinterBrand.Bambu, "P1P", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1P"),
-            [(PrinterBrand.Bambu, "P1S")] = new PrinterModel(PrinterBrand.Bambu, "P1S", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1S"),
-            [(PrinterBrand.Bambu, "A1")] = new PrinterModel(PrinterBrand.Bambu, "A1", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab A1"),
-            [(PrinterBrand.Bambu, "A1MINI")] = new PrinterModel(PrinterBrand.Bambu, "A1MINI", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab A1 mini"),
-            [(PrinterBrand.System, "Simulation")] = new PrinterModel(PrinterBrand.System, "Simulation", CameraTransport.BinaryImage),
+            [(PrinterBrand.Bambu, "X1")] = new PrinterModel(PrinterBrand.Bambu, "X1", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
+            [(PrinterBrand.Bambu, "X1C")] = new PrinterModel(PrinterBrand.Bambu, "X1C", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1 Carbon", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
+            [(PrinterBrand.Bambu, "X1E")] = new PrinterModel(PrinterBrand.Bambu, "X1E", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1E", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
+            [(PrinterBrand.Bambu, "P1P")] = new PrinterModel(PrinterBrand.Bambu, "P1P", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1P", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
+            [(PrinterBrand.Bambu, "P1S")] = new PrinterModel(PrinterBrand.Bambu, "P1S", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1S", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
+            [(PrinterBrand.Bambu, "A1")] = new PrinterModel(PrinterBrand.Bambu, "A1", CameraTransport.BinaryImage,
+                VendorMachineModelName: "Bambu Lab A1",
+                CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.TexturedPei, BuildPlateType.HighTemp }),
+            [(PrinterBrand.Bambu, "A1MINI")] = new PrinterModel(PrinterBrand.Bambu, "A1MINI", CameraTransport.BinaryImage,
+                VendorMachineModelName: "Bambu Lab A1 mini",
+                // Cross-checked both signals (research.md R2): machine preset's own
+                // not_support_bed_type = "Smooth Cool Plate;Engineering Plate" (authoritative) agrees
+                // with the filament-temp fallback (eng_plate_temp resolves to "0" through inheritance).
+                CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.TexturedPei, BuildPlateType.HighTemp }),
+            [(PrinterBrand.System, "Simulation")] = new PrinterModel(PrinterBrand.System, "Simulation", CameraTransport.BinaryImage,
+                CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.Cool, BuildPlateType.Engineering, BuildPlateType.HighTemp, BuildPlateType.TexturedPei, BuildPlateType.TexturedCool, BuildPlateType.Supertack }),
         };
 
     public static PrinterModel Resolve(string brand, string modelCode)

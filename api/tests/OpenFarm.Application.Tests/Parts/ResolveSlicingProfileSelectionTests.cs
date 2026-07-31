@@ -32,13 +32,25 @@ public class ResolveSlicingProfileSelectionTests
                 filamentTrackingRepo ?? new FakeFilamentRepository(),
                 feedUnitRepo ?? new FakeFeedUnitRepository()));
 
-    private static Printer CreatePrinter(string serial = "SN-1") =>
-        Printer.Create(Guid.NewGuid(), "Printer A", "Bambu", "X1C", "10.0.0.5", serial);
+    // 012 US2 — every printer here defaults to a compatible, real-plate-typed selection (X1C's
+    // catalog set includes HighTemp) so the pre-existing success-path tests below stay unaffected by
+    // the new build-plate requirement (FR-008); tests exercising the build-plate gate itself
+    // (T023/T024) override or clear it explicitly.
+    private static Printer CreatePrinter(string serial = "SN-1", BuildPlateType? buildPlateType = BuildPlateType.HighTemp)
+    {
+        var printer = Printer.Create(Guid.NewGuid(), "Printer A", "Bambu", "X1C", "10.0.0.5", serial);
+        if (buildPlateType is { } value)
+        {
+            printer.SelectBuildPlate(value);
+        }
+
+        return printer;
+    }
 
     private static FilamentProfile CreateSystemFilament(Guid organizationId, string vendorName, string externalId, string materialType) =>
         FilamentProfile.CreateSystemProfile(
             organizationId, $"{vendorName} {materialType} {externalId}", ProfileSourceFormat.OrcaSlicer, null,
-            $$"""{"type":"filament","filament_type":["{{materialType}}"]}""",
+            $$"""{"type":"filament","filament_type":["{{materialType}}"],"hot_plate_temp":["55"]}""",
             vendorName, externalId, isSelectable: true, compatibleMachineNames: null, materialType: materialType, includedTemplateNames: null);
 
     [Fact]
@@ -127,6 +139,7 @@ public class ResolveSlicingProfileSelectionTests
         var filamentRepo = new FakeFilamentProfileRepository();
 
         var printerA = Printer.Create(Guid.NewGuid(), "Printer A", "Bambu", "X1C", "10.0.0.10", "SN-A");
+        printerA.SelectBuildPlate(BuildPlateType.HighTemp);
         var machineA = MachineProfile.Create(printerA.OrganizationId, "Machine A", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machineA, CancellationToken.None);
         printerA.LinkMachineProfile(machineA.Id);
@@ -136,6 +149,7 @@ public class ResolveSlicingProfileSelectionTests
         await printerRepo.AddAsync(printerA, CancellationToken.None);
 
         var printerB = Printer.Create(Guid.NewGuid(), "Printer B", "Bambu", "P1S", "10.0.0.11", "SN-B");
+        printerB.SelectBuildPlate(BuildPlateType.HighTemp);
         var machineB = MachineProfile.Create(printerB.OrganizationId, "Machine B", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.2"]}""");
         await machineRepo.AddAsync(machineB, CancellationToken.None);
         printerB.LinkMachineProfile(machineB.Id);
@@ -286,10 +300,12 @@ public class ResolveSlicingProfileSelectionTests
         var configuredA = Printer.Create(organizationId, "A", "Bambu", "X1C", "10.0.0.2", "SN-A");
         configuredA.LinkMachineProfile(machine.Id);
         configuredA.LinkProcessProfile(process.Id);
+        configuredA.SelectBuildPlate(BuildPlateType.HighTemp);
 
         var configuredB = Printer.Create(organizationId, "B", "Bambu", "X1C", "10.0.0.3", "SN-B");
         configuredB.LinkMachineProfile(machine.Id);
         configuredB.LinkProcessProfile(process.Id);
+        configuredB.SelectBuildPlate(BuildPlateType.HighTemp);
 
         await printerRepo.AddAsync(unconfiguredPrinter, CancellationToken.None);
         await printerRepo.AddAsync(configuredA, CancellationToken.None);
@@ -337,7 +353,7 @@ public class ResolveSlicingProfileSelectionTests
         // The printer's own loaded spool's linked profile — must win.
         var loadedFilamentProfile = FilamentProfile.CreateSystemProfile(
             printer.OrganizationId, "Loaded PLA", ProfileSourceFormat.OrcaSlicer, null,
-            """{"type":"filament","filament_type":["PLA"],"marker":"loaded-pick"}""",
+            """{"type":"filament","filament_type":["PLA"],"marker":"loaded-pick","hot_plate_temp":["55"]}""",
             "Polymaker", "P001", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentRepo.AddAsync(loadedFilamentProfile, CancellationToken.None);
 
@@ -406,7 +422,7 @@ public class ResolveSlicingProfileSelectionTests
         // The manually narrowed, distinguishable target — must be the one that's actually used.
         var narrowedProfile = FilamentProfile.CreateSystemProfile(
             printer.OrganizationId, "Narrowed PETG", ProfileSourceFormat.OrcaSlicer, null,
-            """{"type":"filament","filament_type":["PETG"],"marker":"narrowed-pick"}""",
+            """{"type":"filament","filament_type":["PETG"],"marker":"narrowed-pick","hot_plate_temp":["55"]}""",
             "Prusament", "PT001", isSelectable: true, compatibleMachineNames: null, materialType: "PETG", includedTemplateNames: null);
         await filamentRepo.AddAsync(narrowedProfile, CancellationToken.None);
 
@@ -416,6 +432,213 @@ public class ResolveSlicingProfileSelectionTests
 
         result.FilamentSettingsJson.Should().Contain("narrowed-pick");
         result.FilamentSettingsJson.Should().NotContain("would-win");
+    }
+
+    // --- 012 US2: build-plate-required resolution + bed-temp injection (TDD, research.md R8) ---
+
+    [Fact]
+    public async Task ResolveAsync_PrinterHasNoBuildPlateSelected_ThrowsSlicingProfileUnconfiguredNamingPrinter()
+    {
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+
+        var printer = CreatePrinter(buildPlateType: null);
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+        var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+        printer.LinkProcessProfile(process.Id);
+        var filament = CreateSystemFilament(printer.OrganizationId, "Bambulab", "GFSA00", "PLA");
+        await filamentRepo.AddAsync(filament, CancellationToken.None);
+        await printerRepo.AddAsync(printer, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
+
+        var act = async () => await selection.ResolveAsync(printer.Id, "PLA", null, CancellationToken.None);
+
+        (await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>())
+            .WithMessage("*Printer A*build plate*");
+    }
+
+    [Fact]
+    public async Task ResolveAsync_FilamentHasNoTempValueForSelectedPlate_ThrowsNamingFilamentAndPlateType()
+    {
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+
+        var printer = CreatePrinter(buildPlateType: BuildPlateType.Engineering);
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+        var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+        printer.LinkProcessProfile(process.Id);
+
+        // No eng_plate_temp key at all — OrcaSlicer's own "not applicable"/missing convention.
+        var filament = FilamentProfile.CreateSystemProfile(
+            printer.OrganizationId, "Bambulab PLA GFSA00", ProfileSourceFormat.OrcaSlicer, null,
+            """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"]}""",
+            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+        await filamentRepo.AddAsync(filament, CancellationToken.None);
+        await printerRepo.AddAsync(printer, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
+
+        var act = async () => await selection.ResolveAsync(printer.Id, "PLA", null, CancellationToken.None);
+
+        (await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>())
+            .WithMessage("*Bambulab PLA GFSA00*Engineering Plate*");
+    }
+
+    [Fact]
+    public async Task ResolveAsync_FilamentHasZeroTempValueForSelectedPlate_ThrowsNamingFilamentAndPlateType()
+    {
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+
+        var printer = CreatePrinter(buildPlateType: BuildPlateType.Cool);
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+        var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+        printer.LinkProcessProfile(process.Id);
+
+        // cool_plate_temp explicitly "0" — the real OrcaSlicer "not applicable for this material/plate" value.
+        var filament = FilamentProfile.CreateSystemProfile(
+            printer.OrganizationId, "Bambulab PLA GFSA00", ProfileSourceFormat.OrcaSlicer, null,
+            """{"type":"filament","filament_type":["PLA"],"cool_plate_temp":["0"]}""",
+            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+        await filamentRepo.AddAsync(filament, CancellationToken.None);
+        await printerRepo.AddAsync(printer, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
+
+        var act = async () => await selection.ResolveAsync(printer.Id, "PLA", null, CancellationToken.None);
+
+        await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_PrinterFullyConfigured_InjectsCurrBedTypeMatchingSelectedPlate()
+    {
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+
+        var printer = CreatePrinter(buildPlateType: BuildPlateType.TexturedPei);
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        printer.LinkMachineProfile(machine.Id);
+        var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+        printer.LinkProcessProfile(process.Id);
+
+        var filament = FilamentProfile.CreateSystemProfile(
+            printer.OrganizationId, "Bambulab PLA GFSA00", ProfileSourceFormat.OrcaSlicer, null,
+            """{"type":"filament","filament_type":["PLA"],"textured_plate_temp":["55"]}""",
+            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+        await filamentRepo.AddAsync(filament, CancellationToken.None);
+        await printerRepo.AddAsync(printer, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
+
+        var result = await selection.ResolveAsync(printer.Id, "PLA", null, CancellationToken.None);
+
+        result.ProcessSettingsJson.Should().Contain("\"curr_bed_type\":\"Textured PEI Plate\"");
+    }
+
+    [Fact]
+    public async Task ResolveAsync_SC003_TwoBuildPlateSelectionsForSameFilamentMachineProcess_ProduceDifferentCurrBedType()
+    {
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+
+        var machine = MachineProfile.Create(Guid.NewGuid(), "Shared Machine", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        await machineRepo.AddAsync(machine, CancellationToken.None);
+        var process = ProcessProfile.CreateSystemProfile(machine.OrganizationId, "Shared Process", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["Shared Machine"]);
+        await processRepo.AddAsync(process, CancellationToken.None);
+        var filament = FilamentProfile.CreateSystemProfile(
+            machine.OrganizationId, "Bambulab PLA GFSA00", ProfileSourceFormat.OrcaSlicer, null,
+            """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"],"textured_plate_temp":["55"]}""",
+            "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+        await filamentRepo.AddAsync(filament, CancellationToken.None);
+
+        var printerHighTemp = Printer.Create(machine.OrganizationId, "Printer High Temp", "Bambu", "X1C", "10.0.0.20", "SN-HT");
+        printerHighTemp.LinkMachineProfile(machine.Id);
+        printerHighTemp.LinkProcessProfile(process.Id);
+        printerHighTemp.SelectBuildPlate(BuildPlateType.HighTemp);
+        await printerRepo.AddAsync(printerHighTemp, CancellationToken.None);
+
+        var printerTexturedPei = Printer.Create(machine.OrganizationId, "Printer Textured PEI", "Bambu", "X1C", "10.0.0.21", "SN-TP");
+        printerTexturedPei.LinkMachineProfile(machine.Id);
+        printerTexturedPei.LinkProcessProfile(process.Id);
+        printerTexturedPei.SelectBuildPlate(BuildPlateType.TexturedPei);
+        await printerRepo.AddAsync(printerTexturedPei, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
+
+        var resultHighTemp = await selection.ResolveAsync(printerHighTemp.Id, "PLA", null, CancellationToken.None);
+        var resultTexturedPei = await selection.ResolveAsync(printerTexturedPei.Id, "PLA", null, CancellationToken.None);
+
+        resultHighTemp.ProcessSettingsJson.Should().Contain("\"curr_bed_type\":\"High Temp Plate\"");
+        resultTexturedPei.ProcessSettingsJson.Should().Contain("\"curr_bed_type\":\"Textured PEI Plate\"");
+        resultHighTemp.ProcessSettingsJson.Should().NotBe(resultTexturedPei.ProcessSettingsJson);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_NoTargetPrinter_RepresentativeFilterExcludesPrintersWithoutBuildPlate()
+    {
+        var printerRepo = new FakePrinterRepository();
+        var machineRepo = new FakeMachineProfileRepository();
+        var processRepo = new FakeProcessProfileRepository();
+        var filamentRepo = new FakeFilamentProfileRepository();
+
+        var organizationId = Guid.NewGuid();
+
+        // Machine+process set but no build plate — must be excluded from the representative pick
+        // regardless of Guid ordering (the filter itself, not the smallest-Guid tie-break, is what's
+        // under test here).
+        var machineNoPlate = MachineProfile.Create(organizationId, "Machine No Plate", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine"}""");
+        await machineRepo.AddAsync(machineNoPlate, CancellationToken.None);
+        var processNoPlate = ProcessProfile.CreateSystemProfile(organizationId, "Process No Plate", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process"}""", "Bambulab", "GP004", true, null);
+        await processRepo.AddAsync(processNoPlate, CancellationToken.None);
+        var noPlatePrinter = Printer.Create(organizationId, "No Plate", "Bambu", "X1C", "10.0.0.30", "SN-NOPLATE");
+        noPlatePrinter.LinkMachineProfile(machineNoPlate.Id);
+        noPlatePrinter.LinkProcessProfile(processNoPlate.Id);
+        await printerRepo.AddAsync(noPlatePrinter, CancellationToken.None);
+
+        var machineWithPlate = MachineProfile.Create(organizationId, "Machine With Plate", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine"}""");
+        await machineRepo.AddAsync(machineWithPlate, CancellationToken.None);
+        var processWithPlate = ProcessProfile.CreateSystemProfile(organizationId, "Process With Plate", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process"}""", "Bambulab", "GP005", true, null);
+        await processRepo.AddAsync(processWithPlate, CancellationToken.None);
+        var withPlatePrinter = Printer.Create(organizationId, "With Plate", "Bambu", "X1C", "10.0.0.31", "SN-PLATE");
+        withPlatePrinter.LinkMachineProfile(machineWithPlate.Id);
+        withPlatePrinter.LinkProcessProfile(processWithPlate.Id);
+        withPlatePrinter.SelectBuildPlate(BuildPlateType.HighTemp);
+        await printerRepo.AddAsync(withPlatePrinter, CancellationToken.None);
+
+        var filament = CreateSystemFilament(organizationId, "Bambulab", "GFSA00", "PLA");
+        await filamentRepo.AddAsync(filament, CancellationToken.None);
+
+        var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
+
+        var result = await selection.ResolveAsync(null, "PLA", null, CancellationToken.None);
+
+        // Only withPlatePrinter's machine/process could ever be picked — noPlatePrinter's are
+        // filtered out entirely, so this holds no matter which printer sorts first by Guid.
+        result.MachineProfileName.Should().Be("Machine With Plate");
+        result.ProcessProfileName.Should().Be("Process With Plate");
     }
 
     private sealed class FakePrinterRepository : IPrinterRepository

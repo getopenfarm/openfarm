@@ -33,6 +33,10 @@ public sealed class EditPrinterRequest : IActivityLoggable
 
     public Guid? ProcessProfileId { get; set; }
 
+    // 012 US1 — string enum on the wire (contracts/printers-api.md), applied exactly as sent (null =
+    // clear); no machine-profile prerequisite, unlike ProcessProfileId above.
+    public string? BuildPlateType { get; set; }
+
     public string EntityType => "Printer";
 
     public string EventType => "PrinterEdited";
@@ -59,6 +63,11 @@ public sealed class EditPrinterRequestValidator : AbstractValidator<EditPrinterR
             .Must(ip => IPAddress.TryParse(ip, out _))
             .WithMessage("IpAddress must be a valid IPv4 or IPv6 address.")
             .When(x => !string.IsNullOrWhiteSpace(x.IpAddress));
+
+        RuleFor(x => x.BuildPlateType)
+            .Must(v => Enum.TryParse<BuildPlateType>(v, ignoreCase: true, out _))
+            .WithMessage("BuildPlateType must be one of: Cool, Engineering, HighTemp, TexturedPei, TexturedCool, Supertack.")
+            .When(x => x.BuildPlateType is not null);
     }
 }
 
@@ -91,9 +100,13 @@ public sealed class EditPrinterEndpoint(EditPrinterHandler handler)
             ? (parsedActorId, ActorType.Operator)
             : ((Guid?)null, ActorType.System);
 
+        var buildPlateType = req.BuildPlateType is not null
+            ? Enum.Parse<BuildPlateType>(req.BuildPlateType, ignoreCase: true)
+            : (BuildPlateType?)null;
+
         var command = new EditPrinterCommand(
             req.Id, req.Name, req.IpAddress, req.AccessCode, req.Brand, req.ModelCode, req.SerialNumber,
-            req.MachineProfileId, req.ProcessProfileId, actorId, actorType);
+            req.MachineProfileId, req.ProcessProfileId, buildPlateType, actorId, actorType);
         var printer = await handler.HandleAsync(command, ct);
 
         Response = PrinterSummaryResponse.FromDomain(printer);

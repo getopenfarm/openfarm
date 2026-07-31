@@ -254,6 +254,89 @@ public class EditPrinterCommandHandlerTests
         activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterMachineProfileUnlinked");
     }
 
+    // --- 012 US1: build-plate selection + compatibility gate (TDD, plan.md's Constitution Check) ---
+
+    [Fact]
+    public async Task HandleAsync_CompatibleBuildPlate_PersistsAndLogsSelectedEvent()
+    {
+        var printer = CreatePrinter();
+        var repository = new InMemoryPrinterRepository(printer);
+        var activityLogWriter = new RecordingActivityLogWriter();
+        var handler = CreateHandler(repository, activityLogWriter: activityLogWriter);
+
+        var result = await handler.HandleAsync(
+            Command(printer.Id, "Printer 1", buildPlateType: BuildPlateType.TexturedPei),
+            CancellationToken.None);
+
+        result.BuildPlateType.Should().Be(BuildPlateType.TexturedPei);
+        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterBuildPlateSelected");
+    }
+
+    [Fact]
+    public async Task HandleAsync_IncompatibleBuildPlate_ThrowsIncompatibleBuildPlateAndLeavesPrinterUnchanged()
+    {
+        // Printer model is P1S (CreatePrinter) — compatible set is {Cool, HighTemp, TexturedPei,
+        // Supertack}; Engineering is not in that set.
+        var printer = CreatePrinter();
+        var repository = new InMemoryPrinterRepository(printer);
+        var handler = CreateHandler(repository);
+
+        var act = () => handler.HandleAsync(
+            Command(printer.Id, "Printer 1", buildPlateType: BuildPlateType.Engineering),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<IncompatibleBuildPlateException>();
+        printer.BuildPlateType.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task HandleAsync_NoMachineProfilePrerequisite_BuildPlateSelectsOnItsOwn()
+    {
+        var printer = CreatePrinter();
+        var repository = new InMemoryPrinterRepository(printer);
+        var handler = CreateHandler(repository);
+
+        var result = await handler.HandleAsync(
+            Command(printer.Id, "Printer 1", buildPlateType: BuildPlateType.HighTemp),
+            CancellationToken.None);
+
+        result.MachineProfileId.Should().BeNull();
+        result.BuildPlateType.Should().Be(BuildPlateType.HighTemp);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ClearingBuildPlate_LogsClearedEvent()
+    {
+        var printer = CreatePrinter();
+        printer.SelectBuildPlate(BuildPlateType.HighTemp);
+
+        var repository = new InMemoryPrinterRepository(printer);
+        var activityLogWriter = new RecordingActivityLogWriter();
+        var handler = CreateHandler(repository, activityLogWriter: activityLogWriter);
+
+        var result = await handler.HandleAsync(Command(printer.Id, "Printer 1"), CancellationToken.None);
+
+        result.BuildPlateType.Should().BeNull();
+        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterBuildPlateCleared");
+    }
+
+    [Fact]
+    public async Task HandleAsync_ResendingTheSameAlreadySelectedBuildPlate_DoesNotLogAnyGranularEvent()
+    {
+        var printer = CreatePrinter();
+        printer.SelectBuildPlate(BuildPlateType.HighTemp);
+
+        var repository = new InMemoryPrinterRepository(printer);
+        var activityLogWriter = new RecordingActivityLogWriter();
+        var handler = CreateHandler(repository, activityLogWriter: activityLogWriter);
+
+        await handler.HandleAsync(
+            Command(printer.Id, "Printer 1", buildPlateType: BuildPlateType.HighTemp),
+            CancellationToken.None);
+
+        activityLogWriter.Entries.Should().BeEmpty();
+    }
+
     private static EditPrinterCommand Command(
         Guid printerId,
         string name,
@@ -263,8 +346,9 @@ public class EditPrinterCommandHandlerTests
         string? modelCode = null,
         string? serialNumber = null,
         Guid? machineProfileId = null,
-        Guid? processProfileId = null) =>
-        new(printerId, name, ipAddress, accessCode, brand, modelCode, serialNumber, machineProfileId, processProfileId, null, ActorType.System);
+        Guid? processProfileId = null,
+        BuildPlateType? buildPlateType = null) =>
+        new(printerId, name, ipAddress, accessCode, brand, modelCode, serialNumber, machineProfileId, processProfileId, buildPlateType, null, ActorType.System);
 
     private static EditPrinterCommandHandler CreateHandler(
         InMemoryPrinterRepository repository,

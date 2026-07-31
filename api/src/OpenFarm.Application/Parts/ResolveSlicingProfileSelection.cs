@@ -1,6 +1,8 @@
+using System.Text.Json.Nodes;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Parts;
@@ -38,7 +40,7 @@ public sealed class ResolveSlicingProfileSelection(
     public async Task<ResolvedSlicingProfiles> ResolveAsync(
         Guid? printerId, string materialType, Guid? narrowedFilamentProfileId, CancellationToken cancellationToken)
     {
-        var (machineProfileId, processProfileId) = printerId is { } targetPrinterId
+        var (machineProfileId, processProfileId, buildPlateType) = printerId is { } targetPrinterId
             ? await ResolveForPrinterAsync(targetPrinterId, cancellationToken)
             : await ResolveForFleetRepresentativeAsync(cancellationToken);
 
@@ -55,6 +57,28 @@ public sealed class ResolveSlicingProfileSelection(
         var machineJson = await MergeMachineChainWithIncludesOrThrowAsync(machineProfile, cancellationToken);
         var processJson = await MergeChainOrThrowAsync(processProfile.Id, "process", FetchProcessNode, cancellationToken);
         var filamentJson = await MergeFilamentChainWithIncludesOrThrowAsync(filamentProfile, cancellationToken);
+
+        // 012 US2 — pre-flight validate the resolved filament preset actually declares a real
+        // (non-"0") bed temperature for the printer's own selected plate (research.md R3) before
+        // injecting curr_bed_type into the merged process settings, so OrcaSlicer/Bambu Studio's own
+        // CLI resolves the correct plate-specific bed temperature at slice time (FR-005).
+        var tempKey = BuildPlateTypeTempKeys.Resolve(buildPlateType);
+        var tempValue = JsonNode.Parse(filamentJson)!.AsObject()[tempKey] switch
+        {
+            JsonArray array when array.Count > 0 => array[0]?.GetValue<string>(),
+            JsonValue value => value.GetValue<string>(),
+            _ => null,
+        };
+
+        if (tempValue is null or "0")
+        {
+            throw new SlicingProfileUnconfiguredException(
+                $"Filament profile '{filamentProfile.Name}' has no bed-temperature value for build plate '{BuildPlateTypeVendorNames.Resolve(buildPlateType)}'.");
+        }
+
+        var processSettings = JsonNode.Parse(processJson)!.AsObject();
+        processSettings["curr_bed_type"] = BuildPlateTypeVendorNames.Resolve(buildPlateType);
+        processJson = processSettings.ToJsonString();
 
         return new ResolvedSlicingProfiles(
             machineJson, processJson, filamentJson,
@@ -135,7 +159,7 @@ public sealed class ResolveSlicingProfileSelection(
             ancestorsOldestFirst, includedTemplateNames, name => resolvedFragments.GetValueOrDefault(name));
     }
 
-    private async Task<(Guid MachineProfileId, Guid ProcessProfileId)> ResolveForPrinterAsync(Guid printerId, CancellationToken cancellationToken)
+    private async Task<(Guid MachineProfileId, Guid ProcessProfileId, BuildPlateType BuildPlateType)> ResolveForPrinterAsync(Guid printerId, CancellationToken cancellationToken)
     {
         var printer = await printerRepository.GetByIdAsync(printerId, cancellationToken)
             ?? throw new SlicingProfileUnconfiguredException($"Printer '{printerId}' was not found.");
@@ -144,8 +168,10 @@ public sealed class ResolveSlicingProfileSelection(
             ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no machine profile selected.");
         var processProfileId = printer.ProcessProfileId
             ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no process profile selected.");
+        var buildPlateType = printer.BuildPlateType
+            ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no build plate selected.");
 
-        return (machineProfileId, processProfileId);
+        return (machineProfileId, processProfileId, buildPlateType);
     }
 
     /// <summary>
@@ -154,16 +180,16 @@ public sealed class ResolveSlicingProfileSelection(
     /// so a repeated resolution against an unchanged fleet always picks the same printer
     /// (research.md §5, mirroring §2's representative-filament determinism requirement).
     /// </summary>
-    private async Task<(Guid MachineProfileId, Guid ProcessProfileId)> ResolveForFleetRepresentativeAsync(CancellationToken cancellationToken)
+    private async Task<(Guid MachineProfileId, Guid ProcessProfileId, BuildPlateType BuildPlateType)> ResolveForFleetRepresentativeAsync(CancellationToken cancellationToken)
     {
         var printers = await printerRepository.ListAsync(cancellationToken);
         var representative = printers
-            .Where(p => p.MachineProfileId is not null && p.ProcessProfileId is not null)
+            .Where(p => p.MachineProfileId is not null && p.ProcessProfileId is not null && p.BuildPlateType is not null)
             .OrderBy(p => p.Id)
             .FirstOrDefault()
-            ?? throw new SlicingProfileUnconfiguredException("No printers configured with both a machine and process profile selected.");
+            ?? throw new SlicingProfileUnconfiguredException("No printers configured with a machine, process, and build plate all selected.");
 
-        return (representative.MachineProfileId!.Value, representative.ProcessProfileId!.Value);
+        return (representative.MachineProfileId!.Value, representative.ProcessProfileId!.Value, representative.BuildPlateType!.Value);
     }
 
     private static async Task<string> MergeChainOrThrowAsync(

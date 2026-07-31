@@ -33,7 +33,7 @@ files sitting alongside them in the same directory.
 **Purpose**: Confirm the baseline is clean before extending it — no new dependencies, no scaffolding
 needed (this feature only extends existing files, per `plan.md`).
 
-- [ ] T001 Confirm baseline is green: `dotnet build api/OpenFarm.slnx --configuration Release`, `dotnet test api/OpenFarm.slnx`, `cd web && bun run lint && bunx tsc -b && bun run test`
+- [X] T001 Confirm baseline is green: `dotnet build api/OpenFarm.slnx --configuration Release`, `dotnet test api/OpenFarm.slnx`, `cd web && bun run lint && bunx tsc -b && bun run test`
 
 **Checkpoint**: Baseline confirmed clean — any later failure is attributable to this feature's changes.
 
@@ -47,14 +47,14 @@ user stories depends on these existing.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 [P] Add `BuildPlateType` enum (six values: `Cool`, `Engineering`, `HighTemp`, `TexturedPei`, `TexturedCool`, `Supertack`) and the `BuildPlateTypeVendorNames` static code↔vendor-string lookup (per `data-model.md`'s mapping table) in new file `api/src/OpenFarm.Domain/Printers/BuildPlateType.cs`
-- [ ] T003 [P] Add nullable `BuildPlateType? BuildPlateType` property and `SelectBuildPlate(BuildPlateType)`/`ClearBuildPlate()` methods to `api/src/OpenFarm.Domain/Printers/Printer.cs` (depends on T002)
-- [ ] T004 [P] Add `IReadOnlySet<BuildPlateType>? CompatiblePlateTypes` field to the `PrinterModel` record in `api/src/OpenFarm.Domain/Printers/PrinterModel.cs` (depends on T002)
-- [ ] T005 Populate `CompatiblePlateTypes` for every entry in `PrinterModelCatalog.Entries` in `api/src/OpenFarm.Domain/Printers/PrinterModelCatalog.cs` — `A1`/`A1MINI` per `research.md` R2 (`{ TexturedPei, HighTemp }`); `X1`, `X1C`, `X1E`, `P1P`, `P1S` via the same two-signal method (`not_support_bed_type` authoritative when declared, else non-`"0"` filament-temp keys) against the real vendor bundle; `System`/`Simulation` gets all six values (depends on T004)
-- [ ] T006 [P] Add `IncompatibleBuildPlateException(BuildPlateType requested, string brand, string modelCode)` in new file `api/src/OpenFarm.Domain/Printers/IncompatibleBuildPlateException.cs` (depends on T002)
-- [ ] T007 [P] Map `IncompatibleBuildPlateException` to `422 Unprocessable Entity` ("Build plate incompatible with printer model") in the exception switch in `api/src/OpenFarm.Api/ExceptionHandling/DomainExceptionHandler.cs` (depends on T006)
-- [ ] T008 Add EF Core migration `AddPrinterBuildPlate` (nullable `text` column on `Printers`, no FK/index) in `api/src/OpenFarm.Infrastructure/Persistence/Migrations/` via `dotnet ef migrations add AddPrinterBuildPlate` (depends on T003)
-- [ ] T009 Add `builder.Property(p => p.BuildPlateType).HasConversion<string>();` to `api/src/OpenFarm.Infrastructure/Persistence/Configurations/PrinterConfiguration.cs` (depends on T003)
+- [X] T002 [P] Add `BuildPlateType` enum (six values: `Cool`, `Engineering`, `HighTemp`, `TexturedPei`, `TexturedCool`, `Supertack`) and the `BuildPlateTypeVendorNames` static code↔vendor-string lookup (per `data-model.md`'s mapping table) in new file `api/src/OpenFarm.Domain/Printers/BuildPlateType.cs`
+- [X] T003 [P] Add nullable `BuildPlateType? BuildPlateType` property and `SelectBuildPlate(BuildPlateType)`/`ClearBuildPlate()` methods to `api/src/OpenFarm.Domain/Printers/Printer.cs` (depends on T002)
+- [X] T004 [P] Add `IReadOnlySet<BuildPlateType>? CompatiblePlateTypes` field to the `PrinterModel` record in `api/src/OpenFarm.Domain/Printers/PrinterModel.cs` (depends on T002)
+- [X] T005 Populate `CompatiblePlateTypes` for every entry in `PrinterModelCatalog.Entries` in `api/src/OpenFarm.Domain/Printers/PrinterModelCatalog.cs` — `A1`/`A1MINI` per `research.md` R2 (`{ TexturedPei, HighTemp }`); `X1`, `X1C`, `X1E`, `P1P`, `P1S` via the same two-signal method (`not_support_bed_type` authoritative when declared, else non-`"0"` filament-temp keys) against the real vendor bundle; `System`/`Simulation` gets all six values (depends on T004)
+- [X] T006 [P] Add `IncompatibleBuildPlateException(BuildPlateType requested, string brand, string modelCode)` in new file `api/src/OpenFarm.Domain/Printers/IncompatibleBuildPlateException.cs` (depends on T002)
+- [X] T007 [P] Map `IncompatibleBuildPlateException` to `422 Unprocessable Entity` ("Build plate incompatible with printer model") in the exception switch in `api/src/OpenFarm.Api/ExceptionHandling/DomainExceptionHandler.cs` (depends on T006)
+- [X] T008 Add EF Core migration `AddPrinterBuildPlate` (nullable `text` column on `Printers`, no FK/index) in `api/src/OpenFarm.Infrastructure/Persistence/Migrations/` via `dotnet ef migrations add AddPrinterBuildPlate` (depends on T003)
+- [X] T009 Add `builder.Property(p => p.BuildPlateType).HasConversion<string>();` to `api/src/OpenFarm.Infrastructure/Persistence/Configurations/PrinterConfiguration.cs` (depends on T003)
 
 **Checkpoint**: Domain model, catalog data, persistence, and error mapping exist — both user stories
 can now proceed.
@@ -77,22 +77,22 @@ keep independent selections.
 
 > Write these first; TDD tasks (T010, T011) must fail before their implementation tasks land. T012–T014 are test-after, written alongside/after their implementation.
 
-- [ ] T010 [P] [US1] TDD: `PrinterModelCatalog` compatibility assertions (e.g. `A1` → `{TexturedPei, HighTemp}`, `System` → all six, an incompatible value is absent from a model's set) in `api/tests/OpenFarm.Domain.Tests/Printers/PrinterModelCatalogTests.cs`
-- [ ] T011 [P] [US1] TDD: `EditPrinterCommandHandler` build-plate cases — compatible selection persists, incompatible value throws `IncompatibleBuildPlateException`, `null` clears, no machine-profile prerequisite, granular activity-log events fire only on real change — in `api/tests/OpenFarm.Application.Tests/Printers/EditPrinterCommandHandlerTests.cs`
-- [ ] T012 [P] [US1] Test-after: `EditPrinterEndpointTests` build-plate PATCH/GET cases (persist, 422 on incompatible value, `buildPlateTypeLabel`/`compatibleBuildPlateTypes` shape in the GET response) in `api/tests/OpenFarm.Api.IntegrationTests/Printers/EditPrinterEndpointTests.cs`
-- [ ] T013 [P] [US1] Test-after: `PrinterFormPage.test.tsx` build-plate `<Select>` cases (renders backend-supplied labels, submits the enum value, no prerequisite gate) in `web/src/features/printers/PrinterFormPage.test.tsx`
-- [ ] T014 [P] [US1] Test-after: `PrinterDetailPage.test.tsx` build-plate read-only row case (renders `buildPlateTypeLabel`, "Not selected" when null) in `web/src/features/printers/PrinterDetailPage.test.tsx`
+- [X] T010 [P] [US1] TDD: `PrinterModelCatalog` compatibility assertions (e.g. `A1` → `{TexturedPei, HighTemp}`, `System` → all six, an incompatible value is absent from a model's set) in `api/tests/OpenFarm.Domain.Tests/Printers/PrinterModelCatalogTests.cs`
+- [X] T011 [P] [US1] TDD: `EditPrinterCommandHandler` build-plate cases — compatible selection persists, incompatible value throws `IncompatibleBuildPlateException`, `null` clears, no machine-profile prerequisite, granular activity-log events fire only on real change — in `api/tests/OpenFarm.Application.Tests/Printers/EditPrinterCommandHandlerTests.cs`
+- [X] T012 [P] [US1] Test-after: `EditPrinterEndpointTests` build-plate PATCH/GET cases (persist, 422 on incompatible value, `buildPlateTypeLabel`/`compatibleBuildPlateTypes` shape in the GET response) in `api/tests/OpenFarm.Api.IntegrationTests/Printers/EditPrinterEndpointTests.cs`
+- [X] T013 [P] [US1] Test-after: `PrinterFormPage.test.tsx` build-plate `<Select>` cases (renders backend-supplied labels, submits the enum value, no prerequisite gate) in `web/src/features/printers/PrinterFormPage.test.tsx`
+- [X] T014 [P] [US1] Test-after: `PrinterDetailPage.test.tsx` build-plate read-only row case (renders `buildPlateTypeLabel`, "Not selected" when null) in `web/src/features/printers/PrinterDetailPage.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Add `BuildPlateType? BuildPlateType` to `EditPrinterCommand` in `api/src/OpenFarm.Application/Printers/EditPrinterCommand.cs` (depends on T002)
-- [ ] T016 [US1] In `api/src/OpenFarm.Application/Printers/EditPrinterCommandHandler.cs`: resolve `PrinterModelCatalog.Resolve(printer.Brand, printer.ModelCode).CompatiblePlateTypes`, throw `IncompatibleBuildPlateException` when the requested value isn't in it, call `SelectBuildPlate`/`ClearBuildPlate`, and write `PrinterBuildPlateSelected`/`PrinterBuildPlateCleared` activity-log events only when the value actually changed (mirrors the existing `PrinterMachineProfileLinked/Unlinked` pattern at lines ~145-159) (depends on T005, T006, T015; makes T011 pass)
-- [ ] T017 [US1] In `api/src/OpenFarm.Application/Printers/GetPrinterDetailQuery.cs` / `GetPrinterDetailQueryHandler.cs`: add `BuildPlateType? BuildPlateType`, `string? BuildPlateTypeLabel`, and `IReadOnlyList<BuildPlateTypeOption> CompatibleBuildPlateTypes` (new `BuildPlateTypeOption(BuildPlateType Value, string Label)` record) to `PrinterDetail`, resolved from `PrinterModelCatalog.Resolve(...).CompatiblePlateTypes` and `BuildPlateTypeVendorNames` (depends on T002, T005)
-- [ ] T018 [US1] Add `buildPlateType` request field to `EditPrinterEndpoint`'s request DTO in `api/src/OpenFarm.Api/Endpoints/Printers/EditPrinterEndpoint.cs` (depends on T015)
-- [ ] T019 [US1] Add `buildPlateType`, `buildPlateTypeLabel`, `compatibleBuildPlateTypes` (as `{value, label}` pairs) to `PrinterDetailResponse` and its mapping in `api/src/OpenFarm.Api/Endpoints/Printers/GetPrinterDetailEndpoint.cs` (depends on T017; makes T012 pass)
-- [ ] T020 [US1] Regenerate the Orval-generated frontend API client (`web/src/lib/api/generated/endpoints.schemas.ts`, `web/src/lib/api/generated/printers/printers.ts`) from the updated OpenAPI spec (depends on T018, T019)
-- [ ] T021 [US1] Add a build-plate `<Select>` (shadcn `src/components/ui/`, not `ProfilePickerCombobox`) to `web/src/features/printers/PrinterFormPage.tsx`, buffered like `selectedMachineProfileId`/`selectedProcessProfileId`, rendering `compatibleBuildPlateTypes[].label` and submitting `.value`, with no `disabled` prerequisite gate (depends on T020; makes T013 pass)
-- [ ] T022 [US1] Add a read-only "Build plate" row to `web/src/features/printers/PrinterDetailPage.tsx` rendering `buildPlateTypeLabel ?? 'Not selected'` (depends on T020; makes T014 pass)
+- [X] T015 [US1] Add `BuildPlateType? BuildPlateType` to `EditPrinterCommand` in `api/src/OpenFarm.Application/Printers/EditPrinterCommand.cs` (depends on T002)
+- [X] T016 [US1] In `api/src/OpenFarm.Application/Printers/EditPrinterCommandHandler.cs`: resolve `PrinterModelCatalog.Resolve(printer.Brand, printer.ModelCode).CompatiblePlateTypes`, throw `IncompatibleBuildPlateException` when the requested value isn't in it, call `SelectBuildPlate`/`ClearBuildPlate`, and write `PrinterBuildPlateSelected`/`PrinterBuildPlateCleared` activity-log events only when the value actually changed (mirrors the existing `PrinterMachineProfileLinked/Unlinked` pattern at lines ~145-159) (depends on T005, T006, T015; makes T011 pass)
+- [X] T017 [US1] In `api/src/OpenFarm.Application/Printers/GetPrinterDetailQuery.cs` / `GetPrinterDetailQueryHandler.cs`: add `BuildPlateType? BuildPlateType`, `string? BuildPlateTypeLabel`, and `IReadOnlyList<BuildPlateTypeOption> CompatibleBuildPlateTypes` (new `BuildPlateTypeOption(BuildPlateType Value, string Label)` record) to `PrinterDetail`, resolved from `PrinterModelCatalog.Resolve(...).CompatiblePlateTypes` and `BuildPlateTypeVendorNames` (depends on T002, T005)
+- [X] T018 [US1] Add `buildPlateType` request field to `EditPrinterEndpoint`'s request DTO in `api/src/OpenFarm.Api/Endpoints/Printers/EditPrinterEndpoint.cs` (depends on T015)
+- [X] T019 [US1] Add `buildPlateType`, `buildPlateTypeLabel`, `compatibleBuildPlateTypes` (as `{value, label}` pairs) to `PrinterDetailResponse` and its mapping in `api/src/OpenFarm.Api/Endpoints/Printers/GetPrinterDetailEndpoint.cs` (depends on T017; makes T012 pass)
+- [X] T020 [US1] Regenerate the Orval-generated frontend API client (`web/src/lib/api/generated/endpoints.schemas.ts`, `web/src/lib/api/generated/printers/printers.ts`) from the updated OpenAPI spec (depends on T018, T019)
+- [X] T021 [US1] Add a build-plate `<Select>` (shadcn `src/components/ui/`, not `ProfilePickerCombobox`) to `web/src/features/printers/PrinterFormPage.tsx`, buffered like `selectedMachineProfileId`/`selectedProcessProfileId`, rendering `compatibleBuildPlateTypes[].label` and submitting `.value`, with no `disabled` prerequisite gate (depends on T020; makes T013 pass)
+- [X] T022 [US1] Add a read-only "Build plate" row to `web/src/features/printers/PrinterDetailPage.tsx` rendering `buildPlateTypeLabel ?? 'Not selected'` (depends on T020; makes T014 pass)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable — run `quickstart.md` Story 1.
 
@@ -113,14 +113,14 @@ refused; an estimate-only slice derives its plate from a fleet-representative pr
 
 > TDD — write first, confirm failing before T025-T027 land.
 
-- [ ] T023 [P] [US2] TDD: `ResolveForPrinterAsync` throws `SlicingProfileUnconfiguredException` naming the printer when `BuildPlateType` is null; throws naming the filament preset + plate type when the resolved temp-key is missing/`"0"`; injects the correct `curr_bed_type` vendor string otherwise — in `api/tests/OpenFarm.Application.Tests/Parts/ResolveSlicingProfileSelectionTests.cs`
-- [ ] T024 [P] [US2] TDD: SC-003 case — two `BuildPlateType` selections for the same filament/machine/process produce different `curr_bed_type` values in `ProcessSettingsJson`; `ResolveForFleetRepresentativeAsync`'s representative-selection filter excludes printers with `BuildPlateType == null` — same file as T023
+- [X] T023 [P] [US2] TDD: `ResolveForPrinterAsync` throws `SlicingProfileUnconfiguredException` naming the printer when `BuildPlateType` is null; throws naming the filament preset + plate type when the resolved temp-key is missing/`"0"`; injects the correct `curr_bed_type` vendor string otherwise — in `api/tests/OpenFarm.Application.Tests/Parts/ResolveSlicingProfileSelectionTests.cs`
+- [X] T024 [P] [US2] TDD: SC-003 case — two `BuildPlateType` selections for the same filament/machine/process produce different `curr_bed_type` values in `ProcessSettingsJson`; `ResolveForFleetRepresentativeAsync`'s representative-selection filter excludes printers with `BuildPlateType == null` — same file as T023
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] In `api/src/OpenFarm.Application/Parts/ResolveSlicingProfileSelection.cs`'s `ResolveForPrinterAsync`: require `printer.BuildPlateType`, throwing `SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no build plate selected.")` when null (depends on T002; makes part of T023 pass)
-- [ ] T026 [US2] Same method: after the filament preset's merged `FilamentSettingsJson` is produced, look up the temp key for the printer's `BuildPlateType` (via the `BuildPlateTypeVendorNames`-adjacent key table from `research.md` R3), throw `SlicingProfileUnconfiguredException` naming the filament preset and plate type when missing/`"0"`, then inject `curr_bed_type` (the plate's vendor string) into the merged `ProcessSettingsJson` (depends on T025; makes rest of T023, T024 pass)
-- [ ] T027 [US2] Add `&& p.BuildPlateType is not null` to `ResolveForFleetRepresentativeAsync`'s existing `.Where(...)` predicate (depends on T002; makes rest of T024 pass)
+- [X] T025 [US2] In `api/src/OpenFarm.Application/Parts/ResolveSlicingProfileSelection.cs`'s `ResolveForPrinterAsync`: require `printer.BuildPlateType`, throwing `SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no build plate selected.")` when null (depends on T002; makes part of T023 pass)
+- [X] T026 [US2] Same method: after the filament preset's merged `FilamentSettingsJson` is produced, look up the temp key for the printer's `BuildPlateType` (via the `BuildPlateTypeVendorNames`-adjacent key table from `research.md` R3), throw `SlicingProfileUnconfiguredException` naming the filament preset and plate type when missing/`"0"`, then inject `curr_bed_type` (the plate's vendor string) into the merged `ProcessSettingsJson` (depends on T025; makes rest of T023, T024 pass)
+- [X] T027 [US2] Add `&& p.BuildPlateType is not null` to `ResolveForFleetRepresentativeAsync`'s existing `.Where(...)` predicate (depends on T002; makes rest of T024 pass)
 
 **Checkpoint**: User Story 2 is fully functional and independently testable — run `quickstart.md` Story 2.
 
@@ -130,9 +130,9 @@ refused; an estimate-only slice derives its plate from a fleet-representative pr
 
 **Purpose**: Formatting/lint gates and full end-to-end validation across both stories.
 
-- [ ] T028 [P] `dotnet format api/OpenFarm.slnx --verify-no-changes` (fix any formatting drift from Phases 2-4)
-- [ ] T029 [P] `cd web && bun run lint && bun run format && bunx tsc -b` (fix any drift from Phase 3)
-- [ ] T030 Run `quickstart.md` Story 1 and Story 2 scenarios end-to-end against the local stack (`infra/`) and confirm every step's expected result, including the regression checks (existing `EditPrinterEndpointTests` machine/process cases unaffected; existing `RealSlicerGoldenFileTests` suite unaffected)
+- [X] T028 [P] `dotnet format api/OpenFarm.slnx --verify-no-changes` (fix any formatting drift from Phases 2-4)
+- [X] T029 [P] `cd web && bun run lint && bun run format && bunx tsc -b` (fix any drift from Phase 3)
+- [X] T030 Run `quickstart.md` Story 1 and Story 2 scenarios end-to-end against the local stack (`infra/`) and confirm every step's expected result, including the regression checks (existing `EditPrinterEndpointTests` machine/process cases unaffected; existing `RealSlicerGoldenFileTests` suite unaffected)
 
 ---
 

@@ -54,6 +54,9 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
             Organization.WellKnownId, $"Library Fallback Printer {Guid.NewGuid():N}", "Bambu", "X1C", "10.0.0.91", $"SN-{Guid.NewGuid():N}");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);
+        // 012 — required alongside machine/process for ResolveAsync to reach filament resolution at
+        // all; X1C's catalog compatible set includes HighTemp (matches SeedDistinguishableFilamentProfileAsync's hot_plate_temp).
+        printer.SelectBuildPlate(BuildPlateType.HighTemp);
         await printerRepo.AddAsync(printer, CancellationToken.None);
     }
 
@@ -66,7 +69,7 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
 
         var profile = FilamentProfile.CreateSystemProfile(
             Organization.WellKnownId, $"Library Fallback PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
-            """{"type":"filament","filament_type":["PLA"]}""",
+            """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"]}""",
             "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentProfileRepo.AddAsync(profile, CancellationToken.None);
 
