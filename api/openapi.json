@@ -3594,6 +3594,10 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "buildPlateType": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -3679,6 +3683,20 @@
           "processProfileName": {
             "type": "string",
             "nullable": true
+          },
+          "buildPlateType": {
+            "type": "string",
+            "nullable": true
+          },
+          "buildPlateTypeLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "compatibleBuildPlateTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuildPlateTypeOptionResponse"
+            }
           }
         }
       },
@@ -3762,6 +3780,18 @@
           },
           "active": {
             "type": "boolean"
+          }
+        }
+      },
+      "BuildPlateTypeOptionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
           }
         }
       },

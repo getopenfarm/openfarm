@@ -1,5 +1,6 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Application.Printers;
 
@@ -27,6 +28,17 @@ public sealed class GetPrinterDetailQueryHandler(
             ? (await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken))?.Name
             : null;
 
+        // 012 — pure, non-throwing lookup: this printer's Brand/ModelCode already passed catalog
+        // resolution at registration and are immutable thereafter (unlike the dangling-FK tolerance
+        // machine/process profile names need above).
+        var model = PrinterModelCatalog.Resolve(printer.Brand, printer.ModelCode);
+        var buildPlateTypeLabel = printer.BuildPlateType is { } buildPlateType
+            ? BuildPlateTypeVendorNames.Resolve(buildPlateType)
+            : null;
+        var compatibleBuildPlateTypes = (model.CompatiblePlateTypes ?? (IReadOnlySet<BuildPlateType>)new HashSet<BuildPlateType>())
+            .Select(value => new BuildPlateTypeOption(value, BuildPlateTypeVendorNames.Resolve(value)))
+            .ToList();
+
         return new PrinterDetail(
             printer.Id,
             printer.Name,
@@ -46,6 +58,9 @@ public sealed class GetPrinterDetailQueryHandler(
             printer.MachineProfileId,
             machineProfileName,
             printer.ProcessProfileId,
-            processProfileName);
+            processProfileName,
+            printer.BuildPlateType,
+            buildPlateTypeLabel,
+            compatibleBuildPlateTypes);
     }
 }

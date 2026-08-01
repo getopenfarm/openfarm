@@ -171,6 +171,97 @@ describe('PrinterDetailPage', () => {
     expect(await screen.findByText('No recent activity')).toBeInTheDocument();
   });
 
+  it('renders the backend-resolved build plate label when one is selected', async () => {
+    const printerId = '66666666-6666-6666-6666-666666666666';
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/hubs/farm')) {
+        return Promise.reject(new Error('SignalR not available in tests'));
+      }
+      if (url.includes('/activity-log')) {
+        return Promise.resolve(
+          jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({
+          id: printerId,
+          name: 'Build Plate Printer',
+          brand: 'Bambu',
+          modelCode: 'A1',
+          ipAddress: '10.0.0.64',
+          serialNumber: 'SN-PLATE-1',
+          status: 'Idle',
+          isReachable: true,
+          telemetry: {
+            nozzleTempC: 24,
+            bedTempC: 24,
+            printProgressPercent: null,
+            currentStageLabel: null,
+          },
+          amsUnits: [],
+          buildPlateType: 'TexturedPei',
+          buildPlateTypeLabel: 'Textured PEI Plate',
+          compatibleBuildPlateTypes: [
+            { value: 'TexturedPei', label: 'Textured PEI Plate' },
+            { value: 'HighTemp', label: 'High Temp Plate' },
+          ],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage(printerId);
+
+    expect(await screen.findByText('Textured PEI Plate')).toBeInTheDocument();
+  });
+
+  it('shows "Not selected" for the build plate row when none has been chosen yet', async () => {
+    const printerId = '77777777-7777-7777-7777-777777777777';
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/hubs/farm')) {
+        return Promise.reject(new Error('SignalR not available in tests'));
+      }
+      if (url.includes('/activity-log')) {
+        return Promise.resolve(
+          jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({
+          id: printerId,
+          name: 'No Plate Printer',
+          brand: 'Bambu',
+          modelCode: 'A1',
+          ipAddress: '10.0.0.65',
+          serialNumber: 'SN-PLATE-2',
+          status: 'Idle',
+          isReachable: true,
+          telemetry: {
+            nozzleTempC: 24,
+            bedTempC: 24,
+            printProgressPercent: null,
+            currentStageLabel: null,
+          },
+          amsUnits: [],
+          buildPlateType: null,
+          buildPlateTypeLabel: null,
+          compatibleBuildPlateTypes: [
+            { value: 'TexturedPei', label: 'Textured PEI Plate' },
+            { value: 'HighTemp', label: 'High Temp Plate' },
+          ],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage(printerId);
+
+    expect(await screen.findByText('No Plate Printer')).toBeInTheDocument();
+    expect(screen.getByText('Not selected')).toBeInTheDocument();
+  });
+
   it('shows a not-found message for a missing printer', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();

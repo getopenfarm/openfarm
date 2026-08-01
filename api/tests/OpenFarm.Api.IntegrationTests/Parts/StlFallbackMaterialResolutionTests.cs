@@ -113,6 +113,10 @@ internal static class StlFallbackTestHelpers
             Organization.WellKnownId, $"Fallback Test Printer {Guid.NewGuid():N}", "Bambu", "X1C", "10.0.0.90", $"SN-{Guid.NewGuid():N}");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);
+        // 012 — required alongside machine/process for the fleet-representative pick to consider this
+        // printer at all; X1C's catalog compatible set includes HighTemp (matches
+        // SeedSystemPlaFilamentProfileAsync's hot_plate_temp).
+        printer.SelectBuildPlate(BuildPlateType.HighTemp);
         await printerRepo.AddAsync(printer, CancellationToken.None);
     }
 
@@ -124,7 +128,7 @@ internal static class StlFallbackTestHelpers
 
         var profile = FilamentProfile.CreateSystemProfile(
             Organization.WellKnownId, $"Fallback Test PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
-            """{"type":"filament","filament_type":["PLA"]}""",
+            """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"]}""",
             "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentRepo.AddAsync(profile, CancellationToken.None);
     }

@@ -19,9 +19,17 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import type {
+  BuildPlateTypeOptionResponse,
   PrinterCatalogResponse,
   PrinterDetailResponse,
 } from '@/lib/api/generated/endpoints.schemas';
@@ -416,6 +424,8 @@ function EditPrinterForm() {
       machineProfileName={printer.machineProfileName}
       processProfileId={printer.processProfileId}
       processProfileName={printer.processProfileName}
+      buildPlateType={printer.buildPlateType}
+      compatibleBuildPlateTypes={printer.compatibleBuildPlateTypes}
     />
   );
 }
@@ -431,7 +441,13 @@ interface EditPrinterFormLoadedProps {
   machineProfileName: string | null | undefined;
   processProfileId: string | null | undefined;
   processProfileName: string | null | undefined;
+  buildPlateType: string | null | undefined;
+  compatibleBuildPlateTypes: BuildPlateTypeOptionResponse[] | undefined;
 }
+
+// 012 US1 — sentinel for Radix Select, which rejects an empty-string item value; matches the
+// "__any__" pattern PartFilamentRequirementsList already uses for its own clearable Select.
+const NO_BUILD_PLATE_VALUE = '__none__';
 
 function EditPrinterFormLoaded({
   printerId,
@@ -444,6 +460,8 @@ function EditPrinterFormLoaded({
   machineProfileName,
   processProfileId,
   processProfileName,
+  buildPlateType,
+  compatibleBuildPlateTypes,
 }: EditPrinterFormLoadedProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -464,6 +482,9 @@ function EditPrinterFormLoaded({
   const [selectedProcessProfileName, setSelectedProcessProfileName] = useState<
     string | null | undefined
   >(processProfileName);
+  const [selectedBuildPlateType, setSelectedBuildPlateType] = useState(
+    buildPlateType ?? null,
+  );
 
   const form = useForm<EditFormValues>({
     resolver: zodResolver(editSchema),
@@ -567,11 +588,13 @@ function EditPrinterFormLoaded({
             accessCode: values.accessCode,
             machineProfileId: selectedMachineProfileId,
             processProfileId: selectedProcessProfileId,
+            buildPlateType: selectedBuildPlateType,
           }
         : {
             name: values.name,
             machineProfileId: selectedMachineProfileId,
             processProfileId: selectedProcessProfileId,
+            buildPlateType: selectedBuildPlateType,
           },
     });
   }
@@ -691,6 +714,31 @@ function EditPrinterFormLoaded({
                     selectedMachineProfileName ?? undefined
                   }
                 />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Build plate</span>
+                <Select
+                  value={selectedBuildPlateType ?? NO_BUILD_PLATE_VALUE}
+                  onValueChange={(value) =>
+                    setSelectedBuildPlateType(
+                      value === NO_BUILD_PLATE_VALUE ? null : value,
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Not selected" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_BUILD_PLATE_VALUE}>
+                      Not selected
+                    </SelectItem>
+                    {(compatibleBuildPlateTypes ?? []).map((option) => (
+                      <SelectItem key={option.value} value={option.value ?? ''}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>

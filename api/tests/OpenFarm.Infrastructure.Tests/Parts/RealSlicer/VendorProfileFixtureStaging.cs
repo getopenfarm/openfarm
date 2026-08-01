@@ -50,6 +50,11 @@ internal static class VendorProfileFixtureStaging
             Organization.WellKnownId, "Real Slicer Test Printer", "Bambu", "X1C", "10.0.0.99", $"REALSLICER-{Guid.NewGuid():N}");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);
+        // 012 — TexturedPei is X1C's real default_bed_type (research.md R2), so every real ingested
+        // Bambu filament preset declares a genuine textured_plate_temp value; RealSlicerGoldenFileTests'
+        // own WithBedTypeOverride still wins for cases with an explicit manifest.BedType, applied after
+        // this resolver call returns.
+        printer.SelectBuildPlate(BuildPlateType.TexturedPei);
         await printerRepo.AddAsync(printer, cancellationToken);
         await printerRepo.SaveChangesAsync(cancellationToken);
 

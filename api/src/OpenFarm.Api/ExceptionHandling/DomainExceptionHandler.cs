@@ -23,6 +23,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             DuplicatePrinterSerialNumberException => (StatusCodes.Status409Conflict, "Duplicate printer serial number"),
             PrinterConnectionVerificationFailedException => (StatusCodes.Status422UnprocessableEntity, "Printer connection could not be verified"),
             UnknownPrinterModelException => (StatusCodes.Status422UnprocessableEntity, "Unknown printer model"),
+            IncompatibleBuildPlateException => (StatusCodes.Status422UnprocessableEntity, "Build plate incompatible with printer model"),
             ImmutablePrinterFieldMismatchException => (StatusCodes.Status422UnprocessableEntity, "Printer identity fields cannot be changed"),
             InvalidPrinterStatusTransitionException => (StatusCodes.Status409Conflict, "Invalid printer status transition"),
             PrinterNotFoundException => (StatusCodes.Status404NotFound, "Printer not found"),

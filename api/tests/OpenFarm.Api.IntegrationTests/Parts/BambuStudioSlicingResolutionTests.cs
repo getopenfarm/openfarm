@@ -42,6 +42,9 @@ public class BambuStudioSlicingResolutionTests(CustomWebApplicationFactory facto
             "Bambu", "X1C", "10.0.0.96", $"BS-{Guid.NewGuid():N}");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);
+        // 012 — required for ResolveForPrinterAsync to succeed; the ingested BambuStudio PLA fixture
+        // declares a real (non-"0") hot_plate_temp.
+        printer.SelectBuildPlate(BuildPlateType.HighTemp);
         await printerRepo.AddAsync(printer, CancellationToken.None);
         await printerRepo.SaveChangesAsync(CancellationToken.None);
 

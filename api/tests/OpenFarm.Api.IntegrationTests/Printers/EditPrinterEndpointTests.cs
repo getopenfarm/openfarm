@@ -7,8 +7,10 @@ using OpenFarm.Api.Endpoints.ActivityLog;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Api.Endpoints.Printers;
 using OpenFarm.Application.Auth;
+using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Organizations;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Api.IntegrationTests.Printers;
@@ -20,14 +22,27 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
 {
     private readonly HttpClient _client = factory.CreateClient();
 
+    // LoginEndpoint's Throttle(hitLimit: 10, durationSeconds: 60) (Program.cs) is per-app-instance —
+    // shared across every test in this class via the one CustomWebApplicationFactory IClassFixture
+    // provides. This class had exactly 10 tests (the throttle's own limit) before 012's 6 build-plate
+    // additions pushed it to 16, so calling /api/v1/auth/login fresh per test started tripping 429s
+    // (confirmed via a raw-response diagnostic that briefly lived here: "You are requesting this
+    // endpoint too frequently!"). One login per class run, cached and reused, fixes it — the token
+    // stays valid for the app instance's whole lifetime regardless of which test requests it.
+    private static string? _cachedToken;
+
     private async Task<HttpClient> AuthenticatedClientAsync()
     {
-        var loginResponse = await _client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin", "admin-openfarm"));
-        var body = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        if (_cachedToken is null)
+        {
+            var loginResponse = await _client.PostAsJsonAsync(
+                new Uri("/api/v1/auth/login", UriKind.Relative),
+                new LoginCommand("admin", "admin-openfarm"));
+            var body = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+            _cachedToken = body!.Token;
+        }
 
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _cachedToken);
         return _client;
     }
 
@@ -72,6 +87,25 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         await processRepo.AddAsync(process, CancellationToken.None);
 
         return (machine.Id, process.Id, machineName);
+    }
+
+    // 012 US1 — a real Bambu-brand registration goes through RegisterPrinterCommandHandler's live
+    // connector verification (research.md — only "System"/"Simulation" routes to the no-network
+    // simulator), which no CI runner can satisfy against a real printer. Seeding directly through the
+    // repository (the same "cheaper than staging a full pipeline" reasoning
+    // SeedCompatibleSystemProfilePairAsync already uses) is how this suite gets a printer whose
+    // catalog model has a narrower CompatiblePlateTypes set than System/Simulation's "all six".
+    private async Task<Guid> RegisterBambuA1PrinterDirectlyAsync()
+    {
+        await factory.EnsureTenantInfoResolvedAsync();
+        using var scope = factory.CreateTenantScope();
+        var printerRepo = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
+
+        var printer = Printer.Create(Organization.WellKnownId, "A1 Test Printer", "Bambu", "A1", "10.0.0.96", $"A1-{Guid.NewGuid():N}");
+        await printerRepo.AddAsync(printer, CancellationToken.None);
+        await printerRepo.SaveChangesAsync(CancellationToken.None);
+
+        return printer.Id;
     }
 
     [Fact]
@@ -265,5 +299,120 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
         page!.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterMachineProfileUnlinked");
         page.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterProcessProfileUnlinked");
+    }
+
+    // --- 012 US1: build plate selection (test-after, per plan.md's TDD scoping) ---
+
+    [Fact]
+    public async Task Edit_GetPrinterDetail_CompatibleBuildPlateTypesAndLabelsPresentEvenWithNoMachineProfileLinked()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printer = await RegisterPrinterAsync(client);
+
+        var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
+
+        detail!.MachineProfileId.Should().BeNull();
+        detail.BuildPlateType.Should().BeNull();
+        detail.BuildPlateTypeLabel.Should().BeNull();
+        detail.CompatibleBuildPlateTypes.Should().HaveCount(6);
+        detail.CompatibleBuildPlateTypes.Should().Contain(o => o.Value == "Cool" && o.Label == "Cool Plate");
+    }
+
+    [Fact]
+    public async Task Edit_SelectBuildPlate_Returns200PersistsAndWritesSelectedActivityEvent()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printer = await RegisterPrinterAsync(client);
+
+        var response = await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
+            new EditPrinterRequest { Name = printer.Name, BuildPlateType = "TexturedPei" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
+        detail!.BuildPlateType.Should().Be("TexturedPei");
+        detail.BuildPlateTypeLabel.Should().Be("Textured PEI Plate");
+
+        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
+        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        page!.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterBuildPlateSelected");
+    }
+
+    [Fact]
+    public async Task Edit_ClearBuildPlate_Returns200AndWritesClearedActivityEvent()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printer = await RegisterPrinterAsync(client);
+        await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
+            new EditPrinterRequest { Name = printer.Name, BuildPlateType = "TexturedPei" });
+
+        var response = await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
+            new EditPrinterRequest { Name = printer.Name });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
+        detail!.BuildPlateType.Should().BeNull();
+
+        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
+        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        page!.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterBuildPlateCleared");
+    }
+
+    [Fact]
+    public async Task Edit_BuildPlateNotInModelsCompatibleSet_Returns422()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printerId = await RegisterBambuA1PrinterDirectlyAsync();
+
+        // A1's compatible set is {TexturedPei, HighTemp} — Cool is not in it.
+        var response = await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printerId}", UriKind.Relative),
+            new EditPrinterRequest { Name = "A1 Test Printer", BuildPlateType = "Cool" });
+
+        response.StatusCode.Should().Be((HttpStatusCode)422);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        problem!.Title.Should().Be("Build plate incompatible with printer model");
+    }
+
+    [Fact]
+    public async Task Edit_BuildPlateOnPrinterWithNoMachineProfile_Returns200_NoPrerequisite()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printer = await RegisterPrinterAsync(client);
+
+        var response = await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
+            new EditPrinterRequest { Name = printer.Name, BuildPlateType = "HighTemp" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
+        detail!.MachineProfileId.Should().BeNull();
+        detail.BuildPlateType.Should().Be("HighTemp");
+    }
+
+    [Fact]
+    public async Task Edit_TwoSameModelPrinters_KeepIndependentBuildPlateSelections()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printerAId = await RegisterBambuA1PrinterDirectlyAsync();
+        var printerBId = await RegisterBambuA1PrinterDirectlyAsync();
+
+        await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printerAId}", UriKind.Relative),
+            new EditPrinterRequest { Name = "A1 Test Printer", BuildPlateType = "TexturedPei" });
+        await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printerBId}", UriKind.Relative),
+            new EditPrinterRequest { Name = "A1 Test Printer", BuildPlateType = "HighTemp" });
+
+        var detailA = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printerAId}", UriKind.Relative));
+        var detailB = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printerBId}", UriKind.Relative));
+
+        detailA!.BuildPlateType.Should().Be("TexturedPei");
+        detailB!.BuildPlateType.Should().Be("HighTemp");
     }
 }

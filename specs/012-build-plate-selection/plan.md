@@ -122,9 +122,9 @@ web/
     │   ├── endpoints.schemas.ts                          # orval-regenerated: BuildPlateType, request/response fields
     │   └── printers/printers.ts                           # orval-regenerated (no new hook, existing mutation gains a field)
     └── features/printers/
-        ├── PrinterFormPage.tsx                            # + build plate <Select>, buffered like machine/process
+        ├── PrinterFormPage.tsx                            # + build plate <Select> rendering backend labels, buffered like machine/process; no local enum→label map (FR-012)
         ├── PrinterFormPage.test.tsx                        # + build plate cases (test-after)
-        ├── PrinterDetailPage.tsx                            # + read-only "Build plate" row
+        ├── PrinterDetailPage.tsx                            # + read-only "Build plate" row rendering buildPlateTypeLabel as-is
         └── PrinterDetailPage.test.tsx                       # + build plate display case (test-after)
 ```
 

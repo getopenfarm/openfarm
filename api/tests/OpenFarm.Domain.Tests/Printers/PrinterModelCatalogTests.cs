@@ -79,4 +79,59 @@ public class PrinterModelCatalogTests
             }
         }
     }
+
+    // --- 012 US1: build plate compatibility (TDD, plan.md's Constitution Check / research.md R8) ---
+
+    [Theory]
+    [InlineData("A1")]
+    [InlineData("A1MINI")]
+    public void Resolve_A1Series_CompatiblePlateTypesIsExactlyTexturedPeiAndHighTemp(string modelCode)
+    {
+        var model = PrinterModelCatalog.Resolve("Bambu", modelCode);
+
+        model.CompatiblePlateTypes.Should().BeEquivalentTo([BuildPlateType.TexturedPei, BuildPlateType.HighTemp]);
+        model.CompatiblePlateTypes.Should().NotContain(BuildPlateType.Cool);
+        model.CompatiblePlateTypes.Should().NotContain(BuildPlateType.Engineering);
+        model.CompatiblePlateTypes.Should().NotContain(BuildPlateType.Supertack);
+        model.CompatiblePlateTypes.Should().NotContain(BuildPlateType.TexturedCool);
+    }
+
+    [Theory]
+    [InlineData("X1")]
+    [InlineData("X1C")]
+    [InlineData("X1E")]
+    [InlineData("P1P")]
+    [InlineData("P1S")]
+    public void Resolve_XAndP1Series_CompatiblePlateTypesIsCoolHighTempTexturedPeiAndSupertack(string modelCode)
+    {
+        var model = PrinterModelCatalog.Resolve("Bambu", modelCode);
+
+        model.CompatiblePlateTypes.Should().BeEquivalentTo(
+            [BuildPlateType.Cool, BuildPlateType.HighTemp, BuildPlateType.TexturedPei, BuildPlateType.Supertack]);
+        model.CompatiblePlateTypes.Should().NotContain(BuildPlateType.Engineering);
+        model.CompatiblePlateTypes.Should().NotContain(BuildPlateType.TexturedCool);
+    }
+
+    [Fact]
+    public void Resolve_SystemSimulation_CompatiblePlateTypesContainsAllSixValues()
+    {
+        var model = PrinterModelCatalog.Resolve("System", "Simulation");
+
+        model.CompatiblePlateTypes.Should().BeEquivalentTo(Enum.GetValues<BuildPlateType>());
+    }
+
+    [Fact]
+    public void All_EveryEntryHasANonNullNonEmptyCompatiblePlateTypesSet()
+    {
+        var all = PrinterModelCatalog.All;
+
+        foreach (var group in all)
+        {
+            foreach (var modelCode in group.Models)
+            {
+                var model = PrinterModelCatalog.Resolve(group.Brand.ToString(), modelCode);
+                model.CompatiblePlateTypes.Should().NotBeNull().And.NotBeEmpty();
+            }
+        }
+    }
 }

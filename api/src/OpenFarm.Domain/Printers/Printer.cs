@@ -77,6 +77,14 @@ public sealed class Printer
     /// </summary>
     public Guid? ProcessProfileId { get; private set; }
 
+    /// <summary>
+    /// The printer's own currently-installed physical build plate (012) — independent of
+    /// <see cref="MachineProfileId"/>/<see cref="ProcessProfileId"/>, no machine-profile prerequisite,
+    /// and never re-validated by <see cref="LinkMachineProfile"/>/<see cref="UnlinkMachineProfile"/>
+    /// (FR-008). <c>null</c> for every printer until an operator selects one (data-model.md).
+    /// </summary>
+    public BuildPlateType? BuildPlateType { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public static Printer Create(
@@ -204,4 +212,8 @@ public sealed class Printer
     public void LinkProcessProfile(Guid processProfileId) => ProcessProfileId = processProfileId;
 
     public void UnlinkProcessProfile() => ProcessProfileId = null;
+
+    public void SelectBuildPlate(BuildPlateType buildPlateType) => BuildPlateType = buildPlateType;
+
+    public void ClearBuildPlate() => BuildPlateType = null;
 }

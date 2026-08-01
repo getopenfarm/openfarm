@@ -68,7 +68,20 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
         var leaf = Path.Combine(_slicerBundleDirectory, engineSlug, version, "linux");
         Directory.CreateDirectory(leaf);
-        File.WriteAllText(Path.Combine(leaf, "AppRun"), "#!/bin/sh\nexit 1\n");
+        var appRunPath = Path.Combine(leaf, "AppRun");
+        File.WriteAllText(appRunPath, "#!/bin/sh\nexit 1\n");
+
+        // File.WriteAllText never sets the execute bit (mode 644) — ProcessStartInfo invokes this
+        // path directly (no shell wrapper, see CliSlicerEngine), so without this the process fails to
+        // start with "Permission denied" instead of actually running and exiting 1, which is what
+        // tests asserting on a real CLI-exit-code error message expect.
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(appRunPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+                | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
+                | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
     }
 
     private AppTenantInfo? _cachedTenantInfo;

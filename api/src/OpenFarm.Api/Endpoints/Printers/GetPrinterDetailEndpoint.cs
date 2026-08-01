@@ -45,6 +45,13 @@ public sealed class AmsUnitResponse
     public IReadOnlyList<AmsTrayResponse> Trays { get; set; } = [];
 }
 
+public sealed class BuildPlateTypeOptionResponse
+{
+    public string Value { get; set; } = string.Empty;
+
+    public string Label { get; set; } = string.Empty;
+}
+
 public sealed class PrinterDetailResponse
 {
     public Guid Id { get; set; }
@@ -75,6 +82,15 @@ public sealed class PrinterDetailResponse
     public Guid? ProcessProfileId { get; set; }
 
     public string? ProcessProfileName { get; set; }
+
+    /// <summary>Null iff no build plate has been selected yet (012, every printer until an operator acts).</summary>
+    public string? BuildPlateType { get; set; }
+
+    /// <summary>Backend-resolved display label (FR-012) — null exactly when <see cref="BuildPlateType"/> is null.</summary>
+    public string? BuildPlateTypeLabel { get; set; }
+
+    /// <summary>Always non-empty for a registered printer — derived purely from Brand/ModelCode, independent of MachineProfileId.</summary>
+    public IReadOnlyList<BuildPlateTypeOptionResponse> CompatibleBuildPlateTypes { get; set; } = [];
 }
 
 [Permission("printers:get-detail")]
@@ -139,6 +155,11 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
             MachineProfileName = detail.MachineProfileName,
             ProcessProfileId = detail.ProcessProfileId,
             ProcessProfileName = detail.ProcessProfileName,
+            BuildPlateType = detail.BuildPlateType?.ToString(),
+            BuildPlateTypeLabel = detail.BuildPlateTypeLabel,
+            CompatibleBuildPlateTypes = detail.CompatibleBuildPlateTypes
+                .Select(option => new BuildPlateTypeOptionResponse { Value = option.Value.ToString(), Label = option.Label })
+                .ToList(),
         };
     }
 }

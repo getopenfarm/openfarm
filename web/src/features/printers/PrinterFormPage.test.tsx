@@ -45,6 +45,12 @@ function printerDetailBody(overrides?: Record<string, unknown>) {
     machineProfileName: null,
     processProfileId: null,
     processProfileName: null,
+    buildPlateType: null,
+    buildPlateTypeLabel: null,
+    compatibleBuildPlateTypes: [
+      { value: 'TexturedPei', label: 'Textured PEI Plate' },
+      { value: 'HighTemp', label: 'High Temp Plate' },
+    ],
     ...overrides,
   };
 }
@@ -323,5 +329,80 @@ describe('PrinterFormPage edit mode', () => {
     expect(
       within(dialog).getByText('Discard unsaved changes?'),
     ).toBeInTheDocument();
+  });
+
+  // --- 012 US1: build plate <Select> (test-after, plan.md's TDD scoping) ---
+
+  it('renders the backend-supplied compatible build plate labels, not a hand-maintained list', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes(`/api/v1/printers/${PRINTER_ID}`)) {
+        return Promise.resolve(jsonResponse(printerDetailBody()));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderRoute(`/printers/${PRINTER_ID}/edit`);
+
+    await screen.findByLabelText('Name');
+    await user.click(screen.getByRole('combobox'));
+
+    expect(
+      await screen.findByRole('option', { name: 'Textured PEI Plate' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: 'High Temp Plate' }),
+    ).toBeInTheDocument();
+  });
+
+  it('submits the selected build plate enum value on Save, with no machine-profile prerequisite gate', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (
+        url.includes(`/api/v1/printers/${PRINTER_ID}`) &&
+        init?.method === 'PATCH'
+      ) {
+        return Promise.resolve(jsonResponse({ id: PRINTER_ID }));
+      }
+      if (url.includes(`/api/v1/printers/${PRINTER_ID}`)) {
+        return Promise.resolve(
+          jsonResponse(
+            printerDetailBody({
+              machineProfileId: null,
+              machineProfileName: null,
+            }),
+          ),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderRoute(`/printers/${PRINTER_ID}/edit`);
+
+    await screen.findByLabelText('Name');
+    const saveButton = screen.getByRole('button', { name: 'Save' });
+    expect(saveButton).not.toBeDisabled();
+
+    await user.click(screen.getByRole('combobox'));
+    await user.click(
+      await screen.findByRole('option', { name: 'Textured PEI Plate' }),
+    );
+    await user.click(saveButton);
+
+    let patchCalls: typeof fetchMock.mock.calls = [];
+    await waitFor(() => {
+      patchCalls = fetchMock.mock.calls.filter(
+        ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH',
+      );
+      expect(patchCalls).toHaveLength(1);
+    });
+
+    const [, patchInit] = patchCalls[0];
+    const body = JSON.parse((patchInit as RequestInit).body as string);
+    expect(body.buildPlateType).toBe('TexturedPei');
   });
 });

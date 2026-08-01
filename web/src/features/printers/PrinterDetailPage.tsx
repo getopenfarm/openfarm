@@ -140,6 +140,12 @@ export function PrinterDetailPage() {
                       {printer.processProfileName ?? 'Not linked'}
                     </span>
                   </p>
+                  <p className="text-sm">
+                    Build plate:{' '}
+                    <span className="text-muted-foreground">
+                      {printer.buildPlateTypeLabel ?? 'Not selected'}
+                    </span>
+                  </p>
                   {!printer.machineProfileId && (
                     <p className="text-xs text-muted-foreground">
                       No profile linked — this printer won't count toward the
