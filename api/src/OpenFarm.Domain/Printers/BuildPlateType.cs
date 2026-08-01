@@ -26,7 +26,7 @@ public enum BuildPlateType
 /// </summary>
 public static class BuildPlateTypeVendorNames
 {
-    private static readonly IReadOnlyDictionary<BuildPlateType, string> Names = new Dictionary<BuildPlateType, string>
+    private static readonly Dictionary<BuildPlateType, string> Names = new()
     {
         [BuildPlateType.Cool] = "Cool Plate",
         [BuildPlateType.Engineering] = "Engineering Plate",
@@ -49,7 +49,7 @@ public static class BuildPlateTypeVendorNames
 /// </summary>
 public static class BuildPlateTypeTempKeys
 {
-    private static readonly IReadOnlyDictionary<BuildPlateType, string> Keys = new Dictionary<BuildPlateType, string>
+    private static readonly Dictionary<BuildPlateType, string> Keys = new()
     {
         [BuildPlateType.Cool] = "cool_plate_temp",
         [BuildPlateType.Engineering] = "eng_plate_temp",
