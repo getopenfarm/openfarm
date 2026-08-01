@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.ActivityLog;
@@ -21,35 +20,29 @@ namespace OpenFarm.Api.IntegrationTests.Printers;
 /// </summary>
 public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
-    private static readonly JsonSerializerOptions DiagnosticJsonOptions = new(JsonSerializerDefaults.Web);
-
     private readonly HttpClient _client = factory.CreateClient();
+
+    // LoginEndpoint's Throttle(hitLimit: 10, durationSeconds: 60) (Program.cs) is per-app-instance —
+    // shared across every test in this class via the one CustomWebApplicationFactory IClassFixture
+    // provides. This class had exactly 10 tests (the throttle's own limit) before 012's 6 build-plate
+    // additions pushed it to 16, so calling /api/v1/auth/login fresh per test started tripping 429s
+    // (confirmed via a raw-response diagnostic that briefly lived here: "You are requesting this
+    // endpoint too frequently!"). One login per class run, cached and reused, fixes it — the token
+    // stays valid for the app instance's whole lifetime regardless of which test requests it.
+    private static string? _cachedToken;
 
     private async Task<HttpClient> AuthenticatedClientAsync()
     {
-        var loginResponse = await _client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin", "admin-openfarm"));
-
-        // TEMP DIAGNOSTIC (remove once the intermittent CI JsonException here is root-caused): read as
-        // a string first so a malformed body's actual content — not just System.Text.Json's opaque
-        // "'X' is an invalid start of a value" — shows up in the CI log.
-        var rawBody = await loginResponse.Content.ReadAsStringAsync();
-        LoginResponse? body;
-        try
+        if (_cachedToken is null)
         {
-            body = JsonSerializer.Deserialize<LoginResponse>(rawBody, DiagnosticJsonOptions);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException(
-                $"Login response failed to parse as JSON. Status: {(int)loginResponse.StatusCode} " +
-                $"{loginResponse.StatusCode}. Content-Type: {loginResponse.Content.Headers.ContentType}. " +
-                $"Content-Length header: {loginResponse.Content.Headers.ContentLength}. " +
-                $"Raw body ({rawBody.Length} chars): {rawBody[..Math.Min(rawBody.Length, 2000)]}", ex);
+            var loginResponse = await _client.PostAsJsonAsync(
+                new Uri("/api/v1/auth/login", UriKind.Relative),
+                new LoginCommand("admin", "admin-openfarm"));
+            var body = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+            _cachedToken = body!.Token;
         }
 
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _cachedToken);
         return _client;
     }
 
