@@ -21,6 +21,7 @@ using OpenFarm.Api.Hubs;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.ActivityLog;
+using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
@@ -32,6 +33,7 @@ using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.ActivityLog;
+using OpenFarm.Infrastructure.Assemblies;
 using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
@@ -75,6 +77,15 @@ using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.
 using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
 using UpdatePartFilamentRequirementNarrowingHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdatePartFilamentRequirementNarrowingCommand, OpenFarm.Domain.Parts.PartFilamentRequirement>;
 using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
+using CreateAssemblyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.CreateAssemblyCommand, OpenFarm.Domain.Assemblies.Assembly>;
+using EditAssemblyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.EditAssemblyCommand, OpenFarm.Domain.Assemblies.Assembly>;
+using DeleteAssemblyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.DeleteAssemblyCommand, bool>;
+using AddBomLineHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.AddBomLineCommand, OpenFarm.Domain.Assemblies.BomLine>;
+using UpdateBomLineQuantityHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.UpdateBomLineQuantityCommand, OpenFarm.Domain.Assemblies.BomLine>;
+using RemoveBomLineHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.RemoveBomLineCommand, bool>;
+using CreateNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.CreateNonPrintedComponentCommand, OpenFarm.Domain.Assemblies.NonPrintedComponent>;
+using EditNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.EditNonPrintedComponentCommand, OpenFarm.Domain.Assemblies.NonPrintedComponent>;
+using DeleteNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.DeleteNonPrintedComponentCommand, bool>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -294,6 +305,11 @@ builder.Services.AddScoped<IPartFileClassifier, PartFileClassifier>();
 builder.Services.AddScoped<IAlreadySlicedFileMetadataParser, AlreadySlicedFileMetadataParser>();
 builder.Services.AddScoped<IUnslicedProjectMaterialResolver, UnslicedProjectMaterialResolver>();
 
+builder.Services.AddScoped<IAssemblyRepository, AssemblyRepository>();
+builder.Services.AddScoped<INonPrintedComponentRepository, NonPrintedComponentRepository>();
+builder.Services.AddScoped<IAssemblyGraphQueryService, AssemblyGraphQueryService>();
+builder.Services.AddScoped<OpenFarm.Api.Endpoints.Assemblies.BomLineTargetNameResolver>();
+
 // Resolved once at process startup below (not lazily on first request, research.md §2) — the
 // eager-singleton registration avoids the race the spec calls out where a slice is requested while
 // the backend is still discovering.
@@ -339,6 +355,21 @@ builder.Services.AddScoped<IQueryHandler<GetPartQuery, PartDetail?>, GetPartQuer
 builder.Services.AddScoped<IQueryHandler<GetPartFileQuery, PartFileDownload?>, GetPartFileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ListTagsQuery, IReadOnlyList<TagSummary>>, ListTagsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>, GetSlicingDefaultsQueryHandler>();
+
+builder.Services.AddScoped<CreateAssemblyHandlerType, CreateAssemblyCommandHandler>();
+builder.Services.AddScoped<EditAssemblyHandlerType, EditAssemblyCommandHandler>();
+builder.Services.AddScoped<DeleteAssemblyHandlerType, DeleteAssemblyCommandHandler>();
+builder.Services.AddScoped<AddBomLineHandlerType, AddBomLineCommandHandler>();
+builder.Services.AddScoped<UpdateBomLineQuantityHandlerType, UpdateBomLineQuantityCommandHandler>();
+builder.Services.AddScoped<RemoveBomLineHandlerType, RemoveBomLineCommandHandler>();
+builder.Services.AddScoped<CreateNonPrintedComponentHandlerType, CreateNonPrintedComponentCommandHandler>();
+builder.Services.AddScoped<EditNonPrintedComponentHandlerType, EditNonPrintedComponentCommandHandler>();
+builder.Services.AddScoped<DeleteNonPrintedComponentHandlerType, DeleteNonPrintedComponentCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetAssembliesQuery, AssembliesPage>, GetAssembliesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetAssemblyQuery, AssemblyDetail?>, GetAssemblyQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<ExplodeAssemblyQuery, BomExplosionResult>, ExplodeAssemblyQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<CalculateBuildableUnitsQuery, BuildableUnitsResult>, CalculateBuildableUnitsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<ListNonPrintedComponentsQuery, NonPrintedComponentsPage>, ListNonPrintedComponentsQueryHandler>();
 
 builder.Services.AddSignalR();
 

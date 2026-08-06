@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { PlusIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -20,33 +20,26 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import { partsStore } from '@/features/assemblies/data/mockPartsStore';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
-import { ComponentRow } from './components/ComponentRow';
+import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
-  PartPickerDialog,
-  type PartPickerResult,
-} from './components/PartPickerDialog';
-import { SummarySidebar } from './components/SummarySidebar';
-import {
-  type Assembly,
-  type AssemblyComponent,
-  assembliesStore,
-  useAssemblies,
-} from './data/mockAssembliesStore';
+  getOpenFarmApiEndpointsAssembliesGetAssemblyEndpointQueryKey,
+  getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey,
+  useOpenFarmApiEndpointsAssembliesAddBomLineEndpoint,
+  useOpenFarmApiEndpointsAssembliesCreateAssemblyEndpoint,
+  useOpenFarmApiEndpointsAssembliesEditAssemblyEndpoint,
+  useOpenFarmApiEndpointsAssembliesEditBomLineEndpoint,
+  useOpenFarmApiEndpointsAssembliesGetAssemblyEndpoint,
+  useOpenFarmApiEndpointsAssembliesRemoveBomLineEndpoint,
+} from '@/lib/api/generated/assemblies/assemblies';
+import type { AssemblyResponse } from '@/lib/api/generated/endpoints.schemas';
+import { BomLineEditor, type EditableLine } from './components/BomLineEditor';
 
 const schema = z.object({
   name: z.string().min(1, 'Give this assembly a name first.'),
   description: z.string().optional(),
-  components: z.array(
-    z.object({
-      id: z.string(),
-      partId: z.string().optional(),
-      subAssemblyId: z.string().optional(),
-      quantity: z.number(),
-    }),
-  ),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -55,32 +48,73 @@ interface AssemblyFormPageProps {
   mode: 'add' | 'edit';
 }
 
+function toEditableLines(
+  assembly: AssemblyResponse | undefined,
+): EditableLine[] {
+  return (assembly?.lines ?? []).map((line) => ({
+    key: line.id ?? crypto.randomUUID(),
+    lineId: line.id,
+    targetKind: (line.targetKind ?? 'Part') as EditableLine['targetKind'],
+    targetId: line.targetId ?? '',
+    targetName: line.targetName ?? '',
+    quantity: line.quantity ?? 1,
+  }));
+}
+
 export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [assemblies] = useAssemblies();
-  const parts = partsStore.getSnapshot();
+  const queryClient = useQueryClient();
 
-  const existing =
-    mode === 'edit' ? assemblies.find((a) => a.id === id) : undefined;
+  const assemblyQuery = useOpenFarmApiEndpointsAssembliesGetAssemblyEndpoint(
+    id ?? '',
+    { query: { enabled: mode === 'edit' && !!id } },
+  );
+  const existing = assemblyQuery.data?.data as AssemblyResponse | undefined;
+
+  const [lines, setLines] = useState<EditableLine[]>([]);
+  const [originalLines, setOriginalLines] = useState<EditableLine[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      name: existing?.name ?? '',
-      description: existing?.description ?? '',
-      components: existing?.components ?? [],
-    },
+    defaultValues: { name: '', description: '' },
   });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-seeds when the fetched assembly's identity changes, not on every render.
+  useEffect(() => {
+    if (mode === 'edit' && existing) {
+      form.reset({
+        name: existing.name ?? '',
+        description: existing.description ?? '',
+      });
+      const seeded = toEditableLines(existing);
+      setLines(seeded);
+      setOriginalLines(seeded);
+    }
+  }, [existing?.id]);
+
   const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
-    form.formState.isDirty,
+    form.formState.isDirty || lines !== originalLines,
   );
 
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [editingComponentId, setEditingComponentId] = useState<string | null>(
-    null,
-  );
+  const createMutation =
+    useOpenFarmApiEndpointsAssembliesCreateAssemblyEndpoint();
+  const editAssemblyMutation =
+    useOpenFarmApiEndpointsAssembliesEditAssemblyEndpoint();
+  const addLineMutation = useOpenFarmApiEndpointsAssembliesAddBomLineEndpoint();
+  const editLineMutation =
+    useOpenFarmApiEndpointsAssembliesEditBomLineEndpoint();
+  const removeLineMutation =
+    useOpenFarmApiEndpointsAssembliesRemoveBomLineEndpoint();
+
+  if (mode === 'edit' && assemblyQuery.isLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   if (mode === 'edit' && !existing) {
     return (
@@ -96,71 +130,107 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
     );
   }
 
-  const components = form.watch('components');
-  const editingComponent = editingComponentId
-    ? (components.find((c) => c.id === editingComponentId) ?? null)
-    : null;
+  async function onSubmit(values: FormValues) {
+    setIsSaving(true);
+    try {
+      if (mode === 'add') {
+        if (lines.length === 0) {
+          toast.error('Add at least one line first.');
+          return;
+        }
+        const created = await createMutation.mutateAsync({
+          data: {
+            name: values.name.trim(),
+            description: values.description?.trim() || null,
+            lines: lines.map((l) => ({
+              targetKind: l.targetKind,
+              targetId: l.targetId,
+              quantity: l.quantity,
+            })),
+          },
+        });
+        toast.success('Assembly created.');
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey(),
+        });
+        markClean();
+        navigate(`/assemblies/${created.data?.id}`);
+        return;
+      }
 
-  function openAddPicker() {
-    setEditingComponentId(null);
-    setPickerOpen(true);
-  }
+      // Edit mode: rename if changed, then flush queued line adds/edits/removes sequentially
+      // (contracts/assembly-bom-api.md's "Client UX note" — one operator-perceived save, one
+      // API call per logical line change).
+      if (!id) return;
 
-  function openEditPicker(componentId: string) {
-    setEditingComponentId(componentId);
-    setPickerOpen(true);
-  }
+      if (
+        values.name.trim() !== existing?.name ||
+        (values.description?.trim() || null) !== (existing?.description ?? null)
+      ) {
+        await editAssemblyMutation.mutateAsync({
+          id,
+          data: {
+            name: values.name.trim(),
+            description: values.description?.trim() || null,
+          },
+        });
+      }
 
-  function handlePickerSubmit({ partId, quantity }: PartPickerResult) {
-    if (editingComponentId) {
-      form.setValue(
-        'components',
-        components.map((c) =>
-          c.id === editingComponentId ? { ...c, partId, quantity } : c,
-        ),
-        { shouldDirty: true },
-      );
-    } else {
-      form.setValue(
-        'components',
-        [
-          ...components,
-          { id: `component-${crypto.randomUUID()}`, partId, quantity },
-        ],
-        { shouldDirty: true },
-      );
-    }
-    setPickerOpen(false);
-    setEditingComponentId(null);
-  }
+      for (const removed of originalLines) {
+        if (!removed.lineId) continue;
+        if (lines.some((l) => l.lineId === removed.lineId)) continue;
 
-  function removeComponent(componentId: string) {
-    form.setValue(
-      'components',
-      components.filter((c) => c.id !== componentId),
-      { shouldDirty: true },
-    );
-  }
+        await removeLineMutation.mutateAsync({
+          id,
+          lineId: removed.lineId,
+          data: {},
+        });
+      }
 
-  function onSubmit(values: FormValues) {
-    const savedAssembly: Assembly = {
-      id: existing?.id ?? `assembly-${crypto.randomUUID()}`,
-      name: values.name.trim(),
-      description: (values.description ?? '').trim(),
-      components: values.components as AssemblyComponent[],
-    };
+      for (const line of lines) {
+        if (!line.lineId) {
+          await addLineMutation.mutateAsync({
+            id,
+            data: {
+              targetKind: line.targetKind,
+              targetId: line.targetId,
+              quantity: line.quantity,
+            },
+          });
+          continue;
+        }
 
-    if (mode === 'add') {
-      assembliesStore.setState((prev) => [...prev, savedAssembly]);
-      toast.success('Assembly created.');
-    } else {
-      assembliesStore.setState((prev) =>
-        prev.map((a) => (a.id === savedAssembly.id ? savedAssembly : a)),
-      );
+        const original = originalLines.find((o) => o.lineId === line.lineId);
+        if (original && original.quantity !== line.quantity) {
+          await editLineMutation.mutateAsync({
+            id,
+            lineId: line.lineId,
+            data: { quantity: line.quantity },
+          });
+        }
+      }
+
       toast.success('Assembly updated.');
+      queryClient.invalidateQueries({
+        queryKey:
+          getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey(),
+      });
+      queryClient.invalidateQueries({
+        queryKey:
+          getOpenFarmApiEndpointsAssembliesGetAssemblyEndpointQueryKey(id),
+      });
+      markClean();
+      navigate(`/assemblies/${id}`);
+    } catch (error) {
+      const detail = await extractErrorDetail(
+        error,
+        'Could not save this assembly.',
+      );
+      toast.error(detail);
+    } finally {
+      setIsSaving(false);
     }
-    markClean();
-    navigate('/assemblies');
   }
 
   return (
@@ -174,8 +244,8 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
         title={mode === 'add' ? 'New assembly' : 'Edit assembly'}
         description={
           mode === 'add'
-            ? 'Group parts (and other assemblies) into a reusable bill of materials.'
-            : "Update this assembly's parts and details."
+            ? 'Group parts, sub-assemblies, and non-printed components into a reusable bill of materials.'
+            : "Update this assembly's details. Line changes save immediately alongside the rename."
         }
       />
 
@@ -184,8 +254,11 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-col gap-6"
         >
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_18rem]">
-            <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Details</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
               <FormField
                 control={form.control}
                 name="name"
@@ -213,42 +286,21 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
                   </FormItem>
                 )}
               />
+            </CardContent>
+          </Card>
 
-              <Card>
-                <CardHeader className="flex-row items-center justify-between">
-                  <CardTitle>Parts · {components.length}</CardTitle>
-                  <Button type="button" size="sm" onClick={openAddPicker}>
-                    <PlusIcon /> Add part
-                  </Button>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2">
-                  {components.length === 0 ? (
-                    <EmptyState
-                      size="sm"
-                      title="No parts yet"
-                      description='Use "Add part" to build the bill of materials.'
-                    />
-                  ) : (
-                    components.map((component) => (
-                      <ComponentRow
-                        key={component.id}
-                        component={component as AssemblyComponent}
-                        parts={parts}
-                        allAssemblies={assemblies}
-                        onEdit={() => openEditPicker(component.id)}
-                        onRemove={() => removeComponent(component.id)}
-                      />
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <SummarySidebar
-              components={components as AssemblyComponent[]}
-              allAssemblies={assemblies}
-            />
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Lines · {lines.length}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BomLineEditor
+                lines={lines}
+                onChange={setLines}
+                excludeAssemblyId={id}
+              />
+            </CardContent>
+          </Card>
 
           <FormFooter
             end={
@@ -260,23 +312,18 @@ export function AssemblyFormPage({ mode }: AssemblyFormPageProps) {
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {mode === 'add' ? 'Create assembly' : 'Save changes'}
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving
+                    ? 'Saving…'
+                    : mode === 'add'
+                      ? 'Create assembly'
+                      : 'Save changes'}
                 </Button>
               </>
             }
           />
         </form>
       </Form>
-
-      <PartPickerDialog
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        mode={editingComponent ? 'edit' : 'add'}
-        initialPartId={editingComponent?.partId}
-        initialQuantity={editingComponent?.quantity}
-        onSubmit={handlePickerSubmit}
-      />
 
       <ConfirmLeaveDialog />
     </div>

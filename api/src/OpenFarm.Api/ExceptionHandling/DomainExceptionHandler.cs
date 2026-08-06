@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
@@ -68,6 +69,20 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             InvalidConfirmPartProcessingJobRequestException => (StatusCodes.Status400BadRequest, "Invalid confirm request"),
             PartProcessingJobNotReadyForReviewException => (StatusCodes.Status409Conflict, "Part processing job is not ready for review"),
             PartConcurrencyConflictException => (StatusCodes.Status409Conflict, "Part was concurrently modified"),
+            AssemblyNotFoundException => (StatusCodes.Status404NotFound, "Assembly not found"),
+            NonPrintedComponentNotFoundException => (StatusCodes.Status404NotFound, "Non-printed component not found"),
+            BomLineNotFoundException => (StatusCodes.Status404NotFound, "BOM line not found"),
+            AssemblyMustHaveAtLeastOneLineException => (StatusCodes.Status422UnprocessableEntity, "Assembly must have at least one BOM line"),
+            AssemblyCycleException => (StatusCodes.Status422UnprocessableEntity, "Saving this assembly would create a cycle"),
+            AssemblyDepthLimitExceededException => (StatusCodes.Status422UnprocessableEntity, "Saving this assembly would exceed the maximum nesting depth"),
+            DuplicateBomLineTargetException => (StatusCodes.Status409Conflict, "This target already appears on the assembly"),
+            AssemblyConcurrencyConflictException => (StatusCodes.Status409Conflict, "Assembly was concurrently modified"),
+            NonPrintedComponentConcurrencyConflictException => (StatusCodes.Status409Conflict, "Non-printed component was concurrently modified"),
+            AssemblyReferencedException => (StatusCodes.Status409Conflict, "Assembly is still referenced by other assemblies"),
+            PartReferencedByAssemblyException => (StatusCodes.Status409Conflict, "Part is still referenced by an assembly"),
+            NonPrintedComponentReferencedException => (StatusCodes.Status409Conflict, "Non-printed component is still referenced by an assembly"),
+            InvalidExplosionQuantityException => (StatusCodes.Status400BadRequest, "Invalid explosion quantity"),
+            InvalidBomLineQuantityException => (StatusCodes.Status400BadRequest, "Invalid BOM line quantity"),
             _ => (0, null),
         };
 

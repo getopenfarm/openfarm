@@ -1,0 +1,19 @@
+using OpenFarm.Application.Common;
+using OpenFarm.Domain.Assemblies;
+
+namespace OpenFarm.Application.Assemblies;
+
+public sealed class EditNonPrintedComponentCommandHandler(INonPrintedComponentRepository repository)
+    : ICommandHandler<EditNonPrintedComponentCommand, NonPrintedComponent>
+{
+    public async Task<NonPrintedComponent> HandleAsync(EditNonPrintedComponentCommand command, CancellationToken cancellationToken)
+    {
+        var component = await repository.GetByIdAsync(command.NonPrintedComponentId, cancellationToken)
+            ?? throw new NonPrintedComponentNotFoundException(command.NonPrintedComponentId);
+
+        component.Edit(command.Name, command.Unit, command.UnitCost);
+        await repository.SaveChangesAsync(cancellationToken);
+
+        return component;
+    }
+}

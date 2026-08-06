@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
+import { AssemblyDetailPage } from '../features/assemblies/AssemblyDetailPage';
 import { AssemblyFormPage } from '../features/assemblies/AssemblyFormPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { ConnectionSecretFormPage } from '../features/connection-secrets/ConnectionSecretFormPage';
@@ -10,6 +11,8 @@ import { FilamentFormPage } from '../features/filament/FilamentFormPage';
 import { FilamentPage } from '../features/filament/FilamentPage';
 import { JobsPage } from '../features/jobs/JobsPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
+import { NonPrintedComponentFormPage } from '../features/non-printed-components/NonPrintedComponentFormPage';
+import { NonPrintedComponentsPage } from '../features/non-printed-components/NonPrintedComponentsPage';
 import { PartDetailPage } from '../features/parts/PartDetailPage';
 import { PartFormPage } from '../features/parts/PartFormPage';
 import { PartsPage } from '../features/parts/PartsPage';
@@ -121,9 +124,31 @@ export const router = createBrowserRouter([
                 handle: { title: 'New Assembly' },
               },
               {
+                path: ':id',
+                element: <AssemblyDetailPage />,
+                handle: { title: 'Assembly' },
+              },
+              {
                 path: ':id/edit',
                 element: <AssemblyFormPage mode="edit" />,
                 handle: { title: 'Edit Assembly' },
+              },
+            ],
+          },
+          {
+            path: '/non-printed-components',
+            handle: { title: 'Non-Printed Components' },
+            children: [
+              { index: true, element: <NonPrintedComponentsPage /> },
+              {
+                path: 'new',
+                element: <NonPrintedComponentFormPage mode="add" />,
+                handle: { title: 'Add Non-Printed Component' },
+              },
+              {
+                path: ':id/edit',
+                element: <NonPrintedComponentFormPage mode="edit" />,
+                handle: { title: 'Edit Non-Printed Component' },
               },
             ],
           },
