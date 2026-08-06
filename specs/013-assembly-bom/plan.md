@@ -244,7 +244,11 @@ web/src/features/assemblies/
   AssemblyDetailPage.tsx                 # expandable structure (lazy per-row fetch, research.md R7),
                                            # explosion panel, buildable-units panel
   AssemblyFormPage.tsx                   # new/edit — Page-first (docs/UI_CONVENTIONS.md), react-hook-form + zod
-  components/BomLineEditor.tsx           # add/edit/remove a line; target-kind picker (Part/Assembly/NonPrintedComponent)
+  components/BomLineEditor.tsx           # add/edit/remove a line; target-kind picker (Part/Assembly/NonPrintedComponent);
+                                           # on the edit page, queues pending line changes in local state and flushes
+                                           # them as sequential line-level calls on "Save" (contracts/assembly-bom-api.md's
+                                           # "Client UX note") — one operator-perceived save, still one API call per
+                                           # logical line change, so FR-015's per-line audit log needs no server diffing
   components/ExplosionResultView.tsx     # printedParts / nonPrintedComponents, rendered separately (FR-009d)
   components/BuildableUnitsPanel.tsx     # good-quantity inputs per printed part -> isApplicable/value/reason
   *.test.tsx                              # test-after, Vitest + RTL

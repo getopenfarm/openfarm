@@ -14,6 +14,16 @@ operation as "add a line," never "resubmit the whole line set." A line-level sha
 granularity for free from the existing per-endpoint `IActivityLoggable` post-processor, with no
 diffing logic needed anywhere.
 
+**Client UX note — this line-level shape does not force one network round-trip per click.** For a *new*
+assembly, `POST /api/v1/assemblies` already takes the full `lines[]` array in one call — the operator
+builds the assembly entirely in local component state and only calls the API once, on submit. For
+*editing* an existing assembly, the frontend MAY still let an operator queue several pending line
+adds/edits/removes locally (e.g. in `BomLineEditor.tsx`'s own state) and flush them as a sequence of the
+line-level calls above when the operator confirms — the operator experiences one "Save," the server still
+gets one call per logical change, preserving FR-015's per-line audit granularity with zero server-side
+diffing. This is a frontend sequencing choice, not a second API shape: no batch/bulk endpoint exists or is
+planned until a real bulk-editing workflow (e.g. pasting in many lines at once) makes one worth adding.
+
 **Every structural write (`POST`/`PUT`/`DELETE` on an assembly or its lines) is validated and persisted
 inside one transaction that holds the per-organization advisory lock for its full duration**
 (`research.md` R3) — this is an implementation detail invisible in the wire contract below (no client-
