@@ -41,3 +41,13 @@
   `.specify/memory/constitution.md` for this feature) are deliberately **not** referenced in
   spec.md, per the Content Quality gate — they belong in `plan.md`, produced by
   `/speckit-plan`.
+- **Session 2026-08-06 (`/speckit-clarify`)**: two further questions resolved and encoded
+  into `spec.md`'s `## Clarifications` section — (1) concurrent structural saves to two
+  different assemblies must never be able to jointly commit a cycle, resolved by requiring
+  conflict detection (FR-007a), mirroring the existing concurrent-write precedent from Phase 4
+  (`007-part-library`); (2) explosion's per-path breakdown was dropped from this phase
+  entirely (FR-009c reversed from "must retain" to "must not compute/store/return") because
+  diamond-shaped nesting can make the number of contributing paths to one part grow
+  combinatorially, independent of and beyond SC-007's own 500-line/10-level bound on the
+  aggregate computation. All downstream references (edge cases, Key Entities, Assumptions)
+  were updated to match; the checklist re-validated clean with no new gaps introduced.
