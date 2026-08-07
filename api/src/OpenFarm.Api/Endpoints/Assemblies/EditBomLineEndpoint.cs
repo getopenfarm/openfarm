@@ -45,5 +45,6 @@ public sealed class EditBomLineEndpoint(EditBomLineHandler handler, BomLineTarge
         var targetName = await nameResolver.ResolveAsync(line, ct);
 
         Response = BomLineResponse.FromDomain(line, targetName);
+        Response.AssemblyId = req.AssemblyId;
     }
 }

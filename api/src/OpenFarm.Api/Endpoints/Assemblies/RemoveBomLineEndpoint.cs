@@ -12,6 +12,11 @@ public sealed class RemoveBomLineRequest : IActivityLoggable
 
     public Guid LineId { get; set; }
 
+    // This endpoint has no response body (204), so ActivityLogPostProcessor's default Id-reflection
+    // falls back to the request — this mirrors DeleteAssemblyRequest.Id's precedent, resolving the
+    // owning Assembly rather than the removed line.
+    public Guid Id => AssemblyId;
+
     public string EntityType => "Assembly";
 
     public string EventType => "BomLineRemoved";

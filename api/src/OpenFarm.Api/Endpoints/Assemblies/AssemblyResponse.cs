@@ -1,9 +1,10 @@
+using OpenFarm.Api.Processors;
 using OpenFarm.Application.Assemblies;
 using OpenFarm.Domain.Assemblies;
 
 namespace OpenFarm.Api.Endpoints.Assemblies;
 
-public sealed class BomLineResponse
+public sealed class BomLineResponse : IHasEntityIds
 {
     public Guid Id { get; set; }
 
@@ -14,6 +15,16 @@ public sealed class BomLineResponse
     public string TargetName { get; set; } = string.Empty;
 
     public decimal Quantity { get; set; }
+
+    // Internal to the post-processor extension only — not part of the public response contract,
+    // mirrors AddFeedUnitResponse's precedent. BomLineAdded/BomLineQuantityChanged (FR-015) must log
+    // against the owning Assembly, not this line's own Id above, so the endpoints set this after
+    // construction; ActivityLogPostProcessor prefers IHasEntityIds over its default Id-reflection path.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid AssemblyId { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<string> EntityIds => [AssemblyId.ToString()];
 
     public static BomLineResponse FromDetail(BomLineDetail line) => new()
     {

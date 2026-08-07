@@ -46,15 +46,28 @@ public class DeleteBlockingTests(CustomWebApplicationFactory factory) : IClassFi
     {
         var client = await AuthenticatedClientAsync();
         var partId = await SeedPartAsync($"Handle Part {Guid.NewGuid():N}");
+        var otherPartId = await SeedPartAsync($"Enclosure Part {Guid.NewGuid():N}");
 
         var handleResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/assemblies", UriKind.Relative),
             new { name = $"Handle {Guid.NewGuid():N}", description = (string?)null, lines = new[] { new { targetKind = "Part", targetId = partId, quantity = 1 } } });
         var handle = await handleResponse.Content.ReadFromJsonAsync<AssemblyResponse>();
 
+        // Enclosure needs a second line besides the sub-assembly one — removing its only line would
+        // itself violate FR-002 ("an assembly must have at least one BOM line"), which isn't what this
+        // test is exercising.
         var enclosureResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/assemblies", UriKind.Relative),
-            new { name = $"Enclosure {Guid.NewGuid():N}", description = (string?)null, lines = new[] { new { targetKind = "Assembly", targetId = handle!.Id, quantity = 1 } } });
+            new
+            {
+                name = $"Enclosure {Guid.NewGuid():N}",
+                description = (string?)null,
+                lines = new object[]
+                {
+                    new { targetKind = "Assembly", targetId = handle!.Id, quantity = 1 },
+                    new { targetKind = "Part", targetId = otherPartId, quantity = 1 },
+                },
+            });
         var enclosure = await enclosureResponse.Content.ReadFromJsonAsync<AssemblyResponse>();
 
         var blockedResponse = await client.DeleteAsync(new Uri($"/api/v1/assemblies/{handle.Id}", UriKind.Relative));
@@ -62,7 +75,7 @@ public class DeleteBlockingTests(CustomWebApplicationFactory factory) : IClassFi
         var blockedDetail = await blockedResponse.Content.ReadAsStringAsync();
         blockedDetail.Should().Contain(enclosure!.Name);
 
-        var lineId = enclosure.Lines.Single().Id;
+        var lineId = enclosure.Lines.Single(l => l.TargetId == handle.Id).Id;
         var removeLineResponse = await client.DeleteAsync(new Uri($"/api/v1/assemblies/{enclosure.Id}/lines/{lineId}", UriKind.Relative));
         removeLineResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 

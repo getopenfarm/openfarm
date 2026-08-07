@@ -53,6 +53,7 @@ public sealed class AddBomLineEndpoint(AddBomLineHandler handler, BomLineTargetN
         var targetName = await nameResolver.ResolveAsync(line, ct);
 
         Response = BomLineResponse.FromDomain(line, targetName);
+        Response.AssemblyId = req.AssemblyId;
         HttpContext.Response.StatusCode = StatusCodes.Status201Created;
     }
 }
