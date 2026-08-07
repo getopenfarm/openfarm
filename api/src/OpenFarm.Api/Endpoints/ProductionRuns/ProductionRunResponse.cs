@@ -100,6 +100,8 @@ public sealed class RunLineSummaryResponse
 
     public int CumulativeProducedUnits { get; set; }
 
+    public bool SpansMultipleRevisions { get; set; }
+
     public List<PartRequirementSummaryResponse> Requirements { get; set; } = [];
 
     public static RunLineSummaryResponse FromSummary(RunLineSummary summary) => new()
@@ -113,6 +115,7 @@ public sealed class RunLineSummaryResponse
         BackfillPrinterCap = summary.BackfillPrinterCap,
         BackfillCumulativeUnitCeiling = summary.BackfillCumulativeUnitCeiling,
         CumulativeProducedUnits = summary.CumulativeProducedUnits,
+        SpansMultipleRevisions = summary.SpansMultipleRevisions,
         Requirements = summary.Requirements.Select(PartRequirementSummaryResponse.FromSummary).ToList(),
     };
 }

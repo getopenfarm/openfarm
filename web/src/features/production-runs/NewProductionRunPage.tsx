@@ -80,6 +80,7 @@ export function NewProductionRunPage() {
             quantity: l.quantity,
             assignmentMode: l.assignmentMode,
             pinnedPrinterId: l.pinnedPrinterId ?? null,
+            revisionMode: l.revisionMode,
           })),
         },
       });

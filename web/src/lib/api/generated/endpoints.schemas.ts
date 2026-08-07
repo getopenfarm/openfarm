@@ -448,6 +448,7 @@ export interface RunLineSummaryResponse {
   /** @nullable */
   backfillCumulativeUnitCeiling?: number | null;
   cumulativeProducedUnits?: number;
+  spansMultipleRevisions?: boolean;
   requirements?: PartRequirementSummaryResponse[];
 }
 
@@ -539,6 +540,15 @@ export interface SetRunLineBackfillLimitsRequest {
   backfillPrinterCap?: number;
   /** @nullable */
   backfillCumulativeUnitCeiling?: number | null;
+}
+
+export interface RunLineRevisionModeResponse {
+  id?: string;
+  revisionMode?: string;
+}
+
+export interface SetRunLineRevisionModeRequest {
+  revisionMode?: string;
 }
 
 export interface JobFilamentConsumptionResponse {

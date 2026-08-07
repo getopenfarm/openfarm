@@ -27,7 +27,9 @@ import type {
   OpenFarmApiEndpointsProductionRunsListProductionRunsEndpointParams,
   ProductionRunDetailResponse,
   RunLineBackfillLimitsResponse,
+  RunLineRevisionModeResponse,
   SetRunLineBackfillLimitsRequest,
+  SetRunLineRevisionModeRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -1219,6 +1221,164 @@ export const useOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoi
   > => {
     return useMutation(
       getOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationOptions(
+        options,
+      ),
+      queryClient,
+    );
+  };
+export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse200 =
+  {
+    data: RunLineRevisionModeResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponseSuccess =
+  openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponseError =
+  (
+    | openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse401
+    | openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse =
+  | openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponseSuccess
+  | openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponseError;
+
+export const getOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointUrl =
+  (runId: string, lineId: string) => {
+    return `/api/v1/production-runs/${runId}/lines/${lineId}/revision-mode`;
+  };
+
+export const openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint =
+  async (
+    runId: string,
+    lineId: string,
+    setRunLineRevisionModeRequest: SetRunLineRevisionModeRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse>(
+      getOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointUrl(
+        runId,
+        lineId,
+      ),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(setRunLineRevisionModeRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint
+        >
+      >,
+      TError,
+      { runId: string; lineId: string; data: SetRunLineRevisionModeRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint
+      >
+    >,
+    TError,
+    { runId: string; lineId: string; data: SetRunLineRevisionModeRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint
+        >
+      >,
+      { runId: string; lineId: string; data: SetRunLineRevisionModeRequest }
+    > = (props) => {
+      const { runId, lineId, data } = props ?? {};
+
+      return openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint(
+        runId,
+        lineId,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationBody =
+  SetRunLineRevisionModeRequest;
+export type OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint =
+  <TError = void, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint
+          >
+        >,
+        TError,
+        { runId: string; lineId: string; data: SetRunLineRevisionModeRequest },
+        TContext
+      >;
+    },
+    queryClient?: QueryClient,
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint
+      >
+    >,
+    TError,
+    { runId: string; lineId: string; data: SetRunLineRevisionModeRequest },
+    TContext
+  > => {
+    return useMutation(
+      getOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationOptions(
         options,
       ),
       queryClient,

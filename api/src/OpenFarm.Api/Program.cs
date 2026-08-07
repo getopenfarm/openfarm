@@ -102,6 +102,7 @@ using ReorderPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<O
 using PinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.PinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using UnpinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.UnpinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using SetRunLineBackfillLimitsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.SetRunLineBackfillLimitsCommand, OpenFarm.Domain.Production.RunLine>;
+using SetRunLineRevisionModeHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.SetRunLineRevisionModeCommand, OpenFarm.Domain.Production.RunLine>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -419,6 +420,7 @@ builder.Services.AddScoped<ReorderPrintJobHandlerType, ReorderPrintJobCommandHan
 builder.Services.AddScoped<PinPrintJobHandlerType, PinPrintJobCommandHandler>();
 builder.Services.AddScoped<UnpinPrintJobHandlerType, UnpinPrintJobCommandHandler>();
 builder.Services.AddScoped<SetRunLineBackfillLimitsHandlerType, SetRunLineBackfillLimitsCommandHandler>();
+builder.Services.AddScoped<SetRunLineRevisionModeHandlerType, SetRunLineRevisionModeCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProductionRunsQuery, ProductionRunsPage>, GetProductionRunsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>, GetProductionRunDetailQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetQueueJobsQuery, QueueJobsPage>, GetQueueJobsQueryHandler>();

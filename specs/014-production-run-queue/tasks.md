@@ -277,12 +277,12 @@ flagged as spanning multiple revisions.
 
 ### Implementation for User Story 4
 
-- [ ] T097 [P] [US4] `SetRunLineRevisionModeCommand.cs`/`Handler.cs` in `api/src/OpenFarm.Application/Production/` — FR-009b, affects only plates dispatched after the call
-- [ ] T098 [US4] Extend the dispatch path (`ProductionDispatchBackgroundService.cs`/T044's `Dispatch()` call site) — when the owning `RunLine.RevisionMode == FollowLatest`, re-read `Part.RevisionHash`/`RevisionNumber` immediately before calling `StartJobAsync` and pass them to `PrintJob.Dispatch`'s revision-overwrite overload; under `Snapshot`, call the non-overwriting overload (research.md R6), to pass T096 (depends on T044, T096, T097)
-- [ ] T099 [P] [US4] Extend `RunLineSummary` (T017/`GetProductionRunDetailQuery`, T052) with a computed `SpansMultipleRevisions` (`DISTINCT FileRevisionHash` count over the line's jobs `> 1`) — never a stored/persisted field (FR-009e) (depends on T052)
-- [ ] T100 [US4] `SetRunLineRevisionModeEndpoint.cs` (`PUT /api/v1/production-runs/{runId}/lines/{lineId}/revision-mode`, `[Permission("production-runs:edit")]`, 200) in `api/src/OpenFarm.Api/Endpoints/ProductionRuns/`; register the handler in `Program.cs`; rebuild `api/` and run `bunx orval` in `web/` (depends on T097)
-- [ ] T101 [US4] Add the Snapshot/Follow-latest toggle to `RunLineEditor.tsx` (T066) and a read-only mode indicator + "spans N revisions" badge (from T099) to `ProductionRunDetailPage.tsx`'s line view (depends on T099, T100)
-- [ ] T102 [P] [US4] Vitest+RTL tests for `RunLineEditor`'s revision-mode toggle and the spans-multiple-revisions badge in `web/src/features/production-runs/**/*.test.tsx`
+- [X] T097 [P] [US4] `SetRunLineRevisionModeCommand.cs`/`Handler.cs` in `api/src/OpenFarm.Application/Production/` — FR-009b, affects only plates dispatched after the call
+- [X] T098 [US4] Extend the dispatch path (`ProductionDispatchBackgroundService.cs`/T044's `Dispatch()` call site) — when the owning `RunLine.RevisionMode == FollowLatest`, re-read `Part.RevisionHash`/`RevisionNumber` immediately before calling `StartJobAsync` and pass them to `PrintJob.Dispatch`'s revision-overwrite overload; under `Snapshot`, call the non-overwriting overload (research.md R6), to pass T096 (depends on T044, T096, T097)
+- [X] T099 [P] [US4] Extend `RunLineSummary` (T017/`GetProductionRunDetailQuery`, T052) with a computed `SpansMultipleRevisions` (`DISTINCT FileRevisionHash` count over the line's jobs `> 1`) — never a stored/persisted field (FR-009e) (depends on T052)
+- [X] T100 [US4] `SetRunLineRevisionModeEndpoint.cs` (`PUT /api/v1/production-runs/{runId}/lines/{lineId}/revision-mode`, `[Permission("production-runs:edit")]`, 200) in `api/src/OpenFarm.Api/Endpoints/ProductionRuns/`; register the handler in `Program.cs`; rebuild `api/` and run `bunx orval` in `web/` (depends on T097)
+- [X] T101 [US4] Add the Snapshot/Follow-latest toggle to `RunLineEditor.tsx` (T066) and a read-only mode indicator + "spans N revisions" badge (from T099) to `ProductionRunDetailPage.tsx`'s line view (depends on T099, T100)
+- [X] T102 [P] [US4] Vitest+RTL tests for `RunLineEditor`'s revision-mode toggle and the spans-multiple-revisions badge in `web/src/features/production-runs/**/*.test.tsx`
 
 **Checkpoint**: All four user stories independently functional — run quickstart.md Stories 1–9 end-to-end.
 

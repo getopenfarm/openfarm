@@ -20,6 +20,7 @@ import {
   useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint,
 } from '@/lib/api/generated/production-runs/production-runs';
 import { BackfillLimitsPanel } from './components/BackfillLimitsPanel';
+import { RevisionModeControl } from './components/RevisionModeControl';
 import { ShortfallBanner } from './components/ShortfallBanner';
 import { useProductionHub } from './hooks/useProductionHub';
 
@@ -160,9 +161,18 @@ export function ProductionRunDetailPage() {
                 <span className="text-xs font-normal text-muted-foreground">
                   {line.quantity === null || line.quantity === undefined
                     ? 'Unlimited (backfill)'
-                    : `Qty ${line.quantity}`}{' '}
-                  · {line.revisionMode}
+                    : `Qty ${line.quantity}`}
                 </span>
+                {id && line.id && (
+                  <RevisionModeControl
+                    runId={id}
+                    lineId={line.id}
+                    revisionMode={line.revisionMode ?? 'Snapshot'}
+                  />
+                )}
+                {line.spansMultipleRevisions && (
+                  <Badge variant="outline">Spans multiple revisions</Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">

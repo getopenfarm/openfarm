@@ -21,6 +21,7 @@ import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/gene
 
 export type RunLineTargetKind = 'Part' | 'Assembly';
 export type RunLineAssignmentMode = 'Unassigned' | 'Pinned';
+export type RunLineRevisionMode = 'Snapshot' | 'FollowLatest';
 
 export interface EditableRunLine {
   /** Stable client-side key. */
@@ -32,6 +33,8 @@ export interface EditableRunLine {
   quantity: number | null;
   assignmentMode: RunLineAssignmentMode;
   pinnedPrinterId?: string;
+  /** FR-009 — Snapshot pins the revision at queue time; Follow-latest re-reads it at dispatch time. */
+  revisionMode: RunLineRevisionMode;
 }
 
 interface RunLineEditorProps {
@@ -48,6 +51,8 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
   const [draftAssignmentMode, setDraftAssignmentMode] =
     useState<RunLineAssignmentMode>('Unassigned');
   const [draftPinnedPrinterId, setDraftPinnedPrinterId] = useState('');
+  const [draftRevisionMode, setDraftRevisionMode] =
+    useState<RunLineRevisionMode>('Snapshot');
 
   const partsQuery = useOpenFarmApiEndpointsPartsListPartsEndpoint({
     page: 1,
@@ -79,6 +84,7 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
     setDraftQuantity('1');
     setDraftAssignmentMode('Unassigned');
     setDraftPinnedPrinterId('');
+    setDraftRevisionMode('Snapshot');
   }
 
   function handleAdd() {
@@ -103,6 +109,7 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
         assignmentMode: draftAssignmentMode,
         pinnedPrinterId:
           draftAssignmentMode === 'Pinned' ? draftPinnedPrinterId : undefined,
+        revisionMode: draftRevisionMode,
       },
     ]);
     resetDraft();
@@ -136,6 +143,11 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
                 {line.assignmentMode === 'Pinned'
                   ? `Pinned · ${printers.find((p) => p.id === line.pinnedPrinterId)?.name ?? line.pinnedPrinterId}`
                   : 'Unassigned'}
+              </span>
+              <span className="w-24 shrink-0 text-xs text-muted-foreground">
+                {line.revisionMode === 'FollowLatest'
+                  ? 'Follow-latest'
+                  : 'Snapshot'}
               </span>
               <Button
                 type="button"
@@ -228,6 +240,24 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
             <SelectContent>
               <SelectItem value="Unassigned">Unassigned</SelectItem>
               <SelectItem value="Pinned">Pinned</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="run-line-revision-mode">Revision mode</Label>
+          <Select
+            value={draftRevisionMode}
+            onValueChange={(value) =>
+              setDraftRevisionMode(value as RunLineRevisionMode)
+            }
+          >
+            <SelectTrigger id="run-line-revision-mode" className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Snapshot">Snapshot</SelectItem>
+              <SelectItem value="FollowLatest">Follow-latest</SelectItem>
             </SelectContent>
           </Select>
         </div>

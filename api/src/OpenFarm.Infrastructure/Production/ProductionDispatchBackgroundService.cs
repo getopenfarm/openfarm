@@ -189,7 +189,16 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
-        await DispatchJobAsync(services, printer, job, part, nozzleDiameterMm.Value, jobRepository, cancellationToken);
+        var runRepository = services.GetRequiredService<IProductionRunRepository>();
+        var run = await runRepository.GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
+        var runLine = run?.Lines.FirstOrDefault(l => l.Id == requirement.RunLineId);
+        if (runLine is null)
+        {
+            LogMissingDispatchTarget(_logger, job.Id);
+            return;
+        }
+
+        await DispatchJobAsync(services, printer, job, part, nozzleDiameterMm.Value, runLine.RevisionMode, jobRepository, cancellationToken);
     }
 
     /// <summary>
@@ -240,34 +249,48 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         await jobRepository.AddAsync(newJob, cancellationToken);
         await jobRepository.SaveChangesAsync(cancellationToken);
 
-        await DispatchJobAsync(services, printer, newJob, part, nozzleDiameterMm, jobRepository, cancellationToken);
+        await DispatchJobAsync(services, printer, newJob, part, nozzleDiameterMm, runLine.RevisionMode, jobRepository, cancellationToken);
     }
 
     private async Task DispatchJobAsync(
-        IServiceProvider services, Printer printer, PrintJob job, Part part, decimal nozzleDiameterMm,
+        IServiceProvider services, Printer printer, PrintJob job, Part part, decimal nozzleDiameterMm, RevisionMode revisionMode,
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
         if (!PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
         {
             // FR-012 manual-brand path: mark the assignment only — Status stays Queued until the
             // operator retrieves the file themselves and calls MarkPrintJobStartedCommand (T055).
-            job.Dispatch(printer.Id);
+            // research.md R6 — Follow-latest re-reads the Part's current revision immediately before
+            // this dispatch and records it via PrintJob.Dispatch's overwrite overload; Snapshot keeps
+            // whatever revision the job was created/queued with.
+            if (revisionMode == RevisionMode.FollowLatest)
+            {
+                var partRepository = services.GetRequiredService<IPartRepository>();
+                var freshPart = await partRepository.GetByIdAsync(part.Id, cancellationToken) ?? part;
+                job.Dispatch(printer.Id, freshPart.RevisionHash, freshPart.RevisionNumber);
+            }
+            else
+            {
+                job.Dispatch(printer.Id);
+            }
+
             await jobRepository.SaveChangesAsync(cancellationToken);
             await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
             return;
         }
 
-        await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleDiameterMm, jobRepository, cancellationToken);
+        await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleDiameterMm, revisionMode, jobRepository, cancellationToken);
     }
 
     private async Task DispatchToLiveIntegratedPrinterAsync(
-        IServiceProvider services, Printer printer, PrintJob job, Part part, decimal nozzleDiameterMm,
+        IServiceProvider services, Printer printer, PrintJob job, Part part, decimal nozzleDiameterMm, RevisionMode revisionMode,
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
         var connectionSecrets = services.GetRequiredService<IConnectionSecretRepository>();
         var secretProtector = services.GetRequiredService<ISecretProtector>();
         var connectorFactory = services.GetRequiredService<IPrinterConnectorFactory>();
         var fileResolver = services.GetRequiredService<IJobFileResolver>();
+        var partRepository = services.GetRequiredService<IPartRepository>();
 
         var secret = await connectionSecrets.GetByPrinterSerialNumberAsync(printer.SerialNumber, cancellationToken);
         if (secret is null)
@@ -276,10 +299,16 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
+        // Follow-latest: re-read the Part's current revision immediately before send (research.md R6)
+        // so the sliced/resolved output matches the revision the job is about to be dispatched with.
+        var dispatchPart = revisionMode == RevisionMode.FollowLatest
+            ? await partRepository.GetByIdAsync(part.Id, cancellationToken) ?? part
+            : part;
+
         JobFileContent fileContent;
         try
         {
-            fileContent = await fileResolver.ResolveAsync(part, job, printer.Id, nozzleDiameterMm, cancellationToken);
+            fileContent = await fileResolver.ResolveAsync(dispatchPart, job, printer.Id, nozzleDiameterMm, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -292,7 +321,15 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var details = new PrinterConnectionDetails(
             printer.Brand, printer.ModelCode, printer.IpAddress, printer.SerialNumber, secretProtector.Unprotect(secret.EncryptedAccessCode));
 
-        job.Dispatch(printer.Id);
+        if (revisionMode == RevisionMode.FollowLatest)
+        {
+            job.Dispatch(printer.Id, dispatchPart.RevisionHash, dispatchPart.RevisionNumber);
+        }
+        else
+        {
+            job.Dispatch(printer.Id);
+        }
+
         await jobRepository.SaveChangesAsync(cancellationToken);
 
         try
