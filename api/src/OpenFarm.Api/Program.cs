@@ -29,6 +29,7 @@ using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Organizations;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
+using OpenFarm.Application.Production;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Parts;
@@ -43,6 +44,7 @@ using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Simulator;
+using OpenFarm.Infrastructure.Production;
 using OpenFarm.Infrastructure.Profiles;
 using OpenFarm.Infrastructure.Security;
 using OpenFarm.Infrastructure.Seed;
@@ -309,6 +311,10 @@ builder.Services.AddScoped<IAssemblyRepository, AssemblyRepository>();
 builder.Services.AddScoped<INonPrintedComponentRepository, NonPrintedComponentRepository>();
 builder.Services.AddScoped<IAssemblyGraphQueryService, AssemblyGraphQueryService>();
 builder.Services.AddScoped<OpenFarm.Api.Endpoints.Assemblies.BomLineTargetNameResolver>();
+
+builder.Services.AddScoped<IProductionRunRepository, ProductionRunRepository>();
+builder.Services.AddScoped<IPartRequirementRepository, PartRequirementRepository>();
+builder.Services.AddScoped<IPrintJobRepository, PrintJobRepository>();
 
 // Resolved once at process startup below (not lazily on first request, research.md §2) — the
 // eager-singleton registration avoids the race the spec calls out where a slice is requested while

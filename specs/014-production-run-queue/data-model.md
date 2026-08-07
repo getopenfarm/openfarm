@@ -290,6 +290,8 @@ PrintJobs
   StartedAtUtc          timestamptz NULL
   EndedAtUtc            timestamptz NULL
   ActualDurationMinutes int NULL
+  CancelRequestedAtUtc  timestamptz NULL   -- FR-024a/c, added by the spec's remote-control reversal
+  RequeuedAsJobId       uuid NULL   FK -> PrintJobs.Id (self)  ON DELETE SET NULL   -- FR-025a, research.md R13
   CreatedAtUtc           timestamptz NOT NULL
   xmin                  (IsRowVersion())
   INDEX (OrganizationId, Status, AssignmentMode, QueuePosition)   -- the dispatcher's own hot-path query (research.md R4)
