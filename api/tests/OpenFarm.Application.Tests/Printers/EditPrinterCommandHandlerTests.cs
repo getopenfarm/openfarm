@@ -453,6 +453,18 @@ public class EditPrinterCommandHandlerTests
 
             public IAsyncEnumerable<PrinterConnectorEvent> ConnectAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
                 throw new NotSupportedException();
+
+            public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken) =>
+                throw new NotSupportedException();
+
+            public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+                throw new NotSupportedException();
+
+            public Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+                throw new NotSupportedException();
+
+            public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+                throw new NotSupportedException();
         }
     }
 

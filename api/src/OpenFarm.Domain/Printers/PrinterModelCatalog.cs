@@ -38,6 +38,15 @@ public static class PrinterModelCatalog
                 CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.Cool, BuildPlateType.Engineering, BuildPlateType.HighTemp, BuildPlateType.TexturedPei, BuildPlateType.TexturedCool, BuildPlateType.Supertack }),
         };
 
+    // Both current brands (Bambu, the real integration; System, its Simulator stand-in) have live
+    // status/dispatch integration — there is no non-live brand registrable today. Phase 15 (Expanded
+    // live printer integration) is what would ever add one; this is the one place that check extends,
+    // never a restructure of the dispatcher/command-handler branches that already read it (FR-012/FR-024b).
+    private static readonly HashSet<PrinterBrand> LiveIntegratedBrands = new() { PrinterBrand.Bambu, PrinterBrand.System };
+
+    public static bool SupportsLiveIntegration(string brand) =>
+        Enum.TryParse<PrinterBrand>(brand, ignoreCase: true, out var parsedBrand) && LiveIntegratedBrands.Contains(parsedBrand);
+
     public static PrinterModel Resolve(string brand, string modelCode)
     {
         if (!TryResolve(brand, modelCode, out var model))

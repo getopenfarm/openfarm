@@ -143,6 +143,18 @@ public sealed class PrintJob
         FileRevisionNumber = fileRevisionNumber;
     }
 
+    /// <summary>
+    /// Constitution Durable Recovery guardrail — clears a dispatch-in-flight marker left by a prior
+    /// process lifetime (<see cref="DispatchedAtUtc"/> set, telemetry never confirmed <c>Printing</c>),
+    /// so the job re-enters ordinary matching exactly as if never dispatched. A no-op if the job was
+    /// never in that window (idempotent, safe to call speculatively during reconciliation).
+    /// </summary>
+    public void RevertDispatch()
+    {
+        DispatchedPrinterId = null;
+        DispatchedAtUtc = null;
+    }
+
     /// <summary>FR-024a — sets only CancelRequestedAtUtc; never a status transition itself. Idempotent.</summary>
     public void RequestCancel() => CancelRequestedAtUtc ??= DateTimeOffset.UtcNow;
 

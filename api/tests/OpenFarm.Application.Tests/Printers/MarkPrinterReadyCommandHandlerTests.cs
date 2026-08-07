@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OpenFarm.Application.Printers;
+using OpenFarm.Application.Production;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Application.Tests.Printers;
@@ -13,12 +14,14 @@ public class MarkPrinterReadyCommandHandlerTests
         printer.ObserveStatus("FINISH");
         var repository = new InMemoryPrinterRepository(printer);
         var publisher = new RecordingPrinterEventPublisher();
-        var handler = new MarkPrinterReadyCommandHandler(repository, publisher);
+        var dispatcher = new RecordingProductionDispatcher();
+        var handler = new MarkPrinterReadyCommandHandler(repository, publisher, dispatcher);
 
         var result = await handler.HandleAsync(new MarkPrinterReadyCommand(printer.Id), CancellationToken.None);
 
         result.Status.Should().Be(PrinterStatus.Idle);
         publisher.PublishedStatuses.Should().ContainSingle(s => s.PrinterId == printer.Id && s.Status == PrinterStatus.Idle);
+        dispatcher.RequestedPrinterIds.Should().ContainSingle(id => id == printer.Id);
     }
 
     [Theory]
@@ -30,7 +33,7 @@ public class MarkPrinterReadyCommandHandlerTests
         printer.ObserveStatus(gcodeState);
         var repository = new InMemoryPrinterRepository(printer);
         var publisher = new RecordingPrinterEventPublisher();
-        var handler = new MarkPrinterReadyCommandHandler(repository, publisher);
+        var handler = new MarkPrinterReadyCommandHandler(repository, publisher, new RecordingProductionDispatcher());
 
         var act = () => handler.HandleAsync(new MarkPrinterReadyCommand(printer.Id), CancellationToken.None);
 
@@ -43,7 +46,7 @@ public class MarkPrinterReadyCommandHandlerTests
     {
         var repository = new InMemoryPrinterRepository();
         var publisher = new RecordingPrinterEventPublisher();
-        var handler = new MarkPrinterReadyCommandHandler(repository, publisher);
+        var handler = new MarkPrinterReadyCommandHandler(repository, publisher, new RecordingProductionDispatcher());
 
         var act = () => handler.HandleAsync(new MarkPrinterReadyCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -107,5 +110,12 @@ public class MarkPrinterReadyCommandHandlerTests
             Guid printerId,
             string frameJpegBase64,
             CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingProductionDispatcher : IProductionDispatcher
+    {
+        public List<Guid> RequestedPrinterIds { get; } = [];
+
+        public void RequestDispatchAttempt(Guid printerId) => RequestedPrinterIds.Add(printerId);
     }
 }

@@ -315,6 +315,15 @@ builder.Services.AddScoped<OpenFarm.Api.Endpoints.Assemblies.BomLineTargetNameRe
 builder.Services.AddScoped<IProductionRunRepository, ProductionRunRepository>();
 builder.Services.AddScoped<IPartRequirementRepository, PartRequirementRepository>();
 builder.Services.AddScoped<IPrintJobRepository, PrintJobRepository>();
+builder.Services.AddScoped<ProductionDispatchQueryService>();
+builder.Services.AddScoped<IJobFileResolver, JobFileResolver>();
+builder.Services.AddScoped<IJobTelemetrySync, JobTelemetrySync>();
+builder.Services.AddScoped<IProductionEventPublisher, FarmHubProductionEventPublisher>();
+
+builder.Services.AddSingleton<ProductionDispatchBackgroundService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());
+// Must be Singleton, not Scoped — same reasoning as IPartProcessingDispatcher's registration above.
+builder.Services.AddSingleton<IProductionDispatcher>(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());
 
 // Resolved once at process startup below (not lazily on first request, research.md §2) — the
 // eager-singleton registration avoids the race the spec calls out where a slice is requested while

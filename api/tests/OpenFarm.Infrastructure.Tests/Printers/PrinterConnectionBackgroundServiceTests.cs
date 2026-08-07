@@ -10,6 +10,7 @@ using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
+using OpenFarm.Application.Production;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.FilamentTracking;
@@ -406,6 +407,8 @@ public class PrinterConnectionBackgroundServiceTests
         services.AddSingleton<IActivityLogWriter>(writer);
         services.AddSingleton<IPrinterEventPublisher>(publisher ?? new NoOpPrinterEventPublisher());
         services.AddSingleton<IFeedSlotTelemetrySync>(feedSlotTelemetrySync ?? new NoOpFeedSlotTelemetrySync());
+        services.AddSingleton<IJobTelemetrySync>(new NoOpJobTelemetrySync());
+        services.AddSingleton<IProductionDispatcher>(new NoOpProductionDispatcher());
         // Test printers use BinaryImage-camera models (e.g. P1S), so RunConnectionLoopAsync always
         // starts a concurrent camera loop too — the stub factory below hands out a relay that never
         // emits by default so that path doesn't throw.
@@ -507,6 +510,18 @@ public class PrinterConnectionBackgroundServiceTests
             await Task.Delay(CancellationLag, CancellationToken.None);
             yield break;
         }
+
+        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>Hands back the fixed connector/camera-relay instances the test constructed, regardless of details.</summary>
@@ -542,6 +557,18 @@ public class PrinterConnectionBackgroundServiceTests
 
         public void Emit(string serialNumber, PrinterConnectorEvent connectorEvent) =>
             GetOrCreateChannel(serialNumber).Writer.TryWrite(connectorEvent);
+
+        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         private Channel<PrinterConnectorEvent> GetOrCreateChannel(string serialNumber) =>
             _channels.GetOrAdd(serialNumber, static _ => Channel.CreateUnbounded<PrinterConnectorEvent>());
@@ -666,6 +693,18 @@ public class PrinterConnectionBackgroundServiceTests
     {
         public Task SyncAsync(Guid printerId, Guid organizationId, string brand, IReadOnlyList<AmsUnit> amsUnits, AmsTray? externalSpoolTray, CancellationToken cancellationToken) =>
             Task.CompletedTask;
+    }
+
+    private sealed class NoOpJobTelemetrySync : IJobTelemetrySync
+    {
+        public Task ObserveAsync(Guid printerId, string gcodeState, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class NoOpProductionDispatcher : IProductionDispatcher
+    {
+        public void RequestDispatchAttempt(Guid printerId)
+        {
+        }
     }
 
     private sealed class InMemoryFeedUnitRepository : IFeedUnitRepository

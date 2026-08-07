@@ -26,5 +26,6 @@ public sealed class FakeSlicerEngine : ISlicerEngine
             PlateCount: 1,
             EstimatedPrintTimeMinutes: 47,
             EstimatedFilamentWeightGrams: 18.4m,
-            Thumbnails: [new ThumbnailSpec(0, OnePixelPng)]));
+            Thumbnails: [new ThumbnailSpec(0, OnePixelPng)],
+            OutputFileBytes: System.Text.Encoding.UTF8.GetBytes("; fake sliced gcode\n")));
 }

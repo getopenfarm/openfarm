@@ -18,6 +18,9 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="MQTTnet" Version="5.2.0.1603" />
+    <!-- BambuLanConnector.StartJobAsync's FTPS file push (port 990, research.md R5) — .NET has no
+         built-in FTPS client. -->
+    <PackageReference Include="FluentFTP" Version="54.2.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
     <PackageReference Include="Finbuckle.MultiTenant" Version="10.1.1" />
