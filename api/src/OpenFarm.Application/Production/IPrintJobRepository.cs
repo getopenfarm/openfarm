@@ -30,5 +30,11 @@ public interface IPrintJobRepository
     /// </summary>
     Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount)> ListQueueAsync(bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken);
 
+    /// <summary>research.md R3 — the Queued job with the smallest QueuePosition greater than <paramref name="afterQueuePosition"/>, excluding <paramref name="excludeJobId"/> (the job being moved), or null if none.</summary>
+    Task<PrintJob?> GetNextQueuedJobAsync(double afterQueuePosition, Guid excludeJobId, CancellationToken cancellationToken);
+
+    /// <summary>The smallest QueuePosition among Queued jobs, or null if none — reorder's "move to very top" case (research.md R3).</summary>
+    Task<double?> GetMinQueuedPositionAsync(CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

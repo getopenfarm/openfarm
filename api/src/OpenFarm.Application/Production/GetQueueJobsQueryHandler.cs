@@ -1,5 +1,8 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
+using OpenFarm.Application.Printers;
+using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
@@ -8,6 +11,7 @@ public sealed class GetQueueJobsQueryHandler(
     IPartRequirementRepository requirementRepository,
     IPartRepository partRepository,
     IProductionRunRepository runRepository,
+    IPrinterRepository printerRepository,
     ProductionRunDisplayLabelResolver labelResolver) : IQueryHandler<GetQueueJobsQuery, QueueJobsPage>
 {
     public async Task<QueueJobsPage> HandleAsync(GetQueueJobsQuery query, CancellationToken cancellationToken)
@@ -15,6 +19,7 @@ public sealed class GetQueueJobsQueryHandler(
         var (jobs, totalCount) = await jobRepository.ListQueueAsync(query.BackfillOnly, query.Page, query.PageSize, cancellationToken);
 
         var runLabelCache = new Dictionary<Guid, (Guid RunId, string DisplayLabel)>();
+        var printerStatusCache = new Dictionary<Guid, PrinterStatus?>();
         var items = new List<QueueJobRow>();
 
         foreach (var job in jobs)
@@ -35,9 +40,24 @@ public sealed class GetQueueJobsQueryHandler(
                 runLabelCache[requirement.RunLineId] = runInfo;
             }
 
+            // FR-007c — blocked iff Pinned and the target printer isn't currently Idle (offline,
+            // maintenance/AwaitingClear, or missing entirely).
+            var isBlocked = false;
+            if (job.AssignmentMode == AssignmentMode.Pinned && job.PinnedPrinterId is { } pinnedPrinterId)
+            {
+                if (!printerStatusCache.TryGetValue(pinnedPrinterId, out var status))
+                {
+                    var printer = await printerRepository.GetByIdAsync(pinnedPrinterId, cancellationToken);
+                    status = printer?.Status;
+                    printerStatusCache[pinnedPrinterId] = status;
+                }
+
+                isBlocked = status != PrinterStatus.Idle;
+            }
+
             items.Add(new QueueJobRow(
                 job.Id, job.QueuePosition, job.Status, job.AssignmentMode, job.PinnedPrinterId, job.DispatchedPrinterId,
-                IsBlocked: false, requirement.PartId, part?.Name ?? "Unknown part", job.PlateQuantity,
+                isBlocked, requirement.PartId, part?.Name ?? "Unknown part", job.PlateQuantity,
                 requirement.RunLineId, runInfo.RunId, runInfo.DisplayLabel));
         }
 

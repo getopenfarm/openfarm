@@ -26,7 +26,10 @@ import type {
   FailPrintJobRequest,
   ListQueueJobsResponse,
   OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
+  PinPrintJobRequest,
   PrintJobResponse,
+  ReorderPrintJobRequest,
+  ReorderPrintJobResponse,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -1208,6 +1211,271 @@ export const useOpenFarmApiEndpointsPrintJobsPausePrintJobEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse200 = {
+  data: PrintJobResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponseError = (
+  | openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse401
+  | openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse =
+  | openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsPinPrintJobEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/print-jobs/${id}/pin`;
+};
+
+export const openFarmApiEndpointsPrintJobsPinPrintJobEndpoint = async (
+  id: string,
+  pinPrintJobRequest: PinPrintJobRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintJobsPinPrintJobEndpointResponse>(
+    getOpenFarmApiEndpointsPrintJobsPinPrintJobEndpointUrl(id),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(pinPrintJobRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintJobsPinPrintJobEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsPinPrintJobEndpoint>
+      >,
+      TError,
+      { id: string; data: PinPrintJobRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsPinPrintJobEndpoint>
+    >,
+    TError,
+    { id: string; data: PinPrintJobRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsPrintJobsPinPrintJobEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsPinPrintJobEndpoint>
+      >,
+      { id: string; data: PinPrintJobRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPrintJobsPinPrintJobEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsPinPrintJobEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsPrintJobsPinPrintJobEndpoint>>
+  >;
+export type OpenFarmApiEndpointsPrintJobsPinPrintJobEndpointMutationBody =
+  PinPrintJobRequest;
+export type OpenFarmApiEndpointsPrintJobsPinPrintJobEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPrintJobsPinPrintJobEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsPinPrintJobEndpoint>
+      >,
+      TError,
+      { id: string; data: PinPrintJobRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsPrintJobsPinPrintJobEndpoint>>,
+  TError,
+  { id: string; data: PinPrintJobRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintJobsPinPrintJobEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse200 = {
+  data: ReorderPrintJobResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse401
+    | openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse =
+  | openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/print-jobs/${id}/reorder`;
+};
+
+export const openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint = async (
+  id: string,
+  reorderPrintJobRequest: ReorderPrintJobRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintJobsReorderPrintJobEndpointResponse>(
+    getOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpointUrl(id),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(reorderPrintJobRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint>
+      >,
+      TError,
+      { id: string; data: ReorderPrintJobRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint>
+    >,
+    TError,
+    { id: string; data: ReorderPrintJobRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint>
+      >,
+      { id: string; data: ReorderPrintJobRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsReorderPrintJobEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPrintJobsReorderPrintJobEndpointMutationBody =
+  ReorderPrintJobRequest;
+export type OpenFarmApiEndpointsPrintJobsReorderPrintJobEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint>
+      >,
+      TError,
+      { id: string; data: ReorderPrintJobRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsReorderPrintJobEndpoint>
+  >,
+  TError,
+  { id: string; data: ReorderPrintJobRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsPrintJobsRequeuePrintJobEndpointResponse200 = {
   data: PrintJobResponse;
   status: 200;
@@ -1466,6 +1734,136 @@ export const useOpenFarmApiEndpointsPrintJobsResumePrintJobEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsPrintJobsResumePrintJobEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse200 = {
+  data: PrintJobResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponseError = (
+  | openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse401
+  | openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse =
+  | openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/print-jobs/${id}/unpin`;
+};
+
+export const openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintJobsUnpinPrintJobEndpointResponse>(
+    getOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpointUrl(id),
+    {
+      ...options,
+      method: 'POST',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint>
+    >,
+    TError,
+    { id: string },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint>
+      >,
+      { id: string }
+    > = (props) => {
+      const { id } = props ?? {};
+
+      return openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint(id);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint>
+    >
+  >;
+
+export type OpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint>
+  >,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpointMutationOptions(
       options,
     ),
     queryClient,

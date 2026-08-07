@@ -1631,6 +1631,116 @@
         ]
       }
     },
+    "/api/v1/print-jobs/{id}/pin": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsPinPrintJobEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "PinPrintJobRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinPrintJobRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/reorder": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsReorderPrintJobEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ReorderPrintJobRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderPrintJobRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderPrintJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/print-jobs/{id}/requeue": {
       "post": {
         "tags": [
@@ -1679,6 +1789,48 @@
           "Print-Jobs"
         ],
         "operationId": "OpenFarmApiEndpointsPrintJobsResumePrintJobEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/unpin": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint",
         "parameters": [
           {
             "name": "id",
@@ -5356,11 +5508,51 @@
         "type": "object",
         "additionalProperties": false
       },
+      "PinPrintJobRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "printerId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "ReorderPrintJobResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "queuePosition": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ReorderPrintJobRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "afterJobId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
       "RequeuePrintJobRequest": {
         "type": "object",
         "additionalProperties": false
       },
       "ResumePrintJobRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "UnpinPrintJobRequest": {
         "type": "object",
         "additionalProperties": false
       },

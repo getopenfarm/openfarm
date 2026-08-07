@@ -108,10 +108,15 @@ public sealed class PrintJob
         return job;
     }
 
-    /// <summary>Operator action, FR-007. Only valid pre-dispatch.</summary>
-    public void Pin(Guid printerId)
+    /// <summary>Operator action, FR-007. Only valid pre-dispatch; throws PinnedJobRequiresPrinterException if printerId is missing, mirroring Create's own guard.</summary>
+    public void Pin(Guid? printerId)
     {
         EnsureQueued();
+        if (printerId is null)
+        {
+            throw new PinnedJobRequiresPrinterException();
+        }
+
         AssignmentMode = AssignmentMode.Pinned;
         PinnedPrinterId = printerId;
     }

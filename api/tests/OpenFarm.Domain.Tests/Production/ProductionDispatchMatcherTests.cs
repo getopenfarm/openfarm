@@ -116,4 +116,92 @@ public class ProductionDispatchMatcherTests
             candidates: candidates);
         fullMatchResult.Should().Be(jobId);
     }
+
+    [Fact]
+    public void SelectNextJob_NoUnassignedMatch_FallsBackToTopmostPinnedCandidate()
+    {
+        var lowerPinnedJobId = Guid.NewGuid();
+        var pinnedCandidates = new[]
+        {
+            Candidate(Guid.NewGuid(), 3072, 0.6m, ("PLA", "#FFFFFF")),
+            Candidate(lowerPinnedJobId, 1024, 0.6m, ("PLA", "#FFFFFF")),
+        };
+
+        var result = ProductionDispatchMatcher.SelectNextJob(
+            printerNozzleDiameterMm: 0.4m,
+            printerLoadedMaterials: [("PETG", "#000000")],
+            candidates: [],
+            pinnedCandidates: pinnedCandidates);
+
+        // FR-007c — a Pinned job is never subject to the nozzle/material check, only queue order.
+        result.Should().Be(lowerPinnedJobId);
+    }
+
+    [Fact]
+    public void SelectNextJob_UnassignedMatchExists_PrefersItOverAnyPinnedCandidate()
+    {
+        var unassignedJobId = Guid.NewGuid();
+        var candidates = new[] { Candidate(unassignedJobId, 2048, 0.4m, ("PETG", "#000000")) };
+        var pinnedCandidates = new[] { Candidate(Guid.NewGuid(), 1024, 0.6m, ("PLA", "#FFFFFF")) };
+
+        var result = ProductionDispatchMatcher.SelectNextJob(
+            printerNozzleDiameterMm: 0.4m,
+            printerLoadedMaterials: [("PETG", "#000000")],
+            candidates: candidates,
+            pinnedCandidates: pinnedCandidates);
+
+        result.Should().Be(unassignedJobId);
+    }
+
+    [Fact]
+    public void IsPreferredAmongQualifyingPrinters_FewerTraysOtherPrinterQualifies_ReturnsFalse()
+    {
+        var thisPrinterId = Guid.NewGuid();
+        var otherPrinterId = Guid.NewGuid();
+
+        var result = ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(
+            thisPrinterId,
+            printerCapabilityScore: 4,
+            otherQualifyingPrinters: [(otherPrinterId, 2)]);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsPreferredAmongQualifyingPrinters_ThisPrinterHasFewestTrays_ReturnsTrue()
+    {
+        var thisPrinterId = Guid.NewGuid();
+        var otherPrinterId = Guid.NewGuid();
+
+        var result = ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(
+            thisPrinterId,
+            printerCapabilityScore: 2,
+            otherQualifyingPrinters: [(otherPrinterId, 4)]);
+
+        result.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsPreferredAmongQualifyingPrinters_FullTieOnCapability_FallsBackToLowerPrinterId()
+    {
+        var lowerPrinterId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var higherPrinterId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+
+        ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(
+                lowerPrinterId, printerCapabilityScore: 2, otherQualifyingPrinters: [(higherPrinterId, 2)])
+            .Should().BeTrue();
+
+        ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(
+                higherPrinterId, printerCapabilityScore: 2, otherQualifyingPrinters: [(lowerPrinterId, 2)])
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsPreferredAmongQualifyingPrinters_NoOtherQualifyingPrinters_ReturnsTrue()
+    {
+        var result = ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(
+            Guid.NewGuid(), printerCapabilityScore: 4, otherQualifyingPrinters: []);
+
+        result.Should().BeTrue();
+    }
 }

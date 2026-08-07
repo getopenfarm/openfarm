@@ -99,13 +99,23 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
     /// idle printer during that window. Tenant scoping is Finbuckle's global query filter alone, already
     /// applied to this scoped <see cref="OpenFarmDbContext"/> by the caller's tenant-scope setup.
     /// </summary>
-    public async Task<IReadOnlyList<DispatchCandidate>> GetUnassignedCandidatesAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<DispatchCandidate>> GetUnassignedCandidatesAsync(CancellationToken cancellationToken) =>
+        GetCandidatesAsync(job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Unassigned && job.DispatchedPrinterId == null, cancellationToken);
+
+    /// <summary>FR-007c — every Queued job pinned to this exact printer, never matched against any other (research.md R4 step 4).</summary>
+    public Task<IReadOnlyList<DispatchCandidate>> GetPinnedCandidatesAsync(Guid printerId, CancellationToken cancellationToken) =>
+        GetCandidatesAsync(
+            job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Pinned
+                && job.PinnedPrinterId == printerId && job.DispatchedPrinterId == null,
+            cancellationToken);
+
+    private async Task<IReadOnlyList<DispatchCandidate>> GetCandidatesAsync(
+        System.Linq.Expressions.Expression<Func<PrintJob, bool>> predicate, CancellationToken cancellationToken)
     {
         var rows = await (
-            from job in dbContext.PrintJobs
+            from job in dbContext.PrintJobs.Where(predicate)
             join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
             join part in dbContext.Parts on requirement.PartId equals part.Id
-            where job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Unassigned && job.DispatchedPrinterId == null
             orderby job.QueuePosition
             select new { JobId = job.Id, job.QueuePosition, PartId = part.Id, part.NozzleDiameterMm })
             .ToListAsync(cancellationToken);
@@ -131,5 +141,50 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
                 row.NozzleDiameterMm,
                 filamentRequirementsByPart.GetValueOrDefault(row.PartId, [])))
             .ToList();
+    }
+
+    /// <summary>
+    /// FR-007b/research.md R11: every other currently-<c>Idle</c> printer that also qualifies for the
+    /// exact nozzle/filament requirement a match was just found for, paired with its own capability
+    /// score (<c>AmsUnits.Sum(trays)</c>) — the input <see cref="ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters"/>
+    /// needs to decide whether <paramref name="excludePrinterId"/> should actually claim the match or
+    /// defer to a simpler one. Deliberately scoped to <c>Idle</c> printers only — a printer that's
+    /// merely about to go idle isn't a real contender yet.
+    /// </summary>
+    public async Task<IReadOnlyList<(Guid PrinterId, int CapabilityScore)>> GetOtherIdleQualifyingPrintersAsync(
+        Guid excludePrinterId,
+        decimal requiredNozzleDiameterMm,
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> filamentRequirement,
+        CancellationToken cancellationToken)
+    {
+        var idlePrinters = await dbContext.Printers
+            .Where(p => p.Status == PrinterStatus.Idle && p.Id != excludePrinterId)
+            .ToListAsync(cancellationToken);
+
+        var qualifying = new List<(Guid, int)>();
+        foreach (var printer in idlePrinters)
+        {
+            var nozzleDiameterMm = await ResolvePrinterNozzleDiameterMmAsync(printer, cancellationToken);
+            if (nozzleDiameterMm != requiredNozzleDiameterMm)
+            {
+                continue;
+            }
+
+            var loadedMaterials = await ResolveLoadedMaterialsAsync(printer, cancellationToken);
+            var satisfiesRequirement = filamentRequirement.All(required =>
+                loadedMaterials.Any(loaded =>
+                    (required.MaterialType is null || required.MaterialType == loaded.MaterialType) &&
+                    (required.ColorHex is null || required.ColorHex == loaded.ColorHex)));
+
+            if (!satisfiesRequirement)
+            {
+                continue;
+            }
+
+            var capabilityScore = printer.AmsUnits.Sum(u => u.Trays.Count);
+            qualifying.Add((printer.Id, capabilityScore));
+        }
+
+        return qualifying;
     }
 }

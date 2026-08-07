@@ -81,6 +81,17 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
         return (jobs, totalCount);
     }
 
+    public Task<PrintJob?> GetNextQueuedJobAsync(double afterQueuePosition, Guid excludeJobId, CancellationToken cancellationToken) =>
+        dbContext.PrintJobs
+            .Where(j => j.Status == PrintJobStatus.Queued && j.QueuePosition > afterQueuePosition && j.Id != excludeJobId)
+            .OrderBy(j => j.QueuePosition)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<double?> GetMinQueuedPositionAsync(CancellationToken cancellationToken) =>
+        await dbContext.PrintJobs.AnyAsync(j => j.Status == PrintJobStatus.Queued, cancellationToken)
+            ? await dbContext.PrintJobs.Where(j => j.Status == PrintJobStatus.Queued).MinAsync(j => j.QueuePosition, cancellationToken)
+            : null;
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try

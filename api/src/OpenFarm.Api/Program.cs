@@ -98,6 +98,9 @@ using CancelPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<Op
 using RequeuePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.RequeuePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using CompletePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CompletePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using FailPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.FailPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using ReorderPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.ReorderPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using PinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.PinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using UnpinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.UnpinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -411,6 +414,9 @@ builder.Services.AddScoped<CancelPrintJobHandlerType, CancelPrintJobCommandHandl
 builder.Services.AddScoped<RequeuePrintJobHandlerType, RequeuePrintJobCommandHandler>();
 builder.Services.AddScoped<CompletePrintJobHandlerType, CompletePrintJobCommandHandler>();
 builder.Services.AddScoped<FailPrintJobHandlerType, FailPrintJobCommandHandler>();
+builder.Services.AddScoped<ReorderPrintJobHandlerType, ReorderPrintJobCommandHandler>();
+builder.Services.AddScoped<PinPrintJobHandlerType, PinPrintJobCommandHandler>();
+builder.Services.AddScoped<UnpinPrintJobHandlerType, UnpinPrintJobCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProductionRunsQuery, ProductionRunsPage>, GetProductionRunsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>, GetProductionRunDetailQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetQueueJobsQuery, QueueJobsPage>, GetQueueJobsQueryHandler>();

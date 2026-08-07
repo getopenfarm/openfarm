@@ -622,11 +622,30 @@ export interface PausePrintJobRequest {
   [key: string]: unknown;
 }
 
+export interface PinPrintJobRequest {
+  /** @nullable */
+  printerId?: string | null;
+}
+
+export interface ReorderPrintJobResponse {
+  jobId?: string;
+  queuePosition?: number;
+}
+
+export interface ReorderPrintJobRequest {
+  /** @nullable */
+  afterJobId?: string | null;
+}
+
 export interface RequeuePrintJobRequest {
   [key: string]: unknown;
 }
 
 export interface ResumePrintJobRequest {
+  [key: string]: unknown;
+}
+
+export interface UnpinPrintJobRequest {
   [key: string]: unknown;
 }
 

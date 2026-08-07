@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueuePage } from './QueuePage';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -46,7 +46,43 @@ function renderPage() {
 }
 
 describe('QueuePage', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  // TanStack Virtual measures its scroll container's real layout (getBoundingClientRect,
+  // offsetWidth/Height, and a ResizeObserver) — none of which jsdom provides, so without stubbing
+  // all three the virtualizer computes a zero-size viewport and renders no rows at all.
+  beforeEach(() => {
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      bottom: 600,
+      right: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    });
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      value: 600,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+      configurable: true,
+      value: 800,
+    });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it('shows an empty state before any job exists', async () => {
     stubFetch({ '/api/v1/print-jobs': { items: [], totalCount: 0 } });

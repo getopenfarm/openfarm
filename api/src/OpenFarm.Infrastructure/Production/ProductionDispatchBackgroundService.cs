@@ -139,14 +139,39 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         var loadedMaterials = await queryService.ResolveLoadedMaterialsAsync(printer, cancellationToken);
         var candidates = await queryService.GetUnassignedCandidatesAsync(cancellationToken);
-        var jobId = ProductionDispatchMatcher.SelectNextJob(nozzleDiameterMm.Value, loadedMaterials, candidates);
+        var pinnedCandidates = await queryService.GetPinnedCandidatesAsync(printer.Id, cancellationToken);
+        var jobId = ProductionDispatchMatcher.SelectNextJob(nozzleDiameterMm.Value, loadedMaterials, candidates, pinnedCandidates);
         if (jobId is null)
         {
             return;
         }
 
+        // FR-007b/research.md R11 — only an Unassigned match can be contested by another idle
+        // printer (a Pinned match has exactly one eligible printer by construction). If a simpler
+        // idle printer also qualifies for this exact job, defer to it: skip dispatching here and
+        // proactively wake that printer's own attempt instead, rather than leaving nothing to ever
+        // trigger it.
+        var unassignedMatch = candidates.FirstOrDefault(c => c.JobId == jobId.Value);
+        if (unassignedMatch is not null)
+        {
+            var capabilityScore = printer.AmsUnits.Sum(u => u.Trays.Count);
+            var otherQualifying = await queryService.GetOtherIdleQualifyingPrintersAsync(
+                printer.Id, unassignedMatch.RequiredNozzleDiameterMm, unassignedMatch.FilamentRequirement, cancellationToken);
+
+            if (!ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(printer.Id, capabilityScore, otherQualifying))
+            {
+                foreach (var (otherPrinterId, _) in otherQualifying)
+                {
+                    RequestDispatchAttempt(otherPrinterId);
+                }
+
+                return;
+            }
+        }
+
         var job = await jobRepository.GetByIdAsync(jobId.Value, cancellationToken);
-        if (job is null || job.Status != PrintJobStatus.Queued || job.AssignmentMode != AssignmentMode.Unassigned || job.DispatchedPrinterId is not null)
+        if (job is null || job.Status != PrintJobStatus.Queued || job.DispatchedPrinterId is not null
+            || (job.AssignmentMode == AssignmentMode.Pinned && job.PinnedPrinterId != printer.Id))
         {
             // Lost a race against another dispatch decision (or a manual pin/cancel) between the
             // candidate query above and this re-check — simply skip; the printer's own next trigger
