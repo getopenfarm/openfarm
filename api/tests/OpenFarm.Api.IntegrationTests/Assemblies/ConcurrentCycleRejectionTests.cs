@@ -42,7 +42,7 @@ public class ConcurrentCycleRejectionTests(CustomWebApplicationFactory factory) 
         return part.Id;
     }
 
-    private async Task<Guid> CreateAssemblyAsync(HttpClient client, string name, Guid partId)
+    private static async Task<Guid> CreateAssemblyAsync(HttpClient client, string name, Guid partId)
     {
         var response = await client.PostAsJsonAsync(
             new Uri("/api/v1/assemblies", UriKind.Relative),

@@ -143,7 +143,7 @@ public class AssemblyExplosionEndpointTests(CustomWebApplicationFactory factory)
             var body = await response.Content.ReadFromJsonAsync<ExplodeAssemblyResponse>();
 
             first ??= body;
-            body!.PrintedParts.Single().Quantity.Should().Be(first.PrintedParts.Single().Quantity);
+            body!.PrintedParts.Single().Quantity.Should().Be(first!.PrintedParts.Single().Quantity);
         }
 
         var listAfter = await client.GetAsync(new Uri("/api/v1/assemblies?page=1&pageSize=1", UriKind.Relative));
