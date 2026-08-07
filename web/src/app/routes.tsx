@@ -9,7 +9,6 @@ import { ConnectionSecretsPage } from '../features/connection-secrets/Connection
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { FilamentFormPage } from '../features/filament/FilamentFormPage';
 import { FilamentPage } from '../features/filament/FilamentPage';
-import { JobsPage } from '../features/jobs/JobsPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
 import { NonPrintedComponentFormPage } from '../features/non-printed-components/NonPrintedComponentFormPage';
 import { NonPrintedComponentsPage } from '../features/non-printed-components/NonPrintedComponentsPage';
@@ -19,6 +18,10 @@ import { PartsPage } from '../features/parts/PartsPage';
 import { PrinterDetailPage } from '../features/printers/PrinterDetailPage';
 import { PrinterFormPage } from '../features/printers/PrinterFormPage';
 import { PrintersPage } from '../features/printers/PrintersPage';
+import { NewProductionRunPage } from '../features/production-runs/NewProductionRunPage';
+import { ProductionRunDetailPage } from '../features/production-runs/ProductionRunDetailPage';
+import { ProductionRunsPage } from '../features/production-runs/ProductionRunsPage';
+import { QueuePage } from '../features/production-runs/QueuePage';
 import { ProfilesImportPage } from '../features/profiles/ProfilesImportPage';
 import { ProfilesPage } from '../features/profiles/ProfilesPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
@@ -66,7 +69,24 @@ export const router = createBrowserRouter([
               },
             ],
           },
-          { path: '/jobs', element: <JobsPage />, handle: { title: 'Jobs' } },
+          { path: '/jobs', element: <QueuePage />, handle: { title: 'Jobs' } },
+          {
+            path: '/production-runs',
+            handle: { title: 'Production Runs' },
+            children: [
+              { index: true, element: <ProductionRunsPage /> },
+              {
+                path: 'new',
+                element: <NewProductionRunPage />,
+                handle: { title: 'New Production Run' },
+              },
+              {
+                path: ':id',
+                element: <ProductionRunDetailPage />,
+                handle: { title: 'Production Run' },
+              },
+            ],
+          },
           {
             path: '/filament',
             handle: { title: 'Filament' },
