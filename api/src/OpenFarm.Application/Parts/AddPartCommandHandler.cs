@@ -33,6 +33,14 @@ public sealed class AddPartCommandHandler(
             command.File.Position = 0;
         }
 
+        // research.md R6 — hashed here, in the Application-layer caller, before storage keys the
+        // path on it (content-addressed storage, FR-009d).
+        var contentHash = await PartFileHasher.ComputeHashAsync(command.File, cancellationToken);
+        if (command.File.CanSeek)
+        {
+            command.File.Position = 0;
+        }
+
         decimal? targetNozzleDiameterMm = null;
         SlicerRef? slicerUsed = null;
         string? targetMaterialType = null;
@@ -74,7 +82,7 @@ public sealed class AddPartCommandHandler(
         // The job's own id becomes the storage key — an Add's target Part doesn't exist yet
         // (IPartFileStorage's remarks). Create* factories don't take a pre-generated id, so the
         // storage path/size is set post-construction, once the id is actually known.
-        var storagePath = await storage.SaveAsync(Organization.WellKnownId, job.Id, command.FileName, command.File, cancellationToken);
+        var storagePath = await storage.SaveAsync(Organization.WellKnownId, contentHash, command.FileName, command.File, cancellationToken);
         var fileSizeBytes = command.File.CanSeek ? command.File.Length : 0;
         job.SetStoragePath(storagePath, fileSizeBytes);
 

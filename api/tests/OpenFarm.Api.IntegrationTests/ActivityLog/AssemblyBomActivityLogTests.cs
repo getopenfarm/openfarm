@@ -35,7 +35,7 @@ public class AssemblyBomActivityLogTests(CustomWebApplicationFactory factory) : 
 
         var part = Part.Create(
             Organization.WellKnownId, name, PartFileFormat.Stl, true, "part.stl", $"/tmp/{Guid.NewGuid():N}.stl", 1024, 0.4m,
-            null, null, EstimateStatus.Available, 60, 20, 1, [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
+            null, null, EstimateStatus.Available, 60, 20, 1, 1, $"{Guid.NewGuid():N}", [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
 
         await partRepository.AddAsync(part, CancellationToken.None);
         return part.Id;

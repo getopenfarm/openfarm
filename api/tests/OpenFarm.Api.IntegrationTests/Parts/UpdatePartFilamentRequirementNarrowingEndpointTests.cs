@@ -53,6 +53,8 @@ public class UpdatePartFilamentRequirementNarrowingEndpointTests(CustomWebApplic
             60,
             20,
             1,
+            1,
+            $"{Guid.NewGuid():N}",
             [new FilamentRequirementSpec("PLA", null, null, null, null)],
             [],
             []);

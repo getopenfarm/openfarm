@@ -1,0 +1,33 @@
+namespace OpenFarm.Domain.Production;
+
+/// <summary>
+/// The exploded leaf demand — one row per distinct (RunLine, Part) pair (spec Key Entities /
+/// FR-004), snapshotted once and never re-derived (research.md R8). Carries no reference back to
+/// the source Assembly/BomLine graph beyond <see cref="RunLineId"/> — this is what makes FR-003's
+/// snapshot guarantee true by construction.
+/// </summary>
+public sealed class PartRequirement
+{
+    private PartRequirement(Guid id, Guid organizationId, Guid runLineId, Guid partId, decimal? quantity)
+    {
+        Id = id;
+        OrganizationId = organizationId;
+        RunLineId = runLineId;
+        PartId = partId;
+        Quantity = quantity;
+    }
+
+    public Guid Id { get; }
+
+    public Guid OrganizationId { get; }
+
+    public Guid RunLineId { get; }
+
+    public Guid PartId { get; }
+
+    /// <summary>Null mirrors the owning RunLine's unlimited quantity; otherwise the summed exploded total (FR-004).</summary>
+    public decimal? Quantity { get; }
+
+    internal static PartRequirement Create(Guid organizationId, Guid runLineId, Guid partId, decimal? quantity) =>
+        new(Guid.NewGuid(), organizationId, runLineId, partId, quantity);
+}
