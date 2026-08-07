@@ -371,6 +371,20 @@ web/src/features/production-runs/
                                               # one-click Requeue action (research.md R13)
   components/BackfillLimitsPanel.tsx       # printer cap / cumulative ceiling editor
   *.test.tsx                                # test-after, Vitest + RTL
+
+web/src/features/jobs/                      # REMOVED — pre-existing mockup (mockJobsStore.ts-backed
+                                              # JobsPage.tsx) superseded by QueuePage.tsx above, routed at
+                                              # the same /jobs path/nav slot it already occupied (tasks.md T075/T075a)
+web/src/components/print-queue-dialog/       # REMOVED — unwired to any page and built around a mental model
+                                              # (pick one specific printer, a priority toggle) this feature's
+                                              # design doesn't have (no priority-based scheduling, FR-008a;
+                                              # Unassigned-by-default dispatch); not rewired, since the model
+                                              # itself, not just its mock data source, doesn't fit (tasks.md T075a)
+
+web/src/app/routes.tsx                       # amended: /jobs route's element becomes QueuePage; + new
+                                              # /production-runs, /production-runs/new, /production-runs/:id
+web/src/app/layout/nav-config.ts             # unchanged — the existing "Jobs" NavItem (/jobs) now points at
+                                              # the real feature, no new nav entry added for the queue itself
 ```
 
 **Structure Decision**: Existing four-project Clean Architecture backend + single-SPA frontend, extended in
@@ -378,7 +392,10 @@ place — no new top-level project, following the same "extend, don't parallel-b
 phase has used. `Production/` is a new feature folder at every backend layer (there is no existing
 "run/job-shaped" code to extend), while `Printers`/`Parts` receive targeted, additive amendments to
 existing files (`IPrinterConnector`, `IPartFileStorage`, `Part`) rather than new parallel files, since the
-changes there are extensions of already-established contracts, not new concepts.
+changes there are extensions of already-established contracts, not new concepts. The pre-existing
+`features/jobs/` mock and `print-queue-dialog/` are retired outright rather than adapted — both encode a UX
+model (single-printer selection, priority-based ordering) this feature's own design explicitly rejects, so
+adapting them would mean un-teaching the wrong model as much as building the right one.
 
 ## Complexity Tracking
 
