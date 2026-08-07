@@ -694,6 +694,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<bool>("RequiresSlicing")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("RevisionHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SlicerEngineOverride")
                         .HasColumnType("text");
 
@@ -707,6 +714,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("UnitsPerPrint")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");

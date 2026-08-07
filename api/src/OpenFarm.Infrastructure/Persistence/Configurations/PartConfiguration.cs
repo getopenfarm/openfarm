@@ -35,6 +35,10 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
 
         builder.Property(p => p.PlateCount).IsRequired();
 
+        builder.Property(p => p.UnitsPerPrint).IsRequired();
+        builder.Property(p => p.RevisionHash).IsRequired();
+        builder.Property(p => p.RevisionNumber).IsRequired();
+
         builder.Property(p => p.CreatedAtUtc).IsRequired();
         builder.Property(p => p.UpdatedAtUtc).IsRequired();
 

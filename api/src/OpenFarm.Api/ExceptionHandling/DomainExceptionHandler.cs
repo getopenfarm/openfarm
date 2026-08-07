@@ -7,6 +7,7 @@ using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Api.ExceptionHandling;
 
@@ -83,6 +84,23 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             NonPrintedComponentReferencedException => (StatusCodes.Status409Conflict, "Non-printed component is still referenced by an assembly"),
             InvalidExplosionQuantityException => (StatusCodes.Status400BadRequest, "Invalid explosion quantity"),
             InvalidBomLineQuantityException => (StatusCodes.Status400BadRequest, "Invalid BOM line quantity"),
+            ProductionRunNotFoundException => (StatusCodes.Status404NotFound, "Production run not found"),
+            RunLineNotFoundException => (StatusCodes.Status404NotFound, "Run line not found"),
+            PrintJobNotFoundException => (StatusCodes.Status404NotFound, "Print job not found"),
+            RunLineTargetNotFoundException => (StatusCodes.Status404NotFound, "Run line target not found"),
+            RunLineMustTargetExactlyOnePartOrAssemblyException => (StatusCodes.Status400BadRequest, "A run line must target exactly one Part or Assembly"),
+            ProductionRunMustHaveAtLeastOneLineException => (StatusCodes.Status422UnprocessableEntity, "A production run must have at least one line"),
+            InvalidPrintJobStatusTransitionException => (StatusCodes.Status422UnprocessableEntity, "Invalid print job status transition"),
+            // Reported as 409 (not data-model.md's 422) so it matches contracts/production-run-queue-api.md's
+            // close/cancel responses — the only two HTTP-reachable paths that ever surface this exception.
+            InvalidRunCompletionException => (StatusCodes.Status409Conflict, "Invalid production run status transition"),
+            PinnedJobRequiresPrinterException => (StatusCodes.Status400BadRequest, "A pinned job requires a printer id"),
+            PrintJobAlreadyDispatchedException => (StatusCodes.Status409Conflict, "Print job is no longer queued"),
+            ProductionRunConcurrencyConflictException => (StatusCodes.Status409Conflict, "Production run or print job was concurrently modified"),
+            FilamentConsumptionSumMismatchException => (StatusCodes.Status400BadRequest, "Filament consumption does not match a requirement on this job"),
+            JobNotEligibleForRemoteControlException => (StatusCodes.Status409Conflict, "Print job is not eligible for this remote-control action"),
+            PrintJobAlreadyRequeuedException => (StatusCodes.Status409Conflict, "Print job has already been requeued"),
+            PrintJobNotEligibleForRequeueException => (StatusCodes.Status409Conflict, "Print job is not eligible for requeue"),
             _ => (0, null),
         };
 
