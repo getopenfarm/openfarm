@@ -269,6 +269,44 @@ depending on a linked `MachineProfile` being present or parseable — using it k
 silently no-op'ing (falling through to the arbitrary `Printer.Id` case) for the common farm that hasn't
 imported machine profiles for every printer yet.
 
+## R12 — `PrintJob.Paused` is a display-only, telemetry-driven state — no pause/resume command exists
+
+**Finding**: `Printer`'s own status machine has no `Paused` member at all — confirmed directly in
+`PrinterStatusTransitions.ObserveStatus`, which maps a Bambu `PAUSE` gcode state to `PrinterStatus.Printing`,
+the same coarse status as ordinary running. `Printer` was deliberately kept to three states (`Idle` /
+`Printing` / `AwaitingClear`) in Phase 1 — `Paused` was never modeled at the printer level, and this
+feature does not change that.
+
+**Decision**: `PrintJob.Status` keeps `Paused` (the spec's own job workflow names it), but it is **never
+reachable through the API** — there is no pause/resume endpoint, and no `Application` command calls
+`PrintJob.MarkPaused()`/`MarkResumed()`. The only caller is a new `IJobPauseTelemetrySync`
+(`Application.Production`, implemented in `Infrastructure.Production`), invoked directly from
+`PrinterConnectionBackgroundService.HandleEventAsync` alongside its existing `IFeedSlotTelemetrySync` call:
+after applying `printer.ObserveStatus(gcodeState)` (which, per the finding above, does not distinguish
+pause), the raw `gcodeState` is checked a second time — if it equals the pause sentinel and a `PrintJob` is
+currently `DispatchedPrinterId == this printer` with `Status == Printing`, call `MarkPaused()`; if it
+returns to a running state and the job is `Paused`, call `MarkResumed()`. Both changes publish through the
+existing `IProductionEventPublisher` → `FarmHub` path (constitution Principle III), the same as every other
+job status change. A manual-brand (non-live) job has no telemetry to observe at all, so it simply never
+enters `Paused` — it stays `Printing` until a terminal transition, which is an accurate reflection of what
+OpenFarm can actually know about it, not a gap.
+
+**Rationale**: this follows the same design rule FR-017 already states explicitly for stopping a print
+("OpenFarm never sends a stop command on the operator's behalf... the operator standing at the machine is
+better placed to judge") — pause and resume are physical/app-level actions on the printer itself, not
+something this feature should expose as a remote command. Keeping `Paused` as a *state* (so the queue can
+display it) while removing any *command* that reaches it keeps the useful half (an operator glancing at
+the queue can see a job is paused) without adding API surface that contradicts the rest of this feature's
+"observe, never command" posture for anything except the one command genuinely new to this phase
+(`StartJobAsync`, R5 — starting a print is the one physical action OpenFarm does initiate, precisely
+because nothing else can: a queued job cannot start itself the way a human can pause one).
+
+**Cross-reference to the `IFeedSlotTelemetrySync` precedent**: `PrinterConnectionBackgroundService` already
+fans a single telemetry event out to more than one feature-specific sync interface (today: the printer's
+own entity update, then `IFeedSlotTelemetrySync` for FilamentTracking). `IJobPauseTelemetrySync` is a third
+fan-out target of the same event, not a new mechanism — `HandleEventAsync` gains one more injected
+dependency and one more call in its existing sequence, nothing structurally new.
+
 ## Summary of what's genuinely new (no prior art in this codebase)
 
 1. **`ProductionDispatchBackgroundService`** (R4) — the third `BackgroundService` in this codebase,
@@ -282,3 +320,6 @@ imported machine profiles for every printer yet.
 4. **Fractional `QueuePosition` reordering** (R3) — this codebase's first fractional-index column; every
    prior ordered list (Assembly lines, Part tags) has used natural/insertion order with no reorder
    operation at all.
+5. **`IJobPauseTelemetrySync`** (R12) — a third fan-out target for `PrinterConnectionBackgroundService`'s
+   already-existing telemetry-event loop, alongside the existing `IFeedSlotTelemetrySync` — not a new
+   mechanism, but the first time a *second* feature's background service reaches into `Production` this way.

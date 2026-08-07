@@ -151,10 +151,12 @@ file and started the print physically. **Response 200**, `status: "Printing"`, `
 **Response 409** — job's printer has live integration (this action doesn't apply — auto-detected instead)
 or job is not in a dispatched-but-not-started state.
 
-### `POST /api/v1/print-jobs/{id}/pause` / `POST /api/v1/print-jobs/{id}/resume`
-`[Permission("print-jobs:update-status")]` — manual-brand path only; a live-integrated printer's
-pause/resume is auto-detected from telemetry, same as start. **Response 409** if attempted on a
-live-integrated job (redundant with auto-detection) or from an illegal status.
+**There is no pause/resume endpoint.** `Paused` is a display-only reflection of live telemetry for a
+connected printer (`research.md` R12) — never an operator-issued command through this API, consistent with
+this feature never remote-controlling a printer (FR-017's "OpenFarm never sends a stop command on the
+operator's behalf" extends to pause/resume for the same reason: the operator standing at the machine, or
+its own app, is what actually pauses/resumes a physical print). A manual-brand (non-live) job simply never
+enters `Paused` — there's no telemetry to observe it from, and no endpoint substitutes for one.
 
 ### `POST /api/v1/print-jobs/{id}/complete`
 `[Permission("print-jobs:update-status")]` — FR-013, manual-brand path (a live-integrated job's completion

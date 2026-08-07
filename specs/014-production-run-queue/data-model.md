@@ -148,8 +148,9 @@ public sealed class PrintJob
     public void Unpin();                                            // -> AssignmentMode.Unassigned
     public void Reorder(double newQueuePosition);                   // FR-008
     public void Dispatch(Guid printerId, string fileRevisionHash, int fileRevisionNumber);  // FR-009 — Follow-latest re-reads the revision here
-    public void MarkStarted();                                      // FR-012 manual-brand path, or live auto-detect
-    public void MarkPaused();
+    public void MarkStarted();                                      // FR-012 manual-brand path, or live auto-detect (Queued -> Printing)
+    public void MarkPaused();                                       // telemetry-only (research.md R12) — no command/endpoint calls this
+    public void MarkResumed();                                      // telemetry-only (research.md R12) — Paused -> Printing
     public void MarkFailed(string? reason);
     public void MarkCompleted();
     public void MarkCancelled();                                    // FR-017
@@ -162,6 +163,14 @@ public sealed class PrintJob
   a deterministic state machine, TDD'd per constitution Principle II. Legal edges: `Queued → Printing`,
   `Printing → Paused`, `Paused → Printing`, `Printing/Paused → Failed`, `Printing/Paused → Completed`,
   `Queued/Printing/Paused → Cancelled`. Any other transition throws `InvalidPrintJobStatusTransitionException`.
+- **`MarkPaused`/`MarkResumed` are display-only and telemetry-driven, never operator-triggered**
+  (`research.md` R12) — no `Application` command and no endpoint calls either method. The only caller is
+  the new `IJobPauseTelemetrySync` implementation (`Infrastructure.Production`), invoked directly from
+  `PrinterConnectionBackgroundService.HandleEventAsync`, mirroring exactly how that same method already
+  calls `IFeedSlotTelemetrySync` today. This is the same "Infrastructure calls a Domain entity method
+  directly off live telemetry, no Application command in between" shape `Printer.ObserveStatus` itself
+  already uses — `PrintJob` isn't doing anything novel here, just following the established precedent for
+  a second entity.
 - **Reaching `Completed`/`Failed`/`Cancelled` triggers the owning printer's `TransitionTo(AwaitingClear)`**
   (FR-014a) — this is an *Application*-layer side effect (the command handler that calls
   `job.MarkCompleted()` also calls `printer.TransitionTo(PrinterStatus.AwaitingClear)` in the same

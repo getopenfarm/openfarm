@@ -113,10 +113,16 @@ yet, consistent with constitution Principle IV).
   `ProductionDispatchMatcher`, and every domain exception live in `Domain/Production/` —
   framework-agnostic, no FastEndpoints/EF references, no dependency on `Infrastructure`.
   `Application/Production/` defines repository/dispatcher contracts (`IProductionRunRepository`,
-  `IPrintJobRepository`, `IProductionDispatcher`) and every command/query handler;
-  `Infrastructure/Production/` implements all three, including `ProductionDispatchBackgroundService` and
+  `IPrintJobRepository`, `IProductionDispatcher`, `IJobPauseTelemetrySync`) and every command/query handler;
+  `Infrastructure/Production/` implements all four, including `ProductionDispatchBackgroundService` and
   the raw dispatch-matching query, following the exact `Infrastructure`-implements-`Application`-contracts
-  shape `013-assembly-bom` and `007-part-library` both already establish. `IPrinterConnector.StartJobAsync`
+  shape `013-assembly-bom` and `007-part-library` both already establish. `IJobPauseTelemetrySync` is
+  injected into the *existing* `Infrastructure/Printers/PrinterConnectionBackgroundService`
+  (`research.md` R12) — `Printers` infrastructure depending on a `Production` application contract is a
+  new cross-feature edge, but it's still `Infrastructure → Application`, the same direction every existing
+  dependency in this codebase already runs, just reaching a second feature's contract instead of one. No
+  new pause/resume command or endpoint exists (spec discussion — a job's `Paused` state is
+  telemetry-observed only, never operator-triggered). `IPrinterConnector.StartJobAsync`
   is defined in `Application/Printers/` (extending the existing interface, not a new one) and implemented
   in `Infrastructure/Printers/Bambu` and `Infrastructure/Printers/Simulator` — the FTPS dependency
   (`FluentFTP`) never crosses into `Application`/`Domain`. `Api` endpoints stay thin FastEndpoints REPR
@@ -143,7 +149,10 @@ yet, consistent with constitution Principle IV).
   multi-field, multi-line flow the convention reserves for a routed page, not a modal. Domain state-machine
   semantics (`PrintJobStatus`, `Printer.AwaitingClear`) are presented identically everywhere they surface —
   the queue list, the run detail view, and the printer detail page all read the same underlying status,
-  never a page-local derived label. Every domain exception gets one `DomainExceptionHandler` mapping.
+  never a page-local derived label. `Paused` is display-only and telemetry-driven (`research.md` R12) — it
+  pushes through the same `IProductionEventPublisher` → `FarmHub` path as every other job status change, so
+  it never risks becoming a stale, manually-refreshed field even though nothing in the UI can trigger it.
+  Every domain exception gets one `DomainExceptionHandler` mapping.
 - **IV. Build for Expansion, Not Speculation** — PASS. `IPrinterConnector` is extended (`StartJobAsync`)
   rather than duplicated into a parallel dispatch-specific interface, so a future brand (Phase 15) or the
   local-agent relay (Phase 23) implements one enlarged contract. `ProductionDispatchBackgroundService`
@@ -233,6 +242,7 @@ api/src/OpenFarm.Application/Production/
   IProductionRunRepository.cs / IPartRequirementRepository.cs / IPrintJobRepository.cs
   IProductionDispatcher.cs               # RequestDispatchAttempt(printerId) — research.md R4
   IProductionEventPublisher.cs           # mirrors IPrinterEventPublisher's shape
+  IJobPauseTelemetrySync.cs               # ObserveAsync(printerId, gcodeState) — research.md R12; no command wraps this
   CreateProductionRunCommand.cs / Handler / Validator    # calls IAssemblyGraphQueryService.ExplodeAsync (research.md R1)
   CloseProductionRunCommand.cs / Handler
   CancelProductionRunCommand.cs / Handler
@@ -240,7 +250,7 @@ api/src/OpenFarm.Application/Production/
   SetRunLineBackfillLimitsCommand.cs / Handler
   ReorderPrintJobCommand.cs / Handler / Validator         # fractional QueuePosition math (research.md R3)
   PinPrintJobCommand.cs / UnpinPrintJobCommand.cs / Handler
-  MarkPrintJobStartedCommand.cs / PausePrintJobCommand.cs / ResumePrintJobCommand.cs
+  MarkPrintJobStartedCommand.cs / Handler                 # FR-012 manual-brand path only — no pause/resume command exists (research.md R12)
   CompletePrintJobCommand.cs / FailPrintJobCommand.cs / Handler   # filament consumption body (research.md R7)
   CancelPrintJobCommand.cs / Handler
   GetProductionRunsQuery.cs / GetProductionRunDetailQuery.cs / Handler
@@ -258,15 +268,19 @@ api/src/OpenFarm.Infrastructure/Production/
                                             # on startup (Durable Recovery guardrail), calls
                                             # ProductionDispatchMatcher + IPrinterConnector.StartJobAsync
   ProductionDispatchQueryService.cs        # builds DispatchCandidate lists per printer (research.md R4)
+  JobPauseTelemetrySync.cs                 # implements IJobPauseTelemetrySync — calls PrintJob.MarkPaused/MarkResumed
+                                             # directly off raw gcode state (research.md R12), injected into the
+                                             # existing PrinterConnectionBackgroundService (see below)
   Persistence/Configurations/ProductionRunConfiguration.cs / RunLineConfiguration.cs /
     PartRequirementConfiguration.cs / PrintJobConfiguration.cs / JobFilamentConsumptionConfiguration.cs
   Persistence/Migrations/<timestamp>_AddPartRevisionAndUnitsPerPrint.cs
   Persistence/Migrations/<timestamp>_AddProductionRunsAndJobs.cs
 
-api/src/OpenFarm.Infrastructure/Printers/Bambu/
-  BambuLanConnector.cs                   # amended: StartJobAsync — FluentFTP upload (port 990) + MQTT start
-api/src/OpenFarm.Infrastructure/Printers/Simulator/
-  SimulatorPrinterConnector.cs           # amended: StartJobAsync — begins fake Printing->Finish telemetry
+api/src/OpenFarm.Infrastructure/Printers/
+  PrinterConnectionBackgroundService.cs  # amended: injects IJobPauseTelemetrySync, calls it alongside the
+                                           # existing IFeedSlotTelemetrySync call in HandleEventAsync (research.md R12)
+  Bambu/BambuLanConnector.cs             # amended: StartJobAsync — FluentFTP upload (port 990) + MQTT start
+  Simulator/SimulatorPrinterConnector.cs # amended: StartJobAsync — begins fake Printing->Finish telemetry
 
 api/src/OpenFarm.Infrastructure/Parts/
   LocalDiskPartFileStorage.cs            # amended: content-addressed path, no eager delete on replace
@@ -280,8 +294,8 @@ api/src/OpenFarm.Api/
   Endpoints/PrintJobs/
     ListQueueJobsEndpoint.cs / GetPrintJobEndpoint.cs / ReorderPrintJobEndpoint.cs
     PinPrintJobEndpoint.cs / UnpinPrintJobEndpoint.cs / MarkPrintJobStartedEndpoint.cs
-    PausePrintJobEndpoint.cs / ResumePrintJobEndpoint.cs
     CompletePrintJobEndpoint.cs / FailPrintJobEndpoint.cs / CancelPrintJobEndpoint.cs
+    # no Pause/Resume endpoint — Paused is telemetry-only, never operator-triggered (research.md R12)
   Hubs/FarmHubProductionEventPublisher.cs   # implements IProductionEventPublisher
   ExceptionHandling/DomainExceptionHandler.cs   # + this feature's exception -> status mappings
 
@@ -293,6 +307,8 @@ api/tests/
     RunCreationExplosionSnapshotTests.cs      # TDD against real Testcontainers Postgres (reuses 013's fixtures)
     DispatchReconciliationTests.cs             # TDD — Durable Recovery guardrail, orphaned-job recovery on boot
     QueueOrderingAndPinningTests.cs / BackfillTierTests.cs / RevisionModeTests.cs / AwaitingClearGatingTests.cs   # test-after
+    JobPauseTelemetrySyncTests.cs               # test-after — fixture-replay PAUSE/RUNNING gcode events, mirrors
+                                                  # FeedSlotTelemetrySyncHandler's own existing test shape
 
 web/src/features/production-runs/
   ProductionRunsPage.tsx                 # list (DataTable + pagination)
