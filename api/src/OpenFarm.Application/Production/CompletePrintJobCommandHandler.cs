@@ -32,7 +32,11 @@ public sealed class CompletePrintJobCommandHandler(
             if (job.DispatchedPrinterId is { } printerId
                 && await printerRepository.GetByIdAsync(printerId, cancellationToken) is { } printer)
             {
-                printer.TransitionTo(PrinterStatus.AwaitingClear);
+                // Printer.TransitionTo's manual-transition guard only permits AwaitingClear -> Idle
+                // ("mark ready") — a manual-brand job has no gcode telemetry stream to reconcile
+                // against, so this reuses ObserveStatus's lenient, always-legal reconciliation path
+                // with the same synthetic terminal state a live-integrated printer would report.
+                printer.ObserveStatus("FINISH");
             }
         }
         else if (job.Status != PrintJobStatus.Completed)

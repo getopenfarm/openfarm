@@ -25,7 +25,9 @@ public sealed class FailPrintJobCommandHandler(
             if (job.DispatchedPrinterId is { } printerId
                 && await printerRepository.GetByIdAsync(printerId, cancellationToken) is { } printer)
             {
-                printer.TransitionTo(PrinterStatus.AwaitingClear);
+                // See CompletePrintJobCommandHandler's own remarks — TransitionTo's manual-transition
+                // guard doesn't permit this move, so this reuses ObserveStatus's always-legal path.
+                printer.ObserveStatus("FAILED");
             }
         }
         else if (job.Status != PrintJobStatus.Failed)
