@@ -25,6 +25,10 @@
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.9" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="10.0.9" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
+    <!-- Pins the transitive dependency Microsoft.EntityFrameworkCore.Design 10.0.9 pulls in past its
+         own known high-severity vulnerabilities (GHSA-23rf-6693-g89p and siblings) — same "explicit
+         override" fix pattern already used for web/'s bun audit CVEs. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
   </ItemGroup>
 
   <PropertyGroup>
