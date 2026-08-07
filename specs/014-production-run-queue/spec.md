@@ -8,6 +8,22 @@
 
 **Input**: User description: "Phase 7"
 
+## Clarifications
+
+### Session 2026-08-07
+
+- Q: Should OpenFarm be allowed to send stop/pause/resume commands to a printer for a job that's already
+  printing, or does the original "OpenFarm never sends a stop command on the operator's behalf" rule
+  (`docs/FEATURE_PLAN.md`) stand as written? → A: Reversed for the single-job case — an operator can
+  explicitly pause, resume, or cancel (stop) one specific printing job through OpenFarm for a
+  live-integrated printer. A bulk run-level cancel/delete still never force-stops a physical print as an
+  automatic side effect (that scope of the original rule is unchanged) — only the deliberate, single-job
+  action reaches the printer. The job's own recorded status changes only once telemetry confirms the
+  printer actually reached that state, never optimistically on send. A stop initiated directly at the
+  printer (not through OpenFarm) MUST also be reflected as the job reaching `Cancelled` once observed, not
+  left showing stale `Printing` state or misread as an unrelated `Failed` outcome — OpenFarm's own record
+  and the printer's physical reality must converge either way the stop was triggered.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Queue a part or assembly and watch it get produced end-to-end (Priority: P1)
@@ -182,9 +198,22 @@ afterward uses the new revision.
   PartRequirement and its own job set; parts are never pooled across runs or lines (see Assumptions /
   Out of scope) — this is the accepted cost of per-line requirement grain.
 - **What happens when the operator cancels or deletes a run that has jobs already printing?** Queued,
-  undispatched jobs are cancelled outright. Anything physically printing keeps printing — OpenFarm never
-  sends a remote stop command — and still records its eventual outcome and filament usage once it
-  finishes, so yield and cost history stay complete.
+  undispatched jobs are cancelled outright. A job already physically printing is left running — cancelling
+  a *run* never force-stops multiple physical prints across the fleet as an automatic side effect — and
+  still records its eventual outcome and filament usage once it finishes, so yield and cost history stay
+  complete. Stopping that specific printing job remains possible, just not as a side effect of the bulk
+  run-level action — see the next edge case.
+- **What happens when the operator pauses, resumes, or cancels (stops) one specific job that's already
+  printing?** For a printer with live integration, this sends a real command to the printer (FR-024); for
+  any other printer, it's a manual, self-reported status change with no command behind it (FR-024a),
+  mirroring how starting a job already works for non-live brands. Either way, the job's own recorded
+  status never changes optimistically the instant the operator clicks the button — for a live-integrated
+  printer it changes only once telemetry confirms the printer actually reached that state, so a dropped or
+  unacknowledged command can't leave OpenFarm believing something happened that didn't.
+- **What happens when a job that was remotely cancelled subsequently reports a terminal telemetry state —
+  is it "Cancelled" or "Failed"?** "Cancelled" — the job remembers that a cancel was requested (FR-024b),
+  so the terminal state telemetry eventually reports is attributed to the operator's own action rather than
+  read as an unrelated print failure.
 - **What happens when a queued job's part doesn't match any registered printer's nozzle diameter or
   loaded material at all?** The run and job are still created — creating a run requires only that the
   referenced parts already exist, since Phase 4 guarantees every catalog part is fully valid by
@@ -293,7 +322,8 @@ afterward uses the new revision.
 - **FR-012**: For a printer with live integration (Phase 1), System MUST push the resolved sliced file
   directly and MUST be able to auto-detect job start and finish using the same status-observation
   machinery Phase 1 built; for a printer without live integration, System MUST let the operator manually
-  mark a job as started/in-progress after retrieving the file themselves.
+  mark a job as started/in-progress after retrieving the file themselves. Pausing, resuming, and cancelling
+  (stopping) a job that is already printing follow the same live-vs-manual split — see FR-024.
 - **FR-013**: System MUST record a job's filament consumption as a breakdown per spool/filament-profile —
   never a single total — reflecting that one job may draw from more than one spool (e.g. a multi-color
   AMS job).
@@ -321,10 +351,12 @@ afterward uses the new revision.
     revisable by later phases (Phase 8's outcome edits can reopen it). Reaching the separate closed state
     is what stops further reopening, and MUST be a distinct, explicit action available to the operator
     (see Assumptions for this phase's default trigger).
-- **FR-017**: Cancelling or deleting a run MUST cancel every queued, undispatched job belonging to it,
-  and MUST NOT send any command to a printer already printing one of its jobs; a job that was already
-  printing when its run was cancelled MUST still be allowed to record its eventual outcome and filament
-  usage.
+- **FR-017**: Cancelling or deleting a run MUST cancel every queued, undispatched job belonging to it, and
+  MUST NOT, as an automatic side effect of that one bulk action, send any command to a printer already
+  printing one of its jobs; a job that was already printing when its run was cancelled MUST still be
+  allowed to record its eventual outcome and filament usage. (Stopping that specific job remains possible
+  as its own separate, deliberate action — FR-024 — just never triggered automatically by cancelling the
+  run it belongs to.)
 - **FR-018**: Creating a ProductionRun MUST require nothing beyond the referenced Parts/Assemblies
   already existing in the catalog — System MUST NOT gate run or job creation on any printer, live
   connection, or spool being registered.
@@ -343,6 +375,26 @@ afterward uses the new revision.
 - **FR-023**: System MUST NOT compute or expose per-unit outcome lines (good/defect/failed), yield, or
   blended progress percentages in this phase — those belong to Phase 8 (Progress, outcomes & yield
   tracking); this phase's job status is limited to the coarse workflow in FR-014.
+- **FR-024**: For a job that is `Printing` on a printer with live integration (Phase 1), System MUST allow
+  an operator to request that the printer pause, resume, or cancel (stop) it, by sending the corresponding
+  command to the printer (Clarifications, 2026-08-07).
+  - **FR-024a**: System MUST NOT change the job's own recorded status the instant such a command is sent —
+    the status change to `Paused`, back to `Printing`, or to `Cancelled` MUST happen only once the
+    printer's own reported telemetry confirms it actually reached that state, so a dropped or
+    unacknowledged command can never leave OpenFarm's record diverging from the physical printer.
+  - **FR-024b**: For a printer without live integration, pausing, resuming, or cancelling an already-
+    `Printing` job MUST be a manual, operator self-reported status change with no command sent anywhere —
+    mirroring FR-012's existing manual-start precedent, since there is no connection to send a command
+    over in the first place.
+  - **FR-024c**: A `Printing` job that reaches a terminal telemetry state after the printer stopped it —
+    whether that stop was requested through OpenFarm or performed directly at the printer — MUST close as
+    `Cancelled`, not `Failed`. A `Failed` outcome is reserved for a terminal state telemetry reports with
+    no associated stop request of any kind (an unplanned failure — clog, spaghetti, thermal abort, and
+    similar).
+  - **FR-024d**: Cancelling or deleting a *ProductionRun* (FR-017) MUST NOT, by itself, trigger FR-024's
+    stop command against any of the run's currently-printing jobs — stopping a specific printing job stays
+    a separate, single-job action an operator takes deliberately, never an automatic bulk side effect of
+    the run-level action.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -399,6 +451,16 @@ afterward uses the new revision.
 
 ## Assumptions
 
+- **FR-024's "genuine failure vs. deliberate stop" distinction (FR-024c) depends on the printer's own
+  telemetry actually carrying a signal that tells the two apart** — this spec asserts the required
+  *behavior* (a stop, however triggered, closes as `Cancelled`; an unplanned fault closes as `Failed`), but
+  the exact telemetry field(s) that distinguish them for Bambu printers (a specific gcode state, or the
+  fault/print-error code Phase 1 deliberately left unsurfaced — see `docs/FEATURE_PLAN.md`'s Open
+  Decisions on HMS fault surfacing) is an implementation-level detail to confirm against the vendored
+  protocol reference and real hardware, not resolved here. If telemetry genuinely cannot distinguish the
+  two for some scenario, the safer default is to resolve as `Cancelled` whenever OpenFarm itself requested
+  the stop (it knows its own intent), and `Failed` otherwise (never silently reclassify an unexplained
+  failure as a deliberate stop nobody asked for).
 - **Closing a run to its terminal "closed" state is an explicit, operator-triggered action in this
   phase, not an automatic idle-period timeout.** The source material leaves this as an open question
   (manual, automatic after a configurable window, or both), but the reopening behavior "closed" is meant
