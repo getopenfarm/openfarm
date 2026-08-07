@@ -6,12 +6,20 @@ policy precedent, all errors as RFC 7807 `ProblemDetails`. See `data-model.md` f
 
 **There is no "dispatch" or "assign printer" endpoint.** Matching an `Unassigned` job to an idle printer,
 and lazily creating a backfill job, are exclusively performed by `ProductionDispatchBackgroundService`
-(`research.md` R4) in response to a printer reaching Idle — never a direct API call. The only
-operator-facing controls over assignment are **Pin**/**Unpin** (constrain or release which printer a job
-may go to) and **queue reordering** (control which eligible job the dispatcher considers first). This
-mirrors the existing precedent that nothing in this codebase lets an operator manually push a printer
-command — `Printer`'s own endpoints (Phase 1/5) never included a "start print" action either, precisely
-because that capability didn't exist until this feature.
+(`research.md` R4) in response to a printer reaching Idle — never a direct API call. The
+operator-facing controls over *assignment* are **Pin**/**Unpin** (constrain or release which printer a job
+may go to) and **queue reordering** (control which eligible job the dispatcher considers first).
+
+**Pause/Resume/Cancel (for an already-printing job) are real commands, but never optimistic.** Once a job
+is dispatched, the operator can pause, resume, or cancel it (FR-024, reversing the original "never
+remote-control a printer" rule for this one, single-job, deliberate case — see spec Clarifications,
+2026-08-07). Every one of these endpoints follows the same shape for a live-integrated printer: it sends a
+command and returns **without** asserting the new status — the response's `status` field reflects reality
+*before* the command, and the actual transition arrives later via `FarmHub`, once the printer's own
+telemetry confirms it happened (`research.md` R12). A manual-brand job has no command to send, so its
+endpoints apply the change immediately, trusting the operator's own report — the same split `mark-started`
+already established. **Requeue** is the one remedy for a shortfall left behind by a cancelled/failed job
+(FR-025) — not a printer command at all, just an ordinary new job creation.
 
 ## Production Runs
 
@@ -151,12 +159,31 @@ file and started the print physically. **Response 200**, `status: "Printing"`, `
 **Response 409** — job's printer has live integration (this action doesn't apply — auto-detected instead)
 or job is not in a dispatched-but-not-started state.
 
-**There is no pause/resume endpoint.** `Paused` is a display-only reflection of live telemetry for a
-connected printer (`research.md` R12) — never an operator-issued command through this API, consistent with
-this feature never remote-controlling a printer (FR-017's "OpenFarm never sends a stop command on the
-operator's behalf" extends to pause/resume for the same reason: the operator standing at the machine, or
-its own app, is what actually pauses/resumes a physical print). A manual-brand (non-live) job simply never
-enters `Paused` — there's no telemetry to observe it from, and no endpoint substitutes for one.
+### `POST /api/v1/print-jobs/{id}/pause`
+`[Permission("print-jobs:remote-control")]` — FR-024, only valid on a `Printing` job. For a
+live-integrated printer, this sends `IPrinterConnector.PauseJobAsync` and returns immediately — it does
+**not** wait for or assume the pause happened; the job's `status` in the response body is still
+`"Printing"`, and only flips to `"Paused"` once telemetry confirms it (`research.md` R12), which the
+client observes through the normal `FarmHub` push, not this response. For a manual-brand job, there is no
+command to send — the response directly reflects `status: "Paused"`, trusting the operator's own report
+(FR-024b). **Response 202** (live-integrated — request accepted, not yet confirmed) or **200**
+(manual-brand — applied immediately). **Response 409** — job is not `Printing`, or the connector call
+itself failed to reach the printer (a real error, distinct from "sent but not yet confirmed").
+
+### `POST /api/v1/print-jobs/{id}/resume`
+`[Permission("print-jobs:remote-control")]` — the mirror of pause, only valid on a `Paused` job. Same
+`202`/`200`/`409` shape.
+
+### `POST /api/v1/print-jobs/{id}/requeue`
+`[Permission("print-jobs:requeue")]` — FR-025a, only valid on a job that is `Cancelled` or `Failed`,
+belongs to a *finite* requirement, and has not already been requeued. Creates one new whole-plate job for
+the same requirement (ordinary job-creation rules — FR-005/FR-009 — apply exactly as they would for any
+other job on that line) and links it back to the original.
+
+**Response 201**: the newly created job (same shape as `GET /api/v1/print-jobs/{id}`).
+**Response 409** — job is not `Cancelled`/`Failed`, already has a `requeuedAsJobId` set
+(`PrintJobAlreadyRequeuedException`), or belongs to an unlimited/backfill requirement, which never needs
+requeueing (FR-025d, `PrintJobNotEligibleForRequeueException`).
 
 ### `POST /api/v1/print-jobs/{id}/complete`
 `[Permission("print-jobs:update-status")]` — FR-013, manual-brand path (a live-integrated job's completion
@@ -176,6 +203,15 @@ detectedColorHex)` pair doesn't match one already on the job (FR-013b's defaulte
 before failure is still recorded). **Response 200**: `status: "Failed"`, printer moved to `AwaitingClear`.
 
 ### `POST /api/v1/print-jobs/{id}/cancel`
-`[Permission("print-jobs:cancel")]` — FR-017, an individual undispatched job (distinct from cancelling a
-whole run). **Response 200**: `status: "Cancelled"`. **Response 409** — job already printing (cancel the
-run instead, or let it finish — OpenFarm never remote-stops a physical print).
+`[Permission("print-jobs:cancel")]` — cancels an individual job, `Queued` or `Printing` (FR-024, distinct
+from cancelling a whole *run* — FR-017/FR-024d, which never reaches this endpoint automatically for a
+printing job).
+- If the job is `Queued` (not yet dispatched): applied immediately. **Response 200**, `status: "Cancelled"`.
+- If the job is `Printing` on a live-integrated printer: sends `IPrinterConnector.StopJobAsync`, records
+  `cancelRequestedAtUtc`, and returns without changing `status` yet — the same request/confirm split as
+  pause/resume above. **Response 202**, `status` still `"Printing"`; the client observes the eventual
+  `"Cancelled"` transition via `FarmHub` once telemetry confirms it (`research.md` R12).
+- If the job is `Printing` on a manual-brand printer: applied immediately, trusting the operator's report.
+  **Response 200**, `status: "Cancelled"`.
+
+**Response 409** — job is already in a terminal state (`Completed`/`Failed`/`Cancelled`).

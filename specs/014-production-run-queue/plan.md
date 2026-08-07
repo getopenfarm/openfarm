@@ -21,15 +21,24 @@ two existing background services this codebase already has (`PrinterConnectionBa
 orphaned in-flight work per the constitution's Durable Recovery guardrail) — matches `Unassigned` jobs to
 idle printers on nozzle diameter and currently loaded material/color (printer tags don't exist yet in this
 codebase, so that criterion is deferred, `research.md` R10), prefers `Pinned` jobs for their fixed target
-printer only, and falls back to backfill only once no finite job can be assigned. Two genuinely new
-integration points make this possible: `IPrinterConnector` gains its first outbound command
-(`StartJobAsync` — an FTPS file push + MQTT print-start for Bambu, a no-op for manual-brand printers whose
-operator marks a job started themselves, `research.md` R5), and `Part`'s file storage becomes
-content-addressed by a new `RevisionHash`/`RevisionNumber` pair so a `Snapshot`-mode job's pinned revision
-survives a later file replace that a `FollowLatest` line elsewhere in the farm might trigger (`research.md`
-R6 — a real behavior change to Phase 4's previously-always-destructive `ReplaceFile`, not purely additive).
-Full design reasoning for all of the above lives in `research.md`; entity/table shapes in `data-model.md`;
-the wire contract in `contracts/production-run-queue-api.md`.
+printer only, and falls back to backfill only once no finite job can be assigned. Three genuinely new
+integration points make this possible: `IPrinterConnector` gains its first outbound commands — start (an
+FTPS file push + MQTT print-start for Bambu), plus pause/resume/cancel for a job already printing
+(`research.md` R5) — with a manual-brand printer never receiving any of them, its operator reporting every
+transition themselves instead; `Part`'s file storage becomes content-addressed by a new
+`RevisionHash`/`RevisionNumber` pair so a `Snapshot`-mode job's pinned revision survives a later file
+replace that a `FollowLatest` line elsewhere in the farm might trigger (`research.md` R6 — a real behavior
+change to Phase 4's previously-always-destructive `ReplaceFile`, not purely additive); and a live-integrated
+job's pause/resume/cancel commands are treated strictly as *requests* — `PrintJob.Status` changes only once
+the printer's own telemetry confirms it, via a single `IJobTelemetrySync` fan-out from the existing
+`PrinterConnectionBackgroundService` (`research.md` R12), so a dropped command can never leave OpenFarm's
+record diverging from the physical printer, and a stop performed directly at the printer converges to the
+same result a stop requested through OpenFarm would. A cancelled or failed job belonging to a finite
+requirement leaves that requirement visibly short — never silently reduced or auto-replaced — until the
+operator takes an explicit one-click **requeue** action (`research.md` R13, a plain one-to-one
+lost-job-to-replacement link, not aggregate shortfall math). Full design reasoning for all of the above
+lives in `research.md`; entity/table shapes in `data-model.md`; the wire contract in
+`contracts/production-run-queue-api.md`.
 
 ## Technical Context
 
@@ -43,7 +52,7 @@ Principle V), react-hook-form + zod, shadcn/ui, Orval-generated client (frontend
 package for the queue/dispatch mechanics themselves. `IPrinterConnector.StartJobAsync`'s Bambu
 implementation (`research.md` R5) needs an FTPS client — `System.Net` has no built-in FTPS support, so an
 FTPS-capable library (e.g. `FluentFTP`, which already supports implicit/explicit FTPS) is a new
-`Infrastructure`-only dependency, confined entirely to `BambuLanConnector`'s new method — no `Application`/
+`Infrastructure`-only dependency, confined entirely to `BambuLanConnector`'s new methods — no `Application`/
 `Domain` reference, consistent with `IPrinterConnector` staying the swappable boundary (constitution
 Principle I/IV).
 
@@ -63,10 +72,15 @@ shell, `research.md` R4). xUnit + `WebApplicationFactory` + Testcontainers.Postg
 BOM-explosion-to-`PartRequirement` snapshot path (reuses `013-assembly-bom`'s own explosion fixtures) and
 for `ProductionDispatchBackgroundService`'s reconciliation-on-startup behavior specifically (the
 constitution guardrail this feature must satisfy, same TDD posture `PartProcessingBackgroundService`'s own
-reconciliation pass was held to). Test-after for orchestration-only command/query handlers, EF
-configuration, repositories, `BambuLanConnector.StartJobAsync`'s real FTPS/MQTT integration (manual
-verification against physical hardware only, never a CI gate — same standing rule as every other
-`BambuLanConnector` method), and every React component/page. Vitest + React Testing Library, test-after,
+reconciliation pass was held to). `IJobTelemetrySync`'s Cancelled-vs-Failed disambiguation logic
+(`research.md` R12 — given a raw gcode state and a job's `CancelRequestedAtUtc`, which `Mark*` call
+follows) is also TDD'd as a small pure function, isolated from `PrinterConnectionBackgroundService`'s own
+I/O shell the same way `ProductionDispatchMatcher` is. Test-after for orchestration-only command/query
+handlers (including the Pause/Resume/Cancel command handlers, which only call an `IPrinterConnector`
+method or `RequestCancel()` — no state machine logic of their own to TDD), EF configuration, repositories,
+`BambuLanConnector`'s real FTPS/MQTT integration for all four outbound commands (manual verification
+against physical hardware only, never a CI gate — same standing rule as every other `BambuLanConnector`
+method), and every React component/page. Vitest + React Testing Library, test-after,
 for `web/src/features/production-runs/`.
 
 **Target Platform**: Linux server (API host) + browser SPA — unchanged; no new platform surface.
@@ -113,32 +127,37 @@ yet, consistent with constitution Principle IV).
   `ProductionDispatchMatcher`, and every domain exception live in `Domain/Production/` —
   framework-agnostic, no FastEndpoints/EF references, no dependency on `Infrastructure`.
   `Application/Production/` defines repository/dispatcher contracts (`IProductionRunRepository`,
-  `IPrintJobRepository`, `IProductionDispatcher`, `IJobPauseTelemetrySync`) and every command/query handler;
+  `IPrintJobRepository`, `IProductionDispatcher`, `IJobTelemetrySync`) and every command/query handler;
   `Infrastructure/Production/` implements all four, including `ProductionDispatchBackgroundService` and
   the raw dispatch-matching query, following the exact `Infrastructure`-implements-`Application`-contracts
-  shape `013-assembly-bom` and `007-part-library` both already establish. `IJobPauseTelemetrySync` is
+  shape `013-assembly-bom` and `007-part-library` both already establish. `IJobTelemetrySync` is
   injected into the *existing* `Infrastructure/Printers/PrinterConnectionBackgroundService`
   (`research.md` R12) — `Printers` infrastructure depending on a `Production` application contract is a
   new cross-feature edge, but it's still `Infrastructure → Application`, the same direction every existing
-  dependency in this codebase already runs, just reaching a second feature's contract instead of one. No
-  new pause/resume command or endpoint exists (spec discussion — a job's `Paused` state is
-  telemetry-observed only, never operator-triggered). `IPrinterConnector.StartJobAsync`
-  is defined in `Application/Printers/` (extending the existing interface, not a new one) and implemented
-  in `Infrastructure/Printers/Bambu` and `Infrastructure/Printers/Simulator` — the FTPS dependency
-  (`FluentFTP`) never crosses into `Application`/`Domain`. `Api` endpoints stay thin FastEndpoints REPR
-  adapters.
+  dependency in this codebase already runs, just reaching a second feature's contract instead of one. Pause,
+  resume, and cancel *commands* (Pause/Resume/CancelPrintJobCommandHandler) call only
+  `IPrinterConnector`/`PrintJob.RequestCancel()` — they never write `PrintJob.Status` themselves for a
+  live-integrated job, which is what keeps `IJobTelemetrySync` the single writer (spec Clarifications,
+  2026-08-07; `research.md` R12). `IPrinterConnector.StartJobAsync`/`PauseJobAsync`/`ResumeJobAsync`/
+  `StopJobAsync` are defined in `Application/Printers/` (extending the existing interface, not a new one)
+  and implemented in `Infrastructure/Printers/Bambu` and `Infrastructure/Printers/Simulator` — the FTPS
+  dependency (`FluentFTP`) never crosses into `Application`/`Domain`. `Api` endpoints stay thin FastEndpoints
+  REPR adapters.
 - **II. Test Discipline Where It Pays, Not Uniformly** — PASS. TDD is scoped to exactly the deterministic,
   well-specified pieces the constitution names: `PrintJobStatusTransitions` (a Domain state machine, same
-  category as `PrinterStatus`'s own TDD'd transitions) and `ProductionDispatchMatcher.SelectNextJob` (a
-  pure selection function, isolated from I/O specifically so it's unit-testable). The BOM-explosion-to-
+  category as `PrinterStatus`'s own TDD'd transitions), `ProductionDispatchMatcher.SelectNextJob` (a
+  pure selection function, isolated from I/O specifically so it's unit-testable), and
+  `IJobTelemetrySync`'s Cancelled-vs-Failed resolution rule (a small, deterministic decision given a raw
+  gcode state and `CancelRequestedAtUtc` — `research.md` R12). The BOM-explosion-to-
   `PartRequirement` snapshot path is TDD'd via `WebApplicationFactory` + Testcontainers (the closest
   available red-green equivalent, reusing `013-assembly-bom`'s own fixture assemblies) since it exercises
   real Postgres-backed explosion, not a pure C# algorithm. `ProductionDispatchBackgroundService`'s startup
   reconciliation pass is TDD'd for the same reason `PartProcessingBackgroundService`'s own reconciliation
   was — it's the literal mechanism the constitution's Durable Recovery guardrail exists to prevent
-  regressing. Test-after for orchestration-only handlers, EF configuration, repositories,
-  `BambuLanConnector.StartJobAsync`'s real FTPS/MQTT body (manual verification against hardware only,
-  never CI — unchanged standing rule for this connector), and every React component/page.
+  regressing. Test-after for orchestration-only handlers (including Pause/Resume/Cancel/Requeue command
+  handlers — none of them contain state-machine logic of their own), EF configuration, repositories,
+  `BambuLanConnector`'s real FTPS/MQTT body for all four outbound commands (manual verification against
+  hardware only, never CI — unchanged standing rule for this connector), and every React component/page.
 - **III. Consistent User Experience Across the Fleet** — PASS. The queue's real-time surface (job status
   changes as the dispatcher assigns/completes jobs) MUST push through the existing `FarmHub` →
   TanStack Query cache path, exactly like `PrinterStatusChanged`/`PartProcessingJobStatusChanged` already
@@ -149,13 +168,16 @@ yet, consistent with constitution Principle IV).
   multi-field, multi-line flow the convention reserves for a routed page, not a modal. Domain state-machine
   semantics (`PrintJobStatus`, `Printer.AwaitingClear`) are presented identically everywhere they surface —
   the queue list, the run detail view, and the printer detail page all read the same underlying status,
-  never a page-local derived label. `Paused` is display-only and telemetry-driven (`research.md` R12) — it
-  pushes through the same `IProductionEventPublisher` → `FarmHub` path as every other job status change, so
-  it never risks becoming a stale, manually-refreshed field even though nothing in the UI can trigger it.
-  Every domain exception gets one `DomainExceptionHandler` mapping.
-- **IV. Build for Expansion, Not Speculation** — PASS. `IPrinterConnector` is extended (`StartJobAsync`)
-  rather than duplicated into a parallel dispatch-specific interface, so a future brand (Phase 15) or the
-  local-agent relay (Phase 23) implements one enlarged contract. `ProductionDispatchBackgroundService`
+  never a page-local derived label. Every telemetry-confirmed transition — including `Paused`, which has no
+  printer-level equivalent to fall back on (`research.md` R12) — pushes through the same
+  `IProductionEventPublisher` → `FarmHub` path as every other job status change, so the operator sees the
+  real confirmed state the same way everywhere, never a page that optimistically shows "Paused" the instant
+  a button is clicked while another page still shows "Printing." Every domain exception gets one
+  `DomainExceptionHandler` mapping.
+- **IV. Build for Expansion, Not Speculation** — PASS. `IPrinterConnector` is extended (`StartJobAsync`/
+  `PauseJobAsync`/`ResumeJobAsync`/`StopJobAsync`) rather than duplicated into a parallel dispatch-specific
+  interface, so a future brand (Phase 15) or the local-agent relay (Phase 23) implements one enlarged
+  contract. `ProductionDispatchBackgroundService`
   follows exactly the shape two prior background services already established, rather than inventing a
   third pattern. Conversely, this phase deliberately does **not** build: per-unit outcome tracking
   (good/defect/failed — FR-023, Phase 8's job), any stock/fulfillment ledger (FR-022, permanently out of
@@ -176,12 +198,18 @@ yet, consistent with constitution Principle IV).
   non-terminal state the guardrail targets; `ProductionDispatchBackgroundService.ReconcileOrphanedWorkAsync`
   runs before the consumer loop starts, mirroring `PartProcessingBackgroundService`'s own
   `ReconcileOrphanedWorkAsync` byte-for-byte in shape. Every operation that can leave a `PrintJob`
-  non-terminal (the dispatch attempt itself, `StartJobAsync`'s FTPS/MQTT call) is wrapped so any
-  unmodeled exception routes to a terminal transition (`MarkFailed`) rather than a narrow
-  `catch`-and-silently-continue — the same "catch every non-cancellation exception around the whole
-  operation" rule the guardrail states explicitly. Genuine host-shutdown cancellation
-  (`OperationCanceledException` from the hosted service's own stopping token) is left for the next
-  startup's reconciliation pass to clean up, never mislabeled as a per-job failure.
+  non-terminal (the dispatch attempt itself, any of `StartJobAsync`/`PauseJobAsync`/`ResumeJobAsync`/
+  `StopJobAsync`'s FTPS/MQTT calls) is wrapped so any unmodeled exception routes to a terminal transition
+  (`MarkFailed`) rather than a narrow `catch`-and-silently-continue — the same "catch every
+  non-cancellation exception around the whole operation" rule the guardrail states explicitly. Genuine
+  host-shutdown cancellation (`OperationCanceledException` from the hosted service's own stopping token) is
+  left for the next startup's reconciliation pass to clean up, never mislabeled as a per-job failure. A
+  `RequestCancel()` call itself is a fire-and-forget request, not something with its own in-flight window
+  to reconcile — if the printer never confirms via telemetry (e.g. it went unreachable), the job
+  legitimately stays `Printing` with `cancelRequestedAtUtc` set, and the existing printer-reachability
+  tracking (`Printer.MarkUnreachable`) already surfaces that condition to the operator, who can retry the
+  cancel or fall back to stopping it physically; no new reconciliation mechanism is built for this narrower
+  case, since the underlying reachability problem already has one.
 - **Security & Multi-Tenancy Isolation** — PASS. All five new tables use `IsMultiTenant()` exclusively, no
   hand-rolled tenant filter — including the dispatcher's own candidate query, which is always scoped to
   one organization's printer/job set (dispatch never runs cross-tenant by construction, since it's
@@ -234,6 +262,8 @@ api/src/OpenFarm.Domain/Production/
   InvalidPrintJobStatusTransitionException.cs / InvalidRunCompletionException.cs
   PinnedJobRequiresPrinterException.cs / PrintJobAlreadyDispatchedException.cs
   ProductionRunConcurrencyConflictException.cs / FilamentConsumptionSumMismatchException.cs
+  JobNotEligibleForRemoteControlException.cs / PrintJobAlreadyRequeuedException.cs
+  PrintJobNotEligibleForRequeueException.cs
 
 api/src/OpenFarm.Domain/Parts/
   Part.cs                                # amended: UnitsPerPrint, RevisionHash, RevisionNumber (data-model.md)
@@ -242,22 +272,28 @@ api/src/OpenFarm.Application/Production/
   IProductionRunRepository.cs / IPartRequirementRepository.cs / IPrintJobRepository.cs
   IProductionDispatcher.cs               # RequestDispatchAttempt(printerId) — research.md R4
   IProductionEventPublisher.cs           # mirrors IPrinterEventPublisher's shape
-  IJobPauseTelemetrySync.cs               # ObserveAsync(printerId, gcodeState) — research.md R12; no command wraps this
+  IJobTelemetrySync.cs                    # ObserveAsync(printerId, gcodeState) — research.md R12; the
+                                            # single writer of every telemetry-observable PrintJob transition
   CreateProductionRunCommand.cs / Handler / Validator    # calls IAssemblyGraphQueryService.ExplodeAsync (research.md R1)
   CloseProductionRunCommand.cs / Handler
-  CancelProductionRunCommand.cs / Handler
+  CancelProductionRunCommand.cs / Handler                 # FR-017/FR-024d — never touches a Printing job
   SetRunLineRevisionModeCommand.cs / Handler
   SetRunLineBackfillLimitsCommand.cs / Handler
   ReorderPrintJobCommand.cs / Handler / Validator         # fractional QueuePosition math (research.md R3)
   PinPrintJobCommand.cs / UnpinPrintJobCommand.cs / Handler
-  MarkPrintJobStartedCommand.cs / Handler                 # FR-012 manual-brand path only — no pause/resume command exists (research.md R12)
+  MarkPrintJobStartedCommand.cs / Handler                 # manual-brand path; live start is telemetry-detected
+  PausePrintJobCommand.cs / ResumePrintJobCommand.cs / Handler   # calls IPrinterConnector or Mark* directly
+                                                                   # per printer kind (research.md R12) — never
+                                                                   # both for the same job
+  CancelPrintJobCommand.cs / Handler                      # FR-024 — live: StopJobAsync + RequestCancel();
+                                                             # manual-brand: MarkCancelled() directly
+  RequeuePrintJobCommand.cs / Handler                     # FR-025a — research.md R13
   CompletePrintJobCommand.cs / FailPrintJobCommand.cs / Handler   # filament consumption body (research.md R7)
-  CancelPrintJobCommand.cs / Handler
   GetProductionRunsQuery.cs / GetProductionRunDetailQuery.cs / Handler
   GetQueueJobsQuery.cs / Handler                          # QueueJobRow (data-model.md)
 
 api/src/OpenFarm.Application/Printers/
-  IPrinterConnector.cs                   # amended: + StartJobAsync (research.md R5)
+  IPrinterConnector.cs                   # amended: + StartJobAsync/PauseJobAsync/ResumeJobAsync/StopJobAsync (research.md R5)
 
 api/src/OpenFarm.Application/Parts/
   IPartFileStorage.cs                    # amended: content-addressed save path (research.md R6)
@@ -268,19 +304,23 @@ api/src/OpenFarm.Infrastructure/Production/
                                             # on startup (Durable Recovery guardrail), calls
                                             # ProductionDispatchMatcher + IPrinterConnector.StartJobAsync
   ProductionDispatchQueryService.cs        # builds DispatchCandidate lists per printer (research.md R4)
-  JobPauseTelemetrySync.cs                 # implements IJobPauseTelemetrySync — calls PrintJob.MarkPaused/MarkResumed
-                                             # directly off raw gcode state (research.md R12), injected into the
-                                             # existing PrinterConnectionBackgroundService (see below)
+  JobTelemetrySync.cs                      # implements IJobTelemetrySync — the single caller of
+                                             # PrintJob.MarkStarted/MarkPaused/MarkResumed/MarkCompleted/
+                                             # MarkFailed/MarkCancelled for a live-integrated job, driven off
+                                             # raw gcode state + CancelRequestedAtUtc (research.md R12),
+                                             # injected into the existing PrinterConnectionBackgroundService
   Persistence/Configurations/ProductionRunConfiguration.cs / RunLineConfiguration.cs /
     PartRequirementConfiguration.cs / PrintJobConfiguration.cs / JobFilamentConsumptionConfiguration.cs
   Persistence/Migrations/<timestamp>_AddPartRevisionAndUnitsPerPrint.cs
   Persistence/Migrations/<timestamp>_AddProductionRunsAndJobs.cs
 
 api/src/OpenFarm.Infrastructure/Printers/
-  PrinterConnectionBackgroundService.cs  # amended: injects IJobPauseTelemetrySync, calls it alongside the
+  PrinterConnectionBackgroundService.cs  # amended: injects IJobTelemetrySync, calls it alongside the
                                            # existing IFeedSlotTelemetrySync call in HandleEventAsync (research.md R12)
-  Bambu/BambuLanConnector.cs             # amended: StartJobAsync — FluentFTP upload (port 990) + MQTT start
-  Simulator/SimulatorPrinterConnector.cs # amended: StartJobAsync — begins fake Printing->Finish telemetry
+  Bambu/BambuLanConnector.cs             # amended: StartJobAsync (FluentFTP upload, port 990, + MQTT start),
+                                           # PauseJobAsync/ResumeJobAsync/StopJobAsync (MQTT publish each)
+  Simulator/SimulatorPrinterConnector.cs # amended: StartJobAsync begins a fake Printing->Finish sequence;
+                                           # PauseJobAsync/ResumeJobAsync/StopJobAsync flip its internal state
 
 api/src/OpenFarm.Infrastructure/Parts/
   LocalDiskPartFileStorage.cs            # amended: content-addressed path, no eager delete on replace
@@ -294,8 +334,10 @@ api/src/OpenFarm.Api/
   Endpoints/PrintJobs/
     ListQueueJobsEndpoint.cs / GetPrintJobEndpoint.cs / ReorderPrintJobEndpoint.cs
     PinPrintJobEndpoint.cs / UnpinPrintJobEndpoint.cs / MarkPrintJobStartedEndpoint.cs
-    CompletePrintJobEndpoint.cs / FailPrintJobEndpoint.cs / CancelPrintJobEndpoint.cs
-    # no Pause/Resume endpoint — Paused is telemetry-only, never operator-triggered (research.md R12)
+    PausePrintJobEndpoint.cs / ResumePrintJobEndpoint.cs / CancelPrintJobEndpoint.cs   # FR-024 — request/
+                                                                                          # confirm split (202/200)
+    RequeuePrintJobEndpoint.cs                                                          # FR-025a
+    CompletePrintJobEndpoint.cs / FailPrintJobEndpoint.cs
   Hubs/FarmHubProductionEventPublisher.cs   # implements IProductionEventPublisher
   ExceptionHandling/DomainExceptionHandler.cs   # + this feature's exception -> status mappings
 
@@ -307,8 +349,12 @@ api/tests/
     RunCreationExplosionSnapshotTests.cs      # TDD against real Testcontainers Postgres (reuses 013's fixtures)
     DispatchReconciliationTests.cs             # TDD — Durable Recovery guardrail, orphaned-job recovery on boot
     QueueOrderingAndPinningTests.cs / BackfillTierTests.cs / RevisionModeTests.cs / AwaitingClearGatingTests.cs   # test-after
-    JobPauseTelemetrySyncTests.cs               # test-after — fixture-replay PAUSE/RUNNING gcode events, mirrors
+    JobTelemetrySyncTests.cs                    # TDD for the Cancelled-vs-Failed resolution rule (research.md
+                                                  # R12), test-after for the rest — fixture-replay PAUSE/RUNNING/
+                                                  # FINISH/FAILED gcode events, mirrors
                                                   # FeedSlotTelemetrySyncHandler's own existing test shape
+    ShortfallAndRequeueTests.cs                 # test-after — cancel/fail a job, confirm shortfall visibility
+                                                  # and requeue creates exactly one replacement (research.md R13)
 
 web/src/features/production-runs/
   ProductionRunsPage.tsx                 # list (DataTable + pagination)
@@ -317,6 +363,12 @@ web/src/features/production-runs/
   NewProductionRunPage.tsx                 # Page-first (docs/UI_CONVENTIONS.md), react-hook-form + zod
   components/RunLineEditor.tsx             # target picker (Part/Assembly), quantity, revision mode, assignment mode
   components/QueueJobRow.tsx               # one virtualized row — status, isBlocked flag, pin/reorder actions
+  components/JobRemoteControls.tsx          # Pause/Resume/Cancel buttons for a Printing/Paused job — optimistic
+                                              # UI is deliberately NOT used here: a click shows a "requested,
+                                              # awaiting confirmation" state until the FarmHub push actually
+                                              # changes the job's status (research.md R12, FR-024a)
+  components/ShortfallBanner.tsx            # renders PartRequirementSummary.jobsNeedingRequeue with a
+                                              # one-click Requeue action (research.md R13)
   components/BackfillLimitsPanel.tsx       # printer cap / cumulative ceiling editor
   *.test.tsx                                # test-after, Vitest + RTL
 ```
@@ -341,3 +393,5 @@ deviation — the same framing `013-assembly-bom` and `007-part-library` both us
 | A new outbound `IPrinterConnector.StartJobAsync` method + a new `FluentFTP` dependency scoped to `Infrastructure.Printers.Bambu` | Bambu's file-push mechanism is FTPS on port 990 (`docs/FEATURE_PLAN.md`'s own Phase 1 note, confirmed as this phase's responsibility); no existing dependency in this codebase speaks FTPS | Reusing `BambuLanConnector`'s existing MQTT connection alone was considered and rejected — MQTT carries commands/telemetry, not bulk file transfer; the protocol genuinely needs a second channel, matching how the real Bambu ecosystem (and the vendored `third_party/printers/bambulab/` reference) documents it |
 | Content-addressed `Part` file storage + a non-destructive `ReplaceFile` (`RevisionHash`/`RevisionNumber`, `research.md` R6) — a real behavior change to already-shipped Phase 4 code | FR-009c/d requires every job to record which exact revision it printed, and a Snapshot-mode job's pinned revision must survive a later file replacement triggered by an unrelated Follow-latest line — impossible under the current unconditional-delete-on-replace behavior | Keeping replace destructive and instead copying the file's bytes onto every job at creation time was considered and rejected — it would duplicate potentially large files (3MF/G-code) once per job rather than once per distinct revision, exactly the "N jobs against one revision costing N× the bytes" problem `docs/FEATURE_PLAN.md`'s own Phase 7 section calls out as the reason for content-addressing in the first place |
 | A fractional-index `QueuePosition` (`double precision`) rather than integer positions or a linked list | FR-008 requires manual reordering to be a normal, frequent action, and SC-005 requires the queue to stay fast as it grows into the thousands — a fractional index makes reorder a single-row `UPDATE` independent of queue size | Integer positions requiring a renumber of every row after the moved one (or a full-table shift) were rejected as an O(n) write on every drag-and-drop; a linked list was rejected because every ordered read becomes a traversal, which fights TanStack Virtual's need for a directly-sliceable, sorted collection |
+| Three more outbound `IPrinterConnector` commands (`PauseJobAsync`/`ResumeJobAsync`/`StopJobAsync`) plus a request/confirm split enforced by making `IJobTelemetrySync` the sole writer of `PrintJob.Status` — a reversal of this feature's own original "OpenFarm never sends a stop command" design (spec Clarifications, 2026-08-07) | The revised requirement is real operator control over a printing job through the queue, with the recorded status never diverging from the physical printer even when a command is dropped or the printer is stopped directly rather than through OpenFarm | Letting a command handler optimistically call the matching `Mark*` method the instant a command is sent (the simpler, single-writer-free approach) was rejected — it's exactly the split-brain risk the reversal's own stated concern ("sync very carefully") warns about: an operator's own touchscreen action and OpenFarm's command could otherwise race two independent writers into disagreeing about the job's actual state |
+| `PrintJob.RequeuedAsJobId` — a one-to-one replacement link, not an aggregate "shortfall quantity" field anywhere (`research.md` R13) | FR-025 requires a cancelled/failed job's lost output to never silently vanish or auto-replace itself, surfaced per-job so the operator can act on each one deliberately | A computed/stored aggregate shortfall count on `PartRequirement` was considered and rejected — it would need to stay in sync with every job's status change on that requirement (a running total to maintain correctly), where a plain per-job filter (`Status IN (Cancelled, Failed) AND RequeuedAsJobId IS NULL`) needs no maintenance at all and can't drift out of sync with the jobs it describes |

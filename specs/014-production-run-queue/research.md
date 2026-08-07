@@ -148,33 +148,57 @@ traversal-shaped query belongs at the DB layer, not pulled into the application.
 queue, not a shared marketplace) suggests today's straightforward indexed query needs it, and adding one
 speculatively is exactly what constitution Principle IV rules out.
 
-## R5 — Extending `IPrinterConnector` to push a file and start a print
+## R5 — Extending `IPrinterConnector` to push a file, start, pause, resume, and stop a print
 
-**Decision**: `IPrinterConnector` gains one new method:
+**Decision**: `IPrinterConnector` gains four new methods, not one — start, pause, resume, and stop are all
+outbound commands over the same connection, so they're added together rather than start now and the rest
+deferred (spec Clarifications, 2026-08-07 reversed the original "OpenFarm never sends a stop command"
+rule for the single-job case):
 
 ```csharp
 Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken);
+Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
+Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
+Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
 ```
 
-`BambuLanConnector` implements it as an FTPS upload (port 990, per `docs/FEATURE_PLAN.md`'s own Phase 1
-risk note: "FTPS file transfer runs on port 990 and becomes relevant in Phase 7 ... not this phase" —
-confirming this integration point was always intended to land here, not a gap in Phase 1) followed by an
-MQTT print-start command, per the vendored `third_party/printers/bambulab/` protocol reference (M0.0).
-`SimulatorPrinterConnector` implements a fake version consistent with its existing role: it immediately
+`BambuLanConnector` implements `StartJobAsync` as an FTPS upload (port 990, per `docs/FEATURE_PLAN.md`'s
+own Phase 1 risk note: "FTPS file transfer runs on port 990 and becomes relevant in Phase 7 ... not this
+phase" — confirming this integration point was always intended to land here) followed by an MQTT
+print-start command; `PauseJobAsync`/`ResumeJobAsync`/`StopJobAsync` are each a single MQTT publish (the
+Bambu protocol's own pause/resume/stop print commands), per the vendored `third_party/printers/bambulab/`
+reference (M0.0) — no FTPS involved for these three, only the initial file push needs it.
+`SimulatorPrinterConnector` implements fake versions consistent with its existing role: `StartJobAsync`
 begins emitting a `Printing → Finish` telemetry sequence through its already-existing `ConnectAsync`
-stream, with no real file transfer.
+stream; `PauseJobAsync`/`ResumeJobAsync` flip that sequence's own internal paused flag;
+`StopJobAsync` makes the sequence emit a stopped/terminal state on its next tick — all with no real
+network call.
 
-For a printer whose brand has no live integration (FR-012's manual-brand branch), `StartJobAsync` is never
-called at all — the dispatcher instead marks the job dispatched-but-not-started (`DispatchedAtUtc` set,
-`Status` stays `Queued`) and a new `POST /api/v1/print-jobs/{id}/mark-started` endpoint lets the operator
-transition it to `Printing` themselves once they've retrieved the file and started the print physically.
+For a printer whose brand has no live integration (FR-012/FR-024b's manual-brand branch), none of these
+four methods is ever called — the dispatcher marks a job dispatched-but-not-started
+(`DispatchedAtUtc` set, `Status` stays `Queued`) and lets the operator manually mark it
+started/paused/resumed/cancelled through the API with no connector call behind any of those transitions,
+mirroring the existing manual-start precedent uniformly across all four actions.
 
 **Rationale**: `IPrinterConnector` is the constitution-named swappable boundary for printer connectivity
 (Principle I/IV) — extending the existing interface, rather than introducing a parallel
 `IPrinterJobDispatchClient`, keeps that single boundary intact so a future brand (Phase 15) or transport
-(the local-agent relay, Phase 23) implements one enlarged contract, not two contracts that both need
+(the local-agent relay, Phase 23) implements one enlarged contract, not four/five contracts that all need
 implementing per brand. `VerifyAsync`/`ConnectAsync` (read-only, already used since Phase 1) are untouched;
-`StartJobAsync` is additive.
+all four new methods are additive.
+
+**Command-vs-connection scope note (a genuine open verification risk, not resolved here)**: whether Bambu's
+LAN MQTT broker accepts a second, short-lived client connection issuing a command while
+`PrinterConnectionBackgroundService` already holds a long-lived streaming connection open for the same
+printer, or whether these commands need to be published on that *same* client connection instead, is a
+real protocol question that can only be settled against physical hardware — flagged here for `tasks.md`
+and manual verification, the same "unofficial, unversioned MQTT access" risk already called out in
+`docs/FEATURE_PLAN.md`'s own Risks/notes for Phase 1. The interface above is written the simpler,
+stateless way (open, command, close, matching `VerifyAsync`'s own existing shape) as the starting
+assumption; if hardware testing shows the broker rejects concurrent connections, the fix is
+`BambuLanConnector` internally routing these four calls through whatever connection
+`PrinterConnectionBackgroundService` already has open — an internal implementation change, not an
+`IPrinterConnector` contract change.
 
 ## R6 — Content-addressed file revisions: `Part` gains a revision identity; replace stops deleting eagerly
 
@@ -269,57 +293,122 @@ depending on a linked `MachineProfile` being present or parseable — using it k
 silently no-op'ing (falling through to the arbitrary `Printer.Id` case) for the common farm that hasn't
 imported machine profiles for every printer yet.
 
-## R12 — `PrintJob.Paused` is a display-only, telemetry-driven state — no pause/resume command exists
+## R12 — Remote pause/resume/cancel: command is a request, telemetry is the only writer of job status
 
-**Finding**: `Printer`'s own status machine has no `Paused` member at all — confirmed directly in
-`PrinterStatusTransitions.ObserveStatus`, which maps a Bambu `PAUSE` gcode state to `PrinterStatus.Printing`,
-the same coarse status as ordinary running. `Printer` was deliberately kept to three states (`Idle` /
-`Printing` / `AwaitingClear`) in Phase 1 — `Paused` was never modeled at the printer level, and this
-feature does not change that.
+**Finding (unchanged from the original design)**: `Printer`'s own status machine has no `Paused` member at
+all — confirmed directly in `PrinterStatusTransitions.ObserveStatus`, which maps a Bambu `PAUSE` gcode
+state to `PrinterStatus.Printing`, the same coarse status as ordinary running. `Printer` was deliberately
+kept to three states (`Idle` / `Printing` / `AwaitingClear`) in Phase 1, and this feature doesn't change
+that — a job can be `Paused` while its printer's own status stays `Printing`.
 
-**Decision**: `PrintJob.Status` keeps `Paused` (the spec's own job workflow names it), but it is **never
-reachable through the API** — there is no pause/resume endpoint, and no `Application` command calls
-`PrintJob.MarkPaused()`/`MarkResumed()`. The only caller is a new `IJobPauseTelemetrySync`
-(`Application.Production`, implemented in `Infrastructure.Production`), invoked directly from
-`PrinterConnectionBackgroundService.HandleEventAsync` alongside its existing `IFeedSlotTelemetrySync` call:
-after applying `printer.ObserveStatus(gcodeState)` (which, per the finding above, does not distinguish
-pause), the raw `gcodeState` is checked a second time — if it equals the pause sentinel and a `PrintJob` is
-currently `DispatchedPrinterId == this printer` with `Status == Printing`, call `MarkPaused()`; if it
-returns to a running state and the job is `Paused`, call `MarkResumed()`. Both changes publish through the
-existing `IProductionEventPublisher` → `FarmHub` path (constitution Principle III), the same as every other
-job status change. A manual-brand (non-live) job has no telemetry to observe at all, so it simply never
-enters `Paused` — it stays `Printing` until a terminal transition, which is an accurate reflection of what
-OpenFarm can actually know about it, not a gap.
+**Decision (revised — spec Clarifications, 2026-08-07)**: the original "telemetry-only, no command" version
+of this decision is superseded. `PrintJob`'s pause/resume/cancel-while-printing transitions are now
+reachable two ways, and the split matters:
 
-**Rationale**: this follows the same design rule FR-017 already states explicitly for stopping a print
-("OpenFarm never sends a stop command on the operator's behalf... the operator standing at the machine is
-better placed to judge") — pause and resume are physical/app-level actions on the printer itself, not
-something this feature should expose as a remote command. Keeping `Paused` as a *state* (so the queue can
-display it) while removing any *command* that reaches it keeps the useful half (an operator glancing at
-the queue can see a job is paused) without adding API surface that contradicts the rest of this feature's
-"observe, never command" posture for anything except the one command genuinely new to this phase
-(`StartJobAsync`, R5 — starting a print is the one physical action OpenFarm does initiate, precisely
-because nothing else can: a queued job cannot start itself the way a human can pause one).
+1. **Command handlers never optimistically change job status.** `PausePrintJobCommandHandler`/
+   `ResumePrintJobCommandHandler`/`CancelPrintJobCommandHandler`, for a job on a live-integrated printer,
+   call the corresponding new `IPrinterConnector` method (R5) — `PauseJobAsync`/`ResumeJobAsync`/
+   `StopJobAsync` — and, for cancel specifically, stamp `PrintJob.CancelRequestedAtUtc = now` (FR-024a/c).
+   None of them call `PrintJob.MarkPaused()`/`MarkResumed()`/`MarkCancelled()` directly. A command that
+   fails to send (connector throws, printer unreachable) surfaces as a normal error response — the job's
+   status is simply untouched, exactly as if nothing had been clicked.
+2. **`IJobTelemetrySync`** (`Application.Production`, implemented in `Infrastructure.Production` —
+   renamed and generalized from the earlier `IJobPauseTelemetrySync`, now the single place every
+   telemetry-observable `PrintJob` transition lives, not only pause) is the *only* caller of
+   `PrintJob.MarkStarted()`/`MarkPaused()`/`MarkResumed()`/`MarkCompleted()`/`MarkFailed()`/
+   `MarkCancelled()` for a live-integrated job. Invoked from `PrinterConnectionBackgroundService.
+   HandleEventAsync`, alongside its existing `IFeedSlotTelemetrySync` call, on every event: it looks up
+   whichever `PrintJob` currently has `DispatchedPrinterId` equal to this printer and a non-terminal
+   status, compares the raw `gcodeState` against its current `PrintJob.Status`, and drives exactly one
+   transition when the two disagree (started, paused, resumed, or a terminal state reached). This is what
+   makes FR-024a's guarantee real: a command is a *request*, the printer's own reported reality is the
+   *only* thing that ever writes `PrintJob.Status`, so a dropped or unacknowledged command simply never
+   shows up as a status change — there's nothing to roll back because nothing was optimistically set.
+
+**Cancelled-vs-Failed disambiguation (FR-024c)**: when `IJobTelemetrySync` observes a terminal state for a
+job:
+- If `PrintJob.CancelRequestedAtUtc` is set (OpenFarm itself sent the stop command), the terminal state is
+  always resolved as `Cancelled` — OpenFarm knows its own intent regardless of exactly which terminal
+  gcode state or error code the printer reports back.
+- If it is *not* set — the case FR-024c also has to cover: **a stop performed directly at the printer**,
+  bypassing OpenFarm entirely — resolution depends on whether the printer's own telemetry carries a signal
+  that distinguishes a user-initiated stop from a genuine fault (spec Assumptions: this is a real,
+  unresolved technical question pending verification against the vendored Bambu protocol reference and
+  real hardware, not settled by this document). If no such signal exists, the documented fallback is
+  `Failed` — an unexplained terminal state with no known stop request is never speculatively reclassified
+  as `Cancelled`.
+
+**Manual-brand path (FR-024b)**: none of the above applies — there is no connector, so no command and no
+telemetry. `PausePrintJobCommandHandler`/etc. call the `PrintJob.Mark*()` methods **directly** for a
+manual-brand job, trusting the operator's own report, exactly like the existing manual-start precedent
+(FR-012).
+
+**Rationale**: this single-writer split (command requests, telemetry alone confirms) is what "sync very
+carefully" concretely means for this feature — without it, an operator clicking Pause and the printer
+being paused via its own touchscreen at the same moment could race two independent writers into a
+consistent-looking but wrong state. With it, there is exactly one place `PrintJob.Status` for a
+live-integrated job ever changes, regardless of which of the two triggered it, which is also what makes a
+stop performed directly at the printer converge to the same `Cancelled` state a stop requested through
+OpenFarm does (spec Clarifications) — both paths end up observed by the same `IJobTelemetrySync` call, not
+two different code paths that could disagree.
 
 **Cross-reference to the `IFeedSlotTelemetrySync` precedent**: `PrinterConnectionBackgroundService` already
 fans a single telemetry event out to more than one feature-specific sync interface (today: the printer's
-own entity update, then `IFeedSlotTelemetrySync` for FilamentTracking). `IJobPauseTelemetrySync` is a third
+own entity update, then `IFeedSlotTelemetrySync` for FilamentTracking). `IJobTelemetrySync` is a third
 fan-out target of the same event, not a new mechanism — `HandleEventAsync` gains one more injected
 dependency and one more call in its existing sequence, nothing structurally new.
+
+## R13 — Shortfall & requeue: a per-job replacement link, not aggregate requirement math
+
+**Decision**: a `PrintJob` that reaches `Cancelled` or `Failed` while belonging to a *finite*
+`PartRequirement` gains a nullable `RequeuedAsJobId` (spec Clarifications, 2026-08-07 — FR-025). A new
+operator action, `POST /api/v1/print-jobs/{id}/requeue`, is only valid on a job that is `Cancelled` or
+`Failed` and has `RequeuedAsJobId == null`; it creates exactly **one** new `PrintJob` for the same
+`PartRequirementId` (same creation rules as any other job on that line — R2's whole-plate math, R6's
+Snapshot/Follow-latest revision resolution, the owning `RunLine`'s default assignment mode — this is not a
+special code path, it reuses ordinary job creation), appends it to the end of the queue
+(`QueuePosition` = current max + 1024, R3's own spacing convention), and sets the original job's
+`RequeuedAsJobId` to the new job's id. Whether a requirement is "short" is never stored or computed as an
+aggregate number — it's simply: does a `Cancelled`/`Failed` job for this requirement exist with
+`RequeuedAsJobId == null`? Each one, independently, either has been requeued or hasn't.
+
+**Rationale**: the spec's chosen answer (Clarifications, option B) requires exactly one thing: a shortfall
+must never resolve itself silently, and the operator must take an explicit action to fix it. A one-to-one
+"this specific lost job → its specific replacement" link satisfies that with no new math at all — no
+running total to keep consistent, no risk of double-counting a lost job that's already been compensated
+for, and the query for "does this requirement need attention" (`RunDetailView`/`PartRequirementSummary`,
+`data-model.md`) is just "any job on this requirement in a terminal non-completing status with no
+requeue link" — a plain filter, not a computed aggregate. This also composes cleanly with FR-016a's
+existing "satisfied" definition (`Completed` jobs' combined output meets the target) without needing a
+separate "shortfall" field on `PartRequirement` itself to keep in sync.
+
+**Scope boundary (FR-025d)**: this applies only to finite requirements. An unlimited/backfill line's
+cancelled or failed job needs no replacement link at all — R2's own lazy, one-plate-at-a-time creation
+already produces the next backfill job whenever a printer needs one, so nothing here even runs for a job
+whose owning `PartRequirement.Quantity` is `null`.
+
+**Explicitly not built (spec Assumptions)**: reducing a `RunLine`'s target quantity as an alternative to
+requeueing. Reconciling already-eagerly-created jobs against a lowered target is real, separate design
+work (which of them get cancelled, and does that cancellation itself produce a shortfall needing another
+decision) that the spec's own Assumptions section defers rather than folding into this phase.
 
 ## Summary of what's genuinely new (no prior art in this codebase)
 
 1. **`ProductionDispatchBackgroundService`** (R4) — the third `BackgroundService` in this codebase,
    following the established bounded-channel + reconciliation shape but the first to *write* connector
    commands rather than only *read* connector-reported telemetry.
-2. **`IPrinterConnector.StartJobAsync`** (R5) — this codebase's first outbound printer command (file push +
-   print start); everything through Phase 6 only ever reads `IPrinterConnector`'s telemetry stream.
+2. **`IPrinterConnector.StartJobAsync`/`PauseJobAsync`/`ResumeJobAsync`/`StopJobAsync`** (R5) — this
+   codebase's first outbound printer commands of any kind (file push, print start, pause, resume, stop);
+   everything through Phase 6 only ever reads `IPrinterConnector`'s telemetry stream.
 3. **Content-addressed Part file storage + non-destructive replace** (R6) — a real behavior change to
    Phase 4's existing "replace is always destructive" semantics, not purely additive; called out here so
    it isn't missed during implementation of `ReplacePartFileCommandHandler`.
 4. **Fractional `QueuePosition` reordering** (R3) — this codebase's first fractional-index column; every
    prior ordered list (Assembly lines, Part tags) has used natural/insertion order with no reorder
    operation at all.
-5. **`IJobPauseTelemetrySync`** (R12) — a third fan-out target for `PrinterConnectionBackgroundService`'s
-   already-existing telemetry-event loop, alongside the existing `IFeedSlotTelemetrySync` — not a new
-   mechanism, but the first time a *second* feature's background service reaches into `Production` this way.
+5. **`IJobTelemetrySync`** (R12) — a third fan-out target for `PrinterConnectionBackgroundService`'s
+   already-existing telemetry-event loop, alongside the existing `IFeedSlotTelemetrySync`, and the single
+   writer of every telemetry-observable `PrintJob` transition (start, pause, resume, and — combined with
+   `CancelRequestedAtUtc` — the Cancelled-vs-Failed disambiguation) for a live-integrated job.
+6. **`PrintJob.RequeuedAsJobId`** (R13) — a one-to-one "lost job → its replacement" link, this codebase's
+   first modeling of a shortfall/requeue relationship of any kind.

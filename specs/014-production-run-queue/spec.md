@@ -23,6 +23,13 @@
   printer (not through OpenFarm) MUST also be reflected as the job reaching `Cancelled` once observed, not
   left showing stale `Printing` state or misread as an unrelated `Failed` outcome — OpenFarm's own record
   and the printer's physical reality must converge either way the stop was triggered.
+- Q: When a job that would have contributed to a *finite* requirement is cancelled or fails (via remote
+  stop, a stop performed directly at the printer, or a pre-dispatch cancel), how should the owning
+  requirement/run respond? → A: Flag it as a shortfall and require an explicit, one-click operator requeue
+  (creating one replacement job) — never silently reduce the requirement's target, and never auto-create a
+  replacement without the operator asking for it. The same behavior applies uniformly to both named and
+  unnamed runs, matching this spec's existing precedent (FR-001a) of one code path for both rather than a
+  second, run-type-dependent behavior.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -211,9 +218,14 @@ afterward uses the new revision.
   printer it changes only once telemetry confirms the printer actually reached that state, so a dropped or
   unacknowledged command can't leave OpenFarm believing something happened that didn't.
 - **What happens when a job that was remotely cancelled subsequently reports a terminal telemetry state —
-  is it "Cancelled" or "Failed"?** "Cancelled" — the job remembers that a cancel was requested (FR-024b),
+  is it "Cancelled" or "Failed"?** "Cancelled" — the job remembers that a cancel was requested (FR-024a),
   so the terminal state telemetry eventually reports is attributed to the operator's own action rather than
-  read as an unrelated print failure.
+  read as an unrelated print failure (FR-024c).
+- **What happens to the run/requirement when a job that would have contributed to a finite requirement is
+  cancelled or fails?** The requirement is left short by that job's planned output, visibly flagged, and
+  the run cannot reach Complete until the operator explicitly requeues it (FR-025) — nothing happens
+  automatically, and the requirement's target is never quietly reduced. This holds identically for a named
+  run (so a customer's ordered quantity is never silently under-delivered) and an unnamed one.
 - **What happens when a queued job's part doesn't match any registered printer's nozzle diameter or
   loaded material at all?** The run and job are still created — creating a run requires only that the
   referenced parts already exist, since Phase 4 guarantees every catalog part is fully valid by
@@ -343,7 +355,10 @@ afterward uses the new revision.
 - **FR-016**: System MUST drive every ProductionRun through the status workflow active → complete →
   closed, plus a separate cancelled state reachable from active.
   - **FR-016a**: A run MUST reach complete only once every finite PartRequirement belonging to it is
-    satisfied; an unlimited line never completes and never blocks its run from completing.
+    satisfied — its `Completed` jobs' combined planned output MUST meet or exceed the requirement's
+    quantity; an unlimited line never completes and never blocks its run from completing. A requirement
+    with a not-yet-requeued shortfall (FR-025) is, by this definition, never satisfied, so the run simply
+    stays `Active` rather than completing with known-missing coverage.
   - **FR-016b**: When the last job of a *named* run finishes, marking that printer ready MUST prompt the
     operator to confirm the run is genuinely complete before the run's status changes; an *unnamed* run
     MUST complete with no confirmation step.
@@ -395,6 +410,22 @@ afterward uses the new revision.
     stop command against any of the run's currently-printing jobs — stopping a specific printing job stays
     a separate, single-job action an operator takes deliberately, never an automatic bulk side effect of
     the run-level action.
+- **FR-025**: A job belonging to a *finite* requirement that reaches `Cancelled` or `Failed` MUST leave
+  that requirement short by exactly that job's planned plate output, surfaced clearly wherever the
+  requirement is shown (Clarifications, 2026-08-07).
+  - **FR-025a**: System MUST NOT automatically create a replacement job for a shortfall — the operator
+    MUST take an explicit, one-click "requeue" action, which creates exactly one new whole-plate job for
+    the same requirement (same creation rules as any other job on that line — FR-005/FR-009).
+  - **FR-025b**: System MUST NOT reduce a requirement's target quantity as a side effect of a job being
+    cancelled or failing — the requirement stays at its original quantity, visibly short, until the
+    operator requeues (FR-025a) or, in a future phase, explicitly edits the line's target (not itself a
+    capability this phase builds — see Assumptions).
+  - **FR-025c**: This behavior applies identically to a named and an unnamed run — no run-type-dependent
+    variation.
+  - **FR-025d**: An unlimited (backfill) line's cancelled/failed jobs MUST NOT surface a shortfall or a
+    requeue action — a backfill line has no fixed target to fall short of, and the dispatcher's own lazy,
+    one-plate-at-a-time creation (FR-006a) already produces the next backfill job whenever a printer needs
+    one, with no operator action required.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -407,7 +438,10 @@ afterward uses the new revision.
   everything produced under it.
 - **PartRequirement**: The exploded leaf demand — one row per distinct (RunLine, Part) pair, with
   quantity summed across every BOM path that part appears on within that line. Snapshotted at run
-  creation from Phase 6's explosion; never recomputed if the source Assembly's BOM changes afterward.
+  creation from Phase 6's explosion; never recomputed if the source Assembly's BOM changes afterward. A
+  finite requirement can carry a **shortfall** — planned coverage lost to a job reaching `Cancelled` or
+  `Failed` (FR-025) — which stays visible and unresolved until the operator requeues, never silently
+  absorbed into a lower target.
 - **PrintJob**: The execution unit — flat and atomic, unlike the hierarchical demand above it. Carries
   one file revision, one target plate quantity, an assignment mode (Unassigned or Pinned) and, once
   dispatched, one printer; a status workflow (queued/printing/paused/failed/completed/cancelled); actual
@@ -448,6 +482,9 @@ afterward uses the new revision.
   unnamed run requires it in 0% of cases.
 - **SC-010**: Filament usage is recorded for 100% of jobs that consumed any filament, including ones
   that failed partway through — never only for fully successful jobs.
+- **SC-011**: 100% of finite requirements with a cancelled or failed job are visibly flagged as short, and
+  0 ever have their target quantity silently reduced or their run reach Complete while a shortfall remains
+  un-requeued.
 
 ## Assumptions
 
@@ -461,6 +498,14 @@ afterward uses the new revision.
   two for some scenario, the safer default is to resolve as `Cancelled` whenever OpenFarm itself requested
   the stop (it knows its own intent), and `Failed` otherwise (never silently reclassify an unexplained
   failure as a deliberate stop nobody asked for).
+- **Lowering a RunLine's target quantity as an alternative remedy to requeueing (FR-025b) is explicitly
+  out of scope for this phase**, even though it was floated as an option during clarification. Editing an
+  already-created line's quantity down would need its own rules for reconciling the eager jobs already
+  created against the old, higher target (which of them get cancelled, and does *that* cancellation itself
+  produce a shortfall needing yet another decision?) — real design work this phase doesn't need to take on
+  just to offer a second remedy alongside requeue. Requeue alone fully covers the stated requirement
+  (a shortfall must never resolve itself silently); shrinking a line's target can be revisited later if a
+  real need for it shows up.
 - **Closing a run to its terminal "closed" state is an explicit, operator-triggered action in this
   phase, not an automatic idle-period timeout.** The source material leaves this as an open question
   (manual, automatic after a configurable window, or both), but the reopening behavior "closed" is meant

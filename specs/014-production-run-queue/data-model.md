@@ -140,6 +140,8 @@ public sealed class PrintJob
     public DateTimeOffset? StartedAtUtc { get; private set; }
     public DateTimeOffset? EndedAtUtc { get; private set; }
     public int? ActualDurationMinutes { get; private set; }         // FR-015, derived from Started/EndedAtUtc on close
+    public DateTimeOffset? CancelRequestedAtUtc { get; private set; }  // FR-024a/c — set when a stop is requested through OpenFarm, distinguishes Cancelled from Failed
+    public Guid? RequeuedAsJobId { get; private set; }               // FR-025a — set once a replacement job has been created for this one
     public IReadOnlyList<JobFilamentConsumption> FilamentConsumption => _filamentConsumption;
     public DateTimeOffset CreatedAtUtc { get; }
 
@@ -148,12 +150,14 @@ public sealed class PrintJob
     public void Unpin();                                            // -> AssignmentMode.Unassigned
     public void Reorder(double newQueuePosition);                   // FR-008
     public void Dispatch(Guid printerId, string fileRevisionHash, int fileRevisionNumber);  // FR-009 — Follow-latest re-reads the revision here
-    public void MarkStarted();                                      // FR-012 manual-brand path, or live auto-detect (Queued -> Printing)
-    public void MarkPaused();                                       // telemetry-only (research.md R12) — no command/endpoint calls this
-    public void MarkResumed();                                      // telemetry-only (research.md R12) — Paused -> Printing
+    public void RequestCancel();                                    // FR-024a — sets CancelRequestedAtUtc; does NOT change Status
+    public void MarkStarted();                                      // Queued -> Printing — telemetry-confirmed (live) or operator-reported (manual-brand), never both for the same job
+    public void MarkPaused();                                       // Printing -> Paused — same dual-trigger rule (research.md R12)
+    public void MarkResumed();                                      // Paused -> Printing — same dual-trigger rule
     public void MarkFailed(string? reason);
     public void MarkCompleted();
-    public void MarkCancelled();                                    // FR-017
+    public void MarkCancelled();                                    // Cancelled — see FR-024c for how this is chosen over MarkFailed
+    public void MarkRequeuedAs(Guid replacementJobId);               // FR-025a — one-time set, throws if already set
     public void RecordFilamentConsumption(Guid consumptionLineId, Guid? spoolId, decimal gramsConsumed);  // FR-013/FR-013a, callable on any terminal transition
 }
 ```
@@ -163,14 +167,25 @@ public sealed class PrintJob
   a deterministic state machine, TDD'd per constitution Principle II. Legal edges: `Queued → Printing`,
   `Printing → Paused`, `Paused → Printing`, `Printing/Paused → Failed`, `Printing/Paused → Completed`,
   `Queued/Printing/Paused → Cancelled`. Any other transition throws `InvalidPrintJobStatusTransitionException`.
-- **`MarkPaused`/`MarkResumed` are display-only and telemetry-driven, never operator-triggered**
-  (`research.md` R12) — no `Application` command and no endpoint calls either method. The only caller is
-  the new `IJobPauseTelemetrySync` implementation (`Infrastructure.Production`), invoked directly from
-  `PrinterConnectionBackgroundService.HandleEventAsync`, mirroring exactly how that same method already
-  calls `IFeedSlotTelemetrySync` today. This is the same "Infrastructure calls a Domain entity method
+- **`MarkStarted`/`MarkPaused`/`MarkResumed`/`MarkCompleted`/`MarkFailed`/`MarkCancelled` are called from
+  exactly one place per printer kind, never both, for a given job** (`research.md` R12): for a
+  live-integrated printer, the sole caller is the new `IJobTelemetrySync` implementation
+  (`Infrastructure.Production`), invoked directly from `PrinterConnectionBackgroundService.
+  HandleEventAsync` off the printer's own raw reported state — mirroring exactly how that same method
+  already calls `IFeedSlotTelemetrySync` today, the same "Infrastructure calls a Domain entity method
   directly off live telemetry, no Application command in between" shape `Printer.ObserveStatus` itself
-  already uses — `PrintJob` isn't doing anything novel here, just following the established precedent for
-  a second entity.
+  already uses. For a manual-brand printer, the sole caller is the relevant `Application` command handler
+  (`MarkPrintJobStartedCommandHandler`/`PausePrintJobCommandHandler`/etc.), trusting the operator's own
+  report directly, since there's no telemetry to wait for. **A command handler for a live-integrated job
+  never calls a `Mark*` method itself** — it only calls the matching `IPrinterConnector` method (R5) and,
+  for cancel, `RequestCancel()`; the actual status change always comes back through `IJobTelemetrySync`
+  once the printer confirms it.
+- **`RequestCancel()` only ever sets `CancelRequestedAtUtc`** — it is deliberately not a status transition
+  itself (FR-024a: the command that triggers a stop must not change `Status` before the printer confirms
+  it stopped). `IJobTelemetrySync` reads this flag when it observes the job's next terminal state to
+  choose `MarkCancelled()` over `MarkFailed()` (FR-024c). For a manual-brand job, `RequestCancel()` is
+  never called at all — the operator's own cancel action calls `MarkCancelled()` directly, same as every
+  other manual-brand transition.
 - **Reaching `Completed`/`Failed`/`Cancelled` triggers the owning printer's `TransitionTo(AwaitingClear)`**
   (FR-014a) — this is an *Application*-layer side effect (the command handler that calls
   `job.MarkCompleted()` also calls `printer.TransitionTo(PrinterStatus.AwaitingClear)` in the same
@@ -354,8 +369,13 @@ public sealed record RunLineSummary(
     RevisionMode RevisionMode, IReadOnlyList<PartRequirementSummary> Requirements);
 
 public sealed record PartRequirementSummary(
-    Guid Id, Guid PartId, string PartName, decimal? Quantity, int JobCount, int CompletedJobCount);
+    Guid Id, Guid PartId, string PartName, decimal? Quantity, int JobCount, int CompletedJobCount,
+    IReadOnlyList<Guid> JobsNeedingRequeue);   // Cancelled/Failed jobs on this requirement with RequeuedAsJobId == null (research.md R13)
 ```
+
+`JobsNeedingRequeue` is what the UI renders a shortfall banner and "Requeue" action from — it's a plain
+filter (`Status IN (Cancelled, Failed) AND RequeuedAsJobId IS NULL`), never a computed/stored aggregate
+count, matching R13's "no aggregate shortfall math" decision.
 
 Job-level detail (individual `PrintJob` rows under a requirement) is fetched separately, paginated, the
 same "expand on demand" shape `013-assembly-bom` established rather than one deeply nested payload.
@@ -386,6 +406,9 @@ note) operates over this shape, kept deliberately separate from the EF query tha
 | `PrintJobAlreadyDispatchedException` | `Reorder`/`Pin`/`Unpin` attempted on a job no longer in `Queued` (FR-008/FR-007 only make sense pre-dispatch) | 409 |
 | `ProductionRunConcurrencyConflictException` | same-row optimistic-concurrency conflict on a run/job (`xmin`) | 409 |
 | `FilamentConsumptionSumMismatchException` | (guardrail, not spec-required this phase, but cheap defense-in-depth) attempted to record consumption for a material/color pair not present on the job | 400 |
+| `JobNotEligibleForRemoteControlException` | Pause/Resume/Cancel command (FR-024) attempted on a job that isn't currently `Printing`/`Paused`, or on a manual-brand job's *command* path (manual-brand only ever takes the direct-report path) | 409 |
+| `PrintJobAlreadyRequeuedException` | `Requeue` (FR-025a) attempted on a job whose `RequeuedAsJobId` is already set | 409 |
+| `PrintJobNotEligibleForRequeueException` | `Requeue` attempted on a job that isn't `Cancelled`/`Failed`, or belongs to an unlimited requirement (FR-025d) | 409 |
 
 All follow the existing `DomainExceptionHandler` switch-expression pattern — one new arm per exception, no
 new middleware.
