@@ -4,6 +4,7 @@ using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Domain.ActivityLog;
+using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Organizations;
@@ -64,6 +65,12 @@ public sealed class OpenFarmDbContext(
     public DbSet<PartProcessingJob> PartProcessingJobs => Set<PartProcessingJob>();
 
     public DbSet<PartProcessingJobPreviewThumbnail> PartProcessingJobPreviewThumbnails => Set<PartProcessingJobPreviewThumbnail>();
+
+    public DbSet<OpenFarm.Domain.Assemblies.Assembly> Assemblies => Set<OpenFarm.Domain.Assemblies.Assembly>();
+
+    public DbSet<BomLine> BomLines => Set<BomLine>();
+
+    public DbSet<NonPrintedComponent> NonPrintedComponents => Set<NonPrintedComponent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

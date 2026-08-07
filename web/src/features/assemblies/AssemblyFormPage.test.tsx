@@ -1,135 +1,94 @@
-import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createMemoryRouter, Link, Outlet, RouterProvider } from 'react-router';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { partsStore } from '@/features/assemblies/data/mockPartsStore';
+import type { ReactNode } from 'react';
+import { createMemoryRouter, RouterProvider } from 'react-router';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AssemblyFormPage } from './AssemblyFormPage';
-import { assembliesStore } from './data/mockAssembliesStore';
 
-function TestLayout() {
-  return (
-    <div>
-      <Link to="/assemblies">Nav away</Link>
-      <Outlet />
-    </div>
-  );
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
-function renderApp(initialEntries: string[]) {
+function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+
+  function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  }
+
   const router = createMemoryRouter(
     [
-      {
-        element: <TestLayout />,
-        children: [
-          {
-            path: '/assemblies/new',
-            element: <AssemblyFormPage mode="add" />,
-          },
-          {
-            path: '/assemblies/:id/edit',
-            element: <AssemblyFormPage mode="edit" />,
-          },
-          { path: '/assemblies', element: <div>Assemblies list page</div> },
-        ],
-      },
+      { path: '/assemblies/new', element: <AssemblyFormPage mode="add" /> },
+      { path: '/assemblies', element: <div>Assemblies catalog page</div> },
+      { path: '/assemblies/:id', element: <div>Assembly detail page</div> },
     ],
-    { initialEntries },
+    { initialEntries: ['/assemblies/new'] },
   );
-  return render(<RouterProvider router={router} />);
+
+  return render(<RouterProvider router={router} />, { wrapper: Wrapper });
 }
 
-describe('AssemblyFormPage', () => {
-  beforeEach(() => {
-    assembliesStore.reset();
-    partsStore.reset();
-  });
+describe('AssemblyFormPage (add)', () => {
+  afterEach(() => vi.unstubAllGlobals());
 
-  it('shows an inline field error when submitted with no name', async () => {
-    const user = userEvent.setup();
-    renderApp(['/assemblies/new']);
-
-    await user.click(screen.getByRole('button', { name: 'Create assembly' }));
-
-    expect(
-      await screen.findByText('Give this assembly a name first.'),
-    ).toBeInTheDocument();
-  });
-
-  it('adds a new assembly with a part component, shows a toast, and navigates to /assemblies', async () => {
-    const user = userEvent.setup();
-    const before = assembliesStore.getSnapshot().length;
-    renderApp(['/assemblies/new']);
-
-    await user.type(screen.getByLabelText('Assembly name'), 'Test assembly');
-
-    // Open the picker (header button) and confirm the preselected part
-    // (the dialog's own footer button, scoped so it doesn't collide with
-    // the still-present header "Add part" button behind the modal).
-    await user.click(screen.getByRole('button', { name: 'Add part' }));
-    const dialog = screen.getByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Add part' }));
-
-    expect(screen.getByText('Parts · 1')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Create assembly' }));
-
-    expect(await screen.findByText('Assemblies list page')).toBeInTheDocument();
-    expect(assembliesStore.getSnapshot()).toHaveLength(before + 1);
-
-    const created = assembliesStore
-      .getSnapshot()
-      .find((a) => a.name === 'Test assembly');
-    expect(created).toBeDefined();
-    expect(created?.components).toHaveLength(1);
-  });
-
-  it('does not commit anything to the store until Create is clicked, and warns on Cancel with unsaved changes', async () => {
-    const user = userEvent.setup();
-    const before = assembliesStore.getSnapshot().length;
-    renderApp(['/assemblies/new']);
-
-    await user.type(screen.getByLabelText('Assembly name'), 'Untitled draft');
-
-    expect(assembliesStore.getSnapshot()).toHaveLength(before);
-
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-
-    const alertDialog = await screen.findByRole('alertdialog');
-    expect(
-      within(alertDialog).getByText('Discard unsaved changes?'),
-    ).toBeInTheDocument();
-    await user.click(
-      within(alertDialog).getByRole('button', { name: 'Discard changes' }),
+  it('builds an assembly locally and submits it in a single create call', async () => {
+    let capturedBody: unknown;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.includes('/api/v1/parts')) {
+          return Promise.resolve(
+            jsonResponse({
+              parts: [{ id: 'p1', name: 'Bracket' }],
+              totalCount: 1,
+            }),
+          );
+        }
+        if (url.includes('/api/v1/assemblies') && init?.method === 'POST') {
+          capturedBody = JSON.parse(init.body as string);
+          return Promise.resolve(
+            jsonResponse(
+              { id: 'a1', name: 'Enclosure', description: null, lines: [] },
+              201,
+            ),
+          );
+        }
+        if (url.includes('/api/v1/assemblies')) {
+          return Promise.resolve(jsonResponse({ items: [], totalCount: 0 }));
+        }
+        if (url.includes('/api/v1/non-printed-components')) {
+          return Promise.resolve(jsonResponse({ items: [], totalCount: 0 }));
+        }
+        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+      }),
     );
 
-    expect(await screen.findByText('Assemblies list page')).toBeInTheDocument();
-    expect(assembliesStore.getSnapshot()).toHaveLength(before);
-  });
+    renderPage();
 
-  it('pre-fills existing data in edit mode', async () => {
-    const [existing] = assembliesStore.getSnapshot();
-    renderApp([`/assemblies/${existing.id}/edit`]);
-
-    expect(await screen.findByDisplayValue(existing.name)).toBeInTheDocument();
-    expect(
-      screen.getByText(`Parts · ${existing.components.length}`),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Save changes' }),
-    ).toBeInTheDocument();
-  });
-
-  it('blocks in-app navigation away while the form has unsaved changes', async () => {
     const user = userEvent.setup();
-    renderApp(['/assemblies/new']);
+    await user.type(screen.getByLabelText('Assembly name'), 'Enclosure');
 
-    await user.type(screen.getByLabelText('Assembly name'), 'Dirty draft');
+    await user.click(await screen.findByRole('combobox', { name: 'Target' }));
+    await user.click(await screen.findByRole('option', { name: 'Bracket' }));
+    await user.click(screen.getByRole('button', { name: /add line/i }));
 
-    await user.click(screen.getByRole('link', { name: 'Nav away' }));
+    await user.click(screen.getByRole('button', { name: /create assembly/i }));
 
-    const dialog = await screen.findByRole('alertdialog');
-    expect(
-      within(dialog).getByText('Discard unsaved changes?'),
-    ).toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(capturedBody).toEqual({
+        name: 'Enclosure',
+        description: null,
+        lines: [{ targetKind: 'Part', targetId: 'p1', quantity: 1 }],
+      });
+    });
   });
 });

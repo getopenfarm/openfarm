@@ -1,29 +1,34 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import { Layers3Icon, PlusIcon, PrinterIcon } from 'lucide-react';
+import { Layers3Icon, PlusIcon } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { toast } from 'sonner';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
-import { formatMinutes } from '@/lib/formatMinutes';
-import { type Assembly, useAssemblies } from './data/mockAssembliesStore';
-import { computeAssemblyTotals } from './lib/computeAssemblyTotals';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useOpenFarmApiEndpointsAssembliesListAssembliesEndpoint } from '@/lib/api/generated/assemblies/assemblies';
+import type {
+  AssemblySummaryResponse,
+  ListAssembliesResponse,
+} from '@/lib/api/generated/endpoints.schemas';
+
+const PAGE_SIZE = 500;
 
 export function AssembliesPage() {
   const navigate = useNavigate();
-  const [assemblies] = useAssemblies();
 
-  // Intentionally minimal — unlike Parts' print flow, "Print" here doesn't
-  // open a queue modal or write to the Jobs mock store. It just queues (in
-  // spirit) and hands off to the Jobs page.
-  function handlePrint(assembly: Assembly) {
-    toast.success(`Queued ${assembly.name} — check the print queue.`);
-    navigate('/jobs');
-  }
+  const assembliesQuery =
+    useOpenFarmApiEndpointsAssembliesListAssembliesEndpoint({
+      page: 1,
+      pageSize: PAGE_SIZE,
+    });
+  const listData = assembliesQuery.data?.data as
+    | ListAssembliesResponse
+    | undefined;
+  const assemblies = listData?.items ?? [];
 
-  const columns: ColumnDef<Assembly>[] = [
+  const columns: ColumnDef<AssemblySummaryResponse>[] = [
     {
       id: 'assembly',
       accessorKey: 'name',
@@ -37,58 +42,22 @@ export function AssembliesPage() {
           </div>
           <div className="flex flex-col">
             <span className="font-medium">{row.original.name}</span>
-            <span className="text-xs text-muted-foreground">
-              {row.original.description}
-            </span>
+            {row.original.description && (
+              <span className="text-xs text-muted-foreground">
+                {row.original.description}
+              </span>
+            )}
           </div>
         </div>
       ),
     },
     {
-      id: 'components',
-      header: 'Components',
+      id: 'lineCount',
+      header: 'Lines',
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          {row.original.components.length} components
+          {row.original.lineCount} lines
         </span>
-      ),
-    },
-    {
-      id: 'totalParts',
-      header: 'Total parts',
-      cell: ({ row }) => {
-        const totals = computeAssemblyTotals(row.original, assemblies);
-        return <span className="font-mono text-sm">{totals.totalParts}</span>;
-      },
-    },
-    {
-      id: 'estimatedTime',
-      header: 'Est. time',
-      cell: ({ row }) => {
-        const totals = computeAssemblyTotals(row.original, assemblies);
-        return (
-          <span className="font-mono text-sm">
-            {formatMinutes(totals.estimatedTimeMinutes)}
-          </span>
-        );
-      },
-    },
-    {
-      id: 'actions',
-      header: () => <span className="sr-only">Actions</span>,
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={(event) => {
-              event.stopPropagation();
-              handlePrint(row.original);
-            }}
-          >
-            <PrinterIcon /> Print
-          </Button>
-        </div>
       ),
     },
   ];
@@ -105,7 +74,9 @@ export function AssembliesPage() {
         }
       />
 
-      {assemblies.length === 0 ? (
+      {assembliesQuery.isLoading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : assemblies.length === 0 ? (
         <EmptyState
           icon={<Layers3Icon className="size-8 text-muted-foreground" />}
           title="No assemblies yet"
@@ -120,7 +91,7 @@ export function AssembliesPage() {
         <DataTable
           columns={columns}
           data={assemblies}
-          onRowClick={(row) => navigate(`/assemblies/${row.id}/edit`)}
+          onRowClick={(row) => navigate(`/assemblies/${row.id}`)}
         />
       )}
     </div>

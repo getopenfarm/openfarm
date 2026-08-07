@@ -763,6 +763,41 @@ export interface PartProcessingJobResponse {
   errorMessage?: string | null;
 }
 
+export interface NonPrintedComponentResponse {
+  id?: string;
+  name?: string;
+  unit?: string;
+  /** @nullable */
+  unitCost?: number | null;
+}
+
+export interface CreateNonPrintedComponentRequest {
+  name?: string;
+  unit?: string;
+  /** @nullable */
+  unitCost?: number | null;
+}
+
+export interface DeleteNonPrintedComponentRequest {
+  [key: string]: unknown;
+}
+
+export interface EditNonPrintedComponentRequest {
+  name?: string;
+  unit?: string;
+  /** @nullable */
+  unitCost?: number | null;
+}
+
+export interface ListNonPrintedComponentsResponse {
+  items?: NonPrintedComponentResponse[];
+  totalCount?: number;
+}
+
+export interface ListNonPrintedComponentsRequest {
+  [key: string]: unknown;
+}
+
 export interface FilamentVariantResponse {
   id?: string;
   colorName?: string;
@@ -898,6 +933,118 @@ export interface WhoAmIResult {
   organizationId?: string;
 }
 
+export interface BomLineResponse {
+  id?: string;
+  targetKind?: string;
+  targetId?: string;
+  targetName?: string;
+  quantity?: number;
+}
+
+export interface AddBomLineRequest {
+  assemblyId?: string;
+  targetKind?: string;
+  targetId?: string;
+  quantity?: number;
+}
+
+export interface BuildableUnitsResponse {
+  isApplicable?: boolean;
+  /** @nullable */
+  value?: number | null;
+  /** @nullable */
+  notApplicableReason?: string | null;
+}
+
+export type CalculateBuildableUnitsRequestGoodQuantities = {
+  [key: string]: number;
+};
+
+export interface CalculateBuildableUnitsRequest {
+  goodQuantities?: CalculateBuildableUnitsRequestGoodQuantities;
+}
+
+export interface AssemblyResponse {
+  id?: string;
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  lines?: BomLineResponse[];
+  createdAtUtc?: string;
+  updatedAtUtc?: string;
+}
+
+export interface CreateAssemblyLineRequest {
+  targetKind?: string;
+  targetId?: string;
+  quantity?: number;
+}
+
+export interface CreateAssemblyRequest {
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  lines?: CreateAssemblyLineRequest[];
+}
+
+export interface DeleteAssemblyRequest {
+  [key: string]: unknown;
+}
+
+export interface EditAssemblyRequest {
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+}
+
+export interface EditBomLineRequest {
+  assemblyId?: string;
+  quantity?: number;
+}
+
+export interface ExplodedPartResponse {
+  partId?: string;
+  partName?: string;
+  quantity?: number;
+}
+
+export interface ExplodedNonPrintedComponentResponse {
+  nonPrintedComponentId?: string;
+  name?: string;
+  unit?: string;
+  quantity?: number;
+}
+
+export interface ExplodeAssemblyResponse {
+  printedParts?: ExplodedPartResponse[];
+  nonPrintedComponents?: ExplodedNonPrintedComponentResponse[];
+}
+
+export interface ExplodeAssemblyRequest {
+  [key: string]: unknown;
+}
+
+export interface AssemblySummaryResponse {
+  id?: string;
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  lineCount?: number;
+}
+
+export interface ListAssembliesResponse {
+  items?: AssemblySummaryResponse[];
+  totalCount?: number;
+}
+
+export interface ListAssembliesRequest {
+  [key: string]: unknown;
+}
+
+export interface RemoveBomLineRequest {
+  assemblyId?: string;
+}
+
 export interface ActivityLogEntryResponse {
   id?: string;
   entityType?: string;
@@ -1018,6 +1165,21 @@ export type OpenFarmApiEndpointsPartsListPartsEndpointParams = {
   tag?: string[] | null;
   page: number;
   pageSize: number;
+};
+
+export type OpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpointParams =
+  {
+    page: number;
+    pageSize: number;
+  };
+
+export type OpenFarmApiEndpointsAssembliesListAssembliesEndpointParams = {
+  page: number;
+  pageSize: number;
+};
+
+export type OpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointParams = {
+  quantity: number;
 };
 
 export type OpenFarmApiEndpointsActivityLogGetActivityLogEndpointParams = {

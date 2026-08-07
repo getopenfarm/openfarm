@@ -7,6 +7,7 @@ import {
   LayoutDashboardIcon,
   type LucideIcon,
   Package2Icon,
+  PackageIcon,
   PrinterIcon,
   SlidersHorizontalIcon,
   WrenchIcon,
@@ -50,6 +51,11 @@ const assemblies: NavItem = {
   url: '/assemblies',
   icon: ComponentIcon,
 };
+const nonPrintedComponents: NavItem = {
+  title: 'Non-Printed Components',
+  url: '/non-printed-components',
+  icon: PackageIcon,
+};
 const profiles: NavItem = {
   title: 'Profiles',
   url: '/profiles',
@@ -69,7 +75,10 @@ const activityLog: NavItem = {
 export const navSections: NavSection[] = [
   { label: 'Operate', items: [dashboard, printers, jobs] },
   { label: 'Materials', items: [filament, spools] },
-  { label: 'Library', items: [parts, assemblies, profiles, maintenance] },
+  {
+    label: 'Library',
+    items: [parts, assemblies, nonPrintedComponents, profiles, maintenance],
+  },
 ];
 
 export const bottomNavItems: NavItem[] = [activityLog];

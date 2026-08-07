@@ -171,6 +171,150 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Assemblies.Assembly", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Assemblies", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Assemblies.BomLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssemblyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid?>("TargetAssemblyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TargetKind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("TargetNonPrintedComponentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TargetPartId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TargetAssemblyId");
+
+                    b.HasIndex("TargetNonPrintedComponentId");
+
+                    b.HasIndex("TargetPartId");
+
+                    b.HasIndex("AssemblyId", "TargetAssemblyId")
+                        .IsUnique()
+                        .HasFilter("\"TargetAssemblyId\" IS NOT NULL");
+
+                    b.HasIndex("AssemblyId", "TargetNonPrintedComponentId")
+                        .IsUnique()
+                        .HasFilter("\"TargetNonPrintedComponentId\" IS NOT NULL");
+
+                    b.HasIndex("AssemblyId", "TargetPartId")
+                        .IsUnique()
+                        .HasFilter("\"TargetPartId\" IS NOT NULL");
+
+                    b.ToTable("BomLines", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_BomLines_ExactlyOneTargetMatchingKind", "(\"TargetKind\" = 'Part' AND \"TargetPartId\" IS NOT NULL AND \"TargetAssemblyId\" IS NULL AND \"TargetNonPrintedComponentId\" IS NULL) OR\n(\"TargetKind\" = 'Assembly' AND \"TargetAssemblyId\" IS NOT NULL AND \"TargetPartId\" IS NULL AND \"TargetNonPrintedComponentId\" IS NULL) OR\n(\"TargetKind\" = 'NonPrintedComponent' AND \"TargetNonPrintedComponentId\" IS NOT NULL AND \"TargetPartId\" IS NULL AND \"TargetAssemblyId\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_BomLines_NoDirectSelfReference", "\"TargetAssemblyId\" IS NULL OR \"TargetAssemblyId\" <> \"AssemblyId\"");
+                        });
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Assemblies.NonPrintedComponent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NonPrintedComponents", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.ConnectionSecrets.ConnectionSecret", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1271,6 +1415,30 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Assemblies.BomLine", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Assemblies.Assembly", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("AssemblyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpenFarm.Domain.Assemblies.Assembly", null)
+                        .WithMany()
+                        .HasForeignKey("TargetAssemblyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenFarm.Domain.Assemblies.NonPrintedComponent", null)
+                        .WithMany()
+                        .HasForeignKey("TargetNonPrintedComponentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenFarm.Domain.Parts.Part", null)
+                        .WithMany()
+                        .HasForeignKey("TargetPartId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedSlot", b =>
                 {
                     b.HasOne("OpenFarm.Domain.FilamentTracking.FeedUnit", null)
@@ -1406,6 +1574,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TagId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Assemblies.Assembly", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedUnit", b =>
