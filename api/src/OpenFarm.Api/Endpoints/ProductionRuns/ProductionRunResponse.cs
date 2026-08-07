@@ -94,6 +94,12 @@ public sealed class RunLineSummaryResponse
 
     public string RevisionMode { get; set; } = string.Empty;
 
+    public int BackfillPrinterCap { get; set; }
+
+    public int? BackfillCumulativeUnitCeiling { get; set; }
+
+    public int CumulativeProducedUnits { get; set; }
+
     public List<PartRequirementSummaryResponse> Requirements { get; set; } = [];
 
     public static RunLineSummaryResponse FromSummary(RunLineSummary summary) => new()
@@ -104,6 +110,9 @@ public sealed class RunLineSummaryResponse
         TargetName = summary.TargetName,
         Quantity = summary.Quantity,
         RevisionMode = summary.RevisionMode.ToString(),
+        BackfillPrinterCap = summary.BackfillPrinterCap,
+        BackfillCumulativeUnitCeiling = summary.BackfillCumulativeUnitCeiling,
+        CumulativeProducedUnits = summary.CumulativeProducedUnits,
         Requirements = summary.Requirements.Select(PartRequirementSummaryResponse.FromSummary).ToList(),
     };
 }

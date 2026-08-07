@@ -444,6 +444,10 @@ export interface RunLineSummaryResponse {
   /** @nullable */
   quantity?: number | null;
   revisionMode?: string;
+  backfillPrinterCap?: number;
+  /** @nullable */
+  backfillCumulativeUnitCeiling?: number | null;
+  cumulativeProducedUnits?: number;
   requirements?: PartRequirementSummaryResponse[];
 }
 
@@ -522,6 +526,19 @@ export interface ListProductionRunsResponse {
 
 export interface ListProductionRunsRequest {
   [key: string]: unknown;
+}
+
+export interface RunLineBackfillLimitsResponse {
+  id?: string;
+  backfillPrinterCap?: number;
+  /** @nullable */
+  backfillCumulativeUnitCeiling?: number | null;
+}
+
+export interface SetRunLineBackfillLimitsRequest {
+  backfillPrinterCap?: number;
+  /** @nullable */
+  backfillCumulativeUnitCeiling?: number | null;
 }
 
 export interface JobFilamentConsumptionResponse {

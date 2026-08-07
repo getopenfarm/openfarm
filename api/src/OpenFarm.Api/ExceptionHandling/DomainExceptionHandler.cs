@@ -101,6 +101,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             JobNotEligibleForRemoteControlException => (StatusCodes.Status409Conflict, "Print job is not eligible for this remote-control action"),
             PrintJobAlreadyRequeuedException => (StatusCodes.Status409Conflict, "Print job has already been requeued"),
             PrintJobNotEligibleForRequeueException => (StatusCodes.Status409Conflict, "Print job is not eligible for requeue"),
+            RunLineNotEligibleForBackfillLimitsException => (StatusCodes.Status409Conflict, "Run line is not unlimited, so backfill limits don't apply"),
             _ => (0, null),
         };
 

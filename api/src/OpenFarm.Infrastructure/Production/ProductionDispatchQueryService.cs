@@ -187,4 +187,95 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
 
         return qualifying;
     }
+
+    /// <summary>
+    /// research.md R4 step 5: every (RunLine, PartRequirement) pair belonging to an unlimited
+    /// (<c>Quantity IS NULL</c>) line, with the owning line's own occupancy
+    /// (<c>COUNT(DISTINCT PrinterId)</c> over its <c>Printing</c>/dispatched-but-unconfirmed/
+    /// Pinned-and-queued jobs) and cumulative units (<c>SUM(Part.UnitsPerPrint)</c> over its
+    /// <c>Completed</c> jobs) — both aggregated across every requirement on the line, per
+    /// data-model.md's "one cap, counted together across every distinct printed part" note for an
+    /// Assembly-targeted backfill line.
+    /// </summary>
+    public async Task<IReadOnlyList<BackfillLineCandidate>> GetBackfillCandidatesAsync(CancellationToken cancellationToken)
+    {
+        var lines = await dbContext.RunLines.Where(l => l.Quantity == null).ToListAsync(cancellationToken);
+        if (lines.Count == 0)
+        {
+            return [];
+        }
+
+        var lineIds = lines.Select(l => l.Id).ToList();
+        var requirements = await dbContext.PartRequirements.Where(r => lineIds.Contains(r.RunLineId)).ToListAsync(cancellationToken);
+        if (requirements.Count == 0)
+        {
+            return [];
+        }
+
+        var partIds = requirements.Select(r => r.PartId).Distinct().ToList();
+        var partsById = await dbContext.Parts.Where(p => partIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, cancellationToken);
+        var filamentRequirementsByPart = await dbContext.PartFilamentRequirements
+            .Where(r => partIds.Contains(r.PartId))
+            .GroupBy(r => r.PartId)
+            .ToDictionaryAsync(
+                g => g.Key,
+                g => (IReadOnlyList<(string?, string?)>)g.Select(r => (r.MaterialType, r.DetectedColorHex)).ToList(),
+                cancellationToken);
+
+        var occupancyByLine = new Dictionary<Guid, int>();
+        var cumulativeUnitsByLine = new Dictionary<Guid, int>();
+
+        foreach (var line in lines)
+        {
+            var requirementIdsForLine = requirements.Where(r => r.RunLineId == line.Id).Select(r => r.Id).ToList();
+            if (requirementIdsForLine.Count == 0)
+            {
+                occupancyByLine[line.Id] = 0;
+                cumulativeUnitsByLine[line.Id] = 0;
+                continue;
+            }
+
+            var occupiedPrinterIds = await dbContext.PrintJobs
+                .Where(j => requirementIdsForLine.Contains(j.PartRequirementId) &&
+                    (j.Status == PrintJobStatus.Printing ||
+                     (j.Status == PrintJobStatus.Queued && j.DispatchedAtUtc != null) ||
+                     (j.Status == PrintJobStatus.Queued && j.AssignmentMode == AssignmentMode.Pinned)))
+                .Select(j => j.DispatchedPrinterId ?? j.PinnedPrinterId)
+                .Where(id => id != null)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            occupancyByLine[line.Id] = occupiedPrinterIds.Count;
+
+            var completedUnits = await (
+                from job in dbContext.PrintJobs
+                join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
+                join part in dbContext.Parts on requirement.PartId equals part.Id
+                where requirementIdsForLine.Contains(job.PartRequirementId) && job.Status == PrintJobStatus.Completed
+                select part.UnitsPerPrint)
+                .ToListAsync(cancellationToken);
+            cumulativeUnitsByLine[line.Id] = completedUnits.Sum();
+        }
+
+        var candidates = new List<BackfillLineCandidate>();
+        foreach (var requirement in requirements)
+        {
+            if (!partsById.TryGetValue(requirement.PartId, out var part))
+            {
+                continue;
+            }
+
+            var line = lines.First(l => l.Id == requirement.RunLineId);
+            candidates.Add(new BackfillLineCandidate(
+                line.Id,
+                requirement.Id,
+                part.NozzleDiameterMm,
+                filamentRequirementsByPart.GetValueOrDefault(part.Id, []),
+                line.BackfillPrinterCap,
+                line.BackfillCumulativeUnitCeiling,
+                occupancyByLine[line.Id],
+                cumulativeUnitsByLine[line.Id]));
+        }
+
+        return candidates;
+    }
 }

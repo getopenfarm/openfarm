@@ -143,6 +143,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var jobId = ProductionDispatchMatcher.SelectNextJob(nozzleDiameterMm.Value, loadedMaterials, candidates, pinnedCandidates);
         if (jobId is null)
         {
+            // FR-006b — backfill is only ever consulted once no finite (Unassigned or Pinned) job matched.
+            await TryDispatchBackfillAsync(services, printer, nozzleDiameterMm.Value, loadedMaterials, queryService, jobRepository, cancellationToken);
             return;
         }
 
@@ -187,6 +189,64 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
+        await DispatchJobAsync(services, printer, job, part, nozzleDiameterMm.Value, jobRepository, cancellationToken);
+    }
+
+    /// <summary>
+    /// FR-006a/research.md R2 — only ever consulted once no finite job matched. Lazily creates
+    /// exactly one <see cref="PrintJob"/> for the first backfill-eligible line/part still under its
+    /// occupancy cap and cumulative-unit ceiling, then dispatches it exactly like any other matched
+    /// job — never a batch, never queued ahead of real demand.
+    /// </summary>
+    private async Task TryDispatchBackfillAsync(
+        IServiceProvider services, Printer printer, decimal nozzleDiameterMm,
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> loadedMaterials, ProductionDispatchQueryService queryService,
+        IPrintJobRepository jobRepository, CancellationToken cancellationToken)
+    {
+        var backfillCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken);
+        var requirementId = ProductionDispatchMatcher.SelectNextBackfillLine(nozzleDiameterMm, loadedMaterials, backfillCandidates);
+        if (requirementId is null)
+        {
+            return;
+        }
+
+        var requirementRepository = services.GetRequiredService<IPartRequirementRepository>();
+        var partRepository = services.GetRequiredService<IPartRepository>();
+        var runRepository = services.GetRequiredService<IProductionRunRepository>();
+
+        var requirement = await requirementRepository.GetByIdAsync(requirementId.Value, cancellationToken);
+        var part = requirement is null ? null : await partRepository.GetByIdAsync(requirement.PartId, cancellationToken);
+        if (requirement is null || part is null)
+        {
+            return;
+        }
+
+        var run = await runRepository.GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
+        var runLine = run?.Lines.FirstOrDefault(l => l.Id == requirement.RunLineId);
+        if (runLine is null)
+        {
+            return;
+        }
+
+        var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(requirement.OrganizationId, cancellationToken) ?? 0) + 1024;
+        var filamentSpecs = part.FilamentRequirements
+            .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex))
+            .ToList();
+
+        var newJob = PrintJob.Create(
+            requirement.OrganizationId, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
+            runLine.DefaultAssignmentMode, runLine.DefaultPinnedPrinterId, part.RevisionHash, part.RevisionNumber, filamentSpecs);
+
+        await jobRepository.AddAsync(newJob, cancellationToken);
+        await jobRepository.SaveChangesAsync(cancellationToken);
+
+        await DispatchJobAsync(services, printer, newJob, part, nozzleDiameterMm, jobRepository, cancellationToken);
+    }
+
+    private async Task DispatchJobAsync(
+        IServiceProvider services, Printer printer, PrintJob job, Part part, decimal nozzleDiameterMm,
+        IPrintJobRepository jobRepository, CancellationToken cancellationToken)
+    {
         if (!PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
         {
             // FR-012 manual-brand path: mark the assignment only — Status stays Queued until the
@@ -197,7 +257,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
-        await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleDiameterMm.Value, jobRepository, cancellationToken);
+        await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleDiameterMm, jobRepository, cancellationToken);
     }
 
     private async Task DispatchToLiveIntegratedPrinterAsync(

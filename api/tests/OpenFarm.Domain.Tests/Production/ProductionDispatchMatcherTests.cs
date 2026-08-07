@@ -204,4 +204,77 @@ public class ProductionDispatchMatcherTests
 
         result.Should().BeTrue();
     }
+
+    private static BackfillLineCandidate BackfillCandidate(
+        Guid requirementId, decimal nozzleDiameterMm, int backfillPrinterCap, int? cumulativeCeiling,
+        int currentOccupancy, int cumulativeUnits, params (string? MaterialType, string? ColorHex)[] filament) =>
+        new(Guid.NewGuid(), requirementId, nozzleDiameterMm, filament, backfillPrinterCap, cumulativeCeiling, currentOccupancy, cumulativeUnits);
+
+    [Fact]
+    public void SelectNextBackfillLine_MatchingAndUnderCap_SelectsTheRequirement()
+    {
+        var requirementId = Guid.NewGuid();
+        var candidates = new[]
+        {
+            BackfillCandidate(requirementId, 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 0, cumulativeUnits: 0, ("PETG", "#000000")),
+        };
+
+        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
+
+        result.Should().Be(requirementId);
+    }
+
+    [Fact]
+    public void SelectNextBackfillLine_OccupancyAtCap_SelectsNothing()
+    {
+        var candidates = new[]
+        {
+            BackfillCandidate(Guid.NewGuid(), 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 1, cumulativeUnits: 0, ("PETG", "#000000")),
+        };
+
+        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void SelectNextBackfillLine_CumulativeUnitsAtCeiling_SelectsNothing()
+    {
+        var candidates = new[]
+        {
+            BackfillCandidate(Guid.NewGuid(), 0.4m, backfillPrinterCap: 5, cumulativeCeiling: 8, currentOccupancy: 0, cumulativeUnits: 8, ("PETG", "#000000")),
+        };
+
+        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void SelectNextBackfillLine_NonMatchingNozzle_SelectsNothing()
+    {
+        var candidates = new[]
+        {
+            BackfillCandidate(Guid.NewGuid(), 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 0, cumulativeUnits: 0, ("PETG", "#000000")),
+        };
+
+        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.6m, [("PETG", "#000000")], candidates);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void SelectNextBackfillLine_FirstCandidateIneligibleSecondEligible_SelectsSecond()
+    {
+        var eligibleRequirementId = Guid.NewGuid();
+        var candidates = new[]
+        {
+            BackfillCandidate(Guid.NewGuid(), 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 1, cumulativeUnits: 0, ("PETG", "#000000")),
+            BackfillCandidate(eligibleRequirementId, 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 0, cumulativeUnits: 0, ("PETG", "#000000")),
+        };
+
+        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
+
+        result.Should().Be(eligibleRequirementId);
+    }
 }

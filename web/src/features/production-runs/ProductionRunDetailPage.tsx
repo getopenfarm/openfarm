@@ -19,6 +19,7 @@ import {
   useOpenFarmApiEndpointsProductionRunsCloseProductionRunEndpoint,
   useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint,
 } from '@/lib/api/generated/production-runs/production-runs';
+import { BackfillLimitsPanel } from './components/BackfillLimitsPanel';
 import { ShortfallBanner } from './components/ShortfallBanner';
 import { useProductionHub } from './hooks/useProductionHub';
 
@@ -184,6 +185,19 @@ export function ProductionRunDetailPage() {
                   )}
                 </div>
               ))}
+              {id &&
+                (line.quantity === null || line.quantity === undefined) &&
+                line.id && (
+                  <BackfillLimitsPanel
+                    runId={id}
+                    lineId={line.id}
+                    backfillPrinterCap={line.backfillPrinterCap ?? 1}
+                    backfillCumulativeUnitCeiling={
+                      line.backfillCumulativeUnitCeiling
+                    }
+                    cumulativeProducedUnits={line.cumulativeProducedUnits ?? 0}
+                  />
+                )}
             </CardContent>
           </Card>
         ))}

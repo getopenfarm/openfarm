@@ -1295,6 +1295,69 @@
         ]
       }
     },
+    "/api/v1/production-runs/{runId}/lines/{lineId}/backfill-limits": {
+      "put": {
+        "tags": [
+          "Production-Runs"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lineId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SetRunLineBackfillLimitsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRunLineBackfillLimitsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunLineBackfillLimitsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/print-jobs/{id}/cancel": {
       "post": {
         "tags": [
@@ -5062,6 +5125,19 @@
           "revisionMode": {
             "type": "string"
           },
+          "backfillPrinterCap": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "backfillCumulativeUnitCeiling": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cumulativeProducedUnits": {
+            "type": "integer",
+            "format": "int32"
+          },
           "requirements": {
             "type": "array",
             "items": {
@@ -5260,6 +5336,40 @@
       "ListProductionRunsRequest": {
         "type": "object",
         "additionalProperties": false
+      },
+      "RunLineBackfillLimitsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "backfillPrinterCap": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "backfillCumulativeUnitCeiling": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "SetRunLineBackfillLimitsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "backfillPrinterCap": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "backfillCumulativeUnitCeiling": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
       },
       "PrintJobResponse": {
         "type": "object",

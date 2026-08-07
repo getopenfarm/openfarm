@@ -94,17 +94,58 @@ public static class ProductionDispatchMatcher
         return true;
     }
 
+    /// <summary>
+    /// FR-006b: only ever consulted once no finite (Unassigned or Pinned) job could be assigned to
+    /// this printer. Returns the <c>PartRequirementId</c> of the first backfill-eligible candidate
+    /// whose nozzle/filament requirement this printer satisfies and whose line hasn't yet met its
+    /// occupancy cap or cumulative-unit ceiling (FR-006c/d) — first-match, not best-match; there is
+    /// no ordering signal among backfill lines (FR-008a rules out priority-based scheduling).
+    /// </summary>
+    public static Guid? SelectNextBackfillLine(
+        decimal printerNozzleDiameterMm,
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials,
+        IReadOnlyList<BackfillLineCandidate> backfillCandidates)
+    {
+        foreach (var candidate in backfillCandidates)
+        {
+            if (candidate.RequiredNozzleDiameterMm != printerNozzleDiameterMm)
+            {
+                continue;
+            }
+
+            if (!SatisfiesFilamentRequirement(printerLoadedMaterials, candidate.FilamentRequirement))
+            {
+                continue;
+            }
+
+            if (candidate.CurrentOccupancy >= candidate.BackfillPrinterCap)
+            {
+                continue;
+            }
+
+            if (candidate.BackfillCumulativeUnitCeiling is { } ceiling && candidate.CumulativeUnits >= ceiling)
+            {
+                continue;
+            }
+
+            return candidate.PartRequirementId;
+        }
+
+        return null;
+    }
+
     private static bool Matches(
         decimal printerNozzleDiameterMm,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials,
-        DispatchCandidate candidate)
-    {
-        if (candidate.RequiredNozzleDiameterMm != printerNozzleDiameterMm)
-        {
-            return false;
-        }
+        DispatchCandidate candidate) =>
+        candidate.RequiredNozzleDiameterMm == printerNozzleDiameterMm
+            && SatisfiesFilamentRequirement(printerLoadedMaterials, candidate.FilamentRequirement);
 
-        foreach (var required in candidate.FilamentRequirement)
+    private static bool SatisfiesFilamentRequirement(
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials,
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> filamentRequirement)
+    {
+        foreach (var required in filamentRequirement)
         {
             var satisfiable = printerLoadedMaterials.Any(loaded =>
                 (required.MaterialType is null || required.MaterialType == loaded.MaterialType) &&
