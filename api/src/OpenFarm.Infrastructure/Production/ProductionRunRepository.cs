@@ -23,6 +23,9 @@ public sealed class ProductionRunRepository(OpenFarmDbContext dbContext) : IProd
     public Task<ProductionRun?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.ProductionRuns.Include(r => r.Lines).FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
+    public Task<ProductionRun?> GetByRunLineIdAsync(Guid runLineId, CancellationToken cancellationToken) =>
+        dbContext.ProductionRuns.Include(r => r.Lines).FirstOrDefaultAsync(r => r.Lines.Any(l => l.Id == runLineId), cancellationToken);
+
     public async Task<(IReadOnlyList<ProductionRun> Runs, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken)
     {
         var query = dbContext.ProductionRuns.Include(r => r.Lines).AsQueryable();

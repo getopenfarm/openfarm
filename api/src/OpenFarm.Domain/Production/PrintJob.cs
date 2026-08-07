@@ -77,7 +77,13 @@ public sealed class PrintJob
 
     public DateTimeOffset CreatedAtUtc { get; }
 
-    internal static PrintJob Create(
+    /// <summary>
+    /// A standalone aggregate root, not a <see cref="ProductionRun"/>/<see cref="PartRequirement"/>
+    /// child collection — see <see cref="PartRequirement.Create"/>'s own remarks on why (eager
+    /// creation for a finite requirement, research.md R2, is an Application-layer command handler
+    /// concern, not something a synchronous Domain factory on some other aggregate could reach into).
+    /// </summary>
+    public static PrintJob Create(
         Guid organizationId, Guid partRequirementId, double queuePosition, int plateQuantity,
         AssignmentMode assignmentMode, Guid? pinnedPrinterId, string fileRevisionHash, int fileRevisionNumber,
         IReadOnlyList<JobFilamentRequirementSpec> filamentRequirements)

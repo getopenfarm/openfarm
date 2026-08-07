@@ -23,5 +23,12 @@ public interface IPrintJobRepository
     /// <summary>research.md R3 — new/requeued jobs are pre-spaced past the current top of a queue scope; null if the scope has no jobs yet.</summary>
     Task<double?> GetMaxQueuePositionAsync(Guid organizationId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The flat, `QueuePosition`-ordered "dispatch order" lens (FR-008) — <paramref name="backfillOnly"/>
+    /// selects jobs belonging to an unlimited requirement (US3's lazily-created tier), the default
+    /// selects jobs belonging to a finite one, matching `view=queue`/`view=backfill`.
+    /// </summary>
+    Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount)> ListQueueAsync(bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

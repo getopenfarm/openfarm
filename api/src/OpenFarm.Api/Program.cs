@@ -88,6 +88,16 @@ using RemoveBomLineHandlerType = OpenFarm.Application.Common.ICommandHandler<Ope
 using CreateNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.CreateNonPrintedComponentCommand, OpenFarm.Domain.Assemblies.NonPrintedComponent>;
 using EditNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.EditNonPrintedComponentCommand, OpenFarm.Domain.Assemblies.NonPrintedComponent>;
 using DeleteNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.DeleteNonPrintedComponentCommand, bool>;
+using CreateProductionRunHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CreateProductionRunCommand, OpenFarm.Domain.Production.ProductionRun>;
+using CloseProductionRunHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CloseProductionRunCommand, OpenFarm.Domain.Production.ProductionRun>;
+using CancelProductionRunHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CancelProductionRunCommand, OpenFarm.Domain.Production.ProductionRun>;
+using MarkPrintJobStartedHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.MarkPrintJobStartedCommand, OpenFarm.Domain.Production.PrintJob>;
+using PausePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.PausePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using ResumePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.ResumePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using CancelPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CancelPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using RequeuePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.RequeuePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using CompletePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CompletePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using FailPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.FailPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -385,6 +395,26 @@ builder.Services.AddScoped<IQueryHandler<GetAssemblyQuery, AssemblyDetail?>, Get
 builder.Services.AddScoped<IQueryHandler<ExplodeAssemblyQuery, BomExplosionResult>, ExplodeAssemblyQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<CalculateBuildableUnitsQuery, BuildableUnitsResult>, CalculateBuildableUnitsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ListNonPrintedComponentsQuery, NonPrintedComponentsPage>, ListNonPrintedComponentsQueryHandler>();
+
+builder.Services.AddScoped<ProductionRunDisplayLabelResolver>();
+builder.Services.AddScoped<ProductionRunCompletionService>();
+builder.Services.AddScoped<OpenFarm.Application.Printers.ResolvePrinterConnectionDetails>();
+builder.Services.AddScoped<ProductionRemoteControlResolver>();
+
+builder.Services.AddScoped<CreateProductionRunHandlerType, CreateProductionRunCommandHandler>();
+builder.Services.AddScoped<CloseProductionRunHandlerType, CloseProductionRunCommandHandler>();
+builder.Services.AddScoped<CancelProductionRunHandlerType, CancelProductionRunCommandHandler>();
+builder.Services.AddScoped<MarkPrintJobStartedHandlerType, MarkPrintJobStartedCommandHandler>();
+builder.Services.AddScoped<PausePrintJobHandlerType, PausePrintJobCommandHandler>();
+builder.Services.AddScoped<ResumePrintJobHandlerType, ResumePrintJobCommandHandler>();
+builder.Services.AddScoped<CancelPrintJobHandlerType, CancelPrintJobCommandHandler>();
+builder.Services.AddScoped<RequeuePrintJobHandlerType, RequeuePrintJobCommandHandler>();
+builder.Services.AddScoped<CompletePrintJobHandlerType, CompletePrintJobCommandHandler>();
+builder.Services.AddScoped<FailPrintJobHandlerType, FailPrintJobCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetProductionRunsQuery, ProductionRunsPage>, GetProductionRunsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>, GetProductionRunDetailQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetQueueJobsQuery, QueueJobsPage>, GetQueueJobsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPrintJobQuery, PrintJobDetail?>, GetPrintJobQueryHandler>();
 
 builder.Services.AddSignalR();
 

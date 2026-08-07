@@ -28,6 +28,14 @@ public sealed class PartRequirement
     /// <summary>Null mirrors the owning RunLine's unlimited quantity; otherwise the summed exploded total (FR-004).</summary>
     public decimal? Quantity { get; }
 
-    internal static PartRequirement Create(Guid organizationId, Guid runLineId, Guid partId, decimal? quantity) =>
+    /// <summary>
+    /// A standalone aggregate root, not a <see cref="ProductionRun"/>/<see cref="RunLine"/> child
+    /// collection (mirrors <c>Spool.Create</c>'s own standalone-root shape, not <c>BomLine.Create</c>'s
+    /// owned-child one) — deliberately public: resolving a RunLine's exploded part demand
+    /// (<c>IAssemblyGraphQueryService.ExplodeAsync</c>, research.md R1) is an async, DB-backed step
+    /// no synchronous Domain factory could perform, so the Application-layer command handler that
+    /// awaits it is necessarily this type's only caller.
+    /// </summary>
+    public static PartRequirement Create(Guid organizationId, Guid runLineId, Guid partId, decimal? quantity) =>
         new(Guid.NewGuid(), organizationId, runLineId, partId, quantity);
 }

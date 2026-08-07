@@ -66,6 +66,21 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             ? await dbContext.PrintJobs.MaxAsync(j => j.QueuePosition, cancellationToken)
             : null;
 
+    public async Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount)> ListQueueAsync(
+        bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var query =
+            from job in dbContext.PrintJobs
+            join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
+            where backfillOnly ? requirement.Quantity == null : requirement.Quantity != null
+            orderby job.QueuePosition
+            select job;
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var jobs = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return (jobs, totalCount);
+    }
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try

@@ -56,6 +56,9 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
                 {
                     job.MarkCompleted();
                     await SaveAndPublishAsync(jobRepository, job, cancellationToken);
+
+                    var completionService = services.GetRequiredService<ProductionRunCompletionService>();
+                    await completionService.TryCompleteRunForRequirementAsync(job.PartRequirementId, cancellationToken);
                 }
 
                 break;
