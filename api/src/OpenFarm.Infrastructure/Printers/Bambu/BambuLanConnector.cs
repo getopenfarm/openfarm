@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Channels;
 using FluentFTP;
 using Microsoft.Extensions.Logging;
@@ -22,26 +23,28 @@ namespace OpenFarm.Infrastructure.Printers.Bambu;
 public sealed partial class BambuLanConnector : IPrinterConnector
 {
     private const string MqttUsername = "bblp";
-    private const int MqttPort = 8883;
-    private const int FtpsPort = 990;
     private const string FtpsCacheDirectory = "/cache";
-    private static readonly TimeSpan VerifyTimeout = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(10);
 
     private readonly ILogger<BambuLanConnector> _logger;
+    private readonly BambuTransportOptions _options;
 
     public BambuLanConnector(ILogger<BambuLanConnector> logger)
+        : this(logger, new BambuTransportOptions())
+    {
+    }
+
+    internal BambuLanConnector(ILogger<BambuLanConnector> logger, BambuTransportOptions options)
     {
         _logger = logger;
+        _options = options;
     }
 
     public async Task<bool> VerifyAsync(PrinterConnectionDetails details, CancellationToken cancellationToken)
     {
-        using var client = new MqttClientFactory().CreateMqttClient();
+        using var client = _options.CreateMqttClient();
         var receivedInfo = false;
         var receivedPrint = false;
-        var completion = new TaskCompletionSource();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         client.ApplicationMessageReceivedAsync += e =>
         {
@@ -65,11 +68,11 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         };
 
         using var verifyCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        verifyCts.CancelAfter(VerifyTimeout);
+        verifyCts.CancelAfter(_options.VerifyTimeout);
 
         try
         {
-            await client.ConnectAsync(BuildClientOptions(details), verifyCts.Token);
+            await client.ConnectAsync(BuildClientOptions(details, _options), verifyCts.Token);
             await SubscribeAndRequestAsync(client, details.SerialNumber, verifyCts.Token);
 
             using (verifyCts.Token.Register(() => completion.TrySetCanceled()))
@@ -102,8 +105,10 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         PrinterConnectionDetails details,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        using var connectionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var connectionToken = connectionCts.Token;
         var channel = Channel.CreateUnbounded<PrinterConnectorEvent>();
-        using var client = new MqttClientFactory().CreateMqttClient();
+        using var client = _options.CreateMqttClient();
 
         client.ApplicationMessageReceivedAsync += e =>
         {
@@ -127,10 +132,10 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         client.ConnectedAsync += async _ =>
         {
             LogConnected(_logger, details.SerialNumber);
-            await SubscribeAndRequestAsync(client, details.SerialNumber, cancellationToken);
+            await SubscribeAndRequestAsync(client, details.SerialNumber, connectionToken);
         };
 
-        var maintainTask = MaintainConnectionAsync(client, BuildClientOptions(details), details.SerialNumber, _logger, cancellationToken);
+        var maintainTask = MaintainConnectionAsync(client, BuildClientOptions(details, _options), details.SerialNumber, _logger, connectionToken);
 
         try
         {
@@ -141,6 +146,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         }
         finally
         {
+            await connectionCts.CancelAsync();
             channel.Writer.TryComplete();
             await maintainTask;
         }
@@ -166,18 +172,48 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         buffered.Position = 0;
 
         var remoteFileName = $"{Guid.NewGuid()}.3mf";
-        await using (var ftp = new AsyncFtpClient(details.IpAddress, MqttUsername, details.AccessCode, FtpsPort))
+        var uploadStatus = await (_options.UploadFileAsync ?? UploadFileAsync)(
+            details, buffered, $"{FtpsCacheDirectory}/{remoteFileName}", cancellationToken);
+        if (uploadStatus != FtpStatus.Success)
         {
-            ftp.Config.EncryptionMode = FtpEncryptionMode.Implicit;
-            ftp.Config.ValidateAnyCertificate = true; // same device-pinned-cert trust model as MQTT (BambuCertificateTrust) is not FluentFTP-expressible; the LAN access code itself is the real authentication boundary here.
-            await ftp.AutoConnect(cancellationToken);
-            await ftp.UploadStream(buffered, $"{FtpsCacheDirectory}/{remoteFileName}", token: cancellationToken);
+            throw new IOException($"Printer file upload did not succeed ({uploadStatus}).");
         }
 
-        var payload = $$$"""
-            {"print":{"sequence_id":"0","command":"project_file","param":"Metadata/plate_1.gcode","project_id":"0","profile_id":"0","task_id":"0","subtask_id":"0","subtask_name":"{{{jobName}}}","url":"ftp:///{{{remoteFileName}}}","md5":"{{{md5}}}","timelapse":false,"bed_type":"auto","bed_leveling":true,"flow_cali":false,"vibration_cali":false,"layer_inspect":false,"use_ams":false}}
-            """;
+        var payload = JsonSerializer.Serialize(new
+        {
+            print = new
+            {
+                sequence_id = "0",
+                command = "project_file",
+                param = "Metadata/plate_1.gcode",
+                project_id = "0",
+                profile_id = "0",
+                task_id = "0",
+                subtask_id = "0",
+                subtask_name = jobName,
+                url = $"ftp:///{remoteFileName}",
+                md5,
+                timelapse = false,
+                bed_type = "auto",
+                bed_leveling = true,
+                flow_cali = false,
+                vibration_cali = false,
+                layer_inspect = false,
+                use_ams = false,
+            },
+        });
         await PublishCommandAsync(details, payload, cancellationToken);
+    }
+
+    private async Task<FtpStatus> UploadFileAsync(
+        PrinterConnectionDetails details, Stream content, string remotePath, CancellationToken cancellationToken)
+    {
+        await using var ftp = new AsyncFtpClient(details.IpAddress, MqttUsername, details.AccessCode, _options.FtpsPort);
+        ftp.Config.EncryptionMode = FtpEncryptionMode.Implicit;
+        // Preserve the existing FTPS trust behavior. MQTT and camera use bundled Bambu trust.
+        ftp.Config.ValidateAnyCertificate = true;
+        await ftp.AutoConnect(cancellationToken);
+        return await ftp.UploadStream(content, remotePath, token: cancellationToken);
     }
 
     /// <inheritdoc />
@@ -193,15 +229,15 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         PublishCommandAsync(details, """{"print":{"sequence_id":"0","command":"stop"}}""", cancellationToken);
 
     /// <summary>Short-lived connect, publish one command, disconnect — mirrors <see cref="VerifyAsync"/>'s shape.</summary>
-    private static async Task PublishCommandAsync(PrinterConnectionDetails details, string payload, CancellationToken cancellationToken)
+    private async Task PublishCommandAsync(PrinterConnectionDetails details, string payload, CancellationToken cancellationToken)
     {
-        using var client = new MqttClientFactory().CreateMqttClient();
+        using var client = _options.CreateMqttClient();
         using var commandCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        commandCts.CancelAfter(CommandTimeout);
+        commandCts.CancelAfter(_options.CommandTimeout);
 
         try
         {
-            await client.ConnectAsync(BuildClientOptions(details), commandCts.Token);
+            await client.ConnectAsync(BuildClientOptions(details, _options), commandCts.Token);
             await PublishRequestAsync(client, details.SerialNumber, payload, commandCts.Token);
         }
         finally
@@ -213,7 +249,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         }
     }
 
-    private static async Task MaintainConnectionAsync(
+    private async Task MaintainConnectionAsync(
         IMqttClient client,
         MqttClientOptions options,
         string serialNumber,
@@ -236,7 +272,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                     }
                 }
 
-                await Task.Delay(ReconnectDelay, cancellationToken);
+                await Task.Delay(_options.ReconnectDelay, cancellationToken);
             }
         }
         catch (OperationCanceledException)
@@ -272,9 +308,9 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 .Build(),
             cancellationToken);
 
-    internal static MqttClientOptions BuildClientOptions(PrinterConnectionDetails details) =>
+    internal static MqttClientOptions BuildClientOptions(PrinterConnectionDetails details, BambuTransportOptions? options = null) =>
         new MqttClientOptionsBuilder()
-            .WithTcpServer(details.IpAddress, MqttPort)
+            .WithTcpServer(details.IpAddress, options?.MqttPort ?? 8883)
             .WithCredentials(MqttUsername, details.AccessCode)
             .WithKeepAlivePeriod(TimeSpan.FromSeconds(5))
             .WithCleanSession()
@@ -291,12 +327,9 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 // bundled per-device cert set (vendored from pybambu/certs/) as a custom trust root,
                 // mirroring create_local_ssl_context()'s load_verify_locations() over every bundled
                 // *.cert file — never a blanket accept-all (research.md §1).
-                .WithCertificateValidationHandler(ValidateServerCertificate)
+                .WithCertificateValidationHandler(args => (options?.ValidateCertificate ?? BambuCertificateTrust.Validate)(args.Certificate))
                 .WithSslProtocols(System.Security.Authentication.SslProtocols.Tls12))
             .Build();
-
-    private static bool ValidateServerCertificate(MqttClientCertificateValidationEventArgs args) =>
-        BambuCertificateTrust.Validate(args.Certificate);
 
     private static string ReportTopic(string serialNumber) => $"device/{serialNumber}/report";
 

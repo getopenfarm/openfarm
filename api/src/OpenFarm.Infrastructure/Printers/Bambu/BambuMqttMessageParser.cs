@@ -25,7 +25,9 @@ public static class BambuMqttMessageParser
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (!document.RootElement.TryGetProperty("print", out var print))
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("print", out var print)
+                || print.ValueKind != JsonValueKind.Object)
             {
                 return false;
             }
@@ -50,7 +52,9 @@ public static class BambuMqttMessageParser
         try
         {
             using var document = JsonDocument.Parse(json);
-            return document.RootElement.TryGetProperty("info", out var info)
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("info", out var info)
+                && info.ValueKind == JsonValueKind.Object
                 && info.TryGetProperty("command", out var command)
                 && command.ValueKind == JsonValueKind.String
                 && command.GetString() == "get_version";
@@ -67,7 +71,9 @@ public static class BambuMqttMessageParser
         try
         {
             using var document = JsonDocument.Parse(json);
-            return document.RootElement.TryGetProperty("print", out _);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("print", out var print)
+                && print.ValueKind == JsonValueKind.Object;
         }
         catch (JsonException)
         {
@@ -88,7 +94,9 @@ public static class BambuMqttMessageParser
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (!document.RootElement.TryGetProperty("print", out var print))
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("print", out var print)
+                || print.ValueKind != JsonValueKind.Object)
             {
                 return null;
             }
@@ -162,6 +170,7 @@ public static class BambuMqttMessageParser
     private static List<AmsUnit> ParseAmsUnits(JsonElement print)
     {
         if (!print.TryGetProperty("ams", out var amsRoot)
+            || amsRoot.ValueKind != JsonValueKind.Object
             || !amsRoot.TryGetProperty("ams", out var amsArray)
             || amsArray.ValueKind != JsonValueKind.Array)
         {
@@ -171,7 +180,8 @@ public static class BambuMqttMessageParser
         var units = new List<AmsUnit>();
         foreach (var unitElement in amsArray.EnumerateArray())
         {
-            if (!unitElement.TryGetProperty("id", out var idProperty)
+            if (unitElement.ValueKind != JsonValueKind.Object
+                || !unitElement.TryGetProperty("id", out var idProperty)
                 || idProperty.ValueKind != JsonValueKind.String
                 || !int.TryParse(idProperty.GetString(), out var unitIndex))
             {
@@ -181,7 +191,9 @@ public static class BambuMqttMessageParser
             var trays = new List<AmsTray>();
             if (unitElement.TryGetProperty("tray", out var trayArray) && trayArray.ValueKind == JsonValueKind.Array)
             {
-                trays.AddRange(trayArray.EnumerateArray().Select(ParseTray));
+                trays.AddRange(trayArray.EnumerateArray()
+                    .Where(tray => tray.ValueKind == JsonValueKind.Object)
+                    .Select(ParseTray));
             }
 
             units.Add(new AmsUnit(unitIndex, trays));

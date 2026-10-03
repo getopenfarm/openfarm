@@ -14,6 +14,33 @@ public class BambuMqttMessageParserTests
     private static readonly string FixturesDirectory = Path.Combine(AppContext.BaseDirectory, "Printers", "Fixtures");
 
     [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("42")]
+    [InlineData("{\"print\":null,\"info\":[]}")]
+    [InlineData("{\"print\":[],\"info\":42}")]
+    public void WrongJsonShape_IsIgnoredWithoutThrowing(string payload)
+    {
+        BambuMqttMessageParser.IsPrintReport(payload).Should().BeFalse();
+        BambuMqttMessageParser.IsGetVersionResponse(payload).Should().BeFalse();
+        BambuMqttMessageParser.TryParseGcodeState(payload, out _).Should().BeFalse();
+        BambuMqttMessageParser.TryParseTelemetry(payload).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("{\"print\":{\"nozzle_temper\":220,\"ams\":null}}")]
+    [InlineData("{\"print\":{\"nozzle_temper\":220,\"ams\":{\"ams\":[null,42,[]]}}}")]
+    [InlineData("{\"print\":{\"nozzle_temper\":220,\"ams\":{\"ams\":[{\"id\":\"0\",\"tray\":[null,42,[]]}]}}}")]
+    public void MalformedAmsEntries_DoNotDiscardValidTelemetry(string payload)
+    {
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry(payload);
+
+        telemetry.Should().NotBeNull();
+        telemetry!.NozzleTempC.Should().Be(220);
+        telemetry.AmsUnits.SelectMany(unit => unit.Trays).Should().BeEmpty();
+    }
+
+    [Theory]
     [InlineData("idle-a1.json", "IDLE")]
     [InlineData("printing-a1.json", "RUNNING")]
     [InlineData("awaiting-clear-p1p-no-ams.json", "FINISH")]

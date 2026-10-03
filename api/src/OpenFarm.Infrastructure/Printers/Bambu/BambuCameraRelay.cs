@@ -18,15 +18,24 @@ namespace OpenFarm.Infrastructure.Printers.Bambu;
 /// </summary>
 public sealed class BambuCameraRelay : IPrinterCameraRelay
 {
-    private const int CameraPort = 6000;
-    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+    private readonly BambuTransportOptions _options;
+
+    public BambuCameraRelay() : this(new BambuTransportOptions())
+    {
+    }
+
+    internal BambuCameraRelay(BambuTransportOptions options)
+    {
+        _options = options;
+    }
 
     public async IAsyncEnumerable<byte[]> StreamFramesAsync(
         PrinterConnectionDetails details,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        using var connectionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var channel = Channel.CreateUnbounded<byte[]>();
-        var pumpTask = MaintainConnectionAsync(details, channel.Writer, cancellationToken);
+        var pumpTask = MaintainConnectionAsync(details, channel.Writer, connectionCts.Token);
 
         try
         {
@@ -37,12 +46,13 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
         }
         finally
         {
+            await connectionCts.CancelAsync();
             channel.Writer.TryComplete();
             await pumpTask;
         }
     }
 
-    private static async Task MaintainConnectionAsync(PrinterConnectionDetails details, ChannelWriter<byte[]> writer, CancellationToken cancellationToken)
+    private async Task MaintainConnectionAsync(PrinterConnectionDetails details, ChannelWriter<byte[]> writer, CancellationToken cancellationToken)
     {
         try
         {
@@ -66,7 +76,7 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
 
                 if (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(ReconnectDelay, cancellationToken);
+                    await Task.Delay(_options.ReconnectDelay, cancellationToken);
                 }
             }
         }
@@ -76,15 +86,15 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
         }
     }
 
-    private static async Task ReadFramesUntilDisconnectedAsync(PrinterConnectionDetails details, ChannelWriter<byte[]> writer, CancellationToken cancellationToken)
+    private async Task ReadFramesUntilDisconnectedAsync(PrinterConnectionDetails details, ChannelWriter<byte[]> writer, CancellationToken cancellationToken)
     {
         using var tcpClient = new TcpClient();
-        await tcpClient.ConnectAsync(details.IpAddress, CameraPort, cancellationToken);
+        await tcpClient.ConnectAsync(details.IpAddress, _options.CameraPort, cancellationToken);
 
         await using var sslStream = new SslStream(
             tcpClient.GetStream(),
             leaveInnerStreamOpen: false,
-            userCertificateValidationCallback: (_, certificate, _, _) => BambuCertificateTrust.Validate(certificate));
+            userCertificateValidationCallback: (_, certificate, _, _) => _options.ValidateCertificate(certificate));
 
         await sslStream.AuthenticateAsClientAsync(
             new SslClientAuthenticationOptions

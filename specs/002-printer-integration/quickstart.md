@@ -1,162 +1,82 @@
-# Phase 1 Quickstart: Fleet Management + Live Bambu Integration
+# Fleet management and Bambu connectivity validation
 
-Validation guide proving User Story 1 (register a printer, watch its live status with no manual
-refresh) end-to-end. See `data-model.md` for entity shapes and `contracts/` for exact request/response
-bodies. Physical-hardware validation against a real Bambu printer is a separate manual step (last
-section) — everything else here uses `FakePrinterConnector`, since CI never touches real hardware
-(per constitution Principle II).
+There are three complementary validation paths:
 
-## Prerequisites
+- **UI and lifecycle development:** register a **System / Simulation** printer through the normal
+  Add Printer form. The built-in simulator verifies any access code except the test sentinel
+  `wrong`, supplies telemetry and camera frames, and runs simulated print jobs. Follow the
+  [virtual printer quickstart](../004-virtual-printer/quickstart.md) for detailed scenarios.
+- **Automated transport regression:** run the Infrastructure printer tests below. The Bambu
+  loopback harness exercises the real connector over local TLS sockets without a printer or Docker.
+  It is test-only and is not a standalone printer that the development app can register.
+- **P1S compatibility:** follow the manual hardware checklist. Registering a **Bambu / P1S** printer
+  uses its real LAN connection, even in development.
+
+## Local app setup
+
+Run `./dev.sh up` with the local Postgres configured, or use the Docker stack:
 
 ```bash
 cp .env.example infra/.env
-cd infra && docker compose up   # postgres + api (dotnet watch, applies the AddPrinters migration) + web (bun run dev)
-curl -f http://localhost:8888/health/ready
+cd infra && docker compose up
 ```
 
-Log in as the seeded operator (see `specs/001-foundation/quickstart.md` Scenario 1) and keep the JWT
-for the calls below.
-
-## Scenario 1 — Verify-before-add gating (User Story 1, FR-001a)
-
-```bash
-curl -i -X POST http://localhost:8888/api/v1/printers/verify-connection \
-  -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
-  -d '{"ipAddress": "10.0.0.99", "serialNumber": "FAKE-0001", "accessCode": "wrong"}'
-```
-
-**Expected**: `422` — verification fails against the dev/test `FakePrinterConnector` when configured
-to simulate an unreachable/bad-credential printer. In the browser's Add Printer dialog, confirm the
-submit button stays disabled until this call succeeds — no printer is created from an unverified form
-state (SC-007).
-
-Now verify against a `FakePrinterConnector`-registered fixture that simulates a real reachable
-printer:
-
-```bash
-curl -i -X POST http://localhost:8888/api/v1/printers/verify-connection \
-  -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
-  -d '{"ipAddress": "10.0.0.50", "serialNumber": "FAKE-0001", "accessCode": "12345678"}'
-```
-
-**Expected**: `200`, `{"verified": true}`.
-
-## Scenario 2 — Register and see it in the fleet list (User Story 1)
-
-```bash
-curl -i -X POST http://localhost:8888/api/v1/printers \
-  -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
-  -d '{"name": "Test Printer", "brand": "Bambu", "modelCode": "P1S", "ipAddress": "10.0.0.50", "serialNumber": "FAKE-0001", "accessCode": "12345678"}'
-```
-
-**Expected**: `201`, `status: "Idle"`, `isReachable` initially `false` until the connector's first
-message arrives.
-
-```bash
-curl -s http://localhost:8888/api/v1/printers -H "Authorization: Bearer <token>" | jq .
-```
-
-**Expected**: the new printer appears within moments (SC-001: under 2 minutes end-to-end).
-
-Duplicate-serial negative check:
-
-```bash
-curl -i -X POST http://localhost:8888/api/v1/printers \
-  -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
-  -d '{"name": "Duplicate", "brand": "Bambu", "modelCode": "P1S", "ipAddress": "10.0.0.51", "serialNumber": "FAKE-0001", "accessCode": "12345678"}'
-```
-
-**Expected**: `409`, `detail` names the conflicting printer "Test Printer" (FR-001b). Re-run with a
-different serial but the *same* IP as the first printer — expect `201` (duplicate IPs are permitted).
-
-## Scenario 3 — Live status update with no manual refresh (User Story 1, SC-002)
-
-In the browser: open the fleet list page, confirm "Test Printer" shows `Idle`.
-
-Using the dev-only fake-connector control (drives `FakePrinterConnector`'s simulated MQTT feed —
-exact trigger mechanism is an implementation-time detail, e.g. a test-only endpoint or a fixture
-replay script), simulate the printer reporting `gcode_state: "running"`.
-
-**Expected**: within 5 seconds, the fleet list's "Test Printer" row updates to `Printing` **without**
-the page being refreshed — confirm via the browser's network tab that no polling request fired; the
-update arrives over the `/hubs/farm` WebSocket as a `PrinterStatusChanged` event (contracts/farm-hub.md).
-
-Simulate `gcode_state: "finish"`.
-
-**Expected**: status becomes `AwaitingClear` (not `Idle`) — FR-003 edge case, confirmed live.
-
-## Scenario 4 — Mark ready / illegal transition (User Story 4)
-
-```bash
-curl -i -X POST http://localhost:8888/api/v1/printers/{id}/mark-ready \
-  -H "Authorization: Bearer <token>"
-```
-
-**Expected**: `200`, `status: "Idle"`. Check the activity log:
-
-```bash
-curl -s "http://localhost:8888/api/v1/activity-log?page=1&pageSize=25" -H "Authorization: Bearer <token>" \
-  | jq '.items[] | select(.entityType == "Printer")'
-```
-
-**Expected**: entries for both the connector-reported `AwaitingClear` transition (`actorType:
-"System"`) and this manual "mark ready" transition (`actorType: "Operator"`) — SC-003's 100%-logged
-requirement.
-
-Illegal-transition negative check: call `mark-ready` again immediately (printer is now `Idle`, not
-`AwaitingClear`).
-
-**Expected**: `409`, human-readable `detail` explaining the printer isn't awaiting clear (SC-004).
-
-## Scenario 5 — Live telemetry + AMS (User Story 2)
-
-Open "Test Printer"'s detail page. Simulate a `print` MQTT delta via the fake connector including
-nozzle/bed temperatures, progress percentage, and one populated AMS tray.
-
-**Expected**: within 5 seconds, temperatures/progress update live on the detail page, and the AMS
-slot grid shows the simulated tray's material/color — no refresh needed (`PrinterTelemetryUpdated`
-event, contracts/farm-hub.md).
-
-## Scenario 6 — Camera graceful degradation (User Story 3)
-
-Open the detail page for a printer whose fake connector is configured to never emit
-`CameraFrameReceived`.
-
-**Expected**: the rest of the page (status, telemetry) works normally; the camera area shows a clear
-"unavailable" state rather than an error or blank/broken layout (FR-009).
+Log in as the seeded operator. For hardware-free testing, choose **System / Simulation**, provide a
+unique serial number, a valid IP address, and an access code other than `wrong`. Confirm registration,
+live idle telemetry, the camera image, job progression, and mark-ready behavior. The simulator does
+not free-run prints: dispatch a job through the normal production workflow or use the existing
+simulated lifecycle integration tests. No fake-connector control endpoint exists.
 
 ## Physical hardware validation (manual, not CI — constitution Principle II)
 
-Once `BambuLanConnector` is implemented (M0.5), validate against a real printer in LAN-only +
-Developer Mode:
+Use this checklist when a P1S is available and after changes to connectivity or printer firmware.
+The loopback protocol harness verifies OpenFarm behavior, not firmware compatibility.
 
-0. **Set `Printers__UseFakeConnector=false`** (e.g. in `infra/.env`) before starting the stack.
-   This defaults to `true` (`FakePrinterConnector`) so CI/local dev never touches real hardware by
-   accident — left at the default, the backend never attempts a real MQTT connection at all and
-   every printer will show `Offline` forever regardless of its actual physical state, which looks
-   identical to a real connectivity bug. Check the API's startup log line
-   (`Printer connector: ...`) to confirm which implementation is active.
-1. Register the real printer through the UI using its actual IP/serial/access code — confirm the
-   verify-before-add gate genuinely rejects a wrong access code and accepts the correct one.
-2. Start a print from the printer's own touchscreen (not through OpenFarm — FR-011 forbids dispatch
-   this phase) and confirm the fleet list flips to `Printing` live.
-3. Let the print finish; confirm `AwaitingClear`, then use "Mark ready" and confirm `Idle`.
-4. Disconnect the printer from the network mid-print; confirm `isReachable` flips to `false` within
-   ~30-40 seconds (FR-005) while the last-known `Status` value is preserved, not reset.
-5. Open the detail page during an active print; confirm a live camera frame appears within 3 seconds
-   (SC-005) — for whichever camera transport (`CAMERA_IMAGE` or `CAMERA_RTSP`) that specific printer
-   model uses (research.md §4).
+1. Put the printer in the LAN/developer mode required by its installed firmware. Record the P1S
+   firmware version, OpenFarm revision, date, and whether AMS is attached. Use its actual IP,
+   serial number, and LAN access code when registering it as **Bambu / P1S**. Verify a wrong code
+   is rejected and the correct code succeeds. Connector selection is per printer: **System /
+   Simulation** uses the built-in simulator; **Bambu / P1S** uses the real connector. There is no
+   global `Printers__UseFakeConnector` switch.
+2. Confirm idle telemetry, temperatures, and AMS/external-spool detection where applicable. Start a
+   print at the printer and confirm the fleet becomes `Printing`; confirm live progress and camera
+   frames on the detail page. Record observed camera startup latency.
+3. Dispatch a small, known-good pre-sliced single-plate 3MF through OpenFarm. Confirm the actual
+   implicit-TLS FTPS upload succeeds and the printer starts the intended plate. This validates the
+   `/cache` upload path, `ftp:///` command URL, checksum, and `Metadata/plate_1.gcode` selection.
+   Automated tests substitute the uploader and do not validate the printer's FTPS server.
+4. While the long-lived telemetry connection is active, request pause, resume, and stop through
+   OpenFarm. Confirm each action on the physical printer and in subsequently reported telemetry;
+   a successful command publish alone does not confirm an action. Check that issuing commands does
+   not disrupt telemetry. Also let a print finish, confirm `AwaitingClear`, then mark ready and
+   confirm the printer remains `Idle`.
+5. Disconnect the printer from the network during a print. Confirm it becomes unreachable within
+   roughly 30–40 seconds while preserving its last-known print status. Restore the network and
+   confirm telemetry and camera recover without restarting OpenFarm.
+6. Save sanitized P1S report/version captures for idle, printing, pause, finish, and AMS configurations
+   tested. Remove identifying fields and secrets; keep field shapes intact. Add fixture provenance
+   (model, firmware, capture date, sanitization) to `Printers/Fixtures/README.md` and replay tests.
 
-**First pass result**: steps 0-1 (connect + verify against a real A1) surfaced three real bugs — the
-`UseFakeConnector` default masking connectivity as `Offline`, a TLS trust-store bug, and a missing
-MQTT protocol-version pin — all now fixed, see `research.md` §1/§6's post-implementation notes and
-`plan.md`'s "First real-hardware validation pass". Live status now updates correctly end-to-end.
-Steps 2-5 (mark-ready round-trip, reachability-flip timing, camera feed) haven't each been
-individually re-confirmed since the fix — worth another pass before calling this phase fully closed.
+Record **pass / fail / not tested** for each step, observed failures, and logs without access codes.
+Do not label P1S connectivity validated until these checks have actually been performed.
 
-## Automated verification (run instead of manual curl once implemented)
+**Historical evidence:** the earlier A1 connection/verification check found TLS trust-store and MQTT
+protocol-version bugs, now covered by regression tests. That check is not a complete P1S validation;
+no new physical-printer results are claimed by the protocol-harness implementation.
+
+## Automated verification
+
+Transport and background-service tests need no hardware or Docker:
 
 ```bash
-dotnet test api/OpenFarm.slnx --filter "FullyQualifiedName~Printer"
+dotnet test api/tests/OpenFarm.Infrastructure.Tests/OpenFarm.Infrastructure.Tests.csproj --configuration Release --filter "FullyQualifiedName~Printers"
+```
+
+The [harness notes](../../api/tests/OpenFarm.Infrastructure.Tests/Printers/Bambu/README.md) describe
+the supported wire behavior and limits. HTTP/database integration tests still require Docker
+(Testcontainers PostgreSQL):
+
+```bash
+dotnet test api/tests/OpenFarm.Api.IntegrationTests/OpenFarm.Api.IntegrationTests.csproj --filter "FullyQualifiedName~Printers"
 cd web && bunx vitest run src/features/printers && bunx tsc -b
 ```

@@ -17,6 +17,7 @@ using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Printers;
+using OpenFarm.Infrastructure.Tests.Printers.Bambu;
 
 namespace OpenFarm.Infrastructure.Tests.Printers;
 
@@ -28,6 +29,46 @@ public class PrinterConnectionBackgroundServiceTests
     // Effectively "always flush" — keeps tests that aren't specifically about coalescing behaving
     // like the pre-throttle code (every event flushes), so they stay deterministic.
     private static readonly TimeSpan NoFlushThrottling = TimeSpan.Zero;
+
+    [Fact]
+    public async Task RealMqttReports_SilenceAndRecovery_UpdateReachabilityAndPreserveMergedTelemetry()
+    {
+        await using var harness = new BambuMqttHarness
+        {
+            InitialReport = """{"print":{"gcode_state":"RUNNING","nozzle_temper":220,"bed_temper":60,"mc_percent":10}}""",
+        };
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Protocol test", "Bambu", "P1S", harness.Details.IpAddress, harness.Details.SerialNumber);
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, harness.Details.AccessCode);
+        using var provider = BuildServiceProvider(printer, secret, harness.CreateConnector(), out _);
+        using var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance,
+            SweepInterval,
+            TimeSpan.FromMilliseconds(500),
+            NoFlushThrottling);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await service.StartAsync(lifetime.Token);
+        try
+        {
+            await WaitUntilAsync(() => printer.IsReachable && printer.NozzleTempC == 220, TimeSpan.FromSeconds(3));
+            printer.Status.Should().Be(PrinterStatus.Printing);
+            await WaitUntilAsync(() => !printer.IsReachable, TimeSpan.FromSeconds(3));
+            printer.Status.Should().Be(PrinterStatus.Printing, "silence only changes reachability");
+            printer.NozzleTempC.Should().Be(220);
+
+            await harness.PublishReportAsync("""{"print":{"mc_percent":42}}""");
+            await WaitUntilAsync(() => printer.IsReachable && printer.PrintProgressPercent == 42, TimeSpan.FromSeconds(3));
+            printer.NozzleTempC.Should().Be(220);
+            printer.BedTempC.Should().Be(60);
+            printer.Status.Should().Be(PrinterStatus.Printing);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
+            await BambuLanProtocolTests.WaitUntilAsync(() => harness.ActiveConnections == 0);
+        }
+    }
 
     [Fact]
     public async Task ReachabilitySweep_FlipsUnreachableAfterSilence_AndBackOnNextMessage()
@@ -86,7 +127,9 @@ public class PrinterConnectionBackgroundServiceTests
         {
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: "RUNNING"));
 
-            await WaitUntilAsync(() => printer.Status == PrinterStatus.Printing, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(
+                () => printer.Status == PrinterStatus.Printing && activityLogWriter.Entries.Count > 0,
+                TimeSpan.FromSeconds(2));
 
             printer.Status.Should().Be(PrinterStatus.Printing);
             activityLogWriter.Entries.Should().ContainSingle(e =>
@@ -238,7 +281,9 @@ public class PrinterConnectionBackgroundServiceTests
 
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: "RUNNING"));
 
-            await WaitUntilAsync(() => printer.Status == PrinterStatus.Printing, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(
+                () => printer.Status == PrinterStatus.Printing && activityLogWriter.Entries.Count > 0,
+                TimeSpan.FromSeconds(2));
             activityLogWriter.Entries.Should().ContainSingle(e => e.EventType == "PrinterStatusObserved");
         }
         finally

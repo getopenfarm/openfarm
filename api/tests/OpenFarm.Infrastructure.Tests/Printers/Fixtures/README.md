@@ -20,3 +20,13 @@ JSON.
 Real-hardware validation against a physical Bambu printer remains a required manual step before
 trusting `BambuLanConnector`/`BambuMqttMessageParser`/`BambuCameraRelay` in production — see
 `specs/002-printer-integration/quickstart.md`'s "Physical hardware validation (manual)" section.
+
+## Protocol harness coverage
+
+The Bambu loopback harness now drives the real MQTT connector and camera relay over TLS on ephemeral
+localhost ports. It uses generated certificates trusted only by explicit, instance-local test
+options; production trust still uses the bundled Bambu certificates. MQTT fixture replay uses the
+corpus above, while camera transport tests send synthetic framed bytes. This adds transport regression
+coverage, not P1S firmware evidence. FTPS orchestration uses an injected uploader; the actual printer
+FTPS server and command acceptance remain on the manual hardware checklist. See
+[`../Bambu/README.md`](../Bambu/README.md) for test commands and harness limits.
