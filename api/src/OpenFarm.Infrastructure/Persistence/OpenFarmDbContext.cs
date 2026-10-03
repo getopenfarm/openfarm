@@ -10,6 +10,7 @@ using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Production;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Identity;
 
@@ -71,6 +72,16 @@ public sealed class OpenFarmDbContext(
     public DbSet<BomLine> BomLines => Set<BomLine>();
 
     public DbSet<NonPrintedComponent> NonPrintedComponents => Set<NonPrintedComponent>();
+
+    public DbSet<ProductionRun> ProductionRuns => Set<ProductionRun>();
+
+    public DbSet<RunLine> RunLines => Set<RunLine>();
+
+    public DbSet<PartRequirement> PartRequirements => Set<PartRequirement>();
+
+    public DbSet<PrintJob> PrintJobs => Set<PrintJob>();
+
+    public DbSet<JobFilamentConsumption> JobFilamentConsumptions => Set<JobFilamentConsumption>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

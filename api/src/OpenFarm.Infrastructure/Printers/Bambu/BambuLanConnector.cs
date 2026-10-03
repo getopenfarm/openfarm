@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
+using FluentFTP;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Formatter;
@@ -21,8 +23,11 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 {
     private const string MqttUsername = "bblp";
     private const int MqttPort = 8883;
+    private const int FtpsPort = 990;
+    private const string FtpsCacheDirectory = "/cache";
     private static readonly TimeSpan VerifyTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(10);
 
     private readonly ILogger<BambuLanConnector> _logger;
 
@@ -138,6 +143,73 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         {
             channel.Writer.TryComplete();
             await maintainTask;
+        }
+    }
+
+    /// <summary>
+    /// FTPS upload (port 990, implicit TLS — Bambu's LAN-mode FTP server convention) followed by an
+    /// MQTT <c>print.project_file</c> publish (research.md R5). Uses the same short-lived
+    /// connect/command/disconnect shape as <see cref="VerifyAsync"/> — whether the printer's broker
+    /// tolerates this alongside an already-open <see cref="ConnectAsync"/> streaming connection is a
+    /// real, open verification question for physical hardware (research.md R5's own documented risk),
+    /// not settled here.
+    /// </summary>
+    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken)
+    {
+        using var buffered = new MemoryStream();
+        await fileContent.CopyToAsync(buffered, cancellationToken);
+        buffered.Position = 0;
+#pragma warning disable CA5351 // MD5 here is a Bambu protocol-mandated file-integrity checksum
+        // (project_file's own "md5" field), not a security use.
+        var md5 = Convert.ToHexStringLower(await MD5.HashDataAsync(buffered, cancellationToken));
+#pragma warning restore CA5351
+        buffered.Position = 0;
+
+        var remoteFileName = $"{Guid.NewGuid()}.3mf";
+        await using (var ftp = new AsyncFtpClient(details.IpAddress, MqttUsername, details.AccessCode, FtpsPort))
+        {
+            ftp.Config.EncryptionMode = FtpEncryptionMode.Implicit;
+            ftp.Config.ValidateAnyCertificate = true; // same device-pinned-cert trust model as MQTT (BambuCertificateTrust) is not FluentFTP-expressible; the LAN access code itself is the real authentication boundary here.
+            await ftp.AutoConnect(cancellationToken);
+            await ftp.UploadStream(buffered, $"{FtpsCacheDirectory}/{remoteFileName}", token: cancellationToken);
+        }
+
+        var payload = $$$"""
+            {"print":{"sequence_id":"0","command":"project_file","param":"Metadata/plate_1.gcode","project_id":"0","profile_id":"0","task_id":"0","subtask_id":"0","subtask_name":"{{{jobName}}}","url":"ftp:///{{{remoteFileName}}}","md5":"{{{md5}}}","timelapse":false,"bed_type":"auto","bed_leveling":true,"flow_cali":false,"vibration_cali":false,"layer_inspect":false,"use_ams":false}}
+            """;
+        await PublishCommandAsync(details, payload, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+        PublishCommandAsync(details, """{"print":{"sequence_id":"0","command":"pause"}}""", cancellationToken);
+
+    /// <inheritdoc />
+    public Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+        PublishCommandAsync(details, """{"print":{"sequence_id":"0","command":"resume"}}""", cancellationToken);
+
+    /// <inheritdoc />
+    public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+        PublishCommandAsync(details, """{"print":{"sequence_id":"0","command":"stop"}}""", cancellationToken);
+
+    /// <summary>Short-lived connect, publish one command, disconnect — mirrors <see cref="VerifyAsync"/>'s shape.</summary>
+    private static async Task PublishCommandAsync(PrinterConnectionDetails details, string payload, CancellationToken cancellationToken)
+    {
+        using var client = new MqttClientFactory().CreateMqttClient();
+        using var commandCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        commandCts.CancelAfter(CommandTimeout);
+
+        try
+        {
+            await client.ConnectAsync(BuildClientOptions(details), commandCts.Token);
+            await PublishRequestAsync(client, details.SerialNumber, payload, commandCts.Token);
+        }
+        finally
+        {
+            if (client.IsConnected)
+            {
+                await client.DisconnectAsync(cancellationToken: CancellationToken.None);
+            }
         }
     }
 

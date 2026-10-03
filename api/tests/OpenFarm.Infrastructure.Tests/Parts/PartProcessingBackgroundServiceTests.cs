@@ -362,12 +362,14 @@ public class PartProcessingBackgroundServiceTests
         Part.Create(OrgId, "Resolving part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
             fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null, EstimateStatus.Resolving,
             estimatedPrintTimeMinutes: null, estimatedFilamentWeightGrams: null, plateCount: 1,
+            unitsPerPrint: 1, revisionHash: $"{Guid.NewGuid():N}",
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
 
     private static Part AvailablePart() =>
         Part.Create(OrgId, "Available part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
             fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null, EstimateStatus.Available,
             estimatedPrintTimeMinutes: 42, estimatedFilamentWeightGrams: 12.5m, plateCount: 1,
+            unitsPerPrint: 1, revisionHash: $"{Guid.NewGuid():N}",
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
 
     /// <summary>
@@ -532,7 +534,7 @@ public class PartProcessingBackgroundServiceTests
     {
         private int _callCount = -1;
 
-        public Task<string> SaveAsync(Guid organizationId, Guid ownerId, string originalFileName, Stream content, CancellationToken cancellationToken) =>
+        public Task<string> SaveAsync(Guid organizationId, string contentHash, string originalFileName, Stream content, CancellationToken cancellationToken) =>
             Task.FromResult("irrelevant");
 
         public Task<Stream> OpenReadAsync(string storagePath, CancellationToken cancellationToken)
@@ -546,7 +548,7 @@ public class PartProcessingBackgroundServiceTests
 
     private sealed class StubPartFileStorage : IPartFileStorage
     {
-        public Task<string> SaveAsync(Guid organizationId, Guid ownerId, string originalFileName, Stream content, CancellationToken cancellationToken) =>
+        public Task<string> SaveAsync(Guid organizationId, string contentHash, string originalFileName, Stream content, CancellationToken cancellationToken) =>
             Task.FromResult("path");
 
         public Task<Stream> OpenReadAsync(string storagePath, CancellationToken cancellationToken) =>

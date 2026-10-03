@@ -29,6 +29,7 @@ using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Organizations;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
+using OpenFarm.Application.Production;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Parts;
@@ -43,6 +44,7 @@ using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Simulator;
+using OpenFarm.Infrastructure.Production;
 using OpenFarm.Infrastructure.Profiles;
 using OpenFarm.Infrastructure.Security;
 using OpenFarm.Infrastructure.Seed;
@@ -86,6 +88,21 @@ using RemoveBomLineHandlerType = OpenFarm.Application.Common.ICommandHandler<Ope
 using CreateNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.CreateNonPrintedComponentCommand, OpenFarm.Domain.Assemblies.NonPrintedComponent>;
 using EditNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.EditNonPrintedComponentCommand, OpenFarm.Domain.Assemblies.NonPrintedComponent>;
 using DeleteNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.DeleteNonPrintedComponentCommand, bool>;
+using CreateProductionRunHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CreateProductionRunCommand, OpenFarm.Domain.Production.ProductionRun>;
+using CloseProductionRunHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CloseProductionRunCommand, OpenFarm.Domain.Production.ProductionRun>;
+using CancelProductionRunHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CancelProductionRunCommand, OpenFarm.Domain.Production.ProductionRun>;
+using MarkPrintJobStartedHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.MarkPrintJobStartedCommand, OpenFarm.Domain.Production.PrintJob>;
+using PausePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.PausePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using ResumePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.ResumePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using CancelPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CancelPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using RequeuePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.RequeuePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using CompletePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CompletePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using FailPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.FailPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using ReorderPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.ReorderPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using PinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.PinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using UnpinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.UnpinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using SetRunLineBackfillLimitsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.SetRunLineBackfillLimitsCommand, OpenFarm.Domain.Production.RunLine>;
+using SetRunLineRevisionModeHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.SetRunLineRevisionModeCommand, OpenFarm.Domain.Production.RunLine>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -310,6 +327,19 @@ builder.Services.AddScoped<INonPrintedComponentRepository, NonPrintedComponentRe
 builder.Services.AddScoped<IAssemblyGraphQueryService, AssemblyGraphQueryService>();
 builder.Services.AddScoped<OpenFarm.Api.Endpoints.Assemblies.BomLineTargetNameResolver>();
 
+builder.Services.AddScoped<IProductionRunRepository, ProductionRunRepository>();
+builder.Services.AddScoped<IPartRequirementRepository, PartRequirementRepository>();
+builder.Services.AddScoped<IPrintJobRepository, PrintJobRepository>();
+builder.Services.AddScoped<ProductionDispatchQueryService>();
+builder.Services.AddScoped<IJobFileResolver, JobFileResolver>();
+builder.Services.AddScoped<IJobTelemetrySync, JobTelemetrySync>();
+builder.Services.AddScoped<IProductionEventPublisher, FarmHubProductionEventPublisher>();
+
+builder.Services.AddSingleton<ProductionDispatchBackgroundService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());
+// Must be Singleton, not Scoped — same reasoning as IPartProcessingDispatcher's registration above.
+builder.Services.AddSingleton<IProductionDispatcher>(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());
+
 // Resolved once at process startup below (not lazily on first request, research.md §2) — the
 // eager-singleton registration avoids the race the spec calls out where a slice is requested while
 // the backend is still discovering.
@@ -370,6 +400,31 @@ builder.Services.AddScoped<IQueryHandler<GetAssemblyQuery, AssemblyDetail?>, Get
 builder.Services.AddScoped<IQueryHandler<ExplodeAssemblyQuery, BomExplosionResult>, ExplodeAssemblyQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<CalculateBuildableUnitsQuery, BuildableUnitsResult>, CalculateBuildableUnitsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ListNonPrintedComponentsQuery, NonPrintedComponentsPage>, ListNonPrintedComponentsQueryHandler>();
+
+builder.Services.AddScoped<ProductionRunDisplayLabelResolver>();
+builder.Services.AddScoped<ProductionRunCompletionService>();
+builder.Services.AddScoped<OpenFarm.Application.Printers.ResolvePrinterConnectionDetails>();
+builder.Services.AddScoped<ProductionRemoteControlResolver>();
+
+builder.Services.AddScoped<CreateProductionRunHandlerType, CreateProductionRunCommandHandler>();
+builder.Services.AddScoped<CloseProductionRunHandlerType, CloseProductionRunCommandHandler>();
+builder.Services.AddScoped<CancelProductionRunHandlerType, CancelProductionRunCommandHandler>();
+builder.Services.AddScoped<MarkPrintJobStartedHandlerType, MarkPrintJobStartedCommandHandler>();
+builder.Services.AddScoped<PausePrintJobHandlerType, PausePrintJobCommandHandler>();
+builder.Services.AddScoped<ResumePrintJobHandlerType, ResumePrintJobCommandHandler>();
+builder.Services.AddScoped<CancelPrintJobHandlerType, CancelPrintJobCommandHandler>();
+builder.Services.AddScoped<RequeuePrintJobHandlerType, RequeuePrintJobCommandHandler>();
+builder.Services.AddScoped<CompletePrintJobHandlerType, CompletePrintJobCommandHandler>();
+builder.Services.AddScoped<FailPrintJobHandlerType, FailPrintJobCommandHandler>();
+builder.Services.AddScoped<ReorderPrintJobHandlerType, ReorderPrintJobCommandHandler>();
+builder.Services.AddScoped<PinPrintJobHandlerType, PinPrintJobCommandHandler>();
+builder.Services.AddScoped<UnpinPrintJobHandlerType, UnpinPrintJobCommandHandler>();
+builder.Services.AddScoped<SetRunLineBackfillLimitsHandlerType, SetRunLineBackfillLimitsCommandHandler>();
+builder.Services.AddScoped<SetRunLineRevisionModeHandlerType, SetRunLineRevisionModeCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetProductionRunsQuery, ProductionRunsPage>, GetProductionRunsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>, GetProductionRunDetailQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetQueueJobsQuery, QueueJobsPage>, GetQueueJobsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetPrintJobQuery, PrintJobDetail?>, GetPrintJobQueryHandler>();
 
 builder.Services.AddSignalR();
 

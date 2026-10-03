@@ -46,4 +46,32 @@ public interface IPrinterConnector
     /// <paramref name="cancellationToken"/> is cancelled.
     /// </summary>
     IAsyncEnumerable<PrinterConnectorEvent> ConnectAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// This codebase's first outbound printer command (research.md R5) — pushes <paramref name="fileContent"/>
+    /// to the printer and starts printing it as <paramref name="jobName"/>. Fire-and-request: the
+    /// caller (<c>ProductionDispatchBackgroundService</c>) never assumes the print actually started
+    /// from this call returning — only the printer's own subsequently-reported telemetry, observed
+    /// through <see cref="ConnectAsync"/> and resolved by <c>IJobTelemetrySync</c>, does that
+    /// (research.md R12).
+    /// </summary>
+    Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Requests the printer pause its current print. A request, not a status change — see
+    /// <see cref="StartJobAsync"/>'s doc comment; the same "printer's own telemetry is the only
+    /// writer" rule applies (spec Clarifications, 2026-08-07; research.md R12).
+    /// </summary>
+    Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
+
+    /// <summary>Requests the printer resume a paused print. Same request/confirm split as <see cref="PauseJobAsync"/>.</summary>
+    Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Requests the printer stop (cancel) its current print. Same request/confirm split as
+    /// <see cref="PauseJobAsync"/> — the caller separately records that a stop was requested
+    /// (<c>PrintJob.RequestCancel()</c>) so the eventual terminal telemetry resolves as
+    /// <c>Cancelled</c> rather than <c>Failed</c> (FR-024c).
+    /// </summary>
+    Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
 }

@@ -35,7 +35,25 @@ bun run format             # biome format --write .
 bunx tsc -b                # typecheck only
 ```
 
-### Local full stack
+### Local dev — `./dev.sh` (native, against a locally installed Postgres)
+```
+./dev.sh            # prints the subcommand list
+./dev.sh api        # backend on :8888/:8889 (auto-migrates + seeds on startup)
+./dev.sh web        # vite dev server on :5173
+./dev.sh up         # both in one terminal, Ctrl-C stops both
+./dev.sh slicers    # provision slicer bundles into ./.slicers for this platform
+./dev.sh ingest     # ingest system profiles from the provisioned slicers
+./dev.sh test       # dotnet test + vitest
+./dev.sh fmt        # dotnet format + biome
+```
+`dev.sh` exists because `dotnet run --project` sets the process CWD to the *project* directory,
+so `appsettings.Development.json`'s relative `SlicerBundle:RootDirectory` (`./.slicers`) resolves
+to `api/src/OpenFarm.Api/.slicers` and misses the repo-root `.slicers/` that
+`tools/provision-slicers` fills — the API then boots with no slicers available. The script exports
+`SlicerBundle__RootDirectory=$PWD/.slicers` to anchor it. **Run the backend via `./dev.sh api`, not
+a bare `dotnet run`.** (Docker is unaffected — compose sets that env var explicitly.)
+
+### Local full stack (Docker)
 ```
 cp .env.example infra/.env   # adjust as needed
 cd infra && docker compose up   # postgres + api (dotnet watch) + web (bun run dev)

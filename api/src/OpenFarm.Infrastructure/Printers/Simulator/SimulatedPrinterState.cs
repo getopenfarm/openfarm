@@ -37,6 +37,23 @@ public sealed class SimulatedPrinterState
     public int? RemainingTimeMinutes { get; set; }
 
     /// <summary>
+    /// Set by <see cref="SimulatorPrinterConnector.PauseJobAsync"/>/<see cref="SimulatorPrinterConnector.ResumeJobAsync"/>
+    /// (research.md R12) — <see cref="SimulatorPrinterConnector.Advance"/> stops progressing
+    /// temps/percent/remaining-time while <see langword="true"/>, mirroring a real paused print.
+    /// </summary>
+    public bool IsPaused { get; set; }
+
+    /// <summary>
+    /// A raw gcode state string queued by an outbound command (Start/Pause/Resume/Stop) or by
+    /// <see cref="SimulatorPrinterConnector.Advance"/> reaching a genuine phase transition, consumed
+    /// and cleared by the next <see cref="SimulatorPrinterConnector.ConnectAsync"/> tick. Distinct from
+    /// re-deriving a gcode string from <see cref="Status"/> alone, since a pause/resume flip changes
+    /// the raw reported state without ever changing <see cref="Status"/> itself (Printer has no Paused
+    /// member — research.md R12's own finding).
+    /// </summary>
+    public string? PendingGcodeState { get; set; }
+
+    /// <summary>
     /// Fixed illustrative default fixture (data-model.md's AMS default content table) — same static
     /// material/color/remaining-% shape for the life of the connection; only the printing tray's
     /// <c>Active</c> flag reflects current status.

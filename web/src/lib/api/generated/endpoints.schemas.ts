@@ -425,6 +425,257 @@ export interface UpdateMachineProfileRawDataRequest {
   rawDataJson?: string;
 }
 
+export interface PartRequirementSummaryResponse {
+  id?: string;
+  partId?: string;
+  partName?: string;
+  /** @nullable */
+  quantity?: number | null;
+  jobCount?: number;
+  completedJobCount?: number;
+  jobsNeedingRequeue?: string[];
+}
+
+export interface RunLineSummaryResponse {
+  id?: string;
+  targetKind?: string;
+  targetId?: string;
+  targetName?: string;
+  /** @nullable */
+  quantity?: number | null;
+  revisionMode?: string;
+  backfillPrinterCap?: number;
+  /** @nullable */
+  backfillCumulativeUnitCeiling?: number | null;
+  cumulativeProducedUnits?: number;
+  spansMultipleRevisions?: boolean;
+  requirements?: PartRequirementSummaryResponse[];
+}
+
+export interface ProductionRunDetailResponse {
+  id?: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  priority?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  status?: string;
+  lines?: RunLineSummaryResponse[];
+}
+
+export interface CancelProductionRunRequest {
+  [key: string]: unknown;
+}
+
+export interface CloseProductionRunRequest {
+  [key: string]: unknown;
+}
+
+export interface CreateRunLineRequest {
+  targetKind?: string;
+  targetId?: string;
+  /** @nullable */
+  quantity?: number | null;
+  /** @nullable */
+  revisionMode?: string | null;
+  assignmentMode?: string;
+  /** @nullable */
+  pinnedPrinterId?: string | null;
+  backfillPrinterCap?: number;
+  /** @nullable */
+  backfillCumulativeUnitCeiling?: number | null;
+}
+
+export interface CreateProductionRunRequest {
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  priority?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  lines?: CreateRunLineRequest[];
+}
+
+export interface JobStatusSummaryResponse {
+  queued?: number;
+  printing?: number;
+  paused?: number;
+  completed?: number;
+  failed?: number;
+  cancelled?: number;
+}
+
+export interface ProductionRunSummaryResponse {
+  id?: string;
+  displayLabel?: string;
+  status?: string;
+  /** @nullable */
+  dueDate?: string | null;
+  lineCount?: number;
+  jobSummary?: JobStatusSummaryResponse;
+}
+
+export interface ListProductionRunsResponse {
+  items?: ProductionRunSummaryResponse[];
+  totalCount?: number;
+}
+
+export interface ListProductionRunsRequest {
+  [key: string]: unknown;
+}
+
+export interface RunLineBackfillLimitsResponse {
+  id?: string;
+  backfillPrinterCap?: number;
+  /** @nullable */
+  backfillCumulativeUnitCeiling?: number | null;
+}
+
+export interface SetRunLineBackfillLimitsRequest {
+  backfillPrinterCap?: number;
+  /** @nullable */
+  backfillCumulativeUnitCeiling?: number | null;
+}
+
+export interface RunLineRevisionModeResponse {
+  id?: string;
+  revisionMode?: string;
+}
+
+export interface SetRunLineRevisionModeRequest {
+  revisionMode?: string;
+}
+
+export interface JobFilamentConsumptionResponse {
+  id?: string;
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  detectedColorHex?: string | null;
+  /** @nullable */
+  spoolId?: string | null;
+  /** @nullable */
+  gramsConsumed?: number | null;
+}
+
+export interface PrintJobResponse {
+  id?: string;
+  partRequirementId?: string;
+  queuePosition?: number;
+  plateQuantity?: number;
+  assignmentMode?: string;
+  /** @nullable */
+  pinnedPrinterId?: string | null;
+  /** @nullable */
+  dispatchedPrinterId?: string | null;
+  status?: string;
+  fileRevisionHash?: string;
+  fileRevisionNumber?: number;
+  /** @nullable */
+  dispatchedAtUtc?: string | null;
+  /** @nullable */
+  startedAtUtc?: string | null;
+  /** @nullable */
+  endedAtUtc?: string | null;
+  /** @nullable */
+  actualDurationMinutes?: number | null;
+  /** @nullable */
+  cancelRequestedAtUtc?: string | null;
+  /** @nullable */
+  requeuedAsJobId?: string | null;
+  filamentConsumption?: JobFilamentConsumptionResponse[];
+  createdAtUtc?: string;
+}
+
+export interface CancelPrintJobRequest {
+  [key: string]: unknown;
+}
+
+export interface FilamentConsumptionLineRequest {
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  detectedColorHex?: string | null;
+  /** @nullable */
+  spoolId?: string | null;
+  gramsConsumed?: number;
+}
+
+export interface CompletePrintJobRequest {
+  filamentConsumption?: FilamentConsumptionLineRequest[];
+}
+
+export interface FailPrintJobRequest {
+  filamentConsumption?: FilamentConsumptionLineRequest[];
+}
+
+export interface QueueJobRowResponse {
+  jobId?: string;
+  queuePosition?: number;
+  status?: string;
+  assignmentMode?: string;
+  /** @nullable */
+  pinnedPrinterId?: string | null;
+  /** @nullable */
+  dispatchedPrinterId?: string | null;
+  isBlocked?: boolean;
+  partId?: string;
+  partName?: string;
+  plateQuantity?: number;
+  runLineId?: string;
+  productionRunId?: string;
+  runDisplayLabel?: string;
+}
+
+export interface ListQueueJobsResponse {
+  items?: QueueJobRowResponse[];
+  totalCount?: number;
+}
+
+export interface ListQueueJobsRequest {
+  [key: string]: unknown;
+}
+
+export interface MarkPrintJobStartedRequest {
+  [key: string]: unknown;
+}
+
+export interface PausePrintJobRequest {
+  [key: string]: unknown;
+}
+
+export interface PinPrintJobRequest {
+  /** @nullable */
+  printerId?: string | null;
+}
+
+export interface ReorderPrintJobResponse {
+  jobId?: string;
+  queuePosition?: number;
+}
+
+export interface ReorderPrintJobRequest {
+  /** @nullable */
+  afterJobId?: string | null;
+}
+
+export interface RequeuePrintJobRequest {
+  [key: string]: unknown;
+}
+
+export interface ResumePrintJobRequest {
+  [key: string]: unknown;
+}
+
+export interface UnpinPrintJobRequest {
+  [key: string]: unknown;
+}
+
 export interface PrinterSummaryResponse {
   id?: string;
   name?: string;
@@ -1156,6 +1407,18 @@ export type OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams = {
    * @nullable
    */
   pageSize?: number | null;
+};
+
+export type OpenFarmApiEndpointsProductionRunsListProductionRunsEndpointParams =
+  {
+    page: number;
+    pageSize: number;
+  };
+
+export type OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams = {
+  view: string;
+  page: number;
+  pageSize: number;
 };
 
 export type OpenFarmApiEndpointsPartsListPartsEndpointParams = {

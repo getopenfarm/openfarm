@@ -3,15 +3,16 @@ using OpenFarm.Application.Parts;
 
 namespace OpenFarm.Infrastructure.Parts;
 
-// Namespaced by organizationId first (research.md §8). Keyed by an owning id (a PartProcessingJob's
-// own id at submit time, per IPartFileStorage's remarks) rather than a Part id, since an Add's
-// target Part doesn't exist yet when the file must first be persisted.
+// Namespaced by organizationId first (research.md §8), then content-addressed by the caller's
+// precomputed hash (research.md R6, FR-009d): two uploads with byte-identical content collide onto
+// the same stored path rather than duplicating. Saving is idempotent by construction — a path that
+// already exists is simply overwritten with identical bytes, never duplicated.
 public sealed class LocalDiskPartFileStorage(IOptions<PartFileStorageOptions> options) : IPartFileStorage
 {
-    public async Task<string> SaveAsync(Guid organizationId, Guid ownerId, string originalFileName, Stream content, CancellationToken cancellationToken)
+    public async Task<string> SaveAsync(Guid organizationId, string contentHash, string originalFileName, Stream content, CancellationToken cancellationToken)
     {
         var extension = Path.GetExtension(originalFileName);
-        var relativePath = Path.Combine(organizationId.ToString(), $"{ownerId}{extension}");
+        var relativePath = Path.Combine(organizationId.ToString(), $"{contentHash}{extension}");
         var fullPath = Path.Combine(options.Value.RootDirectory, relativePath);
 
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);

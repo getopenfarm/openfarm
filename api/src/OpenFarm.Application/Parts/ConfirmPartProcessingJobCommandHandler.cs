@@ -13,7 +13,6 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
     IPartProcessingJobRepository jobRepository,
     IPartRepository partRepository,
     ITagRepository tagRepository,
-    IPartFileStorage storage,
     IPartEventPublisher eventPublisher) : ICommandHandler<ConfirmPartProcessingJobCommand, Part>
 {
     public async Task<Part> HandleAsync(ConfirmPartProcessingJobCommand command, CancellationToken cancellationToken)
@@ -68,6 +67,11 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
 
         var estimateStatus = job.PreviewEstimateStatus!.Value;
 
+        // The file was already saved under a content-hash-keyed path (research.md R6) by the
+        // Add/Replace submit step (AddPartCommandHandler/ReplacePartFileCommandHandler) — the hash
+        // is the path's own filename stem, so it's recovered here rather than re-hashed.
+        var revisionHash = Path.GetFileNameWithoutExtension(job.StoragePath);
+
         Part part;
         if (job.Kind == PartProcessingJobKind.Add)
         {
@@ -92,6 +96,8 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 job.PreviewEstimatedPrintTimeMinutes,
                 job.PreviewEstimatedFilamentWeightGrams,
                 job.PreviewPlateCount!.Value,
+                unitsPerPrint: 1,
+                revisionHash,
                 filamentRequirements,
                 thumbnails,
                 tags);
@@ -102,8 +108,11 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
         {
             part = await partRepository.GetByIdAsync(job.PartId!.Value, cancellationToken)
                 ?? throw new PartNotFoundException(job.PartId!.Value);
-            var previousStoragePath = part.StoragePath;
 
+            // research.md R6 — replace no longer deletes the old revision's bytes: a Snapshot-mode
+            // PrintJob elsewhere may still reference them by their own RevisionHash. Content
+            // addressing means an unreferenced revision is simply left on disk (no reaper yet,
+            // spec Assumptions), never eagerly reclaimed here.
             part.ReplaceFile(
                 job.FileFormat,
                 job.RequiresSlicing,
@@ -117,20 +126,11 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 job.PreviewEstimatedPrintTimeMinutes,
                 job.PreviewEstimatedFilamentWeightGrams,
                 job.PreviewPlateCount!.Value,
+                revisionHash,
                 filamentRequirements,
                 thumbnails);
 
             await partRepository.SaveChangesAsync(cancellationToken);
-
-            // Best-effort — the Part's own field state already committed above; an orphaned old
-            // file on disk is not worth failing the (already-successful) replace over.
-            try
-            {
-                await storage.DeleteAsync(previousStoragePath, cancellationToken);
-            }
-            catch (IOException)
-            {
-            }
         }
 
         job.Confirm(part.Id);

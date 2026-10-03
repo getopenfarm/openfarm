@@ -27,6 +27,9 @@ public sealed class Part
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
         int plateCount,
+        int unitsPerPrint,
+        string revisionHash,
+        int revisionNumber,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
@@ -45,6 +48,9 @@ public sealed class Part
         EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
         PlateCount = plateCount;
+        UnitsPerPrint = unitsPerPrint;
+        RevisionHash = revisionHash;
+        RevisionNumber = revisionNumber;
         CreatedAtUtc = createdAtUtc;
         UpdatedAtUtc = createdAtUtc;
     }
@@ -82,6 +88,15 @@ public sealed class Part
 
     public int PlateCount { get; private set; }
 
+    /// <summary>FR-005a — default 1, auto-suggested from a sliced file's per-plate object count where parseable, always operator-overridable.</summary>
+    public int UnitsPerPrint { get; private set; }
+
+    /// <summary>FR-009c — SHA-256 hex of the current file's bytes; computed by the caller before Create/ReplaceFile (research.md R6).</summary>
+    public string RevisionHash { get; private set; }
+
+    /// <summary>FR-009c — starts at 1, incremented on every ReplaceFile.</summary>
+    public int RevisionNumber { get; private set; }
+
     public IReadOnlyList<PartFilamentRequirement> FilamentRequirements => _filamentRequirements;
 
     public IReadOnlyList<PartThumbnail> Thumbnails => _thumbnails;
@@ -107,11 +122,13 @@ public sealed class Part
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
         int plateCount,
+        int unitsPerPrint,
+        string revisionHash,
         IReadOnlyList<FilamentRequirementSpec> filamentRequirements,
         IReadOnlyList<ThumbnailSpec> thumbnails,
         IReadOnlyList<Tag> tags)
     {
-        ValidateSharedFields(name, originalFileName, storagePath, fileSizeBytes, nozzleDiameterMm, plateCount, filamentRequirements);
+        ValidateSharedFields(name, originalFileName, storagePath, fileSizeBytes, nozzleDiameterMm, plateCount, unitsPerPrint, filamentRequirements);
 
         var part = new Part(
             Guid.NewGuid(),
@@ -129,6 +146,9 @@ public sealed class Part
             estimatedPrintTimeMinutes,
             estimatedFilamentWeightGrams,
             plateCount,
+            unitsPerPrint,
+            revisionHash,
+            1,
             DateTimeOffset.UtcNow);
 
         foreach (var spec in filamentRequirements)
@@ -166,10 +186,11 @@ public sealed class Part
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
         int plateCount,
+        string revisionHash,
         IReadOnlyList<FilamentRequirementSpec> filamentRequirements,
         IReadOnlyList<ThumbnailSpec> thumbnails)
     {
-        ValidateSharedFields(Name, originalFileName, storagePath, fileSizeBytes, nozzleDiameterMm, plateCount, filamentRequirements);
+        ValidateSharedFields(Name, originalFileName, storagePath, fileSizeBytes, nozzleDiameterMm, plateCount, UnitsPerPrint, filamentRequirements);
 
         FileFormat = fileFormat;
         RequiresSlicing = requiresSlicing;
@@ -184,6 +205,10 @@ public sealed class Part
         EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
         PlateCount = plateCount;
+        // research.md R6: content-addressed by revision hash — a new revision always increments,
+        // even if (rare) it happens to hash-collide with a still-referenced earlier one.
+        RevisionHash = revisionHash;
+        RevisionNumber += 1;
 
         _filamentRequirements.Clear();
         foreach (var spec in filamentRequirements)
@@ -279,6 +304,7 @@ public sealed class Part
         long fileSizeBytes,
         decimal nozzleDiameterMm,
         int plateCount,
+        int unitsPerPrint,
         IReadOnlyList<FilamentRequirementSpec> filamentRequirements)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -309,6 +335,11 @@ public sealed class Part
         if (plateCount < 1)
         {
             throw new ArgumentOutOfRangeException(nameof(plateCount), "Plate count must be at least 1.");
+        }
+
+        if (unitsPerPrint < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(unitsPerPrint), "Units per print must be at least 1.");
         }
 
         if (filamentRequirements.Count == 0)

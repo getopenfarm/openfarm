@@ -52,23 +52,21 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
 
         try
         {
-            var lastEmittedStatus = state.Status;
-            yield return BuildEvent(state, StatusToGcodeState(lastEmittedStatus));
+            yield return BuildEvent(state, StatusToGcodeState(state.Status));
 
             using var timer = new PeriodicTimer(_tickInterval);
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
                 Advance(state);
 
-                // Only re-assert a status string on a genuine phase transition — re-asserting
+                // Only re-assert a raw gcode state on a genuine phase transition — re-asserting
                 // "FINISH" on every tick once AwaitingClear is reached would flip a manually
                 // Mark-Ready'd printer straight back (data-model.md's status-flapping-avoidance note).
-                string? gcodeState = null;
-                if (state.Status != lastEmittedStatus)
-                {
-                    gcodeState = StatusToGcodeState(state.Status);
-                    lastEmittedStatus = state.Status;
-                }
+                // A pause/resume flip is one such transition even though it never changes Status
+                // itself (research.md R12) — PendingGcodeState carries that case; Advance's own
+                // Printing->AwaitingClear transition also queues one, consumed here identically.
+                var gcodeState = state.PendingGcodeState;
+                state.PendingGcodeState = null;
 
                 yield return BuildEvent(state, gcodeState);
             }
@@ -76,6 +74,78 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
         finally
         {
             _activeConnections.TryRemove(details.SerialNumber, out _);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>No real file transfer — begins a fake Printing → Finish sequence identical to
+    /// <see cref="StartSimulatedJob"/>, through the interface real dispatch code calls (research.md R5).</remarks>
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken)
+    {
+        var state = GetOrCreateState(details.SerialNumber);
+        state.Status = PrinterStatus.Printing;
+        state.IsPaused = false;
+        state.JobStartedAtUtc = DateTimeOffset.UtcNow;
+        state.PrintProgressPercent = 0;
+        state.CurrentJobName = jobName;
+        state.RemainingTimeMinutes = SimulatedJobTotalMinutes;
+        state.PendingGcodeState = "RUNNING";
+        return Task.CompletedTask;
+    }
+
+    public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken)
+    {
+        if (_states.TryGetValue(details.SerialNumber, out var state) && state.Status == PrinterStatus.Printing)
+        {
+            state.IsPaused = true;
+            state.PendingGcodeState = "PAUSE";
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken)
+    {
+        if (_states.TryGetValue(details.SerialNumber, out var state) && state.IsPaused)
+        {
+            state.IsPaused = false;
+            state.PendingGcodeState = "RUNNING";
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Emits a generic terminal "FAILED" gcode — the disambiguation between a requested stop
+    /// and a genuine fault is <c>IJobTelemetrySync</c>'s job, keyed off <c>CancelRequestedAtUtc</c>,
+    /// not something the connector layer encodes (research.md R12, FR-024c).</remarks>
+    public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken)
+    {
+        if (_states.TryGetValue(details.SerialNumber, out var state))
+        {
+            state.Status = PrinterStatus.AwaitingClear;
+            state.IsPaused = false;
+            state.RemainingTimeMinutes = 0;
+            state.PendingGcodeState = "FAILED";
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Test-only hook standing in for a stop performed directly at the printer, bypassing
+    /// <see cref="StopJobAsync"/> entirely (quickstart.md Story 8 step 4) — no <c>CancelRequestedAtUtc</c>
+    /// is ever set on the OpenFarm side, exercising the spec Assumptions' documented "no distinguishing
+    /// signal" fallback to <c>Failed</c>.
+    /// </summary>
+    public void SimulateDirectStop(string serialNumber)
+    {
+        if (_states.TryGetValue(serialNumber, out var state))
+        {
+            state.Status = PrinterStatus.AwaitingClear;
+            state.IsPaused = false;
+            state.RemainingTimeMinutes = 0;
+            state.PendingGcodeState = "FAILED";
         }
     }
 
@@ -94,10 +164,12 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
         }
 
         state.Status = PrinterStatus.Printing;
+        state.IsPaused = false;
         state.JobStartedAtUtc = DateTimeOffset.UtcNow;
         state.PrintProgressPercent = 0;
         state.CurrentJobName = SimulatedJobName;
         state.RemainingTimeMinutes = SimulatedJobTotalMinutes;
+        state.PendingGcodeState = "RUNNING";
     }
 
     private SimulatedPrinterState GetOrCreateState(string serialNumber) =>
@@ -109,7 +181,7 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
 
     private static void Advance(SimulatedPrinterState state)
     {
-        if (state.Status != PrinterStatus.Printing || state.JobStartedAtUtc is not { } startedAt)
+        if (state.Status != PrinterStatus.Printing || state.JobStartedAtUtc is not { } startedAt || state.IsPaused)
         {
             return;
         }
@@ -125,6 +197,7 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
         {
             state.Status = PrinterStatus.AwaitingClear;
             state.RemainingTimeMinutes = 0;
+            state.PendingGcodeState = "FINISH";
         }
     }
 

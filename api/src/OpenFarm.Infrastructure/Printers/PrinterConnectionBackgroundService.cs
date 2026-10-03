@@ -8,6 +8,7 @@ using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
+using OpenFarm.Application.Production;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Multitenancy;
@@ -300,6 +301,17 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
         var statusChanged = connectorEvent.GcodeState is not null && printer.ObserveStatus(connectorEvent.GcodeState);
 
+        if (connectorEvent.GcodeState is not null)
+        {
+            // Deliberately runs on every event, ahead of the flush-throttle gate below (research.md
+            // R12): a transient PAUSE gcodeState may arrive and be superseded within the same
+            // flushInterval window, and the printer's own coarse status never changes for it
+            // (PrinterStatusTransitions maps PAUSE to the same Printing bucket as RUNNING) — gating
+            // this on mustFlushNow would silently drop the one signal PrintJob.MarkPaused() needs.
+            var jobTelemetrySync = services.GetRequiredService<IJobTelemetrySync>();
+            await jobTelemetrySync.ObserveAsync(printer.Id, connectorEvent.GcodeState, cancellationToken);
+        }
+
         if (connectorEvent.Telemetry is { } telemetry)
         {
             printer.RecordTelemetry(
@@ -348,6 +360,15 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 printer.Status,
                 printer.IsReachable,
                 cancellationToken);
+        }
+
+        if (statusChanged && printer.Status == PrinterStatus.Idle)
+        {
+            // research.md R4 — the printer's own reported gcode_state just reconciled it to Idle
+            // (e.g. FINISH -> AwaitingClear -> operator's mark-ready is one path; a fresh boot onto
+            // an already-idle printer is another). A job may already be waiting.
+            var productionDispatcher = services.GetRequiredService<IProductionDispatcher>();
+            productionDispatcher.RequestDispatchAttempt(printer.Id);
         }
 
         if (connectorEvent.Telemetry is not null)

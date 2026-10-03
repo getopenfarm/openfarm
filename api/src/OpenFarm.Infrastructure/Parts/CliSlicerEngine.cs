@@ -146,7 +146,8 @@ public sealed partial class CliSlicerEngine(
                     PlateCount: 1,
                     estimatedMinutes,
                     estimatedWeight,
-                    thumbnail is null ? [] : [new ThumbnailSpec(0, thumbnail)]);
+                    thumbnail is null ? [] : [new ThumbnailSpec(0, thumbnail)],
+                    OutputFileBytes: System.Text.Encoding.UTF8.GetBytes(gcode));
             }
         }
         finally
