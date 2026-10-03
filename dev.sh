@@ -16,9 +16,9 @@ esac
 
 case "${1:-help}" in
 #: api      backend on :8888/:8889 (auto-migrates + seeds)
-api)     dotnet run --project="$API" --profile=https ;;
+api)     dotnet run --project="$API" --launch-profile=https --urls="https://0.0.0.0:8889;http://0.0.0.0:8888" ;;
 #: web      vite dev server on :5173
-web)     cd web && bun run dev ;;
+web)     cd web && VITE_API_BASE_URL="${VITE_API_BASE_URL:-}" bun run dev --host 0.0.0.0 ;;
 #: up       api + web in one terminal, Ctrl-C stops both
 # `kill 0` signals the whole process group, which is what reaps `dotnet run`'s grandchildren.
 # Run this from an interactive shell only — job control gives it its own process group there.

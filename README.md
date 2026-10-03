@@ -38,8 +38,6 @@ CREATE ROLE openfarm WITH LOGIN PASSWORD 'changeme';
 CREATE DATABASE openfarm OWNER openfarm;
 SQL
 
-# Required for dev.sh in this shell; creating the database alone is not enough.
-export ConnectionStrings__Default='Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=changeme'
 ```
 
 Run the creation snippet once. If the role or database already exists, keep the
@@ -50,7 +48,6 @@ on an existing `openfarm` role, use:
 sudo -u postgres psql -v ON_ERROR_STOP=1 <<'SQL'
 ALTER ROLE openfarm WITH LOGIN PASSWORD 'changeme';
 SQL
-export ConnectionStrings__Default='Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=changeme'
 ```
 
 An existing database must grant the configured login permission to apply
@@ -70,40 +67,21 @@ if [ ! -e infra/.env ]; then
 fi
 # Adjust POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, and POSTGRES_PORT if needed.
 docker compose --env-file infra/.env -f infra/docker-compose.yml up -d postgres --wait
-# Match these values to infra/.env if you changed its defaults.
-export ConnectionStrings__Default='Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=changeme'
 ```
 
 ### Configure the native API connection
 
-For either option, export the connection string in every shell where you run the
-backend or ingestion. Match the username, password, database, and published port
-to the PostgreSQL instance you chose:
+The default connection string in
+[appsettings.Development.json](api/src/OpenFarm.Api/appsettings.Development.json)
+uses `Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=changeme`.
+With the setup above, `./dev.sh api` and `./dev.sh ingest` work without exporting
+any database environment variables.
 
-```bash
-export ConnectionStrings__Default='Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=changeme'
-```
-
-`dev.sh` does **not** load `.env` or `infra/.env`. Those files configure Docker
-Compose; copying one does not supply credentials to a native `dotnet` process.
-The exported variable overrides the development settings, whose default
-connection string uses `Username=postgres` without a password.
-
-The export lasts only for the current shell and its child processes. To keep it
-available in new interactive Bash terminals, add the following line **once** to
-your `~/.bashrc`, using your actual credentials, then reload it in the current
-terminal:
-
-```bash
-# Add this line to ~/.bashrc:
-export ConnectionStrings__Default='Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=changeme'
-
-# After saving ~/.bashrc:
-source ~/.bashrc
-```
-
-For other shells, use their startup file instead (for example `~/.zshrc` for
-interactive Zsh). Keep your local password out of committed files.
+`dev.sh` does **not** load `.env` or `infra/.env`; those files configure Docker
+Compose. If you use another password, database, login, or port, override
+`ConnectionStrings__Default` with those values in your shell. Environment
+variables take precedence over the default development settings. The bundled
+password is for local development only.
 
 Check the same connection using TCP and password authentication (requires the
 PostgreSQL client; enter the configured password when prompted):
@@ -120,8 +98,6 @@ Restore dependencies, provision slicer bundles, and ingest their system profiles
 dotnet restore api/OpenFarm.slnx
 (cd web && bun install)
 ./dev.sh slicers
-# Required unless already exported by your shell startup file.
-export ConnectionStrings__Default='Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=changeme'
 ./dev.sh ingest
 ```
 
@@ -140,8 +116,18 @@ The frontend runs at `http://localhost:5173`; the API runs at
 `./dev.sh api` and `./dev.sh web` in separate terminals. Run the backend through
 `dev.sh` so it finds the slicer bundles in the repository's `.slicers` directory.
 
-The default seeded login is `admin` / `admin-openfarm`, unless overridden by
-`Seed__AdminUsername` and `Seed__AdminPassword` before the first startup.
+### Default application login
+
+Sign in to the frontend with the seeded local development administrator account:
+
+- **Username:** `admin`
+- **Password:** `admin-openfarm`
+
+These defaults are configured in
+[appsettings.Development.json](api/src/OpenFarm.Api/appsettings.Development.json)
+and [.env.example](.env.example). Override `Seed__AdminUsername` and
+`Seed__AdminPassword` before the account is first created to use different
+credentials. Changing the seed password does not update an existing account.
 
 For the complete Docker stack instead of native development:
 
@@ -152,18 +138,19 @@ docker compose --env-file infra/.env -f infra/docker-compose.yml up --build
 ## PostgreSQL troubleshooting
 
 - **`No password has been provided ... SASL/SCRAM-SHA-256`:** PostgreSQL requires
-  a password, but the API did not receive one. Export `ConnectionStrings__Default`
-  as shown above in the same terminal before rerunning `./dev.sh ingest` or
-  `./dev.sh api`. If you already created the database, you do not need to recreate
-  it. Opening a new terminal loses a previous export unless you saved it in your
-  shell startup file. You can also supply the credentials for one command:
+  a password, but the effective connection string has none. The development
+  defaults include the local password. Check whether `ConnectionStrings__Default`
+  in your shell overrides them with a passwordless connection string. To return
+  to the development defaults in the current shell:
 
   ```bash
-  ConnectionStrings__Default='Host=localhost;Port=5432;Database=openfarm;Username=openfarm;Password=changeme' ./dev.sh ingest
+  unset ConnectionStrings__Default
+  ./dev.sh ingest
   ```
 
-  This failure happens before migrations; it does not indicate
-  a missing schema migration.
+  Remove any obsolete override from your shell startup file as well. This failure
+  happens before migrations; recreating the database does not fix missing client
+  credentials.
 - **`password authentication failed`:** Match the connection string to the
   actual role and password. For a native installation, the `ALTER ROLE` snippet
   above sets the password for `openfarm`.
