@@ -30,7 +30,7 @@ public sealed class CancelProductionRunEndpoint(CancelProductionRunHandler handl
     public override async Task HandleAsync(CancelProductionRunRequest req, CancellationToken ct)
     {
         req.Id = Route<Guid>("id");
-        var run = await handler.HandleAsync(new CancelProductionRunCommand(req.Id), ct);
+        var run = await handler.HandleAsync(new CancelProductionRunCommand(req.Id, Guid.TryParse(User.FindFirst("sub")?.Value, out var actorId) ? actorId : null), ct);
 
         var detail = await getDetail.HandleAsync(new GetProductionRunDetailQuery(run.Id), ct);
         Response = ProductionRunDetailResponse.FromView(detail!);

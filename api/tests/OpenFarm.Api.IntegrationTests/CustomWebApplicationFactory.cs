@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Infrastructure.Multitenancy;
+using OpenFarm.Application.Parts;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.Printers.Simulator;
 using Testcontainers.PostgreSql;
 
 namespace OpenFarm.Api.IntegrationTests;
 
-public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     // Production defaults to a ~45s job cycle (research.md §9) — far too slow for a test suite to
     // wait out. Overriding the singleton here (the same optional-constructor-parameter pattern
@@ -19,7 +21,17 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
-            services.AddSingleton(new SimulatorPrinterConnector(TestCycleDuration)));
+        {
+            services.AddSingleton(new SimulatorPrinterConnector(TestCycleDuration));
+            // Fixtures deliberately seed Linux AppRun shell scripts, which also execute on macOS.
+            // Keep their catalog selection independent of the machine running the test suite.
+            services.AddSingleton<IHostPlatformProvider, FixtureHostPlatformProvider>();
+        });
+    }
+
+    private sealed class FixtureHostPlatformProvider : IHostPlatformProvider
+    {
+        public SlicerPlatform Current => SlicerPlatform.Linux;
     }
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18")

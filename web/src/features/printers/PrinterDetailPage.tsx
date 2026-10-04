@@ -9,10 +9,8 @@ import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PrinterDetailResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
-  getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
   useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint,
-  useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint,
   useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint,
 } from '@/lib/api/generated/printers/printers';
 import { AmsSlotGrid } from './components/AmsSlotGrid';
@@ -21,6 +19,7 @@ import { CurrentJobCard } from './components/CurrentJobCard';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { RecentActivityCard } from './components/RecentActivityCard';
+import { useMarkPrinterReady } from './hooks/useMarkPrinterReady';
 import { printerStatusToBadge } from './lib/printerStatusBadge';
 
 export function PrinterDetailPage() {
@@ -32,23 +31,7 @@ export function PrinterDetailPage() {
     id ?? '',
   );
 
-  const markReadyMutation =
-    useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint({
-      mutation: {
-        onSuccess: () => {
-          toast.success('Printer marked ready.');
-          queryClient.invalidateQueries({
-            queryKey:
-              getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey(
-                id ?? '',
-              ),
-          });
-        },
-        onError: () => {
-          toast.error('Could not mark printer ready.');
-        },
-      },
-    });
+  const markReadyMutation = useMarkPrinterReady();
 
   const removeMutation = useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint({
     mutation: {
@@ -73,6 +56,7 @@ export function PrinterDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {markReadyMutation.confirmationDialog}
       <BackLink to="/printers">Back to fleet</BackLink>
 
       {detailQuery.isLoading ? (

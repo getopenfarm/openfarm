@@ -27,24 +27,25 @@ public sealed class CompletePrintJobCommandHandler(
 
         if (job.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
         {
-            job.MarkCompleted();
-
             if (job.DispatchedPrinterId is { } printerId
                 && await printerRepository.GetByIdAsync(printerId, cancellationToken) is { } printer)
             {
+                if (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
+                    throw new JobNotEligibleForRemoteControlException(job.Id);
                 // Printer.TransitionTo's manual-transition guard only permits AwaitingClear -> Idle
                 // ("mark ready") — a manual-brand job has no gcode telemetry stream to reconcile
                 // against, so this reuses ObserveStatus's lenient, always-legal reconciliation path
                 // with the same synthetic terminal state a live-integrated printer would report.
                 printer.ObserveStatus("FINISH");
             }
+            job.MarkCompleted();
         }
         else if (job.Status != PrintJobStatus.Completed)
         {
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }
 
-        await PrintJobFilamentConsumptionRecorder.RecordAsync(job, command.FilamentConsumption, spoolRepository, cancellationToken);
+        await PrintJobFilamentConsumptionRecorder.RecordAsync(job, command.FilamentConsumption, spoolRepository, cancellationToken, jobRepository);
         await jobRepository.SaveChangesAsync(cancellationToken);
         await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
 

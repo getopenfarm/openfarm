@@ -26,7 +26,7 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
         dbContext.PrintJobs.Include(j => j.FilamentConsumption).FirstOrDefaultAsync(j => j.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<PrintJob>> ListByPartRequirementIdAsync(Guid partRequirementId, CancellationToken cancellationToken) =>
-        await dbContext.PrintJobs
+        await dbContext.PrintJobs.Include(j => j.FilamentConsumption)
             .Where(j => j.PartRequirementId == partRequirementId)
             .OrderBy(j => j.QueuePosition)
             .ToListAsync(cancellationToken);
@@ -42,6 +42,10 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             .ToListAsync(cancellationToken);
 
     /// <summary>The dispatcher's own reported-state lookup (research.md R12) — non-terminal, dispatched to this printer.</summary>
+    public Task<PrintJob?> GetLastJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) =>
+        dbContext.PrintJobs.Where(j => j.DispatchedPrinterId == printerId)
+            .OrderByDescending(j => j.EndedAtUtc).FirstOrDefaultAsync(cancellationToken);
+
     public Task<PrintJob?> GetActiveJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) =>
         dbContext.PrintJobs
             .Where(j => j.DispatchedPrinterId == printerId && !TerminalStatuses.Contains(j.Status))
@@ -77,7 +81,7 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             select job;
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var jobs = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var jobs = await query.Include(j => j.FilamentConsumption).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         return (jobs, totalCount);
     }
 
@@ -91,6 +95,8 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
         await dbContext.PrintJobs.AnyAsync(j => j.Status == PrintJobStatus.Queued, cancellationToken)
             ? await dbContext.PrintJobs.Where(j => j.Status == PrintJobStatus.Queued).MinAsync(j => j.QueuePosition, cancellationToken)
             : null;
+
+    public void TrackNewFilamentConsumption(IReadOnlyList<JobFilamentConsumption> lines) => dbContext.JobFilamentConsumptions.AddRange(lines);
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {

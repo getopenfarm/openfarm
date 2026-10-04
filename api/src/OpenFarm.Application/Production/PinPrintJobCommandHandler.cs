@@ -5,7 +5,7 @@ using OpenFarm.Domain.Production;
 namespace OpenFarm.Application.Production;
 
 /// <summary>FR-007 — 400 (PinnedJobRequiresPrinterException) if PrinterId is missing, 404 on missing job/printer, 409 if not Queued (PrintJob.Pin's own EnsureQueued guard).</summary>
-public sealed class PinPrintJobCommandHandler(IPrintJobRepository jobRepository, IPrinterRepository printerRepository)
+public sealed class PinPrintJobCommandHandler(IPrintJobRepository jobRepository, IPrinterRepository printerRepository, ProductionDispatchRequestService? dispatchRequests = null)
     : ICommandHandler<PinPrintJobCommand, PrintJob>
 {
     public async Task<PrintJob> HandleAsync(PinPrintJobCommand command, CancellationToken cancellationToken)
@@ -22,6 +22,7 @@ public sealed class PinPrintJobCommandHandler(IPrintJobRepository jobRepository,
         job.Pin(command.PrinterId);
         await jobRepository.SaveChangesAsync(cancellationToken);
 
+        if (dispatchRequests is not null) await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);
         return job;
     }
 }

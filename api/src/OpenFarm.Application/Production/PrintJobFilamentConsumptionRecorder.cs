@@ -12,20 +12,28 @@ namespace OpenFarm.Application.Production;
 public static class PrintJobFilamentConsumptionRecorder
 {
     public static async Task RecordAsync(
-        PrintJob job, IReadOnlyList<FilamentConsumptionLineInput> lines, ISpoolRepository spoolRepository, CancellationToken cancellationToken)
+        PrintJob job, IReadOnlyList<FilamentConsumptionLineInput> lines, ISpoolRepository spoolRepository, CancellationToken cancellationToken, IPrintJobRepository? jobRepository = null)
     {
         foreach (var line in lines)
         {
-            var matched = job.FilamentConsumption.FirstOrDefault(c => c.MaterialType == line.MaterialType && c.DetectedColorHex == line.DetectedColorHex)
+            var requirement = job.FilamentConsumption.FirstOrDefault(c => c.MaterialType == line.MaterialType && c.DetectedColorHex == line.DetectedColorHex)
                 ?? throw new FilamentConsumptionSumMismatchException(line.MaterialType, line.DetectedColorHex);
-
-            job.RecordFilamentConsumption(matched.Id, line.SpoolId, line.GramsConsumed);
-
-            if (line.SpoolId is { } spoolId)
+            var matched = job.FilamentConsumption.FirstOrDefault(c => c.MaterialType == line.MaterialType && c.DetectedColorHex == line.DetectedColorHex && c.SpoolId == line.SpoolId)
+                ?? job.FilamentConsumption.FirstOrDefault(c => c.MaterialType == line.MaterialType && c.DetectedColorHex == line.DetectedColorHex && c.GramsConsumed is null);
+            if (matched is null)
             {
-                var spool = await spoolRepository.GetByIdAsync(spoolId, cancellationToken);
-                spool?.RecordUsage(line.GramsConsumed);
+                matched = job.AddConsumptionLine(requirement.MaterialType, requirement.DetectedColorHex);
+                jobRepository?.TrackNewFilamentConsumption([matched]);
             }
+            var delta = line.GramsConsumed - (matched.GramsConsumed ?? 0);
+            if (delta < 0) throw new FilamentConsumptionSumMismatchException(line.MaterialType, line.DetectedColorHex);
+            if (line.SpoolId is { } spoolId && delta > 0)
+            {
+                var spool = await spoolRepository.GetByIdAsync(spoolId, cancellationToken)
+                    ?? throw new SpoolNotFoundException(spoolId);
+                spool.RecordUsage(delta);
+            }
+            job.RecordFilamentConsumption(matched.Id, line.SpoolId, line.GramsConsumed);
         }
     }
 }

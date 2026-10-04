@@ -1,5 +1,6 @@
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Common;
+using OpenFarm.Application.Production;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ActivityLog;
@@ -18,7 +19,7 @@ public sealed class EditPrinterCommandHandler(
     IPrinterConnectionManager connectionManager,
     IMachineProfileRepository machineProfileRepository,
     IProcessProfileRepository processProfileRepository,
-    IActivityLogWriter activityLogWriter) : ICommandHandler<EditPrinterCommand, Printer>
+    IActivityLogWriter activityLogWriter, IProductionDispatcher? dispatcher = null) : ICommandHandler<EditPrinterCommand, Printer>
 {
     public async Task<Printer> HandleAsync(EditPrinterCommand command, CancellationToken cancellationToken)
     {
@@ -190,6 +191,7 @@ public sealed class EditPrinterCommandHandler(
                 cancellationToken);
         }
 
+        if (printer.Status == PrinterStatus.Idle) dispatcher?.RequestDispatchAttempt(printer.Id);
         return printer;
     }
 }

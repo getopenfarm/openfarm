@@ -1,4 +1,5 @@
 using FastEndpoints;
+using FluentValidation;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Domain.Production;
@@ -42,7 +43,7 @@ public sealed class SetRunLineRevisionModeEndpoint(SetRunLineRevisionModeHandler
     {
         req.LineId = Route<Guid>("lineId");
         var line = await handler.HandleAsync(
-            new OpenFarm.Application.Production.SetRunLineRevisionModeCommand(req.LineId, Enum.Parse<RevisionMode>(req.RevisionMode)), ct);
+            new OpenFarm.Application.Production.SetRunLineRevisionModeCommand(req.LineId, Enum.Parse<RevisionMode>(req.RevisionMode), Route<Guid>("runId")), ct);
 
         Response = new RunLineRevisionModeResponse
         {
@@ -50,4 +51,9 @@ public sealed class SetRunLineRevisionModeEndpoint(SetRunLineRevisionModeHandler
             RevisionMode = line.RevisionMode.ToString(),
         };
     }
+}
+
+public sealed class SetRunLineRevisionModeValidator : Validator<SetRunLineRevisionModeRequest>
+{
+    public SetRunLineRevisionModeValidator() => RuleFor(x => x.RevisionMode).Must(x => Enum.GetNames<RevisionMode>().Contains(x));
 }

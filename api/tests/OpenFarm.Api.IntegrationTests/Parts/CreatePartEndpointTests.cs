@@ -108,6 +108,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
+        uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
         var submitted = await uploadResponse.Content.ReadFromJsonAsync<PartProcessingJobSubmittedResponse>();
 
         var finalJob = await WaitForTerminalStatusAsync(client, submitted!.JobId);
@@ -133,6 +134,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
+        uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
         var submitted = await uploadResponse.Content.ReadFromJsonAsync<PartProcessingJobSubmittedResponse>();
 
         var finalJob = await WaitForTerminalStatusAsync(client, submitted!.JobId);
@@ -152,6 +154,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
+        uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
         var submitted = await uploadResponse.Content.ReadFromJsonAsync<PartProcessingJobSubmittedResponse>();
 
         var jobResponse = await client.GetAsync(new Uri($"/api/v1/part-processing-jobs/{submitted!.JobId}", UriKind.Relative));
@@ -180,6 +183,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
+        uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
         var submitted = await uploadResponse.Content.ReadFromJsonAsync<PartProcessingJobSubmittedResponse>();
 
         var jobResponse = await client.GetAsync(new Uri($"/api/v1/part-processing-jobs/{submitted!.JobId}", UriKind.Relative));
@@ -228,6 +232,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
+        uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
         var submitted = await uploadResponse.Content.ReadFromJsonAsync<PartProcessingJobSubmittedResponse>();
 
         // Change the org default after the job was created but before re-checking it.

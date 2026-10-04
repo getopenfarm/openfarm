@@ -255,11 +255,12 @@ public class BambuLanProtocolTests
             var bytesRead = await stream.ReadAsync(buffer, token); // Deliberately never send CONNACK.
             bytesRead.Should().BeGreaterThan(0, "the client must send CONNECT");
             connected.TrySetResult();
-            while (await stream.ReadAsync(buffer, token) != 0)
+            try
             {
+                while (await stream.ReadAsync(buffer, token) != 0) { }
             }
-
-            closed.TrySetResult();
+            catch (IOException) { /* TLS may signal the peer closing through a reset on macOS. */ }
+            finally { closed.TrySetResult(); }
         });
         var connector = new BambuLanConnector(NullLogger<BambuLanConnector>.Instance, new BambuTransportOptions
         {

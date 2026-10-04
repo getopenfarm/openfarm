@@ -4,7 +4,7 @@ using OpenFarm.Domain.Production;
 namespace OpenFarm.Application.Production;
 
 /// <summary>Reverts to Unassigned, eligible for ordinary dispatch matching again. 404 on missing job, 409 if not Queued (PrintJob.Unpin's own EnsureQueued guard).</summary>
-public sealed class UnpinPrintJobCommandHandler(IPrintJobRepository jobRepository) : ICommandHandler<UnpinPrintJobCommand, PrintJob>
+public sealed class UnpinPrintJobCommandHandler(IPrintJobRepository jobRepository, ProductionDispatchRequestService? dispatchRequests = null) : ICommandHandler<UnpinPrintJobCommand, PrintJob>
 {
     public async Task<PrintJob> HandleAsync(UnpinPrintJobCommand command, CancellationToken cancellationToken)
     {
@@ -14,6 +14,7 @@ public sealed class UnpinPrintJobCommandHandler(IPrintJobRepository jobRepositor
         job.Unpin();
         await jobRepository.SaveChangesAsync(cancellationToken);
 
+        if (dispatchRequests is not null) await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);
         return job;
     }
 }

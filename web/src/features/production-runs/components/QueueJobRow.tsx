@@ -117,7 +117,12 @@ export function QueueJobRow({
       className="flex list-none items-center gap-3 border-b bg-background px-3 py-2 last:border-b-0"
     >
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-medium">{job.partName}</span>
+        <Link
+          to={`/jobs/${job.jobId}`}
+          className="truncate text-sm font-medium hover:underline"
+        >
+          {job.partName}
+        </Link>
         <Link
           to={`/production-runs/${job.productionRunId}`}
           className="truncate text-xs text-muted-foreground hover:underline"
@@ -133,10 +138,16 @@ export function QueueJobRow({
       {job.isBlocked && (
         <span
           className="flex shrink-0 items-center gap-1 text-xs text-destructive"
-          title={`Blocked on ${pinnedPrinterName ?? 'its pinned printer'}`}
+          title={
+            job.assignmentMode === 'Pinned'
+              ? `Blocked on ${pinnedPrinterName ?? 'its pinned printer'}`
+              : 'No available printer matches the nozzle and loaded material requirements'
+          }
         >
-          <AlertTriangleIcon className="size-3.5" /> Blocked on{' '}
-          {pinnedPrinterName ?? 'printer'}
+          <AlertTriangleIcon className="size-3.5" />{' '}
+          {job.assignmentMode === 'Pinned'
+            ? `Blocked on ${pinnedPrinterName ?? 'printer'}`
+            : 'No matching printer'}
         </span>
       )}
 

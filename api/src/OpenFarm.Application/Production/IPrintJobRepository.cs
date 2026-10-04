@@ -15,6 +15,8 @@ public interface IPrintJobRepository
     Task<IReadOnlyList<PrintJob>> ListByProductionRunIdAsync(Guid productionRunId, CancellationToken cancellationToken);
 
     /// <summary>The dispatcher's own reported-state lookup (research.md R12) — the job currently dispatched to this printer, non-terminal status.</summary>
+    Task<PrintJob?> GetLastJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) => Task.FromResult<PrintJob?>(null);
+
     Task<PrintJob?> GetActiveJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken);
 
     /// <summary>Constitution Durable Recovery guardrail — jobs left dispatch-in-flight (DispatchedAtUtc set, still Queued) from a prior process lifetime.</summary>
@@ -35,6 +37,8 @@ public interface IPrintJobRepository
 
     /// <summary>The smallest QueuePosition among Queued jobs, or null if none — reorder's "move to very top" case (research.md R3).</summary>
     Task<double?> GetMinQueuedPositionAsync(CancellationToken cancellationToken);
+
+    void TrackNewFilamentConsumption(IReadOnlyList<JobFilamentConsumption> lines) { }
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

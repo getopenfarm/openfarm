@@ -12,7 +12,7 @@ namespace OpenFarm.Application.Production;
 /// it back via <see cref="PrintJob.MarkRequeuedAs"/>.
 /// </summary>
 public sealed class RequeuePrintJobCommandHandler(
-    IPrintJobRepository jobRepository, IPartRequirementRepository requirementRepository, IPartRepository partRepository)
+    IPrintJobRepository jobRepository, IPartRequirementRepository requirementRepository, IPartRepository partRepository, ProductionDispatchRequestService? dispatchRequests = null)
     : ICommandHandler<RequeuePrintJobCommand, PrintJob>
 {
     public async Task<PrintJob> HandleAsync(RequeuePrintJobCommand command, CancellationToken cancellationToken)
@@ -49,12 +49,13 @@ public sealed class RequeuePrintJobCommandHandler(
 
         var replacement = PrintJob.Create(
             job.OrganizationId, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
-            job.AssignmentMode, job.PinnedPrinterId, part.RevisionHash, part.RevisionNumber, filamentSpecs);
+            job.AssignmentMode, job.PinnedPrinterId, job.FileRevisionHash, job.FileRevisionNumber, filamentSpecs);
 
         await jobRepository.AddAsync(replacement, cancellationToken);
         job.MarkRequeuedAs(replacement.Id);
         await jobRepository.SaveChangesAsync(cancellationToken);
 
+        if (dispatchRequests is not null) await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);
         return replacement;
     }
 }

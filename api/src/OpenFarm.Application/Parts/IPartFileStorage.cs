@@ -14,5 +14,8 @@ public interface IPartFileStorage
 
     Task<Stream> OpenReadAsync(string storagePath, CancellationToken cancellationToken);
 
+    Task<string> GetRevisionStoragePathAsync(Guid organizationId, string revisionHash, string originalFileName, CancellationToken cancellationToken) =>
+        Task.FromResult(Path.Combine(organizationId.ToString(), $"{revisionHash}{Path.GetExtension(originalFileName)}"));
+
     Task DeleteAsync(string storagePath, CancellationToken cancellationToken);
 }

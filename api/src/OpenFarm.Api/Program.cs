@@ -327,11 +327,14 @@ builder.Services.AddScoped<INonPrintedComponentRepository, NonPrintedComponentRe
 builder.Services.AddScoped<IAssemblyGraphQueryService, AssemblyGraphQueryService>();
 builder.Services.AddScoped<OpenFarm.Api.Endpoints.Assemblies.BomLineTargetNameResolver>();
 
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SetPartUnitsPerPrintCommand, OpenFarm.Domain.Parts.Part>, SetPartUnitsPerPrintCommandHandler>();
 builder.Services.AddScoped<IProductionRunRepository, ProductionRunRepository>();
 builder.Services.AddScoped<IPartRequirementRepository, PartRequirementRepository>();
 builder.Services.AddScoped<IPrintJobRepository, PrintJobRepository>();
 builder.Services.AddScoped<ProductionDispatchQueryService>();
+builder.Services.AddScoped<IPrintJobEligibilityQuery, PrintJobEligibilityQuery>();
 builder.Services.AddScoped<IJobFileResolver, JobFileResolver>();
+builder.Services.AddScoped<IQueryHandler<GetPrintJobFileQuery, JobFileContent>, GetPrintJobFileQueryHandler>();
 builder.Services.AddScoped<IJobTelemetrySync, JobTelemetrySync>();
 builder.Services.AddScoped<IProductionEventPublisher, FarmHubProductionEventPublisher>();
 
@@ -403,6 +406,9 @@ builder.Services.AddScoped<IQueryHandler<ListNonPrintedComponentsQuery, NonPrint
 
 builder.Services.AddScoped<ProductionRunDisplayLabelResolver>();
 builder.Services.AddScoped<ProductionRunCompletionService>();
+builder.Services.AddScoped<ProductionDispatchRequestService>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SetPrintJobFilamentRequirementsCommand, OpenFarm.Domain.Production.PrintJob>, SetPrintJobFilamentRequirementsCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<RecordPrintJobFilamentConsumptionCommand, OpenFarm.Domain.Production.PrintJob>, RecordPrintJobFilamentConsumptionCommandHandler>();
 builder.Services.AddScoped<OpenFarm.Application.Printers.ResolvePrinterConnectionDetails>();
 builder.Services.AddScoped<ProductionRemoteControlResolver>();
 

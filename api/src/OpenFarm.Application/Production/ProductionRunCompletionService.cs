@@ -1,4 +1,6 @@
 using OpenFarm.Domain.Production;
+using OpenFarm.Application.ActivityLog;
+using OpenFarm.Domain.ActivityLog;
 
 namespace OpenFarm.Application.Production;
 
@@ -7,15 +9,15 @@ namespace OpenFarm.Application.Production;
 /// <c>JobTelemetrySync</c>'s live-integrated one) so the rule lives in exactly one place. A run
 /// reaches <see cref="ProductionRunStatus.Complete"/> the moment every finite requirement across
 /// every line is satisfied — this is always re-checked from scratch after a job completes, never
-/// incrementally tracked, since the codebase's stated scale (SC-005) makes that cheap. FR-016b's
-/// named-run confirmation is a frontend-only concern layered on top of this same, single trigger
-/// (data-model.md: "never a second server-side flow") — nothing here treats a named run differently.
+/// incrementally tracked, since the codebase's stated scale (SC-005) makes that cheap. FR-016b keeps named runs Active until the operator confirms completion when marking the
+/// final printer ready; unnamed runs complete automatically.
 /// </summary>
 public sealed class ProductionRunCompletionService(
     IProductionRunRepository runRepository,
     IPartRequirementRepository requirementRepository,
     IPrintJobRepository jobRepository,
-    IProductionEventPublisher publisher)
+    IProductionEventPublisher publisher,
+    IActivityLogWriter? activityLogWriter = null)
 {
     /// <summary>
     /// Re-evaluates the run owning <paramref name="partRequirementId"/> and marks it Complete if every
@@ -30,7 +32,7 @@ public sealed class ProductionRunCompletionService(
         }
 
         var run = await runRepository.GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
-        if (run is null || run.Status != ProductionRunStatus.Active)
+        if (run is null || run.Status != ProductionRunStatus.Active || !string.IsNullOrWhiteSpace(run.Name))
         {
             return;
         }
@@ -40,13 +42,34 @@ public sealed class ProductionRunCompletionService(
             return;
         }
 
+        await CompleteAsync(run, cancellationToken);
+    }
+
+    public async Task ConfirmForPrinterAsync(Guid printerId, bool confirmed, CancellationToken cancellationToken, Guid? actorId = null)
+    {
+        var job = await jobRepository.GetLastJobByDispatchedPrinterIdAsync(printerId, cancellationToken);
+        if (job is null || job.Status != PrintJobStatus.Completed) return;
+        var requirement = await requirementRepository.GetByIdAsync(job.PartRequirementId, cancellationToken);
+        if (requirement is null) return;
+        var run = await runRepository.GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
+        if (run is null || run.Status != ProductionRunStatus.Active || !await AllFiniteRequirementsSatisfiedAsync(run, cancellationToken)) return;
+        if (!string.IsNullOrWhiteSpace(run.Name) && !confirmed)
+            throw new NamedRunCompletionConfirmationRequiredException(run.Id);
+        await CompleteAsync(run, cancellationToken, actorId);
+    }
+
+    private async Task CompleteAsync(ProductionRun run, CancellationToken cancellationToken, Guid? actorId = null)
+    {
         run.MarkComplete(allFiniteRequirementsSatisfied: true);
         await runRepository.SaveChangesAsync(cancellationToken);
+        if (activityLogWriter is not null)
+            await activityLogWriter.WriteAsync(ActivityLogEntry.Create(run.OrganizationId, "ProductionRun", run.Id.ToString(), "ProductionRunCompleted", actorId, actorId is null ? ActorType.System : ActorType.Operator), cancellationToken);
         await publisher.ProductionRunStatusChangedAsync(run.OrganizationId, run.Id, run.Status, cancellationToken);
     }
 
     private async Task<bool> AllFiniteRequirementsSatisfiedAsync(ProductionRun run, CancellationToken cancellationToken)
     {
+        if (!run.Lines.Any(l => l.Quantity is not null)) return false;
         foreach (var line in run.Lines)
         {
             foreach (var requirement in await requirementRepository.ListByRunLineIdAsync(line.Id, cancellationToken))

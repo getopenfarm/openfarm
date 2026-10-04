@@ -12,12 +12,14 @@ public sealed class GetQueueJobsQueryHandler(
     IPartRepository partRepository,
     IProductionRunRepository runRepository,
     IPrinterRepository printerRepository,
-    ProductionRunDisplayLabelResolver labelResolver) : IQueryHandler<GetQueueJobsQuery, QueueJobsPage>
+    ProductionRunDisplayLabelResolver labelResolver,
+    IPrintJobEligibilityQuery? eligibilityQuery = null) : IQueryHandler<GetQueueJobsQuery, QueueJobsPage>
 {
     public async Task<QueueJobsPage> HandleAsync(GetQueueJobsQuery query, CancellationToken cancellationToken)
     {
         var (jobs, totalCount) = await jobRepository.ListQueueAsync(query.BackfillOnly, query.Page, query.PageSize, cancellationToken);
 
+        var eligibleIds = eligibilityQuery is null ? null : await eligibilityQuery.GetEligibleJobIdsAsync(jobs, cancellationToken);
         var runLabelCache = new Dictionary<Guid, (Guid RunId, string DisplayLabel)>();
         var printerStatusCache = new Dictionary<Guid, PrinterStatus?>();
         var items = new List<QueueJobRow>();
@@ -54,6 +56,8 @@ public sealed class GetQueueJobsQueryHandler(
 
                 isBlocked = status != PrinterStatus.Idle;
             }
+
+            if (eligibleIds is not null) isBlocked = job.Status == PrintJobStatus.Queued && job.DispatchedAtUtc is null && !eligibleIds.Contains(job.Id);
 
             items.Add(new QueueJobRow(
                 job.Id, job.QueuePosition, job.Status, job.AssignmentMode, job.PinnedPrinterId, job.DispatchedPrinterId,

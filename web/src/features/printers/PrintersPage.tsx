@@ -1,8 +1,6 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { PrinterIcon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { toast } from 'sonner';
 import { DensityToggle } from '@/components/density-toggle/DensityToggle';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -12,11 +10,7 @@ import { ViewToggle } from '@/components/view-toggle/ViewToggle';
 import { MAINTENANCE_FLAG_SEEDS } from '@/features/maintenance/data/mockMaintenance';
 import { matchMaintenanceToFleet } from '@/features/maintenance/lib/matchMaintenanceToFleet';
 import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
-import {
-  getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
-  useOpenFarmApiEndpointsPrintersListFleetEndpoint,
-  useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint,
-} from '@/lib/api/generated/printers/printers';
+import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { usePreferences } from '@/lib/preferences/usePreferences';
 import {
   PrinterFilterBar,
@@ -25,8 +19,9 @@ import {
 import { PrintersGrid } from './components/PrintersGrid';
 import { PrintersTable } from './components/PrintersTable';
 
+import { useMarkPrinterReady } from './hooks/useMarkPrinterReady';
+
 export function PrintersPage() {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const fleetQuery = useOpenFarmApiEndpointsPrintersListFleetEndpoint();
   const { getListView, getListDensity } = usePreferences();
@@ -36,21 +31,7 @@ export function PrintersPage() {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<PrinterStatusFilter>('all');
 
-  const markReadyMutation =
-    useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint({
-      mutation: {
-        onSuccess: () => {
-          toast.success('Printer marked ready.');
-          queryClient.invalidateQueries({
-            queryKey:
-              getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
-          });
-        },
-        onError: () => {
-          toast.error('Could not mark printer ready.');
-        },
-      },
-    });
+  const markReadyMutation = useMarkPrinterReady();
 
   const printers =
     (fleetQuery.data?.data as ListFleetResponse | undefined)?.printers ?? [];
@@ -101,6 +82,7 @@ export function PrintersPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {markReadyMutation.confirmationDialog}
       <PageHeader
         title="Printers"
         description="Fleet status updates live — no refresh needed."

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -82,6 +82,36 @@ describe('QueuePage', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('can browse beyond the first 200 jobs in a thousand-job queue', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (!url.includes('/api/v1/print-jobs'))
+        return Promise.resolve(jsonResponse({ printers: [] }));
+      const page = Number(new URL(url).searchParams.get('page'));
+      return Promise.resolve(
+        jsonResponse({
+          totalCount: 1001,
+          items: [
+            {
+              jobId: `job-${page}`,
+              partName: `Page ${page} part`,
+              status: 'Queued',
+              assignmentMode: 'Unassigned',
+            },
+          ],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    expect(await screen.findByText('Page 1 part')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Page 2 part')).toBeInTheDocument();
+    expect(screen.getByText('Page 2 of 6')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
+    expect(await screen.findByText('Page 1 part')).toBeInTheDocument();
   });
 
   it('shows an empty state before any job exists', async () => {

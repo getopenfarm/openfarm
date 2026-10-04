@@ -10,6 +10,7 @@ public sealed class SetRunLineRevisionModeCommandHandler(IProductionRunRepositor
     public async Task<RunLine> HandleAsync(SetRunLineRevisionModeCommand command, CancellationToken cancellationToken)
     {
         var run = await runRepository.GetByRunLineIdAsync(command.RunLineId, cancellationToken);
+        if (command.ProductionRunId is { } expected && run?.Id != expected) throw new RunLineNotFoundException(command.RunLineId);
         var line = run?.Lines.FirstOrDefault(l => l.Id == command.RunLineId)
             ?? throw new RunLineNotFoundException(command.RunLineId);
 

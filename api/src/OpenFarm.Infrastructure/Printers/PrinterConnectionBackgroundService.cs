@@ -362,7 +362,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 cancellationToken);
         }
 
-        if (statusChanged && printer.Status == PrinterStatus.Idle)
+        if (printer.Status == PrinterStatus.Idle)
         {
             // research.md R4 — the printer's own reported gcode_state just reconciled it to Idle
             // (e.g. FINISH -> AwaitingClear -> operator's mark-ready is one path; a fresh boot onto

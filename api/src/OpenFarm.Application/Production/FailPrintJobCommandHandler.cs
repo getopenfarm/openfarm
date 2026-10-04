@@ -20,22 +20,23 @@ public sealed class FailPrintJobCommandHandler(
 
         if (job.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
         {
-            job.MarkFailed(reason: null);
-
             if (job.DispatchedPrinterId is { } printerId
                 && await printerRepository.GetByIdAsync(printerId, cancellationToken) is { } printer)
             {
+                if (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
+                    throw new JobNotEligibleForRemoteControlException(job.Id);
                 // See CompletePrintJobCommandHandler's own remarks — TransitionTo's manual-transition
                 // guard doesn't permit this move, so this reuses ObserveStatus's always-legal path.
                 printer.ObserveStatus("FAILED");
             }
+            job.MarkFailed(reason: null);
         }
         else if (job.Status != PrintJobStatus.Failed)
         {
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }
 
-        await PrintJobFilamentConsumptionRecorder.RecordAsync(job, command.FilamentConsumption, spoolRepository, cancellationToken);
+        await PrintJobFilamentConsumptionRecorder.RecordAsync(job, command.FilamentConsumption, spoolRepository, cancellationToken, jobRepository);
         await jobRepository.SaveChangesAsync(cancellationToken);
         await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
 

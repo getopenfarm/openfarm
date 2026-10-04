@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Production;
+using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Production;
 
@@ -54,7 +55,8 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
             case "FINISH":
                 if (job.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
                 {
-                    job.MarkCompleted();
+                    if (job.CancelRequestedAtUtc is not null) job.MarkCancelled();
+                    else job.MarkCompleted();
                     await SaveAndPublishAsync(jobRepository, job, cancellationToken);
 
                     var completionService = services.GetRequiredService<ProductionRunCompletionService>();
@@ -94,6 +96,11 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
 
     private async Task SaveAndPublishAsync(IPrintJobRepository jobRepository, PrintJob job, CancellationToken cancellationToken)
     {
+        var printers = services.GetRequiredService<IPrinterRepository>();
+        if (job.DispatchedPrinterId is { } printerId && await printers.GetByIdAsync(printerId, cancellationToken) is { } printer)
+        {
+            printer.ObserveStatus(job.Status is PrintJobStatus.Completed or PrintJobStatus.Failed or PrintJobStatus.Cancelled ? "FINISH" : "RUNNING");
+        }
         await jobRepository.SaveChangesAsync(cancellationToken);
 
         var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();

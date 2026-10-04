@@ -36,7 +36,7 @@ public sealed class GetProductionRunDetailQueryHandler(
                 var jobs = await jobRepository.ListByPartRequirementIdAsync(requirement.Id, cancellationToken);
 
                 // research.md R13 — a plain filter, never a stored/computed aggregate.
-                var jobsNeedingRequeue = jobs
+                var jobsNeedingRequeue = (requirement.Quantity is null ? [] : jobs)
                     .Where(j => j.Status is PrintJobStatus.Cancelled or PrintJobStatus.Failed && j.RequeuedAsJobId is null)
                     .Select(j => j.Id)
                     .ToList();
@@ -49,7 +49,7 @@ public sealed class GetProductionRunDetailQueryHandler(
                 cumulativeProducedUnits += jobs.Where(j => j.Status == PrintJobStatus.Completed).Sum(j => j.PlateQuantity);
 
                 // FR-009e — computed, never stored: distinct revisions across every requirement on this line.
-                foreach (var job in jobs)
+                foreach (var job in jobs.Where(j => j.StartedAtUtc is not null))
                 {
                     revisionHashes.Add(job.FileRevisionHash);
                 }

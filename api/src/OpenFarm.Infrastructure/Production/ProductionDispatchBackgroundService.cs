@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Collections.Concurrent;
 using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -33,6 +34,7 @@ namespace OpenFarm.Infrastructure.Production;
 public sealed partial class ProductionDispatchBackgroundService : BackgroundService, IProductionDispatcher
 {
     private readonly Channel<Guid> _channel;
+    private readonly ConcurrentDictionary<Guid, byte> _pending = new();
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ProductionDispatchBackgroundService> _logger;
     private AppTenantInfo? _tenantInfo;
@@ -47,7 +49,13 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         });
     }
 
-    public void RequestDispatchAttempt(Guid printerId) => _channel.Writer.TryWrite(printerId);
+    public void RequestDispatchAttempt(Guid printerId)
+    {
+        // Keep one durable-in-this-process pending intent per printer. A full signal channel is
+        // already guaranteed to wake the consumer, which drains pending intents after each signal.
+        // This also permits startup reconciliation of fleets larger than the channel capacity.
+        if (_pending.TryAdd(printerId, 0)) _channel.Writer.TryWrite(printerId);
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -56,21 +64,25 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             await EnsureTenantInfoResolvedAsync(stoppingToken);
             await ReconcileAsync(stoppingToken);
 
-            await foreach (var printerId in _channel.Reader.ReadAllAsync(stoppingToken))
+            await foreach (var signal in _channel.Reader.ReadAllAsync(stoppingToken))
             {
-                try
+                foreach (var printerId in _pending.Keys)
                 {
-                    await ProcessDispatchAttemptAsync(printerId, stoppingToken);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    // Ordinary host shutdown mid-attempt — nothing was left dispatch-in-flight by this
-                    // path specifically (see ProcessDispatchAttemptAsync's own revert-on-failure), and
-                    // anything a prior lifetime did leave in-flight is ReconcileAsync's job on next boot.
-                }
-                catch (Exception ex)
-                {
-                    LogDispatchAttemptFailed(_logger, printerId, ex);
+                    if (!_pending.TryRemove(printerId, out _)) continue;
+                    try
+                    {
+                        await ProcessDispatchAttemptAsync(printerId, stoppingToken);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        // Ordinary host shutdown mid-attempt — nothing was left dispatch-in-flight by this
+                        // path specifically (see ProcessDispatchAttemptAsync's own revert-on-failure), and
+                        // anything a prior lifetime did leave in-flight is ReconcileAsync's job on next boot.
+                    }
+                    catch (Exception ex)
+                    {
+                        LogDispatchAttemptFailed(_logger, printerId, ex);
+                    }
                 }
             }
         }
@@ -126,7 +138,9 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var queryService = services.GetRequiredService<ProductionDispatchQueryService>();
 
         var printer = await printerRepository.GetByIdAsync(printerId, cancellationToken);
-        if (printer is null || printer.Status != PrinterStatus.Idle)
+        if (printer is null || printer.Status != PrinterStatus.Idle
+            || (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand) && !printer.IsReachable)
+            || await jobRepository.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken) is not null)
         {
             return;
         }
@@ -212,7 +226,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         IReadOnlyList<(string? MaterialType, string? ColorHex)> loadedMaterials, ProductionDispatchQueryService queryService,
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
-        var backfillCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken);
+        var backfillCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id);
         var requirementId = ProductionDispatchMatcher.SelectNextBackfillLine(nozzleDiameterMm, loadedMaterials, backfillCandidates);
         if (requirementId is null)
         {
@@ -305,6 +319,15 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             ? await partRepository.GetByIdAsync(part.Id, cancellationToken) ?? part
             : part;
 
+        if (revisionMode == RevisionMode.FollowLatest)
+        {
+            job.Dispatch(printer.Id, dispatchPart.RevisionHash, dispatchPart.RevisionNumber);
+        }
+        else
+        {
+            job.Dispatch(printer.Id);
+        }
+
         JobFileContent fileContent;
         try
         {
@@ -314,21 +337,13 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             // Resolving/slicing the output failed before any dispatch was recorded — the job is
             // untouched (still Queued/Unassigned) and simply tried again on the next trigger.
+            job.RevertDispatch();
             LogFileResolutionFailed(_logger, job.Id, ex);
             return;
         }
 
         var details = new PrinterConnectionDetails(
             printer.Brand, printer.ModelCode, printer.IpAddress, printer.SerialNumber, secretProtector.Unprotect(secret.EncryptedAccessCode));
-
-        if (revisionMode == RevisionMode.FollowLatest)
-        {
-            job.Dispatch(printer.Id, dispatchPart.RevisionHash, dispatchPart.RevisionNumber);
-        }
-        else
-        {
-            job.Dispatch(printer.Id);
-        }
 
         await jobRepository.SaveChangesAsync(cancellationToken);
 

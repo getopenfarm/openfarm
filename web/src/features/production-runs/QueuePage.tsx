@@ -34,11 +34,13 @@ export function QueuePage() {
   useProductionHub();
 
   const parentRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(1);
+  const [view, setView] = useState<'queue' | 'backfill'>('queue');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const queueQuery = useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint({
-    view: 'queue',
-    page: 1,
+    view,
+    page,
     pageSize: PAGE_SIZE,
   });
   const listData = queueQuery.data?.data as ListQueueJobsResponse | undefined;
@@ -96,7 +98,7 @@ export function QueuePage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Print queue"
-        description={`${listData?.totalCount ?? 0} jobs · ${printingCount} printing · ${queuedCount} queued`}
+        description={`${listData?.totalCount ?? 0} jobs · ${printingCount} printing and ${queuedCount} queued on this page`}
         action={
           <Button
             variant="outline"
@@ -107,6 +109,54 @@ export function QueuePage() {
         }
       />
 
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-2">
+          <Button
+            variant={view === 'queue' ? 'default' : 'outline'}
+            onClick={() => {
+              setView('queue');
+              setPage(1);
+            }}
+          >
+            Finite jobs
+          </Button>
+          <Button
+            variant={view === 'backfill' ? 'default' : 'outline'}
+            onClick={() => {
+              setView('backfill');
+              setPage(1);
+            }}
+          >
+            Backfill jobs
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={page === 1}
+            onClick={() => {
+              setPage(page - 1);
+              parentRef.current?.scrollTo?.(0, 0);
+            }}
+          >
+            Previous
+          </Button>
+          <span className="text-sm">
+            Page {page} of{' '}
+            {Math.max(1, Math.ceil((listData?.totalCount ?? 0) / PAGE_SIZE))}
+          </span>
+          <Button
+            variant="outline"
+            disabled={page * PAGE_SIZE >= (listData?.totalCount ?? 0)}
+            onClick={() => {
+              setPage(page + 1);
+              parentRef.current?.scrollTo?.(0, 0);
+            }}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
       {queueQuery.isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : jobs.length === 0 ? (

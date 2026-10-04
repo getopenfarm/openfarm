@@ -125,10 +125,10 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             return [];
         }
 
-        var partIds = rows.Select(r => r.PartId).Distinct().ToList();
-        var filamentRequirementsByPart = await dbContext.PartFilamentRequirements
-            .Where(r => partIds.Contains(r.PartId))
-            .GroupBy(r => r.PartId)
+        var jobIds = rows.Select(r => r.JobId).ToList();
+        var filamentRequirementsByPart = await dbContext.JobFilamentConsumptions
+            .Where(r => jobIds.Contains(r.PrintJobId))
+            .GroupBy(r => r.PrintJobId)
             .ToDictionaryAsync(
                 g => g.Key,
                 g => (IReadOnlyList<(string?, string?)>)g.Select(r => (r.MaterialType, r.DetectedColorHex)).ToList(),
@@ -139,7 +139,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
                 row.JobId,
                 row.QueuePosition,
                 row.NozzleDiameterMm,
-                filamentRequirementsByPart.GetValueOrDefault(row.PartId, [])))
+                filamentRequirementsByPart.GetValueOrDefault(row.JobId, [])))
             .ToList();
     }
 
@@ -164,6 +164,8 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
         var qualifying = new List<(Guid, int)>();
         foreach (var printer in idlePrinters)
         {
+            if (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand) && !printer.IsReachable) continue;
+            if (await dbContext.PrintJobs.AnyAsync(j => j.DispatchedPrinterId == printer.Id && (j.Status == PrintJobStatus.Queued || j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused), cancellationToken)) continue;
             var nozzleDiameterMm = await ResolvePrinterNozzleDiameterMmAsync(printer, cancellationToken);
             if (nozzleDiameterMm != requiredNozzleDiameterMm)
             {
@@ -197,9 +199,13 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
     /// data-model.md's "one cap, counted together across every distinct printed part" note for an
     /// Assembly-targeted backfill line.
     /// </summary>
-    public async Task<IReadOnlyList<BackfillLineCandidate>> GetBackfillCandidatesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<BackfillLineCandidate>> GetBackfillCandidatesAsync(CancellationToken cancellationToken, Guid? printerId = null)
     {
-        var lines = await dbContext.RunLines.Where(l => l.Quantity == null).ToListAsync(cancellationToken);
+        var lines = await (from line in dbContext.RunLines
+                           join run in dbContext.ProductionRuns on line.ProductionRunId equals run.Id
+                           where line.Quantity == null && (run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)
+                               && (printerId == null || line.DefaultAssignmentMode != AssignmentMode.Pinned || line.DefaultPinnedPrinterId == printerId)
+                           select line).ToListAsync(cancellationToken);
         if (lines.Count == 0)
         {
             return [];
@@ -237,7 +243,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
 
             var occupiedPrinterIds = await dbContext.PrintJobs
                 .Where(j => requirementIdsForLine.Contains(j.PartRequirementId) &&
-                    (j.Status == PrintJobStatus.Printing ||
+                    (j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused ||
                      (j.Status == PrintJobStatus.Queued && j.DispatchedAtUtc != null) ||
                      (j.Status == PrintJobStatus.Queued && j.AssignmentMode == AssignmentMode.Pinned)))
                 .Select(j => j.DispatchedPrinterId ?? j.PinnedPrinterId)
@@ -249,9 +255,8 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             var completedUnits = await (
                 from job in dbContext.PrintJobs
                 join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
-                join part in dbContext.Parts on requirement.PartId equals part.Id
                 where requirementIdsForLine.Contains(job.PartRequirementId) && job.Status == PrintJobStatus.Completed
-                select part.UnitsPerPrint)
+                select job.PlateQuantity)
                 .ToListAsync(cancellationToken);
             cumulativeUnitsByLine[line.Id] = completedUnits.Sum();
         }

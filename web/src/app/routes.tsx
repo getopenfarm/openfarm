@@ -19,6 +19,7 @@ import { PrinterDetailPage } from '../features/printers/PrinterDetailPage';
 import { PrinterFormPage } from '../features/printers/PrinterFormPage';
 import { PrintersPage } from '../features/printers/PrintersPage';
 import { NewProductionRunPage } from '../features/production-runs/NewProductionRunPage';
+import { PrintJobDetailPage } from '../features/production-runs/PrintJobDetailPage';
 import { ProductionRunDetailPage } from '../features/production-runs/ProductionRunDetailPage';
 import { ProductionRunsPage } from '../features/production-runs/ProductionRunsPage';
 import { QueuePage } from '../features/production-runs/QueuePage';
@@ -70,6 +71,11 @@ export const router = createBrowserRouter([
             ],
           },
           { path: '/jobs', element: <QueuePage />, handle: { title: 'Jobs' } },
+          {
+            path: '/jobs/:id',
+            element: <PrintJobDetailPage />,
+            handle: { title: 'Print Job' },
+          },
           {
             path: '/production-runs',
             handle: { title: 'Production Runs' },

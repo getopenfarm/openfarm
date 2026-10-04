@@ -17,8 +17,7 @@ public static class ProductionDispatchMatcher
     /// Returns the id of the topmost-queued Unassigned candidate whose required nozzle diameter
     /// matches the printer's exactly and whose entire filament requirement is satisfiable by what's
     /// loaded; failing that, the topmost-queued <paramref name="pinnedCandidates"/> entry (FR-007c —
-    /// already scoped by the caller to jobs pinned to this exact printer, so no nozzle/material check
-    /// applies to it at all); or <see langword="null"/> if neither yields anything. A <c>null</c>
+    /// already scoped by the caller to this exact printer, and still subject to FR-010 validation); or <see langword="null"/> if neither yields anything. A <c>null</c>
     /// <c>MaterialType</c>/<c>ColorHex</c> on a requirement is a wildcard (Phase 4's "any
     /// material"/unconstrained color) and matches anything loaded.
     /// </summary>
@@ -29,40 +28,12 @@ public static class ProductionDispatchMatcher
         IReadOnlyList<DispatchCandidate>? pinnedCandidates = null)
     {
         DispatchCandidate? best = null;
-
-        foreach (var candidate in candidates)
+        foreach (var candidate in candidates.Concat(pinnedCandidates ?? []))
         {
-            if (!Matches(printerNozzleDiameterMm, printerLoadedMaterials, candidate))
-            {
-                continue;
-            }
-
-            if (best is null || candidate.QueuePosition < best.QueuePosition)
-            {
-                best = candidate;
-            }
+            if (!Matches(printerNozzleDiameterMm, printerLoadedMaterials, candidate)) continue;
+            if (best is null || candidate.QueuePosition < best.QueuePosition) best = candidate;
         }
-
-        if (best is not null)
-        {
-            return best.JobId;
-        }
-
-        if (pinnedCandidates is not { Count: > 0 })
-        {
-            return null;
-        }
-
-        var topmostPinned = pinnedCandidates[0];
-        foreach (var candidate in pinnedCandidates)
-        {
-            if (candidate.QueuePosition < topmostPinned.QueuePosition)
-            {
-                topmostPinned = candidate;
-            }
-        }
-
-        return topmostPinned.JobId;
+        return best?.JobId;
     }
 
     /// <summary>

@@ -173,6 +173,23 @@ public sealed class Part
     /// A direct, all-or-nothing replacement (never additive) — keeps <see cref="Name"/>/<see cref="Tags"/>
     /// untouched, replaces every file-derived field wholesale (data-model.md, FR-004).
     /// </summary>
+    public void SetUnitsPerPrint(int unitsPerPrint)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(unitsPerPrint, 1);
+        UnitsPerPrint = unitsPerPrint;
+    }
+
+    /// <summary>Replaces the upgrade migration's placeholder with the file's real SHA-256 without creating a new revision.</summary>
+    public void MigrateLegacyFileRevision(string contentHash, string storagePath)
+    {
+        if (RevisionHash.Length == 64) return;
+        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        if (contentHash.Length != 64 || contentHash.Any(c => !Uri.IsHexDigit(c)))
+            throw new ArgumentException("A file revision requires a SHA-256 hash.", nameof(contentHash));
+        RevisionHash = contentHash;
+        StoragePath = storagePath;
+    }
+
     public void ReplaceFile(
         PartFileFormat fileFormat,
         bool requiresSlicing,

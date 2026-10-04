@@ -1,4 +1,5 @@
 using FastEndpoints;
+using FluentValidation;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using SetRunLineBackfillLimitsHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.SetRunLineBackfillLimitsCommand, OpenFarm.Domain.Production.RunLine>;
@@ -42,7 +43,7 @@ public sealed class SetRunLineBackfillLimitsEndpoint(SetRunLineBackfillLimitsHan
     {
         req.LineId = Route<Guid>("lineId");
         var line = await handler.HandleAsync(
-            new OpenFarm.Application.Production.SetRunLineBackfillLimitsCommand(req.LineId, req.BackfillPrinterCap, req.BackfillCumulativeUnitCeiling), ct);
+            new OpenFarm.Application.Production.SetRunLineBackfillLimitsCommand(req.LineId, req.BackfillPrinterCap, req.BackfillCumulativeUnitCeiling, Route<Guid>("runId")), ct);
 
         Response = new RunLineBackfillLimitsResponse
         {
@@ -50,5 +51,14 @@ public sealed class SetRunLineBackfillLimitsEndpoint(SetRunLineBackfillLimitsHan
             BackfillPrinterCap = line.BackfillPrinterCap,
             BackfillCumulativeUnitCeiling = line.BackfillCumulativeUnitCeiling,
         };
+    }
+}
+
+public sealed class SetRunLineBackfillLimitsValidator : Validator<SetRunLineBackfillLimitsRequest>
+{
+    public SetRunLineBackfillLimitsValidator()
+    {
+        RuleFor(x => x.BackfillPrinterCap).GreaterThan(0);
+        RuleFor(x => x.BackfillCumulativeUnitCeiling).Must(x => x is null or > 0);
     }
 }

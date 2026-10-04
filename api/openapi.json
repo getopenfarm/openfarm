@@ -1344,6 +1344,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized"
           },
@@ -1403,6 +1413,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RunLineRevisionModeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1599,6 +1619,40 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/file": {
+      "get": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsGetPrintJobFileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
           },
           "401": {
             "description": "Unauthorized"
@@ -1993,6 +2047,116 @@
         ]
       }
     },
+    "/api/v1/print-jobs/{id}/filament-requirements": {
+      "put": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsSetPrintJobFilamentRequirementsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SetPrintJobFilamentRequirementsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrintJobFilamentRequirementsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/filament-consumption": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "RecordPrintJobFilamentConsumptionRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPrintJobFilamentConsumptionRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/printers/{id}": {
       "patch": {
         "tags": [
@@ -2241,6 +2405,19 @@
             }
           }
         ],
+        "requestBody": {
+          "x-name": "MarkPrinterReadyRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkPrinterReadyRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
         "responses": {
           "200": {
             "description": "Success",
@@ -2578,6 +2755,61 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PartProcessingJobSubmittedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/units-per-print": {
+      "patch": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SetPartUnitsPerPrintRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPartUnitsPerPrintRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartResponse"
                 }
               }
             }
@@ -5428,11 +5660,79 @@
         "properties": {
           "backfillPrinterCap": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "minimum": 0.0,
+            "exclusiveMinimum": true
           },
           "backfillCumulativeUnitCeiling": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "description": "RFC9457 compatible problem details/ error response class. this can be used by configuring startup like so:\napp.UseFastEndpoints(c => c.Errors.UseProblemDetails())",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "default": "https://www.rfc-editor.org/rfc/rfc7231#section-6.5.1"
+          },
+          "title": {
+            "type": "string",
+            "default": "One or more validation errors occurred."
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "default": 400
+          },
+          "instance": {
+            "type": "string",
+            "default": "/api/route"
+          },
+          "traceId": {
+            "type": "string",
+            "default": "0HMPNHL0JHL76:00000001"
+          },
+          "detail": {
+            "type": "string",
+            "description": "the details of the error",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemDetails_Error"
+            }
+          }
+        }
+      },
+      "ProblemDetails_Error": {
+        "type": "object",
+        "description": "the error details object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "the name of the error or property of the dto that caused the error",
+            "default": "Error or field name"
+          },
+          "reason": {
+            "type": "string",
+            "description": "the reason for the error",
+            "default": "Error reason"
+          },
+          "code": {
+            "type": "string",
+            "description": "the code of the error",
+            "nullable": true
+          },
+          "severity": {
+            "type": "string",
+            "description": "the severity of the error",
             "nullable": true
           }
         }
@@ -5753,6 +6053,30 @@
       "UnpinPrintJobRequest": {
         "type": "object",
         "additionalProperties": false
+      },
+      "SetPrintJobFilamentRequirementsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentConsumptionLineRequest"
+            }
+          }
+        }
+      },
+      "RecordPrintJobFilamentConsumptionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentConsumption": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentConsumptionLineRequest"
+            }
+          }
+        }
       },
       "PrinterSummaryResponse": {
         "type": "object",
@@ -6099,7 +6423,12 @@
       },
       "MarkPrinterReadyRequest": {
         "type": "object",
-        "additionalProperties": false
+        "additionalProperties": false,
+        "properties": {
+          "confirmRunCompletion": {
+            "type": "boolean"
+          }
+        }
       },
       "RegisterPrinterRequest": {
         "type": "object",
@@ -6269,6 +6598,10 @@
             "type": "integer",
             "format": "int32"
           },
+          "unitsPerPrint": {
+            "type": "integer",
+            "format": "int32"
+          },
           "thumbnails": {
             "type": "array",
             "items": {
@@ -6433,6 +6766,16 @@
           "slicerVersion": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "SetPartUnitsPerPrintRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "unitsPerPrint": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

@@ -44,6 +44,60 @@ describe('PrinterDetailPage', () => {
     vi.unstubAllGlobals();
   });
 
+  it('requires explicit confirmation before marking the last named-run printer ready', async () => {
+    const user = userEvent.setup();
+    const printerId = 'named-run-printer';
+    const requests: boolean[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input.toString();
+        if (url.includes('/hubs/farm'))
+          return Promise.reject(new Error('No SignalR in unit tests'));
+        if (url.endsWith('/mark-ready')) {
+          const confirmed = JSON.parse(String(init?.body)).confirmRunCompletion;
+          requests.push(confirmed);
+          return Promise.resolve(
+            confirmed
+              ? jsonResponse({ id: printerId, status: 'Idle' })
+              : jsonResponse(
+                  { title: 'Run completion confirmation required' },
+                  409,
+                ),
+          );
+        }
+        if (url.includes('/activity-log'))
+          return Promise.resolve(jsonResponse({ items: [] }));
+        if (url.includes('/feed-units'))
+          return Promise.resolve(jsonResponse({ feedUnits: [] }));
+        return Promise.resolve(
+          jsonResponse({
+            id: printerId,
+            name: 'Finished printer',
+            brand: 'System',
+            modelCode: 'Simulation',
+            status: 'AwaitingClear',
+            isReachable: true,
+            telemetry: {},
+            amsUnits: [],
+          }),
+        );
+      }),
+    );
+    renderPage(printerId);
+    await screen.findByText('Finished printer');
+    await user.click(screen.getByRole('button', { name: 'Mark ready' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(requests).toEqual([false]);
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Confirm complete and mark ready',
+      }),
+    );
+    await screen.findByText('Printer marked ready.');
+    expect(requests).toEqual([false, true]);
+  });
+
   it('renders telemetry, current job, AMS and activity for the printer', async () => {
     const printerId = '11111111-1111-1111-1111-111111111111';
     const fetchMock = vi.fn((input: RequestInfo | URL) => {

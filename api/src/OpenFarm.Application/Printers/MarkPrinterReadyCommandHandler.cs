@@ -15,13 +15,17 @@ namespace OpenFarm.Application.Printers;
 public sealed class MarkPrinterReadyCommandHandler(
     IPrinterRepository printerRepository,
     IPrinterEventPublisher printerEventPublisher,
-    IProductionDispatcher productionDispatcher) : ICommandHandler<MarkPrinterReadyCommand, Printer>
+    IProductionDispatcher productionDispatcher,
+    ProductionRunCompletionService? completionService = null) : ICommandHandler<MarkPrinterReadyCommand, Printer>
 {
     public async Task<Printer> HandleAsync(MarkPrinterReadyCommand command, CancellationToken cancellationToken)
     {
         var printer = await printerRepository.GetByIdAsync(command.PrinterId, cancellationToken)
             ?? throw new PrinterNotFoundException(command.PrinterId);
 
+        PrinterStatusTransitions.EnsureValidManualTransition(printer.Status, PrinterStatus.Idle);
+        if (completionService is not null)
+            await completionService.ConfirmForPrinterAsync(printer.Id, command.ConfirmRunCompletion, cancellationToken, command.ActorId);
         printer.TransitionTo(PrinterStatus.Idle);
         await printerRepository.SaveChangesAsync(cancellationToken);
 

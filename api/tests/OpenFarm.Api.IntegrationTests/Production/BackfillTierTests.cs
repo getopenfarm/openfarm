@@ -1,0 +1,97 @@
+using FluentAssertions;
+using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
+using OpenFarm.Application.Production;
+using OpenFarm.Domain.Production;
+using OpenFarm.Infrastructure.Production;
+
+namespace OpenFarm.Api.IntegrationTests.Production;
+
+public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestContext(factory), IClassFixture<ProductionTestFactory>
+{
+    [Fact]
+    public async Task Backfill_PausedJobRetainsOccupancy_CancelledRunIsNeverOffered()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var run = await RunAsync(client, part.Id, quantity: null);
+        (await JobsAsync(run.Id)).Should().BeEmpty();
+        var printer = await PrinterAsync();
+        using (var scope = Factory.CreateTenantScope())
+        {
+            var job = PrintJob.Create(part.OrganizationId, run.Lines.Single().Requirements.Single().Id, 1024, 1,
+                AssignmentMode.Unassigned, null, part.RevisionHash, 1, []);
+            job.Dispatch(printer.Id);
+            job.MarkStarted();
+            job.MarkPaused();
+            var repo = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
+            await repo.AddAsync(job, default);
+            await repo.SaveChangesAsync(default);
+            var candidates = await scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>().GetBackfillCandidatesAsync(default);
+            candidates.Single(c => c.RunLineId == run.Lines.Single().Id).CurrentOccupancy.Should().Be(1);
+            ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PLA", null)], candidates.Where(c => c.RunLineId == run.Lines.Single().Id).ToList()).Should().BeNull();
+        }
+        await PostAsync(client, $"/api/v1/production-runs/{run.Id}/cancel");
+        using (var scope = Factory.CreateTenantScope())
+            (await scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>().GetBackfillCandidatesAsync(default)).Should().NotContain(c => c.RunLineId == run.Lines.Single().Id);
+    }
+    [Fact]
+    public async Task FiniteDemand_PrecedesLazyBackfill_AndCeilingStopsFurtherPlates()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync(units: 4);
+        var printer = await PrinterAsync(manual: true);
+        var finite = await RunAsync(client, part.Id, quantity: 4, pinned: printer.Id);
+        var backfill = await RunAsync(client, part.Id, quantity: null);
+        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{backfill.Id}/lines/{backfill.Lines.Single().Id}/backfill-limits",
+            new { backfillPrinterCap = 1, backfillCumulativeUnitCeiling = 4 });
+        response.EnsureSuccessStatusCode();
+        using var worker = Worker();
+        await worker.StartAsync(default);
+        try
+        {
+            var first = await WaitForAssignmentAsync(finite.Id);
+            (await JobsAsync(backfill.Id)).Should().BeEmpty();
+            await PostAsync(client, $"/api/v1/print-jobs/{first.Id}/mark-started");
+            await PostAsync(client, $"/api/v1/print-jobs/{first.Id}/complete");
+            await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready");
+            worker.RequestDispatchAttempt(printer.Id);
+            var fill = await WaitForAssignmentAsync(backfill.Id);
+            (await JobsAsync(backfill.Id)).Should().ContainSingle();
+            await PostAsync(client, $"/api/v1/print-jobs/{fill.Id}/mark-started");
+            await PostAsync(client, $"/api/v1/print-jobs/{fill.Id}/complete");
+            // Changing a Part default cannot rewrite the completed plate's cumulative output.
+            var changed = await client.PatchAsJsonAsync($"/api/v1/parts/{part.Id}/units-per-print", new { unitsPerPrint = 1 });
+            changed.EnsureSuccessStatusCode();
+            await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready");
+            worker.RequestDispatchAttempt(printer.Id);
+            await Task.Delay(200);
+            (await JobsAsync(backfill.Id)).Should().ContainSingle();
+            using var scope = Factory.CreateTenantScope();
+            var candidates = await scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>().GetBackfillCandidatesAsync(default);
+            candidates.Single(c => c.RunLineId == backfill.Lines.Single().Id).CumulativeUnits.Should().Be(4);
+        }
+        finally { await worker.StopAsync(default); }
+    }
+
+    [Fact]
+    public async Task PinnedBackfill_IsOnlyOfferedToItsTargetPrinter()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var target = await PrinterAsync(manual: true);
+        var other = await PrinterAsync(manual: true);
+        var run = await RunAsync(client, part.Id, quantity: null, pinned: target.Id);
+        using (var scope = Factory.CreateTenantScope())
+        {
+            var query = scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>();
+            (await query.GetBackfillCandidatesAsync(default, other.Id)).Should().NotContain(c => c.RunLineId == run.Lines.Single().Id);
+            (await query.GetBackfillCandidatesAsync(default, target.Id)).Should().Contain(c => c.RunLineId == run.Lines.Single().Id);
+        }
+        using var worker = Worker();
+        await worker.StartAsync(default);
+        try { (await WaitForAssignmentAsync(run.Id)).DispatchedPrinterId.Should().Be(target.Id); }
+        finally { await worker.StopAsync(default); }
+    }
+
+}

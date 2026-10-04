@@ -133,7 +133,7 @@ public sealed class Printer
     public bool ObserveStatus(string gcodeState)
     {
         var observed = PrinterStatusTransitions.ObserveStatus(gcodeState);
-        if (observed is null || observed == Status)
+        if (observed is null || observed == Status || (Status == PrinterStatus.AwaitingClear && observed == PrinterStatus.Idle))
         {
             return false;
         }

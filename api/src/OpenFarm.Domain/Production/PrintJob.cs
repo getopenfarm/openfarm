@@ -226,6 +226,22 @@ public sealed class PrintJob
         line.Record(spoolId, gramsConsumed);
     }
 
+    public void SetFilamentRequirements(IReadOnlyList<JobFilamentRequirementSpec> requirements)
+    {
+        EnsureQueued();
+        if (requirements.Count == 0) throw new FilamentConsumptionSumMismatchException(null, null);
+        _filamentConsumption.Clear();
+        foreach (var requirement in requirements)
+            _filamentConsumption.Add(JobFilamentConsumption.Create(OrganizationId, Id, requirement.MaterialType, requirement.DetectedColorHex));
+    }
+
+    public JobFilamentConsumption AddConsumptionLine(string? materialType, string? colorHex)
+    {
+        var line = JobFilamentConsumption.Create(OrganizationId, Id, materialType, colorHex);
+        _filamentConsumption.Add(line);
+        return line;
+    }
+
     private void Close(PrintJobStatus terminalStatus)
     {
         Status = terminalStatus;

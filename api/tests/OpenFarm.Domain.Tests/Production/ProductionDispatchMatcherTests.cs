@@ -133,8 +133,8 @@ public class ProductionDispatchMatcherTests
             candidates: [],
             pinnedCandidates: pinnedCandidates);
 
-        // FR-007c — a Pinned job is never subject to the nozzle/material check, only queue order.
-        result.Should().Be(lowerPinnedJobId);
+        // FR-010 applies to Pinned jobs too: incompatible jobs stay queued.
+        result.Should().BeNull();
     }
 
     [Fact]
@@ -151,6 +151,16 @@ public class ProductionDispatchMatcherTests
             pinnedCandidates: pinnedCandidates);
 
         result.Should().Be(unassignedJobId);
+    }
+
+    [Fact]
+    public void SelectNextJob_MatchingPinnedJobAboveUnassigned_RespectsManualQueueOrder()
+    {
+        var pinnedId = Guid.NewGuid();
+        var result = ProductionDispatchMatcher.SelectNextJob(0.4m, [("PLA", null)],
+            [Candidate(Guid.NewGuid(), 2048, 0.4m, ("PLA", null))],
+            [Candidate(pinnedId, 1024, 0.4m, ("PLA", null))]);
+        result.Should().Be(pinnedId);
     }
 
     [Fact]

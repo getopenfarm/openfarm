@@ -537,9 +537,48 @@ export interface RunLineBackfillLimitsResponse {
 }
 
 export interface SetRunLineBackfillLimitsRequest {
+  /** @exclusiveMinimum 0 */
   backfillPrinterCap?: number;
   /** @nullable */
   backfillCumulativeUnitCeiling?: number | null;
+}
+
+/**
+ * the error details object
+ */
+export interface ProblemDetailsError {
+  /** the name of the error or property of the dto that caused the error */
+  name?: string;
+  /** the reason for the error */
+  reason?: string;
+  /**
+   * the code of the error
+   * @nullable
+   */
+  code?: string | null;
+  /**
+   * the severity of the error
+   * @nullable
+   */
+  severity?: string | null;
+}
+
+/**
+ * RFC9457 compatible problem details/ error response class. this can be used by configuring startup like so:
+ * app.UseFastEndpoints(c => c.Errors.UseProblemDetails())
+ */
+export interface ProblemDetails {
+  type?: string;
+  title?: string;
+  status?: number;
+  instance?: string;
+  traceId?: string;
+  /**
+   * the details of the error
+   * @nullable
+   */
+  detail?: string | null;
+  errors?: ProblemDetailsError[];
 }
 
 export interface RunLineRevisionModeResponse {
@@ -674,6 +713,14 @@ export interface ResumePrintJobRequest {
 
 export interface UnpinPrintJobRequest {
   [key: string]: unknown;
+}
+
+export interface SetPrintJobFilamentRequirementsRequest {
+  requirements?: FilamentConsumptionLineRequest[];
+}
+
+export interface RecordPrintJobFilamentConsumptionRequest {
+  filamentConsumption?: FilamentConsumptionLineRequest[];
 }
 
 export interface PrinterSummaryResponse {
@@ -811,7 +858,7 @@ export interface ListFleetResponse {
 }
 
 export interface MarkPrinterReadyRequest {
-  [key: string]: unknown;
+  confirmRunCompletion?: boolean;
 }
 
 export interface RegisterPrinterRequest {
@@ -904,6 +951,7 @@ export interface PartResponse {
   slicer?: SlicerResponse | null;
   filamentRequirements?: PartFilamentRequirementResponse[];
   plateCount?: number;
+  unitsPerPrint?: number;
   thumbnails?: ThumbnailResponse[];
   tags?: string[];
 }
@@ -940,6 +988,10 @@ export interface ReplacePartFileRequest {
   slicerEngine?: string | null;
   /** @nullable */
   slicerVersion?: string | null;
+}
+
+export interface SetPartUnitsPerPrintRequest {
+  unitsPerPrint?: number;
 }
 
 export interface PartTagsResponse {

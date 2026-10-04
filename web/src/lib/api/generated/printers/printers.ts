@@ -27,6 +27,7 @@ import type {
   EditPrinterRequest,
   ListFeedUnitsResponse,
   ListFleetResponse,
+  MarkPrinterReadyRequest,
   PrinterCatalogResponse,
   PrinterDetailResponse,
   PrinterSummaryResponse,
@@ -1181,6 +1182,7 @@ export const getOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointUrl = (
 
 export const openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint = async (
   id: string,
+  markPrinterReadyRequest: MarkPrinterReadyRequest,
   options?: RequestInit,
 ): Promise<openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse> => {
   return httpClient<openFarmApiEndpointsPrintersMarkPrinterReadyEndpointResponse>(
@@ -1188,6 +1190,8 @@ export const openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint = async (
     {
       ...options,
       method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(markPrinterReadyRequest),
     },
   );
 };
@@ -1199,7 +1203,7 @@ export const getOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationOpti
         ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
       >,
       TError,
-      { id: string },
+      { id: string; data: MarkPrinterReadyRequest },
       TContext
     >;
   }): UseMutationOptions<
@@ -1207,7 +1211,7 @@ export const getOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationOpti
       ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
     >,
     TError,
-    { id: string },
+    { id: string; data: MarkPrinterReadyRequest },
     TContext
   > => {
     const mutationKey = [
@@ -1225,11 +1229,11 @@ export const getOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationOpti
       Awaited<
         ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
       >,
-      { id: string }
+      { id: string; data: MarkPrinterReadyRequest }
     > = (props) => {
-      const { id } = props ?? {};
+      const { id, data } = props ?? {};
 
-      return openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint(id);
+      return openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint(id, data);
     };
 
     return { mutationFn, ...mutationOptions };
@@ -1241,7 +1245,8 @@ export type OpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationResult =
       ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
     >
   >;
-
+export type OpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationBody =
+  MarkPrinterReadyRequest;
 export type OpenFarmApiEndpointsPrintersMarkPrinterReadyEndpointMutationError =
   void;
 
@@ -1255,7 +1260,7 @@ export const useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint = <
         ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
       >,
       TError,
-      { id: string },
+      { id: string; data: MarkPrinterReadyRequest },
       TContext
     >;
   },
@@ -1265,7 +1270,7 @@ export const useOpenFarmApiEndpointsPrintersMarkPrinterReadyEndpoint = <
     ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterReadyEndpoint>
   >,
   TError,
-  { id: string },
+  { id: string; data: MarkPrinterReadyRequest },
   TContext
 > => {
   return useMutation(

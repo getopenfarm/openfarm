@@ -20,7 +20,7 @@ public sealed class CreateProductionRunCommandHandler(
     IPartRequirementRepository requirementRepository,
     IPrintJobRepository jobRepository,
     IPartRepository partRepository,
-    IAssemblyGraphQueryService graphQueryService) : ICommandHandler<CreateProductionRunCommand, ProductionRun>
+    IAssemblyGraphQueryService graphQueryService, ProductionDispatchRequestService? dispatchRequests = null, IAssemblyRepository? assemblyRepository = null, IPartFileStorage? fileStorage = null) : ICommandHandler<CreateProductionRunCommand, ProductionRun>
 {
     public async Task<ProductionRun> HandleAsync(CreateProductionRunCommand command, CancellationToken cancellationToken)
     {
@@ -44,6 +44,23 @@ public sealed class CreateProductionRunCommandHandler(
                     Organization.WellKnownId, line.Id, exploded.PartId, line.Quantity is null ? null : exploded.Quantity))
                 .ToList();
             await requirementRepository.AddRangeAsync(requirements, cancellationToken);
+
+            // Resolve placeholders left by the upgrade migration from the actual stored bytes,
+            // including backfill Parts before any job can be created for them.
+            if (fileStorage is not null)
+                foreach (var requirement in requirements)
+                {
+                    var legacyPart = await partRepository.GetByIdAsync(requirement.PartId, cancellationToken)
+                        ?? throw new PartNotFoundException(requirement.PartId);
+                    if (legacyPart.RevisionHash.Length == 64) continue;
+                    await using var bytes = await fileStorage.OpenReadAsync(legacyPart.StoragePath, cancellationToken);
+                    var hash = await PartFileHasher.ComputeHashAsync(bytes, cancellationToken);
+                    bytes.Position = 0;
+                    await fileStorage.SaveAsync(legacyPart.OrganizationId, legacyPart.RevisionHash, legacyPart.OriginalFileName, bytes, cancellationToken);
+                    bytes.Position = 0;
+                    var path = await fileStorage.SaveAsync(legacyPart.OrganizationId, hash, legacyPart.OriginalFileName, bytes, cancellationToken);
+                    legacyPart.MigrateLegacyFileRevision(hash, path);
+                }
 
             if (line.Quantity is null)
             {
@@ -75,6 +92,7 @@ public sealed class CreateProductionRunCommandHandler(
         }
 
         await runRepository.SaveChangesAsync(cancellationToken);
+        if (dispatchRequests is not null) await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);
         return run;
     }
 
@@ -83,6 +101,8 @@ public sealed class CreateProductionRunCommandHandler(
     {
         if (line.TargetKind == RunLineTargetKind.Assembly)
         {
+            if (assemblyRepository is not null && await assemblyRepository.GetByIdAsync(line.TargetId, cancellationToken) is null)
+                throw new RunLineTargetNotFoundException(line.TargetKind, line.TargetId);
             // R1/R2's "quantity-1 explosion" for an unlimited line — enumerates the distinct printed
             // parts only; PartRequirement.Quantity is nulled out above regardless of this result.
             var result = await graphQueryService.ExplodeAsync(Organization.WellKnownId, line.TargetId, line.Quantity ?? 1, cancellationToken);

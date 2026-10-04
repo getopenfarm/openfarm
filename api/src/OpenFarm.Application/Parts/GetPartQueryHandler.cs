@@ -49,6 +49,6 @@ public sealed class GetPartQueryHandler(
             requirements,
             part.PlateCount,
             part.Thumbnails.OrderBy(t => t.PlateIndex).Select(t => new ThumbnailView(t.PlateIndex, Convert.ToBase64String(t.Bytes))).ToList(),
-            part.Tags.Select(t => t.Name).ToList());
+            part.Tags.Select(t => t.Name).ToList(), part.UnitsPerPrint);
     }
 }

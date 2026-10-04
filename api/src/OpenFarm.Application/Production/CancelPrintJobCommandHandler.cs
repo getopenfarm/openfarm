@@ -24,7 +24,7 @@ public sealed class CancelPrintJobCommandHandler(
         var job = await jobRepository.GetByIdAsync(command.JobId, cancellationToken)
             ?? throw new PrintJobNotFoundException(command.JobId);
 
-        if (job.Status == PrintJobStatus.Queued)
+        if (job.Status == PrintJobStatus.Queued && job.DispatchedAtUtc is null)
         {
             job.MarkCancelled();
             await jobRepository.SaveChangesAsync(cancellationToken);
@@ -32,7 +32,7 @@ public sealed class CancelPrintJobCommandHandler(
             return job;
         }
 
-        if (job.Status is not (PrintJobStatus.Printing or PrintJobStatus.Paused) || job.DispatchedPrinterId is not { } printerId)
+        if (job.Status is not (PrintJobStatus.Queued or PrintJobStatus.Printing or PrintJobStatus.Paused) || job.DispatchedPrinterId is not { } printerId)
         {
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }
@@ -43,6 +43,7 @@ public sealed class CancelPrintJobCommandHandler(
         if (!PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
         {
             job.MarkCancelled();
+            printer.ObserveStatus("FAILED");
             await jobRepository.SaveChangesAsync(cancellationToken);
             await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
             return job;
@@ -51,10 +52,9 @@ public sealed class CancelPrintJobCommandHandler(
         var details = await detailsResolver.ResolveAsync(printer, cancellationToken)
             ?? throw new InvalidOperationException($"Printer '{printer.Id}' has no connection secret.");
         var connector = connectorFactory.CreateConnector(details);
-        await connector.StopJobAsync(details, cancellationToken);
-
         job.RequestCancel();
         await jobRepository.SaveChangesAsync(cancellationToken);
+        await connector.StopJobAsync(details, cancellationToken);
 
         return job;
     }

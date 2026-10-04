@@ -10,6 +10,8 @@ public sealed class MarkPrinterReadyRequest : IActivityLoggable
 {
     public Guid Id { get; set; }
 
+    public bool ConfirmRunCompletion { get; set; }
+
     public string EntityType => "Printer";
 
     public string EventType => "PrinterMarkedReady";
@@ -34,7 +36,7 @@ public sealed class MarkPrinterReadyEndpoint(MarkPrinterReadyHandler handler)
     {
         req.Id = Route<Guid>("id");
 
-        var printer = await handler.HandleAsync(new MarkPrinterReadyCommand(req.Id), ct);
+        var printer = await handler.HandleAsync(new MarkPrinterReadyCommand(req.Id, req.ConfirmRunCompletion, Guid.TryParse(User.FindFirst("sub")?.Value, out var actorId) ? actorId : null), ct);
 
         Response = PrinterSummaryResponse.FromDomain(printer);
     }

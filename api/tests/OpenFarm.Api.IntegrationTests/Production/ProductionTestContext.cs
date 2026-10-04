@@ -1,0 +1,170 @@
+using System.Net;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
+using OpenFarm.Infrastructure.Production;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
+using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using OpenFarm.Api.Endpoints.Auth;
+using OpenFarm.Api.Endpoints.PrintJobs;
+using OpenFarm.Api.Endpoints.ProductionRuns;
+using OpenFarm.Application.Auth;
+using OpenFarm.Application.Common;
+using OpenFarm.Application.ConnectionSecrets;
+using OpenFarm.Application.Parts;
+using OpenFarm.Application.Production;
+using OpenFarm.Domain.ConnectionSecrets;
+using OpenFarm.Domain.Organizations;
+using OpenFarm.Domain.Parts;
+using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Profiles;
+using OpenFarm.Domain.Production;
+using OpenFarm.Infrastructure.Persistence;
+
+namespace OpenFarm.Api.IntegrationTests.Production;
+
+// Real HTTP, tenancy, repositories and PostgreSQL. Tests explicitly start the real dispatcher or
+// replay telemetry so connection workers cannot race assertions about intermediate states.
+public sealed class ProductionTestFactory : CustomWebApplicationFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureServices(services => services.RemoveAll<IHostedService>());
+    }
+}
+
+public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
+{
+    protected CustomWebApplicationFactory Factory { get; } = factory;
+    private string? _token;
+
+    protected async Task<HttpClient> ClientAsync()
+    {
+        var client = Factory.CreateClient();
+        if (_token is null)
+        {
+            var login = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand("admin", "admin-openfarm"));
+            login.EnsureSuccessStatusCode();
+            _token = (await login.Content.ReadFromJsonAsync<LoginResponse>())!.Token;
+        }
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+        await Factory.EnsureTenantInfoResolvedAsync();
+        return client;
+    }
+
+    protected async Task<Part> PartAsync(int units = 1, string contents = "; revision one\n", string fileName = "part.gcode", bool legacy = false)
+    {
+        await Factory.EnsureTenantInfoResolvedAsync();
+        using var scope = Factory.CreateTenantScope();
+        var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
+        var bytes = Encoding.UTF8.GetBytes(contents);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        using var stream = new MemoryStream(bytes);
+        var path = await storage.SaveAsync(Organization.WellKnownId, legacy ? Guid.NewGuid().ToString("N") : hash, fileName, stream, default);
+        if (legacy) hash = new string('a', 32);
+        var part = Part.Create(Organization.WellKnownId, $"Part {Guid.NewGuid():N}", PartFileFormat.GCode,
+            false, fileName, path, bytes.Length, 0.4m, null, null, EstimateStatus.Available,
+            60, 20, 1, units, hash, [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
+        await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
+        return part;
+    }
+
+    protected static async Task<ProductionRunDetailResponse> RunAsync(HttpClient client, Guid partId, int? quantity = 1,
+        string? name = null, string? revisionMode = null, Guid? pinned = null)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/production-runs", new
+        {
+            name,
+            lines = new[] { new { targetKind = "Part", targetId = partId, quantity,
+                revisionMode, assignmentMode = pinned is null ? "Unassigned" : "Pinned", pinnedPrinterId = pinned } },
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<ProductionRunDetailResponse>())!;
+    }
+
+    protected static async Task<ProductionRunDetailResponse> DetailAsync(HttpClient client, Guid runId) =>
+        (await client.GetFromJsonAsync<ProductionRunDetailResponse>($"/api/v1/production-runs/{runId}"))!;
+
+    protected async Task<List<PrintJob>> JobsAsync(Guid runId)
+    {
+        using var scope = Factory.CreateTenantScope();
+        return (await scope.ServiceProvider.GetRequiredService<IPrintJobRepository>().ListByProductionRunIdAsync(runId, default)).ToList();
+    }
+
+    protected async Task<Printer> PrinterAsync(bool manual = false, string state = "IDLE")
+    {
+        using var scope = Factory.CreateTenantScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var profile = MachineProfile.Create(Organization.WellKnownId, $"Machine {Guid.NewGuid():N}",
+            ProfileSourceFormat.OrcaSlicer, null, "{\"nozzle_diameter\":[\"0.4\"]}");
+        db.MachineProfiles.Add(profile);
+        var printer = Printer.Create(Organization.WellKnownId, $"Printer {Guid.NewGuid():N}", "System", "Simulation", "127.0.0.1", $"SN{Guid.NewGuid():N}");
+        printer.LinkMachineProfile(profile.Id);
+        printer.MarkReachable(DateTimeOffset.UtcNow);
+        printer.RecordTelemetry(null, null, null, null, null, null, [], new AmsTray(0, false, "PLA", "FFFFFF", null, null, false));
+        printer.ObserveStatus(state);
+        db.Printers.Add(printer);
+        // No manual brand is currently registrable. Persist a future/manual brand through EF's
+        // mapped field to test the already-defined non-live branch without adding a product brand.
+        if (manual) db.Entry(printer).Property(p => p.Brand).CurrentValue = "Manual";
+        var protector = scope.ServiceProvider.GetRequiredService<ISecretProtector>();
+        db.ConnectionSecrets.Add(ConnectionSecret.Create(Organization.WellKnownId, printer.SerialNumber, protector.Protect("test-access-code")));
+        await db.SaveChangesAsync();
+        return printer;
+    }
+
+    protected async Task AssignAsync(Guid jobId, Guid printerId, bool started = true)
+    {
+        using var scope = Factory.CreateTenantScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var job = await db.PrintJobs.SingleAsync(j => j.Id == jobId);
+        job.Dispatch(printerId);
+        if (started)
+        {
+            job.MarkStarted();
+            (await db.Printers.SingleAsync(p => p.Id == printerId)).ObserveStatus("RUNNING");
+        }
+        await db.SaveChangesAsync();
+    }
+
+    protected async Task<PrinterStatus> PrinterStatusAsync(Guid printerId)
+    {
+        using var scope = Factory.CreateTenantScope();
+        return (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Printers.SingleAsync(p => p.Id == printerId)).Status;
+    }
+
+    protected async Task ReplayAsync(Guid printerId, string state)
+    {
+        using var scope = Factory.CreateTenantScope();
+        await scope.ServiceProvider.GetRequiredService<IJobTelemetrySync>().ObserveAsync(printerId, state, default);
+    }
+
+    protected ProductionDispatchBackgroundService Worker() => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),
+        Factory.Services.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>());
+
+    protected async Task<PrintJob> WaitForAssignmentAsync(Guid runId, Guid? excludeJobId = null)
+    {
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed < TimeSpan.FromSeconds(10))
+        {
+            var job = (await JobsAsync(runId)).FirstOrDefault(j => j.Id != excludeJobId && j.DispatchedPrinterId != null);
+            if (job is not null) return job;
+            await Task.Delay(50);
+        }
+        throw new TimeoutException("The dispatcher did not assign the expected job.");
+    }
+
+    protected static async Task PostAsync(HttpClient client, string route, HttpStatusCode expected = HttpStatusCode.OK, object? body = null)
+    {
+        var response = await client.PostAsJsonAsync(route, body ?? new { });
+        response.StatusCode.Should().Be(expected, await response.Content.ReadAsStringAsync());
+    }
+}

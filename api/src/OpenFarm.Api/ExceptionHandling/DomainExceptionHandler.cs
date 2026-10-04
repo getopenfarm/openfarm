@@ -93,6 +93,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             InvalidPrintJobStatusTransitionException => (StatusCodes.Status422UnprocessableEntity, "Invalid print job status transition"),
             // Reported as 409 (not data-model.md's 422) so it matches contracts/production-run-queue-api.md's
             // close/cancel responses — the only two HTTP-reachable paths that ever surface this exception.
+            NamedRunCompletionConfirmationRequiredException => (StatusCodes.Status409Conflict, "Run completion confirmation required"),
             InvalidRunCompletionException => (StatusCodes.Status409Conflict, "Invalid production run status transition"),
             PinnedJobRequiresPrinterException => (StatusCodes.Status400BadRequest, "A pinned job requires a printer id"),
             PrintJobAlreadyDispatchedException => (StatusCodes.Status409Conflict, "Print job is no longer queued"),

@@ -13,7 +13,8 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
     IPartProcessingJobRepository jobRepository,
     IPartRepository partRepository,
     ITagRepository tagRepository,
-    IPartEventPublisher eventPublisher) : ICommandHandler<ConfirmPartProcessingJobCommand, Part>
+    IPartEventPublisher eventPublisher,
+    IPartFileStorage? fileStorage = null) : ICommandHandler<ConfirmPartProcessingJobCommand, Part>
 {
     public async Task<Part> HandleAsync(ConfirmPartProcessingJobCommand command, CancellationToken cancellationToken)
     {
@@ -96,7 +97,8 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 job.PreviewEstimatedPrintTimeMinutes,
                 job.PreviewEstimatedFilamentWeightGrams,
                 job.PreviewPlateCount!.Value,
-                unitsPerPrint: 1,
+                unitsPerPrint: fileStorage is not null && !job.RequiresSlicing
+                    ? await SlicedFileUnitsPerPrint.SuggestAsync(fileStorage, job.StoragePath, cancellationToken) : 1,
                 revisionHash,
                 filamentRequirements,
                 thumbnails,
@@ -113,6 +115,13 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             // PrintJob elsewhere may still reference them by their own RevisionHash. Content
             // addressing means an unreferenced revision is simply left on disk (no reaper yet,
             // spec Assumptions), never eagerly reclaimed here.
+            // Older installations stored uploads under an owner ID. Preserve the old revision
+            // alias before changing the Part so queued Snapshot jobs still resolve its bytes.
+            if (fileStorage is not null && Path.GetFileNameWithoutExtension(part.StoragePath) != part.RevisionHash)
+            {
+                await using var oldFile = await fileStorage.OpenReadAsync(part.StoragePath, cancellationToken);
+                await fileStorage.SaveAsync(part.OrganizationId, part.RevisionHash, part.OriginalFileName, oldFile, cancellationToken);
+            }
             part.ReplaceFile(
                 job.FileFormat,
                 job.RequiresSlicing,
@@ -130,6 +139,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 filamentRequirements,
                 thumbnails);
 
+            partRepository.TrackReplacementChildren(part);
             await partRepository.SaveChangesAsync(cancellationToken);
         }
 

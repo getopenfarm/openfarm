@@ -9,7 +9,7 @@ namespace OpenFarm.Application.Tests.Production;
 public class CompletePrintJobCommandHandlerTests
 {
     [Fact]
-    public async Task HandleAsync_FromPrinting_CompletesJobAndMovesPrinterToAwaitingClear()
+    public async Task HandleAsync_FromPrinting_LiveIntegratedJobRequiresTelemetry()
     {
         var job = ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
         var printer = ProductionTestFixtures.CreateLiveIntegratedPrinter();
@@ -25,11 +25,10 @@ public class CompletePrintJobCommandHandlerTests
         var handler = new CompletePrintJobCommandHandler(
             jobRepository, printerRepository, new InMemorySpoolRepository(), publisher, completionService);
 
-        var result = await handler.HandleAsync(new CompletePrintJobCommand(job.Id, []), CancellationToken.None);
-
-        result.Status.Should().Be(PrintJobStatus.Completed);
-        printer.Status.Should().Be(PrinterStatus.AwaitingClear);
-        publisher.JobStatusChanges.Should().ContainSingle(c => c.JobId == job.Id && c.Status == PrintJobStatus.Completed);
+        var act = () => handler.HandleAsync(new CompletePrintJobCommand(job.Id, []), CancellationToken.None);
+        await act.Should().ThrowAsync<JobNotEligibleForRemoteControlException>();
+        job.Status.Should().Be(PrintJobStatus.Printing);
+        publisher.JobStatusChanges.Should().BeEmpty();
     }
 
     [Fact]
@@ -91,7 +90,7 @@ public class CompletePrintJobCommandHandlerTests
 public class FailPrintJobCommandHandlerTests
 {
     [Fact]
-    public async Task HandleAsync_FromPrinting_FailsJobAndMovesPrinterToAwaitingClear()
+    public async Task HandleAsync_FromPrinting_LiveIntegratedJobRequiresTelemetry()
     {
         var job = ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
         var printer = ProductionTestFixtures.CreateLiveIntegratedPrinter();
@@ -103,10 +102,9 @@ public class FailPrintJobCommandHandlerTests
         var publisher = new RecordingProductionEventPublisher();
         var handler = new FailPrintJobCommandHandler(jobRepository, printerRepository, new InMemorySpoolRepository(), publisher);
 
-        var result = await handler.HandleAsync(new FailPrintJobCommand(job.Id, []), CancellationToken.None);
-
-        result.Status.Should().Be(PrintJobStatus.Failed);
-        printer.Status.Should().Be(PrinterStatus.AwaitingClear);
+        var act = () => handler.HandleAsync(new FailPrintJobCommand(job.Id, []), CancellationToken.None);
+        await act.Should().ThrowAsync<JobNotEligibleForRemoteControlException>();
+        job.Status.Should().Be(PrintJobStatus.Printing);
     }
 
     [Fact]

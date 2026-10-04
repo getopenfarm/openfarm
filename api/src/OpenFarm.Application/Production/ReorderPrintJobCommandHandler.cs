@@ -8,7 +8,7 @@ namespace OpenFarm.Application.Production;
 /// <c>AfterJobId</c>'s position and its current successor's (or an offset past whatever's currently
 /// at that end). <see cref="PrintJob.Reorder"/> itself enforces the 409 (still Queued) guard.
 /// </summary>
-public sealed class ReorderPrintJobCommandHandler(IPrintJobRepository jobRepository)
+public sealed class ReorderPrintJobCommandHandler(IPrintJobRepository jobRepository, ProductionDispatchRequestService? dispatchRequests = null)
     : ICommandHandler<ReorderPrintJobCommand, PrintJob>
 {
     private const double Spacing = 1024;
@@ -38,6 +38,7 @@ public sealed class ReorderPrintJobCommandHandler(IPrintJobRepository jobReposit
         job.Reorder(newPosition);
         await jobRepository.SaveChangesAsync(cancellationToken);
 
+        if (dispatchRequests is not null) await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);
         return job;
     }
 }

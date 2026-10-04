@@ -43,8 +43,9 @@ public sealed class ProductionRun
   shape. List views derive a display label from `Lines` (first line's target name + count) when `Name` is
   null; that derivation is a read-side concern (see below), not stored.
 - **`RequiresConfirmation`** (FR-016b — a named run's last job asks for confirmation before completing) is
-  computed, not stored: `Name is not null`. `MarkComplete` itself is always the same call; the confirmation
-  prompt is a frontend gate in front of calling it for a named run, never a second server-side flow.
+  computed, not stored: a non-blank `Name`. The server keeps named runs Active after the
+  final finite job finishes. Mark ready returns 409 until the operator sends `confirmRunCompletion: true`;
+  the UI displays that confirmation and retries. Unnamed runs complete automatically.
 
 ### `RunLine` (new entity, `OpenFarm.Domain.Production`)
 

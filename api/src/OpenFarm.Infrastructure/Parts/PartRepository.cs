@@ -49,6 +49,12 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         return dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public void TrackReplacementChildren(Part part)
+    {
+        dbContext.PartFilamentRequirements.AddRange(part.FilamentRequirements);
+        dbContext.PartThumbnails.AddRange(part.Thumbnails);
+    }
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try

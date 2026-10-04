@@ -20,25 +20,32 @@ public sealed class JobFileResolver(
     ISlicerEngine slicerEngine,
     ResolveSlicerSelection resolveSlicerSelection,
     ISlicerDefaultsProvider slicerDefaults,
-    IOrganizationRepository organizationRepository) : IJobFileResolver
+    IOrganizationRepository organizationRepository,
+    IPartFileClassifier classifier) : IJobFileResolver
 {
     public async Task<JobFileContent> ResolveAsync(Part part, PrintJob job, Guid printerId, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
-        if (!part.RequiresSlicing)
+        var storagePath = job.FileRevisionHash == part.RevisionHash
+            ? part.StoragePath
+            : await partFileStorage.GetRevisionStoragePathAsync(part.OrganizationId, job.FileRevisionHash, part.OriginalFileName, cancellationToken);
+        await using var stored = await partFileStorage.OpenReadAsync(storagePath, cancellationToken);
+        var fileName = Path.GetFileName(storagePath);
+        var classification = classifier.Classify(stored, fileName);
+        stored.Position = 0;
+        if (!classification.RequiresSlicing)
         {
-            await using var stored = await partFileStorage.OpenReadAsync(part.StoragePath, cancellationToken);
             using var storedBuffer = new MemoryStream();
             await stored.CopyToAsync(storedBuffer, cancellationToken);
-            return new JobFileContent(storedBuffer.ToArray(), part.OriginalFileName);
+            return new JobFileContent(storedBuffer.ToArray(), fileName);
         }
 
+        if (printerId == Guid.Empty) throw new JobNotEligibleForRemoteControlException(job.Id);
         var organization = await organizationRepository.GetAsync(cancellationToken);
         var slicerRef = resolveSlicerSelection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, organization.DefaultSlicer);
         var materialType = (job.FilamentConsumption.Count > 0 ? job.FilamentConsumption[0].MaterialType : null)
             ?? slicerDefaults.GetFallbackMaterialType();
 
-        await using var modelStream = await partFileStorage.OpenReadAsync(part.StoragePath, cancellationToken);
-        var result = await slicerEngine.SliceAsync(slicerRef, modelStream, part.FileFormat, materialType, nozzleDiameterMm, printerId, cancellationToken);
+        var result = await slicerEngine.SliceAsync(slicerRef, stored, classification.Format, materialType, nozzleDiameterMm, printerId, cancellationToken);
 
         return new JobFileContent(result.OutputFileBytes, $"{part.Name}.gcode");
     }

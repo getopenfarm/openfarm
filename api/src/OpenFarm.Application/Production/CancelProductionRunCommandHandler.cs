@@ -1,4 +1,6 @@
 using OpenFarm.Application.Common;
+using OpenFarm.Application.ActivityLog;
+using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
@@ -10,7 +12,7 @@ namespace OpenFarm.Application.Production;
 /// deliberate per-job action).
 /// </summary>
 public sealed class CancelProductionRunCommandHandler(
-    IProductionRunRepository runRepository, IPrintJobRepository jobRepository, IProductionEventPublisher publisher)
+    IProductionRunRepository runRepository, IPrintJobRepository jobRepository, IProductionEventPublisher publisher, IActivityLogWriter? activityLogWriter = null)
     : ICommandHandler<CancelProductionRunCommand, ProductionRun>
 {
     public async Task<ProductionRun> HandleAsync(CancelProductionRunCommand command, CancellationToken cancellationToken)
@@ -32,6 +34,8 @@ public sealed class CancelProductionRunCommandHandler(
         await publisher.ProductionRunStatusChangedAsync(run.OrganizationId, run.Id, run.Status, cancellationToken);
         foreach (var job in cancelledJobs)
         {
+            if (activityLogWriter is not null)
+                await activityLogWriter.WriteAsync(ActivityLogEntry.Create(job.OrganizationId, "PrintJob", job.Id.ToString(), "PrintJobCancelled", command.ActorId, command.ActorId is null ? ActorType.System : ActorType.Operator), cancellationToken);
             await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
         }
 

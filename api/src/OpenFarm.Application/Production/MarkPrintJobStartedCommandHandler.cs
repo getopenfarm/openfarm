@@ -29,6 +29,7 @@ public sealed class MarkPrintJobStartedCommandHandler(
         }
 
         job.MarkStarted();
+        printer.ObserveStatus("RUNNING");
         await jobRepository.SaveChangesAsync(cancellationToken);
         await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
 

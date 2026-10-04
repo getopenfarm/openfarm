@@ -1,4 +1,5 @@
 using OpenFarm.Application.Common;
+using OpenFarm.Application.Production;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
@@ -18,7 +19,7 @@ public sealed class LoadSpoolOntoFeedSlotCommandHandler(
     IFeedUnitRepository feedUnitRepository,
     IFilamentRepository filamentRepository,
     IVendorRepository vendorRepository,
-    IPrinterRepository printerRepository) : ICommandHandler<LoadSpoolOntoFeedSlotCommand, LoadSpoolResult>
+    IPrinterRepository printerRepository, IProductionDispatcher? dispatcher = null) : ICommandHandler<LoadSpoolOntoFeedSlotCommand, LoadSpoolResult>
 {
     public async Task<LoadSpoolResult> HandleAsync(LoadSpoolOntoFeedSlotCommand command, CancellationToken cancellationToken)
     {
@@ -51,6 +52,7 @@ public sealed class LoadSpoolOntoFeedSlotCommandHandler(
         spool.LoadOntoFeedSlot(command.FeedSlotId);
         await spoolRepository.SaveChangesAsync(cancellationToken);
 
+        if (printer.Status == PrinterStatus.Idle) dispatcher?.RequestDispatchAttempt(printer.Id);
         return new LoadSpoolResult(spool, rfidMismatchWarning, portSharingNote);
     }
 

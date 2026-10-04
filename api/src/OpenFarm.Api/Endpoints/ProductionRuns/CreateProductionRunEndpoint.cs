@@ -52,8 +52,13 @@ public sealed class CreateProductionRunRequestValidator : AbstractValidator<Crea
         RuleFor(x => x.Lines).NotEmpty();
         RuleForEach(x => x.Lines).ChildRules(line =>
         {
-            line.RuleFor(l => l.TargetKind).Must(k => Enum.TryParse<RunLineTargetKind>(k, out _))
+            line.RuleFor(l => l.TargetKind).Must(k => Enum.GetNames<RunLineTargetKind>().Contains(k))
                 .WithMessage("targetKind must be one of Part, Assembly.");
+            line.RuleFor(l => l.AssignmentMode).Must(k => Enum.GetNames<AssignmentMode>().Contains(k));
+            line.RuleFor(l => l.RevisionMode).Must(k => k is null || (Enum.GetNames<RevisionMode>().Contains(k)));
+            line.RuleFor(l => l.TargetId).NotEmpty();
+            line.RuleFor(l => l.BackfillPrinterCap).GreaterThanOrEqualTo(1);
+            line.RuleFor(l => l.BackfillCumulativeUnitCeiling).GreaterThanOrEqualTo(1).When(l => l.BackfillCumulativeUnitCeiling is not null);
             line.RuleFor(l => l.Quantity).GreaterThanOrEqualTo(1).When(l => l.Quantity is not null);
             line.RuleFor(l => l.PinnedPrinterId).NotNull()
                 .When(l => l.AssignmentMode == "Pinned")

@@ -215,3 +215,27 @@ printing job).
   **Response 200**, `status: "Cancelled"`.
 
 **Response 409** — job is already in a terminal state (`Completed`/`Failed`/`Cancelled`).
+
+
+## Completion audit additions (2026-10-04)
+
+- `PATCH /api/v1/parts/{id}/units-per-print` accepts `{ "unitsPerPrint": 4 }` (positive integer),
+  using `parts:replace-file`. New sliced parts suggest a parseable object count; replacement preserves
+  the existing operator default. Future jobs use the updated default; existing plate quantities stay fixed.
+- `GET /api/v1/print-jobs/{id}/file` (`print-jobs:read`) downloads the job's retained revision.
+  Sliceable files require a dispatched printer; stored G-code can be retrieved before assignment.
+- `PUT /api/v1/print-jobs/{id}/filament-requirements` (`print-jobs:pin`) accepts a nonempty
+  `requirements` collection of material/color entries before dispatch and wakes idle printers.
+- `POST /api/v1/print-jobs/{id}/filament-consumption` (`print-jobs:update-status`) accepts the
+  existing `filamentConsumption` breakdown after Completed/Failed/Cancelled. Multiple spools for the
+  same material/color retain separate lines. Repeating totals is idempotent; increases decrement only
+  the additional grams. Decreasing a previously recorded total returns 400.
+- `POST /api/v1/printers/{id}/mark-ready` accepts `{ "confirmRunCompletion": false }` by default.
+  When the last finite requirement of a named run is satisfied, the server returns 409 with title
+  `Run completion confirmation required`. Retrying with true completes the run with operator attribution
+  and clears the printer. Unnamed runs complete automatically with system attribution.
+- Live-integrated jobs' Printing/Paused to Completed/Failed transitions belong to telemetry. The
+  complete/fail endpoints reject attempts to override live status but may attach usage to an already
+  matching terminal outcome. A requested stop followed by either FINISH or FAILED resolves Cancelled.
+- Revision-mode and backfill-limit requests validate enum names and positive limits (400), and reject
+  a line belonging to a different route run (404).

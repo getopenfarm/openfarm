@@ -34,6 +34,7 @@ public sealed class PartResponse
     public SlicerResponse? Slicer { get; set; }
     public List<PartFilamentRequirementResponse> FilamentRequirements { get; set; } = [];
     public int PlateCount { get; set; }
+    public int UnitsPerPrint { get; set; } = 1;
     public List<ThumbnailResponse> Thumbnails { get; set; } = [];
     public List<string> Tags { get; set; } = [];
 
@@ -51,6 +52,7 @@ public sealed class PartResponse
         EstimatedFilamentWeightGrams = detail.EstimatedFilamentWeightGrams,
         Slicer = SlicerResponse.FromView(detail.Slicer),
         PlateCount = detail.PlateCount,
+        UnitsPerPrint = detail.UnitsPerPrint,
         FilamentRequirements = detail.FilamentRequirements.Select(r => new PartFilamentRequirementResponse
         {
             Id = r.Id,
@@ -87,6 +89,7 @@ public sealed class PartResponse
             ? new SlicerResponse { Engine = engine.ToString(), Version = version }
             : null,
         PlateCount = part.PlateCount,
+        UnitsPerPrint = part.UnitsPerPrint,
         FilamentRequirements = part.FilamentRequirements.Select(r => new PartFilamentRequirementResponse
         {
             Id = r.Id,

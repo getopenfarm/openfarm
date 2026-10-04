@@ -30,6 +30,7 @@ import type {
   PartResponse,
   PartTagsResponse,
   ReplacePartFileRequest,
+  SetPartUnitsPerPrintRequest,
   TagPartRequest,
   UpdatePartFilamentRequirementNarrowingRequest,
 } from '../endpoints.schemas';
@@ -1087,6 +1088,143 @@ export const useOpenFarmApiEndpointsPartsReplacePartFileEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsPartsReplacePartFileEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse200 = {
+  data: PartResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponseSuccess =
+  openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponseError =
+  (
+    | openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse401
+    | openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse =
+  | openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponseSuccess
+  | openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/parts/${id}/units-per-print`;
+};
+
+export const openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint = async (
+  id: string,
+  setPartUnitsPerPrintRequest: SetPartUnitsPerPrintRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse>(
+    getOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointUrl(id),
+    {
+      ...options,
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(setPartUnitsPerPrintRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
+      >,
+      TError,
+      { id: string; data: SetPartUnitsPerPrintRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
+    >,
+    TError,
+    { id: string; data: SetPartUnitsPerPrintRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
+      >,
+      { id: string; data: SetPartUnitsPerPrintRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationBody =
+  SetPartUnitsPerPrintRequest;
+export type OpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
+      >,
+      TError,
+      { id: string; data: SetPartUnitsPerPrintRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
+  >,
+  TError,
+  { id: string; data: SetPartUnitsPerPrintRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationOptions(
+      options,
+    ),
     queryClient,
   );
 };

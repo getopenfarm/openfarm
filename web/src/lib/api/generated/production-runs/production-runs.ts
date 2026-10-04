@@ -25,6 +25,7 @@ import type {
   CreateProductionRunRequest,
   ListProductionRunsResponse,
   OpenFarmApiEndpointsProductionRunsListProductionRunsEndpointParams,
+  ProblemDetails,
   ProductionRunDetailResponse,
   RunLineBackfillLimitsResponse,
   RunLineRevisionModeResponse,
@@ -1070,6 +1071,12 @@ export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointRe
     status: 200;
   };
 
+export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse400 =
+  {
+    data: ProblemDetails;
+    status: 400;
+  };
+
 export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse401 =
   {
     data: void;
@@ -1088,6 +1095,7 @@ export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointRe
   };
 export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponseError =
   (
+    | openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse400
     | openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse401
     | openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse403
   ) & {
@@ -1125,7 +1133,7 @@ export const openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint 
   };
 
 export const getOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
+  <TError = ProblemDetails | void, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
@@ -1188,10 +1196,10 @@ export type OpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMu
 export type OpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationBody =
   SetRunLineBackfillLimitsRequest;
 export type OpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationError =
-  void;
+  ProblemDetails | void;
 
 export const useOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint =
-  <TError = void, TContext = unknown>(
+  <TError = ProblemDetails | void, TContext = unknown>(
     options?: {
       mutation?: UseMutationOptions<
         Awaited<
@@ -1232,6 +1240,12 @@ export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResp
     status: 200;
   };
 
+export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse400 =
+  {
+    data: ProblemDetails;
+    status: 400;
+  };
+
 export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse401 =
   {
     data: void;
@@ -1250,6 +1264,7 @@ export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResp
   };
 export type openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponseError =
   (
+    | openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse400
     | openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse401
     | openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointResponse403
   ) & {
@@ -1287,7 +1302,7 @@ export const openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint =
   };
 
 export const getOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
+  <TError = ProblemDetails | void, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
@@ -1350,10 +1365,10 @@ export type OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMuta
 export type OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationBody =
   SetRunLineRevisionModeRequest;
 export type OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationError =
-  void;
+  ProblemDetails | void;
 
 export const useOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint =
-  <TError = void, TContext = unknown>(
+  <TError = ProblemDetails | void, TContext = unknown>(
     options?: {
       mutation?: UseMutationOptions<
         Awaited<

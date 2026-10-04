@@ -21,5 +21,7 @@ public interface IPartRepository
 
     Task RemoveAsync(Part part, CancellationToken cancellationToken);
 
+    void TrackReplacementChildren(Part part) { }
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

@@ -27,4 +27,5 @@ public sealed record PartDetail(
     IReadOnlyList<PartFilamentRequirementDetail> FilamentRequirements,
     int PlateCount,
     IReadOnlyList<ThumbnailView> Thumbnails,
-    IReadOnlyList<string> Tags);
+    IReadOnlyList<string> Tags,
+    int UnitsPerPrint = 1);

@@ -20,6 +20,7 @@ import {
   PartFilamentRequirementsList,
 } from './components/PartFilamentRequirementsList';
 import { PartThumbnailGallery } from './components/PartThumbnailGallery';
+import { UnitsPerPrintForm } from './components/UnitsPerPrintForm';
 import { usePartsHub } from './hooks/usePartsHub';
 
 export function PartDetailPage() {
@@ -104,6 +105,13 @@ export function PartDetailPage() {
         <p className="text-sm text-muted-foreground">Part not found.</p>
       ) : (
         <>
+          {part.id && (
+            <UnitsPerPrintForm
+              key={`${part.id}-${part.unitsPerPrint}`}
+              partId={part.id}
+              unitsPerPrint={part.unitsPerPrint ?? 1}
+            />
+          )}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-heading text-2xl font-semibold">
