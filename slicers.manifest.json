@@ -5,8 +5,8 @@
       "engine": "OrcaSlicer",
       "builds": {
         "Linux": {
-          "version": "2.3.1",
-          "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.1.AppImage"
+          "version": "2.4.2",
+          "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage"
         },
         "Windows": {
           "version": "2.3.1",
@@ -17,7 +17,7 @@
           "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Mac_universal_V2.3.1.dmg"
         }
       },
-      "notes": "Pinned to 2.3.1 on every platform, deliberately one version behind: 2.3.2 through the current latest (2.4.2) segfault (SIGSEGV, exit 139) in Print::apply() -> update_values_to_printer_extruders_for_multiple_filaments whenever a machine settings file and a process settings file are loaded together via --load-settings, reproduced with OrcaSlicer's own unmodified shipped presets (not an OpenFarm data issue). The crash is in shared, platform-agnostic slicing-core code with no OS-specific branches, so treat 2.3.2+ as suspect on Linux/Windows too until proven otherwise there. See docs/superpowers/plans/im-running-in-macos-cuddly-matsumoto.md for the full investigation. The project also previously moved from SoftFever/OrcaSlicer to OrcaSlicer/OrcaSlicer — verify the repo/org hasn't moved again before re-pinning a newer version once this regression is fixed upstream."
+      "notes": "Linux is pinned to 2.4.2 using the Ubuntu 24.04 x86-64 AppImage. Windows and macOS remain pinned to 2.3.1: versions 2.3.2 through 2.4.2 were observed to segfault (SIGSEGV, exit 139) on macOS in Print::apply() -> update_values_to_printer_extruders_for_multiple_filaments when machine and process settings are loaded together via --load-settings, reproduced with unmodified shipped presets. The crash is in shared slicing-core code; Linux 2.4.2 slicing compatibility has not yet been verified. The upstream repository is OrcaSlicer/OrcaSlicer (previously SoftFever/OrcaSlicer)."
     },
     {
       "engine": "BambuStudio",

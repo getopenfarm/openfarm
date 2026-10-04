@@ -2,10 +2,10 @@
   "entries": [
     {
       "engine": "OrcaSlicer",
-      "version": "2.3.1",
+      "version": "2.4.2",
       "platform": "Linux",
-      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.1.AppImage",
-      "sha256": "f199e5408914efdbbbfa4fd6752cd6ad4727209b488bc47bff9a0da5f053a701"
+      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage",
+      "sha256": "d12fb8c8eac1aecd2dfb6377acd48f994f8fa439ed5292fa532dd82880f029fd"
     },
     {
       "engine": "OrcaSlicer",
