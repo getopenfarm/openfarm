@@ -17,6 +17,7 @@ public sealed class GetPrintJobFileQueryHandler(IPrintJobRepository jobs, IPartR
         var job = await jobs.GetByIdAsync(query.JobId, cancellationToken) ?? throw new PrintJobNotFoundException(query.JobId);
         var requirement = await requirements.GetByIdAsync(job.PartRequirementId, cancellationToken) ?? throw new PrintJobNotEligibleForRequeueException(job.Id);
         var part = await parts.GetByIdAsync(requirement.PartId, cancellationToken) ?? throw new PartNotFoundException(requirement.PartId);
-        return await resolver.ResolveAsync(part, job, job.DispatchedPrinterId ?? Guid.Empty, part.NozzleDiameterMm, cancellationToken);
+        part.EnsurePrintRequirementsComplete();
+        return await resolver.ResolveAsync(part, job, job.DispatchedPrinterId ?? Guid.Empty, part.NozzleDiameterMm!.Value, cancellationToken);
     }
 }

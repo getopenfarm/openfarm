@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:5000"
+      "url": "http://127.0.0.1:58889"
     }
   ],
   "paths": {
@@ -2773,6 +2773,47 @@
         ]
       }
     },
+    "/api/v1/parts/{id}/reprocess": {
+      "post": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsReprocessPartEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartProcessingJobSubmittedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/parts/{id}/units-per-print": {
       "patch": {
         "tags": [
@@ -4606,6 +4647,14 @@
               }
             ]
           },
+          "estimationProfiles": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EstimationProfilesRequest"
+              }
+            ]
+          },
           "available": {
             "type": "array",
             "items": {
@@ -4626,6 +4675,27 @@
           },
           "isExplicit": {
             "type": "boolean"
+          }
+        }
+      },
+      "EstimationProfilesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "machineProfileId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "processProfileId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "filamentProfileId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "buildPlateType": {
+            "type": "string"
           }
         }
       },
@@ -4653,6 +4723,14 @@
           },
           "version": {
             "type": "string"
+          },
+          "estimationProfiles": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EstimationProfilesRequest"
+              }
+            ]
           }
         }
       },
@@ -6565,7 +6643,29 @@
           },
           "nozzleDiameterMm": {
             "type": "number",
-            "format": "decimal"
+            "format": "decimal",
+            "nullable": true
+          },
+          "printRequirementsStatus": {
+            "type": "string"
+          },
+          "processingWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "estimateUnavailableReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimation": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EstimationDetails"
+              }
+            ]
           },
           "estimateStatus": {
             "type": "string"
@@ -6613,6 +6713,46 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "EstimationDetails": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "machineModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "machineProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "processProfileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "filamentProfileNames": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "buildPlate": {
+            "type": "string",
+            "nullable": true
+          },
+          "engine": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -6714,7 +6854,29 @@
           },
           "nozzleDiameterMm": {
             "type": "number",
-            "format": "decimal"
+            "format": "decimal",
+            "nullable": true
+          },
+          "printRequirementsStatus": {
+            "type": "string"
+          },
+          "processingWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "estimateUnavailableReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimation": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EstimationDetails"
+              }
+            ]
           },
           "estimateStatus": {
             "type": "string"
@@ -6920,6 +7082,27 @@
               "$ref": "#/components/schemas/PreviewFilamentRequirementResponse"
             }
           },
+          "printRequirementsStatus": {
+            "type": "string"
+          },
+          "processingWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "estimateUnavailableReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimation": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EstimationDetails"
+              }
+            ]
+          },
           "estimateStatus": {
             "type": "string"
           },
@@ -6950,6 +7133,16 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "narrowFilamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "narrowFilamentProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "requirementIndex": {
             "type": "integer",
             "format": "int32"

@@ -34,7 +34,8 @@ public class PartFileProcessorTests
 
         var result = await processor.ResolveMaterialAsync(job, new MemoryStream(), CancellationToken.None);
 
-        result.NozzleDiameterMm.Should().Be(0.4m);
+        result.NozzleDiameterMm.Should().BeNull();
+        result.EstimateUnavailableReason.Should().Contain("default estimation profiles");
         result.ImmediateEstimate.Should().BeNull();
         result.FilamentRequirements.Should().ContainSingle();
         result.FilamentRequirements[0].MaterialType.Should().BeNull();
@@ -45,7 +46,7 @@ public class PartFileProcessorTests
     {
         var processor = new PartFileProcessor(
             new FakeAlreadySlicedFileMetadataParser(null),
-            new FakeUnslicedProjectMaterialResolver(new UnslicedProjectMaterial("PETG", 2)),
+            new FakeUnslicedProjectMaterialResolver(new UnslicedProjectMaterial("PETG", 2, HasEmbeddedSettings: true, NozzleDiameterMm: 0.6m)),
             new FakeSlicerEngine());
         var job = PartProcessingJob.CreateAdd(
             Guid.NewGuid(), PartFileFormat.ThreeMf, "a.3mf", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "PETG", null);
@@ -65,6 +66,7 @@ public class PartFileProcessorTests
         var job = PartProcessingJob.CreateAdd(
             Guid.NewGuid(), PartFileFormat.Stl, "a.stl", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", null);
 
+        job.SetEstimationConfiguration(System.Text.Json.JsonSerializer.Serialize(new EstimationConfiguration(true, 0.4m, "PLA", null)));
         var result = await processor.ResolveEstimateAsync(job, new MemoryStream(), CancellationToken.None);
 
         result.EstimatedPrintTimeMinutes.Should().BeGreaterThan(0);

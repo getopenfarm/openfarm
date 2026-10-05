@@ -87,9 +87,13 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
         foreach (var job in await jobRepository.ListOrphanedInFlightAsync(stoppingToken))
         {
-            job.MarkFailed(interruptedMessage);
+            if (job.Status == PartProcessingJobStatus.ReadyForReview)
+                job.MarkEstimateUnavailable("Estimation was interrupted by a server restart. Reprocess to retry.");
+            else
+                job.MarkFailed(interruptedMessage);
             await jobRepository.SaveChangesAsync(stoppingToken);
-            await WriteFailureActivityLogAsync(activityLogWriter, job, "PartFileProcessingFailed", stoppingToken);
+            await WriteFailureActivityLogAsync(activityLogWriter, job,
+                job.Status == PartProcessingJobStatus.ReadyForReview ? "PartEstimateUnavailable" : "PartFileProcessingFailed", stoppingToken);
             await publisher.PartProcessingJobStatusChangedAsync(job.OrganizationId, job, stoppingToken);
             LogOrphanedJobReconciled(_logger, job.Id);
         }
@@ -178,19 +182,43 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             return;
         }
 
+        if (job.Kind == PartProcessingJobKind.Reprocess && job.PartId is { } sourcePartId)
+        {
+            var source = await services.GetRequiredService<IPartRepository>().GetByIdAsync(sourcePartId, stoppingToken);
+            if (source is not null)
+                materialResolution = materialResolution with
+                {
+                    FilamentRequirements = materialResolution.FilamentRequirements.Select(r =>
+                    {
+                        var previous = source.FilamentRequirements.FirstOrDefault(p => p.MaterialType == r.MaterialType
+                            && p.DetectedColorHex == r.DetectedColorHex && p.DetectedSubBrand == r.DetectedSubBrand);
+                        return r with { NarrowFilamentVariantId = previous?.NarrowFilamentVariantId, NarrowFilamentProfileId = previous?.NarrowFilamentProfileId };
+                    }).ToList(),
+                };
+        }
+
+        job.SetEstimation(materialResolution.Estimation is { } details && job.RequiresSlicing
+            ? details with { Engine = job.SlicerEngineUsed?.ToString(), Version = job.SlicerVersionUsed } : materialResolution.Estimation);
+        job.SetEstimationConfiguration(materialResolution.EstimationConfiguration is { } configuration
+            ? System.Text.Json.JsonSerializer.Serialize(configuration) : null);
+        job.SetMetadataWarnings(materialResolution.MetadataWarnings ?? []);
         job.MarkReadyForReview(
             materialResolution.NozzleDiameterMm,
             materialResolution.FilamentRequirements,
             materialResolution.PlateCount,
-            materialResolution.ImmediateEstimate is not null ? EstimateStatus.Available : EstimateStatus.Resolving,
+            materialResolution.ImmediateEstimate is { } estimate
+                ? PartEstimateAvailability.From(estimate.EstimatedPrintTimeMinutes, estimate.EstimatedFilamentWeightGrams)
+                : materialResolution.EstimateUnavailableReason is null ? EstimateStatus.Resolving : EstimateStatus.Unavailable,
             materialResolution.ImmediateEstimate?.EstimatedPrintTimeMinutes,
             materialResolution.ImmediateEstimate?.EstimatedFilamentWeightGrams,
-            materialResolution.ImmediateEstimate?.Thumbnails ?? [],
-            materialResolution.ResolvedTargetMaterialType);
+            materialResolution.ImmediateEstimate?.Thumbnails ?? materialResolution.Thumbnails ?? [],
+            materialResolution.ResolvedTargetMaterialType,
+            materialResolution.MaterialMetadataComplete,
+            materialResolution.EstimateUnavailableReason);
         await jobRepository.SaveChangesAsync(stoppingToken);
         await publisher.PartProcessingJobStatusChangedAsync(job.OrganizationId, job, stoppingToken);
 
-        if (materialResolution.ImmediateEstimate is not null)
+        if (materialResolution.ImmediateEstimate is not null || materialResolution.EstimateUnavailableReason is not null)
         {
             // Already-sliced file — one atomic parse resolved everything.
             return;
@@ -204,79 +232,69 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
     /// whichever of the job's own preview or the already-confirmed <see cref="Part"/> currently holds
     /// the truth by the time the slice finishes.
     /// </summary>
-    private static async Task RunEstimateContinuationAsync(PartProcessingWorkItem workItem, PartProcessingJob job, IServiceProvider services, CancellationToken stoppingToken)
+    private async Task RunEstimateContinuationAsync(PartProcessingWorkItem workItem, PartProcessingJob job, IServiceProvider services, CancellationToken stoppingToken)
     {
-        var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
-        var partRepository = services.GetRequiredService<IPartRepository>();
-        var storage = services.GetRequiredService<IPartFileStorage>();
-        var processor = services.GetRequiredService<IPartFileProcessor>();
-        var publisher = services.GetRequiredService<IPartEventPublisher>();
-        var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
-
-        PartEstimateResolution estimateResolution;
+        PartEstimateResolution? resolution = null;
+        string? unavailableReason = null;
         try
         {
-            await using var stream = await storage.OpenReadAsync(job.StoragePath, stoppingToken);
-            estimateResolution = await processor.ResolveEstimateAsync(job, stream, stoppingToken);
+            await using var stream = await services.GetRequiredService<IPartFileStorage>().OpenReadAsync(job.StoragePath, stoppingToken);
+            resolution = await services.GetRequiredService<IPartFileProcessor>().ResolveEstimateAsync(job, stream, stoppingToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Deliberately catches everything, not just SlicingFailedException — the storage read
-            // above can throw raw IOException/FileNotFoundException/UnauthorizedAccessException
-            // (e.g. a misconfigured PartFileStorage:RootDirectory), and those must reach the job's
-            // status too, or they escape to ConsumeAsync's log-only catch and stall the job forever.
-            var current = await jobRepository.GetByIdAsync(workItem.JobId, stoppingToken);
-            if (current is null)
+            unavailableReason = $"Estimation unavailable: {ex.Message}";
+        }
+
+        // A fresh context observes confirmations/replacements made while the slicer was running.
+        // If confirmation wins a concurrent preview write, retry against its confirmed Part.
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using var updateScope = CreateTenantScope();
+            var updateServices = updateScope.ServiceProvider;
+            var jobs = updateServices.GetRequiredService<IPartProcessingJobRepository>();
+            var parts = updateServices.GetRequiredService<IPartRepository>();
+            var publisher = updateServices.GetRequiredService<IPartEventPublisher>();
+            var activity = updateServices.GetRequiredService<IActivityLogWriter>();
+            var current = await jobs.GetByIdAsync(workItem.JobId, stoppingToken);
+            if (current is null) return;
+            try
             {
+                if (current.Status == PartProcessingJobStatus.ReadyForReview)
+                {
+                    if (resolution is not null)
+                        current.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails);
+                    else
+                        current.MarkEstimateUnavailable(unavailableReason!);
+                    await jobs.SaveChangesAsync(stoppingToken);
+                    if (resolution is null)
+                        await WriteFailureActivityLogAsync(activity, current, "PartEstimateUnavailable", stoppingToken);
+                    await publisher.PartProcessingJobStatusChangedAsync(current.OrganizationId, current, stoppingToken);
+                }
+                else if (current.Status == PartProcessingJobStatus.Confirmed && current.PartId is { } partId)
+                {
+                    var part = await parts.GetByIdAsync(partId, stoppingToken);
+                    if (part is null || part.ActiveProcessingJobId != current.Id) return;
+                    if (resolution is not null)
+                        part.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails);
+                    else
+                        part.MarkEstimateUnavailable(unavailableReason);
+                    await parts.SaveChangesAsync(stoppingToken);
+                    if (resolution is not null)
+                        await publisher.PartEstimateResolvedAsync(part.OrganizationId, part.Id, stoppingToken);
+                    else
+                    {
+                        await WriteFailureActivityLogAsync(activity, current, "PartEstimateUnavailable", stoppingToken, entityType: "Part", entityId: part.Id.ToString());
+                        await publisher.PartEstimateUnavailableAsync(part.OrganizationId, part.Id, stoppingToken);
+                    }
+                }
                 return;
             }
-
-            if (current.Status == PartProcessingJobStatus.ReadyForReview)
+            catch (PartConcurrencyConflictException) when (attempt == 0)
             {
-                current.MarkFailed(ex.Message);
-                await jobRepository.SaveChangesAsync(stoppingToken);
-                await WriteFailureActivityLogAsync(activityLogWriter, current, "PartFileProcessingFailed", stoppingToken);
-                await publisher.PartProcessingJobStatusChangedAsync(current.OrganizationId, current, stoppingToken);
-            }
-            else if (current.Status == PartProcessingJobStatus.Confirmed && current.PartId is { } confirmedPartId)
-            {
-                var part = await partRepository.GetByIdAsync(confirmedPartId, stoppingToken);
-                if (part is not null)
-                {
-                    part.MarkEstimateUnavailable();
-                    await partRepository.SaveChangesAsync(stoppingToken);
-                    await WriteFailureActivityLogAsync(activityLogWriter, current, "PartEstimateUnavailable", stoppingToken, entityType: "Part", entityId: part.Id.ToString());
-                    await publisher.PartEstimateUnavailableAsync(current.OrganizationId, part.Id, stoppingToken);
-                }
-            }
-
-            return;
-        }
-
-        var refreshed = await jobRepository.GetByIdAsync(workItem.JobId, stoppingToken);
-        if (refreshed is null)
-        {
-            return;
-        }
-
-        if (refreshed.Status == PartProcessingJobStatus.ReadyForReview)
-        {
-            refreshed.ResolveEstimate(estimateResolution.EstimatedPrintTimeMinutes, estimateResolution.EstimatedFilamentWeightGrams, estimateResolution.Thumbnails);
-            await jobRepository.SaveChangesAsync(stoppingToken);
-            await publisher.PartProcessingJobStatusChangedAsync(refreshed.OrganizationId, refreshed, stoppingToken);
-        }
-        else if (refreshed.Status == PartProcessingJobStatus.Confirmed && refreshed.PartId is { } partId)
-        {
-            var part = await partRepository.GetByIdAsync(partId, stoppingToken);
-            if (part is not null)
-            {
-                part.ResolveEstimate(estimateResolution.EstimatedPrintTimeMinutes, estimateResolution.EstimatedFilamentWeightGrams, estimateResolution.Thumbnails);
-                await partRepository.SaveChangesAsync(stoppingToken);
-                await publisher.PartEstimateResolvedAsync(refreshed.OrganizationId, part.Id, stoppingToken);
+                // Re-read current state rather than allowing old results to overwrite newer work.
             }
         }
-        // Discarded — the result is simply dropped (best-effort cancellation was already attempted
-        // by the Discard endpoint's caller; nothing left to write it to either way).
     }
 
     /// <summary>

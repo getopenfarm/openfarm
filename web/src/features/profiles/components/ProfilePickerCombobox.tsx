@@ -37,6 +37,7 @@ interface PickerItem {
 }
 
 export interface ProfilePickerComboboxProps {
+  ariaLabel?: string;
   kind: ProfilePickerKind;
   value: string | null | undefined;
   /** `name` is the picked item's display name — already known from the list render, no extra lookup. */
@@ -91,6 +92,7 @@ function toPickerItem(
  * and User rows are selectable, labeled by origin.
  */
 export function ProfilePickerCombobox({
+  ariaLabel,
   kind,
   value,
   onChange,
@@ -210,6 +212,7 @@ export function ProfilePickerCombobox({
       <PopoverTrigger asChild>
         <Button
           type="button"
+          aria-label={ariaLabel}
           variant="outline"
           disabled={disabled}
           className="w-full justify-start font-normal"

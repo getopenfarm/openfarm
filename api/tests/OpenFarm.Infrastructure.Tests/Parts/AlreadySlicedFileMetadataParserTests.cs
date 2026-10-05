@@ -37,14 +37,16 @@ public class AlreadySlicedFileMetadataParserTests
     }
 
     [Fact]
-    public async Task ParseAsync_GCodeMissingNozzleDiameter_ThrowsPartFileParsingFailed()
+    public async Task ParseAsync_GCodeMissingNozzleDiameter_PreservesMaterial()
     {
         var content = "; filament_type = PETG\nG28\n";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
 
-        var act = async () => await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
-
-        await act.Should().ThrowAsync<PartFileParsingFailedException>();
+        var result = await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
+        result.NozzleDiameterMm.Should().BeNull();
+        result.DetectedFilamentSlots.Should().ContainSingle(r => r.MaterialType == "PETG");
+        result.EstimatedPrintTimeMinutes.Should().BeNull();
+        result.EstimatedFilamentWeightGrams.Should().BeNull();
     }
 
     [Fact]
@@ -83,6 +85,63 @@ public class AlreadySlicedFileMetadataParserTests
         var act = async () => await Parser.ParseAsync(stream, PartFileFormat.ThreeMf, CancellationToken.None);
 
         await act.Should().ThrowAsync<PartFileParsingFailedException>();
+    }
+
+    [Fact]
+    public async Task HeaderlessGCode_PreservesUnknownFields()
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("G28\nG1 X10 Y10\n"));
+        var result = await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
+        result.NozzleDiameterMm.Should().BeNull();
+        result.DetectedFilamentSlots.Should().BeEmpty();
+        result.MaterialMetadataComplete.Should().BeFalse();
+        result.EstimatedPrintTimeMinutes.Should().BeNull();
+        result.EstimatedFilamentWeightGrams.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PartialMetadata_PreservesWeightWithoutNozzleOrTime()
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("; total filament weight [g] : 8.5\nG28\n"));
+        var result = await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
+        result.EstimatedFilamentWeightGrams.Should().Be(8.5m);
+        result.EstimatedPrintTimeMinutes.Should().BeNull();
+        result.NozzleDiameterMm.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task IncompletePlate_IsIncludedAndMakesTotalsUnknown()
+    {
+        using var stream = BuildZip(
+            ("Metadata/plate_1.gcode", "; nozzle_diameter = 0.4\n; filament_type = PLA\n; total estimated time = 10m\n; filament used [g] = 5\nG28"),
+            ("Metadata/plate_2.gcode", "; total estimated time = 20m\nG28"),
+            ("Metadata/plate_2.png", "thumbnail"));
+        var result = await Parser.ParseAsync(stream, PartFileFormat.ThreeMf, CancellationToken.None);
+        result.PlateCount.Should().Be(2);
+        result.NozzleDiameterMm.Should().BeNull();
+        result.MaterialMetadataComplete.Should().BeFalse();
+        result.EstimatedPrintTimeMinutes.Should().Be(30);
+        result.EstimatedFilamentWeightGrams.Should().BeNull();
+        result.Thumbnails.Should().ContainSingle(t => t.PlateIndex == 1);
+        result.DetectedFilamentSlots.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task UnreadableGCode_StillFails()
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("not a print file"));
+        var act = async () => await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
+        await act.Should().ThrowAsync<PartFileParsingFailedException>();
+    }
+
+    [Fact]
+    public async Task MultiExtruderWeight_IsSummedAndConflictingNozzlesRemainUnknown()
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("; nozzle_diameter = 0.4;0.6\n; filament_type = PLA;PETG\n; filament used [g] = 2.5;3.5\nG28"));
+        var result = await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
+        result.NozzleDiameterMm.Should().BeNull();
+        result.EstimatedFilamentWeightGrams.Should().Be(6m);
+        result.DetectedFilamentSlots.Should().HaveCount(2);
     }
 
     private static MemoryStream BuildGCode3mf(

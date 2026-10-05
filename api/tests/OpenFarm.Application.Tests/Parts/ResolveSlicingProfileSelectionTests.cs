@@ -280,7 +280,7 @@ public class ResolveSlicingProfileSelectionTests
     }
 
     [Fact]
-    public async Task ResolveAsync_NoTargetPrinter_PicksSmallestGuidAmongFullyConfiguredPrinters()
+    public async Task ResolveProfilesAsync_ExplicitSelections_AreIndependentOfFleet()
     {
         var printerRepo = new FakePrinterRepository();
         var machineRepo = new FakeMachineProfileRepository();
@@ -315,8 +315,8 @@ public class ResolveSlicingProfileSelectionTests
 
         var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
 
-        var firstResult = await selection.ResolveAsync(null, "PLA", null, CancellationToken.None);
-        var secondResult = await selection.ResolveAsync(null, "PLA", null, CancellationToken.None);
+        var firstResult = await selection.ResolveProfilesAsync(machine.Id, process.Id, filament.Id, BuildPlateType.HighTemp, CancellationToken.None);
+        var secondResult = await selection.ResolveProfilesAsync(machine.Id, process.Id, filament.Id, BuildPlateType.HighTemp, CancellationToken.None);
 
         firstResult.Should().BeEquivalentTo(secondResult);
         expectedRepresentativeId.Should().NotBeEmpty();
@@ -597,7 +597,7 @@ public class ResolveSlicingProfileSelectionTests
     }
 
     [Fact]
-    public async Task ResolveAsync_NoTargetPrinter_RepresentativeFilterExcludesPrintersWithoutBuildPlate()
+    public async Task ResolveAsync_AssignedPrinterWithoutBuildPlate_DoesNotUseAnotherPrinter()
     {
         var printerRepo = new FakePrinterRepository();
         var machineRepo = new FakeMachineProfileRepository();
@@ -633,12 +633,8 @@ public class ResolveSlicingProfileSelectionTests
 
         var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
 
-        var result = await selection.ResolveAsync(null, "PLA", null, CancellationToken.None);
-
-        // Only withPlatePrinter's machine/process could ever be picked — noPlatePrinter's are
-        // filtered out entirely, so this holds no matter which printer sorts first by Guid.
-        result.MachineProfileName.Should().Be("Machine With Plate");
-        result.ProcessProfileName.Should().Be("Process With Plate");
+        var act = async () => await selection.ResolveAsync(noPlatePrinter.Id, "PLA", null, CancellationToken.None);
+        await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*No Plate*build plate*");
     }
 
     private sealed class FakePrinterRepository : IPrinterRepository

@@ -33,6 +33,7 @@ internal static class RealSlicerProcessRunner
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
+                WorkingDirectory = workDir.FullName,
             };
 
             using var process = Process.Start(startInfo)

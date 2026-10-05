@@ -103,7 +103,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         var client = await AuthenticatedClientAsync();
         await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 
@@ -122,14 +122,14 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
     }
 
     [Fact]
-    public async Task CreatePart_BundledBinaryIsBroken_FailsAtSliceTimeInsteadOfHanging()
+    public async Task CreatePart_BundledBinaryIsBroken_PreservesReviewWithUnavailableEstimate()
     {
         // The test factory's dummy bundle's AppRun is a non-executable stub — the slice can never
         // succeed, so this reaches Failed deterministically (Constitution V: never a hang).
         var client = await AuthenticatedClientAsync();
         await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 
@@ -139,8 +139,9 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
 
         var finalJob = await WaitForTerminalStatusAsync(client, submitted!.JobId);
 
-        finalJob.Status.Should().Be("Failed");
-        finalJob.ErrorMessage.Should().NotBeNullOrEmpty();
+        finalJob.Status.Should().Be("ReadyForReview");
+        finalJob.Preview!.EstimateStatus.Should().Be("Unavailable");
+        finalJob.Preview!.EstimateUnavailableReason.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
@@ -149,7 +150,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         var client = await AuthenticatedClientAsync();
         await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 
@@ -173,7 +174,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         var client = await AuthenticatedClientAsync();
         await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent
         {
@@ -198,12 +199,12 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
     }
 
     [Fact]
-    public async Task CreatePart_StalePairNotInBundle_Returns422BeforeAnyProcessingStarts()
+    public async Task CreatePart_StalePairNotInBundle_AcceptsFileWithoutEstimation()
     {
         var client = await AuthenticatedClientAsync();
         await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent
         {
@@ -214,7 +215,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
 
-        uploadResponse.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        uploadResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
     }
 
     // Asserted at the job level (SlicerEngineUsed/SlicerVersionUsed are fixed at job creation and
@@ -227,7 +228,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         var client = await AuthenticatedClientAsync();
         await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 

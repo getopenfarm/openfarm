@@ -3,12 +3,31 @@ using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Production;
 using OpenFarm.Application.Tests.Production.Fakes;
 using OpenFarm.Domain.Organizations;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Tests.Production;
 
 public class CreateProductionRunCommandHandlerTests
 {
+    [Theory]
+    [InlineData(RunLineTargetKind.Part)]
+    [InlineData(RunLineTargetKind.Assembly)]
+    public async Task IncompleteRequirements_RejectTheEntireRunBeforePersisting(RunLineTargetKind kind)
+    {
+        var part = ProductionTestFixtures.CreatePart();
+        part.SetProcessingMetadata(Guid.NewGuid(), false, null);
+        var runs = new InMemoryProductionRunRepository();
+        var handler = new CreateProductionRunCommandHandler(runs, new InMemoryPartRequirementRepository(),
+            new InMemoryPrintJobRepository(), new InMemoryPartRepository(part),
+            new FakeAssemblyGraphQueryService(new BomExplosionResult([new ExplodedPartQuantity(part.Id, part.Name, 1)], [])));
+        var command = new CreateProductionRunCommand("Incomplete", null, null, null,
+            [new RunLineInput(kind, kind == RunLineTargetKind.Part ? part.Id : Guid.NewGuid(), 1, null, AssignmentMode.Unassigned, null, 1, null)]);
+        var act = async () => await handler.HandleAsync(command, CancellationToken.None);
+        await act.Should().ThrowAsync<PartPrintRequirementsIncompleteException>();
+        (await runs.ListAsync(1, 25, CancellationToken.None)).TotalCount.Should().Be(0);
+    }
+
     [Fact]
     public async Task HandleAsync_PartLineWithFiniteQuantity_CreatesOneRequirementAndCeiledJobCount()
     {

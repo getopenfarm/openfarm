@@ -13,7 +13,10 @@ public sealed record PartProcessingJobPreviewDetail(
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
     int? PlateCount,
-    IReadOnlyList<ThumbnailView> Thumbnails);
+    IReadOnlyList<ThumbnailView> Thumbnails,
+    string PrintRequirementsStatus = "Complete",
+    IReadOnlyList<string>? ProcessingWarnings = null,
+    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null);
 
 public sealed record PartProcessingJobDetail(
     Guid Id,

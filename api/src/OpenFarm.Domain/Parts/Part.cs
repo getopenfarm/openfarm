@@ -1,9 +1,8 @@
 namespace OpenFarm.Domain.Parts;
 
 /// <summary>
-/// A catalog part — always exactly one File (never a collection). By construction, every row has a
-/// fully resolved <see cref="NozzleDiameterMm"/> and filament requirement(s) — <see cref="EstimateStatus"/>
-/// is the one legitimate way a row can carry incomplete derived data (data-model.md).
+/// A catalog part with one stored file. Print metadata and estimates may be incomplete;
+/// production validates <see cref="PrintRequirementsStatus"/> separately from library use.
 /// </summary>
 public sealed class Part
 {
@@ -20,7 +19,7 @@ public sealed class Part
         string originalFileName,
         string storagePath,
         long fileSizeBytes,
-        decimal nozzleDiameterMm,
+        decimal? nozzleDiameterMm,
         SlicerEngine? slicerEngineOverride,
         string? slicerVersionUsed,
         EstimateStatus estimateStatus,
@@ -73,7 +72,60 @@ public sealed class Part
 
     public DateTimeOffset FileUploadedAtUtc { get; private set; }
 
-    public decimal NozzleDiameterMm { get; private set; }
+    public decimal? NozzleDiameterMm { get; private set; }
+
+    public bool MaterialMetadataComplete { get; private set; } = true;
+
+    public Guid? ActiveProcessingJobId { get; private set; }
+
+    public string? EstimateUnavailableReason { get; private set; }
+
+    public string? MetadataWarningsJson { get; private set; }
+    public IReadOnlyList<string> MetadataWarnings => MetadataWarningsJson is null ? []
+        : System.Text.Json.JsonSerializer.Deserialize<string[]>(MetadataWarningsJson) ?? [];
+    public void SetMetadataWarnings(IReadOnlyList<string> warnings) => MetadataWarningsJson =
+        System.Text.Json.JsonSerializer.Serialize(warnings);
+
+    public string? EstimationDetailsJson { get; private set; }
+    public EstimationDetails? Estimation => EstimationDetailsJson is null ? null
+        : System.Text.Json.JsonSerializer.Deserialize<EstimationDetails>(EstimationDetailsJson);
+    public void SetEstimation(EstimationDetails? details) => EstimationDetailsJson = details is null ? null
+        : System.Text.Json.JsonSerializer.Serialize(details);
+
+    public PrintRequirementsStatus PrintRequirementsStatus => NozzleDiameterMm is > 0
+        && MaterialMetadataComplete && FilamentRequirements.Count > 0
+        && (RequiresSlicing || FilamentRequirements.All(r => !string.IsNullOrWhiteSpace(r.MaterialType)))
+            ? PrintRequirementsStatus.Complete : PrintRequirementsStatus.Incomplete;
+
+    public IReadOnlyList<string> ProcessingWarnings => MetadataWarnings.Concat(PartProcessingWarnings.Create(
+        NozzleDiameterMm, MaterialMetadataComplete, EstimateUnavailableReason)).Distinct().ToArray();
+
+    public void SetProcessingMetadata(Guid jobId, bool materialMetadataComplete, string? estimateUnavailableReason)
+    {
+        ActiveProcessingJobId = jobId;
+        MaterialMetadataComplete = materialMetadataComplete;
+        EstimateUnavailableReason = estimateUnavailableReason;
+    }
+
+    public void EnsurePrintRequirementsComplete()
+    {
+        if (PrintRequirementsStatus != PrintRequirementsStatus.Complete)
+            throw new PartPrintRequirementsIncompleteException(Id);
+    }
+
+    public void Reprocess(
+        decimal? nozzleDiameterMm, SlicerEngine? engine, string? version, EstimateStatus estimateStatus,
+        int? minutes, decimal? grams, int plateCount,
+        IReadOnlyList<FilamentRequirementSpec> requirements, IReadOnlyList<ThumbnailSpec> thumbnails)
+    {
+        var uploadedAt = FileUploadedAtUtc;
+        var revisionNumber = RevisionNumber;
+        ReplaceFile(FileFormat, RequiresSlicing, OriginalFileName, StoragePath, FileSizeBytes,
+            nozzleDiameterMm, engine, version, estimateStatus, minutes, grams, plateCount,
+            RevisionHash, requirements, thumbnails);
+        FileUploadedAtUtc = uploadedAt;
+        RevisionNumber = revisionNumber;
+    }
 
     public EstimateStatus EstimateStatus { get; private set; }
 
@@ -115,7 +167,7 @@ public sealed class Part
         string originalFileName,
         string storagePath,
         long fileSizeBytes,
-        decimal nozzleDiameterMm,
+        decimal? nozzleDiameterMm,
         SlicerEngine? slicerEngineOverride,
         string? slicerVersionUsed,
         EstimateStatus estimateStatus,
@@ -177,6 +229,7 @@ public sealed class Part
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(unitsPerPrint, 1);
         UnitsPerPrint = unitsPerPrint;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
     /// <summary>Replaces the upgrade migration's placeholder with the file's real SHA-256 without creating a new revision.</summary>
@@ -196,7 +249,7 @@ public sealed class Part
         string originalFileName,
         string storagePath,
         long fileSizeBytes,
-        decimal nozzleDiameterMm,
+        decimal? nozzleDiameterMm,
         SlicerEngine? slicerEngineOverride,
         string? slicerVersionUsed,
         EstimateStatus estimateStatus,
@@ -236,6 +289,7 @@ public sealed class Part
         _thumbnails.Clear();
         foreach (var thumbnail in thumbnails)
         {
+            _thumbnails.RemoveAll(t => t.PlateIndex == thumbnail.PlateIndex);
             _thumbnails.Add(PartThumbnail.Create(OrganizationId, Id, thumbnail.PlateIndex, thumbnail.Bytes));
         }
 
@@ -247,19 +301,21 @@ public sealed class Part
     /// part confirmed early (FR-009c/FR-009d). A no-op if the estimate has already resolved/failed by
     /// the time this runs (idempotency guard against a redundant continuation firing twice).
     /// </summary>
-    public void ResolveEstimate(int estimatedPrintTimeMinutes, decimal estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails)
+    public void ResolveEstimate(int? estimatedPrintTimeMinutes, decimal? estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails)
     {
         if (EstimateStatus != EstimateStatus.Resolving)
         {
             return;
         }
 
-        EstimateStatus = EstimateStatus.Available;
+        EstimateStatus = PartEstimateAvailability.From(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
+        EstimateUnavailableReason = PartEstimateAvailability.MissingMetadataReason(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
         EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
 
         foreach (var thumbnail in thumbnails)
         {
+            _thumbnails.RemoveAll(t => t.PlateIndex == thumbnail.PlateIndex);
             _thumbnails.Add(PartThumbnail.Create(OrganizationId, Id, thumbnail.PlateIndex, thumbnail.Bytes));
         }
 
@@ -267,14 +323,15 @@ public sealed class Part
     }
 
     /// <summary>The research.md §3b trailing continuation's failure path — permanent, no retry in this phase (FR-009d).</summary>
-    public void MarkEstimateUnavailable()
+    public void MarkEstimateUnavailable(string? reason = null)
     {
         if (EstimateStatus != EstimateStatus.Resolving)
         {
             return;
         }
 
-        EstimateStatus = EstimateStatus.Unavailable;
+        EstimateStatus = PartEstimateAvailability.From(EstimatedPrintTimeMinutes, EstimatedFilamentWeightGrams);
+        EstimateUnavailableReason = reason;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
@@ -319,7 +376,7 @@ public sealed class Part
         string originalFileName,
         string storagePath,
         long fileSizeBytes,
-        decimal nozzleDiameterMm,
+        decimal? nozzleDiameterMm,
         int plateCount,
         int unitsPerPrint,
         IReadOnlyList<FilamentRequirementSpec> filamentRequirements)
@@ -359,9 +416,5 @@ public sealed class Part
             throw new ArgumentOutOfRangeException(nameof(unitsPerPrint), "Units per print must be at least 1.");
         }
 
-        if (filamentRequirements.Count == 0)
-        {
-            throw new ArgumentException("A part must have at least one filament requirement.", nameof(filamentRequirements));
-        }
     }
 }

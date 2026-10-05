@@ -38,11 +38,17 @@ public static partial class GCodeMetadataHelper
             values.TryAdd("total estimated time", totalEstimatedTimeMatch.Groups[1].Value.Trim());
         }
 
+        var weight = WeightSummaryRegex().Match(content);
+        if (weight.Success) values.TryAdd("total filament weight [g]", weight.Groups[1].Value.Trim());
         return values;
     }
 
-    public static decimal? ParseNozzleDiameter(Dictionary<string, string> values) =>
-        TryParseFirstDecimal(values, "nozzle_diameter");
+    public static decimal? ParseNozzleDiameter(Dictionary<string, string> values)
+    {
+        if (!values.TryGetValue("nozzle_diameter", out var raw)) return null;
+        var nozzles = SplitList(raw).Select(v => decimal.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) && n > 0 ? (decimal?)n : null).ToList();
+        return nozzles.Count > 0 && nozzles.All(n => n is not null) && nozzles.Distinct().Count() == 1 ? nozzles[0] : null;
+    }
 
     /// <summary>One entry per comma-separated slot in <c>filament_type</c>/<c>filament_colour</c> — parallel arrays, same convention this codebase's <c>BambuMqttMessageParser</c> AMS reports already use.</summary>
     public static IReadOnlyList<Application.Parts.DetectedFilamentSlot> ParseFilamentSlots(Dictionary<string, string> values)
@@ -87,13 +93,34 @@ public static partial class GCodeMetadataHelper
 
         var hoursMatch = DurationHoursRegex().Match(raw);
         var minutesMatch = DurationMinutesRegex().Match(raw);
-        var hours = hoursMatch.Success ? int.Parse(hoursMatch.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
-        var minutes = minutesMatch.Success ? int.Parse(minutesMatch.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
-        return hours == 0 && minutes == 0 ? null : (hours * 60) + minutes;
+        var secondsMatch = DurationSecondsRegex().Match(raw);
+        if (!hoursMatch.Success && !minutesMatch.Success && !secondsMatch.Success) return null;
+        if (!TryDurationComponent(hoursMatch, out var hours) || !TryDurationComponent(minutesMatch, out var minutes)
+            || !TryDurationComponent(secondsMatch, out var seconds)) return null;
+        var totalMinutes = hours * 60L + minutes + seconds / 60L;
+        if (totalMinutes == 0 && seconds > 0) totalMinutes = 1;
+        return totalMinutes <= int.MaxValue ? (int)totalMinutes : null;
     }
 
-    public static decimal? ParseFilamentWeightGrams(Dictionary<string, string> values) =>
-        TryParseFirstDecimal(values, "total filament weight [g]") ?? TryParseFirstDecimal(values, "filament used [g]");
+    public static decimal? ParseFilamentWeightGrams(Dictionary<string, string> values)
+    {
+        var raw = values.GetValueOrDefault("total filament weight [g]") ?? values.GetValueOrDefault("filament used [g]");
+        if (raw is null) return null;
+        decimal total = 0;
+        foreach (var value in SplitList(raw))
+        {
+            if (!decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var weight) || weight < 0) return null;
+            try { total = checked(total + weight); }
+            catch (OverflowException) { return null; }
+        }
+        return total;
+    }
+
+    private static bool TryDurationComponent(Match match, out int value)
+    {
+        value = 0;
+        return !match.Success || int.TryParse(match.Groups[1].Value, CultureInfo.InvariantCulture, out value);
+    }
 
     /// <summary>The <c>; thumbnail begin WxH SIZE</c> / base64 lines / <c>; thumbnail end</c> block real slicer G-code embeds — re-encoding isn't needed if the source is already PNG (research.md §8's "normalized at ingestion" is satisfied by the slicer always exporting PNG here).</summary>
     public static byte[]? ExtractEmbeddedThumbnailPng(string content)
@@ -119,7 +146,7 @@ public static partial class GCodeMetadataHelper
     }
 
     private static List<string> SplitList(string raw) =>
-        raw.Split(',', StringSplitOptions.TrimEntries).ToList();
+        raw.Split([',', ';'], StringSplitOptions.TrimEntries).Select(v => v.Trim('"')).ToList();
 
     private static string NormalizeColorHex(string raw)
     {
@@ -128,22 +155,11 @@ public static partial class GCodeMetadataHelper
         return "#" + (trimmed.Length >= 6 ? trimmed[..6] : trimmed).ToUpperInvariant();
     }
 
-    private static decimal? TryParseFirstDecimal(Dictionary<string, string> values, string key)
-    {
-        if (!values.TryGetValue(key, out var raw))
-        {
-            return null;
-        }
-
-        var first = SplitList(raw)[0];
-        var numeric = NumericPrefixRegex().Match(first);
-        return numeric.Success && decimal.TryParse(numeric.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : null;
-    }
-
     [GeneratedRegex(@"^\s*;\s*([A-Za-z0-9_\[\]\(\) ]+?)\s*=\s*(.+?)\s*$", RegexOptions.Multiline)]
     private static partial Regex CommentLineRegex();
+
+    [GeneratedRegex(@";\s*total filament weight \[g\]\s*:\s*([^;\r\n]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex WeightSummaryRegex();
 
     [GeneratedRegex(@"model printing time:\s*([^;\r\n]+)", RegexOptions.IgnoreCase)]
     private static partial Regex ModelPrintingTimeRegex();
@@ -157,8 +173,8 @@ public static partial class GCodeMetadataHelper
     [GeneratedRegex(@"(\d+)m")]
     private static partial Regex DurationMinutesRegex();
 
-    [GeneratedRegex(@"-?\d+(\.\d+)?")]
-    private static partial Regex NumericPrefixRegex();
+    [GeneratedRegex(@"(\d+)s")]
+    private static partial Regex DurationSecondsRegex();
 
     [GeneratedRegex(@";\s*thumbnail begin[^\n]*\n(.*?);\s*thumbnail end", RegexOptions.Singleline)]
     private static partial Regex ThumbnailBlockRegex();

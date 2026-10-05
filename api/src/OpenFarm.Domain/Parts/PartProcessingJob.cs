@@ -81,6 +81,47 @@ public sealed class PartProcessingJob
     /// </summary>
     public string? TargetMaterialType { get; private set; }
 
+    public DateTimeOffset? SourcePartUpdatedAtUtc { get; private set; }
+
+    public string? SourceRevisionHash { get; private set; }
+
+    public bool PreviewMaterialMetadataComplete { get; private set; } = true;
+
+    public string? EstimateUnavailableReason { get; private set; }
+
+    public string? EstimationConfigurationJson { get; private set; }
+    public void SetEstimationConfiguration(string? json) => EstimationConfigurationJson = json;
+
+    public string? MetadataWarningsJson { get; private set; }
+    public IReadOnlyList<string> MetadataWarnings => MetadataWarningsJson is null ? []
+        : System.Text.Json.JsonSerializer.Deserialize<string[]>(MetadataWarningsJson) ?? [];
+    public void SetMetadataWarnings(IReadOnlyList<string> warnings) => MetadataWarningsJson =
+        System.Text.Json.JsonSerializer.Serialize(warnings);
+
+    public string? EstimationDetailsJson { get; private set; }
+    public EstimationDetails? Estimation => EstimationDetailsJson is null ? null
+        : System.Text.Json.JsonSerializer.Deserialize<EstimationDetails>(EstimationDetailsJson);
+    public void SetEstimation(EstimationDetails? details) => EstimationDetailsJson = details is null ? null
+        : System.Text.Json.JsonSerializer.Serialize(details);
+
+    public PrintRequirementsStatus PrintRequirementsStatus => PreviewNozzleDiameterMm is > 0
+        && PreviewMaterialMetadataComplete && PreviewFilamentRequirements.Count > 0
+        && (RequiresSlicing || PreviewFilamentRequirements.All(r => !string.IsNullOrWhiteSpace(r.MaterialType)))
+            ? PrintRequirementsStatus.Complete : PrintRequirementsStatus.Incomplete;
+
+    public IReadOnlyList<string> ProcessingWarnings => MetadataWarnings.Concat(PartProcessingWarnings.Create(
+        PreviewNozzleDiameterMm, PreviewMaterialMetadataComplete, EstimateUnavailableReason)).Distinct().ToArray();
+
+    public static PartProcessingJob CreateReprocess(Part part, SlicerRef? slicer, decimal? nozzle, string? material, Guid? userId)
+    {
+        var job = new PartProcessingJob(Guid.NewGuid(), part.OrganizationId, part.Id, PartProcessingJobKind.Reprocess,
+            part.FileFormat, part.OriginalFileName, part.StoragePath, part.FileSizeBytes, part.RequiresSlicing,
+            slicer?.Engine, slicer?.Version, nozzle, material, userId, DateTimeOffset.UtcNow);
+        job.SourcePartUpdatedAtUtc = part.UpdatedAtUtc;
+        job.SourceRevisionHash = part.RevisionHash;
+        return job;
+    }
+
     public decimal? PreviewNozzleDiameterMm { get; private set; }
 
     public EstimateStatus? PreviewEstimateStatus { get; private set; }
@@ -152,21 +193,21 @@ public sealed class PartProcessingJob
     /// own trailing continuation completes it later via <see cref="ResolveEstimate"/>).
     /// </summary>
     public void MarkReadyForReview(
-        decimal nozzleDiameterMm,
+        decimal? nozzleDiameterMm,
         IReadOnlyList<PreviewFilamentRequirement> filamentRequirements,
         int plateCount,
         EstimateStatus estimateStatus,
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
         IReadOnlyList<ThumbnailSpec> thumbnails,
-        string? resolvedTargetMaterialType = null)
+        string? resolvedTargetMaterialType = null,
+        bool materialMetadataComplete = true,
+        string? estimateUnavailableReason = null)
     {
         EnsureProcessing();
 
-        if (estimateStatus == EstimateStatus.Unavailable)
-        {
-            throw new ArgumentException("A job's preview estimate status is never Unavailable — only a confirmed Part's can be.", nameof(estimateStatus));
-        }
+        PreviewMaterialMetadataComplete = materialMetadataComplete;
+        EstimateUnavailableReason = estimateUnavailableReason;
 
         Status = PartProcessingJobStatus.ReadyForReview;
         TargetMaterialType = resolvedTargetMaterialType ?? TargetMaterialType;
@@ -179,6 +220,7 @@ public sealed class PartProcessingJob
 
         foreach (var thumbnail in thumbnails)
         {
+            _previewThumbnails.RemoveAll(t => t.PlateIndex == thumbnail.PlateIndex);
             _previewThumbnails.Add(PartProcessingJobPreviewThumbnail.Create(OrganizationId, Id, thumbnail.PlateIndex, thumbnail.Bytes));
         }
 
@@ -189,19 +231,21 @@ public sealed class PartProcessingJob
     /// research.md §3b's trailing continuation, success case, while still unconfirmed — refreshes the
     /// preview in place; <see cref="Status"/> stays <c>ReadyForReview</c>.
     /// </summary>
-    public void ResolveEstimate(int estimatedPrintTimeMinutes, decimal estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails)
+    public void ResolveEstimate(int? estimatedPrintTimeMinutes, decimal? estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails)
     {
         if (Status != PartProcessingJobStatus.ReadyForReview || PreviewEstimateStatus != EstimateStatus.Resolving)
         {
             return;
         }
 
-        PreviewEstimateStatus = EstimateStatus.Available;
+        PreviewEstimateStatus = PartEstimateAvailability.From(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
+        EstimateUnavailableReason = PartEstimateAvailability.MissingMetadataReason(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
         PreviewEstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         PreviewEstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
 
         foreach (var thumbnail in thumbnails)
         {
+            _previewThumbnails.RemoveAll(t => t.PlateIndex == thumbnail.PlateIndex);
             _previewThumbnails.Add(PartProcessingJobPreviewThumbnail.Create(OrganizationId, Id, thumbnail.PlateIndex, thumbnail.Bytes));
         }
     }
@@ -212,6 +256,13 @@ public sealed class PartProcessingJob
     /// job's trailing slice subsequently fails). Discards any preview already shown (contracts/
     /// part-library-api.md).
     /// </summary>
+    public void MarkEstimateUnavailable(string reason)
+    {
+        if (Status != PartProcessingJobStatus.ReadyForReview || PreviewEstimateStatus != EstimateStatus.Resolving) return;
+        PreviewEstimateStatus = PartEstimateAvailability.From(PreviewEstimatedPrintTimeMinutes, PreviewEstimatedFilamentWeightGrams);
+        EstimateUnavailableReason = reason;
+    }
+
     public void MarkFailed(string errorMessage)
     {
         if (Status is not (PartProcessingJobStatus.Processing or PartProcessingJobStatus.ReadyForReview))

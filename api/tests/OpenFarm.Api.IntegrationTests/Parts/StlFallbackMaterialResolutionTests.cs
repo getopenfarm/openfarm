@@ -14,20 +14,13 @@ using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Api.IntegrationTests.Parts;
 
-/// <summary>
-/// Regression coverage for research.md R1 (010-filament-matching): an STL's fallback material used to
-/// be an engine-specific literal profile name ("Generic PLA"/"Bambu PLA Basic"), which never matched
-/// any real <c>FilamentProfile.MaterialType</c>, so every STL upload failed filament resolution
-/// regardless of how much System profile ingestion had actually landed. Split across two classes (each
-/// gets its own <see cref="CustomWebApplicationFactory"/>/database via <c>IClassFixture</c>) so one
-/// scenario's seeded System PLA profile can never leak into the other's "zero PLA profiles" assumption.
-/// </summary>
+// Library estimation requires explicit defaults, regardless of fleet/inventory profiles.
 public class StlFallbackMaterialResolutionWithPlaSeededTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task CreatePart_UploadedStl_SystemPlaProfileIngested_NeverFailsOnGenericPlaResolution()
+    public async Task CreatePart_UploadedStl_SystemPlaProfileDoesNotSupplyEstimationDefaults()
     {
         var client = await StlFallbackTestHelpers.AuthenticatedClientAsync(_client);
         await StlFallbackTestHelpers.SeedFullyConfiguredPrinterAsync(factory);
@@ -42,10 +35,11 @@ public class StlFallbackMaterialResolutionWithPlaSeededTests(CustomWebApplicatio
         // (CustomWebApplicationFactory's carve-out), so the job still ends up Failed — what matters is
         // *why*: it must fail at CLI invocation, having already resolved a real PLA filament, never at
         // filament resolution naming the old literal profile name.
-        finalJob.Status.Should().Be("Failed");
-        finalJob.ErrorMessage.Should().NotContain("Generic PLA");
-        finalJob.ErrorMessage.Should().NotContain("Bambu PLA Basic");
-        finalJob.ErrorMessage.Should().Contain("CLI exited with code");
+        finalJob.Status.Should().Be("ReadyForReview");
+        finalJob.Preview!.EstimateStatus.Should().Be("Unavailable");
+        finalJob.Preview!.EstimateUnavailableReason.Should().NotContain("Generic PLA");
+        finalJob.Preview!.EstimateUnavailableReason.Should().NotContain("Bambu PLA Basic");
+        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("default estimation profiles");
     }
 }
 
@@ -54,7 +48,7 @@ public class StlFallbackMaterialResolutionWithoutPlaSeededTests(CustomWebApplica
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task CreatePart_UploadedStl_NoPlaSystemProfileAnywhere_FailsNamingPlaNotGenericPla()
+    public async Task CreatePart_UploadedStl_NoEstimationDefaults_RemainsReviewable()
     {
         var client = await StlFallbackTestHelpers.AuthenticatedClientAsync(_client);
         await StlFallbackTestHelpers.SeedFullyConfiguredPrinterAsync(factory);
@@ -64,9 +58,10 @@ public class StlFallbackMaterialResolutionWithoutPlaSeededTests(CustomWebApplica
 
         var finalJob = await StlFallbackTestHelpers.WaitForTerminalStatusAsync(client, submitted!.JobId);
 
-        finalJob.Status.Should().Be("Failed");
-        finalJob.ErrorMessage.Should().Contain("'PLA'");
-        finalJob.ErrorMessage.Should().NotContain("Generic PLA");
+        finalJob.Status.Should().Be("ReadyForReview");
+        finalJob.Preview!.EstimateStatus.Should().Be("Unavailable");
+        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("default estimation profiles");
+        finalJob.Preview!.EstimateUnavailableReason.Should().NotContain("Generic PLA");
     }
 }
 
@@ -135,7 +130,7 @@ internal static class StlFallbackTestHelpers
 
     public static async Task<HttpResponseMessage> UploadStlAsync(HttpClient client)
     {
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
         return await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);

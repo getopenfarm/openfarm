@@ -55,6 +55,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             InvalidSpoolStateTransitionException => (StatusCodes.Status422UnprocessableEntity, "Invalid spool state transition"),
             FeedSlotDeactivatedException => (StatusCodes.Status422UnprocessableEntity, "Feed slot is deactivated"),
             NotAnAutomaticFilamentReloaderException => (StatusCodes.Status422UnprocessableEntity, "Feed unit cannot be manually removed"),
+            PartPrintRequirementsIncompleteException => (StatusCodes.Status422UnprocessableEntity, "Incomplete print requirements"),
             PartNotFoundException => (StatusCodes.Status404NotFound, "Part not found"),
             PartFilamentRequirementNotFoundException => (StatusCodes.Status404NotFound, "Filament requirement not found"),
             TagNotFoundException => (StatusCodes.Status404NotFound, "Tag not found"),

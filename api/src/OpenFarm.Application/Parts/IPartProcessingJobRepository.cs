@@ -17,5 +17,7 @@ public interface IPartProcessingJobRepository
     /// </summary>
     Task<IReadOnlyList<PartProcessingJob>> ListOrphanedInFlightAsync(CancellationToken cancellationToken);
 
+    Task<bool> HasActiveReprocessAsync(Guid partId, CancellationToken cancellationToken) => Task.FromResult(false);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

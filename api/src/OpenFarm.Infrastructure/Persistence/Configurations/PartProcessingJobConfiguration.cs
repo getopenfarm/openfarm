@@ -32,6 +32,20 @@ public sealed class PartProcessingJobConfiguration : IEntityTypeConfiguration<Pa
         builder.Property(j => j.TargetMaterialType);
 
         builder.Property(j => j.PreviewNozzleDiameterMm);
+        builder.Property(j => j.SourcePartUpdatedAtUtc);
+        builder.Property(j => j.SourceRevisionHash);
+        builder.Property(j => j.PreviewMaterialMetadataComplete).HasDefaultValue(true);
+        builder.Property(j => j.EstimateUnavailableReason);
+        builder.Property(j => j.EstimationConfigurationJson).HasColumnType("jsonb");
+        builder.Property(j => j.EstimationDetailsJson).HasColumnType("jsonb");
+        builder.Ignore(j => j.Estimation);
+        builder.Property(j => j.MetadataWarningsJson).HasColumnType("jsonb");
+        builder.Ignore(j => j.MetadataWarnings);
+        builder.Ignore(j => j.PrintRequirementsStatus);
+        builder.Ignore(j => j.ProcessingWarnings);
+        builder.Property<uint>("xmin").IsRowVersion();
+        builder.HasIndex(j => j.PartId).IsUnique()
+            .HasFilter("\"Kind\" = 'Reprocess' AND \"Status\" IN ('Processing', 'ReadyForReview')");
         builder.Property(j => j.PreviewEstimateStatus).HasConversion<string>();
         builder.Property(j => j.PreviewEstimatedPrintTimeMinutes);
         builder.Property(j => j.PreviewEstimatedFilamentWeightGrams);

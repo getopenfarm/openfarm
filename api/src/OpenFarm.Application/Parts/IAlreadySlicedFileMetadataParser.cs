@@ -11,12 +11,13 @@ public sealed record DetectedFilamentSlot(string MaterialType, string? DetectedC
 /// slot (pre-grouping — the caller runs <c>FilamentRequirementGrouper</c>) (research.md §1/§7/§8).
 /// </summary>
 public sealed record SlicedFileMetadata(
-    decimal NozzleDiameterMm,
-    int EstimatedPrintTimeMinutes,
-    decimal EstimatedFilamentWeightGrams,
+    decimal? NozzleDiameterMm,
+    int? EstimatedPrintTimeMinutes,
+    decimal? EstimatedFilamentWeightGrams,
     int PlateCount,
     IReadOnlyList<DetectedFilamentSlot> DetectedFilamentSlots,
-    IReadOnlyList<ThumbnailSpec> Thumbnails);
+    IReadOnlyList<ThumbnailSpec> Thumbnails,
+    bool MaterialMetadataComplete = true, EstimationDetails? Estimation = null, IReadOnlyList<string>? Warnings = null);
 
 /// <summary>
 /// Parses an already-sliced file's own embedded metadata (G-code header comments, or a

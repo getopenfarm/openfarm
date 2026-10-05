@@ -1,5 +1,7 @@
 import { AlertTriangleIcon, LoaderIcon } from 'lucide-react';
 import type { PartProcessingJobPreviewResponse } from '@/lib/api/generated/endpoints.schemas';
+import { PartEstimate } from './PartEstimate';
+import { PartEstimationSource } from './PartEstimationSource';
 import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
@@ -57,11 +59,14 @@ export function PartProcessingReviewSection({
     detectedSubBrand: requirement.detectedSubBrand,
     narrowFilamentVariantId:
       requirement.requirementIndex !== undefined
-        ? (overrides[requirement.requirementIndex] ?? null)
-        : null,
+        ? Object.hasOwn(overrides, requirement.requirementIndex)
+          ? overrides[requirement.requirementIndex]
+          : requirement.narrowFilamentVariantId
+        : requirement.narrowFilamentVariantId,
+    narrowFilamentProfileId: requirement.narrowFilamentProfileId,
   }));
 
-  const estimateStatus = preview.estimateStatus ?? 'Resolving';
+  const estimateStatus = preview.estimateStatus;
 
   return (
     <div className="flex flex-col gap-4">
@@ -71,25 +76,36 @@ export function PartProcessingReviewSection({
           <p className="font-medium">
             {preview.nozzleDiameterMm != null
               ? `${preview.nozzleDiameterMm} mm`
-              : '—'}
+              : 'Unknown'}
           </p>
         </div>
         <div>
           <p className="text-muted-foreground">Estimated print</p>
-          {estimateStatus === 'Available' ? (
-            <p className="font-medium">
-              {preview.estimatedPrintTimeMinutes} min ·{' '}
-              {preview.estimatedFilamentWeightGrams} g
-            </p>
-          ) : (
-            <p className="flex items-center gap-1.5 font-medium text-muted-foreground">
-              <LoaderIcon className="size-3.5 animate-spin" />
-              Estimating…
-            </p>
-          )}
+          <PartEstimationSource estimation={preview.estimation} />
+          <PartEstimate
+            status={estimateStatus}
+            minutes={preview.estimatedPrintTimeMinutes}
+            grams={preview.estimatedFilamentWeightGrams}
+          />
         </div>
       </div>
 
+      {(preview.processingWarnings ?? []).length > 0 && (
+        <div
+          role="status"
+          className="rounded-lg border p-3 text-sm text-muted-foreground"
+        >
+          {preview.processingWarnings?.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      )}
+      {preview.printRequirementsStatus === 'Incomplete' && (
+        <p className="text-sm text-muted-foreground">
+          You can save this part and use it in assemblies. Print requirements
+          must be completed before production.
+        </p>
+      )}
       <div>
         <p className="mb-1.5 text-sm text-muted-foreground">Thumbnails</p>
         <PartThumbnailGallery
@@ -102,6 +118,14 @@ export function PartProcessingReviewSection({
         <p className="mb-1.5 text-sm text-muted-foreground">
           Filament requirements
         </p>
+        {requirements.some(
+          (requirement) => requirement.narrowFilamentProfileId,
+        ) && (
+          <p className="mb-2 text-xs text-muted-foreground">
+            Existing filament profile selections will be preserved unless you
+            change or clear a selection.
+          </p>
+        )}
         <PartFilamentRequirementsList
           requirements={requirements}
           onNarrow={(key, filamentVariantId) =>

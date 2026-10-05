@@ -30,6 +30,7 @@ interface AddOrReplacePartDialogProps {
    * never touched (FR-004). */
   partId?: string;
   partName?: string;
+  mode?: 'replace' | 'reprocess';
 }
 
 /**
@@ -45,9 +46,13 @@ export function AddOrReplacePartDialog({
   onOpenChange,
   partId,
   partName,
+  mode = 'replace',
 }: AddOrReplacePartDialogProps) {
   const {
     file,
+    jobId,
+    reprocess,
+    isReprocessPending,
     status,
     job,
     overrides,
@@ -67,7 +72,7 @@ export function AddOrReplacePartDialog({
     cancel,
     isConfirmPending,
   } = usePartFileProcessing({
-    mode: 'replace',
+    mode,
     partId,
     onConfirmed: () => onOpenChange(false),
   });
@@ -94,7 +99,10 @@ export function AddOrReplacePartDialog({
         className="max-w-2xl"
         header={
           <>
-            <DialogTitle>Replace file for {partName ?? 'part'}</DialogTitle>
+            <DialogTitle>
+              {mode === 'reprocess' ? 'Reprocess part' : 'Replace file'} for{' '}
+              {partName ?? 'part'}
+            </DialogTitle>
             <DialogDescription>
               Attach an STL, 3MF, or G-code file — material and nozzle diameter
               resolve automatically from the file and your fleet, no selection
@@ -119,7 +127,27 @@ export function AddOrReplacePartDialog({
         }
       >
         <div className="flex flex-col gap-4">
-          {!file ? (
+          {mode === 'reprocess' ? (
+            jobId ? (
+              <PartProcessingReviewSection
+                status={status}
+                preview={job?.preview}
+                errorMessage={job?.errorMessage}
+                overrides={overrides}
+                onNarrow={handleNarrow}
+              />
+            ) : (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Reprocess the saved file using current printer and profile
+                  configuration. Review the results before saving.
+                </p>
+                <Button onClick={reprocess} disabled={isReprocessPending}>
+                  {isReprocessPending ? 'Starting…' : 'Start reprocessing'}
+                </Button>
+              </div>
+            )
+          ) : !file ? (
             <div className="flex flex-col gap-4">
               {availableSlicers.length > 0 && (
                 <div className="flex flex-col gap-1.5">

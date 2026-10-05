@@ -17,6 +17,7 @@ import {
   getOpenFarmApiEndpointsPartsListPartsEndpointQueryKey,
   useOpenFarmApiEndpointsPartsCreatePartEndpoint,
   useOpenFarmApiEndpointsPartsReplacePartFileEndpoint,
+  useOpenFarmApiEndpointsPartsReprocessPartEndpoint,
 } from '@/lib/api/generated/parts/parts';
 import { useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint } from '@/lib/api/generated/settings/settings';
 
@@ -59,7 +60,7 @@ async function extractErrorDetail(
 }
 
 export interface UsePartFileProcessingOptions {
-  mode: 'add' | 'replace';
+  mode: 'add' | 'replace' | 'reprocess';
   /** Required for mode="replace" — the existing part's file/derived data are replaced against
    * this id; its name/tags are never touched (FR-004). */
   partId?: string;
@@ -137,11 +138,35 @@ export function usePartFileProcessing({
     },
   });
 
+  const reprocessMutation = useOpenFarmApiEndpointsPartsReprocessPartEndpoint({
+    mutation: {
+      onSuccess: (response) =>
+        setJobId(
+          (response.data as PartProcessingJobSubmittedResponse).jobId ?? null,
+        ),
+      onError: async (error) =>
+        toast.error(
+          await extractErrorDetail(error, 'Could not reprocess this part.'),
+        ),
+    },
+  });
+
+  function reprocess() {
+    if (partId && !jobId && !reprocessMutation.isPending)
+      reprocessMutation.mutate({ id: partId });
+  }
+
   const confirmMutation =
     useOpenFarmApiEndpointsPartProcessingJobsConfirmPartProcessingJobEndpoint({
       mutation: {
         onSuccess: () => {
-          toast.success(mode === 'add' ? 'Part added.' : 'File replaced.');
+          toast.success(
+            mode === 'add'
+              ? 'Part added.'
+              : mode === 'reprocess'
+                ? 'Part reprocessed.'
+                : 'File replaced.',
+          );
           queryClient.invalidateQueries({
             queryKey: getOpenFarmApiEndpointsPartsListPartsEndpointQueryKey(),
           });
@@ -236,13 +261,11 @@ export function usePartFileProcessing({
   }
 
   function buildOverridesPayload() {
-    const entries = Object.entries(overrides).filter(
-      ([, value]) => value !== null,
-    );
+    const entries = Object.entries(overrides);
     return entries.length > 0
       ? entries.map(([requirementIndex, narrowFilamentVariantId]) => ({
           requirementIndex: Number(requirementIndex),
-          narrowFilamentVariantId,
+          narrowFilamentVariantId: narrowFilamentVariantId ?? undefined,
         }))
       : undefined;
   }
@@ -274,7 +297,12 @@ export function usePartFileProcessing({
   }
 
   function cancel() {
-    if (jobId && status !== 'Confirmed' && status !== 'Discarded') {
+    if (
+      jobId &&
+      status !== 'Confirmed' &&
+      status !== 'Discarded' &&
+      status !== 'Failed'
+    ) {
       discardMutation.mutate(
         { id: jobId },
         {
@@ -294,6 +322,8 @@ export function usePartFileProcessing({
 
   return {
     file,
+    reprocess,
+    isReprocessPending: reprocessMutation.isPending,
     jobId,
     job,
     status,

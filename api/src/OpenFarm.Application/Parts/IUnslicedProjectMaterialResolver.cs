@@ -1,3 +1,5 @@
+using OpenFarm.Domain.Parts;
+
 namespace OpenFarm.Application.Parts;
 
 /// <summary>
@@ -5,7 +7,11 @@ namespace OpenFarm.Application.Parts;
 /// never invoked for an STL (which always takes the fixed fallback instead, research.md §7a) or an
 /// already-sliced file.
 /// </summary>
-public sealed record UnslicedProjectMaterial(string MaterialType, int PlateCount);
+public sealed record UnslicedProjectMaterial(string? MaterialType, int PlateCount,
+    IReadOnlyList<ThumbnailSpec>? Thumbnails = null, bool HasEmbeddedSettings = false,
+    decimal? NozzleDiameterMm = null, EstimationDetails? Estimation = null,
+    string? EstimationUnavailableReason = null, IReadOnlyList<DetectedFilamentSlot>? FilamentSlots = null,
+    bool MaterialMetadataComplete = true);
 
 public interface IUnslicedProjectMaterialResolver
 {

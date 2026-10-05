@@ -10,4 +10,6 @@ public sealed record PreviewFilamentRequirement(
     int RequirementIndex,
     string? MaterialType,
     string? DetectedColorHex,
-    string? DetectedSubBrand);
+    string? DetectedSubBrand,
+    Guid? NarrowFilamentVariantId = null,
+    Guid? NarrowFilamentProfileId = null);

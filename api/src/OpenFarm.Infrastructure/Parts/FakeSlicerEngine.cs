@@ -19,6 +19,11 @@ public sealed class FakeSlicerEngine : ISlicerEngine
         0x44, 0xAE, 0x42, 0x60, 0x82,
     ];
 
+    public Task<SlicingResult> EstimateAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+        EstimationConfiguration configuration, CancellationToken cancellationToken) =>
+        SliceAsync(slicer, modelFileStream, modelFileFormat, configuration.MaterialType ?? "PLA",
+            configuration.NozzleDiameterMm ?? 0.4m, null, cancellationToken);
+
     public Task<SlicingResult> SliceAsync(
         SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
         Guid? printerId, CancellationToken cancellationToken) =>

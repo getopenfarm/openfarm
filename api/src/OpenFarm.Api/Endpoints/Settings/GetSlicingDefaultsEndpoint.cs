@@ -28,10 +28,19 @@ public sealed class SlicingDefaultsResponse
     /// <summary>The effective default; <c>null</c> only when <see cref="Available"/> is empty (FR-011).</summary>
     public EffectiveSlicerDefaultResponse? Default { get; set; }
 
+    public EstimationProfilesRequest? EstimationProfiles { get; set; }
+
     public List<AvailableSlicerResponse> Available { get; set; } = [];
 
     public static SlicingDefaultsResponse FromResult(SlicingDefaults result) => new()
     {
+        EstimationProfiles = result.EstimationProfiles is { } p ? new EstimationProfilesRequest
+        {
+            MachineProfileId = p.MachineProfileId,
+            ProcessProfileId = p.ProcessProfileId,
+            FilamentProfileId = p.FilamentProfileId,
+            BuildPlateType = p.BuildPlateType.ToString()
+        } : null,
         Default = result.Default is { } d
             ? new EffectiveSlicerDefaultResponse { Engine = d.Engine.ToString(), Version = d.Version, IsExplicit = d.IsExplicit }
             : null,

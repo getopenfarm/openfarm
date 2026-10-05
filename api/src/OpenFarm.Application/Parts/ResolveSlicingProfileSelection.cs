@@ -12,24 +12,8 @@ public sealed record ResolvedSlicingProfiles(
     string MachineSettingsJson, string ProcessSettingsJson, string FilamentSettingsJson,
     string MachineProfileName, string ProcessProfileName, string FilamentProfileName);
 
-/// <summary>
-/// Resolves a slice target's machine, process, and filament profiles into complete, standalone
-/// preset JSON (research.md §5) — either a specific printer's own selections, or, when no printer is
-/// targeted (the pre-print estimate case, FR-015), a deterministic fleet-representative printer's
-/// selections. Filament resolves from an explicit narrowed profile when supplied (FR-012, US4) or else
-/// <see cref="RepresentativeFilamentResolver"/>'s deterministic, tiered match for the material type —
-/// a spool loaded on this target printer, then loaded anywhere in the fleet, then the filament
-/// library (storage), and only then a generic System catalog profile (010-filament-matching's
-/// research.md R2, superseding 009-process-profiles's original single-tier System-catalog-only pick,
-/// FR-018/FR-019). Organization-level defaults (machine/process/filament) no longer exist anywhere in
-/// this resolution path — removed entirely per FR-009/FR-017. OrcaSlicer/Bambu Studio reject a
-/// bare scalar-derived settings file outright (it must be a real preset with "type"/"name"/"inherits"/
-/// "from" etc.) and only ever accept one machine paired to the exact process it was authored/shipped
-/// for. Every unconfigured piece — no printer selection, no printers in the fleet, no matching
-/// filament for the material at any tier, or an unresolved ancestor chain in any of the three — throws
-/// <see cref="SlicingProfileUnconfiguredException"/> naming exactly what's missing, rather than
-/// silently attempting a slice.
-/// </summary>
+/// <summary>Resolves production settings for an explicitly assigned printer, or flattens explicitly
+/// selected profiles for library estimation. Library estimates never select from fleet or inventory.</summary>
 public sealed class ResolveSlicingProfileSelection(
     IPrinterRepository printerRepository,
     IMachineProfileRepository machineProfileRepository,
@@ -40,20 +24,26 @@ public sealed class ResolveSlicingProfileSelection(
     public async Task<ResolvedSlicingProfiles> ResolveAsync(
         Guid? printerId, string materialType, Guid? narrowedFilamentProfileId, CancellationToken cancellationToken)
     {
-        var (machineProfileId, processProfileId, buildPlateType) = printerId is { } targetPrinterId
-            ? await ResolveForPrinterAsync(targetPrinterId, cancellationToken)
-            : await ResolveForFleetRepresentativeAsync(cancellationToken);
-
-        var machineProfile = await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException("The selected machine profile no longer exists.");
-        var processProfile = await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException("The selected process profile no longer exists.");
+        if (printerId is not { } targetPrinterId)
+            throw new SlicingProfileUnconfiguredException("Production slicing requires an assigned printer; use explicit estimation settings for library estimates.");
+        var (machineProfileId, processProfileId, buildPlateType) = await ResolveForPrinterAsync(targetPrinterId, cancellationToken);
 
         var filamentProfile = narrowedFilamentProfileId is { } narrowedId
             ? await filamentProfileRepository.GetByIdAsync(narrowedId, cancellationToken)
                 ?? throw new SlicingProfileUnconfiguredException("The part's narrowed filament profile no longer exists.")
             : (await representativeFilamentResolver.ResolveAsync(printerId, materialType, cancellationToken)).Profile;
+        return await ResolveProfilesAsync(machineProfileId, processProfileId, filamentProfile.Id, buildPlateType, cancellationToken);
+    }
 
+    public async Task<ResolvedSlicingProfiles> ResolveProfilesAsync(Guid machineProfileId, Guid processProfileId,
+        Guid filamentProfileId, BuildPlateType buildPlateType, CancellationToken cancellationToken)
+    {
+        var machineProfile = await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken)
+            ?? throw new SlicingProfileUnconfiguredException("The selected machine profile no longer exists.");
+        var processProfile = await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken)
+            ?? throw new SlicingProfileUnconfiguredException("The selected process profile no longer exists.");
+        var filamentProfile = await filamentProfileRepository.GetByIdAsync(filamentProfileId, cancellationToken)
+            ?? throw new SlicingProfileUnconfiguredException("The selected filament profile no longer exists.");
         var machineJson = await MergeMachineChainWithIncludesOrThrowAsync(machineProfile, cancellationToken);
         var processJson = await MergeChainOrThrowAsync(processProfile.Id, "process", FetchProcessNode, cancellationToken);
         var filamentJson = await MergeFilamentChainWithIncludesOrThrowAsync(filamentProfile, cancellationToken);
@@ -172,24 +162,6 @@ public sealed class ResolveSlicingProfileSelection(
             ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no build plate selected.");
 
         return (machineProfileId, processProfileId, buildPlateType);
-    }
-
-    /// <summary>
-    /// FR-015 — no target printer (the pre-print, estimate-only case). Picks the fleet printer with
-    /// the smallest <see cref="Guid"/> among those with both selections set — arbitrary but stable,
-    /// so a repeated resolution against an unchanged fleet always picks the same printer
-    /// (research.md §5, mirroring §2's representative-filament determinism requirement).
-    /// </summary>
-    private async Task<(Guid MachineProfileId, Guid ProcessProfileId, BuildPlateType BuildPlateType)> ResolveForFleetRepresentativeAsync(CancellationToken cancellationToken)
-    {
-        var printers = await printerRepository.ListAsync(cancellationToken);
-        var representative = printers
-            .Where(p => p.MachineProfileId is not null && p.ProcessProfileId is not null && p.BuildPlateType is not null)
-            .OrderBy(p => p.Id)
-            .FirstOrDefault()
-            ?? throw new SlicingProfileUnconfiguredException("No printers configured with a machine, process, and build plate all selected.");
-
-        return (representative.MachineProfileId!.Value, representative.ProcessProfileId!.Value, representative.BuildPlateType!.Value);
     }
 
     private static async Task<string> MergeChainOrThrowAsync(

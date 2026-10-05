@@ -24,7 +24,16 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.Property(p => p.FileSizeBytes).IsRequired();
         builder.Property(p => p.FileUploadedAtUtc).IsRequired();
 
-        builder.Property(p => p.NozzleDiameterMm).IsRequired();
+        builder.Property(p => p.NozzleDiameterMm);
+        builder.Property(p => p.MaterialMetadataComplete).HasDefaultValue(true);
+        builder.Property(p => p.ActiveProcessingJobId);
+        builder.Property(p => p.EstimateUnavailableReason);
+        builder.Property(p => p.EstimationDetailsJson).HasColumnType("jsonb");
+        builder.Ignore(p => p.Estimation);
+        builder.Property(p => p.MetadataWarningsJson).HasColumnType("jsonb");
+        builder.Ignore(p => p.MetadataWarnings);
+        builder.Ignore(p => p.PrintRequirementsStatus);
+        builder.Ignore(p => p.ProcessingWarnings);
 
         builder.Property(p => p.EstimateStatus).IsRequired().HasConversion<string>();
         builder.Property(p => p.EstimatedPrintTimeMinutes);

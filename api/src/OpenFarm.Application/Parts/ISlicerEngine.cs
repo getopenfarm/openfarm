@@ -10,8 +10,8 @@ namespace OpenFarm.Application.Parts;
 /// </summary>
 public sealed record SlicingResult(
     int PlateCount,
-    int EstimatedPrintTimeMinutes,
-    decimal EstimatedFilamentWeightGrams,
+    int? EstimatedPrintTimeMinutes,
+    decimal? EstimatedFilamentWeightGrams,
     IReadOnlyList<ThumbnailSpec> Thumbnails,
     byte[] OutputFileBytes);
 
@@ -24,11 +24,12 @@ public sealed record SlicingResult(
 /// </summary>
 public interface ISlicerEngine
 {
-    /// <param name="printerId">
-    /// The specific printer this slice targets, or <c>null</c> for the pre-print, estimate-only case
-    /// with no specific target (009, research.md §5) — resolved via
-    /// <see cref="ResolveSlicingProfileSelection"/>'s printer-targeted vs. fleet-representative branch.
-    /// </param>
+    /// <summary>Library estimation consumes explicit immutable settings, never fleet selection.</summary>
+    Task<SlicingResult> EstimateAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+        EstimationConfiguration configuration, CancellationToken cancellationToken) =>
+        throw new SlicingFailedException("The selected slicer does not support file-based estimation.");
+
+    /// <param name="printerId">The assigned production printer. Library estimates use EstimateAsync.</param>
     /// <exception cref="SlicingFailedException">The CLI process failed, timed out, or produced unparseable output.</exception>
     /// <exception cref="SlicerUnavailableException"><paramref name="slicer"/> is not bundled for the host platform.</exception>
     Task<SlicingResult> SliceAsync(

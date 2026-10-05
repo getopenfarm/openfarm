@@ -636,6 +636,18 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("DefaultSlicerVersion")
                         .HasColumnType("text");
 
+                    b.Property<string>("EstimationBuildPlateType")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("EstimationFilamentProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EstimationMachineProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EstimationProcessProfileId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -651,6 +663,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ActiveProcessingJobId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -658,11 +673,17 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("EstimateUnavailableReason")
+                        .HasColumnType("text");
+
                     b.Property<decimal?>("EstimatedFilamentWeightGrams")
                         .HasColumnType("numeric");
 
                     b.Property<int?>("EstimatedPrintTimeMinutes")
                         .HasColumnType("integer");
+
+                    b.Property<string>("EstimationDetailsJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("FileFormat")
                         .IsRequired()
@@ -674,11 +695,19 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("FileUploadedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("MaterialMetadataComplete")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("MetadataWarningsJson")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("NozzleDiameterMm")
+                    b.Property<decimal?>("NozzleDiameterMm")
                         .HasColumnType("numeric");
 
                     b.Property<Guid>("OrganizationId")
@@ -789,6 +818,15 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("ErrorMessage")
                         .HasColumnType("text");
 
+                    b.Property<string>("EstimateUnavailableReason")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EstimationConfigurationJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("EstimationDetailsJson")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("FileFormat")
                         .IsRequired()
                         .HasColumnType("text");
@@ -799,6 +837,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("MetadataWarningsJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
@@ -822,6 +863,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("PreviewFilamentRequirements")
                         .IsRequired()
                         .HasColumnType("jsonb");
+
+                    b.Property<bool>("PreviewMaterialMetadataComplete")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<decimal?>("PreviewNozzleDiameterMm")
                         .HasColumnType("numeric");
@@ -847,6 +893,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("SlicerVersionUsed")
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("SourcePartUpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SourceRevisionHash")
+                        .HasColumnType("text");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
@@ -865,7 +917,17 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("PartId")
+                        .IsUnique()
+                        .HasFilter("\"Kind\" = 'Reprocess' AND \"Status\" IN ('Processing', 'ReadyForReview')");
 
                     b.ToTable("PartProcessingJobs", (string)null);
 

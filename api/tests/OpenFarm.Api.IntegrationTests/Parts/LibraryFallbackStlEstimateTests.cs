@@ -15,16 +15,7 @@ using static OpenFarm.Api.IntegrationTests.FilamentTracking.FilamentTrackingTest
 
 namespace OpenFarm.Api.IntegrationTests.Parts;
 
-/// <summary>
-/// End-to-end coverage for US3's library-fallback tier (research.md R2 step 3, quickstart.md Scenario
-/// 3): a spool unloaded back to storage is still eligible — its linked <c>FilamentProfile</c> must be
-/// what a subsequent STL upload resolves against. No System PLA catalog profile is seeded here, so if
-/// the library tier didn't engage, resolution would fail at
-/// <c>SlicingProfileUnconfiguredException("... material 'PLA'.")</c> instead of ever reaching the CLI —
-/// the same "did it get past filament resolution" signal <c>StlFallbackMaterialResolutionTests</c> uses,
-/// since the dummy bundle's stub binary can never actually complete a slice in this test environment.
-/// Requires Docker (Testcontainers.PostgreSql) — exercised by CI.
-/// </summary>
+// Library estimation requires explicit defaults, regardless of fleet/inventory profiles.
 public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();
@@ -78,7 +69,7 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
 
     private static async Task<HttpResponseMessage> UploadStlAsync(HttpClient client)
     {
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
         return await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
@@ -106,7 +97,7 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
     }
 
     [Fact]
-    public async Task CreatePart_UploadedStl_UnloadedSpoolStillInLibrary_ResolvesViaFilamentLibraryTierNotSystemCatalog()
+    public async Task CreatePart_UploadedStl_InventoryAndFleetDoNotSupplyEstimationDefaults()
     {
         var client = await AuthenticatedClientAsync(_client);
         await SeedFullyConfiguredPrinterAsync();
@@ -145,8 +136,9 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
         // No System PLA profile exists anywhere in this test's organization — if the library tier
         // hadn't engaged, this would fail at filament resolution naming 'PLA' unconfigured instead of
         // reaching the (always-broken, in this test environment) CLI invocation.
-        finalJob.Status.Should().Be("Failed");
-        finalJob.ErrorMessage.Should().Contain("CLI exited with code");
-        finalJob.ErrorMessage.Should().NotContain("'PLA'");
+        finalJob.Status.Should().Be("ReadyForReview");
+        finalJob.Preview!.EstimateStatus.Should().Be("Unavailable");
+        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("default estimation profiles");
+        finalJob.Preview!.EstimateUnavailableReason.Should().NotContain("'PLA'");
     }
 }

@@ -1,9 +1,11 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import { ImageOffIcon, LoaderIcon } from 'lucide-react';
+import { ImageOffIcon } from 'lucide-react';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { Badge } from '@/components/ui/badge';
 import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
+
+import { PartEstimate } from './PartEstimate';
 
 interface PartsTableProps {
   parts: PartSummaryResponse[];
@@ -11,26 +13,12 @@ interface PartsTableProps {
 }
 
 function EstimateCell({ part }: { part: PartSummaryResponse }) {
-  if (part.estimateStatus === 'Available') {
-    return (
-      <span className="font-mono text-sm">
-        {part.estimatedPrintTimeMinutes} min ·{' '}
-        {part.estimatedFilamentWeightGrams} g
-      </span>
-    );
-  }
-  if (part.estimateStatus === 'Unavailable') {
-    return (
-      <span className="text-sm text-muted-foreground">
-        Estimate unavailable
-      </span>
-    );
-  }
   return (
-    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      <LoaderIcon className="size-3.5 animate-spin" />
-      Estimating…
-    </span>
+    <PartEstimate
+      status={part.estimateStatus}
+      minutes={part.estimatedPrintTimeMinutes}
+      grams={part.estimatedFilamentWeightGrams}
+    />
   );
 }
 
@@ -71,7 +59,7 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
       if (materialTypes.length === 0) {
         return (
           <Badge variant="secondary" className="font-normal">
-            Any material
+            {row.original.requiresSlicing ? 'Any material' : 'Unknown material'}
           </Badge>
         );
       }
@@ -91,7 +79,9 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
     header: 'Nozzle',
     cell: ({ row }) => (
       <span className="font-mono text-sm">
-        {row.original.nozzleDiameterMm} mm
+        {row.original.nozzleDiameterMm != null
+          ? `${row.original.nozzleDiameterMm} mm`
+          : 'Unknown'}
       </span>
     ),
   },

@@ -27,19 +27,16 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
         using var reader = new StreamReader(fileStream, leaveOpen: true);
         var content = await reader.ReadToEndAsync(cancellationToken);
 
-        var plate = ParsePlate(content, plateIndex: 0);
-        if (plate is null)
-        {
-            throw new PartFileParsingFailedException("Could not parse nozzle diameter and filament type from the G-code's header comments.");
-        }
+        var plate = ParsePlate(content);
 
         return new SlicedFileMetadata(
-            plate.Value.NozzleDiameterMm,
-            plate.Value.EstimatedPrintTimeMinutes ?? 0,
-            plate.Value.EstimatedFilamentWeightGrams ?? 0,
+            plate.NozzleDiameterMm,
+            plate.EstimatedPrintTimeMinutes,
+            plate.EstimatedFilamentWeightGrams,
             PlateCount: 1,
-            plate.Value.FilamentSlots,
-            plate.Value.Thumbnail is null ? [] : [new ThumbnailSpec(0, plate.Value.Thumbnail)]);
+            plate.FilamentSlots,
+            plate.Thumbnail is null ? [] : [new ThumbnailSpec(0, plate.Thumbnail)],
+            plate.MaterialMetadataComplete, DescribeGCode(content));
     }
 
     private static async Task<SlicedFileMetadata> ParseGCode3mfAsync(Stream fileStream, CancellationToken cancellationToken)
@@ -70,16 +67,28 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
             }
 
             decimal? nozzleDiameterMm = null;
-            var totalMinutes = 0;
-            var totalWeightGrams = 0m;
+            int? totalMinutes = 0;
+            decimal? totalWeightGrams = 0m;
+            var materialComplete = true;
+            var nozzleComplete = true;
             var allSlots = new List<DetectedFilamentSlot>();
             var thumbnails = new List<ThumbnailSpec>();
+            var warnings = new List<string>();
+            ProjectSettingsMetadata? project = null;
+            if (SlicedPlateMetadata.Find(archive, "Metadata/project_settings.config") is { } projectEntry)
+            {
+                using var reader = new StreamReader(projectEntry.Open());
+                project = ProjectSettingsMetadata.Read(await reader.ReadToEndAsync(cancellationToken));
+            }
+            EstimationDetails? details = project is null ? null : project.Details with { Source = "EmbeddedSlicedMetadata" };
+
 
             foreach (var plateNumber in plateNumbers)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var gcodeEntry = archive.GetEntry($"Metadata/plate_{plateNumber}.gcode");
+                var gcodeEntry = archive.Entries.FirstOrDefault(e => string.Equals(e.FullName.Replace('\\', '/'),
+                    $"Metadata/plate_{plateNumber}.gcode", StringComparison.OrdinalIgnoreCase));
                 if (gcodeEntry is null)
                 {
                     continue;
@@ -93,43 +102,72 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
 
                 var plateIndex = plateNumber - 1;
                 var thumbnailEntry = archive.GetEntry($"Metadata/plate_{plateNumber}.png");
-                var parsed = ParsePlate(gcodeContent, plateIndex, thumbnailEntry, archive);
-
-                if (parsed is null)
+                var parsed = ParsePlate(gcodeContent, thumbnailEntry);
+                var gcodeDetails = DescribeGCode(gcodeContent);
+                details ??= gcodeDetails;
+                if (details.Engine is null && gcodeDetails.Engine is not null)
+                    details = details with { Engine = gcodeDetails.Engine, Version = gcodeDetails.Version };
+                var extra = SlicedPlateMetadata.Read(archive, plateNumber, warnings);
+                if (details.MachineModel is null && extra.MachineModelId is not null)
+                    details = details with { MachineModel = extra.MachineModelId };
+                var conflict = extra.NozzleConflict || (extra.Nozzle is { } a && parsed.NozzleDiameterMm is { } b && a != decimal.Round(b, 4));
+                var nozzle = conflict ? null : extra.Nozzle ?? parsed.NozzleDiameterMm ?? project?.Nozzle;
+                if (conflict) warnings.Add($"Plate {plateNumber}: embedded nozzle diameters conflict; nozzle diameter is unknown.");
+                var minutes = extra.Minutes ?? parsed.EstimatedPrintTimeMinutes;
+                var weight = extra.Weight ?? parsed.EstimatedFilamentWeightGrams;
+                if (extra.Minutes is { } em && parsed.EstimatedPrintTimeMinutes is { } gm && em != gm)
+                { minutes = null; warnings.Add($"Plate {plateNumber}: embedded print-time estimates conflict."); }
+                if (extra.Weight is { } ew && parsed.EstimatedFilamentWeightGrams is { } gw && Math.Abs(ew - gw) > 0.02m)
+                { weight = null; warnings.Add($"Plate {plateNumber}: embedded weight estimates conflict."); }
+                var slots = extra.Slots.Count > 0 ? extra.Slots : parsed.FilamentSlots;
+                var complete = extra.Slots.Count > 0 ? extra.MaterialsComplete : parsed.MaterialMetadataComplete && extra.MaterialsComplete;
+                if (extra.Slots.Count > 0 && parsed.FilamentSlots.Count > 0 && extra.Slots.Any(e =>
+                    !parsed.FilamentSlots.Any(g => string.Equals(g.MaterialType, e.MaterialType, StringComparison.OrdinalIgnoreCase))))
+                { complete = false; warnings.Add($"Plate {plateNumber}: embedded filament types conflict."); }
+                if (slots.Count == 0 && extra.UsedFilamentIndices is { Count: > 0 } used && project is not null)
                 {
-                    continue;
+                    slots = used.Where(i => i < project.Slots.Count).Select(i => project.Slots[i]).ToArray();
+                    complete = project.MaterialComplete && slots.Count == used.Count;
                 }
+                if (extra.Slots.Count > 0 && parsed.FilamentSlots.Count > 0 && extra.Slots.Any(e => e.DetectedColorHex is { } color
+                    && parsed.FilamentSlots.Any(g => g.MaterialType == e.MaterialType && g.DetectedColorHex is not null)
+                    && !parsed.FilamentSlots.Any(g => g.MaterialType == e.MaterialType && string.Equals(g.DetectedColorHex, color, StringComparison.OrdinalIgnoreCase))))
+                { complete = false; warnings.Add($"Plate {plateNumber}: embedded filament colors conflict."); }
+                parsed = parsed with
+                {
+                    NozzleDiameterMm = nozzle,
+                    EstimatedPrintTimeMinutes = minutes,
+                    EstimatedFilamentWeightGrams = weight,
+                    FilamentSlots = slots,
+                    MaterialMetadataComplete = complete
+                };
 
-                nozzleDiameterMm ??= parsed.Value.NozzleDiameterMm;
-                totalMinutes += parsed.Value.EstimatedPrintTimeMinutes ?? 0;
-                totalWeightGrams += parsed.Value.EstimatedFilamentWeightGrams ?? 0;
-                allSlots.AddRange(parsed.Value.FilamentSlots);
+                if (parsed.NozzleDiameterMm is null || (nozzleDiameterMm is not null && nozzleDiameterMm != parsed.NozzleDiameterMm))
+                    nozzleComplete = false;
+                nozzleDiameterMm ??= parsed.NozzleDiameterMm;
+                materialComplete &= parsed.MaterialMetadataComplete;
+                totalMinutes += parsed.EstimatedPrintTimeMinutes;
+                totalWeightGrams += parsed.EstimatedFilamentWeightGrams;
+                allSlots.AddRange(parsed.FilamentSlots);
 
-                if (parsed.Value.Thumbnail is { } bytes)
+                if (parsed.Thumbnail is { } bytes)
                 {
                     thumbnails.Add(new ThumbnailSpec(plateIndex, bytes));
                 }
             }
 
-            if (nozzleDiameterMm is null || allSlots.Count == 0)
-            {
-                throw new PartFileParsingFailedException("Could not parse nozzle diameter and filament type from the 3MF's embedded plate G-code.");
-            }
-
-            return new SlicedFileMetadata(nozzleDiameterMm.Value, totalMinutes, totalWeightGrams, plateNumbers.Count, allSlots, thumbnails);
+            return new SlicedFileMetadata(nozzleComplete ? nozzleDiameterMm : null, totalMinutes, totalWeightGrams, plateNumbers.Count, allSlots, thumbnails, materialComplete, details, warnings);
         }
     }
 
-    private static ParsedPlate? ParsePlate(string gcodeContent, int plateIndex, ZipArchiveEntry? thumbnailEntry = null, ZipArchive? archive = null)
+    private static ParsedPlate ParsePlate(string gcodeContent, ZipArchiveEntry? thumbnailEntry = null)
     {
+        if (string.IsNullOrWhiteSpace(gcodeContent) || gcodeContent.Contains('\0')
+            || !GCodeCommandRegex().IsMatch(gcodeContent))
+            throw new PartFileParsingFailedException("The file does not contain readable G-code commands.");
         var values = GCodeMetadataHelper.ParseComments(gcodeContent);
         var nozzleDiameterMm = GCodeMetadataHelper.ParseNozzleDiameter(values);
         var slots = GCodeMetadataHelper.ParseFilamentSlots(values);
-
-        if (nozzleDiameterMm is null || slots.Count == 0)
-        {
-            return null;
-        }
 
         byte[]? thumbnail = null;
         if (thumbnailEntry is not null)
@@ -145,19 +183,40 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
         }
 
         return new ParsedPlate(
-            nozzleDiameterMm.Value,
+            nozzleDiameterMm is > 0 ? nozzleDiameterMm : null,
             GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values),
             GCodeMetadataHelper.ParseFilamentWeightGrams(values),
             slots,
-            thumbnail);
+            thumbnail,
+            slots.Count > 0 && values.TryGetValue("filament_type", out var rawTypes)
+                && rawTypes.Split([',', ';'], StringSplitOptions.TrimEntries).All(t => !string.IsNullOrWhiteSpace(t)));
+    }
+
+    private static EstimationDetails DescribeGCode(string content)
+    {
+        var values = GCodeMetadataHelper.ParseComments(content);
+        var names = values.GetValueOrDefault("filament_settings_id")?.Split(';', StringSplitOptions.TrimEntries)
+            .Select(s => s.Trim('"')).ToArray();
+        var generated = GeneratedByRegex().Match(content);
+        return new("EmbeddedSlicedMetadata", values.GetValueOrDefault("printer_model"),
+            values.GetValueOrDefault("printer_settings_id"), values.GetValueOrDefault("print_settings_id"),
+            names, values.GetValueOrDefault("curr_bed_type"), generated.Success ? generated.Groups[1].Value : null,
+            generated.Success ? generated.Groups[2].Value : null);
     }
 
     private readonly record struct ParsedPlate(
-        decimal NozzleDiameterMm,
+        decimal? NozzleDiameterMm,
         int? EstimatedPrintTimeMinutes,
         decimal? EstimatedFilamentWeightGrams,
         IReadOnlyList<DetectedFilamentSlot> FilamentSlots,
-        byte[]? Thumbnail);
+        byte[]? Thumbnail,
+        bool MaterialMetadataComplete);
+
+    [GeneratedRegex(@"generated by (OrcaSlicer|BambuStudio|SuperSlicer|PrusaSlicer)\s+([0-9][^\s;]*)", RegexOptions.IgnoreCase)]
+    private static partial Regex GeneratedByRegex();
+
+    [GeneratedRegex(@"^\s*(?:N\d+\s*)?[GMT]\d+\b", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    private static partial Regex GCodeCommandRegex();
 
     [GeneratedRegex(@"^Metadata/plate_(\d+)\.gcode$", RegexOptions.IgnoreCase)]
     private static partial Regex PlateGCodeEntryRegex();

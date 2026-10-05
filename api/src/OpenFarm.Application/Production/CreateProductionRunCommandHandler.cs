@@ -31,13 +31,24 @@ public sealed class CreateProductionRunCommandHandler(
             .ToList();
 
         var run = ProductionRun.Create(Organization.WellKnownId, command.Name, command.DueDate, command.Priority, command.Notes, lineSpecs);
+        var explodedByLine = new Dictionary<Guid, IReadOnlyList<ExplodedPartQuantity>>();
+        foreach (var line in run.Lines)
+        {
+            var exploded = await ResolveExplodedPartsAsync(line, cancellationToken);
+            foreach (var item in exploded)
+            {
+                var part = await partRepository.GetByIdAsync(item.PartId, cancellationToken) ?? throw new PartNotFoundException(item.PartId);
+                part.EnsurePrintRequirementsComplete();
+            }
+            explodedByLine.Add(line.Id, exploded);
+        }
         await runRepository.AddAsync(run, cancellationToken);
 
         var nextQueuePosition = await jobRepository.GetMaxQueuePositionAsync(Organization.WellKnownId, cancellationToken) ?? 0;
 
         foreach (var line in run.Lines)
         {
-            var explodedParts = await ResolveExplodedPartsAsync(line, cancellationToken);
+            var explodedParts = explodedByLine[line.Id];
 
             var requirements = explodedParts
                 .Select(exploded => PartRequirement.Create(

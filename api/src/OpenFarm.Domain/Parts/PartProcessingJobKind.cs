@@ -4,4 +4,5 @@ public enum PartProcessingJobKind
 {
     Add,
     Replace,
+    Reprocess,
 }

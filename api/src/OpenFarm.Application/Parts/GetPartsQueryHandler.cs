@@ -32,7 +32,8 @@ public sealed class GetPartsQueryHandler(IPartRepository partRepository) : IQuer
                 part.EstimatedFilamentWeightGrams,
                 catalogThumbnail is null ? null : Convert.ToBase64String(catalogThumbnail.Bytes),
                 materialTypes,
-                part.Tags.Select(t => t.Name).ToList());
+                part.Tags.Select(t => t.Name).ToList(),
+                part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation);
         }).ToList();
 
         return new PartsPage(summaries, totalCount);

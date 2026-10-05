@@ -20,6 +20,10 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organiz
             .HasConversion<string>();
 
         builder.Property(o => o.DefaultSlicerVersion);
+        builder.Property(o => o.EstimationMachineProfileId);
+        builder.Property(o => o.EstimationProcessProfileId);
+        builder.Property(o => o.EstimationFilamentProfileId);
+        builder.Property(o => o.EstimationBuildPlateType).HasConversion<string>();
 
         builder.Property(o => o.CreatedAtUtc)
             .IsRequired();

@@ -74,17 +74,17 @@ public class SlicingAvailabilityTests(EmptySlicerBundleWebApplicationFactory fac
     }
 
     [Fact]
-    public async Task CreatePart_RequiresSlicingUploadWithNoSlicerAvailable_Returns422BeforeAnyJobIsCreated()
+    public async Task CreatePart_RequiresSlicingUploadWithNoSlicerAvailable_AcceptsUpload()
     {
         var client = await AuthenticatedClientAsync();
         await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent([0x73, 0x6f, 0x6c, 0x69, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74]);
+        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
 
-        uploadResponse.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        uploadResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
     }
 }

@@ -15,7 +15,7 @@ public class PartFileClassifierTests
     [InlineData("BRACKET.STL")]
     public void Classify_Stl_AlwaysRequiresSlicing(string fileName)
     {
-        using var stream = new MemoryStream([1, 2, 3]);
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
 
         var result = Classifier.Classify(stream, fileName);
 
@@ -38,9 +38,9 @@ public class PartFileClassifierTests
     }
 
     [Fact]
-    public void Classify_ThreeMfWithSliceInfoConfig_DoesNotRequireSlicing()
+    public void Classify_ThreeMfWithPlateGCode_DoesNotRequireSlicing()
     {
-        using var stream = BuildZip(("Metadata/slice_info.config", "<config/>"));
+        using var stream = BuildZip(("Metadata/plate_1.gcode", "G28"));
 
         var result = Classifier.Classify(stream, "widget.gcode.3mf");
 
@@ -51,7 +51,7 @@ public class PartFileClassifierTests
     [Fact]
     public void Classify_ThreeMfWithoutSliceInfoConfig_RequiresSlicing()
     {
-        using var stream = BuildZip(("Metadata/project_settings.config", "{}"));
+        using var stream = BuildZip(("3D/3dmodel.model", "<model><resources/><build/></model>"), ("Metadata/slice_info.config", "<config/>"));
 
         var result = Classifier.Classify(stream, "widget.3mf");
 

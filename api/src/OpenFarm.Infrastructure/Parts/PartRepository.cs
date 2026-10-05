@@ -10,7 +10,7 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
     public async Task AddAsync(Part part, CancellationToken cancellationToken)
     {
         dbContext.Parts.Add(part);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
     }
 
     public Task<Part?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
@@ -59,6 +59,10 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
     {
         try
         {
+            foreach (var part in dbContext.Parts.Local)
+                foreach (var thumbnail in part.Thumbnails)
+                    if (dbContext.Entry(thumbnail).State == EntityState.Detached)
+                        dbContext.PartThumbnails.Add(thumbnail);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException ex)

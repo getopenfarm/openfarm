@@ -27,7 +27,11 @@ public sealed class PartResponse
     public bool RequiresSlicing { get; set; }
     public string OriginalFileName { get; set; } = string.Empty;
     public long FileSizeBytes { get; set; }
-    public decimal NozzleDiameterMm { get; set; }
+    public decimal? NozzleDiameterMm { get; set; }
+    public string PrintRequirementsStatus { get; set; } = "Complete";
+    public List<string> ProcessingWarnings { get; set; } = [];
+    public string? EstimateUnavailableReason { get; set; }
+    public OpenFarm.Domain.Parts.EstimationDetails? Estimation { get; set; }
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
@@ -47,6 +51,10 @@ public sealed class PartResponse
         OriginalFileName = detail.OriginalFileName,
         FileSizeBytes = detail.FileSizeBytes,
         NozzleDiameterMm = detail.NozzleDiameterMm,
+        PrintRequirementsStatus = detail.PrintRequirementsStatus,
+        ProcessingWarnings = detail.ProcessingWarnings?.ToList() ?? [],
+        EstimateUnavailableReason = detail.EstimateUnavailableReason,
+        Estimation = detail.Estimation,
         EstimateStatus = detail.EstimateStatus,
         EstimatedPrintTimeMinutes = detail.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = detail.EstimatedFilamentWeightGrams,
@@ -82,6 +90,10 @@ public sealed class PartResponse
         OriginalFileName = part.OriginalFileName,
         FileSizeBytes = part.FileSizeBytes,
         NozzleDiameterMm = part.NozzleDiameterMm,
+        PrintRequirementsStatus = part.PrintRequirementsStatus.ToString(),
+        ProcessingWarnings = part.ProcessingWarnings.ToList(),
+        EstimateUnavailableReason = part.EstimateUnavailableReason,
+        Estimation = part.Estimation,
         EstimateStatus = part.EstimateStatus.ToString(),
         EstimatedPrintTimeMinutes = part.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = part.EstimatedFilamentWeightGrams,

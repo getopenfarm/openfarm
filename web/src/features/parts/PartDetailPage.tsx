@@ -15,6 +15,8 @@ import {
   useOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint,
 } from '@/lib/api/generated/parts/parts';
 import { AddOrReplacePartDialog } from './components/AddOrReplacePartDialog';
+import { PartEstimate } from './components/PartEstimate';
+import { PartEstimationSource } from './components/PartEstimationSource';
 import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
@@ -30,6 +32,7 @@ export function PartDetailPage() {
   usePartsHub();
 
   const [replaceOpen, setReplaceOpen] = useState(false);
+  const [reprocessOpen, setReprocessOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const partQuery = useOpenFarmApiEndpointsPartsGetPartEndpoint(id ?? '');
@@ -118,7 +121,10 @@ export function PartDetailPage() {
                 {part.name}
               </h2>
               <p className="font-mono text-sm text-muted-foreground">
-                {part.fileFormat} · {part.nozzleDiameterMm} mm nozzle
+                {part.fileFormat} ·{' '}
+                {part.nozzleDiameterMm != null
+                  ? `${part.nozzleDiameterMm} mm nozzle`
+                  : 'Unknown nozzle'}
                 {part.requiresSlicing ? ' · requires slicing' : ' · pre-sliced'}
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
@@ -130,6 +136,9 @@ export function PartDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setReprocessOpen(true)}>
+                Reprocess
+              </Button>
               <Button variant="outline" onClick={() => setReplaceOpen(true)}>
                 Replace file
               </Button>
@@ -143,6 +152,22 @@ export function PartDetailPage() {
             </div>
           </div>
 
+          {part.printRequirementsStatus === 'Incomplete' && (
+            <p className="text-sm text-muted-foreground">
+              Print requirements incomplete — reprocess after printer setup, or
+              replace the file with complete metadata before production.
+            </p>
+          )}
+          {(part.processingWarnings ?? []).length > 0 && (
+            <div
+              role="status"
+              className="rounded-lg border p-3 text-sm text-muted-foreground"
+            >
+              {part.processingWarnings?.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]">
             <div className="flex flex-col gap-4">
               <div>
@@ -157,18 +182,12 @@ export function PartDetailPage() {
               </div>
               <div>
                 <p className="mb-1.5 text-sm text-muted-foreground">Estimate</p>
-                {part.estimateStatus === 'Available' ? (
-                  <p className="text-sm">
-                    {part.estimatedPrintTimeMinutes} min ·{' '}
-                    {part.estimatedFilamentWeightGrams} g
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {part.estimateStatus === 'Unavailable'
-                      ? 'Estimate unavailable — the deferred slice failed.'
-                      : 'Estimate still resolving…'}
-                  </p>
-                )}
+                <PartEstimationSource estimation={part.estimation} />
+                <PartEstimate
+                  status={part.estimateStatus}
+                  minutes={part.estimatedPrintTimeMinutes}
+                  grams={part.estimatedFilamentWeightGrams}
+                />
               </div>
             </div>
             <div>
@@ -187,6 +206,14 @@ export function PartDetailPage() {
             partName={part.name}
             open={replaceOpen}
             onOpenChange={setReplaceOpen}
+          />
+
+          <AddOrReplacePartDialog
+            partId={part.id}
+            partName={part.name}
+            mode="reprocess"
+            open={reprocessOpen}
+            onOpenChange={setReprocessOpen}
           />
 
           <ConfirmDialog

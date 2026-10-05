@@ -7,6 +7,8 @@ namespace OpenFarm.Api.Endpoints.PartProcessingJobs;
 
 public sealed class PreviewFilamentRequirementResponse
 {
+    public Guid? NarrowFilamentVariantId { get; set; }
+    public Guid? NarrowFilamentProfileId { get; set; }
     public int RequirementIndex { get; set; }
     public string? MaterialType { get; set; }
     public string? DetectedColorHex { get; set; }
@@ -32,6 +34,10 @@ public sealed class PartProcessingJobPreviewResponse
 {
     public decimal? NozzleDiameterMm { get; set; }
     public List<PreviewFilamentRequirementResponse> FilamentRequirements { get; set; } = [];
+    public string PrintRequirementsStatus { get; set; } = "Complete";
+    public List<string> ProcessingWarnings { get; set; } = [];
+    public string? EstimateUnavailableReason { get; set; }
+    public OpenFarm.Domain.Parts.EstimationDetails? Estimation { get; set; }
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
@@ -60,6 +66,10 @@ public sealed class PartProcessingJobResponse
         Preview = detail.Preview is null ? null : new PartProcessingJobPreviewResponse
         {
             NozzleDiameterMm = detail.Preview.NozzleDiameterMm,
+            PrintRequirementsStatus = detail.Preview.PrintRequirementsStatus,
+            ProcessingWarnings = detail.Preview.ProcessingWarnings?.ToList() ?? [],
+            EstimateUnavailableReason = detail.Preview.EstimateUnavailableReason,
+            Estimation = detail.Preview.Estimation,
             EstimateStatus = detail.Preview.EstimateStatus,
             EstimatedPrintTimeMinutes = detail.Preview.EstimatedPrintTimeMinutes,
             EstimatedFilamentWeightGrams = detail.Preview.EstimatedFilamentWeightGrams,
@@ -67,6 +77,8 @@ public sealed class PartProcessingJobResponse
             FilamentRequirements = detail.Preview.FilamentRequirements.Select(r => new PreviewFilamentRequirementResponse
             {
                 RequirementIndex = r.RequirementIndex,
+                NarrowFilamentVariantId = r.NarrowFilamentVariantId,
+                NarrowFilamentProfileId = r.NarrowFilamentProfileId,
                 MaterialType = r.MaterialType,
                 DetectedColorHex = r.DetectedColorHex,
                 DetectedSubBrand = r.DetectedSubBrand,

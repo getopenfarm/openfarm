@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 
 namespace OpenFarm.Infrastructure.Parts;
 
@@ -26,6 +27,19 @@ public sealed partial class CliSlicerEngine(
     IOptions<SlicerOptions> options,
     ILogger<CliSlicerEngine> logger) : ISlicerEngine
 {
+    public async Task<SlicingResult> EstimateAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+        EstimationConfiguration configuration, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, configuration.MaterialType ?? string.Empty,
+                configuration.NozzleDiameterMm ?? 0, null, cancellationToken, configuration);
+        }
+        catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException
+            && ex is not SlicerUnavailableException && ex is not SlicingProfileUnconfiguredException)
+        { throw new SlicingFailedException($"Estimation failed: {ex.Message}", ex); }
+    }
+
     public async Task<SlicingResult> SliceAsync(
         SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
         Guid? printerId, CancellationToken cancellationToken)
@@ -51,7 +65,7 @@ public sealed partial class CliSlicerEngine(
 
     private async Task<SlicingResult> SliceCoreAsync(
         SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
-        Guid? printerId, CancellationToken cancellationToken)
+        Guid? printerId, CancellationToken cancellationToken, EstimationConfiguration? estimation = null)
     {
         var platform = hostPlatform.Current;
         var available = catalog.Find(slicer, platform)
@@ -71,23 +85,27 @@ public sealed partial class CliSlicerEngine(
 
             // Only OrcaSlicer/Bambu Studio need real, complete presets (PrusaSliceFamilyInvocation) —
             // SuperSlicer builds plain scalar flags and never looks at this.
-            var resolvedProfiles = slicer.Engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
-                ? await profileSelection.ResolveAsync(printerId, materialType, narrowedFilamentProfileId: null, cancellationToken)
-                : null;
+            var resolvedProfiles = estimation is not null ? estimation.Profiles
+                : slicer.Engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
+                    ? await profileSelection.ResolveAsync(printerId, materialType, narrowedFilamentProfileId: null, cancellationToken) : null;
 
             if (resolvedProfiles is not null)
             {
                 LogResolvedSlicingProfiles(logger, slicer.Engine, resolvedProfiles.MachineProfileName, resolvedProfiles.ProcessProfileName, resolvedProfiles.FilamentProfileName);
             }
 
-            var processInvocation = invocationStrategy.BuildInvocation(
-                available, inputPath, materialType, nozzleDiameterMm, workDirectory.FullName, resolvedProfiles);
+            if (estimation?.EmbeddedProject == true && modelFileFormat != PartFileFormat.ThreeMf)
+                throw new SlicingFailedException("Embedded settings require a 3MF project.");
+            var processInvocation = estimation?.EmbeddedProject == true
+                ? PrusaSliceFamilyInvocation.BuildEmbeddedProjectInvocation(available, inputPath, workDirectory.FullName)
+                : invocationStrategy.BuildInvocation(available, inputPath, materialType, nozzleDiameterMm, workDirectory.FullName, resolvedProfiles);
 
-            var startInfo = new ProcessStartInfo(processInvocation.FileName, processInvocation.Arguments)
+            var startInfo = new ProcessStartInfo(Path.GetFullPath(processInvocation.FileName), processInvocation.Arguments)
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
+                WorkingDirectory = workDirectory.FullName,
             };
 
             LogInvokingSlicer(logger, slicer.Engine, processInvocation.FileName, processInvocation.Arguments);
@@ -110,6 +128,8 @@ public sealed partial class CliSlicerEngine(
 
             using (process)
             {
+                var stdout = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+                var stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
                 using var timeoutCts = new CancellationTokenSource(options.Value.CliTimeout);
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
@@ -123,31 +143,36 @@ public sealed partial class CliSlicerEngine(
                     throw new SlicingFailedException($"The {slicer.Engine} CLI timed out after {options.Value.CliTimeout}.");
                 }
 
+                catch (OperationCanceledException)
+                {
+                    TryKill(process);
+                    throw;
+                }
+                await stdout;
+                var errorOutput = await stderr;
                 stopwatch.Stop();
                 LogSlicerExited(logger, slicer.Engine, process.ExitCode, stopwatch.ElapsedMilliseconds);
 
                 if (process.ExitCode != 0 || !File.Exists(processInvocation.OutputPath))
                 {
-                    var stderr = await process.StandardError.ReadToEndAsync(CancellationToken.None);
-                    throw new SlicingFailedException($"The {slicer.Engine} CLI exited with code {process.ExitCode}: {stderr}");
+                    throw new SlicingFailedException($"The {slicer.Engine} CLI exited with code {process.ExitCode}: {errorOutput}");
                 }
 
+                if (processInvocation.ProducesGCodeBearingThreeMf && estimation is not null)
+                {
+                    await using var output = File.OpenRead(processInvocation.OutputPath);
+                    var metadata = await new AlreadySlicedFileMetadataParser().ParseAsync(output, PartFileFormat.ThreeMf, cancellationToken);
+                    return new(metadata.PlateCount, metadata.EstimatedPrintTimeMinutes, metadata.EstimatedFilamentWeightGrams,
+                        metadata.Thumbnails, await File.ReadAllBytesAsync(processInvocation.OutputPath, cancellationToken));
+                }
                 var gcode = processInvocation.ProducesGCodeBearingThreeMf
                     ? await ReadEmbeddedPlateGCodeAsync(processInvocation.OutputPath, cancellationToken)
                     : await File.ReadAllTextAsync(processInvocation.OutputPath, cancellationToken);
                 var values = GCodeMetadataHelper.ParseComments(gcode);
-                var estimatedMinutes = GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values)
-                    ?? throw new SlicingFailedException("The sliced G-code did not contain a parseable estimated print time.");
-                var estimatedWeight = GCodeMetadataHelper.ParseFilamentWeightGrams(values)
-                    ?? throw new SlicingFailedException("The sliced G-code did not contain a parseable filament weight.");
                 var thumbnail = GCodeMetadataHelper.ExtractEmbeddedThumbnailPng(gcode);
-
-                return new SlicingResult(
-                    PlateCount: 1,
-                    estimatedMinutes,
-                    estimatedWeight,
-                    thumbnail is null ? [] : [new ThumbnailSpec(0, thumbnail)],
-                    OutputFileBytes: System.Text.Encoding.UTF8.GetBytes(gcode));
+                return new SlicingResult(1, GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values),
+                    GCodeMetadataHelper.ParseFilamentWeightGrams(values),
+                    thumbnail is null ? [] : [new ThumbnailSpec(0, thumbnail)], System.Text.Encoding.UTF8.GetBytes(gcode));
             }
         }
         finally

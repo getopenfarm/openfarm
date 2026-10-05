@@ -1,7 +1,5 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Organizations;
-using OpenFarm.Application.Printers;
-using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 
@@ -14,11 +12,7 @@ public sealed class ReplacePartFileCommandHandler(
     IPartRepository partRepository,
     IPartProcessingJobRepository jobRepository,
     IPartProcessingDispatcher queue,
-    IPrinterRepository printerRepository,
-    IMachineProfileRepository machineProfileRepository,
-    IProfileBundleParser profileBundleParser,
     IOrganizationRepository organizationRepository,
-    ISlicerDefaultsProvider slicerDefaults,
     ResolveSlicerSelection resolveSlicerSelection) : ICommandHandler<ReplacePartFileCommand, AddPartResult>
 {
     public async Task<AddPartResult> HandleAsync(ReplacePartFileCommand command, CancellationToken cancellationToken)
@@ -46,18 +40,19 @@ public sealed class ReplacePartFileCommandHandler(
 
         if (classification.RequiresSlicing)
         {
-            var printers = await printerRepository.ListAsync(cancellationToken);
-            var profiles = await machineProfileRepository.ListAsync(cancellationToken);
-            targetNozzleDiameterMm = NozzleDiameterResolver.Resolve(printers, profiles, profileBundleParser)
-                ?? throw new NoNozzleDiameterAvailableException();
-
             var organization = await organizationRepository.GetAsync(cancellationToken);
-            slicerUsed = resolveSlicerSelection.Resolve(command.SlicerEngineOverride, command.SlicerVersionOverride, organization.DefaultSlicer);
-
-            if (classification.Format == PartFileFormat.Stl)
+            try
             {
-                targetMaterialType = slicerDefaults.GetFallbackMaterialType();
+                slicerUsed = resolveSlicerSelection.Resolve(command.SlicerEngineOverride, command.SlicerVersionOverride, organization.DefaultSlicer);
             }
+            catch (SlicerUnavailableException)
+            {
+                // Preserve an explicit pair for reproducible retries even when it is unavailable.
+                if (command.SlicerEngineOverride is { } engine && command.SlicerVersionOverride is { } version)
+                    slicerUsed = new SlicerRef(engine, version);
+            }
+
+
         }
 
         var job = PartProcessingJob.CreateReplace(

@@ -19,7 +19,7 @@ public sealed record PartDetail(
     bool RequiresSlicing,
     string OriginalFileName,
     long FileSizeBytes,
-    decimal NozzleDiameterMm,
+    decimal? NozzleDiameterMm,
     string EstimateStatus,
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
@@ -28,4 +28,7 @@ public sealed record PartDetail(
     int PlateCount,
     IReadOnlyList<ThumbnailView> Thumbnails,
     IReadOnlyList<string> Tags,
-    int UnitsPerPrint = 1);
+    int UnitsPerPrint = 1,
+    string PrintRequirementsStatus = "Complete",
+    IReadOnlyList<string>? ProcessingWarnings = null,
+    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null);

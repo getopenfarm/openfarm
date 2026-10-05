@@ -30,6 +30,23 @@ public sealed class Organization
     /// <summary>The version half of the optional default pair; <c>null</c> ⇒ no explicit default set (data-model.md "Organization").</summary>
     public string? DefaultSlicerVersion { get; private set; }
 
+    public Guid? EstimationMachineProfileId { get; private set; }
+    public Guid? EstimationProcessProfileId { get; private set; }
+    public Guid? EstimationFilamentProfileId { get; private set; }
+    public OpenFarm.Domain.Printers.BuildPlateType? EstimationBuildPlateType { get; private set; }
+
+    public void SetEstimationProfiles(Guid? machineId, Guid? processId, Guid? filamentId,
+        OpenFarm.Domain.Printers.BuildPlateType? buildPlate)
+    {
+        if ((machineId is null || processId is null || filamentId is null || buildPlate is null)
+            && (machineId is not null || processId is not null || filamentId is not null || buildPlate is not null))
+            throw new ArgumentException("Estimation profiles must be configured together or cleared together.");
+        EstimationMachineProfileId = machineId;
+        EstimationProcessProfileId = processId;
+        EstimationFilamentProfileId = filamentId;
+        EstimationBuildPlateType = buildPlate;
+    }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public static Organization Create(string name)

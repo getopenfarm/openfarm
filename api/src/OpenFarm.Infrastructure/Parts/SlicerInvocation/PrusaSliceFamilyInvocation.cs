@@ -49,5 +49,20 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
         return new SlicerProcessInvocation(slicer.ExecutablePath, arguments, outputPath, ProducesGCodeBearingThreeMf: true);
     }
 
+    public static SlicerProcessInvocation BuildEmbeddedProjectInvocation(AvailableSlicer slicer, string modelPath, string workDirectory)
+    {
+        if (slicer.Engine is not (SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio))
+            throw new SlicingFailedException("This engine does not support Orca/Bambu embedded projects.");
+        if (!SupportsEmbeddedProject(slicer))
+            throw new SlicingFailedException("Embedded-project estimation is unavailable for Bambu Studio 2.7.1 on macOS because its CLI is not compatible with this mode.");
+        var output = Path.Combine(workDirectory, "output.gcode.3mf");
+        // No load-settings, scalar overrides, updates, or profile-name substitution: preserve the project.
+        return new(slicer.ExecutablePath, $"--slice 0 --export-3mf \"{output}\" \"{modelPath}\"", output, true);
+    }
+
+    public static bool SupportsEmbeddedProject(AvailableSlicer slicer) =>
+        slicer.Engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
+        && !(slicer.Engine == SlicerEngine.BambuStudio && slicer.Platform == SlicerPlatform.MacOs && slicer.Version == "2.7.1");
+
     private static string EscapeMaterial(string materialType) => materialType.Replace("\"", "\\\"");
 }

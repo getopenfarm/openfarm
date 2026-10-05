@@ -20,7 +20,11 @@ public sealed class PartSummaryResponse
     public string Name { get; set; } = string.Empty;
     public string FileFormat { get; set; } = string.Empty;
     public bool RequiresSlicing { get; set; }
-    public decimal NozzleDiameterMm { get; set; }
+    public decimal? NozzleDiameterMm { get; set; }
+    public string PrintRequirementsStatus { get; set; } = "Complete";
+    public List<string> ProcessingWarnings { get; set; } = [];
+    public string? EstimateUnavailableReason { get; set; }
+    public OpenFarm.Domain.Parts.EstimationDetails? Estimation { get; set; }
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
@@ -62,6 +66,10 @@ public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> ha
                 FileFormat = p.FileFormat,
                 RequiresSlicing = p.RequiresSlicing,
                 NozzleDiameterMm = p.NozzleDiameterMm,
+                PrintRequirementsStatus = p.PrintRequirementsStatus,
+                ProcessingWarnings = p.ProcessingWarnings?.ToList() ?? [],
+                EstimateUnavailableReason = p.EstimateUnavailableReason,
+                Estimation = p.Estimation,
                 EstimateStatus = p.EstimateStatus,
                 EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
                 EstimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,

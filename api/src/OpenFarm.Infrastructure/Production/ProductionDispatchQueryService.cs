@@ -1,3 +1,4 @@
+using OpenFarm.Domain.Parts;
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.FilamentTracking;
@@ -116,6 +117,9 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             from job in dbContext.PrintJobs.Where(predicate)
             join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
             join part in dbContext.Parts on requirement.PartId equals part.Id
+            where part.NozzleDiameterMm != null && part.MaterialMetadataComplete
+                && dbContext.PartFilamentRequirements.Any(r => r.PartId == part.Id)
+                && (part.RequiresSlicing || !dbContext.PartFilamentRequirements.Any(r => r.PartId == part.Id && r.MaterialType == null))
             orderby job.QueuePosition
             select new { JobId = job.Id, job.QueuePosition, PartId = part.Id, part.NozzleDiameterMm })
             .ToListAsync(cancellationToken);
@@ -138,7 +142,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             .Select(row => new DispatchCandidate(
                 row.JobId,
                 row.QueuePosition,
-                row.NozzleDiameterMm,
+                row.NozzleDiameterMm!.Value,
                 filamentRequirementsByPart.GetValueOrDefault(row.JobId, [])))
             .ToList();
     }
@@ -264,7 +268,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
         var candidates = new List<BackfillLineCandidate>();
         foreach (var requirement in requirements)
         {
-            if (!partsById.TryGetValue(requirement.PartId, out var part))
+            if (!partsById.TryGetValue(requirement.PartId, out var part) || part.PrintRequirementsStatus != PrintRequirementsStatus.Complete)
             {
                 continue;
             }
@@ -273,7 +277,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             candidates.Add(new BackfillLineCandidate(
                 line.Id,
                 requirement.Id,
-                part.NozzleDiameterMm,
+                part.NozzleDiameterMm!.Value,
                 filamentRequirementsByPart.GetValueOrDefault(part.Id, []),
                 line.BackfillPrinterCap,
                 line.BackfillCumulativeUnitCeiling,

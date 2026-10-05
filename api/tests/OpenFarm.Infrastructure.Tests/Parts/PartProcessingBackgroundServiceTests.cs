@@ -65,7 +65,7 @@ public class PartProcessingBackgroundServiceTests
     }
 
     [Fact]
-    public async Task StorageReadThrowsDuringMilestone2_MarksJobFailed_AfterAlreadyReachingReadyForReview()
+    public async Task StorageReadThrowsDuringMilestone2_KeepsReviewReadyWithUnavailableEstimate()
     {
         var organizationId = Guid.NewGuid();
         var job = PartProcessingJob.CreateAdd(
@@ -93,12 +93,13 @@ public class PartProcessingBackgroundServiceTests
         {
             service.Enqueue(new PartProcessingWorkItem(organizationId, job.Id));
 
-            await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(() => job.PreviewEstimateStatus == EstimateStatus.Unavailable, TimeSpan.FromSeconds(2));
 
-            job.ErrorMessage.Should().Be("disk read failed");
-            publisher.StatusSnapshots.Should().Equal(PartProcessingJobStatus.ReadyForReview, PartProcessingJobStatus.Failed);
+            job.EstimateUnavailableReason.Should().Contain("disk read failed");
+            job.Status.Should().Be(PartProcessingJobStatus.ReadyForReview);
+            publisher.StatusSnapshots.Should().Equal(PartProcessingJobStatus.ReadyForReview, PartProcessingJobStatus.ReadyForReview);
             activityLogWriter.Entries.Should().ContainSingle(e =>
-                e.EntityId == job.Id.ToString() && e.EventType == "PartFileProcessingFailed");
+                e.EntityId == job.Id.ToString() && e.EventType == "PartEstimateUnavailable");
         }
         finally
         {
@@ -136,7 +137,7 @@ public class PartProcessingBackgroundServiceTests
     }
 
     [Fact]
-    public async Task Reconciliation_OrphanedReadyForReviewWithResolvingPreview_IsMarkedFailedOnStartup()
+    public async Task Reconciliation_OrphanedReadyForReviewWithResolvingPreview_KeepsReviewReady()
     {
         var job = ProcessingJob();
         job.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], plateCount: 1,
@@ -149,8 +150,9 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(2));
-            job.Status.Should().Be(PartProcessingJobStatus.Failed);
+            await WaitUntilAsync(() => job.PreviewEstimateStatus == EstimateStatus.Unavailable, TimeSpan.FromSeconds(2));
+            job.Status.Should().Be(PartProcessingJobStatus.ReadyForReview);
+            job.EstimateUnavailableReason.Should().Contain("restart");
         }
         finally
         {
@@ -353,6 +355,62 @@ public class PartProcessingBackgroundServiceTests
     }
 
     // -- Fixtures ------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task LateEstimate_UpdatesOnlyTheMatchingConfirmedProcessing(bool newerProcessing, bool estimationFails)
+    {
+        var jobs = new ReconcilingJobRepository();
+        var part = AvailablePart();
+        var publisher = new RecordingPartEventPublisher();
+        var processor = new DeferredEstimateProcessor();
+        var service = BuildService(jobs, new SeededPartRepository(part), new StubPartFileStorage(), processor,
+            publisher, new RecordingActivityLogWriter(), maxConcurrency: 1);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitForReconciliationToSettleAsync();
+            var job = ProcessingJob();
+            jobs.Add(job);
+            service.Enqueue(new PartProcessingWorkItem(OrgId, job.Id));
+            await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(2));
+            part.Reprocess(0.4m, null, null, EstimateStatus.Resolving, null, null, 1,
+                [new FilamentRequirementSpec("PLA", null, null, null, null)], []);
+            part.SetProcessingMetadata(newerProcessing ? Guid.NewGuid() : job.Id, true, null);
+            job.Confirm(part.Id);
+            if (estimationFails) processor.Completion.SetException(new IOException("late failure"));
+            else processor.Completion.SetResult(new PartEstimateResolution(99, 9m, []));
+            var marker = ProcessingJob();
+            jobs.Add(marker);
+            service.Enqueue(new PartProcessingWorkItem(OrgId, marker.Id));
+            await WaitUntilAsync(() => marker.PreviewEstimateStatus != EstimateStatus.Resolving
+                && marker.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(2));
+            if (newerProcessing)
+            {
+                part.EstimateStatus.Should().Be(EstimateStatus.Resolving);
+                part.EstimatedPrintTimeMinutes.Should().BeNull();
+                publisher.EstimateResolved.Should().NotContain(part.Id);
+                publisher.EstimateUnavailable.Should().NotContain(part.Id);
+            }
+            else
+            {
+                part.EstimateStatus.Should().Be(estimationFails ? EstimateStatus.Unavailable : EstimateStatus.Available);
+                if (!estimationFails) part.EstimatedPrintTimeMinutes.Should().Be(99);
+            }
+        }
+        finally { await service.StopAsync(CancellationToken.None); }
+    }
+
+    private sealed class DeferredEstimateProcessor : IPartFileProcessor
+    {
+        public TaskCompletionSource<PartEstimateResolution> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<PartMaterialResolution> ResolveMaterialAsync(PartProcessingJob job, Stream stream, CancellationToken cancellationToken) =>
+            Task.FromResult(new PartMaterialResolution(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], 1, null));
+        public Task<PartEstimateResolution> ResolveEstimateAsync(PartProcessingJob job, Stream stream, CancellationToken cancellationToken) => Completion.Task;
+    }
 
     private static PartProcessingJob ProcessingJob() =>
         PartProcessingJob.CreateAdd(OrgId, PartFileFormat.ThreeMf, "widget.3mf", storagePath: "path", fileSizeBytes: 10,
@@ -606,7 +664,12 @@ public class PartProcessingBackgroundServiceTests
 
         public Task PartUpsertedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task PartEstimateResolvedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public List<Guid> EstimateResolved { get; } = [];
+        public Task PartEstimateResolvedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken)
+        {
+            EstimateResolved.Add(partId);
+            return Task.CompletedTask;
+        }
 
         public Task PartEstimateUnavailableAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken)
         {

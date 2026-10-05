@@ -11,16 +11,20 @@ namespace OpenFarm.Application.Parts;
 /// for an unsliced 3MF, it's only just been discovered here.
 /// </summary>
 public sealed record PartMaterialResolution(
-    decimal NozzleDiameterMm,
+    decimal? NozzleDiameterMm,
     IReadOnlyList<PreviewFilamentRequirement> FilamentRequirements,
     int PlateCount,
     PartEstimateResolution? ImmediateEstimate,
-    string? ResolvedTargetMaterialType = null);
+    string? ResolvedTargetMaterialType = null,
+    bool MaterialMetadataComplete = true,
+    string? EstimateUnavailableReason = null,
+    IReadOnlyList<ThumbnailSpec>? Thumbnails = null, EstimationDetails? Estimation = null,
+    EstimationConfiguration? EstimationConfiguration = null, IReadOnlyList<string>? MetadataWarnings = null);
 
 /// <summary>Milestone 2 result (research.md §3b) — estimate summed across every plate, plus per-plate thumbnails.</summary>
 public sealed record PartEstimateResolution(
-    int EstimatedPrintTimeMinutes,
-    decimal EstimatedFilamentWeightGrams,
+    int? EstimatedPrintTimeMinutes,
+    decimal? EstimatedFilamentWeightGrams,
     IReadOnlyList<ThumbnailSpec> Thumbnails);
 
 /// <summary>

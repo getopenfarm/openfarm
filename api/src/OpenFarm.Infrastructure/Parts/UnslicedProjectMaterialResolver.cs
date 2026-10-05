@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
@@ -26,24 +25,16 @@ public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMa
 
         using (archive)
         {
-            var settingsEntry = archive.GetEntry("Metadata/project_settings.config");
-            if (settingsEntry is null)
+            var settingsEntry = SlicedPlateMetadata.Find(archive, "Metadata/project_settings.config");
+            ProjectSettingsMetadata? metadata = null;
+            if (settingsEntry is not null)
             {
-                throw new UnslicedProjectMaterialParsingFailedException(
-                    "No Metadata/project_settings.config was found — this doesn't look like an OrcaSlicer/Bambu Studio project.");
-            }
-
-            string materialType;
-            using (var reader = new StreamReader(settingsEntry.Open()))
-            {
-                var json = await reader.ReadToEndAsync(cancellationToken);
-                materialType = ExtractFirstFilamentType(json)
-                    ?? throw new UnslicedProjectMaterialParsingFailedException(
-                        "The project's own filament-preset assignment (filament_type) could not be parsed.");
+                using var reader = new StreamReader(settingsEntry.Open());
+                metadata = ProjectSettingsMetadata.Read(await reader.ReadToEndAsync(cancellationToken));
             }
 
             var plateCount = 1;
-            var modelSettingsEntry = archive.GetEntry("Metadata/model_settings.config");
+            var modelSettingsEntry = SlicedPlateMetadata.Find(archive, "Metadata/model_settings.config");
             if (modelSettingsEntry is not null)
             {
                 using var reader = new StreamReader(modelSettingsEntry.Open());
@@ -55,32 +46,28 @@ public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMa
                 }
             }
 
-            return new UnslicedProjectMaterial(materialType, plateCount);
-        }
-    }
-
-    private static string? ExtractFirstFilamentType(string json)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(json);
-            if (!document.RootElement.TryGetProperty("filament_type", out var value))
+            var thumbnails = new List<ThumbnailSpec>();
+            foreach (var entry in archive.Entries)
             {
-                return null;
+                var match = PlateThumbnailRegex().Match(entry.FullName.Replace('\\', '/'));
+                if (!match.Success || !int.TryParse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, out var number) || number < 1) continue;
+                using var input = entry.Open();
+                using var buffer = new MemoryStream();
+                await input.CopyToAsync(buffer, cancellationToken);
+                thumbnails.Add(new ThumbnailSpec(number - 1, buffer.ToArray()));
             }
-
-            return value.ValueKind switch
-            {
-                JsonValueKind.Array when value.GetArrayLength() > 0 => value[0].GetString(),
-                JsonValueKind.String => value.GetString(),
-                _ => null,
-            };
-        }
-        catch (JsonException)
-        {
-            return null;
+            var unsupported = archive.Entries.Any(e => e.FullName.StartsWith("Metadata/", StringComparison.OrdinalIgnoreCase)
+                && (e.FullName.Contains("Slic3r_PE.config", StringComparison.OrdinalIgnoreCase)
+                    || e.FullName.Contains("Cura", StringComparison.OrdinalIgnoreCase)));
+            return new UnslicedProjectMaterial(metadata is { Slots.Count: > 0 } ? metadata.Slots[0].MaterialType : null, plateCount, thumbnails,
+                settingsEntry is not null || unsupported, metadata?.Nozzle, metadata?.Details,
+                metadata?.UnavailableReason ?? (unsupported ? "Estimation unavailable: this embedded project format is not supported." : null),
+                metadata?.Slots, metadata?.MaterialComplete ?? true);
         }
     }
+
+    [GeneratedRegex(@"^Metadata/plate_(\d+)\.png$", RegexOptions.IgnoreCase)]
+    private static partial Regex PlateThumbnailRegex();
 
     [GeneratedRegex(@"<plate\b", RegexOptions.IgnoreCase)]
     private static partial Regex PlateElementRegex();

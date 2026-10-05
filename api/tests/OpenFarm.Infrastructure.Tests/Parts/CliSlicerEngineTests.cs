@@ -37,17 +37,39 @@ public class CliSlicerEngineTests
     }
 
     [Fact]
-    public async Task SliceAsync_BundledExecutableDoesNotExist_ThrowsSlicingFailedException()
+    public async Task EstimateAsync_BundledExecutableDoesNotExist_ThrowsSlicingFailedException()
     {
         var catalog = new FakeAvailableSlicerCatalog(
             new AvailableSlicer(SlicerEngine.OrcaSlicer, "2.2.0", SlicerPlatform.Linux, "/path/does/not/exist/orca-slicer-cli"));
         var engine = CreateEngine(catalog);
         using var modelStream = new MemoryStream([1, 2, 3]);
 
-        var act = async () => await engine.SliceAsync(Orca220, modelStream, PartFileFormat.Stl, "Generic PLA", 0.4m, printerId: null, CancellationToken.None);
+        var act = async () => await engine.EstimateAsync(Orca220, modelStream, PartFileFormat.ThreeMf,
+            new EstimationConfiguration(true, null, null, null), CancellationToken.None);
 
         (await act.Should().ThrowAsync<SlicingFailedException>())
             .WithMessage("*Could not start the OrcaSlicer CLI*");
+    }
+
+    [Fact]
+    public async Task EstimateAsync_RelativeExecutablePath_IsResolvedBeforeChangingWorkingDirectory()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var directory = Directory.CreateTempSubdirectory("openfarm-relative-slicer-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "AppRun");
+            await File.WriteAllTextAsync(path, "#!/bin/sh\nexit 1\n");
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var catalog = new FakeAvailableSlicerCatalog(new AvailableSlicer(SlicerEngine.OrcaSlicer, "2.2.0", SlicerPlatform.Linux,
+                Path.GetRelativePath(Environment.CurrentDirectory, path)));
+            var engine = CreateEngine(catalog);
+            using var input = new MemoryStream([1, 2, 3]);
+            var act = async () => await engine.EstimateAsync(Orca220, input, PartFileFormat.ThreeMf,
+                new EstimationConfiguration(true, null, null, null), CancellationToken.None);
+            await act.Should().ThrowAsync<SlicingFailedException>().WithMessage("*exited with code 1*");
+        }
+        finally { directory.Delete(true); }
     }
 
     [Theory]

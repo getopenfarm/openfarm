@@ -27,7 +27,8 @@ public sealed class PrintJobEligibilityQuery(IPrinterRepository printers, IPartR
             if (!nozzles.TryGetValue(job.PartRequirementId, out var nozzle))
             {
                 var requirement = await requirements.GetByIdAsync(job.PartRequirementId, cancellationToken);
-                nozzle = requirement is null ? null : (await parts.GetByIdAsync(requirement.PartId, cancellationToken))?.NozzleDiameterMm;
+                var part = requirement is null ? null : await parts.GetByIdAsync(requirement.PartId, cancellationToken);
+                nozzle = part?.PrintRequirementsStatus == OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete ? part.NozzleDiameterMm : null;
                 nozzles[job.PartRequirementId] = nozzle;
             }
             if (nozzle is null) continue;

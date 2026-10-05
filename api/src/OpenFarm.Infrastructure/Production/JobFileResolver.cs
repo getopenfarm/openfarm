@@ -25,6 +25,7 @@ public sealed class JobFileResolver(
 {
     public async Task<JobFileContent> ResolveAsync(Part part, PrintJob job, Guid printerId, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
+        part.EnsurePrintRequirementsComplete();
         var storagePath = job.FileRevisionHash == part.RevisionHash
             ? part.StoragePath
             : await partFileStorage.GetRevisionStoragePathAsync(part.OrganizationId, job.FileRevisionHash, part.OriginalFileName, cancellationToken);

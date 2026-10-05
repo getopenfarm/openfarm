@@ -140,6 +140,13 @@ export interface EffectiveSlicerDefaultResponse {
   isExplicit?: boolean;
 }
 
+export interface EstimationProfilesRequest {
+  machineProfileId?: string;
+  processProfileId?: string;
+  filamentProfileId?: string;
+  buildPlateType?: string;
+}
+
 export interface AvailableSlicerResponse {
   engine?: string;
   version?: string;
@@ -149,12 +156,14 @@ export interface AvailableSlicerResponse {
 export interface SlicingDefaultsResponse {
   id?: string;
   default?: EffectiveSlicerDefaultResponse | null;
+  estimationProfiles?: EstimationProfilesRequest | null;
   available?: AvailableSlicerResponse[];
 }
 
 export interface UpdateSlicingDefaultsRequest {
   engine?: string;
   version?: string;
+  estimationProfiles?: EstimationProfilesRequest | null;
 }
 
 export interface CreatedProfileItem {
@@ -909,6 +918,24 @@ export interface DeletePartRequest {
   [key: string]: unknown;
 }
 
+export interface EstimationDetails {
+  source?: string;
+  /** @nullable */
+  machineModel?: string | null;
+  /** @nullable */
+  machineProfileName?: string | null;
+  /** @nullable */
+  processProfileName?: string | null;
+  /** @nullable */
+  filamentProfileNames?: string[] | null;
+  /** @nullable */
+  buildPlate?: string | null;
+  /** @nullable */
+  engine?: string | null;
+  /** @nullable */
+  version?: string | null;
+}
+
 export interface SlicerResponse {
   engine?: string;
   version?: string;
@@ -942,7 +969,13 @@ export interface PartResponse {
   requiresSlicing?: boolean;
   originalFileName?: string;
   fileSizeBytes?: number;
-  nozzleDiameterMm?: number;
+  /** @nullable */
+  nozzleDiameterMm?: number | null;
+  printRequirementsStatus?: string;
+  processingWarnings?: string[];
+  /** @nullable */
+  estimateUnavailableReason?: string | null;
+  estimation?: EstimationDetails | null;
   estimateStatus?: string;
   /** @nullable */
   estimatedPrintTimeMinutes?: number | null;
@@ -961,7 +994,13 @@ export interface PartSummaryResponse {
   name?: string;
   fileFormat?: string;
   requiresSlicing?: boolean;
-  nozzleDiameterMm?: number;
+  /** @nullable */
+  nozzleDiameterMm?: number | null;
+  printRequirementsStatus?: string;
+  processingWarnings?: string[];
+  /** @nullable */
+  estimateUnavailableReason?: string | null;
+  estimation?: EstimationDetails | null;
   estimateStatus?: string;
   /** @nullable */
   estimatedPrintTimeMinutes?: number | null;
@@ -1031,6 +1070,10 @@ export interface DiscardPartProcessingJobRequest {
 }
 
 export interface PreviewFilamentRequirementResponse {
+  /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentProfileId?: string | null;
   requirementIndex?: number;
   /** @nullable */
   materialType?: string | null;
@@ -1044,6 +1087,11 @@ export interface PartProcessingJobPreviewResponse {
   /** @nullable */
   nozzleDiameterMm?: number | null;
   filamentRequirements?: PreviewFilamentRequirementResponse[];
+  printRequirementsStatus?: string;
+  processingWarnings?: string[];
+  /** @nullable */
+  estimateUnavailableReason?: string | null;
+  estimation?: EstimationDetails | null;
   estimateStatus?: string;
   /** @nullable */
   estimatedPrintTimeMinutes?: number | null;

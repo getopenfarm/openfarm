@@ -197,7 +197,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         var requirement = await requirementRepository.GetByIdAsync(job.PartRequirementId, cancellationToken);
         var part = requirement is null ? null : await partRepository.GetByIdAsync(requirement.PartId, cancellationToken);
-        if (requirement is null || part is null)
+        if (requirement is null || part is null || part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete)
         {
             LogMissingDispatchTarget(_logger, job.Id);
             return;
@@ -239,7 +239,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         var requirement = await requirementRepository.GetByIdAsync(requirementId.Value, cancellationToken);
         var part = requirement is null ? null : await partRepository.GetByIdAsync(requirement.PartId, cancellationToken);
-        if (requirement is null || part is null)
+        if (requirement is null || part is null || part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete)
         {
             return;
         }
@@ -270,6 +270,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         IServiceProvider services, Printer printer, PrintJob job, Part part, decimal nozzleDiameterMm, RevisionMode revisionMode,
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
+        if (part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
         if (!PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
         {
             // FR-012 manual-brand path: mark the assignment only — Status stays Queued until the
@@ -281,6 +282,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             {
                 var partRepository = services.GetRequiredService<IPartRepository>();
                 var freshPart = await partRepository.GetByIdAsync(part.Id, cancellationToken) ?? part;
+                if (freshPart.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
                 job.Dispatch(printer.Id, freshPart.RevisionHash, freshPart.RevisionNumber);
             }
             else
@@ -319,6 +321,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             ? await partRepository.GetByIdAsync(part.Id, cancellationToken) ?? part
             : part;
 
+        if (dispatchPart.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
         if (revisionMode == RevisionMode.FollowLatest)
         {
             job.Dispatch(printer.Id, dispatchPart.RevisionHash, dispatchPart.RevisionNumber);

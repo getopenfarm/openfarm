@@ -38,6 +38,15 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             throw new InvalidConfirmPartProcessingJobRequestException("A replace confirmation must not include name or tags.");
         }
 
+        Part? existingPart = null;
+        if (job.Kind == PartProcessingJobKind.Reprocess)
+        {
+            existingPart = await partRepository.GetByIdAsync(job.PartId!.Value, cancellationToken)
+                ?? throw new PartNotFoundException(job.PartId.Value);
+            if (existingPart.RevisionHash != job.SourceRevisionHash || existingPart.UpdatedAtUtc != job.SourcePartUpdatedAtUtc)
+                throw new PartConcurrencyConflictException(existingPart.Id);
+        }
+
         var overridesByIndex = (command.FilamentRequirementOverrides ?? [])
             .ToDictionary(o => o.RequirementIndex);
 
@@ -53,12 +62,14 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             .Select(preview =>
             {
                 overridesByIndex.TryGetValue(preview.RequirementIndex, out var overrideEntry);
+                var previous = existingPart?.FilamentRequirements.FirstOrDefault(r => r.MaterialType == preview.MaterialType
+                    && r.DetectedColorHex == preview.DetectedColorHex && r.DetectedSubBrand == preview.DetectedSubBrand);
                 return new FilamentRequirementSpec(
                     preview.MaterialType,
                     preview.DetectedColorHex,
                     preview.DetectedSubBrand,
-                    overrideEntry?.NarrowFilamentVariantId,
-                    overrideEntry?.NarrowFilamentProfileId);
+                    overrideEntry is not null ? overrideEntry.NarrowFilamentVariantId : previous?.NarrowFilamentVariantId,
+                    overrideEntry is not null ? overrideEntry.NarrowFilamentProfileId : previous?.NarrowFilamentProfileId);
             })
             .ToList();
 
@@ -90,7 +101,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 job.OriginalFileName,
                 job.StoragePath,
                 job.FileSizeBytes,
-                job.PreviewNozzleDiameterMm!.Value,
+                job.PreviewNozzleDiameterMm,
                 job.SlicerEngineUsed,
                 job.SlicerVersionUsed,
                 estimateStatus,
@@ -104,6 +115,10 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 thumbnails,
                 tags);
 
+            part.SetEstimation(job.Estimation);
+            part.SetMetadataWarnings(job.MetadataWarnings);
+            part.SetProcessingMetadata(job.Id, job.PreviewMaterialMetadataComplete, job.EstimateUnavailableReason);
+            job.Confirm(part.Id);
             await partRepository.AddAsync(part, cancellationToken);
         }
         else
@@ -122,13 +137,19 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 await using var oldFile = await fileStorage.OpenReadAsync(part.StoragePath, cancellationToken);
                 await fileStorage.SaveAsync(part.OrganizationId, part.RevisionHash, part.OriginalFileName, oldFile, cancellationToken);
             }
-            part.ReplaceFile(
+            if (job.Kind == PartProcessingJobKind.Reprocess)
+            {
+                part.Reprocess(job.PreviewNozzleDiameterMm, job.SlicerEngineUsed, job.SlicerVersionUsed,
+                    estimateStatus, job.PreviewEstimatedPrintTimeMinutes, job.PreviewEstimatedFilamentWeightGrams,
+                    job.PreviewPlateCount!.Value, filamentRequirements, thumbnails);
+            }
+            else part.ReplaceFile(
                 job.FileFormat,
                 job.RequiresSlicing,
                 job.OriginalFileName,
                 job.StoragePath,
                 job.FileSizeBytes,
-                job.PreviewNozzleDiameterMm!.Value,
+                job.PreviewNozzleDiameterMm,
                 job.SlicerEngineUsed,
                 job.SlicerVersionUsed,
                 estimateStatus,
@@ -139,12 +160,14 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 filamentRequirements,
                 thumbnails);
 
+            part.SetEstimation(job.Estimation);
+            part.SetMetadataWarnings(job.MetadataWarnings);
+            part.SetProcessingMetadata(job.Id, job.PreviewMaterialMetadataComplete, job.EstimateUnavailableReason);
             partRepository.TrackReplacementChildren(part);
+            job.Confirm(part.Id);
             await partRepository.SaveChangesAsync(cancellationToken);
         }
 
-        job.Confirm(part.Id);
-        await jobRepository.SaveChangesAsync(cancellationToken);
 
         await eventPublisher.PartUpsertedAsync(part.OrganizationId, part.Id, cancellationToken);
 

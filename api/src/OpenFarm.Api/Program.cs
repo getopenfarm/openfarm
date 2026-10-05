@@ -354,6 +354,7 @@ builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
 builder.Services.AddScoped<ResolveSlicerSelection>();
 builder.Services.AddScoped<RepresentativeFilamentResolver>();
 builder.Services.AddScoped<ResolveSlicingProfileSelection>();
+builder.Services.AddScoped<ResolveEstimationProfiles>();
 
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
 builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();
@@ -374,6 +375,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<PartProcessingBack
 builder.Services.AddSingleton<IPartProcessingDispatcher>(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
 
 builder.Services.AddScoped<AddPartHandlerType, AddPartCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<ReprocessPartCommand, AddPartResult>, ReprocessPartCommandHandler>();
 builder.Services.AddScoped<ReplacePartFileHandlerType, ReplacePartFileCommandHandler>();
 builder.Services.AddScoped<ConfirmPartProcessingJobHandlerType, ConfirmPartProcessingJobCommandHandler>();
 builder.Services.AddScoped<DiscardPartProcessingJobHandlerType, DiscardPartProcessingJobCommandHandler>();

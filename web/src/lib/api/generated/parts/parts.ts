@@ -1091,6 +1091,127 @@ export const useOpenFarmApiEndpointsPartsReplacePartFileEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsPartsReprocessPartEndpointResponse200 = {
+  data: PartProcessingJobSubmittedResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPartsReprocessPartEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPartsReprocessPartEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPartsReprocessPartEndpointResponseSuccess =
+  openFarmApiEndpointsPartsReprocessPartEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPartsReprocessPartEndpointResponseError = (
+  | openFarmApiEndpointsPartsReprocessPartEndpointResponse401
+  | openFarmApiEndpointsPartsReprocessPartEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPartsReprocessPartEndpointResponse =
+  | openFarmApiEndpointsPartsReprocessPartEndpointResponseSuccess
+  | openFarmApiEndpointsPartsReprocessPartEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPartsReprocessPartEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/parts/${id}/reprocess`;
+};
+
+export const openFarmApiEndpointsPartsReprocessPartEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPartsReprocessPartEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPartsReprocessPartEndpointResponse>(
+    getOpenFarmApiEndpointsPartsReprocessPartEndpointUrl(id),
+    {
+      ...options,
+      method: 'POST',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPartsReprocessPartEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>>,
+    TError,
+    { id: string },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsPartsReprocessPartEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>
+      >,
+      { id: string }
+    > = (props) => {
+      const { id } = props ?? {};
+
+      return openFarmApiEndpointsPartsReprocessPartEndpoint(id);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPartsReprocessPartEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>>
+  >;
+
+export type OpenFarmApiEndpointsPartsReprocessPartEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsPartsReprocessPartEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPartsReprocessPartEndpointMutationOptions(options),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse200 = {
   data: PartResponse;
   status: 200;

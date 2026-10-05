@@ -237,3 +237,57 @@ describe('usePartFileProcessing', () => {
     expect(result.current.jobId).toBeNull();
   });
 });
+
+describe('explicit reprocessing', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it('starts from the stored file and can confirm an unavailable estimate', async () => {
+    const confirmed = vi.fn();
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url.endsWith('/reprocess'))
+        return Promise.resolve(
+          jsonResponse({ jobId: 'retry-1', status: 'Processing' }, 202),
+        );
+      if (url.endsWith('/confirm') && init?.method === 'POST')
+        return Promise.resolve(jsonResponse({ id: 'part-1' }, 201));
+      if (url.includes('/part-processing-jobs/'))
+        return Promise.resolve(
+          jsonResponse({
+            id: 'retry-1',
+            status: 'ReadyForReview',
+            kind: 'Reprocess',
+            partId: 'part-1',
+            preview: {
+              estimateStatus: 'Unavailable',
+              nozzleDiameterMm: null,
+              filamentRequirements: [],
+            },
+          }),
+        );
+      return Promise.resolve(jsonResponse({ available: [], default: null }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHookWithClient(() =>
+      usePartFileProcessing({
+        mode: 'reprocess',
+        partId: 'part-1',
+        onConfirmed: confirmed,
+      }),
+    );
+    expect(
+      fetchMock.mock.calls.some((call) =>
+        call[0].toString().endsWith('/reprocess'),
+      ),
+    ).toBe(false);
+    act(() => result.current.reprocess());
+    await waitFor(() => expect(result.current.status).toBe('ReadyForReview'));
+    expect(result.current.file).toBeNull();
+    act(() => result.current.confirm());
+    await waitFor(() => expect(confirmed).toHaveBeenCalledOnce());
+    expect(
+      fetchMock.mock.calls.find((call) =>
+        call[0].toString().endsWith('/reprocess'),
+      )?.[1]?.body,
+    ).toBe('{}');
+  });
+});

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using System.Text.Json.Nodes;
 using FluentAssertions;
 using OpenFarm.Application.Parts;
@@ -27,6 +29,40 @@ public class RealSlicerGoldenFileTests
     [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
     public Task OrcaSlicer231_Benchy_ProducesExpectedGCode() =>
         RunCaseAsync("orcaslicer-2.3.1-benchy-stl", SlicerEngine.OrcaSlicer, "2.3.1");
+
+    [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
+    public async Task OrcaSlicer231_EmbeddedProject_PreservesItsSavedSettings()
+    {
+        var (available, reason) = RealSlicerBundleLocator.TryResolve(SlicerEngine.OrcaSlicer, "2.3.1");
+        available.Should().NotBeNull(reason);
+        var directory = Path.Combine(FixturesRoot, "orcaslicer-2.3.1-benchy-3mf");
+        var bytes = await File.ReadAllBytesAsync(Path.Combine(directory, "3DBenchy.3mf"));
+        var staging = await VendorProfileFixtureStaging.StageAndIngestAsync(SlicerEngine.OrcaSlicer, "2.3.1",
+            "Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C", "Bambu PLA Basic @BBL X1C", CancellationToken.None);
+        var engine = new CliSlicerEngine(new SingleSlicerCatalog(available!), new FixedPlatform(available!.Platform),
+            [new PrusaSliceFamilyInvocation()], staging.Resolver, Options.Create(new SlicerOptions()), NullLogger<CliSlicerEngine>.Instance);
+        using var input = new MemoryStream(bytes);
+        var result = await engine.EstimateAsync(available.ToSlicerRef(), input, PartFileFormat.ThreeMf,
+            new EstimationConfiguration(true, null, null, null), CancellationToken.None);
+        result.EstimatedPrintTimeMinutes.Should().Be(35);
+        result.EstimatedFilamentWeightGrams.Should().Be(11.09m);
+        result.PlateCount.Should().Be(1);
+        using var output = new MemoryStream(result.OutputFileBytes);
+        var metadata = await new AlreadySlicedFileMetadataParser().ParseAsync(output, PartFileFormat.ThreeMf, CancellationToken.None);
+        metadata.NozzleDiameterMm.Should().Be(0.4m);
+        metadata.DetectedFilamentSlots.Should().ContainSingle(s => s.MaterialType == "PLA");
+    }
+
+    private sealed class SingleSlicerCatalog(AvailableSlicer available) : IAvailableSlicerCatalog
+    {
+        public IReadOnlyList<AvailableSlicer> GetAvailable() => [available];
+        public AvailableSlicer? Find(SlicerRef slicerRef, SlicerPlatform platform) =>
+            available.ToSlicerRef() == slicerRef && available.Platform == platform ? available : null;
+    }
+    private sealed class FixedPlatform(SlicerPlatform platform) : IHostPlatformProvider
+    {
+        public SlicerPlatform Current => platform;
+    }
 
     private static async Task RunCaseAsync(string caseName, SlicerEngine engine, string version)
     {

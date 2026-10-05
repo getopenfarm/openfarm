@@ -7,12 +7,15 @@ public sealed record PartSummary(
     string Name,
     string FileFormat,
     bool RequiresSlicing,
-    decimal NozzleDiameterMm,
+    decimal? NozzleDiameterMm,
     string EstimateStatus,
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
     string? ThumbnailBase64,
     IReadOnlyList<string> MaterialTypes,
-    IReadOnlyList<string> Tags);
+    IReadOnlyList<string> Tags,
+    string PrintRequirementsStatus = "Complete",
+    IReadOnlyList<string>? ProcessingWarnings = null,
+    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null);
 
 public sealed record PartsPage(IReadOnlyList<PartSummary> Parts, int TotalCount);
