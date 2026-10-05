@@ -8,10 +8,12 @@ import type {
   PrinterDetailTelemetryResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
+  getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
 } from '@/lib/api/generated/printers/printers';
 import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
+import { amsTopologyKey } from '../lib/feedSlotView';
 import { filamentColorFromAms } from '../lib/filamentColor';
 
 interface PrinterStatusChangedPayload {
@@ -97,9 +99,13 @@ export function useFarmHub() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    const topologyByPrinter = new Map<string, string>();
     const { connection, stop } = connectFarmHub({
       onConnected: () => invalidatePrinterQueries(queryClient),
-      onReconnected: () => invalidatePrinterQueries(queryClient),
+      onReconnected: () => {
+        topologyByPrinter.clear();
+        invalidatePrinterQueries(queryClient);
+      },
     });
 
     connection.on(
@@ -155,6 +161,16 @@ export function useFarmHub() {
     connection.on(
       'PrinterTelemetryUpdated',
       (payload: PrinterTelemetryUpdatedPayload) => {
+        const topology = amsTopologyKey(payload.amsUnits);
+        if (topologyByPrinter.get(payload.printerId) !== topology) {
+          topologyByPrinter.set(payload.printerId, topology);
+          queryClient.invalidateQueries({
+            queryKey:
+              getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey(
+                payload.printerId,
+              ),
+          });
+        }
         queryClient.setQueryData<DetailQueryData | undefined>(
           getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey(
             payload.printerId,

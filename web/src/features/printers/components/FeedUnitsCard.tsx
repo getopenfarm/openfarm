@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Swatch } from '@/components/swatch/Swatch';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import type {
-  CurrentSpoolResponse,
+  AmsUnitResponse,
   FeedSlotResponse,
   FeedUnitResponse,
   ListFeedUnitsResponse,
@@ -17,88 +18,129 @@ import {
   useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint,
 } from '@/lib/api/generated/printers/printers';
 import { cn } from '@/lib/utils';
+import { feedSlotView, normalizeFilamentColor } from '../lib/feedSlotView';
 import { AddFeedUnitDialog } from './AddFeedUnitDialog';
 
 const REMOVABLE_KINDS = new Set(['AutomaticFilamentReloader', 'ExternalSpool']);
 
 export interface FeedUnitsCardProps {
   printerId: string;
+  amsUnits?: AmsUnitResponse[];
+  isReachable?: boolean;
 }
 
-function CurrentSpoolSummary({
-  currentSpool,
+function FeedSlotRow({
+  unit,
+  slot,
+  amsUnits,
+  isReachable,
 }: {
-  currentSpool: CurrentSpoolResponse;
+  unit: FeedUnitResponse;
+  slot: FeedSlotResponse;
+  amsUnits: AmsUnitResponse[];
+  isReachable: boolean;
 }) {
   const filaments = useFilamentCatalog();
-  const variant = filaments
-    .flatMap((f) =>
-      (f.variants ?? []).map((v) => ({ filament: f, variant: v })),
-    )
-    .find((entry) => entry.variant.id === currentSpool.filamentVariantId);
-
-  return (
-    <>
-      <Swatch colorHex={variant?.variant.colorHex} size="sm" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-medium">
-          {variant
-            ? `${variant.filament.vendorName} ${variant.filament.material}`
-            : 'Loaded'}
-        </p>
-        {variant && (
-          <p className="truncate text-[11.5px] text-muted-foreground">
-            {variant.variant.colorName}
-          </p>
-        )}
-      </div>
-      <span className="font-mono text-xs text-muted-foreground">
-        {currentSpool.remainingWeightGrams} g
-      </span>
-    </>
+  const spool = slot.currentSpool;
+  const filament = filaments.find((f) =>
+    (f.variants ?? []).some((v) => v.id === spool?.filamentVariantId),
   );
-}
-
-function FeedSlotRow({ slot }: { slot: FeedSlotResponse }) {
-  const deactivated = Boolean(slot.deactivatedAtUtc);
+  const variant = filament?.variants?.find(
+    (v) => v.id === spool?.filamentVariantId,
+  );
+  const view = feedSlotView(unit, slot, amsUnits, isReachable);
+  const inactive = Boolean(slot.deactivatedAtUtc);
+  const title = spool
+    ? filament
+      ? `${filament.vendorName} ${filament.material}`
+      : 'Registered spool'
+    : view.empty
+      ? 'Empty'
+      : (view.material ?? 'No registered spool');
+  const detected = [view.material, view.subBrand].filter(Boolean).join(' · ');
+  const differentDetection =
+    spool &&
+    (view.material !== filament?.materialType ||
+      view.subBrand ||
+      (view.color && view.color !== normalizeFilamentColor(variant?.colorHex)));
 
   return (
     <li
+      aria-label={slot.displayLabel}
       className={cn(
-        'flex items-center gap-3 border-b px-[18px] py-3 last:border-b-0',
-        deactivated && 'opacity-50',
+        'flex flex-wrap items-center gap-3 border-b px-[18px] py-3 last:border-b-0',
+        view.active && 'bg-accent/40',
+        inactive && 'opacity-50',
       )}
     >
-      <span className="w-16 shrink-0 font-mono text-[11px] text-muted-foreground">
-        {slot.displayLabel}
+      <span className="w-12 shrink-0 font-mono text-[11px] text-muted-foreground">
+        {slot.slotPosition != null
+          ? `Slot ${slot.slotPosition + 1}`
+          : slot.displayLabel}
       </span>
-      {slot.currentSpool ? (
-        <CurrentSpoolSummary currentSpool={slot.currentSpool} />
-      ) : slot.detectedMaterialType ? (
-        <>
-          <Swatch
-            colorHex={
-              slot.detectedColorHex ? `#${slot.detectedColorHex}` : undefined
-            }
-            size="sm"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium">
-              {slot.detectedMaterialType}
-            </p>
-            <p className="truncate text-[11.5px] text-muted-foreground">
-              Detected, not registered as a spool
-            </p>
-          </div>
-        </>
-      ) : (
-        <>
-          <Swatch className="bg-transparent" size="sm" />
-          <p className="flex-1 truncate text-[13px] text-muted-foreground">
-            {deactivated ? 'Deactivated' : 'Empty'}
+      <Swatch
+        colorHex={
+          spool ? normalizeFilamentColor(variant?.colorHex) : view.color
+        }
+        size="sm"
+      />
+      <div className="min-w-0 flex-1 basis-24">
+        <p className="text-[13px] font-medium break-words">{title}</p>
+        {variant && (
+          <p className="text-[11.5px] text-muted-foreground">
+            {variant.colorName}
           </p>
-        </>
-      )}
+        )}
+        {!spool && view.material && (
+          <p className="text-[11.5px] text-muted-foreground">
+            Detected · Unregistered{view.subBrand ? ` · ${view.subBrand}` : ''}
+          </p>
+        )}
+        {spool && view.empty && (
+          <p className="text-[11.5px] text-muted-foreground">
+            Printer reports empty
+          </p>
+        )}
+        {differentDetection && detected && (
+          <p className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+            {view.color && <Swatch colorHex={view.color} size="sm" />}
+            Printer detected: {detected}
+          </p>
+        )}
+        {!view.empty && !view.material && (
+          <p className="text-[11.5px] text-muted-foreground">
+            Detection unavailable
+          </p>
+        )}
+        {inactive && (
+          <p className="text-[11.5px] text-muted-foreground">Inactive slot</p>
+        )}
+        {view.active && (
+          <span className="inline-flex rounded bg-accent px-1.5 py-0.5 text-[11px] font-medium">
+            Active
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col items-end gap-1 text-right font-mono text-[11px] text-muted-foreground">
+        {spool?.remainingWeightGrams != null && (
+          <span>Tracked: {spool.remainingWeightGrams} g</span>
+        )}
+        {view.remainPercent != null && (
+          <span
+            className={cn(
+              isReachable &&
+                !inactive &&
+                (view.remainPercent <= 15
+                  ? 'text-status-offline'
+                  : view.remainPercent <= 30
+                    ? 'text-status-attention'
+                    : ''),
+            )}
+          >
+            Printer estimate: {view.remainPercent}%
+          </span>
+        )}
+      </div>
     </li>
   );
 }
@@ -106,7 +148,11 @@ function FeedSlotRow({ slot }: { slot: FeedSlotResponse }) {
 function FeedUnitGroup({
   unit,
   printerId,
+  amsUnits,
+  isReachable,
 }: {
+  amsUnits: AmsUnitResponse[];
+  isReachable: boolean;
   unit: FeedUnitResponse;
   printerId: string;
 }) {
@@ -150,14 +196,24 @@ function FeedUnitGroup({
       </div>
       <ul>
         {(unit.feedSlots ?? []).map((slot) => (
-          <FeedSlotRow key={slot.id} slot={slot} />
+          <FeedSlotRow
+            key={slot.id}
+            unit={unit}
+            slot={slot}
+            amsUnits={amsUnits}
+            isReachable={isReachable}
+          />
         ))}
       </ul>
     </div>
   );
 }
 
-export function FeedUnitsCard({ printerId }: FeedUnitsCardProps) {
+export function FeedUnitsCard({
+  printerId,
+  amsUnits = [],
+  isReachable = false,
+}: FeedUnitsCardProps) {
   const [addOpen, setAddOpen] = useState(false);
   const feedUnitsQuery = useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint(
     printerId,
@@ -169,26 +225,58 @@ export function FeedUnitsCard({ printerId }: FeedUnitsCardProps) {
 
   return (
     <Card className="gap-0 py-0">
-      <CardHeader className="flex-row items-center justify-between border-b px-[18px] py-3.5">
+      <CardHeader className="flex items-center justify-between border-b px-[18px] py-3.5">
         <CardTitle className="text-sm font-semibold">Feed Units</CardTitle>
         <Button
           variant="outline"
-          size="sm"
-          className="h-7"
+          size="icon"
+          className="size-7"
+          aria-label="Add a Feed Unit"
+          title="Add a Feed Unit"
           onClick={() => setAddOpen(true)}
         >
-          Add a Feed Unit
+          <Plus className="size-4" aria-hidden="true" />
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        {feedUnits.length === 0 ? (
+        {!isReachable && (
+          <p className="border-b px-[18px] py-2 text-xs text-muted-foreground">
+            Printer offline · Detection is last known
+          </p>
+        )}
+        {feedUnitsQuery.isError && (
+          <div role="alert" className="px-[18px] py-3 text-sm">
+            Could not load Feed Units.{' '}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => feedUnitsQuery.refetch()}
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+        {feedUnitsQuery.isLoading ? (
+          <p
+            role="status"
+            className="px-[18px] py-7 text-sm text-muted-foreground"
+          >
+            Loading Feed Units…
+          </p>
+        ) : !feedUnitsQuery.data ? null : feedUnits.length === 0 ? (
           <p className="px-[18px] py-7 text-center text-sm text-muted-foreground">
             No Feed Units on this printer
           </p>
         ) : (
           <div className="flex flex-col">
             {feedUnits.map((unit) => (
-              <FeedUnitGroup key={unit.id} unit={unit} printerId={printerId} />
+              <FeedUnitGroup
+                key={unit.id}
+                unit={unit}
+                printerId={printerId}
+                amsUnits={amsUnits}
+                isReachable={isReachable}
+              />
             ))}
           </div>
         )}

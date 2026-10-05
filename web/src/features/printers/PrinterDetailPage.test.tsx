@@ -105,6 +105,27 @@ describe('PrinterDetailPage', () => {
       if (url.includes('/hubs/farm')) {
         return Promise.reject(new Error('SignalR not available in tests'));
       }
+      if (url.includes('/feed-units')) {
+        return Promise.resolve(
+          jsonResponse({
+            feedUnits: [
+              {
+                id: 'ams-1',
+                kind: 'MultiMaterialUnit',
+                unitIndex: 0,
+                displayLabel: 'AMS 1',
+                feedSlots: [
+                  {
+                    id: 'slot-1',
+                    slotPosition: 0,
+                    displayLabel: 'AMS 1 · Slot 1',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      }
       if (url.includes('/activity-log')) {
         return Promise.resolve(
           jsonResponse({
@@ -175,7 +196,10 @@ describe('PrinterDetailPage', () => {
     expect(screen.getByText('59.8°C')).toBeInTheDocument();
     // Progress appears in both the telemetry strip and the current-job card.
     expect(screen.getAllByText('42%').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('PLA')).toBeInTheDocument();
+    expect(await screen.findByText('PLA')).toBeInTheDocument();
+    expect(screen.getAllByText('Feed Units')).toHaveLength(1);
+    expect(screen.queryByText('Filament — AMS')).not.toBeInTheDocument();
+    expect(screen.getByText('Printer estimate: 62%')).toBeInTheDocument();
     // Only the Printer-scoped activity entry is shown, not the unrelated Job one.
     expect(
       await screen.findByText('Printer status changed'),
@@ -190,6 +214,8 @@ describe('PrinterDetailPage', () => {
       if (url.includes('/hubs/farm')) {
         return Promise.reject(new Error('SignalR not available in tests'));
       }
+      if (url.includes('/feed-units'))
+        return Promise.resolve(jsonResponse({ feedUnits: [] }));
       if (url.includes('/activity-log')) {
         return Promise.resolve(
           jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
@@ -221,7 +247,9 @@ describe('PrinterDetailPage', () => {
 
     expect(await screen.findByText('Idle Printer')).toBeInTheDocument();
     expect(screen.getByText('No active print')).toBeInTheDocument();
-    expect(screen.getByText('No AMS unit attached')).toBeInTheDocument();
+    expect(
+      await screen.findByText('No Feed Units on this printer'),
+    ).toBeInTheDocument();
     expect(await screen.findByText('No recent activity')).toBeInTheDocument();
   });
 

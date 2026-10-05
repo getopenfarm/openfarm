@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FeedUnitsCard } from './FeedUnitsCard';
+import { FeedUnitsCard, type FeedUnitsCardProps } from './FeedUnitsCard';
 
 function stubFetch(onDelete?: (url: string) => void) {
   vi.stubGlobal(
@@ -23,6 +23,7 @@ function stubFetch(onDelete?: (url: string) => void) {
                 {
                   id: 'fu-1',
                   kind: 'MultiMaterialUnit',
+                  unitIndex: 0,
                   displayLabel: 'AMS 1',
                   isRevealed: true,
                   feedSlots: [
@@ -94,14 +95,17 @@ function stubFetch(onDelete?: (url: string) => void) {
   );
 }
 
-function renderCard(onDelete?: (url: string) => void) {
+function renderCard(
+  onDelete?: (url: string) => void,
+  props: Partial<FeedUnitsCardProps> = {},
+) {
   stubFetch(onDelete);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <FeedUnitsCard printerId="printer-1" />
+      <FeedUnitsCard printerId="printer-1" isReachable {...props} />
     </QueryClientProvider>,
   );
 }
@@ -116,13 +120,177 @@ describe('FeedUnitsCard', () => {
 
     expect(await screen.findByText('Bambu Lab PLA Basic')).toBeInTheDocument();
     expect(screen.getByText('Black')).toBeInTheDocument();
-    expect(screen.getByText('400 g')).toBeInTheDocument();
+    expect(screen.getByText('Tracked: 400 g')).toBeInTheDocument();
   });
 
-  it('shows Empty for a Feed Slot with nothing loaded', async () => {
+  it('shows unknown detection for a Feed Slot with no telemetry', async () => {
     renderCard();
 
-    expect(await screen.findAllByText('Empty')).not.toHaveLength(0);
+    expect(await screen.findAllByText('No registered spool')).not.toHaveLength(
+      0,
+    );
+    expect(screen.queryByText('Empty')).not.toBeInTheDocument();
+  });
+
+  it('combines tracked grams, detected contents and live percentage in one slot', async () => {
+    renderCard(undefined, {
+      amsUnits: [
+        {
+          unitIndex: 0,
+          trays: [
+            {
+              slotIndex: 0,
+              materialType: 'PETG',
+              subBrand: 'Basic',
+              remainPercent: 0,
+              active: true,
+            },
+            { slotIndex: 1, empty: true },
+          ],
+        },
+      ],
+    });
+    await screen.findByText('Bambu Lab PLA Basic');
+    const row = screen.getByText('Tracked: 400 g').closest('li');
+    if (!row) throw new Error('Expected a registered spool row');
+    expect(within(row).getByText('Printer estimate: 0%')).toBeInTheDocument();
+    expect(
+      within(row).getByText('Printer detected: PETG · Basic'),
+    ).toBeInTheDocument();
+    expect(within(row).getByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('Empty')).toBeInTheDocument();
+  });
+
+  it('updates live values and marks them last known when offline', async () => {
+    stubFetch();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const card = (isReachable: boolean, remainPercent: number) => (
+      <QueryClientProvider client={queryClient}>
+        <FeedUnitsCard
+          printerId="printer-1"
+          isReachable={isReachable}
+          amsUnits={[
+            {
+              unitIndex: 0,
+              trays: [
+                {
+                  slotIndex: 0,
+                  materialType: 'PLA',
+                  active: true,
+                  remainPercent,
+                },
+              ],
+            },
+          ]}
+        />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(card(true, 62));
+    await screen.findByText('Printer estimate: 62%');
+    rerender(card(true, 61));
+    expect(screen.getByText('Printer estimate: 61%')).toBeInTheDocument();
+    rerender(card(false, 61));
+    expect(screen.queryByText('Active')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Printer offline · Detection is last known'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows detected but unregistered filament without hiding the inventory state', async () => {
+    renderCard(undefined, {
+      amsUnits: [
+        {
+          unitIndex: 0,
+          trays: [{ slotIndex: 1, materialType: 'PETG', subBrand: 'Basic' }],
+        },
+      ],
+    });
+    expect(await screen.findByText('PETG')).toBeInTheDocument();
+    expect(
+      screen.getByText('Detected · Unregistered · Basic'),
+    ).toBeInTheDocument();
+  });
+
+  it('retains registered spool and zero grams when catalog lookup fails', async () => {
+    stubFetch();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(['/api/v1/printers/printer-1/feed-units'], {
+      data: {
+        feedUnits: [
+          {
+            id: 'fu-zero',
+            kind: 'MultiMaterialUnit',
+            unitIndex: 0,
+            feedSlots: [
+              {
+                id: 'zero',
+                slotPosition: 0,
+                deactivatedAtUtc: '2026-10-05',
+                currentSpool: {
+                  filamentVariantId: 'missing',
+                  remainingWeightGrams: 0,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <FeedUnitsCard printerId="printer-1" isReachable />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText('Registered spool')).toBeInTheDocument();
+    expect(screen.getByText('Tracked: 0 g')).toBeInTheDocument();
+    expect(screen.getByText('Inactive slot')).toBeInTheDocument();
+  });
+
+  it('shows loading, then an error with retry, rather than a false empty state', async () => {
+    let finish: (value: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <FeedUnitsCard printerId="printer-1" isReachable />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Loading Feed Units');
+    finish(new Response('{}', { status: 500 }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load Feed Units',
+    );
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(
+      screen.queryByText('No Feed Units on this printer'),
+    ).not.toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Retry' }));
+    finish(
+      new Response(JSON.stringify({ feedUnits: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    expect(
+      await screen.findByText('No Feed Units on this printer'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('has an Add a Feed Unit action', async () => {

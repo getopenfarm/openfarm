@@ -175,6 +175,14 @@ As an operator running an unattended setup, I want a depleted spool to automatic
 - **SC-004**: On Feed Slots whose Feed Unit qualifies to auto-continue (a Multi-Material Unit with a matching spool already loaded elsewhere in the unit, or an Automatic Filament Reloader with a next spool loaded), an unattended print run continues across a spool depletion event without operator intervention in at least 95% of cases.
 - **SC-005**: 100% of spool state transitions are retrievable afterward in the activity/audit history.
 
+## Printer-detail presentation refinement — 2026-10-05
+
+- The printer detail page presents one **Feed Units** card combining the live AMS monitoring required by Spec 002 FR-008 with this feature's grouped topology and registered inventory. There is no separate “Filament — AMS” card.
+- Units retain their brand-aware labels; each slot appears once. Registered filament identity and tracked remaining grams remain distinct from detected material/brand/color and printer-reported remaining percentage. Detected contents without an inventory assignment are labelled unregistered; only explicit empty telemetry means “Empty.” Missing telemetry means detection unavailable.
+- Active feeding is a read-only telemetry indicator, never a source-selection control or a synonym for a spool's `Using` inventory state. Offline detection is labelled last known, active indication is suppressed, and deactivated slots retain their registered inventory with an inactive label.
+- The frontend combines existing responses by unit index and slot position without changing REST, hub, or database contracts. First telemetry and subsequent AMS topology changes refresh that printer's Feed Units query; ordinary material/activity/percentage updates render from the live printer-detail cache without repeated requests.
+- Loading, failure with retry, and a successfully empty topology have distinct presentations. Existing Add/Remove Feed Unit actions and FR-022–FR-025 visibility rules continue to apply. Spool loading/unloading controls remain in their existing workflows.
+
 ## Assumptions
 
 - Spool identification is entirely manual (an operator-chosen label); physical barcode/unique-ID scanning is explicitly out of scope for this phase and deferred to a later optional-identification phase.

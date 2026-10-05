@@ -6,6 +6,7 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PrinterDetailResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
@@ -13,7 +14,6 @@ import {
   useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint,
   useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint,
 } from '@/lib/api/generated/printers/printers';
-import { AmsSlotGrid } from './components/AmsSlotGrid';
 import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
@@ -104,14 +104,18 @@ export function PrinterDetailPage() {
               <CurrentJobCard telemetry={printer.telemetry ?? {}} />
             </div>
             <div className="flex flex-col gap-4">
-              <AmsSlotGrid amsUnits={printer.amsUnits ?? []} />
-              <div className="flex flex-col gap-0 rounded-lg border">
-                <div className="border-b px-[18px] py-3.5">
-                  <h3 className="text-sm font-semibold">
+              <FeedUnitsCard
+                printerId={printer.id ?? ''}
+                amsUnits={printer.amsUnits ?? []}
+                isReachable={printer.isReachable ?? false}
+              />
+              <Card className="gap-0 py-0">
+                <CardHeader className="border-b px-[18px] py-3.5">
+                  <CardTitle className="text-sm font-semibold">
                     Machine &amp; process profile
-                  </h3>
-                </div>
-                <div className="flex flex-col gap-2 px-[18px] py-3.5">
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2 px-[18px] py-3.5">
                   <p className="text-sm">
                     Machine:{' '}
                     <span className="text-muted-foreground">
@@ -138,9 +142,8 @@ export function PrinterDetailPage() {
                       no other printer provides one. Edit via settings.
                     </p>
                   )}
-                </div>
-              </div>
-              <FeedUnitsCard printerId={printer.id ?? ''} />
+                </CardContent>
+              </Card>
               <RecentActivityCard printerId={printer.id ?? ''} />
             </div>
           </div>
