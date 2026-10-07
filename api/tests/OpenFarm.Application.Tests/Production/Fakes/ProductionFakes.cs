@@ -337,3 +337,9 @@ public static class ProductionTestFixtures
             AssignmentMode.Unassigned, pinnedPrinterId: null, fileRevisionHash: $"{Guid.NewGuid():N}", fileRevisionNumber: 1,
             filamentRequirements: [new JobFilamentRequirementSpec("PLA", null)]);
 }
+
+public sealed class NoopContinuationResolver : IAutoContinuationResolver
+{
+    public Task<AutoContinuationResult> ResolveAsync(Spool depletedSpool, CancellationToken cancellationToken) =>
+        Task.FromResult(AutoContinuationResult.None);
+}

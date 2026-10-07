@@ -93,6 +93,46 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
     }
 
     [Fact]
+    public async Task IngestingBothEnginesPreservesSeparateIdentitiesInheritanceAndAvailability()
+    {
+        var vendor = $"Bambulab-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N");
+        var orcaLeaf = StageLeaf(suffix, ("OrcaSlicer", vendor));
+        var bambuLeaf = StageLeaf(suffix, ("BambuStudio", vendor));
+        await factory.EnsureTenantInfoResolvedAsync();
+        using var scope = factory.CreateTenantScope();
+        var service = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
+        var machines = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
+        var processes = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
+        var filaments = scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>();
+        await service.IngestAsync(orcaLeaf, default);
+        await service.IngestAsync(bambuLeaf, default);
+        var unchanged = await service.IngestAsync(orcaLeaf, default);
+        unchanged.Machine.Created.Should().Be(0);
+        unchanged.Process.Created.Should().Be(0);
+        unchanged.Filament.Created.Should().Be(0);
+        foreach (var format in new[] { ProfileSourceFormat.OrcaSlicer, ProfileSourceFormat.BambuStudio })
+        {
+            var machine = await machines.FindByExternalIdAsync(format, vendor, "GM001", default);
+            machine.Should().NotBeNull();
+            machine!.IsCurrentlyOffered.Should().BeTrue();
+            machine.BaseProfileId.Should().NotBeNull();
+            (await machines.GetByIdAsync(machine.BaseProfileId!.Value, default))!.SourceFormat.Should().Be(format);
+            var process = await processes.FindByExternalIdAsync(format, vendor, "GP004", default);
+            process.Should().NotBeNull();
+            process!.IsCurrentlyOffered.Should().BeTrue();
+            var filament = await filaments.FindByExternalIdAsync(format, $"Bambu Lab-{suffix}", "GFSA00", default);
+            filament.Should().NotBeNull();
+            filament!.IsCurrentlyOffered.Should().BeTrue();
+            (await filaments.GetByIdAsync(filament.BaseProfileId!.Value, default))!.SourceFormat.Should().Be(format);
+        }
+        // A fresh scope verifies re-ingestion did not persist stale flags on the other catalog.
+        using var fresh = factory.CreateTenantScope();
+        var persisted = await fresh.ServiceProvider.GetRequiredService<IMachineProfileRepository>().ListAsync(default);
+        persisted.Where(p => p.VendorName == vendor).Should().OnlyContain(p => p.IsCurrentlyOffered);
+    }
+
+    [Fact]
     public async Task IngestAsync_RerunAgainstUnchangedData_ReportsZeroCreatedOrUpdated()
     {
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";

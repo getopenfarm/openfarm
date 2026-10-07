@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Tests.Profiles;
 
@@ -8,6 +9,14 @@ namespace OpenFarm.Application.Tests.Profiles;
 public class SystemProfileIdentityKeyTests
 {
     private static readonly Guid OrgId = Guid.NewGuid();
+
+    [Fact]
+    public void IdenticalVendorIdsFromDifferentSourceCatalogsHaveDifferentIdentities()
+    {
+        var orca = SystemProfileIdentityKey.Create(OrgId, ProfileKind.Filament, "Bambu Lab", "GFSA00", "PLA", ProfileSourceFormat.OrcaSlicer);
+        var bambu = SystemProfileIdentityKey.Create(OrgId, ProfileKind.Filament, "Bambu Lab", "GFSA00", "PLA", ProfileSourceFormat.BambuStudio);
+        orca.Should().NotBe(bambu);
+    }
 
     [Fact]
     public void Create_LeafPresetWithExternalId_IsLeafKeyedByExternalId()

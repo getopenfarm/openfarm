@@ -28,6 +28,7 @@ import type {
   ListFeedUnitsResponse,
   ListFleetResponse,
   MarkPrinterReadyRequest,
+  OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
   PrinterCatalogResponse,
   PrinterDetailResponse,
   PrinterSummaryResponse,
@@ -1591,16 +1592,30 @@ export type openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse =
 
 export const getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointUrl = (
   printerId: string,
+  params?: OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
 ) => {
-  return `/api/v1/printers/${printerId}/feed-units`;
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/printers/${printerId}/feed-units?${stringifiedParams}`
+    : `/api/v1/printers/${printerId}/feed-units`;
 };
 
 export const openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint = async (
   printerId: string,
+  params?: OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
   options?: RequestInit,
 ): Promise<openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse> => {
   return httpClient<openFarmApiEndpointsFeedUnitsListFeedUnitsEndpointResponse>(
-    getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointUrl(printerId),
+    getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointUrl(printerId, params),
     {
       ...options,
       method: 'GET',
@@ -1610,8 +1625,12 @@ export const openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint = async (
 
 export const getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey = (
   printerId: string,
+  params?: OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
 ) => {
-  return [`/api/v1/printers/${printerId}/feed-units`] as const;
+  return [
+    `/api/v1/printers/${printerId}/feed-units`,
+    ...(params ? [params] : []),
+  ] as const;
 };
 
 export const getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryOptions =
@@ -1622,6 +1641,7 @@ export const getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryOptions =
     TError = void,
   >(
     printerId: string,
+    params?: OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
     options?: {
       query?: Partial<
         UseQueryOptions<
@@ -1640,14 +1660,19 @@ export const getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryOptions =
 
     const queryKey =
       queryOptions?.queryKey ??
-      getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey(printerId);
+      getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey(
+        printerId,
+        params,
+      );
 
     const queryFn: QueryFunction<
       Awaited<
         ReturnType<typeof openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint>
       >
     > = ({ signal }) =>
-      openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint(printerId, { signal });
+      openFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint(printerId, params, {
+        signal,
+      });
 
     return {
       queryKey,
@@ -1678,6 +1703,7 @@ export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
   TError = void,
 >(
   printerId: string,
+  params: undefined | OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1716,6 +1742,7 @@ export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
   TError = void,
 >(
   printerId: string,
+  params?: OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1754,6 +1781,7 @@ export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
   TError = void,
 >(
   printerId: string,
+  params?: OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1777,6 +1805,7 @@ export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
   TError = void,
 >(
   printerId: string,
+  params?: OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1795,6 +1824,7 @@ export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
   const queryOptions =
     getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryOptions(
       printerId,
+      params,
       options,
     );
 

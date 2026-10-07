@@ -15,7 +15,8 @@ namespace OpenFarm.Infrastructure.Parts.SlicerInvocation;
 /// compatibility; only a preset authored/shipped for the exact machine passes, never a fixed generic
 /// one), and the material's default filament profile, each already flattened across its ancestor
 /// chain. The only export flag is <c>--export-3mf</c>, which writes a gcode-bearing 3MF (the real
-/// G-code lives inside it at <c>Metadata/plate_1.gcode</c>, unzipped by <c>CliSlicerEngine</c>).
+/// G-code lives inside it at <c>Metadata/plate_1.gcode</c>; <c>CliSlicerEngine</c> retains the
+/// archive for production while extracting metadata).
 /// Nozzle diameter and material are also passed as trailing command-line overrides — confirmed to
 /// take highest priority and to parse fine alongside <c>--load-settings</c>/<c>--load-filaments</c> —
 /// cheap insurance if a resolved profile is slightly stale.

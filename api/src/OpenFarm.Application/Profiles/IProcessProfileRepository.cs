@@ -17,9 +17,9 @@ public interface IProcessProfileRepository
 
     // Ingestion-only upsert lookups (research.md §1's identity key) — distinct from the paginated
     // picker SearchAsync (US2). FindByNameAsync above stays scoped to base-name resolution.
-    Task<ProcessProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken);
+    Task<ProcessProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken);
 
-    Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken);
+    Task<ProcessProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken);
 
     // US2 picker query (research.md §6) — paginated/searchable, unlike ListAsync above.
     // `materialType` has no meaning for process profiles and is ignored here; kept in the

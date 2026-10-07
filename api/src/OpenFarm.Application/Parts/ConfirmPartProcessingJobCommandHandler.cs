@@ -14,7 +14,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
     IPartRepository partRepository,
     ITagRepository tagRepository,
     IPartEventPublisher eventPublisher,
-    IPartFileStorage? fileStorage = null) : ICommandHandler<ConfirmPartProcessingJobCommand, Part>
+    IPartFileStorage? fileStorage = null, PartFilamentSelectionValidator? filamentValidator = null) : ICommandHandler<ConfirmPartProcessingJobCommand, Part>
 {
     public async Task<Part> HandleAsync(ConfirmPartProcessingJobCommand command, CancellationToken cancellationToken)
     {
@@ -39,11 +39,11 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
         }
 
         Part? existingPart = null;
-        if (job.Kind == PartProcessingJobKind.Reprocess)
+        if (job.Kind != PartProcessingJobKind.Add)
         {
             existingPart = await partRepository.GetByIdAsync(job.PartId!.Value, cancellationToken)
                 ?? throw new PartNotFoundException(job.PartId.Value);
-            if (existingPart.RevisionHash != job.SourceRevisionHash || existingPart.UpdatedAtUtc != job.SourcePartUpdatedAtUtc)
+            if (job.Kind == PartProcessingJobKind.Reprocess && (existingPart.RevisionHash != job.SourceRevisionHash || existingPart.UpdatedAtUtc != job.SourcePartUpdatedAtUtc))
                 throw new PartConcurrencyConflictException(existingPart.Id);
         }
 
@@ -72,6 +72,10 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                     overrideEntry is not null ? overrideEntry.NarrowFilamentProfileId : previous?.NarrowFilamentProfileId);
             })
             .ToList();
+
+        if (filamentValidator is not null)
+            foreach (var selection in filamentRequirements)
+                await filamentValidator.ValidateAsync(selection.MaterialType, selection.NarrowFilamentVariantId, cancellationToken);
 
         var thumbnails = job.PreviewThumbnails
             .Select(t => new ThumbnailSpec(t.PlateIndex, t.Bytes))

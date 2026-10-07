@@ -77,4 +77,67 @@ describe('Feed Units live updates', () => {
     unmount();
     expect(hub.stop).toHaveBeenCalled();
   });
+  it('updates external-port readings live without refetching for percentage changes', () => {
+    const client = new QueryClient();
+    const key =
+      getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey('p1');
+    client.setQueryData(key, { data: { id: 'p1', amsUnits: [] } });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    const emit = (percent: number) =>
+      act(() =>
+        hub.handlers.get('PrinterTelemetryUpdated')?.({
+          printerId: 'p1',
+          telemetry: {},
+          amsUnits: [],
+          externalSpoolTray: {
+            active: true,
+            materialType: 'PLA',
+            remainPercent: percent,
+          },
+        }),
+      );
+    emit(30);
+    invalidate.mockClear();
+    emit(0);
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(client.getQueryData(key)).toMatchObject({
+      data: { externalSpoolTray: { active: true, remainPercent: 0 } },
+    });
+    unmount();
+  });
+  it('refreshes compatibility only when nozzle diameter or confirmation changes', () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    const emit = (diameter: number, confirmed: boolean) =>
+      act(() =>
+        hub.handlers.get('PrinterTelemetryUpdated')?.({
+          printerId: 'p1',
+          telemetry: { nozzleDiameterMm: diameter, nozzleConfirmed: confirmed },
+          amsUnits: [],
+        }),
+      );
+    emit(0.4, true);
+    expect(invalidate).toHaveBeenCalledWith({
+      predicate: expect.any(Function),
+    });
+    invalidate.mockClear();
+    emit(0.4, true);
+    expect(invalidate).not.toHaveBeenCalled();
+    emit(0.6, true);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    invalidate.mockClear();
+    emit(0.6, false);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    unmount();
+  });
 });

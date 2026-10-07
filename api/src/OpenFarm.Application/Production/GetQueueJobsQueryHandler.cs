@@ -62,7 +62,8 @@ public sealed class GetQueueJobsQueryHandler(
             items.Add(new QueueJobRow(
                 job.Id, job.QueuePosition, job.Status, job.AssignmentMode, job.PinnedPrinterId, job.DispatchedPrinterId,
                 isBlocked, requirement.PartId, part?.Name ?? "Unknown part", job.PlateQuantity,
-                requirement.RunLineId, runInfo.RunId, runInfo.DisplayLabel));
+                requirement.RunLineId, runInfo.RunId, runInfo.DisplayLabel,
+                isBlocked && eligibilityQuery is not null ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null));
         }
 
         return new QueueJobsPage(items, totalCount);

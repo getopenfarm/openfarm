@@ -50,7 +50,8 @@ public class BambuStudioSlicingResolutionTests(CustomWebApplicationFactory facto
 
         var resolver = scope.ServiceProvider.GetRequiredService<ResolveSlicingProfileSelection>();
 
-        var result = await resolver.ResolveAsync(printer.Id, "PLA", narrowedFilamentProfileId: null, CancellationToken.None);
+        var filament = (await scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>().ListAsync(default)).First(p => p.SourceFormat == OpenFarm.Domain.Profiles.ProfileSourceFormat.BambuStudio && p.ExternalId == "GFSA00" && p.IsSelectable);
+        var result = await resolver.ResolveProfilesAsync(machine.Id, process.Id, filament.Id, BuildPlateType.HighTemp, CancellationToken.None);
 
         result.MachineSettingsJson.Should().Contain("machine_start_gcode");
         result.MachineSettingsJson.Should().Contain("change_filament_gcode");

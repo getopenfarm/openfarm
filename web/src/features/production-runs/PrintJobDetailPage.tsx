@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PartFilamentRequirementsList } from '@/features/parts/components/PartFilamentRequirementsList';
 import type { PrintJobResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   useOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpoint,
@@ -21,7 +22,9 @@ import {
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
 import { getToken } from '@/lib/auth/tokenStorage';
+import { JobMatchingDialog } from './components/JobMatchingDialog';
 import { JobRemoteControls } from './components/JobRemoteControls';
+import { RemoveJobButton } from './components/RemoveJobButton';
 import { useProductionHub } from './hooks/useProductionHub';
 
 const schema = z.object({
@@ -32,6 +35,8 @@ const schema = z.object({
         color: z.string(),
         spoolId: z.string(),
         grams: z.number().min(0),
+        variantId: z.string().nullable().optional(),
+        profileId: z.string().nullable().optional(),
       }),
     )
     .min(1),
@@ -53,6 +58,8 @@ function JobFilamentForm({ job }: { job: PrintJobResponse }) {
         color: c.detectedColorHex ?? '',
         spoolId: c.spoolId ?? '',
         grams: c.gramsConsumed ?? 0,
+        variantId: c.narrowFilamentVariantId ?? null,
+        profileId: c.narrowFilamentProfileId ?? null,
       })),
     },
   });
@@ -81,6 +88,8 @@ function JobFilamentForm({ job }: { job: PrintJobResponse }) {
         const values = lines.map((line) => ({
           materialType: line.materialType || null,
           detectedColorHex: line.color || null,
+          narrowFilamentVariantId: line.variantId ?? null,
+          narrowFilamentProfileId: line.profileId ?? null,
           spoolId: line.spoolId || null,
           gramsConsumed: line.grams,
         }));
@@ -94,6 +103,38 @@ function JobFilamentForm({ job }: { job: PrintJobResponse }) {
       <h3 className="font-semibold">
         {terminal ? 'Filament consumed' : 'Filament requirements'}
       </h3>
+      {editable && (
+        <PartFilamentRequirementsList
+          requirements={form.watch('lines').map((line, index) => ({
+            key: fields.fields[index]?.id ?? String(index),
+            materialType: line.materialType || null,
+            detectedColorHex: line.color || null,
+            detectedSubBrand: null,
+            narrowFilamentVariantId: line.variantId,
+            narrowFilamentProfileId: line.profileId,
+          }))}
+          onNarrow={(key, variantId) => {
+            const index = fields.fields.findIndex((field) => field.id === key);
+            if (index < 0) return;
+            form.setValue(`lines.${index}.variantId`, variantId, {
+              shouldDirty: true,
+            });
+            form.setValue(`lines.${index}.profileId`, null, {
+              shouldDirty: true,
+            });
+          }}
+          onNarrowToProfile={(key, profileId) => {
+            const index = fields.fields.findIndex((field) => field.id === key);
+            if (index < 0) return;
+            form.setValue(`lines.${index}.profileId`, profileId, {
+              shouldDirty: true,
+            });
+            form.setValue(`lines.${index}.variantId`, null, {
+              shouldDirty: true,
+            });
+          }}
+        />
+      )}
       {fields.fields.map((field, index) => (
         <div key={field.id} className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div>
@@ -269,6 +310,12 @@ export function PrintJobDetailPage() {
           <p className="text-sm text-muted-foreground">
             File revision {job.fileRevisionNumber} · {job.fileRevisionHash}
           </p>
+          <div className="flex items-center gap-3">
+            <JobMatchingDialog jobId={id} />
+            {job.status === 'Queued' && !job.dispatchedAtUtc && (
+              <RemoveJobButton jobId={id} />
+            )}
+          </div>
           <JobRemoteControls jobId={id} status={job.status ?? ''} />
           {manual && (
             <div className="flex gap-2">

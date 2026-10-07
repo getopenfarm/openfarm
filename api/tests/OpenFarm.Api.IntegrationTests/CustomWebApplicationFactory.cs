@@ -26,6 +26,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
             // Fixtures deliberately seed Linux AppRun shell scripts, which also execute on macOS.
             // Keep their catalog selection independent of the machine running the test suite.
             services.AddSingleton<IHostPlatformProvider, FixtureHostPlatformProvider>();
+            services.PostConfigure<OpenFarm.Infrastructure.Parts.PartFileStorageOptions>(options =>
+                options.RootDirectory = _partFilesDirectory);
         });
     }
 
@@ -39,6 +41,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
         .WithUsername("openfarm")
         .WithPassword("changeme")
         .Build();
+
+    private readonly string _partFilesDirectory = Path.Combine(Path.GetTempPath(), "openfarm-test-part-files", Guid.NewGuid().ToString());
 
     private readonly string _keysDirectory = Path.Combine(Path.GetTempPath(), "openfarm-test-keys", Guid.NewGuid().ToString());
     private readonly string _slicerBundleDirectory = Path.Combine(Path.GetTempPath(), "openfarm-test-slicers", Guid.NewGuid().ToString());
@@ -152,6 +156,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
         try
         {
             Directory.Delete(_slicerBundleDirectory, recursive: true);
+            if (Directory.Exists(_partFilesDirectory)) Directory.Delete(_partFilesDirectory, recursive: true);
         }
         catch (IOException)
         {

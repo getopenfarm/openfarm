@@ -25,6 +25,53 @@ public class CliSlicerEngineTests
 {
     private static readonly SlicerRef Orca220 = new(SlicerEngine.OrcaSlicer, "2.2.0");
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SliceConfiguredAsync_PreservesExportedFileBytesAndFormat(bool project)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var invocation = new ExportFixtureInvocation(project);
+        var engine = new CliSlicerEngine(
+            new FakeAvailableSlicerCatalog(new AvailableSlicer(SlicerEngine.OrcaSlicer, "2.2.0", SlicerPlatform.Linux, "/bin/sh")),
+            new FakeHostPlatformProvider(SlicerPlatform.Linux), [invocation], CreateProfileSelection(),
+            Options.Create(new SlicerOptions()), NullLogger<CliSlicerEngine>.Instance);
+        using var input = new MemoryStream([1, 2, 3]);
+
+        var result = await engine.SliceConfiguredAsync(Orca220, input, PartFileFormat.Stl, "PLA", 0.4m, Guid.NewGuid(),
+            new ResolvedSlicingProfiles("{}", "{}", "{}", "Machine", "Process", "Filament"), default);
+
+        result.OutputFileBytes.Should().Equal(invocation.ExportedBytes);
+        result.OutputFileFormat.Should().Be(project ? PartFileFormat.ThreeMf : PartFileFormat.GCode);
+        result.PlateCount.Should().Be(1);
+    }
+
+    private sealed class ExportFixtureInvocation(bool project) : ISlicerInvocation
+    {
+        public byte[] ExportedBytes { get; private set; } = [];
+        public bool SupportsEngine(SlicerEngine engine) => true;
+
+        public SlicerProcessInvocation BuildInvocation(AvailableSlicer slicer, string modelFilePath, string materialType,
+            decimal nozzleDiameterMm, string workDirectoryPath, ResolvedSlicingProfiles? resolvedProfiles)
+        {
+            var output = Path.Combine(workDirectoryPath, project ? "output.gcode.3mf" : "output.gcode");
+            const string gcode = "; nozzle_diameter = 0.4\n; filament_type = PLA\nG28\n";
+            if (project)
+            {
+                using var archive = ZipFile.Open(output, ZipArchiveMode.Create);
+                using (var plate = new StreamWriter(archive.CreateEntry("Metadata/plate_1.gcode").Open())) plate.Write(gcode);
+                using var settings = new StreamWriter(archive.CreateEntry("Metadata/project_settings.config").Open());
+                settings.Write("{}");
+            }
+            else
+            {
+                File.WriteAllText(output, gcode);
+            }
+            ExportedBytes = File.ReadAllBytes(output);
+            return new(slicer.ExecutablePath, "-c true", output, project);
+        }
+    }
+
     [Fact]
     public async Task SliceAsync_SlicerNotInCatalog_ThrowsSlicerUnavailableException()
     {
@@ -160,7 +207,8 @@ public class CliSlicerEngineTests
             new FakeProcessProfileRepository(process),
             new FakeFilamentProfileRepository(filament),
             new RepresentativeFilamentResolver(
-                new FakeFilamentProfileRepository(filament), new FakeSpoolRepository(), new FakeFilamentRepository(), new FakeFeedUnitRepository()));
+                new FakeFilamentProfileRepository(filament), new FakeSpoolRepository(), new FakeFilamentRepository(), new FakeFeedUnitRepository(), new FakePrinterRepository(printer), new FakeMachineProfileRepository(machine), new ProfileCompatibility(new FakeMachineProfileRepository(machine), new FakeFilamentProfileRepository(filament))),
+            new ProfileCompatibility(new FakeMachineProfileRepository(machine), new FakeFilamentProfileRepository(filament)));
     }
 
     private sealed class FakePrinterRepository(params Printer[] rows) : IPrinterRepository
@@ -194,11 +242,11 @@ public class CliSlicerEngineTests
         public Task<IReadOnlyList<MachineProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MachineProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-        public Task<MachineProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
-            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+        public Task<MachineProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == externalId));
 
-        public Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
-            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+        public Task<MachineProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
         public Task<(IReadOnlyList<MachineProfile> Items, int TotalCount)> SearchAsync(
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
@@ -221,11 +269,11 @@ public class CliSlicerEngineTests
         public Task<IReadOnlyList<ProcessProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProcessProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-        public Task<ProcessProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
-            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+        public Task<ProcessProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == externalId));
 
-        public Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
-            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+        public Task<ProcessProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
         public Task<(IReadOnlyList<ProcessProfile> Items, int TotalCount)> SearchAsync(
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
@@ -248,11 +296,11 @@ public class CliSlicerEngineTests
         public Task<IReadOnlyList<FilamentProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<FilamentProfile>>(rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-        public Task<FilamentProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
-            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+        public Task<FilamentProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == externalId));
 
-        public Task<FilamentProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
-            Task.FromResult(rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+        public Task<FilamentProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
         public Task<(IReadOnlyList<FilamentProfile> Items, int TotalCount)> SearchAsync(
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,

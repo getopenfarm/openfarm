@@ -18,7 +18,6 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -26,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import type {
   ListFilamentsResponse,
@@ -40,6 +38,10 @@ import {
 } from '@/lib/api/generated/filaments/filaments';
 import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
 import { CreateVendorDialog } from './components/CreateVendorDialog';
+import {
+  EditProfileAssignments,
+  ProfileAssignmentsCard,
+} from './components/ProfileAssignmentsCard';
 import { VariantsCard } from './components/VariantsCard';
 
 const MATERIAL_TYPES = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PC'] as const;
@@ -48,7 +50,15 @@ const schema = z.object({
   vendorId: z.string().min(1, 'Vendor is required'),
   material: z.string().min(1, 'Material name is required'),
   materialType: z.enum(MATERIAL_TYPES),
-  filamentProfileId: z.string().nullable(),
+  profileAssignments: z.array(
+    z.object({
+      brand: z.string(),
+      modelCode: z.string(),
+      nozzleDiameterMm: z.number().positive(),
+      filamentProfileId: z.string(),
+      colorHex: z.string().nullable().optional(),
+    }),
+  ),
   variants: z
     .array(z.object({ colorName: z.string(), colorHex: z.string() }))
     .min(1, 'Add at least one colour variant'),
@@ -81,7 +91,7 @@ function AddFilamentForm() {
       vendorId: '',
       material: '',
       materialType: MATERIAL_TYPES[0],
-      filamentProfileId: null,
+      profileAssignments: [],
       variants: [],
     },
   });
@@ -118,7 +128,7 @@ function AddFilamentForm() {
         vendorId: values.vendorId,
         material: values.material.trim(),
         materialType: values.materialType,
-        filamentProfileId: values.filamentProfileId,
+        profileAssignments: values.profileAssignments,
         variants: values.variants.map((variant) => ({
           colorName: variant.colorName,
           colorHex: variant.colorHex,
@@ -218,17 +228,6 @@ function AddFilamentForm() {
                   </FormItem>
                 )}
               />
-              <div className="flex flex-col gap-1.5">
-                <Label>Filament profile (optional)</Label>
-                <ProfilePickerCombobox
-                  kind="filament"
-                  value={form.watch('filamentProfileId')}
-                  onChange={(id) => form.setValue('filamentProfileId', id)}
-                  placeholder="No default profile"
-                  searchPlaceholder="Search filament profiles…"
-                  materialType={materialType}
-                />
-              </div>
             </CardContent>
           </Card>
 
@@ -246,18 +245,45 @@ function AddFilamentForm() {
                         shouldDirty: true,
                       })
                     }
-                    onRemove={(index) =>
+                    onRemove={(index) => {
+                      const removedColor = variants[index]?.colorHex;
+                      form.setValue(
+                        'profileAssignments',
+                        form
+                          .getValues('profileAssignments')
+                          .filter((a) => a.colorHex !== removedColor),
+                        { shouldDirty: true },
+                      );
                       form.setValue(
                         'variants',
                         variants.filter((_, i) => i !== index),
                         { shouldValidate: true, shouldDirty: true },
-                      )
-                    }
+                      );
+                    }}
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
+          />
+
+          <ProfileAssignmentsCard
+            materialType={materialType}
+            variants={variants}
+            assignments={form.watch('profileAssignments')}
+            onChange={(value) =>
+              form.setValue(
+                'profileAssignments',
+                value.map((a) => ({
+                  brand: a.brand ?? '',
+                  modelCode: a.modelCode ?? '',
+                  nozzleDiameterMm: a.nozzleDiameterMm ?? 0,
+                  filamentProfileId: a.filamentProfileId ?? '',
+                  colorHex: a.colorHex,
+                })),
+                { shouldDirty: true },
+              )
+            }
           />
 
           <FormFooter
@@ -335,7 +361,7 @@ function FilamentVariantsPage() {
       <BackLink to="/filament">Back to filament</BackLink>
 
       <PageHeader
-        title="Filament variants"
+        title="Filament configuration"
         description={`${existing.vendorName} · ${existing.material} · ${existing.materialType}`}
       />
 
@@ -352,6 +378,12 @@ function FilamentVariantsPage() {
             },
           });
         }}
+      />
+
+      <EditProfileAssignments
+        filamentId={existing.id ?? ''}
+        materialType={existing.materialType ?? ''}
+        variants={existing.variants ?? []}
       />
 
       <FormFooter

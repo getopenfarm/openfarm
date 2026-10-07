@@ -40,6 +40,9 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
 
         builder.Property(p => p.LastMessageUtc);
 
+        builder.Property(p => p.ReportedNozzleDiameterMm);
+        builder.Property(p => p.NozzleObservedAtUtc);
+        builder.Property(p => p.NozzleConfirmed);
         builder.Property(p => p.NozzleTempC);
         builder.Property(p => p.BedTempC);
         builder.Property(p => p.PrintProgressPercent);

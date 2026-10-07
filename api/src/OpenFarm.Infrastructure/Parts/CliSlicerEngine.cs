@@ -40,6 +40,15 @@ public sealed partial class CliSlicerEngine(
         { throw new SlicingFailedException($"Estimation failed: {ex.Message}", ex); }
     }
 
+    public async Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+        string materialType, decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken)
+    {
+        try { return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, printerId, cancellationToken, productionProfiles: profiles); }
+        catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException
+            && ex is not SlicerUnavailableException && ex is not SlicingProfileUnconfiguredException)
+        { throw new SlicingFailedException($"Slicing failed: {ex.Message}", ex); }
+    }
+
     public async Task<SlicingResult> SliceAsync(
         SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
         Guid? printerId, CancellationToken cancellationToken)
@@ -65,7 +74,7 @@ public sealed partial class CliSlicerEngine(
 
     private async Task<SlicingResult> SliceCoreAsync(
         SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
-        Guid? printerId, CancellationToken cancellationToken, EstimationConfiguration? estimation = null)
+        Guid? printerId, CancellationToken cancellationToken, EstimationConfiguration? estimation = null, ResolvedSlicingProfiles? productionProfiles = null)
     {
         var platform = hostPlatform.Current;
         var available = catalog.Find(slicer, platform)
@@ -85,9 +94,9 @@ public sealed partial class CliSlicerEngine(
 
             // Only OrcaSlicer/Bambu Studio need real, complete presets (PrusaSliceFamilyInvocation) —
             // SuperSlicer builds plain scalar flags and never looks at this.
-            var resolvedProfiles = estimation is not null ? estimation.Profiles
+            var resolvedProfiles = productionProfiles ?? (estimation is not null ? estimation.Profiles
                 : slicer.Engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
-                    ? await profileSelection.ResolveAsync(printerId, materialType, narrowedFilamentProfileId: null, cancellationToken) : null;
+                    ? await profileSelection.ResolveAsync(printerId, materialType, narrowedFilamentProfileId: null, cancellationToken, slicer.Engine) : null);
 
             if (resolvedProfiles is not null)
             {
@@ -158,16 +167,14 @@ public sealed partial class CliSlicerEngine(
                     throw new SlicingFailedException($"The {slicer.Engine} CLI exited with code {process.ExitCode}: {errorOutput}");
                 }
 
-                if (processInvocation.ProducesGCodeBearingThreeMf && estimation is not null)
+                if (processInvocation.ProducesGCodeBearingThreeMf)
                 {
                     await using var output = File.OpenRead(processInvocation.OutputPath);
                     var metadata = await new AlreadySlicedFileMetadataParser().ParseAsync(output, PartFileFormat.ThreeMf, cancellationToken);
                     return new(metadata.PlateCount, metadata.EstimatedPrintTimeMinutes, metadata.EstimatedFilamentWeightGrams,
-                        metadata.Thumbnails, await File.ReadAllBytesAsync(processInvocation.OutputPath, cancellationToken));
+                        metadata.Thumbnails, await File.ReadAllBytesAsync(processInvocation.OutputPath, cancellationToken), PartFileFormat.ThreeMf);
                 }
-                var gcode = processInvocation.ProducesGCodeBearingThreeMf
-                    ? await ReadEmbeddedPlateGCodeAsync(processInvocation.OutputPath, cancellationToken)
-                    : await File.ReadAllTextAsync(processInvocation.OutputPath, cancellationToken);
+                var gcode = await File.ReadAllTextAsync(processInvocation.OutputPath, cancellationToken);
                 var values = GCodeMetadataHelper.ParseComments(gcode);
                 var thumbnail = GCodeMetadataHelper.ExtractEmbeddedThumbnailPng(gcode);
                 return new SlicingResult(1, GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values),

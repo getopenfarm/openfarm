@@ -69,11 +69,11 @@ public sealed class FilamentProfileConfiguration : IEntityTypeConfiguration<Fila
             .OnDelete(DeleteBehavior.SetNull);
 
         // Research.md §1 idempotency keys — same shape as MachineProfile/ProcessProfile.
-        builder.HasIndex(p => new { p.OrganizationId, p.VendorName, p.ExternalId })
+        builder.HasIndex(p => new { p.OrganizationId, p.SourceFormat, p.VendorName, p.ExternalId })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-        builder.HasIndex(p => new { p.OrganizationId, p.VendorName, p.Name })
+        builder.HasIndex(p => new { p.OrganizationId, p.SourceFormat, p.VendorName, p.Name })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 

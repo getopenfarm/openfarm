@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Formatter;
 using OpenFarm.Application.Printers;
+using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Printers.Bambu;
 
@@ -131,8 +132,15 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
         client.ConnectedAsync += async _ =>
         {
+            channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionStarted: true));
             LogConnected(_logger, details.SerialNumber);
             await SubscribeAndRequestAsync(client, details.SerialNumber, connectionToken);
+        };
+
+        client.DisconnectedAsync += _ =>
+        {
+            channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionEnded: true));
+            return Task.CompletedTask;
         };
 
         var maintainTask = MaintainConnectionAsync(client, BuildClientOptions(details, _options), details.SerialNumber, _logger, connectionToken);
@@ -164,16 +172,17 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     {
         using var buffered = new MemoryStream();
         await fileContent.CopyToAsync(buffered, cancellationToken);
-        buffered.Position = 0;
+        using var project = new MemoryStream(BambuPrintFile.PrepareProject(buffered.ToArray(), jobName));
 #pragma warning disable CA5351 // MD5 here is a Bambu protocol-mandated file-integrity checksum
         // (project_file's own "md5" field), not a security use.
-        var md5 = Convert.ToHexStringLower(await MD5.HashDataAsync(buffered, cancellationToken));
+        var md5 = Convert.ToHexStringLower(await MD5.HashDataAsync(project, cancellationToken));
 #pragma warning restore CA5351
-        buffered.Position = 0;
+        project.Position = 0;
 
-        var remoteFileName = $"{Guid.NewGuid()}.3mf";
+        var remoteFileName = PrintFileName.ForBambu(jobName);
+        var remotePath = $"{FtpsCacheDirectory}/{remoteFileName}";
         var uploadStatus = await (_options.UploadFileAsync ?? UploadFileAsync)(
-            details, buffered, $"{FtpsCacheDirectory}/{remoteFileName}", cancellationToken);
+            details, project, remotePath, cancellationToken);
         if (uploadStatus != FtpStatus.Success)
         {
             throw new IOException($"Printer file upload did not succeed ({uploadStatus}).");
@@ -185,13 +194,15 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             {
                 sequence_id = "0",
                 command = "project_file",
-                param = "Metadata/plate_1.gcode",
+                param = BambuPrintFile.PlatePath,
                 project_id = "0",
                 profile_id = "0",
                 task_id = "0",
                 subtask_id = "0",
                 subtask_name = jobName,
-                url = $"ftp:///{remoteFileName}",
+                url = details.ModelCode is "P1P" or "P1S" or "A1" or "A1MINI"
+                    ? $"file:///sdcard{remotePath}"
+                    : $"ftp://{remotePath}",
                 md5,
                 timelapse = false,
                 bed_type = "auto",
@@ -213,8 +224,15 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         // Preserve the existing FTPS trust behavior. MQTT and camera use bundled Bambu trust.
         ftp.Config.ValidateAnyCertificate = true;
         await ftp.AutoConnect(cancellationToken);
-        return await ftp.UploadStream(content, remotePath, token: cancellationToken);
+        return await UploadNewFileAsync(ftp, content, remotePath, cancellationToken);
     }
+
+    internal static Task<FtpStatus> UploadNewFileAsync(
+        AsyncFtpClient ftp, Stream content, string remotePath, CancellationToken cancellationToken) =>
+        // StartJobAsync generates a distinct timestamped path for every upload. An existence check is
+        // unnecessary and may reject unrelated printer filenames (e.g. slicer names containing
+        // "....") when FileExists falls back to NLST. NoCheck still sanitizes our destination.
+        ftp.UploadStream(content, remotePath, existsMode: FtpRemoteExists.NoCheck, token: cancellationToken);
 
     /// <inheritdoc />
     public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>

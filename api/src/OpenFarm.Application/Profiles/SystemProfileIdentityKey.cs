@@ -1,3 +1,5 @@
+using OpenFarm.Domain.Profiles;
+
 namespace OpenFarm.Application.Profiles;
 
 /// <summary>
@@ -5,10 +7,10 @@ namespace OpenFarm.Application.Profiles;
 /// run to match a freshly-fetched vendor preset against an already-ingested row:
 /// <list type="bullet">
 /// <item>A <b>leaf</b> preset (the vendor always assigns it a stable <c>setting_id</c>) is keyed by
-/// <c>(OrganizationId, Kind, VendorName, ExternalId)</c> — stable across a rename between slicer
+/// <c>(OrganizationId, SourceFormat, Kind, VendorName, ExternalId)</c> — stable across a rename between slicer
 /// versions, so re-ingestion upserts the same row rather than duplicating it.</item>
 /// <item>An <b>abstract-base</b> preset (no <c>setting_id</c> — it's never itself selectable) is keyed
-/// by <c>(OrganizationId, Kind, VendorName, Name)</c> — the vendor's own within-file inheritance key,
+/// by <c>(OrganizationId, SourceFormat, Kind, VendorName, Name)</c> — the vendor's own within-file inheritance key,
 /// the only stable handle such a row has.</item>
 /// </list>
 /// Two keys of different kinds (leaf vs. abstract-base) are never equal to each other even if one
@@ -18,9 +20,10 @@ namespace OpenFarm.Application.Profiles;
 /// </summary>
 public readonly record struct SystemProfileIdentityKey
 {
-    private SystemProfileIdentityKey(Guid organizationId, ProfileKind kind, string vendorName, string? externalId, string? name)
+    private SystemProfileIdentityKey(Guid organizationId, ProfileKind kind, string vendorName, string? externalId, string? name, ProfileSourceFormat sourceFormat)
     {
         OrganizationId = organizationId;
+        SourceFormat = sourceFormat;
         Kind = kind;
         VendorName = vendorName;
         ExternalId = externalId;
@@ -28,6 +31,7 @@ public readonly record struct SystemProfileIdentityKey
     }
 
     public Guid OrganizationId { get; }
+    public ProfileSourceFormat SourceFormat { get; }
     public ProfileKind Kind { get; }
     public string VendorName { get; }
     public string? ExternalId { get; }
@@ -43,7 +47,8 @@ public readonly record struct SystemProfileIdentityKey
     /// <c>setting_id</c> is the discriminator, not <c>instantiation</c> directly (the two are
     /// empirically 1:1, but this reads the more fundamental signal).
     /// </summary>
-    public static SystemProfileIdentityKey Create(Guid organizationId, ProfileKind kind, string vendorName, string? externalId, string name)
+    public static SystemProfileIdentityKey Create(Guid organizationId, ProfileKind kind, string vendorName, string? externalId, string name,
+        ProfileSourceFormat sourceFormat = ProfileSourceFormat.OrcaSlicer)
     {
         if (string.IsNullOrWhiteSpace(vendorName))
         {
@@ -51,7 +56,7 @@ public readonly record struct SystemProfileIdentityKey
         }
 
         return string.IsNullOrWhiteSpace(externalId)
-            ? new SystemProfileIdentityKey(organizationId, kind, vendorName, externalId: null, name: name)
-            : new SystemProfileIdentityKey(organizationId, kind, vendorName, externalId: externalId, name: null);
+            ? new SystemProfileIdentityKey(organizationId, kind, vendorName, externalId: null, name: name, sourceFormat: sourceFormat)
+            : new SystemProfileIdentityKey(organizationId, kind, vendorName, externalId: externalId, name: null, sourceFormat: sourceFormat);
     }
 }

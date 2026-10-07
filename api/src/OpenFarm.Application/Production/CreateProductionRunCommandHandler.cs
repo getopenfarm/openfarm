@@ -86,7 +86,7 @@ public sealed class CreateProductionRunCommandHandler(
 
                 var platesNeeded = (int)Math.Ceiling(requirement.Quantity!.Value / part.UnitsPerPrint);
                 var filamentSpecs = part.FilamentRequirements
-                    .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex))
+                    .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId))
                     .ToList();
 
                 var jobs = new List<PrintJob>(platesNeeded);

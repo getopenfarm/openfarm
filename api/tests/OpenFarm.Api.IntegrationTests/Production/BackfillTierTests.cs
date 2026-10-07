@@ -40,7 +40,7 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
     {
         var client = await ClientAsync();
         var part = await PartAsync(units: 4);
-        var printer = await PrinterAsync(manual: true);
+        var printer = await PrinterAsync();
         var finite = await RunAsync(client, part.Id, quantity: 4, pinned: printer.Id);
         var backfill = await RunAsync(client, part.Id, quantity: null);
         var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{backfill.Id}/lines/{backfill.Lines.Single().Id}/backfill-limits",
@@ -52,14 +52,14 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
         {
             var first = await WaitForAssignmentAsync(finite.Id);
             (await JobsAsync(backfill.Id)).Should().BeEmpty();
-            await PostAsync(client, $"/api/v1/print-jobs/{first.Id}/mark-started");
-            await PostAsync(client, $"/api/v1/print-jobs/{first.Id}/complete");
+            await ReplayAsync(printer.Id, "RUNNING");
+            await ReplayAsync(printer.Id, "FINISH");
             await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready");
             worker.RequestDispatchAttempt(printer.Id);
             var fill = await WaitForAssignmentAsync(backfill.Id);
             (await JobsAsync(backfill.Id)).Should().ContainSingle();
-            await PostAsync(client, $"/api/v1/print-jobs/{fill.Id}/mark-started");
-            await PostAsync(client, $"/api/v1/print-jobs/{fill.Id}/complete");
+            await ReplayAsync(printer.Id, "RUNNING");
+            await ReplayAsync(printer.Id, "FINISH");
             // Changing a Part default cannot rewrite the completed plate's cumulative output.
             var changed = await client.PatchAsJsonAsync($"/api/v1/parts/{part.Id}/units-per-print", new { unitsPerPrint = 1 });
             changed.EnsureSuccessStatusCode();
@@ -79,8 +79,8 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
     {
         var client = await ClientAsync();
         var part = await PartAsync();
-        var target = await PrinterAsync(manual: true);
-        var other = await PrinterAsync(manual: true);
+        var target = await PrinterAsync();
+        var other = await PrinterAsync();
         var run = await RunAsync(client, part.Id, quantity: null, pinned: target.Id);
         using (var scope = Factory.CreateTenantScope())
         {

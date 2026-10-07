@@ -65,6 +65,10 @@ public sealed class FeedUnitResponse
 
     public Guid? SupersededByFeedUnitId { get; set; }
 
+    public DateTimeOffset? ArchivedAtUtc { get; set; }
+    public Guid? FeedingSlotId { get; set; }
+    public string? FeedingSelectionSource { get; set; }
+
     public IReadOnlyList<FeedSlotResponse> FeedSlots { get; set; } = [];
 
     public static FeedUnitResponse FromDetail(FeedUnitDetail detail) => new()
@@ -76,6 +80,9 @@ public sealed class FeedUnitResponse
         IsRevealed = detail.IsRevealed,
         ReplacesFeedUnitId = detail.ReplacesFeedUnitId,
         SupersededByFeedUnitId = detail.SupersededByFeedUnitId,
+        ArchivedAtUtc = detail.ArchivedAtUtc,
+        FeedingSlotId = detail.FeedingSlotId,
+        FeedingSelectionSource = detail.FeedingSelectionSource,
         FeedSlots = detail.FeedSlots.Select(FeedSlotResponse.FromDetail).ToList(),
     };
 }

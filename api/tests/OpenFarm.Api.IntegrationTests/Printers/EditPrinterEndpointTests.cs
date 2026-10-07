@@ -60,7 +60,9 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
                 SerialNumber = serialNumber,
                 AccessCode = "12345678",
             });
-        return (await registerResponse.Content.ReadFromJsonAsync<PrinterSummaryResponse>())!;
+        var printer = (await registerResponse.Content.ReadFromJsonAsync<PrinterSummaryResponse>())!;
+        await OpenFarm.Api.IntegrationTests.FilamentTracking.FilamentTrackingTestHelpers.WaitForFeedUnitsAsync(client, printer.Id);
+        return printer;
     }
 
     // Seeds a compatible Machine + Process System profile pair directly through the repositories
@@ -78,7 +80,7 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         var machineName = $"Edit Test Machine {suffix}";
         var machine = MachineProfile.CreateSystemProfile(
             Organization.WellKnownId, machineName, ProfileSourceFormat.OrcaSlicer, null,
-            """{"name":"placeholder"}""", "EditPrinterEndpointTests", suffix, true, null, null);
+            """{"name":"placeholder","nozzle_diameter":["0.4"]}""", "EditPrinterEndpointTests", suffix, true, null, null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var process = ProcessProfile.CreateSystemProfile(

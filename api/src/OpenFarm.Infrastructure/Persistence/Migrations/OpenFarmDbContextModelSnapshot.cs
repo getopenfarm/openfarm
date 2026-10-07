@@ -387,8 +387,17 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("ArchivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FeedingSelectionSource")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("FeedingSlotId")
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("IsRevealed")
                         .HasColumnType("boolean");
@@ -416,9 +425,17 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<int>("UnitIndex")
                         .HasColumnType("integer");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("ReplacesFeedUnitId");
+                    b.HasIndex("ReplacesFeedUnitId")
+                        .IsUnique()
+                        .HasFilter("\"ArchivedAtUtc\" IS NULL AND \"Kind\" = 'AutomaticFilamentReloader'");
 
                     b.HasIndex("PrinterId", "Kind", "UnitIndex")
                         .IsUnique();
@@ -436,9 +453,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("FilamentProfileId")
-                        .HasColumnType("uuid");
 
                     b.Property<string>("Material")
                         .IsRequired()
@@ -463,6 +477,64 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasIndex("VendorId");
 
                     b.ToTable("Filaments", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FilamentProfileAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Brand")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("FilamentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FilamentProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("FilamentVariantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ModelCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("NozzleDiameterMm")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FilamentId");
+
+                    b.HasIndex("FilamentProfileId");
+
+                    b.HasIndex("FilamentVariantId");
+
+                    b.HasIndex("OrganizationId", "FilamentId", "Brand", "ModelCode", "NozzleDiameterMm")
+                        .IsUnique()
+                        .HasFilter("\"FilamentVariantId\" IS NULL");
+
+                    b.HasIndex("OrganizationId", "FilamentId", "Brand", "ModelCode", "NozzleDiameterMm", "FilamentVariantId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FilamentProfileAssignments_OrganizationId_FilamentId_Brand~1")
+                        .HasFilter("\"FilamentVariantId\" IS NOT NULL");
+
+                    b.ToTable("FilamentProfileAssignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FilamentAssignment_Nozzle", "\"NozzleDiameterMm\" > 0");
+                        });
 
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
@@ -1069,6 +1141,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("NozzleConfirmed")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("NozzleObservedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<decimal?>("NozzleTempC")
                         .HasColumnType("numeric");
 
@@ -1083,6 +1161,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("RemainingTimeMinutes")
                         .HasColumnType("integer");
+
+                    b.Property<decimal?>("ReportedNozzleDiameterMm")
+                        .HasColumnType("numeric");
 
                     b.Property<string>("SerialNumber")
                         .IsRequired()
@@ -1124,6 +1205,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("MaterialType")
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("NarrowFilamentProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("NarrowFilamentVariantId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
@@ -1217,6 +1304,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("FileRevisionNumber")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("HasFilamentRequirementOverride")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
@@ -1443,11 +1535,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("OrganizationId", "VendorName", "ExternalId")
+                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("OrganizationId", "VendorName", "Name")
+                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
@@ -1516,11 +1608,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("OrganizationId", "VendorName", "ExternalId")
+                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("OrganizationId", "VendorName", "Name")
+                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
@@ -1586,11 +1678,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("OrganizationId", "VendorName", "ExternalId")
+                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("OrganizationId", "VendorName", "Name")
+                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
@@ -1807,6 +1899,26 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FilamentProfileAssignment", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.Filament", null)
+                        .WithMany("ProfileAssignments")
+                        .HasForeignKey("FilamentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpenFarm.Domain.Profiles.FilamentProfile", null)
+                        .WithMany()
+                        .HasForeignKey("FilamentProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.FilamentVariant", null)
+                        .WithMany()
+                        .HasForeignKey("FilamentVariantId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FilamentVariant", b =>
                 {
                     b.HasOne("OpenFarm.Domain.FilamentTracking.Filament", null)
@@ -1997,6 +2109,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Filament", b =>
                 {
+                    b.Navigation("ProfileAssignments");
+
                     b.Navigation("Variants");
                 });
 

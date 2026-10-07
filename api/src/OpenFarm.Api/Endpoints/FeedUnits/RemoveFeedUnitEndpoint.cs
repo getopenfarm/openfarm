@@ -16,7 +16,7 @@ public sealed class RemoveFeedUnitRequest : IActivityLoggable
 }
 
 /// <summary>
-/// "Remove a Feed Unit" — deactivates an Automatic Filament Reloader or re-hides an External Spool
+/// "Remove a Feed Unit" — archives a reloader and returns its loaded spools to inventory or re-hides an External Spool
 /// position (research.md §13). 404 unresolved; 422 against a connector-derived Multi-Material Unit
 /// (FR-005a).
 /// </summary>

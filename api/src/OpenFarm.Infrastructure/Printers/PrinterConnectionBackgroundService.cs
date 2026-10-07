@@ -207,6 +207,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 _ = RunCameraLoopAsync(printerId, details, connectionToken);
             }
 
+            printer.BeginConnection();
+            await printerRepository.SaveChangesAsync(connectionToken);
             var connector = connectorFactory.CreateConnector(details);
             var lastFlushUtc = DateTimeOffset.MinValue;
             await foreach (var connectorEvent in connector.ConnectAsync(details, connectionToken))
@@ -291,6 +293,21 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         TimeSpan flushInterval,
         CancellationToken cancellationToken)
     {
+        if (connectorEvent.ConnectionStarted || connectorEvent.ConnectionEnded)
+        {
+            if (connectorEvent.ConnectionEnded) printer.MarkUnreachable();
+            else printer.BeginConnection();
+            await services.GetRequiredService<IPrinterRepository>().SaveChangesAsync(cancellationToken);
+            var connectionPublisher = services.GetRequiredService<IPrinterEventPublisher>();
+            await connectionPublisher.PrinterStatusChangedAsync(printer.OrganizationId, printer.Id, printer.Status, printer.IsReachable, cancellationToken);
+            await connectionPublisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id,
+                new(printer.NozzleTempC, printer.BedTempC, printer.PrintProgressPercent, printer.CurrentStageLabel,
+                    printer.RemainingTimeMinutes, printer.CurrentJobName, printer.AmsUnits, printer.ExternalSpoolTray,
+                    printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, false), cancellationToken);
+            return DateTimeOffset.MinValue;
+        }
+        var previousNozzle = printer.ReportedNozzleDiameterMm;
+        var previouslyConfirmed = printer.NozzleConfirmed;
         var wasReachable = printer.IsReachable;
         printer.MarkReachable(connectorEvent.ReceivedAtUtc);
 
@@ -314,6 +331,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
         if (connectorEvent.Telemetry is { } telemetry)
         {
+            if (telemetry.NozzleReported && telemetry.NozzleDiameterMm is not > 0) printer.BeginConnection();
+            else printer.ObserveNozzle(telemetry.NozzleDiameterMm, connectorEvent.ReceivedAtUtc);
             printer.RecordTelemetry(
                 telemetry.NozzleTempC,
                 telemetry.BedTempC,
@@ -325,7 +344,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 telemetry.ExternalSpoolTray);
         }
 
-        var mustFlushNow = statusChanged || !wasReachable;
+        var mustFlushNow = statusChanged || !wasReachable || previousNozzle != printer.ReportedNozzleDiameterMm || previouslyConfirmed != printer.NozzleConfirmed;
         if (!mustFlushNow && connectorEvent.ReceivedAtUtc - lastFlushUtc < flushInterval)
         {
             return lastFlushUtc;
@@ -383,7 +402,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 printer.RemainingTimeMinutes,
                 printer.CurrentJobName,
                 printer.AmsUnits,
-                printer.ExternalSpoolTray);
+                printer.ExternalSpoolTray, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed);
             await publisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id, mergedTelemetry, cancellationToken);
         }
 

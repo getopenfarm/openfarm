@@ -12,7 +12,11 @@ public sealed record PrinterTelemetrySnapshot(
     int? RemainingTimeMinutes,
     string? CurrentJobName,
     IReadOnlyList<AmsUnit> AmsUnits,
-    AmsTray? ExternalSpoolTray = null);
+    AmsTray? ExternalSpoolTray = null,
+    decimal? NozzleDiameterMm = null,
+    DateTimeOffset? NozzleObservedAtUtc = null,
+    bool NozzleConfirmed = false,
+    bool NozzleReported = false);
 
 /// <summary>
 /// One inbound message from a printer's live connection, already parsed into domain-shaped data —
@@ -24,7 +28,9 @@ public sealed record PrinterTelemetrySnapshot(
 public sealed record PrinterConnectorEvent(
     DateTimeOffset ReceivedAtUtc,
     string? GcodeState = null,
-    PrinterTelemetrySnapshot? Telemetry = null);
+    PrinterTelemetrySnapshot? Telemetry = null,
+    bool ConnectionStarted = false,
+    bool ConnectionEnded = false);
 
 /// <summary>
 /// Application-defined contract for a printer brand's live connection, implemented in

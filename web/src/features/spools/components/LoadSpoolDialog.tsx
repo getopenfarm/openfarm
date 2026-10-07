@@ -64,6 +64,7 @@ export function LoadSpoolDialog({
 
   const feedUnitsQuery = useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint(
     printerId,
+    undefined,
     { query: { enabled: Boolean(printerId) } },
   );
   const feedUnits =

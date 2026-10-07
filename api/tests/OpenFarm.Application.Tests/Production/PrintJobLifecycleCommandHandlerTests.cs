@@ -23,7 +23,7 @@ public class CompletePrintJobCommandHandlerTests
         var publisher = new RecordingProductionEventPublisher();
         var completionService = new ProductionRunCompletionService(runRepository, requirementRepository, jobRepository, publisher);
         var handler = new CompletePrintJobCommandHandler(
-            jobRepository, printerRepository, new InMemorySpoolRepository(), publisher, completionService);
+            jobRepository, printerRepository, new InMemorySpoolRepository(), publisher, completionService, new NoopContinuationResolver());
 
         var act = () => handler.HandleAsync(new CompletePrintJobCommand(job.Id, []), CancellationToken.None);
         await act.Should().ThrowAsync<JobNotEligibleForRemoteControlException>();
@@ -46,7 +46,7 @@ public class CompletePrintJobCommandHandlerTests
         var publisher = new RecordingProductionEventPublisher();
         var completionService = new ProductionRunCompletionService(runRepository, requirementRepository, jobRepository, publisher);
         var handler = new CompletePrintJobCommandHandler(
-            jobRepository, printerRepository, new InMemorySpoolRepository(), publisher, completionService);
+            jobRepository, printerRepository, new InMemorySpoolRepository(), publisher, completionService, new NoopContinuationResolver());
 
         var result = await handler.HandleAsync(new CompletePrintJobCommand(job.Id, []), CancellationToken.None);
 
@@ -63,7 +63,7 @@ public class CompletePrintJobCommandHandlerTests
         var publisher = new RecordingProductionEventPublisher();
         var completionService = new ProductionRunCompletionService(runRepository, requirementRepository, jobRepository, publisher);
         var handler = new CompletePrintJobCommandHandler(
-            jobRepository, new InMemoryPrinterRepository(), new InMemorySpoolRepository(), publisher, completionService);
+            jobRepository, new InMemoryPrinterRepository(), new InMemorySpoolRepository(), publisher, completionService, new NoopContinuationResolver());
 
         var act = () => handler.HandleAsync(new CompletePrintJobCommand(job.Id, []), CancellationToken.None);
 
@@ -79,7 +79,7 @@ public class CompletePrintJobCommandHandlerTests
         var publisher = new RecordingProductionEventPublisher();
         var completionService = new ProductionRunCompletionService(runRepository, requirementRepository, jobRepository, publisher);
         var handler = new CompletePrintJobCommandHandler(
-            jobRepository, new InMemoryPrinterRepository(), new InMemorySpoolRepository(), publisher, completionService);
+            jobRepository, new InMemoryPrinterRepository(), new InMemorySpoolRepository(), publisher, completionService, new NoopContinuationResolver());
 
         var act = () => handler.HandleAsync(new CompletePrintJobCommand(Guid.NewGuid(), []), CancellationToken.None);
 
@@ -100,7 +100,7 @@ public class FailPrintJobCommandHandlerTests
         var jobRepository = new InMemoryPrintJobRepository(job);
         var printerRepository = new InMemoryPrinterRepository(printer);
         var publisher = new RecordingProductionEventPublisher();
-        var handler = new FailPrintJobCommandHandler(jobRepository, printerRepository, new InMemorySpoolRepository(), publisher);
+        var handler = new FailPrintJobCommandHandler(jobRepository, printerRepository, new InMemorySpoolRepository(), publisher, new NoopContinuationResolver());
 
         var act = () => handler.HandleAsync(new FailPrintJobCommand(job.Id, []), CancellationToken.None);
         await act.Should().ThrowAsync<JobNotEligibleForRemoteControlException>();
@@ -113,7 +113,7 @@ public class FailPrintJobCommandHandlerTests
         var job = ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
         var handler = new FailPrintJobCommandHandler(
             new InMemoryPrintJobRepository(job), new InMemoryPrinterRepository(), new InMemorySpoolRepository(),
-            new RecordingProductionEventPublisher());
+            new RecordingProductionEventPublisher(), new NoopContinuationResolver());
 
         var act = () => handler.HandleAsync(new FailPrintJobCommand(job.Id, []), CancellationToken.None);
 

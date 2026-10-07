@@ -75,6 +75,8 @@ public sealed class PrintJob
 
     public IReadOnlyList<JobFilamentConsumption> FilamentConsumption => _filamentConsumption;
 
+    public bool HasFilamentRequirementOverride { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     /// <summary>
@@ -102,7 +104,7 @@ public sealed class PrintJob
         foreach (var requirement in filamentRequirements)
         {
             job._filamentConsumption.Add(
-                JobFilamentConsumption.Create(organizationId, job.Id, requirement.MaterialType, requirement.DetectedColorHex));
+                JobFilamentConsumption.Create(organizationId, job.Id, requirement));
         }
 
         return job;
@@ -226,13 +228,14 @@ public sealed class PrintJob
         line.Record(spoolId, gramsConsumed);
     }
 
-    public void SetFilamentRequirements(IReadOnlyList<JobFilamentRequirementSpec> requirements)
+    public void SetFilamentRequirements(IReadOnlyList<JobFilamentRequirementSpec> requirements, bool isOverride = true)
     {
         EnsureQueued();
         if (requirements.Count == 0) throw new FilamentConsumptionSumMismatchException(null, null);
+        HasFilamentRequirementOverride = isOverride;
         _filamentConsumption.Clear();
         foreach (var requirement in requirements)
-            _filamentConsumption.Add(JobFilamentConsumption.Create(OrganizationId, Id, requirement.MaterialType, requirement.DetectedColorHex));
+            _filamentConsumption.Add(JobFilamentConsumption.Create(OrganizationId, Id, requirement));
     }
 
     public JobFilamentConsumption AddConsumptionLine(string? materialType, string? colorHex)

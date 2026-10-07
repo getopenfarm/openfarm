@@ -30,7 +30,7 @@ public sealed class FilamentResponse
 
     public string MaterialType { get; set; } = string.Empty;
 
-    public Guid? FilamentProfileId { get; set; }
+    public IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments { get; set; } = [];
 
     public IReadOnlyList<FilamentVariantResponse> Variants { get; set; } = [];
 
@@ -41,7 +41,7 @@ public sealed class FilamentResponse
         VendorName = vendorName,
         Material = filament.Material,
         MaterialType = filament.MaterialType,
-        FilamentProfileId = filament.FilamentProfileId,
+        ProfileAssignments = filament.ProfileAssignments.Select(a => new FilamentProfileAssignmentInput(a.Brand, a.ModelCode, a.NozzleDiameterMm, a.FilamentProfileId, filament.Variants.FirstOrDefault(v => v.Id == a.FilamentVariantId)?.ColorHex)).ToList(),
         Variants = filament.Variants.Select(FilamentVariantResponse.FromDomain).ToList(),
     };
 
@@ -52,7 +52,7 @@ public sealed class FilamentResponse
         VendorName = summary.VendorName,
         Material = summary.Material,
         MaterialType = summary.MaterialType,
-        FilamentProfileId = summary.FilamentProfileId,
+        ProfileAssignments = summary.ProfileAssignments,
         Variants = summary.Variants.Select(FilamentVariantResponse.FromSummary).ToList(),
     };
 }

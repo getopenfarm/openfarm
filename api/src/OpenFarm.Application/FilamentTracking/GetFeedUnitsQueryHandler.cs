@@ -33,7 +33,8 @@ public sealed class GetFeedUnitsQueryHandler(
             .ToList();
 
         return details
-            .Where(d => !ShouldHide(d, spoolBySlotId, feedUnits.First(u => u.Id == d.Id)))
+            .Where(d => query.IncludeArchived || d.ArchivedAtUtc is null)
+            .Where(d => query.IncludeHidden || !ShouldHide(d, spoolBySlotId, feedUnits.First(u => u.Id == d.Id)))
             .ToList();
     }
 
@@ -46,7 +47,7 @@ public sealed class GetFeedUnitsQueryHandler(
     {
         var slots = unit.FeedSlots
             .OrderBy(s => s.SlotPosition)
-            .Select(slot => BuildSlotDetail(unit, slot, printer, spoolBySlotId))
+            .Select(slot => BuildSlotDetail(unit, slot, printer, spoolBySlotId, allUnits))
             .ToList();
 
         var supersededByFeedUnitId = FeedUnitDisplay.ResolveSupersededByFeedUnitId(unit, allUnits, singleFilamentInlet);
@@ -59,16 +60,18 @@ public sealed class GetFeedUnitsQueryHandler(
             unit.IsRevealed,
             unit.ReplacesFeedUnitId,
             supersededByFeedUnitId,
-            slots);
+            slots, unit.ArchivedAtUtc, unit.FeedingSlotId, unit.FeedingSelectionSource);
     }
 
-    private static FeedSlotDetail BuildSlotDetail(FeedUnit unit, FeedSlot slot, Printer printer, Dictionary<Guid, Spool> spoolBySlotId)
+    private static FeedSlotDetail BuildSlotDetail(FeedUnit unit, FeedSlot slot, Printer printer, Dictionary<Guid, Spool> spoolBySlotId, IReadOnlyList<FeedUnit> allUnits)
     {
         var currentSpool = spoolBySlotId.TryGetValue(slot.Id, out var spool)
             ? new CurrentSpoolSummary(spool.Id, spool.FilamentVariantId, spool.RemainingWeightGrams)
             : null;
 
-        var detectedTray = FeedUnitDisplay.ResolveDetectedTray(unit, slot, printer);
+        var replacedPort = unit.Kind == FeedUnitKindCatalog.ExternalSpool && allUnits.Any(u =>
+            u.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader && u.ArchivedAtUtc is null && u.ReplacesFeedUnitId == unit.Id);
+        var detectedTray = replacedPort ? null : FeedUnitDisplay.ResolveDetectedTray(unit, slot, printer);
 
         return new FeedSlotDetail(
             slot.Id,

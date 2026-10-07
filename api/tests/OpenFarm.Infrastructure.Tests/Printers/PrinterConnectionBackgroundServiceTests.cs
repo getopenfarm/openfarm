@@ -319,7 +319,7 @@ public class PrinterConnectionBackgroundServiceTests
             publisher.CameraFramesReceived.Should().Equal(
                 Convert.ToBase64String([1, 2, 3]),
                 Convert.ToBase64String([4, 5, 6]));
-            repository.SaveChangesCallCount.Should().Be(0, "camera frames carry no printer-entity data and shouldn't trigger a DB write");
+            repository.SaveChangesCallCount.Should().Be(1, "only starting the telemetry connection writes the unconfirmed nozzle state; camera frames add no writes");
         }
         finally
         {

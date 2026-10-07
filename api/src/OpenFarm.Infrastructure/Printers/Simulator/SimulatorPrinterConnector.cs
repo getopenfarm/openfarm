@@ -216,7 +216,7 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
                 state.RemainingTimeMinutes,
                 state.CurrentJobName,
                 state.AmsUnits,
-                state.ExternalSpoolTray));
+                state.ExternalSpoolTray, NozzleDiameterMm: 0.4m));
 
     private static string StatusToGcodeState(PrinterStatus status) => status switch
     {

@@ -6,6 +6,7 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   getOpenFarmApiEndpointsPartsGetPartEndpointQueryKey,
@@ -80,7 +81,10 @@ export function PartDetailPage() {
     narrowMutation.mutate({
       id: part.id,
       requirementId,
-      data: { narrowFilamentProfileId: filamentProfileId },
+      data: {
+        narrowFilamentProfileId: filamentProfileId,
+        narrowFilamentVariantId: null,
+      },
     });
   }
 
@@ -170,35 +174,54 @@ export function PartDetailPage() {
           )}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]">
             <div className="flex flex-col gap-4">
-              <div>
-                <p className="mb-1.5 text-sm text-muted-foreground">
-                  Thumbnails
-                </p>
-                <PartThumbnailGallery
-                  thumbnails={part.thumbnails}
-                  plateCount={part.plateCount}
-                  tileSize="8rem"
-                />
-              </div>
-              <div>
-                <p className="mb-1.5 text-sm text-muted-foreground">Estimate</p>
-                <PartEstimationSource estimation={part.estimation} />
-                <PartEstimate
-                  status={part.estimateStatus}
-                  minutes={part.estimatedPrintTimeMinutes}
-                  grams={part.estimatedFilamentWeightGrams}
-                />
-              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Part preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <PartThumbnailGallery
+                    thumbnails={part.thumbnails}
+                    plateCount={part.plateCount}
+                    tileSize="8rem"
+                  />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Estimate</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <PartEstimationSource estimation={part.estimation} />
+                  <PartEstimate
+                    status={part.estimateStatus}
+                    minutes={part.estimatedPrintTimeMinutes}
+                    grams={part.estimatedFilamentWeightGrams}
+                  />
+                </CardContent>
+              </Card>
             </div>
-            <div>
-              <p className="mb-1.5 text-sm text-muted-foreground">
-                Filament requirements
-              </p>
-              <PartFilamentRequirementsList
-                requirements={requirements}
-                onNarrowToProfile={handleNarrowToProfile}
-              />
-            </div>
+            <Card className="self-start">
+              <CardHeader>
+                <CardTitle>Production filament</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PartFilamentRequirementsList
+                  requirements={requirements}
+                  onNarrow={(key, variantId) =>
+                    part.id &&
+                    narrowMutation.mutate({
+                      id: part.id,
+                      requirementId: String(key),
+                      data: {
+                        narrowFilamentVariantId: variantId,
+                        narrowFilamentProfileId: null,
+                      },
+                    })
+                  }
+                  onNarrowToProfile={handleNarrowToProfile}
+                />
+              </CardContent>
+            </Card>
           </div>
 
           <AddOrReplacePartDialog

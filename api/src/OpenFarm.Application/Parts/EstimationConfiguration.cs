@@ -35,9 +35,7 @@ public sealed class ResolveEstimationProfiles(IMachineProfileRepository machines
             ?? throw new SlicingProfileUnconfiguredException("The estimation process profile no longer exists.");
         var filament = await filaments.GetByIdAsync(selection.FilamentProfileId, cancellationToken)
             ?? throw new SlicingProfileUnconfiguredException("The estimation filament profile no longer exists.");
-        var format = engine == SlicerEngine.OrcaSlicer ? ProfileSourceFormat.OrcaSlicer : ProfileSourceFormat.BambuStudio;
-        if (machine.SourceFormat != format || process.SourceFormat != format || filament.SourceFormat != format)
-            throw new SlicingProfileUnconfiguredException("Estimation profiles must belong to the selected slicer engine.");
+        ProfileEngineCompatibility.EnsureSupported(engine, machine.SourceFormat, process.SourceFormat, filament.SourceFormat);
         if (!machine.IsSelectable || !process.IsSelectable || !filament.IsSelectable)
             throw new SlicingProfileUnconfiguredException("Estimation profiles must be selectable profiles.");
         if (process.Origin != ProfileOrigin.System || process.CompatibleMachineNames?.Contains(machine.Name, StringComparer.Ordinal) != true)
@@ -46,7 +44,7 @@ public sealed class ResolveEstimationProfiles(IMachineProfileRepository machines
             throw new SlicingProfileUnconfiguredException("The estimation filament profile is incompatible with the machine profile.");
         if (!Enum.IsDefined(selection.BuildPlateType))
             throw new SlicingProfileUnconfiguredException("The estimation build plate is invalid.");
-        var profiles = await resolver.ResolveProfilesAsync(machine.Id, process.Id, filament.Id, selection.BuildPlateType, cancellationToken);
+        var profiles = await resolver.ResolveProfilesAsync(machine.Id, process.Id, filament.Id, selection.BuildPlateType, cancellationToken, engine);
         using var machineJson = JsonDocument.Parse(profiles.MachineSettingsJson);
         var model = PrinterModelCatalog.All.SelectMany(g => g.Models.Select(code => PrinterModelCatalog.Resolve(g.Brand.ToString(), code)))
             .FirstOrDefault(m => m.VendorMachineModelName == (machine.VendorMachineModelName ?? ReadFirst(machineJson.RootElement, "printer_model")) && m.VendorMachineModelName is not null);

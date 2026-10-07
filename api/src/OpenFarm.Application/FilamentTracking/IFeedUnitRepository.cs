@@ -4,6 +4,11 @@ namespace OpenFarm.Application.FilamentTracking;
 
 public interface IFeedUnitRepository
 {
+    Task<T> ExecuteAtomicallyAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken, Guid? lockId = null) => action();
+
+    async Task<Guid?> GetPrinterIdAsync(Guid feedUnitId, CancellationToken cancellationToken) =>
+        (await GetByIdAsync(feedUnitId, cancellationToken))?.PrinterId;
+
     Task AddAsync(FeedUnit feedUnit, CancellationToken cancellationToken);
 
     Task<FeedUnit?> GetByIdAsync(Guid id, CancellationToken cancellationToken);

@@ -13,7 +13,7 @@ public class AddRemoveFeedUnitTests(CustomWebApplicationFactory factory) : IClas
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task AddAutomaticFilamentReloader_CreatesUnitWithSlots_AndRemoveDeactivatesWithoutDisturbingLoadedSpool()
+    public async Task AddAutomaticFilamentReloader_CreatesUnitWithSlots_AndRemoveArchivesAndUnloadsSpool()
     {
         var client = await AuthenticatedClientAsync(_client);
         var printerId = await RegisterSimulatorPrinterAsync(client);
@@ -33,7 +33,11 @@ public class AddRemoveFeedUnitTests(CustomWebApplicationFactory factory) : IClas
 
         var spoolsResponse = await client.GetAsync(new Uri("/api/v1/spools", UriKind.Relative));
         var spools = await spoolsResponse.Content.ReadFromJsonAsync<ListSpoolsResponse>();
-        spools!.Spools.Should().Contain(s => s.Id == spoolId && s.State == "Using", "the spool's own state/history stays undisturbed");
+        var unitsResponse = await client.GetFromJsonAsync<ListFeedUnitsResponse>(new Uri($"/api/v1/printers/{printerId}/feed-units", UriKind.Relative));
+        unitsResponse!.FeedUnits.Should().NotContain(u => u.Id == afr.Id);
+        var archived = await client.GetFromJsonAsync<ListFeedUnitsResponse>(new Uri($"/api/v1/printers/{printerId}/feed-units?includeArchived=true", UriKind.Relative));
+        archived!.FeedUnits.Single(u => u.Id == afr.Id).ArchivedAtUtc.Should().NotBeNull();
+        spools!.Spools.Should().Contain(s => s.Id == spoolId && s.State == "InStorage" && s.FeedSlotId == null, "removal returns the spool to inventory");
     }
 
     [Fact]

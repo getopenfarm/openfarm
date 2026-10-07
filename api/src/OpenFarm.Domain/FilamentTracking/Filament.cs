@@ -3,6 +3,7 @@ namespace OpenFarm.Domain.FilamentTracking;
 public sealed class Filament
 {
     private readonly List<FilamentVariant> _variants = [];
+    private readonly List<FilamentProfileAssignment> _profileAssignments = [];
 
     private Filament(
         Guid id,
@@ -10,7 +11,6 @@ public sealed class Filament
         Guid vendorId,
         string material,
         string materialType,
-        Guid? filamentProfileId,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
@@ -18,7 +18,6 @@ public sealed class Filament
         VendorId = vendorId;
         Material = material;
         MaterialType = materialType;
-        FilamentProfileId = filamentProfileId;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -32,13 +31,40 @@ public sealed class Filament
 
     public string MaterialType { get; }
 
-    public Guid? FilamentProfileId { get; }
+    public IReadOnlyList<FilamentProfileAssignment> ProfileAssignments => _profileAssignments;
+
+    public void ReplaceProfileAssignments(IEnumerable<FilamentProfileAssignment> assignments)
+    {
+        var rows = assignments.ToList();
+        if (rows.Any(a => a.FilamentId != Id || a.OrganizationId != OrganizationId
+            || a.FilamentVariantId is { } variantId && !_variants.Any(v => v.Id == variantId)))
+            throw new ArgumentException("Assignments must belong to this filament and its colours.");
+        if (rows.Select(a => (a.Brand, a.ModelCode, a.NozzleDiameterMm, a.FilamentVariantId)).Distinct().Count() != rows.Count)
+            throw new ArgumentException("Duplicate profile assignment.");
+        var retained = rows.Select(row =>
+        {
+            var existing = _profileAssignments.FirstOrDefault(a => a.Brand == row.Brand && a.ModelCode == row.ModelCode
+                && a.NozzleDiameterMm == row.NozzleDiameterMm && a.FilamentVariantId == row.FilamentVariantId);
+            if (existing is null) return row;
+            existing.SetProfile(row.FilamentProfileId);
+            return existing;
+        }).ToList();
+        _profileAssignments.Clear();
+        _profileAssignments.AddRange(retained);
+    }
+
+    public Guid? ResolveProfileId(string brand, string modelCode, decimal nozzleDiameterMm, Guid variantId)
+    {
+        var matches = _profileAssignments.Where(a => a.Brand == brand && a.ModelCode == modelCode && a.NozzleDiameterMm == nozzleDiameterMm);
+        return matches.FirstOrDefault(a => a.FilamentVariantId == variantId)?.FilamentProfileId
+            ?? matches.FirstOrDefault(a => a.FilamentVariantId == null)?.FilamentProfileId;
+    }
 
     public DateTimeOffset CreatedAtUtc { get; }
 
     public IReadOnlyList<FilamentVariant> Variants => _variants;
 
-    public static Filament Create(Guid organizationId, Guid vendorId, string material, string materialType, Guid? filamentProfileId)
+    public static Filament Create(Guid organizationId, Guid vendorId, string material, string materialType)
     {
         if (string.IsNullOrWhiteSpace(material))
         {
@@ -50,7 +76,7 @@ public sealed class Filament
             throw new ArgumentException("Material type is required.", nameof(materialType));
         }
 
-        return new Filament(Guid.NewGuid(), organizationId, vendorId, material, materialType, filamentProfileId, DateTimeOffset.UtcNow);
+        return new Filament(Guid.NewGuid(), organizationId, vendorId, material, materialType, DateTimeOffset.UtcNow);
     }
 
     public FilamentVariant AddVariant(string colorName, string colorHex)

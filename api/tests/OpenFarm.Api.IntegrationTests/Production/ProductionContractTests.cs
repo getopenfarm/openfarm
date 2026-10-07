@@ -41,8 +41,7 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         var detail = await client.GetFromJsonAsync<OpenFarm.Api.Endpoints.PrintJobs.PrintJobResponse>($"/api/v1/print-jobs/{job.Id}");
         detail!.FilamentConsumption.Should().ContainSingle(c => c.MaterialType == "PETG" && c.DetectedColorHex == "000000");
         var file = await client.GetAsync($"/api/v1/print-jobs/{job.Id}/file");
-        file.EnsureSuccessStatusCode();
-        (await file.Content.ReadAsStringAsync()).Should().Be("; revision one\n");
+        file.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, "production output needs a printer and its tracked filament assignment");
     }
 
     [Fact]
@@ -61,6 +60,7 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
     {
         var client = await ClientAsync();
         var legacy = await PartAsync(legacy: true);
+        var printer = await PrinterAsync();
         var run = await RunAsync(client, legacy.Id);
         var snapshot = (await JobsAsync(run.Id)).Single();
         snapshot.FileRevisionHash.Should().HaveLength(64);
@@ -84,11 +84,11 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         suggested.UnitsPerPrint.Should().Be(3);
         var current = await handler.HandleAsync(new ConfirmPartProcessingJobCommand(replace.Id, null, null, [], null), default);
         current.UnitsPerPrint.Should().Be(1, "replacement preserves the operator's existing default");
-        var content = await scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>().ResolveAsync(current, snapshot, Guid.Empty, 0.4m, default);
+        var content = await scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>().ResolveAsync(current, snapshot, printer.Id, 0.4m, default);
         Encoding.UTF8.GetString(content.Bytes).Should().Be("; revision one\n");
         var legacySnapshot = OpenFarm.Domain.Production.PrintJob.Create(legacy.OrganizationId, snapshot.PartRequirementId, 1024, 1,
-            OpenFarm.Domain.Production.AssignmentMode.Unassigned, null, legacy.RevisionHash, 1, []);
-        var legacyBytes = await scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>().ResolveAsync(current, legacySnapshot, Guid.Empty, 0.4m, default);
+            OpenFarm.Domain.Production.AssignmentMode.Unassigned, null, legacy.RevisionHash, 1, [new("PLA", null)]);
+        var legacyBytes = await scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>().ResolveAsync(current, legacySnapshot, printer.Id, 0.4m, default);
         Encoding.UTF8.GetString(legacyBytes.Bytes).Should().Be("; revision one\n");
     }
 

@@ -21,4 +21,4 @@ public sealed record QueueJobRow(
     int PlateQuantity,
     Guid RunLineId,
     Guid ProductionRunId,
-    string RunDisplayLabel);
+    string RunDisplayLabel, string? BlockingReason = null);

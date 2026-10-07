@@ -1,3 +1,4 @@
+using OpenFarm.Domain.Printers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Text.Json.Nodes;
@@ -7,6 +8,7 @@ using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.Parts;
 using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 using OpenFarm.Infrastructure.Tests.Parts.RealSlicer;
+using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Infrastructure.Tests.Parts;
 
@@ -29,6 +31,32 @@ public class RealSlicerGoldenFileTests
     [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
     public Task OrcaSlicer231_Benchy_ProducesExpectedGCode() =>
         RunCaseAsync("orcaslicer-2.3.1-benchy-stl", SlicerEngine.OrcaSlicer, "2.3.1");
+
+    [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
+    public async Task OrcaSlicer231_ValidatesBambuStudioP1SFilamentSettings()
+    {
+        var (available, reason) = RealSlicerBundleLocator.TryResolve(SlicerEngine.OrcaSlicer, "2.3.1");
+        available.Should().NotBeNull(reason);
+        // Both installed catalogs are resolved independently; templates remain in their source catalog.
+        var orca = await VendorProfileFixtureStaging.StageAndIngestAsync(SlicerEngine.OrcaSlicer, "2.3.1",
+            "Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C", "Bambu PLA Basic @BBL X1C", default);
+        var bambu = await VendorProfileFixtureStaging.StageAndIngestAsync(SlicerEngine.BambuStudio, "2.7.1",
+            "Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C", "Bambu PLA Basic @BBL P1S 0.4 nozzle", default);
+        var native = await orca.Resolver.ResolveProfilesAsync(orca.MachineProfileId, orca.ProcessProfileId,
+            orca.FilamentProfileId, BuildPlateType.TexturedPei, default);
+        var imported = await bambu.Resolver.ResolveProfilesAsync(bambu.MachineProfileId, bambu.ProcessProfileId,
+            bambu.FilamentProfileId, BuildPlateType.TexturedPei, default);
+        var mixed = native with
+        {
+            FilamentSettingsJson = imported.FilamentSettingsJson,
+            FilamentProfileName = imported.FilamentProfileName,
+            FilamentSourceFormat = ProfileSourceFormat.BambuStudio
+        };
+        var engine = new CliSlicerEngine(new SingleSlicerCatalog(available!), new FixedPlatform(available!.Platform),
+            [new PrusaSliceFamilyInvocation()], orca.Resolver, Options.Create(new SlicerOptions()), NullLogger<CliSlicerEngine>.Instance);
+        using var cache = new ProfileEngineValidationCache();
+        await new ProfileEngineValidator(engine, cache).ValidateAsync(available.ToSlicerRef(), mixed, "PLA", 0.4m, default);
+    }
 
     [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
     public async Task OrcaSlicer231_EmbeddedProject_PreservesItsSavedSettings()
@@ -85,8 +113,8 @@ public class RealSlicerGoldenFileTests
             var staging = await VendorProfileFixtureStaging.StageAndIngestAsync(
                 engine, version, manifest.MachineProfileName, manifest.ProcessProfileName!, manifest.FilamentProfileName!,
                 CancellationToken.None);
-            resolvedProfiles = await staging.Resolver.ResolveAsync(
-                staging.PrinterId, manifest.MaterialType, narrowedFilamentProfileId: staging.FilamentProfileId, CancellationToken.None);
+            resolvedProfiles = await staging.Resolver.ResolveProfilesAsync(
+                staging.MachineProfileId, staging.ProcessProfileId, staging.FilamentProfileId, BuildPlateType.TexturedPei, CancellationToken.None);
 
             if (manifest.BedType is not null)
             {

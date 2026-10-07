@@ -20,6 +20,8 @@ public sealed class AddFeedUnitRequest : IActivityLoggable
     public int? SlotCount { get; set; }
 
     public Guid? ReplacesFeedUnitId { get; set; }
+    public int? StartingSlotPosition { get; set; }
+    public bool TransferExternalSpool { get; set; } = true;
 
     public string EntityType => "FeedUnit";
 
@@ -31,8 +33,11 @@ public sealed class AddFeedUnitRequestValidator : AbstractValidator<AddFeedUnitR
     public AddFeedUnitRequestValidator()
     {
         RuleFor(x => x.Kind).Must(k => k is FeedUnitKindCatalog.AutomaticFilamentReloader or FeedUnitKindCatalog.ExternalSpool);
+        RuleFor(x => x.StartingSlotPosition).Must((x, position) => position is null
+            || position >= 0 && position < x.SlotCount)
+            .WithMessage("Starting channel must be within the declared slot count.");
         RuleFor(x => x.Name).NotEmpty().When(x => x.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader);
-        RuleFor(x => x.SlotCount).NotNull().GreaterThanOrEqualTo(1).When(x => x.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader);
+        RuleFor(x => x.SlotCount).NotNull().GreaterThanOrEqualTo(1).LessThanOrEqualTo(100).When(x => x.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader);
     }
 }
 
@@ -49,6 +54,8 @@ public sealed class AddFeedUnitResponse : IHasEntityIds
     public bool IsRevealed { get; set; }
 
     public Guid? ReplacesFeedUnitId { get; set; }
+    public Guid? FeedingSlotId { get; set; }
+    public string? FeedingSelectionSource { get; set; }
 
     public IReadOnlyList<FeedSlotResponse> FeedSlots { get; set; } = [];
 
@@ -78,7 +85,7 @@ public sealed class AddFeedUnitEndpoint(AddFeedUnitHandler handler, IQueryHandle
     {
         req.PrinterId = Route<Guid>("printerId");
 
-        var command = new AddFeedUnitCommand(req.PrinterId, req.Kind, req.Name, req.SlotCount, req.ReplacesFeedUnitId);
+        var command = new AddFeedUnitCommand(req.PrinterId, req.Kind, req.Name, req.SlotCount, req.ReplacesFeedUnitId, req.StartingSlotPosition, req.TransferExternalSpool);
         var unit = await handler.HandleAsync(command, ct);
 
         var feedUnits = await feedUnitsQuery.HandleAsync(new GetFeedUnitsQuery(req.PrinterId), ct);
@@ -92,6 +99,8 @@ public sealed class AddFeedUnitEndpoint(AddFeedUnitHandler handler, IQueryHandle
             DisplayLabel = detail.DisplayLabel,
             IsRevealed = detail.IsRevealed,
             ReplacesFeedUnitId = detail.ReplacesFeedUnitId,
+            FeedingSlotId = detail.FeedingSlotId,
+            FeedingSelectionSource = detail.FeedingSelectionSource,
             FeedSlots = detail.FeedSlots.Select(FeedSlotResponse.FromDetail).ToList(),
         };
 

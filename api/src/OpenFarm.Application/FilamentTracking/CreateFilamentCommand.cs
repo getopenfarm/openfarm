@@ -6,5 +6,7 @@ public sealed record CreateFilamentCommand(
     Guid VendorId,
     string Material,
     string MaterialType,
-    Guid? FilamentProfileId,
-    IReadOnlyList<CreateFilamentVariantInput> Variants);
+    IReadOnlyList<CreateFilamentVariantInput> Variants,
+    IReadOnlyList<FilamentProfileAssignmentInput>? ProfileAssignments = null);
+
+public sealed record FilamentProfileAssignmentInput(string Brand, string ModelCode, decimal NozzleDiameterMm, Guid FilamentProfileId, string? ColorHex = null);

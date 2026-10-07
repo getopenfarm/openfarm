@@ -22,7 +22,7 @@ public sealed class CreateFilamentRequest : IActivityLoggable
 
     public string MaterialType { get; set; } = string.Empty;
 
-    public Guid? FilamentProfileId { get; set; }
+    public IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments { get; set; } = [];
 
     public IReadOnlyList<CreateFilamentVariantRequest> Variants { get; set; } = [];
 
@@ -64,8 +64,7 @@ public sealed class CreateFilamentEndpoint(CreateFilamentHandler handler, IVendo
             req.VendorId,
             req.Material,
             req.MaterialType,
-            req.FilamentProfileId,
-            req.Variants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex)).ToList());
+            req.Variants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex)).ToList(), req.ProfileAssignments);
 
         var filament = await handler.HandleAsync(command, ct);
         var vendor = await vendorRepository.GetByIdAsync(filament.VendorId, ct);

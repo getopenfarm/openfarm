@@ -15,77 +15,63 @@ namespace OpenFarm.Infrastructure.Production;
 /// plain data-fetching separate from the pure matching algorithm itself, matching the split
 /// <c>AssemblyGraphQueryService</c>/<c>AssemblyGraph</c> already established for Assemblies.
 /// </summary>
-public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, IProfileBundleParser profileParser)
+public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, OpenFarm.Application.Production.ProductionProfileReadiness readiness, OpenFarm.Application.Production.ProductionJobRequirements jobRequirements)
 {
     /// <summary>
-    /// A printer with no linked <see cref="Printer.MachineProfileId"/>, or one whose profile has no
-    /// parseable nozzle size, matches nothing — mirrors Phase 4's "not a real fleet member" language
-    /// for the identical condition (research.md R4 step 1).
+    /// Only nozzle telemetry confirmed on the current connection is usable for dispatch.
     /// </summary>
     public async Task<decimal?> ResolvePrinterNozzleDiameterMmAsync(Printer printer, CancellationToken cancellationToken)
     {
-        if (printer.MachineProfileId is not { } machineProfileId)
-        {
-            return null;
-        }
-
-        var profile = await dbContext.MachineProfiles.FirstOrDefaultAsync(p => p.Id == machineProfileId, cancellationToken);
-        if (profile is null)
-        {
-            return null;
-        }
-
-        var nozzleSizeMm = profileParser.ExtractMachineDisplayFields(profile.RawDataJson, profile.SourceFormat).NozzleSizeMm;
-        return nozzleSizeMm is { } value ? (decimal)value : null;
+        // Read persisted connection state so callers cannot dispatch with an older tracked instance.
+        var current = await dbContext.Printers.AsNoTracking().FirstOrDefaultAsync(p => p.Id == printer.Id, cancellationToken);
+        return current?.NozzleConfirmed == true ? current.ReportedNozzleDiameterMm : null;
     }
 
     /// <summary>
-    /// Operator-tracked <see cref="Spool"/> assignment (via <see cref="FeedSlot"/>/<see cref="FeedUnit"/>)
-    /// is the primary source; a printer with no tracked spool at all falls back to its connector-
-    /// reported <see cref="Printer.AmsUnits"/>/<see cref="Printer.ExternalSpoolTray"/> telemetry
-    /// (research.md R4 step 2) — there is no unified read model combining both today, so this method
-    /// is that join.
+    /// Operator-tracked, actively loaded spools provide production material facts.
     /// </summary>
     public async Task<IReadOnlyList<(string? MaterialType, string? ColorHex)>> ResolveLoadedMaterialsAsync(
+        Printer printer, CancellationToken cancellationToken) =>
+        (await ResolveLoadedFilamentsAsync(printer, cancellationToken)).Select(f => ((string?)f.MaterialType, (string?)f.ColorHex)).ToList();
+
+    public async Task<IReadOnlyList<OpenFarm.Application.Production.LoadedProductionFilament>> ResolveLoadedFilamentsAsync(
         Printer printer, CancellationToken cancellationToken)
     {
-        var feedSlotIds = await dbContext.FeedUnits
-            .Where(u => u.PrinterId == printer.Id)
-            .SelectMany(u => u.FeedSlots)
-            .Select(s => s.Id)
-            .ToListAsync(cancellationToken);
+        var units = await dbContext.FeedUnits.Include(u => u.FeedSlots)
+            .Where(u => u.PrinterId == printer.Id).ToListAsync(cancellationToken);
+        var feedSlotIds = ProductionFeedPath.ActiveSlotIds(units).ToList();
+        return await (from spool in dbContext.Spools
+                      where spool.State == SpoolState.Using && spool.FeedSlotId != null && feedSlotIds.Contains(spool.FeedSlotId.Value)
+                      join variant in dbContext.FilamentVariants on spool.FilamentVariantId equals variant.Id
+                      join filament in dbContext.Filaments on variant.FilamentId equals filament.Id
+                      select new OpenFarm.Application.Production.LoadedProductionFilament(variant.Id, filament.Id,
+                          filament.MaterialType, variant.ColorHex, variant.ColorName, spool.FeedSlotId!.Value)).ToListAsync(cancellationToken);
+    }
 
-        var trackedMaterials = await (
-            from spool in dbContext.Spools
-            where spool.State == SpoolState.Using && spool.FeedSlotId != null && feedSlotIds.Contains(spool.FeedSlotId!.Value)
-            join variant in dbContext.FilamentVariants on spool.FilamentVariantId equals variant.Id
-            join filament in dbContext.Filaments on variant.FilamentId equals filament.Id
-            select new { filament.MaterialType, variant.ColorHex })
-            .ToListAsync(cancellationToken);
+    public async Task<string?> GetReadinessIssueAsync(Guid printerId, Guid partId,
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, Guid? jobId = null)
+    {
+        var part = await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == partId, ct);
+        if (part is null) return "Part not found.";
+        if (jobId is null) return await readiness.GetIssueAsync(printerId, part,
+            OpenFarm.Application.Production.ProductionJobRequirements.FromPart(part), ct);
+        var job = await dbContext.PrintJobs.Include(j => j.FilamentConsumption).FirstAsync(j => j.Id == jobId, ct);
+        var effective = await jobRequirements.ResolveAsync(job, part, ct);
+        return await readiness.GetIssueAsync(printerId, part, effective.Requirements, ct, effective.RevisionHash);
+    }
 
-        if (trackedMaterials.Count > 0)
+    public async Task<IReadOnlyList<DispatchCandidate>> FilterReadyAsync(Guid printerId, IReadOnlyList<DispatchCandidate> candidates, CancellationToken ct)
+    {
+        var ready = new List<DispatchCandidate>();
+        foreach (var candidate in candidates)
         {
-            return trackedMaterials.Select(m => ((string?)m.MaterialType, (string?)m.ColorHex)).ToList();
+            var partId = await (from job in dbContext.PrintJobs
+                                where job.Id == candidate.JobId
+                                join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
+                                select requirement.PartId).FirstAsync(ct);
+            if (await GetReadinessIssueAsync(printerId, partId, candidate.FilamentRequirement, ct, candidate.JobId) is null) ready.Add(candidate);
         }
-
-        var loaded = new List<(string?, string?)>();
-        foreach (var unit in printer.AmsUnits)
-        {
-            foreach (var tray in unit.Trays)
-            {
-                if (!tray.Empty)
-                {
-                    loaded.Add((tray.MaterialType, tray.ColorHex));
-                }
-            }
-        }
-
-        if (printer.ExternalSpoolTray is { Empty: false } externalTray)
-        {
-            loaded.Add((externalTray.MaterialType, externalTray.ColorHex));
-        }
-
-        return loaded;
+        return ready;
     }
 
     /// <summary>
@@ -129,22 +115,16 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             return [];
         }
 
-        var jobIds = rows.Select(r => r.JobId).ToList();
-        var filamentRequirementsByPart = await dbContext.JobFilamentConsumptions
-            .Where(r => jobIds.Contains(r.PrintJobId))
-            .GroupBy(r => r.PrintJobId)
-            .ToDictionaryAsync(
-                g => g.Key,
-                g => (IReadOnlyList<(string?, string?)>)g.Select(r => (r.MaterialType, r.DetectedColorHex)).ToList(),
-                cancellationToken);
-
-        return rows
-            .Select(row => new DispatchCandidate(
-                row.JobId,
-                row.QueuePosition,
-                row.NozzleDiameterMm!.Value,
-                filamentRequirementsByPart.GetValueOrDefault(row.JobId, [])))
-            .ToList();
+        var candidates = new List<DispatchCandidate>();
+        foreach (var row in rows)
+        {
+            var job = await dbContext.PrintJobs.Include(j => j.FilamentConsumption).FirstAsync(j => j.Id == row.JobId, cancellationToken);
+            var part = await dbContext.Parts.Include(p => p.FilamentRequirements).FirstAsync(p => p.Id == row.PartId, cancellationToken);
+            var effective = await jobRequirements.ResolveAsync(job, part, cancellationToken);
+            candidates.Add(new DispatchCandidate(row.JobId, row.QueuePosition, row.NozzleDiameterMm!.Value,
+                effective.Requirements.Select(r => r.MatchingValues).ToList()));
+        }
+        return candidates;
     }
 
     /// <summary>
@@ -157,6 +137,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
     /// </summary>
     public async Task<IReadOnlyList<(Guid PrinterId, int CapabilityScore)>> GetOtherIdleQualifyingPrintersAsync(
         Guid excludePrinterId,
+        Guid jobId,
         decimal requiredNozzleDiameterMm,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> filamentRequirement,
         CancellationToken cancellationToken)
@@ -180,13 +161,18 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             var satisfiesRequirement = filamentRequirement.All(required =>
                 loadedMaterials.Any(loaded =>
                     (required.MaterialType is null || required.MaterialType == loaded.MaterialType) &&
-                    (required.ColorHex is null || required.ColorHex == loaded.ColorHex)));
+                    (required.ColorHex is null || string.Equals(required.ColorHex, loaded.ColorHex, StringComparison.OrdinalIgnoreCase))));
 
             if (!satisfiesRequirement)
             {
                 continue;
             }
 
+            var partId = await (from job in dbContext.PrintJobs
+                                where job.Id == jobId
+                                join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
+                                select requirement.PartId).FirstAsync(cancellationToken);
+            if (await GetReadinessIssueAsync(printer.Id, partId, filamentRequirement, cancellationToken, jobId) is not null) continue;
             var capabilityScore = printer.AmsUnits.Sum(u => u.Trays.Count);
             qualifying.Add((printer.Id, capabilityScore));
         }
@@ -229,7 +215,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             .GroupBy(r => r.PartId)
             .ToDictionaryAsync(
                 g => g.Key,
-                g => (IReadOnlyList<(string?, string?)>)g.Select(r => (r.MaterialType, r.DetectedColorHex)).ToList(),
+                g => (IReadOnlyList<(string?, string?)>)g.Select(r => (r.MaterialType, r.NarrowFilamentVariantId == null ? r.DetectedColorHex : null)).ToList(),
                 cancellationToken);
 
         var occupancyByLine = new Dictionary<Guid, int>();

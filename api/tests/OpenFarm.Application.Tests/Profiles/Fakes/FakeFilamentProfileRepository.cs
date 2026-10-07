@@ -26,11 +26,11 @@ public sealed class FakeFilamentProfileRepository : IFilamentProfileRepository
         Task.FromResult<IReadOnlyList<FilamentProfile>>(
             _rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-    public Task<FilamentProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+    public Task<FilamentProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
         Task.FromResult(_rows.FirstOrDefault(p =>
             p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId));
 
-    public Task<FilamentProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+    public Task<FilamentProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
         Task.FromResult(_rows.FirstOrDefault(p =>
             p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 

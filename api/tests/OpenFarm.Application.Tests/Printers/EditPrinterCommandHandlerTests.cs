@@ -1,3 +1,4 @@
+using OpenFarm.Application.Profiles;
 using FluentAssertions;
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Common;
@@ -150,7 +151,7 @@ public class EditPrinterCommandHandlerTests
         var repository = new InMemoryPrinterRepository(printer);
         var machineRepo = new FakeMachineProfileRepository();
         var machine = MachineProfile.CreateSystemProfile(
-            printer.OrganizationId, "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            printer.OrganizationId, "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""",
             "Bambulab", "GM010", true, "Bambu Lab P1S", null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
@@ -190,14 +191,14 @@ public class EditPrinterCommandHandlerTests
         var repository = new InMemoryPrinterRepository(printer);
         var machineRepo = new FakeMachineProfileRepository();
         var machine = MachineProfile.CreateSystemProfile(
-            printer.OrganizationId, "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
-            "Bambulab", "GM001", true, "Bambu Lab X1 Carbon", null);
+            printer.OrganizationId, "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""",
+            "Bambulab", "GM001", true, "Bambu Lab P1S", null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var processRepo = new FakeProcessProfileRepository();
         var process = ProcessProfile.CreateSystemProfile(
             printer.OrganizationId, "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
-            "Bambulab", "GP004", true, ["Bambu Lab X1 Carbon 0.4 nozzle"]);
+            "Bambulab", "GP004", true, ["Bambu Lab P1S 0.4 nozzle"]);
         await processRepo.AddAsync(process, CancellationToken.None);
 
         var activityLogWriter = new RecordingActivityLogWriter();
@@ -365,10 +366,15 @@ public class EditPrinterCommandHandlerTests
             connectionManager ?? new RecordingPrinterConnectionManager(),
             machineRepo ?? new FakeMachineProfileRepository(),
             processRepo ?? new FakeProcessProfileRepository(),
-            activityLogWriter ?? new RecordingActivityLogWriter());
+            activityLogWriter ?? new RecordingActivityLogWriter(),
+            new ProfileCompatibility(machineRepo ?? new FakeMachineProfileRepository(), new FakeFilamentProfileRepository()));
 
-    private static Printer CreatePrinter() =>
-        Printer.Create(Guid.NewGuid(), "Printer 1", "Bambu", "P1S", "10.0.0.5", "SN-0001");
+    private static Printer CreatePrinter()
+    {
+        var printer = Printer.Create(Guid.NewGuid(), "Printer 1", "Bambu", "P1S", "10.0.0.5", "SN-0001");
+        printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
+        return printer;
+    }
 
     private sealed class InMemoryPrinterRepository(params Printer[] printers) : IPrinterRepository
     {

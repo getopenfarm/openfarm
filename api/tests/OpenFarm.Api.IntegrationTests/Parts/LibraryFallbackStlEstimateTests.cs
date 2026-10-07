@@ -111,7 +111,7 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
             VendorId = vendor!.Id,
             Material = "PLA Basic",
             MaterialType = "PLA",
-            FilamentProfileId = filamentProfileId,
+            ProfileAssignments = [new("Bambu", "X1C", 0.4m, filamentProfileId)],
             Variants = [new CreateFilamentVariantRequest { ColorName = "Black", ColorHex = "#18181b" }],
         });
         var filament = await filamentResponse.Content.ReadFromJsonAsync<FilamentResponse>();

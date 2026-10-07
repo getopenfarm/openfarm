@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import type {
+  AmsTrayResponse,
   AmsUnitResponse,
   FeedSlotResponse,
   FeedUnitResponse,
@@ -19,14 +20,14 @@ import {
 } from '@/lib/api/generated/printers/printers';
 import { cn } from '@/lib/utils';
 import { feedSlotView, normalizeFilamentColor } from '../lib/feedSlotView';
+import { selectReloaderChannel } from '../lib/reloaderApi';
 import { AddFeedUnitDialog } from './AddFeedUnitDialog';
-
-const REMOVABLE_KINDS = new Set(['AutomaticFilamentReloader', 'ExternalSpool']);
 
 export interface FeedUnitsCardProps {
   printerId: string;
   amsUnits?: AmsUnitResponse[];
   isReachable?: boolean;
+  externalSpoolTray?: AmsTrayResponse | null;
 }
 
 function FeedSlotRow({
@@ -34,11 +35,17 @@ function FeedSlotRow({
   slot,
   amsUnits,
   isReachable,
+  externalSpoolTray,
+  externalPortReplacedByReloader,
+  unitPrinterId,
 }: {
+  unitPrinterId: string;
   unit: FeedUnitResponse;
   slot: FeedSlotResponse;
   amsUnits: AmsUnitResponse[];
   isReachable: boolean;
+  externalSpoolTray?: AmsTrayResponse | null;
+  externalPortReplacedByReloader?: boolean;
 }) {
   const filaments = useFilamentCatalog();
   const spool = slot.currentSpool;
@@ -48,7 +55,28 @@ function FeedSlotRow({
   const variant = filament?.variants?.find(
     (v) => v.id === spool?.filamentVariantId,
   );
-  const view = feedSlotView(unit, slot, amsUnits, isReachable);
+  const view = feedSlotView(
+    unit,
+    slot,
+    amsUnits,
+    isReachable,
+    externalSpoolTray,
+    externalPortReplacedByReloader,
+  );
+  const queryClient = useQueryClient();
+  const channelMutation = useMutation({
+    mutationFn: () => selectReloaderChannel(unit.id ?? '', slot.id ?? ''),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: [`/api/v1/printers/${unitPrinterId}/feed-units`],
+      }),
+    onError: () =>
+      toast.error(
+        'Could not change the feeding channel. Refresh and try again.',
+      ),
+  });
+  const isReloader = unit.kind === 'AutomaticFilamentReloader';
+  const feeding = isReloader && slot.id === unit.feedingSlotId;
   const inactive = Boolean(slot.deactivatedAtUtc);
   const title = spool
     ? filament
@@ -75,7 +103,7 @@ function FeedSlotRow({
     >
       <span className="w-12 shrink-0 font-mono text-[11px] text-muted-foreground">
         {slot.slotPosition != null
-          ? `Slot ${slot.slotPosition + 1}`
+          ? `${isReloader ? 'Ch.' : 'Slot'} ${slot.slotPosition + 1}`
           : slot.displayLabel}
       </span>
       <Swatch
@@ -111,6 +139,30 @@ function FeedSlotRow({
           <p className="text-[11.5px] text-muted-foreground">
             Detection unavailable
           </p>
+        )}
+        {isReloader && (
+          <p className="text-[11.5px] text-muted-foreground">
+            {feeding
+              ? `Feeding${unit.feedingSelectionSource === 'Estimated' ? ' · Estimated' : ' · Operator selected'}`
+              : spool
+                ? 'Standby'
+                : 'Unloaded'}
+          </p>
+        )}
+        {feeding && unit.replacesFeedUnitId && view.material && (
+          <p className="text-[11.5px] text-muted-foreground">
+            Printer-port detection
+          </p>
+        )}
+        {isReloader && !feeding && !inactive && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={channelMutation.isPending}
+            onClick={() => channelMutation.mutate()}
+          >
+            Set feeding channel
+          </Button>
         )}
         {inactive && (
           <p className="text-[11.5px] text-muted-foreground">Inactive slot</p>
@@ -150,18 +202,30 @@ function FeedUnitGroup({
   printerId,
   amsUnits,
   isReachable,
+  externalSpoolTray,
+  externalPortReplacedByReloader,
 }: {
   amsUnits: AmsUnitResponse[];
   isReachable: boolean;
+  externalSpoolTray?: AmsTrayResponse | null;
+  externalPortReplacedByReloader?: boolean;
   unit: FeedUnitResponse;
   printerId: string;
 }) {
   const queryClient = useQueryClient();
+  const [configureOpen, setConfigureOpen] = useState(false);
   const removeMutation = useOpenFarmApiEndpointsFeedUnitsRemoveFeedUnitEndpoint(
     {
       mutation: {
         onSuccess: () => {
-          toast.success('Feed Unit removed.');
+          toast.success(
+            'Feed Unit removed. Loaded spools returned to inventory.',
+          );
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              typeof query.queryKey[0] === 'string' &&
+              query.queryKey[0].startsWith('/api/v1/spools'),
+          });
           queryClient.invalidateQueries({
             queryKey:
               getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey(
@@ -182,29 +246,57 @@ function FeedUnitGroup({
         <p className="text-xs font-medium text-muted-foreground">
           {unit.displayLabel}
         </p>
-        {unit.kind && REMOVABLE_KINDS.has(unit.kind) && unit.id ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            disabled={removeMutation.isPending}
-            onClick={() => removeMutation.mutate({ id: unit.id ?? '' })}
-          >
-            Remove
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-1">
+          {unit.kind === 'AutomaticFilamentReloader' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setConfigureOpen(true)}
+            >
+              Configure
+            </Button>
+          )}
+          {unit.id &&
+          (unit.kind === 'AutomaticFilamentReloader' ||
+            (unit.kind === 'ExternalSpool' && unit.supersededByFeedUnitId)) ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              disabled={removeMutation.isPending}
+              onClick={() => removeMutation.mutate({ id: unit.id ?? '' })}
+            >
+              Remove
+            </Button>
+          ) : null}
+        </div>
       </div>
+      {unit.kind === 'AutomaticFilamentReloader' && !unit.feedingSlotId && (
+        <p className="px-[18px] pb-2 text-xs text-muted-foreground">
+          Select the feeding channel · Operator attention needed
+        </p>
+      )}
       <ul>
         {(unit.feedSlots ?? []).map((slot) => (
           <FeedSlotRow
             key={slot.id}
             unit={unit}
+            unitPrinterId={printerId}
+            externalPortReplacedByReloader={externalPortReplacedByReloader}
+            externalSpoolTray={externalSpoolTray}
             slot={slot}
             amsUnits={amsUnits}
             isReachable={isReachable}
           />
         ))}
       </ul>
+      <AddFeedUnitDialog
+        printerId={printerId}
+        unit={unit}
+        open={configureOpen}
+        onOpenChange={setConfigureOpen}
+      />
     </div>
   );
 }
@@ -213,10 +305,12 @@ export function FeedUnitsCard({
   printerId,
   amsUnits = [],
   isReachable = false,
+  externalSpoolTray,
 }: FeedUnitsCardProps) {
   const [addOpen, setAddOpen] = useState(false);
   const feedUnitsQuery = useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint(
     printerId,
+    undefined,
     { query: { enabled: Boolean(printerId) } },
   );
   const feedUnits =
@@ -274,6 +368,16 @@ export function FeedUnitsCard({
                 key={unit.id}
                 unit={unit}
                 printerId={printerId}
+                externalPortReplacedByReloader={
+                  unit.kind === 'ExternalSpool' &&
+                  feedUnits.some(
+                    (other) =>
+                      other.kind === 'AutomaticFilamentReloader' &&
+                      !other.archivedAtUtc &&
+                      other.replacesFeedUnitId === unit.id,
+                  )
+                }
+                externalSpoolTray={externalSpoolTray}
                 amsUnits={amsUnits}
                 isReachable={isReachable}
               />

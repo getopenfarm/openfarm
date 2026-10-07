@@ -182,7 +182,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             return;
         }
 
-        if (job.Kind == PartProcessingJobKind.Reprocess && job.PartId is { } sourcePartId)
+        if (job.Kind != PartProcessingJobKind.Add && job.PartId is { } sourcePartId)
         {
             var source = await services.GetRequiredService<IPartRepository>().GetByIdAsync(sourcePartId, stoppingToken);
             if (source is not null)

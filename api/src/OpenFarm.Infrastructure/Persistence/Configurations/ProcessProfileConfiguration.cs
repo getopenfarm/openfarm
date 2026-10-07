@@ -60,11 +60,11 @@ public sealed class ProcessProfileConfiguration : IEntityTypeConfiguration<Proce
         // Research.md §1 idempotency keys — same shape as MachineProfile/FilamentProfile. Every
         // ProcessProfile row is System-origin after 009 (FR-011), but the index stays partial for
         // consistency and to tolerate any pre-existing interim-era User row (migration default).
-        builder.HasIndex(p => new { p.OrganizationId, p.VendorName, p.ExternalId })
+        builder.HasIndex(p => new { p.OrganizationId, p.SourceFormat, p.VendorName, p.ExternalId })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-        builder.HasIndex(p => new { p.OrganizationId, p.VendorName, p.Name })
+        builder.HasIndex(p => new { p.OrganizationId, p.SourceFormat, p.VendorName, p.Name })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 

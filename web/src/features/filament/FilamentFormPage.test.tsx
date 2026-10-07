@@ -29,7 +29,7 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
       const method = init?.method?.toUpperCase() ?? 'GET';
       onRequest?.(url, init);
 
-      if (method === 'GET' && url.includes('/api/v1/filaments')) {
+      if (method === 'GET' && url.endsWith('/api/v1/filaments')) {
         return Promise.resolve(
           new Response(JSON.stringify({ filaments: FILAMENTS }), {
             status: 200,
@@ -43,6 +43,27 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           }),
+        );
+      }
+      if (
+        method === 'GET' &&
+        url.includes('/api/v1/filaments/profile-assignment-fleet')
+      ) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              variants: [
+                {
+                  brand: 'Bambu',
+                  modelCode: 'P1S',
+                  nozzleDiameterMm: 0.4,
+                  printerCount: 2,
+                },
+              ],
+              printersAwaitingNozzle: [],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
         );
       }
       if (method === 'GET' && url.includes('/api/v1/profiles/filament')) {
@@ -245,7 +266,7 @@ describe('FilamentFormPage', () => {
     await user.type(screen.getByLabelText('Material name'), 'PETG Basic');
 
     await user.click(
-      screen.getByRole('button', { name: 'No default profile' }),
+      screen.getByRole('button', { name: 'Default profile for P1S · 0.4 mm' }),
     );
     expect(
       await screen.findByRole('button', { name: /Generic PETG/ }),
@@ -260,7 +281,16 @@ describe('FilamentFormPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add filament' }));
 
     await waitFor(() => {
-      expect(createBody).toMatchObject({ filamentProfileId: 'fp-1' });
+      expect(createBody).toMatchObject({
+        profileAssignments: [
+          {
+            brand: 'Bambu',
+            modelCode: 'P1S',
+            nozzleDiameterMm: 0.4,
+            filamentProfileId: 'fp-1',
+          },
+        ],
+      });
     });
   });
 

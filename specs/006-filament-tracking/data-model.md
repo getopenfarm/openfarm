@@ -1,5 +1,8 @@
 # Phase 3 Data Model: Filament Tracking
 
+> **2026-10-06 reloader amendment:** [Reloader feed paths and channels](../../docs/FEED_UNIT_RELOADERS.md) is authoritative for replacement configuration, selected/estimated feeding channels, telemetry projection, and removal. Removed reloaders are archived and omitted by default; loaded spools return to inventory with weights/history preserved. Active replacement claims are unique, editable, and released on removal. The selected replacement channel receives external-port telemetry; standby channels do not. Manual and production consumption share depletion continuation, and production readiness uses the selected channel. These rules supersede conflicting original behavior below.
+
+
 Supersedes the previous version of this file in full — `FeedSlot` split into `FeedUnit` (physical
 accessory) + `FeedSlot` (position within it), per `research.md` §1–§4. Seven new tables in
 `FilamentTracking` (`Vendors`, `Filaments`, `FilamentVariants`, `FeedUnits`, `FeedSlots`, `Spools`,

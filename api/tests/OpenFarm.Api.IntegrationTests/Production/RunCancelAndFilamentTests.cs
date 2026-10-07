@@ -30,11 +30,11 @@ public class RunCancelAndFilamentTests(ProductionTestFactory factory) : Producti
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var vendor = Vendor.Create(Organization.WellKnownId, "Test vendor");
             db.Vendors.Add(vendor);
-            var filament = Filament.Create(Organization.WellKnownId, vendor.Id, "PLA test", "PLA", null);
+            var filament = Filament.Create(Organization.WellKnownId, vendor.Id, "PLA test", "PLA");
             var variant = filament.AddVariant("White", "FFFFFF");
             db.Filaments.Add(filament);
             var spool = Spool.Create(Organization.WellKnownId, variant.Id, null, 1000, 1000);
-            var feeder = FeedUnit.CreateConnectorDerived(Organization.WellKnownId, printer.Id, FeedUnitKindCatalog.ExternalSpool, 0);
+            var feeder = FeedUnit.CreateAutomaticFilamentReloader(Organization.WellKnownId, printer.Id, 1, "Consumption test", null);
             spool.LoadOntoFeedSlot(feeder.AddFeedSlot(0).Id);
             db.FeedUnits.Add(feeder);
             db.Spools.Add(spool);

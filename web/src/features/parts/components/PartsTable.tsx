@@ -1,11 +1,14 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import { ImageOffIcon } from 'lucide-react';
+import { ImageOffIcon, ListPlusIcon } from 'lucide-react';
+import { useState } from 'react';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
 
 import { PartEstimate } from './PartEstimate';
+import { QueuePartDialog } from './QueuePartDialog';
 
 interface PartsTableProps {
   parts: PartSummaryResponse[];
@@ -106,5 +109,48 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
 ];
 
 export function PartsTable({ parts, onRowClick }: PartsTableProps) {
-  return <DataTable columns={columns} data={parts} onRowClick={onRowClick} />;
+  const [queuePart, setQueuePart] = useState<PartSummaryResponse | null>(null);
+  const tableColumns: ColumnDef<PartSummaryResponse>[] = [
+    ...columns,
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      cell: ({ row }) => {
+        const part = row.original;
+        const incomplete = part.printRequirementsStatus !== 'Complete';
+        return (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!part.id || incomplete}
+            title={
+              incomplete
+                ? 'Complete this part’s print requirements before queueing.'
+                : `Send ${part.name} to the queue`
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              setQueuePart(part);
+            }}
+          >
+            <ListPlusIcon className="size-4" /> Send to queue
+          </Button>
+        );
+      },
+    },
+  ];
+  return (
+    <>
+      <DataTable columns={tableColumns} data={parts} onRowClick={onRowClick} />
+      {queuePart && (
+        <QueuePartDialog
+          key={queuePart.id}
+          part={queuePart}
+          onClose={() => setQueuePart(null)}
+        />
+      )}
+    </>
+  );
 }

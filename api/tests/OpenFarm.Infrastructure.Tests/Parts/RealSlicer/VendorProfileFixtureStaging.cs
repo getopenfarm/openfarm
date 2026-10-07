@@ -12,7 +12,7 @@ using OpenFarm.Infrastructure.Profiles;
 
 namespace OpenFarm.Infrastructure.Tests.Parts.RealSlicer;
 
-internal sealed record StagedProfileSelection(ResolveSlicingProfileSelection Resolver, Guid PrinterId, Guid FilamentProfileId);
+internal sealed record StagedProfileSelection(ResolveSlicingProfileSelection Resolver, Guid PrinterId, Guid FilamentProfileId, Guid MachineProfileId, Guid ProcessProfileId);
 
 /// <summary>
 /// Runs the real <see cref="SystemProfileIngestionService"/> directly against the real, locally
@@ -61,9 +61,9 @@ internal static class VendorProfileFixtureStaging
         var resolver = new ResolveSlicingProfileSelection(
             printerRepo, machineRepo, processRepo, filamentRepo,
             new RepresentativeFilamentResolver(
-                filamentRepo, new EmptySpoolRepository(), new EmptyFilamentRepository(), new EmptyFeedUnitRepository()));
+                filamentRepo, new EmptySpoolRepository(), new EmptyFilamentRepository(), new EmptyFeedUnitRepository(), printerRepo, machineRepo, new ProfileCompatibility(machineRepo, filamentRepo)), new ProfileCompatibility(machineRepo, filamentRepo));
 
-        return new StagedProfileSelection(resolver, printer.Id, filament.Id);
+        return new StagedProfileSelection(resolver, printer.Id, filament.Id, machine.Id, process.Id);
     }
 
     private sealed class MutableMachineProfileRepository : IMachineProfileRepository
@@ -85,11 +85,11 @@ internal static class VendorProfileFixtureStaging
         public Task<IReadOnlyList<MachineProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MachineProfile>>(_rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-        public Task<MachineProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
-            Task.FromResult(_rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+        public Task<MachineProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(_rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == externalId));
 
-        public Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
-            Task.FromResult(_rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+        public Task<MachineProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(_rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
         public Task<(IReadOnlyList<MachineProfile> Items, int TotalCount)> SearchAsync(
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
@@ -118,11 +118,11 @@ internal static class VendorProfileFixtureStaging
         public Task<IReadOnlyList<ProcessProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProcessProfile>>(_rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-        public Task<ProcessProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
-            Task.FromResult(_rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+        public Task<ProcessProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(_rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == externalId));
 
-        public Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
-            Task.FromResult(_rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+        public Task<ProcessProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(_rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
         public Task<(IReadOnlyList<ProcessProfile> Items, int TotalCount)> SearchAsync(
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
@@ -151,11 +151,11 @@ internal static class VendorProfileFixtureStaging
         public Task<IReadOnlyList<FilamentProfile>> FindByNameAsync(ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<FilamentProfile>>(_rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-        public Task<FilamentProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
-            Task.FromResult(_rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == externalId));
+        public Task<FilamentProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
+            Task.FromResult(_rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == externalId));
 
-        public Task<FilamentProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
-            Task.FromResult(_rows.FirstOrDefault(p => p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+        public Task<FilamentProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
+            Task.FromResult(_rows.FirstOrDefault(p => p.SourceFormat == sourceFormat && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 
         public Task<(IReadOnlyList<FilamentProfile> Items, int TotalCount)> SearchAsync(
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,

@@ -18,7 +18,7 @@ public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository) :
             job.DispatchedAtUtc, job.StartedAtUtc, job.EndedAtUtc, job.ActualDurationMinutes,
             job.CancelRequestedAtUtc, job.RequeuedAsJobId,
             job.FilamentConsumption
-                .Select(c => new JobFilamentConsumptionDetail(c.Id, c.MaterialType, c.DetectedColorHex, c.SpoolId, c.GramsConsumed))
+                .Select(c => new JobFilamentConsumptionDetail(c.Id, c.MaterialType, c.DetectedColorHex, c.SpoolId, c.GramsConsumed, c.NarrowFilamentVariantId, c.NarrowFilamentProfileId))
                 .ToList(),
             job.CreatedAtUtc);
     }

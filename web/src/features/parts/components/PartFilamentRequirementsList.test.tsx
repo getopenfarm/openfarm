@@ -58,23 +58,8 @@ function renderList(
 describe('PartFilamentRequirementsList (US4 narrowing control)', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('shows the ProfilePickerCombobox, origin-labeled, for a requirement with no narrowed profile yet', async () => {
-    const user = userEvent.setup();
-    stubFetch({
-      '/profiles/filament': {
-        items: [
-          {
-            id: 'f1',
-            name: 'Bambu PLA Basic @BBL X1C',
-            origin: 'System',
-            vendorName: 'Bambulab',
-          },
-          { id: 'f2', name: 'My Tuned PLA', origin: 'User' },
-        ],
-      },
-    });
-    const onNarrowToProfile = vi.fn();
-
+  it('does not replace an unset catalog choice with a generic profile picker', async () => {
+    stubFetch({ '/filaments': { filaments: [] } });
     renderList(
       [
         {
@@ -84,22 +69,73 @@ describe('PartFilamentRequirementsList (US4 narrowing control)', () => {
           detectedSubBrand: null,
         },
       ],
-      onNarrowToProfile,
+      vi.fn(),
     );
+    expect(
+      screen.queryByRole('button', { name: 'Match by generic type only' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('File colour: #ffffff')).toBeInTheDocument();
+  });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Match by generic type only' }),
+  it('shows the persisted catalog variant and filters incompatible materials', async () => {
+    const user = userEvent.setup();
+    stubFetch({
+      '/filaments': {
+        filaments: [
+          {
+            id: 'filament-1',
+            vendorName: 'Acme',
+            material: 'PETG Basic',
+            materialType: 'PETG',
+            variants: [
+              { id: 'variant-1', colorName: 'Black', colorHex: '#27272a' },
+            ],
+          },
+          {
+            id: 'filament-2',
+            vendorName: 'Acme',
+            material: 'PLA Basic',
+            materialType: 'PLA',
+            variants: [
+              { id: 'variant-2', colorName: 'White', colorHex: '#ffffff' },
+            ],
+          },
+        ],
+      },
+    });
+    const onNarrow = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PartFilamentRequirementsList
+          requirements={[
+            {
+              key: 'req-1',
+              materialType: 'PETG',
+              detectedColorHex: '#000000',
+              detectedSubBrand: null,
+              narrowFilamentVariantId: 'variant-1',
+            },
+          ]}
+          onNarrow={onNarrow}
+        />
+      </QueryClientProvider>,
     );
-
     await waitFor(() =>
-      expect(screen.getByText('Bambu PLA Basic @BBL X1C')).toBeInTheDocument(),
+      expect(screen.getByRole('combobox')).toHaveTextContent(
+        'Acme PETG Basic · Black',
+      ),
     );
-    expect(screen.getByText('System: Bambulab')).toBeInTheDocument();
-    expect(screen.getByText('My Tuned PLA')).toBeInTheDocument();
-
-    await user.click(screen.getByText('Bambu PLA Basic @BBL X1C'));
-
-    expect(onNarrowToProfile).toHaveBeenCalledWith('req-1', 'f1');
+    await user.click(screen.getByRole('combobox'));
+    expect(
+      screen.queryByRole('option', { name: /PLA Basic/ }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('option', { name: 'Use file material and colour' }),
+    );
+    expect(onNarrow).toHaveBeenCalledWith('req-1', null);
   });
 
   it('lets an already-narrowed requirement be cleared back to "None"', async () => {

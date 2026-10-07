@@ -419,9 +419,12 @@ function EditPrinterForm() {
       brand={printer.brand ?? ''}
       modelCode={printer.modelCode ?? ''}
       serialNumber={printer.serialNumber ?? ''}
+      nozzleDiameterMm={printer.telemetry?.nozzleDiameterMm}
+      nozzleConfirmed={printer.telemetry?.nozzleConfirmed ?? false}
       currentIpAddress={printer.ipAddress ?? ''}
       machineProfileId={printer.machineProfileId}
       machineProfileName={printer.machineProfileName}
+      machineProfileIssue={printer.machineProfileIssue}
       processProfileId={printer.processProfileId}
       processProfileName={printer.processProfileName}
       buildPlateType={printer.buildPlateType}
@@ -437,8 +440,11 @@ interface EditPrinterFormLoadedProps {
   modelCode: string;
   serialNumber: string;
   currentIpAddress: string;
+  nozzleDiameterMm?: number | null;
+  nozzleConfirmed: boolean;
   machineProfileId: string | null | undefined;
   machineProfileName: string | null | undefined;
+  machineProfileIssue?: string | null;
   processProfileId: string | null | undefined;
   processProfileName: string | null | undefined;
   buildPlateType: string | null | undefined;
@@ -456,8 +462,11 @@ function EditPrinterFormLoaded({
   modelCode,
   serialNumber,
   currentIpAddress,
+  nozzleDiameterMm,
+  nozzleConfirmed,
   machineProfileId,
   machineProfileName,
+  machineProfileIssue,
   processProfileId,
   processProfileName,
   buildPlateType,
@@ -692,8 +701,22 @@ function EditPrinterFormLoaded({
               )}
               <div className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium">Machine profile</span>
+                <p className="text-xs text-muted-foreground">
+                  {nozzleConfirmed
+                    ? `Printer-reported nozzle: ${nozzleDiameterMm} mm`
+                    : 'Waiting for nozzle information from the current connection.'}
+                </p>
+                {selectedMachineProfileId === machineProfileId &&
+                  machineProfileIssue && (
+                    <p className="text-sm text-destructive">
+                      {machineProfileIssue}
+                    </p>
+                  )}
                 <ProfilePickerCombobox
                   kind="machine"
+                  printerId={printerId}
+                  disabled={!nozzleConfirmed}
+                  disabledPlaceholder="Waiting for printer nozzle information"
                   value={selectedMachineProfileId}
                   onChange={handleMachineProfileChange}
                   selectedLabel={selectedMachineProfileName}
@@ -708,7 +731,7 @@ function EditPrinterFormLoaded({
                   onChange={handleProcessProfileChange}
                   selectedLabel={selectedProcessProfileName}
                   placeholder="No process profile linked"
-                  disabled={!selectedMachineProfileId}
+                  disabled={!selectedMachineProfileId || !nozzleConfirmed}
                   disabledPlaceholder="Select a machine profile first"
                   compatibleWithMachineName={
                     selectedMachineProfileName ?? undefined

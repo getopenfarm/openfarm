@@ -115,3 +115,54 @@ describe('feedSlotView', () => {
     expect(amsTopologyKey(ams)).not.toBe(amsTopologyKey([]));
   });
 });
+
+describe('reloader telemetry projection', () => {
+  const unit = {
+    kind: 'AutomaticFilamentReloader',
+    replacesFeedUnitId: 'external',
+    feedingSlotId: 'ch2',
+  };
+  const external = {
+    active: true,
+    empty: false,
+    materialType: 'PLA',
+    colorHex: '00FF00',
+    remainPercent: 0,
+  };
+  it('projects port telemetry only onto the selected channel', () => {
+    expect(feedSlotView(unit, { id: 'ch2' }, [], true, external)).toMatchObject(
+      { material: 'PLA', active: true, remainPercent: 0 },
+    );
+    expect(feedSlotView(unit, { id: 'ch1' }, [], true, external)).toMatchObject(
+      { material: null, active: false },
+    );
+  });
+  it('keeps the selected channel separate from offline activity', () => {
+    expect(
+      feedSlotView(unit, { id: 'ch2' }, [], false, external),
+    ).toMatchObject({ material: 'PLA', active: false });
+  });
+  it('does not duplicate detection on a revealed replaced port', () => {
+    expect(
+      feedSlotView(
+        { kind: 'ExternalSpool', supersededByFeedUnitId: 'reloader' },
+        { detectedMaterialType: 'PLA' },
+        [],
+        true,
+        external,
+        true,
+      ),
+    ).toMatchObject({ material: null, active: false });
+  });
+  it('does not project telemetry onto an independent reloader', () => {
+    expect(
+      feedSlotView(
+        { ...unit, replacesFeedUnitId: null },
+        { id: 'ch2' },
+        [],
+        true,
+        external,
+      ),
+    ).toMatchObject({ material: null, active: false });
+  });
+});

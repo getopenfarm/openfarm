@@ -11,6 +11,30 @@ namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
 /// </summary>
 public class BambuMqttMessageParserTests
 {
+    [Theory]
+    [InlineData("[{\"diameter\":\"0.4\"}]", "0.4")]
+    [InlineData("[{\"diameter\":0.4},{\"diameter\":0.6}]", null)]
+    [InlineData("[{\"diameter\":0.4},{}]", null)]
+    [InlineData("[]", null)]
+    public void NestedNozzleReportsRequireKnownUniformDiameters(string info, string? expected)
+    {
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry($"{{\"print\":{{\"device\":{{\"nozzle\":{{\"info\":{info}}}}}}}}}");
+        telemetry!.NozzleReported.Should().BeTrue();
+        telemetry.NozzleDiameterMm.Should().Be(expected is null ? null : decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Theory]
+    [InlineData("0.4", "0.4")]
+    [InlineData("\"0.6\"", "0.6")]
+    [InlineData("0", null)]
+    [InlineData("\"unknown\"", null)]
+    [InlineData("null", null)]
+    public void NozzleDiameterAcceptsNumericAndStringTelemetryOnly(string value, string? expected)
+    {
+        var telemetry = BambuMqttMessageParser.TryParseTelemetry($"{{\"print\":{{\"nozzle_diameter\":{value}}}}}");
+        telemetry!.NozzleDiameterMm.Should().Be(expected is null ? null : decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     private static readonly string FixturesDirectory = Path.Combine(AppContext.BaseDirectory, "Printers", "Fixtures");
 
     [Theory]

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.Printers;
@@ -110,12 +111,33 @@ public static class BambuMqttMessageParser
             var amsUnits = ParseAmsUnits(print);
             var externalSpoolTray = ParseExternalSpool(print);
 
-            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, amsUnits, externalSpoolTray);
+            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, amsUnits, externalSpoolTray, ParseNozzleDiameter(print), NozzleReported: HasNozzleReport(print));
         }
         catch (JsonException)
         {
             return null;
         }
+    }
+
+    private static bool HasNozzleReport(JsonElement print) => print.TryGetProperty("nozzle_diameter", out _)
+        || print.TryGetProperty("device", out var device) && device.ValueKind == JsonValueKind.Object
+        && device.TryGetProperty("nozzle", out var nozzle) && nozzle.ValueKind == JsonValueKind.Object
+        && nozzle.TryGetProperty("info", out _);
+
+    private static decimal? ParseNozzleDiameter(JsonElement print)
+    {
+        if (print.TryGetProperty("device", out var device) && device.ValueKind == JsonValueKind.Object
+            && device.TryGetProperty("nozzle", out var nozzle) && nozzle.ValueKind == JsonValueKind.Object
+            && nozzle.TryGetProperty("info", out var info) && info.ValueKind == JsonValueKind.Array)
+        {
+            var reported = info.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Object ? TryGetDecimal(e, "diameter") : null).ToArray();
+            if (reported.Length == 0 || reported.Any(d => d is not > 0)) return null;
+            var diameters = reported.Distinct().ToArray();
+            // The current production model supports a uniform nozzle diameter only.
+            return diameters.Length == 1 ? diameters[0] : null;
+        }
+        var diameter = TryGetDecimal(print, "nozzle_diameter");
+        return diameter is > 0 ? diameter : null;
     }
 
     /// <summary>
@@ -250,8 +272,9 @@ public static class BambuMqttMessageParser
         value is { } v ? Math.Round(v, 0, MidpointRounding.AwayFromZero) : null;
 
     private static decimal? TryGetDecimal(JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out var value)
-            ? value
+        !element.TryGetProperty(propertyName, out var property) ? null
+            : property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out var value) ? value
+            : property.ValueKind == JsonValueKind.String && decimal.TryParse(property.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out value) ? value
             : null;
 
     private static int? TryGetInt(JsonElement element, string propertyName) =>

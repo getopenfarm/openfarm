@@ -18,7 +18,7 @@ public sealed class CompletePrintJobCommandHandler(
     IPrinterRepository printerRepository,
     ISpoolRepository spoolRepository,
     IProductionEventPublisher publisher,
-    ProductionRunCompletionService completionService) : ICommandHandler<CompletePrintJobCommand, PrintJob>
+    ProductionRunCompletionService completionService, IAutoContinuationResolver continuation) : ICommandHandler<CompletePrintJobCommand, PrintJob>
 {
     public async Task<PrintJob> HandleAsync(CompletePrintJobCommand command, CancellationToken cancellationToken)
     {
@@ -45,7 +45,7 @@ public sealed class CompletePrintJobCommandHandler(
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }
 
-        await PrintJobFilamentConsumptionRecorder.RecordAsync(job, command.FilamentConsumption, spoolRepository, cancellationToken, jobRepository);
+        await PrintJobFilamentConsumptionRecorder.RecordAsync(job, command.FilamentConsumption, spoolRepository, cancellationToken, jobRepository, continuation);
         await jobRepository.SaveChangesAsync(cancellationToken);
         await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
 

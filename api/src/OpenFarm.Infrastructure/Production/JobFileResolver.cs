@@ -19,16 +19,25 @@ public sealed class JobFileResolver(
     IPartFileStorage partFileStorage,
     ISlicerEngine slicerEngine,
     ResolveSlicerSelection resolveSlicerSelection,
-    ISlicerDefaultsProvider slicerDefaults,
     IOrganizationRepository organizationRepository,
-    IPartFileClassifier classifier) : IJobFileResolver
+    IPartFileClassifier classifier, ProductionProfileReadiness readiness,
+    ResolveSlicingProfileSelection profileSelection, OpenFarm.Application.Printers.IPrinterRepository printers,
+    ProductionJobRequirements jobRequirements) : IJobFileResolver
 {
     public async Task<JobFileContent> ResolveAsync(Part part, PrintJob job, Guid printerId, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
         part.EnsurePrintRequirementsComplete();
-        var storagePath = job.FileRevisionHash == part.RevisionHash
+        if (printerId == Guid.Empty) throw new SlicingProfileUnconfiguredException("Assign a printer before generating a production file.");
+        var printer = await printers.GetByIdAsync(printerId, cancellationToken)
+            ?? throw new OpenFarm.Application.Printers.PrinterNotFoundException(printerId);
+        if (!printer.NozzleConfirmed || printer.ReportedNozzleDiameterMm != nozzleDiameterMm)
+            throw new SlicingProfileUnconfiguredException("The printer nozzle must be confirmed by current telemetry before production.");
+        var effective = await jobRequirements.ResolveAsync(job, part, cancellationToken);
+        var selections = await readiness.ResolveAsync(printerId, part,
+            effective.Requirements, cancellationToken, effective.RevisionHash);
+        var storagePath = effective.RevisionHash == part.RevisionHash
             ? part.StoragePath
-            : await partFileStorage.GetRevisionStoragePathAsync(part.OrganizationId, job.FileRevisionHash, part.OriginalFileName, cancellationToken);
+            : await partFileStorage.GetRevisionStoragePathAsync(part.OrganizationId, effective.RevisionHash, part.OriginalFileName, cancellationToken);
         await using var stored = await partFileStorage.OpenReadAsync(storagePath, cancellationToken);
         var fileName = Path.GetFileName(storagePath);
         var classification = classifier.Classify(stored, fileName);
@@ -37,17 +46,25 @@ public sealed class JobFileResolver(
         {
             using var storedBuffer = new MemoryStream();
             await stored.CopyToAsync(storedBuffer, cancellationToken);
-            return new JobFileContent(storedBuffer.ToArray(), fileName);
+            var description = PrintFileName.Describe(part.Name, selections.Select(s => s.MaterialType),
+                effective.RevisionHash == part.RevisionHash ? part.EstimatedPrintTimeMinutes : null);
+            var storedExtension = classification.Format == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
+            return new JobFileContent(storedBuffer.ToArray(), $"{description}{storedExtension}");
         }
 
         if (printerId == Guid.Empty) throw new JobNotEligibleForRemoteControlException(job.Id);
         var organization = await organizationRepository.GetAsync(cancellationToken);
         var slicerRef = resolveSlicerSelection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, organization.DefaultSlicer);
-        var materialType = (job.FilamentConsumption.Count > 0 ? job.FilamentConsumption[0].MaterialType : null)
-            ?? slicerDefaults.GetFallbackMaterialType();
+        var selection = selections[0];
+        var machineId = printer.MachineProfileId ?? throw new SlicingProfileUnconfiguredException("Select a machine profile.");
+        var processId = printer.ProcessProfileId ?? throw new SlicingProfileUnconfiguredException("Select a process profile.");
+        var plate = printer.BuildPlateType ?? throw new SlicingProfileUnconfiguredException("Select a build plate.");
+        var profiles = await profileSelection.ResolveProfilesAsync(machineId, processId, selection.Profile.Id, plate, cancellationToken, slicerRef.Engine);
+        var result = await slicerEngine.SliceConfiguredAsync(slicerRef, stored, classification.Format, selection.MaterialType,
+            nozzleDiameterMm, printerId, profiles, cancellationToken);
 
-        var result = await slicerEngine.SliceAsync(slicerRef, stored, classification.Format, materialType, nozzleDiameterMm, printerId, cancellationToken);
-
-        return new JobFileContent(result.OutputFileBytes, $"{part.Name}.gcode");
+        var extension = result.OutputFileFormat == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
+        var slicedDescription = PrintFileName.Describe(part.Name, selections.Select(s => s.MaterialType), result.EstimatedPrintTimeMinutes);
+        return new JobFileContent(result.OutputFileBytes, $"{slicedDescription}{extension}");
     }
 }

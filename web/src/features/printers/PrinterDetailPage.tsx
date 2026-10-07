@@ -106,6 +106,7 @@ export function PrinterDetailPage() {
             <div className="flex flex-col gap-4">
               <FeedUnitsCard
                 printerId={printer.id ?? ''}
+                externalSpoolTray={printer.externalSpoolTray}
                 amsUnits={printer.amsUnits ?? []}
                 isReachable={printer.isReachable ?? false}
               />
@@ -116,6 +117,19 @@ export function PrinterDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2 px-[18px] py-3.5">
+                  <p className="text-sm">
+                    Reported nozzle:{' '}
+                    <span className="text-muted-foreground">
+                      {printer.telemetry?.nozzleDiameterMm
+                        ? `${printer.telemetry.nozzleDiameterMm} mm${printer.telemetry.nozzleConfirmed ? '' : ' · awaiting confirmation'}`
+                        : 'Waiting for printer telemetry'}
+                    </span>
+                  </p>
+                  {printer.machineProfileIssue && (
+                    <p className="text-sm text-destructive">
+                      {printer.machineProfileIssue}
+                    </p>
+                  )}
                   <p className="text-sm">
                     Machine:{' '}
                     <span className="text-muted-foreground">
@@ -136,10 +150,8 @@ export function PrinterDetailPage() {
                   </p>
                   {!printer.machineProfileId && (
                     <p className="text-xs text-muted-foreground">
-                      No profile linked — this printer won't count toward the
-                      farm's auto-detected nozzle diameter, so uploads of files
-                      that need slicing (STL, unsliced 3MF) may be rejected if
-                      no other printer provides one. Edit via settings.
+                      Select a machine profile matching the reported nozzle in
+                      settings before using this printer for production.
                     </p>
                   )}
                 </CardContent>

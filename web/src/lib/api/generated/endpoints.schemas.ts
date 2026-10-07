@@ -606,6 +606,10 @@ export interface JobFilamentConsumptionResponse {
   /** @nullable */
   detectedColorHex?: string | null;
   /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentProfileId?: string | null;
+  /** @nullable */
   spoolId?: string | null;
   /** @nullable */
   gramsConsumed?: number | null;
@@ -662,6 +666,55 @@ export interface FailPrintJobRequest {
   filamentConsumption?: FilamentConsumptionLineRequest[];
 }
 
+export interface MatchingFilamentRequirement {
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  detectedColorHex?: string | null;
+  /** @nullable */
+  selectedVariantId?: string | null;
+  /** @nullable */
+  selectedVariantName?: string | null;
+  /** @nullable */
+  selectedColorHex?: string | null;
+  /** @nullable */
+  profileConstraintId?: string | null;
+}
+
+export interface MatchingCheck {
+  code?: string;
+  label?: string;
+  status?: string;
+  /** @nullable */
+  required?: string | null;
+  /** @nullable */
+  actual?: string | null;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  configurationUrl?: string | null;
+}
+
+export interface PrinterMatchingDiagnostics {
+  printerId?: string;
+  printerName?: string;
+  eligible?: boolean;
+  checks?: MatchingCheck[];
+  /** @nullable */
+  schedulingNote?: string | null;
+}
+
+export interface JobMatchingDiagnostics {
+  jobId?: string;
+  evaluatedAtUtc?: string;
+  requirementSource?: string;
+  outcome?: string;
+  summary?: string;
+  requirements?: MatchingFilamentRequirement[];
+  jobChecks?: MatchingCheck[];
+  printers?: PrinterMatchingDiagnostics[];
+}
+
 export interface QueueJobRowResponse {
   jobId?: string;
   queuePosition?: number;
@@ -672,6 +725,8 @@ export interface QueueJobRowResponse {
   /** @nullable */
   dispatchedPrinterId?: string | null;
   isBlocked?: boolean;
+  /** @nullable */
+  blockingReason?: string | null;
   partId?: string;
   partName?: string;
   plateQuantity?: number;
@@ -724,8 +779,19 @@ export interface UnpinPrintJobRequest {
   [key: string]: unknown;
 }
 
+export interface JobFilamentRequirementRequest {
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  detectedColorHex?: string | null;
+  /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentProfileId?: string | null;
+}
+
 export interface SetPrintJobFilamentRequirementsRequest {
-  requirements?: FilamentConsumptionLineRequest[];
+  requirements?: JobFilamentRequirementRequest[];
 }
 
 export interface RecordPrintJobFilamentConsumptionRequest {
@@ -774,6 +840,11 @@ export interface PrinterCatalogResponse {
 
 export interface PrinterDetailTelemetryResponse {
   /** @nullable */
+  nozzleDiameterMm?: number | null;
+  /** @nullable */
+  nozzleObservedAtUtc?: string | null;
+  nozzleConfirmed?: boolean;
+  /** @nullable */
   nozzleTempC?: number | null;
   /** @nullable */
   bedTempC?: number | null;
@@ -821,11 +892,14 @@ export interface PrinterDetailResponse {
   status?: string;
   isReachable?: boolean;
   telemetry?: PrinterDetailTelemetryResponse;
+  externalSpoolTray?: AmsTrayResponse | null;
   amsUnits?: AmsUnitResponse[];
   /** @nullable */
   machineProfileId?: string | null;
   /** @nullable */
   machineProfileName?: string | null;
+  /** @nullable */
+  machineProfileIssue?: string | null;
   /** @nullable */
   processProfileId?: string | null;
   /** @nullable */
@@ -848,6 +922,11 @@ export interface FleetPrinterResponse {
   isReachable?: boolean;
   /** @nullable */
   printProgressPercent?: number | null;
+  /** @nullable */
+  nozzleDiameterMm?: number | null;
+  /** @nullable */
+  nozzleObservedAtUtc?: string | null;
+  nozzleConfirmed?: boolean;
   /** @nullable */
   nozzleTempC?: number | null;
   /** @nullable */
@@ -1160,14 +1239,22 @@ export interface AddFilamentVariantRequest {
   colorHex?: string;
 }
 
+export interface FilamentProfileAssignmentInput {
+  brand?: string;
+  modelCode?: string;
+  nozzleDiameterMm?: number;
+  filamentProfileId?: string;
+  /** @nullable */
+  colorHex?: string | null;
+}
+
 export interface FilamentResponse {
   id?: string;
   vendorId?: string;
   vendorName?: string;
   material?: string;
   materialType?: string;
-  /** @nullable */
-  filamentProfileId?: string | null;
+  profileAssignments?: FilamentProfileAssignmentInput[];
   variants?: FilamentVariantResponse[];
 }
 
@@ -1180,9 +1267,34 @@ export interface CreateFilamentRequest {
   vendorId?: string;
   material?: string;
   materialType?: string;
-  /** @nullable */
-  filamentProfileId?: string | null;
+  profileAssignments?: FilamentProfileAssignmentInput[];
   variants?: CreateFilamentVariantRequest[];
+}
+
+export interface FleetFilamentVariant {
+  brand?: string;
+  modelCode?: string;
+  nozzleDiameterMm?: number;
+  printerCount?: number;
+}
+
+export interface FilamentAssignmentFleet {
+  variants?: FleetFilamentVariant[];
+  printersAwaitingNozzle?: string[];
+}
+
+export interface FilamentProfileAssignmentIssue {
+  assignment?: FilamentProfileAssignmentInput;
+  message?: string;
+}
+
+export interface FilamentProfileAssignmentsResponse {
+  assignments?: FilamentProfileAssignmentInput[];
+  issues?: FilamentProfileAssignmentIssue[];
+}
+
+export interface UpdateFilamentProfileAssignmentsRequest {
+  assignments: FilamentProfileAssignmentInput[];
 }
 
 export interface ListFilamentsResponse {
@@ -1218,6 +1330,10 @@ export interface AddFeedUnitResponse {
   isRevealed?: boolean;
   /** @nullable */
   replacesFeedUnitId?: string | null;
+  /** @nullable */
+  feedingSlotId?: string | null;
+  /** @nullable */
+  feedingSelectionSource?: string | null;
   feedSlots?: FeedSlotResponse[];
 }
 
@@ -1229,6 +1345,22 @@ export interface AddFeedUnitRequest {
   slotCount?: number | null;
   /** @nullable */
   replacesFeedUnitId?: string | null;
+  /** @nullable */
+  startingSlotPosition?: number | null;
+  transferExternalSpool?: boolean;
+}
+
+export interface ConfigureReloaderRequest {
+  /** @nullable */
+  replacesFeedUnitId?: string | null;
+  /** @nullable */
+  feedingSlotId?: string | null;
+  transferExternalSpool?: boolean;
+}
+
+export interface SelectReloaderChannelRequest {
+  /** @nullable */
+  feedingSlotId?: string | null;
 }
 
 export interface FeedUnitResponse {
@@ -1241,6 +1373,12 @@ export interface FeedUnitResponse {
   replacesFeedUnitId?: string | null;
   /** @nullable */
   supersededByFeedUnitId?: string | null;
+  /** @nullable */
+  archivedAtUtc?: string | null;
+  /** @nullable */
+  feedingSlotId?: string | null;
+  /** @nullable */
+  feedingSelectionSource?: string | null;
   feedSlots?: FeedSlotResponse[];
 }
 
@@ -1440,6 +1578,18 @@ export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {
   /**
    * @nullable
    */
+  brand?: string | null;
+  /**
+   * @nullable
+   */
+  modelCode?: string | null;
+  /**
+   * @nullable
+   */
+  nozzleDiameterMm?: number | null;
+  /**
+   * @nullable
+   */
   origin?: string | null;
   /**
    * @nullable
@@ -1464,6 +1614,10 @@ export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {
 };
 
 export type OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams = {
+  /**
+   * @nullable
+   */
+  printerId?: string | null;
   /**
    * @nullable
    */
@@ -1535,6 +1689,17 @@ export type OpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndp
     page: number;
     pageSize: number;
   };
+
+export type OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams = {
+  /**
+   * @nullable
+   */
+  includeHidden?: boolean | null;
+  /**
+   * @nullable
+   */
+  includeArchived?: boolean | null;
+};
 
 export type OpenFarmApiEndpointsAssembliesListAssembliesEndpointParams = {
   page: number;

@@ -7,6 +7,29 @@ namespace OpenFarm.Infrastructure.FilamentTracking;
 
 public sealed class FeedUnitRepository(OpenFarmDbContext dbContext) : IFeedUnitRepository
 {
+    public async Task<T> ExecuteAtomicallyAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken, Guid? lockId = null)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // Serialize configuration, loads and removal for a printer feed path. Guid hashing is
+            // deterministic; collisions only serialize unrelated units, never compromise correctness.
+            if (lockId is { } id)
+                await dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({id.GetHashCode()})", cancellationToken);
+            var result = await action();
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch (DbUpdateException)
+        {
+            throw new SpoolConcurrencyConflictException(Guid.Empty);
+        }
+    }
+
+    public Task<Guid?> GetPrinterIdAsync(Guid feedUnitId, CancellationToken cancellationToken) =>
+        dbContext.FeedUnits.AsNoTracking().Where(u => u.Id == feedUnitId)
+            .Select(u => (Guid?)u.PrinterId).FirstOrDefaultAsync(cancellationToken);
+
     public async Task AddAsync(FeedUnit feedUnit, CancellationToken cancellationToken)
     {
         dbContext.FeedUnits.Add(feedUnit);
@@ -32,7 +55,7 @@ public sealed class FeedUnitRepository(OpenFarmDbContext dbContext) : IFeedUnitR
             .FirstOrDefaultAsync(u => u.PrinterId == printerId && u.Kind == kind && u.UnitIndex == unitIndex, cancellationToken);
 
     public Task<FeedSlot?> GetFeedSlotByIdAsync(Guid feedSlotId, CancellationToken cancellationToken) =>
-        dbContext.FeedSlots.FirstOrDefaultAsync(s => s.Id == feedSlotId, cancellationToken);
+        dbContext.FeedSlots.AsNoTracking().FirstOrDefaultAsync(s => s.Id == feedSlotId, cancellationToken);
 
     public Task<FeedUnit?> GetByFeedSlotIdAsync(Guid feedSlotId, CancellationToken cancellationToken) =>
         dbContext.FeedUnits

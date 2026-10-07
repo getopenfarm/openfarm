@@ -18,9 +18,9 @@ public interface IMachineProfileRepository
     // Ingestion-only upsert lookups (research.md §1's identity key) — distinct from the paginated
     // picker SearchAsync (US2) and from FindByNameAsync above, which stays scoped to User-imported
     // base-name resolution and is keyed by SourceFormat, not VendorName.
-    Task<MachineProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken);
+    Task<MachineProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken);
 
-    Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken);
+    Task<MachineProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken);
 
     // US2 picker query (research.md §6) — paginated/searchable, unlike ListAsync above.
     // `compatibleWithMachineName`/`materialType` have no meaning for machine profiles (a machine

@@ -8,6 +8,10 @@ namespace OpenFarm.Api.Endpoints.Printers;
 
 public sealed class PrinterDetailTelemetryResponse
 {
+    public decimal? NozzleDiameterMm { get; set; }
+    public DateTimeOffset? NozzleObservedAtUtc { get; set; }
+    public bool NozzleConfirmed { get; set; }
+
     public decimal? NozzleTempC { get; set; }
 
     public decimal? BedTempC { get; set; }
@@ -72,12 +76,16 @@ public sealed class PrinterDetailResponse
 
     public PrinterDetailTelemetryResponse Telemetry { get; set; } = new();
 
+    public AmsTrayResponse? ExternalSpoolTray { get; set; }
+
     public IReadOnlyList<AmsUnitResponse> AmsUnits { get; set; } = [];
 
-    /// <summary>Null when unlinked — no printer with a null value here has a resolvable nozzle diameter (FR-005a/FR-005b).</summary>
+    /// <summary>Optional selected preset; never a source of nozzle diameter.</summary>
     public Guid? MachineProfileId { get; set; }
 
     public string? MachineProfileName { get; set; }
+
+    public string? MachineProfileIssue { get; set; }
 
     public Guid? ProcessProfileId { get; set; }
 
@@ -126,6 +134,9 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
             IsReachable = detail.IsReachable,
             Telemetry = new PrinterDetailTelemetryResponse
             {
+                NozzleDiameterMm = detail.ReportedNozzleDiameterMm,
+                NozzleObservedAtUtc = detail.NozzleObservedAtUtc,
+                NozzleConfirmed = detail.NozzleConfirmed,
                 NozzleTempC = detail.NozzleTempC,
                 BedTempC = detail.BedTempC,
                 PrintProgressPercent = detail.PrintProgressPercent,
@@ -133,6 +144,16 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                 RemainingTimeMinutes = detail.RemainingTimeMinutes,
                 CurrentJobName = detail.CurrentJobName,
             },
+            ExternalSpoolTray = detail.ExternalSpoolTray is { } external ? new AmsTrayResponse
+            {
+                SlotIndex = external.SlotIndex,
+                Empty = external.Empty,
+                MaterialType = external.MaterialType,
+                ColorHex = external.ColorHex,
+                SubBrand = external.SubBrand,
+                RemainPercent = external.RemainPercent,
+                Active = external.Active,
+            } : null,
             AmsUnits = detail.AmsUnits
                 .Select(unit => new AmsUnitResponse
                 {
@@ -153,6 +174,7 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                 .ToList(),
             MachineProfileId = detail.MachineProfileId,
             MachineProfileName = detail.MachineProfileName,
+            MachineProfileIssue = detail.MachineProfileIssue,
             ProcessProfileId = detail.ProcessProfileId,
             ProcessProfileName = detail.ProcessProfileName,
             BuildPlateType = detail.BuildPlateType?.ToString(),

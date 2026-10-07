@@ -18,11 +18,15 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
     {
         var client = await ClientAsync();
         var part = await PartAsync();
+        var printer = await PrinterAsync();
         var run = await RunAsync(client, part.Id);
         var job = (await JobsAsync(run.Id)).Single();
         using var scope = Factory.CreateTenantScope();
         var parts = scope.ServiceProvider.GetRequiredService<IPartRepository>();
         var current = (await parts.GetByIdAsync(part.Id, default))!;
+        var resolver = scope.ServiceProvider.GetRequiredService<IJobFileResolver>();
+        var original = await resolver.ResolveAsync(current, job, printer.Id, 0.4m, default);
+        original.FileName.Should().Be($"{part.Name}_PLA_1h0m.gcode");
         var bytes = Encoding.UTF8.GetBytes("solid changed\nendsolid changed\n");
         var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
@@ -32,8 +36,9 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
             EstimateStatus.Available, 60, 20, 1, hash, [new FilamentRequirementSpec("PLA", null, null, null, null)], []);
         parts.TrackReplacementChildren(current);
         await parts.SaveChangesAsync(default);
-        var content = await scope.ServiceProvider.GetRequiredService<IJobFileResolver>().ResolveAsync(current, job, Guid.NewGuid(), 0.4m, default);
+        var content = await scope.ServiceProvider.GetRequiredService<IJobFileResolver>().ResolveAsync(current, job, printer.Id, 0.4m, default);
         Encoding.UTF8.GetString(content.Bytes).Should().Be("; revision one\n");
+        content.FileName.Should().Be($"{part.Name}_PLA.gcode", "an older revision must not use the replacement's duration");
         job.FileRevisionHash.Should().Be(part.RevisionHash);
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/cancel");
         var requeue = await client.PostAsJsonAsync($"/api/v1/print-jobs/{job.Id}/requeue", new { });
@@ -63,7 +68,7 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
     {
         var client = await ClientAsync();
         var part = await PartAsync();
-        var printer = await PrinterAsync(manual: true);
+        var printer = await PrinterAsync();
         var run = await RunAsync(client, part.Id, 2, revisionMode: "FollowLatest", pinned: printer.Id);
         var queued = await JobsAsync(run.Id);
         await PostAsync(client, $"/api/v1/print-jobs/{queued[0].Id}/reorder", body: new { afterJobId = (Guid?)null });
@@ -73,7 +78,7 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
         try
         {
             var first = await WaitForAssignmentAsync(run.Id);
-            await PostAsync(client, $"/api/v1/print-jobs/{first.Id}/mark-started");
+            await ReplayAsync(printer.Id, "RUNNING");
             string hash;
             using (var scope = Factory.CreateTenantScope())
             {
@@ -89,14 +94,14 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
                 await parts.SaveChangesAsync(default);
             }
             (await JobsAsync(run.Id)).Single(j => j.Id == first.Id).FileRevisionHash.Should().Be(part.RevisionHash);
-            await PostAsync(client, $"/api/v1/print-jobs/{first.Id}/complete");
+            await ReplayAsync(printer.Id, "FINISH");
             worker.RequestDispatchAttempt(printer.Id);
             await Task.Delay(100);
             (await JobsAsync(run.Id)).Count(j => j.DispatchedPrinterId != null).Should().Be(1, "AwaitingClear prevents dispatch");
             await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready");
             worker.RequestDispatchAttempt(printer.Id);
             var second = await WaitForAssignmentAsync(run.Id, first.Id);
-            await PostAsync(client, $"/api/v1/print-jobs/{second.Id}/mark-started");
+            await ReplayAsync(printer.Id, "RUNNING");
             second.FileRevisionHash.Should().Be(hash);
             second.FileRevisionNumber.Should().Be(2);
             (await client.GetStringAsync($"/api/v1/print-jobs/{second.Id}/file")).Should().Be("; revision two\n");

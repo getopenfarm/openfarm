@@ -26,11 +26,11 @@ public sealed class FakeProcessProfileRepository : IProcessProfileRepository
         Task.FromResult<IReadOnlyList<ProcessProfile>>(
             _rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-    public Task<ProcessProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+    public Task<ProcessProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
         Task.FromResult(_rows.FirstOrDefault(p =>
             p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId));
 
-    public Task<ProcessProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+    public Task<ProcessProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
         Task.FromResult(_rows.FirstOrDefault(p =>
             p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 

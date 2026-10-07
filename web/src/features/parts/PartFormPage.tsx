@@ -8,7 +8,7 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Form,
   FormControl,
@@ -120,7 +120,7 @@ export function PartFormPage() {
 
       <PageHeader
         title="Add part"
-        description="Attach an STL, 3MF, or G-code file — material and nozzle diameter resolve automatically from the file and your fleet, no selection needed. Save enables as soon as those are ready; the print-time/weight estimate may still be resolving in the background."
+        description="Upload an STL, 3MF, or G-code file, review its metadata, and choose your production filament. You can save a valid file while estimates are still resolving."
       />
 
       <Form {...form}>
@@ -129,6 +129,9 @@ export function PartFormPage() {
           className="flex flex-col gap-6"
         >
           <Card>
+            <CardHeader>
+              <CardTitle>Part file and details</CardTitle>
+            </CardHeader>
             <CardContent className="flex flex-col gap-4">
               {!file ? (
                 <div className="flex flex-col gap-4">

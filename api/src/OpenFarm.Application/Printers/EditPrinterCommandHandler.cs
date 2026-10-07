@@ -19,7 +19,7 @@ public sealed class EditPrinterCommandHandler(
     IPrinterConnectionManager connectionManager,
     IMachineProfileRepository machineProfileRepository,
     IProcessProfileRepository processProfileRepository,
-    IActivityLogWriter activityLogWriter, IProductionDispatcher? dispatcher = null) : ICommandHandler<EditPrinterCommand, Printer>
+    IActivityLogWriter activityLogWriter, ProfileCompatibility compatibility, IProductionDispatcher? dispatcher = null) : ICommandHandler<EditPrinterCommand, Printer>
 {
     public async Task<Printer> HandleAsync(EditPrinterCommand command, CancellationToken cancellationToken)
     {
@@ -77,6 +77,8 @@ public sealed class EditPrinterCommandHandler(
         {
             machineProfile = await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken)
                 ?? throw new InvalidProfileReferenceException("machine", machineProfileId);
+            if (printer.MachineProfileId != machineProfileId || printer.ProcessProfileId != command.ProcessProfileId)
+                await compatibility.ValidateMachineAsync(printer, machineProfile, cancellationToken);
         }
 
         ProcessProfile? processProfile = null;

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 import { PrintJobDetailPage } from './PrintJobDetailPage';
@@ -7,7 +8,7 @@ import { PrintJobDetailPage } from './PrintJobDetailPage';
 vi.mock('./hooks/useProductionHub', () => ({ useProductionHub: () => {} }));
 afterEach(() => vi.unstubAllGlobals());
 
-function setup(status: string) {
+function setup(status: string, selectedVariantId?: string) {
   const requests = vi.fn(
     async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = input.toString();
@@ -17,7 +18,12 @@ function setup(status: string) {
         plateQuantity: 1,
         fileRevisionNumber: 1,
         filamentConsumption: [
-          { materialType: 'PLA', detectedColorHex: null, gramsConsumed: null },
+          {
+            materialType: 'PLA',
+            detectedColorHex: null,
+            gramsConsumed: null,
+            narrowFilamentVariantId: selectedVariantId,
+          },
           {
             materialType: 'PETG',
             detectedColorHex: '000000',
@@ -25,11 +31,25 @@ function setup(status: string) {
           },
         ],
       };
-      const body = url.includes('/spools')
-        ? { spools: [] }
-        : url.includes('/printers')
-          ? { printers: [] }
-          : job;
+      const body = url.includes('/filaments')
+        ? {
+            filaments: [
+              {
+                id: 'filament-1',
+                materialType: 'PLA',
+                material: 'PLA Basic',
+                vendorName: 'Acme',
+                variants: [
+                  { id: 'variant-1', colorName: 'Black', colorHex: '#27272a' },
+                ],
+              },
+            ],
+          }
+        : url.includes('/spools')
+          ? { spools: [] }
+          : url.includes('/printers')
+            ? { printers: [] }
+            : job;
       return new Response(JSON.stringify(body), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -94,4 +114,36 @@ it('can split usage across spools for each required material', async () => {
       }),
     ),
   );
+});
+
+it('preserves a saved catalog choice and can explicitly clear it on a queued job', async () => {
+  const requests = setup('Queued', 'variant-1');
+  await waitFor(() =>
+    expect(screen.getAllByRole('combobox')[0]).toHaveTextContent(
+      'Acme PLA Basic · Black',
+    ),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Save filament' }));
+  await waitFor(() => {
+    const put = requests.mock.calls.find(([, init]) => init?.method === 'PUT');
+    expect(
+      JSON.parse(String(put?.[1]?.body)).requirements[0]
+        .narrowFilamentVariantId,
+    ).toBe('variant-1');
+  });
+  const user = userEvent.setup();
+  await user.click(screen.getAllByRole('combobox')[0]);
+  await user.click(
+    screen.getByRole('option', { name: 'Use file material and colour' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Save filament' }));
+  await waitFor(() => {
+    const puts = requests.mock.calls.filter(
+      ([, init]) => init?.method === 'PUT',
+    );
+    expect(
+      JSON.parse(String(puts.at(-1)?.[1]?.body)).requirements[0]
+        .narrowFilamentVariantId,
+    ).toBeNull();
+  });
 });

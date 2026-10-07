@@ -45,6 +45,20 @@ public sealed class Printer
 
     public DateTimeOffset? LastMessageUtc { get; private set; }
 
+    public decimal? ReportedNozzleDiameterMm { get; private set; }
+    public DateTimeOffset? NozzleObservedAtUtc { get; private set; }
+    public bool NozzleConfirmed { get; private set; }
+
+    public void BeginConnection() => NozzleConfirmed = false;
+
+    public void ObserveNozzle(decimal? diameterMm, DateTimeOffset observedAtUtc)
+    {
+        if (diameterMm is not > 0) return;
+        ReportedNozzleDiameterMm = diameterMm;
+        NozzleObservedAtUtc = observedAtUtc;
+        NozzleConfirmed = true;
+    }
+
     public decimal? NozzleTempC { get; private set; }
 
     public decimal? BedTempC { get; private set; }
@@ -111,9 +125,9 @@ public sealed class Printer
         }
 
         // Validates (brand, modelCode) resolves against the catalog; throws UnknownPrinterModelException otherwise.
-        PrinterModelCatalog.Resolve(brand, modelCode);
+        var model = PrinterModelCatalog.Resolve(brand, modelCode);
 
-        return new Printer(Guid.NewGuid(), organizationId, name, brand, modelCode, ipAddress, serialNumber, DateTimeOffset.UtcNow);
+        return new Printer(Guid.NewGuid(), organizationId, name, model.Brand.ToString(), model.ModelCode, ipAddress, serialNumber, DateTimeOffset.UtcNow);
     }
 
     /// <summary>
@@ -151,6 +165,7 @@ public sealed class Printer
     public void MarkUnreachable()
     {
         IsReachable = false;
+        NozzleConfirmed = false;
     }
 
     /// <summary>
@@ -203,6 +218,7 @@ public sealed class Printer
         }
 
         IpAddress = ipAddress;
+        BeginConnection();
     }
 
     public void LinkMachineProfile(Guid machineProfileId) => MachineProfileId = machineProfileId;

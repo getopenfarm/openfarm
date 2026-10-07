@@ -39,6 +39,7 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             where line.ProductionRunId == productionRunId
             orderby job.QueuePosition
             select job)
+            .Include(j => j.FilamentConsumption)
             .ToListAsync(cancellationToken);
 
     /// <summary>The dispatcher's own reported-state lookup (research.md R12) — non-terminal, dispatched to this printer.</summary>
@@ -77,6 +78,7 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             from job in dbContext.PrintJobs
             join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
             where backfillOnly ? requirement.Quantity == null : requirement.Quantity != null
+            where job.Status != PrintJobStatus.Cancelled
             orderby job.QueuePosition
             select job;
 

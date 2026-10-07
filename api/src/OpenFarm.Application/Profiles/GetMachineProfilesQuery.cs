@@ -1,4 +1,6 @@
 using OpenFarm.Application.Common;
+using OpenFarm.Application.Printers;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Profiles;
@@ -9,7 +11,7 @@ public sealed record GetMachineProfilesQuery(
     string? Origin = null,
     string? SearchText = null,
     int? Page = null,
-    int? PageSize = null);
+    int? PageSize = null, Guid? PrinterId = null);
 
 public sealed record MachineProfileSummary(
     Guid Id,
@@ -27,13 +29,34 @@ public sealed record MachineProfileSummary(
     bool? HasEnclosure,
     IReadOnlyList<string> SupportedMaterials);
 
-public sealed class GetMachineProfilesQueryHandler(IMachineProfileRepository repository, IProfileBundleParser parser)
+public sealed class GetMachineProfilesQueryHandler(IMachineProfileRepository repository, IProfileBundleParser parser, IPrinterRepository printers, ProfileCompatibility compatibility)
     : IQueryHandler<GetMachineProfilesQuery, ProfilePage<MachineProfileSummary>>
 {
     private const int MaxChainDepth = 32;
 
     public async Task<ProfilePage<MachineProfileSummary>> HandleAsync(GetMachineProfilesQuery query, CancellationToken cancellationToken)
     {
+        if (query.PrinterId is { } printerId)
+        {
+            var printer = await printers.GetByIdAsync(printerId, cancellationToken) ?? throw new PrinterNotFoundException(printerId);
+            var matches = new List<MachineProfileSummary>();
+            if (printer.NozzleConfirmed && printer.ReportedNozzleDiameterMm is { } nozzle)
+                foreach (var profile in await repository.ListAsync(cancellationToken))
+                {
+                    if (query.Origin is { } origin && origin != "All" && profile.Origin.ToString() != origin
+                        || !string.IsNullOrWhiteSpace(query.SearchText) && !profile.Name.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase)) continue;
+                    try
+                    {
+                        if (await compatibility.MachineMatchesAsync(profile, printer.Brand, printer.ModelCode, nozzle, cancellationToken))
+                            matches.Add(new(profile.Id, profile.Name, profile.Origin, profile.VendorName, profile.SourceFormat,
+                                profile.BaseProfileId, profile.BaseProfileName, false, (double)nozzle, null, null, null, null, []));
+                    }
+                    catch (SlicingProfileUnconfiguredException) { }
+                }
+            var size = Math.Clamp(query.PageSize ?? 50, 1, 1000);
+            var requestedPage = Math.Max(query.Page ?? 1, 1);
+            return new(matches.OrderBy(p => p.Name).Skip((requestedPage - 1) * size).Take(size).ToList(), requestedPage, size, matches.Count);
+        }
         var isPickerStyleCall = query.Origin is not null || query.SearchText is not null || query.Page is not null || query.PageSize is not null;
 
         if (!isPickerStyleCall)

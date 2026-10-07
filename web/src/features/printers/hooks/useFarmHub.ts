@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import type {
+  AmsTrayResponse,
   AmsUnitResponse,
   FleetPrinterResponse,
   ListFleetResponse,
@@ -26,6 +27,7 @@ interface PrinterTelemetryUpdatedPayload {
   printerId: string;
   telemetry: PrinterDetailTelemetryResponse;
   amsUnits: AmsUnitResponse[];
+  externalSpoolTray?: AmsTrayResponse | null;
 }
 
 interface CameraFrameReceivedPayload {
@@ -100,10 +102,12 @@ export function useFarmHub() {
 
   useEffect(() => {
     const topologyByPrinter = new Map<string, string>();
+    const nozzleByPrinter = new Map<string, string>();
     const { connection, stop } = connectFarmHub({
       onConnected: () => invalidatePrinterQueries(queryClient),
       onReconnected: () => {
         topologyByPrinter.clear();
+        nozzleByPrinter.clear();
         invalidatePrinterQueries(queryClient);
       },
     });
@@ -128,6 +132,9 @@ export function useFarmHub() {
                           ...printer,
                           status: payload.status,
                           isReachable: payload.isReachable,
+                          nozzleConfirmed: payload.isReachable
+                            ? printer.nozzleConfirmed
+                            : false,
                         }
                       : printer,
                 ),
@@ -151,6 +158,9 @@ export function useFarmHub() {
                 ...current.data,
                 status: payload.status,
                 isReachable: payload.isReachable,
+                telemetry: payload.isReachable
+                  ? current.data.telemetry
+                  : { ...current.data.telemetry, nozzleConfirmed: false },
               },
             };
           },
@@ -161,7 +171,26 @@ export function useFarmHub() {
     connection.on(
       'PrinterTelemetryUpdated',
       (payload: PrinterTelemetryUpdatedPayload) => {
-        const topology = amsTopologyKey(payload.amsUnits);
+        const nozzle = `${payload.telemetry.nozzleDiameterMm ?? ''}:${payload.telemetry.nozzleConfirmed ?? false}`;
+        const previousNozzle = nozzleByPrinter.get(payload.printerId);
+        nozzleByPrinter.set(payload.printerId, nozzle);
+        if (
+          previousNozzle !== nozzle &&
+          (previousNozzle !== undefined ||
+            payload.telemetry.nozzleDiameterMm != null)
+        ) {
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              query.queryKey.some(
+                (key) =>
+                  typeof key === 'string' &&
+                  /profile-assignment-fleet|profiles\/machine|print-jobs|printers/.test(
+                    key,
+                  ),
+              ),
+          });
+        }
+        const topology = `${amsTopologyKey(payload.amsUnits)}:${payload.externalSpoolTray == null ? 'no-external' : 'external'}`;
         if (topologyByPrinter.get(payload.printerId) !== topology) {
           topologyByPrinter.set(payload.printerId, topology);
           queryClient.invalidateQueries({
@@ -186,6 +215,7 @@ export function useFarmHub() {
                 ...current.data,
                 telemetry: payload.telemetry,
                 amsUnits: payload.amsUnits,
+                externalSpoolTray: payload.externalSpoolTray,
               },
             };
           },
@@ -206,6 +236,10 @@ export function useFarmHub() {
                     printer.id === payload.printerId
                       ? {
                           ...printer,
+                          nozzleDiameterMm: payload.telemetry.nozzleDiameterMm,
+                          nozzleObservedAtUtc:
+                            payload.telemetry.nozzleObservedAtUtc,
+                          nozzleConfirmed: payload.telemetry.nozzleConfirmed,
                           nozzleTempC: payload.telemetry.nozzleTempC,
                           bedTempC: payload.telemetry.bedTempC,
                           printProgressPercent:

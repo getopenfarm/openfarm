@@ -14,7 +14,7 @@ public class DispatchReconciliationTests(ProductionTestFactory factory) : Produc
     {
         var client = await ClientAsync();
         var part = await PartAsync();
-        var printer = await PrinterAsync(manual: true);
+        var printer = await PrinterAsync();
         var run = await RunAsync(client, part.Id);
         var id = (await JobsAsync(run.Id)).Single().Id;
         await AssignAsync(id, printer.Id, started: false);

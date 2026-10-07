@@ -119,9 +119,9 @@ public sealed partial class SystemProfileIngestionService(
 
         await EnsureVendorsExistAsync(organizationId, filamentVendorNamesSeen, cancellationToken);
 
-        machineCounts.MarkedStale += await MarkStaleAsync(machineProfileRepository, seenMachineIds, cancellationToken);
-        processCounts.MarkedStale += await MarkStaleAsync(processProfileRepository, seenProcessIds, cancellationToken);
-        filamentCounts.MarkedStale += await MarkStaleAsync(filamentProfileRepository, seenFilamentIds, cancellationToken);
+        machineCounts.MarkedStale += await MarkStaleAsync(machineProfileRepository, seenMachineIds, sourceFormat.Value, cancellationToken);
+        processCounts.MarkedStale += await MarkStaleAsync(processProfileRepository, seenProcessIds, sourceFormat.Value, cancellationToken);
+        filamentCounts.MarkedStale += await MarkStaleAsync(filamentProfileRepository, seenFilamentIds, sourceFormat.Value, cancellationToken);
 
         return new IngestionSummary(
             vendorsScanned,
@@ -140,8 +140,8 @@ public sealed partial class SystemProfileIngestionService(
         foreach (var preset in presets)
         {
             var existing = preset.ExternalId is not null
-                ? await machineProfileRepository.FindByExternalIdAsync(vendorName, preset.ExternalId, cancellationToken)
-                : await machineProfileRepository.FindSystemByNameAsync(vendorName, preset.Name, cancellationToken);
+                ? await machineProfileRepository.FindByExternalIdAsync(sourceFormat, vendorName, preset.ExternalId, cancellationToken)
+                : await machineProfileRepository.FindSystemByNameAsync(sourceFormat, vendorName, preset.Name, cancellationToken);
 
             if (existing is not null)
             {
@@ -183,8 +183,8 @@ public sealed partial class SystemProfileIngestionService(
         foreach (var preset in presets)
         {
             var existing = preset.ExternalId is not null
-                ? await processProfileRepository.FindByExternalIdAsync(vendorName, preset.ExternalId, cancellationToken)
-                : await processProfileRepository.FindSystemByNameAsync(vendorName, preset.Name, cancellationToken);
+                ? await processProfileRepository.FindByExternalIdAsync(sourceFormat, vendorName, preset.ExternalId, cancellationToken)
+                : await processProfileRepository.FindSystemByNameAsync(sourceFormat, vendorName, preset.Name, cancellationToken);
 
             if (existing is not null)
             {
@@ -230,8 +230,8 @@ public sealed partial class SystemProfileIngestionService(
             var resolvedVendorName = preset.VendorName ?? vendorName;
 
             var existing = preset.ExternalId is not null
-                ? await filamentProfileRepository.FindByExternalIdAsync(resolvedVendorName, preset.ExternalId, cancellationToken)
-                : await filamentProfileRepository.FindSystemByNameAsync(resolvedVendorName, preset.Name, cancellationToken);
+                ? await filamentProfileRepository.FindByExternalIdAsync(sourceFormat, resolvedVendorName, preset.ExternalId, cancellationToken)
+                : await filamentProfileRepository.FindSystemByNameAsync(sourceFormat, resolvedVendorName, preset.Name, cancellationToken);
 
             if (existing is not null)
             {
@@ -322,15 +322,15 @@ public sealed partial class SystemProfileIngestionService(
     // One overload per repository type rather than a shared generic constraint (each entity's own
     // Origin/IsCurrentlyOffered/MarkStale members aren't unified by a common interface, and ListAsync's
     // unbounded read is fine here — a one-shot batch job, not a per-request path, research.md §6).
-    private static async Task<int> MarkStaleAsync(IMachineProfileRepository repository, HashSet<Guid> seenIds, CancellationToken cancellationToken)
+    private static async Task<int> MarkStaleAsync(IMachineProfileRepository repository, HashSet<Guid> seenIds, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken)
     {
         var all = await repository.ListAsync(cancellationToken);
         var staleCount = 0;
         foreach (var row in all)
         {
-            if (row.Origin == ProfileOrigin.System && row.IsCurrentlyOffered && !seenIds.Contains(row.Id))
+            if (row.SourceFormat == sourceFormat && row.Origin == ProfileOrigin.System && row.IsCurrentlyOffered && !seenIds.Contains(row.Id))
             {
-                row.MarkStale();
+                (await repository.GetByIdAsync(row.Id, cancellationToken))!.MarkStale();
                 staleCount++;
             }
         }
@@ -343,15 +343,15 @@ public sealed partial class SystemProfileIngestionService(
         return staleCount;
     }
 
-    private static async Task<int> MarkStaleAsync(IProcessProfileRepository repository, HashSet<Guid> seenIds, CancellationToken cancellationToken)
+    private static async Task<int> MarkStaleAsync(IProcessProfileRepository repository, HashSet<Guid> seenIds, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken)
     {
         var all = await repository.ListAsync(cancellationToken);
         var staleCount = 0;
         foreach (var row in all)
         {
-            if (row.Origin == ProfileOrigin.System && row.IsCurrentlyOffered && !seenIds.Contains(row.Id))
+            if (row.SourceFormat == sourceFormat && row.Origin == ProfileOrigin.System && row.IsCurrentlyOffered && !seenIds.Contains(row.Id))
             {
-                row.MarkStale();
+                (await repository.GetByIdAsync(row.Id, cancellationToken))!.MarkStale();
                 staleCount++;
             }
         }
@@ -364,15 +364,15 @@ public sealed partial class SystemProfileIngestionService(
         return staleCount;
     }
 
-    private static async Task<int> MarkStaleAsync(IFilamentProfileRepository repository, HashSet<Guid> seenIds, CancellationToken cancellationToken)
+    private static async Task<int> MarkStaleAsync(IFilamentProfileRepository repository, HashSet<Guid> seenIds, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken)
     {
         var all = await repository.ListAsync(cancellationToken);
         var staleCount = 0;
         foreach (var row in all)
         {
-            if (row.Origin == ProfileOrigin.System && row.IsCurrentlyOffered && !seenIds.Contains(row.Id))
+            if (row.SourceFormat == sourceFormat && row.Origin == ProfileOrigin.System && row.IsCurrentlyOffered && !seenIds.Contains(row.Id))
             {
-                row.MarkStale();
+                (await repository.GetByIdAsync(row.Id, cancellationToken))!.MarkStale();
                 staleCount++;
             }
         }

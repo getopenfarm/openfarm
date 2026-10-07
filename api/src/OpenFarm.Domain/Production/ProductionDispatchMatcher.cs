@@ -120,7 +120,7 @@ public static class ProductionDispatchMatcher
         {
             var satisfiable = printerLoadedMaterials.Any(loaded =>
                 (required.MaterialType is null || required.MaterialType == loaded.MaterialType) &&
-                (required.ColorHex is null || required.ColorHex == loaded.ColorHex));
+                (required.ColorHex is null || string.Equals(required.ColorHex, loaded.ColorHex, StringComparison.OrdinalIgnoreCase)));
 
             if (!satisfiable)
             {

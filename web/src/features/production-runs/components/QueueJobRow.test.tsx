@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
+import { toast } from 'sonner';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { QueueJobRowResponse } from '@/lib/api/generated/endpoints.schemas';
 import { QueueJobRow } from './QueueJobRow';
@@ -63,11 +65,17 @@ function renderRow(job: QueueJobRowResponse) {
     );
   }
 
-  return render(<QueueJobRow job={job} />, { wrapper: Wrapper });
+  return {
+    ...render(<QueueJobRow job={job} />, { wrapper: Wrapper }),
+    queryClient,
+  };
 }
 
 describe('QueueJobRow', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it('shows a Pin action for an Unassigned Queued job', async () => {
     stubFetch({ '/api/v1/printers': { printers: [] } });
@@ -116,4 +124,112 @@ describe('QueueJobRow', () => {
       screen.queryByRole('button', { name: /pin/i }),
     ).not.toBeInTheDocument();
   });
+
+  it.each([true, false])(
+    'opens diagnosis from the matching field (blocked=%s)',
+    async (isBlocked) => {
+      const user = userEvent.setup();
+      const requests = stubFetch({
+        '/api/v1/printers': { printers: [] },
+        '/matching-diagnostics': {
+          outcome: isBlocked ? 'Blocked' : 'Eligible',
+          summary: 'Matching checked.',
+        },
+      });
+      renderRow(baseJob({ isBlocked }));
+      const label = isBlocked
+        ? 'No matching printer'
+        : 'Matching printer available';
+      expect(
+        screen.queryByText('Why isn’t this printing?'),
+      ).not.toBeInTheDocument();
+      expect(
+        requests.mock.calls.some(([url]) =>
+          url.toString().includes('/matching-diagnostics'),
+        ),
+      ).toBe(false);
+      await user.click(screen.getByRole('button', { name: label }));
+      expect(await screen.findByText('Matching checked.')).toBeInTheDocument();
+      expect(
+        screen.getByRole('dialog', { name: 'Job diagnosis' }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it('removes a queued job only after confirmation', async () => {
+    const user = userEvent.setup();
+    const requests = stubFetch({
+      '/api/v1/printers': { printers: [] },
+      '/api/v1/print-jobs/job-1/cancel': { id: 'job-1', status: 'Cancelled' },
+    });
+    const { queryClient } = renderRow(baseJob());
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    await user.click(screen.getByRole('button', { name: 'Remove job' }));
+    const confirmation = screen.getByRole('alertdialog');
+    expect(
+      requests.mock.calls.some(([url]) => url.toString().includes('/cancel')),
+    ).toBe(false);
+    await user.click(
+      within(confirmation).getByRole('button', { name: 'Cancel' }),
+    );
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove job' }));
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Remove job',
+      }),
+    );
+    await waitFor(() =>
+      expect(requests).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/print-jobs/job-1/cancel'),
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    );
+    await waitFor(() => expect(invalidate).toHaveBeenCalled());
+  });
+
+  it('keeps a job actionable and shows the server reason when removal fails', async () => {
+    const errorToast = vi.spyOn(toast, 'error');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        input.toString().includes('/cancel')
+          ? jsonResponse({ detail: 'This job has already finished.' }, 409)
+          : jsonResponse({ printers: [] }),
+      ),
+    );
+    const { queryClient } = renderRow(baseJob());
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Remove job' }));
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Remove job',
+      }),
+    );
+    await waitFor(() =>
+      expect(errorToast).toHaveBeenCalledWith('This job has already finished.'),
+    );
+    expect(screen.getByRole('button', { name: 'Remove job' })).toBeEnabled();
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { status: 'Printing' },
+    { status: 'Paused' },
+    { status: 'Completed' },
+    { dispatchedPrinterId: 'printer-1' },
+  ])(
+    'does not offer queue removal for an active or finished job: %j',
+    (overrides) => {
+      stubFetch({ '/api/v1/printers': { printers: [] } });
+      renderRow(baseJob(overrides));
+      expect(
+        screen.queryByRole('button', { name: 'Remove job' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Job diagnosis' }),
+      ).toBeInTheDocument();
+    },
+  );
 });

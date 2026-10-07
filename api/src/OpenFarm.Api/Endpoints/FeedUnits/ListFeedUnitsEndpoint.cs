@@ -8,6 +8,8 @@ namespace OpenFarm.Api.Endpoints.FeedUnits;
 public sealed class ListFeedUnitsRequest
 {
     public Guid PrinterId { get; set; }
+    public bool? IncludeHidden { get; set; }
+    public bool? IncludeArchived { get; set; }
 }
 
 public sealed class ListFeedUnitsResponse
@@ -30,7 +32,7 @@ public sealed class ListFeedUnitsEndpoint(IQueryHandler<GetFeedUnitsQuery, IRead
     {
         req.PrinterId = Route<Guid>("printerId");
 
-        var feedUnits = await handler.HandleAsync(new GetFeedUnitsQuery(req.PrinterId), ct);
+        var feedUnits = await handler.HandleAsync(new GetFeedUnitsQuery(req.PrinterId, req.IncludeHidden == true, req.IncludeArchived == true), ct);
 
         Response = new ListFeedUnitsResponse
         {

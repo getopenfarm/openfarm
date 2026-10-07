@@ -152,8 +152,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         }
 
         var loadedMaterials = await queryService.ResolveLoadedMaterialsAsync(printer, cancellationToken);
-        var candidates = await queryService.GetUnassignedCandidatesAsync(cancellationToken);
-        var pinnedCandidates = await queryService.GetPinnedCandidatesAsync(printer.Id, cancellationToken);
+        var candidates = await queryService.FilterReadyAsync(printer.Id, await queryService.GetUnassignedCandidatesAsync(cancellationToken), cancellationToken);
+        var pinnedCandidates = await queryService.FilterReadyAsync(printer.Id, await queryService.GetPinnedCandidatesAsync(printer.Id, cancellationToken), cancellationToken);
         var jobId = ProductionDispatchMatcher.SelectNextJob(nozzleDiameterMm.Value, loadedMaterials, candidates, pinnedCandidates);
         if (jobId is null)
         {
@@ -172,7 +172,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             var capabilityScore = printer.AmsUnits.Sum(u => u.Trays.Count);
             var otherQualifying = await queryService.GetOtherIdleQualifyingPrintersAsync(
-                printer.Id, unassignedMatch.RequiredNozzleDiameterMm, unassignedMatch.FilamentRequirement, cancellationToken);
+                printer.Id, unassignedMatch.JobId, unassignedMatch.RequiredNozzleDiameterMm, unassignedMatch.FilamentRequirement, cancellationToken);
 
             if (!ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(printer.Id, capabilityScore, otherQualifying))
             {
@@ -227,6 +227,14 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
         var backfillCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id);
+        var readyBackfill = new List<BackfillLineCandidate>();
+        foreach (var candidate in backfillCandidates)
+        {
+            var candidateRequirement = await services.GetRequiredService<IPartRequirementRepository>().GetByIdAsync(candidate.PartRequirementId, cancellationToken);
+            if (candidateRequirement is not null && await queryService.GetReadinessIssueAsync(printer.Id, candidateRequirement.PartId, candidate.FilamentRequirement, cancellationToken) is null)
+                readyBackfill.Add(candidate);
+        }
+        backfillCandidates = readyBackfill;
         var requirementId = ProductionDispatchMatcher.SelectNextBackfillLine(nozzleDiameterMm, loadedMaterials, backfillCandidates);
         if (requirementId is null)
         {
@@ -253,7 +261,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(requirement.OrganizationId, cancellationToken) ?? 0) + 1024;
         var filamentSpecs = part.FilamentRequirements
-            .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex))
+            .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId))
             .ToList();
 
         var newJob = PrintJob.Create(
@@ -271,6 +279,16 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
         if (part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
+        var effective = await services.GetRequiredService<ProductionJobRequirements>().ResolveAsync(job, part, cancellationToken);
+        var currentPrinter = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printer.Id, cancellationToken);
+        if (currentPrinter is null || currentPrinter.Status != PrinterStatus.Idle || !currentPrinter.NozzleConfirmed
+            || currentPrinter.ReportedNozzleDiameterMm != part.NozzleDiameterMm
+            || await services.GetRequiredService<ProductionProfileReadiness>().GetIssueAsync(printer.Id, part, effective.Requirements, cancellationToken, effective.RevisionHash) is not null) return;
+        if (revisionMode == RevisionMode.FollowLatest && !job.HasFilamentRequirementOverride)
+        {
+            job.SetFilamentRequirements(effective.Requirements, false);
+            jobRepository.TrackNewFilamentConsumption(job.FilamentConsumption);
+        }
         if (!PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
         {
             // FR-012 manual-brand path: mark the assignment only — Status stays Queued until the
@@ -332,14 +350,41 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         }
 
         JobFileContent fileContent;
+        string configurationStamp;
+        var profileReadiness = services.GetRequiredService<ProductionProfileReadiness>();
+        var materialRequirements = job.FilamentConsumption.Select(c => c.Requirement).ToList();
         try
         {
+            configurationStamp = await profileReadiness.GetConfigurationStampAsync(printer.Id, dispatchPart, materialRequirements, cancellationToken, job.FileRevisionHash);
             fileContent = await fileResolver.ResolveAsync(dispatchPart, job, printer.Id, nozzleDiameterMm, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Resolving/slicing the output failed before any dispatch was recorded — the job is
             // untouched (still Queued/Unassigned) and simply tried again on the next trigger.
+            job.RevertDispatch();
+            LogFileResolutionFailed(_logger, job.Id, ex);
+            return;
+        }
+
+        // Slicing can take minutes: confirm fresh persisted inventory and nozzle state immediately before sending.
+        try
+        {
+            using var freshScope = CreateTenantScope();
+            var currentPrinter = await freshScope.ServiceProvider.GetRequiredService<IPrinterRepository>().GetByIdAsync(printer.Id, cancellationToken);
+            var currentPart = await freshScope.ServiceProvider.GetRequiredService<IPartRepository>().GetByIdAsync(dispatchPart.Id, cancellationToken);
+            if (currentPrinter is null || !currentPrinter.IsReachable || currentPrinter.Status != PrinterStatus.Idle || currentPart is null
+                || revisionMode == RevisionMode.FollowLatest && (currentPart.RevisionHash != dispatchPart.RevisionHash
+                    || !job.HasFilamentRequirementOverride && !ProductionJobRequirements.FromPart(currentPart).SequenceEqual(materialRequirements))
+                || configurationStamp != await freshScope.ServiceProvider.GetRequiredService<ProductionProfileReadiness>()
+                    .GetConfigurationStampAsync(printer.Id, currentPart, materialRequirements, cancellationToken, job.FileRevisionHash))
+            {
+                job.RevertDispatch();
+                return;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
             job.RevertDispatch();
             LogFileResolutionFailed(_logger, job.Id, ex);
             return;

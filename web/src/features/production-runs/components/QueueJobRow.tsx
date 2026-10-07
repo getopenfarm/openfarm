@@ -1,5 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangleIcon, PinIcon, PinOffIcon } from 'lucide-react';
+import {
+  AlertTriangleIcon,
+  CheckCircle2Icon,
+  PinIcon,
+  PinOffIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
@@ -25,7 +30,9 @@ import {
   useOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
+import { JobMatchingDialog } from './JobMatchingDialog';
 import { JobRemoteControls } from './JobRemoteControls';
+import { RemoveJobButton } from './RemoveJobButton';
 
 const STATUS_VARIANT: Record<
   string,
@@ -135,20 +142,32 @@ export function QueueJobRow({
         ×{job.plateQuantity}
       </span>
 
-      {job.isBlocked && (
-        <span
-          className="flex shrink-0 items-center gap-1 text-xs text-destructive"
-          title={
-            job.assignmentMode === 'Pinned'
-              ? `Blocked on ${pinnedPrinterName ?? 'its pinned printer'}`
-              : 'No available printer matches the nozzle and loaded material requirements'
+      {job.jobId && (
+        <JobMatchingDialog
+          jobId={job.jobId}
+          trigger={
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className={`h-auto shrink-0 px-0 text-xs ${job.isBlocked ? 'text-destructive' : ''}`}
+              title={job.blockingReason ?? 'Open job diagnosis'}
+            >
+              {job.isBlocked ? (
+                <AlertTriangleIcon className="size-3.5" />
+              ) : job.status === 'Queued' && !job.dispatchedPrinterId ? (
+                <CheckCircle2Icon className="size-3.5" />
+              ) : null}
+              {job.isBlocked
+                ? job.assignmentMode === 'Pinned'
+                  ? `Blocked on ${pinnedPrinterName ?? 'printer'}`
+                  : 'No matching printer'
+                : job.status === 'Queued' && !job.dispatchedPrinterId
+                  ? 'Matching printer available'
+                  : 'Job diagnosis'}
+            </Button>
           }
-        >
-          <AlertTriangleIcon className="size-3.5" />{' '}
-          {job.assignmentMode === 'Pinned'
-            ? `Blocked on ${pinnedPrinterName ?? 'printer'}`
-            : 'No matching printer'}
-        </span>
+        />
       )}
 
       <Badge
@@ -213,7 +232,11 @@ export function QueueJobRow({
         </div>
       )}
 
-      <div className="w-20 shrink-0">
+      {job.jobId && job.status === 'Queued' && !job.dispatchedPrinterId && (
+        <RemoveJobButton jobId={job.jobId} />
+      )}
+
+      <div className="shrink-0">
         {job.jobId && job.status && (
           <JobRemoteControls jobId={job.jobId} status={job.status} />
         )}

@@ -147,4 +147,39 @@ describe('ProfilePickerCombobox', () => {
       { timeout: 1000 },
     );
   });
+
+  it('distinguishes profile sources and explains shared preset hardware compatibility', async () => {
+    stubFetch({
+      '/profiles/filament': {
+        items: [
+          {
+            id: 'orca',
+            name: 'Bambu PLA Basic @BBL X1C',
+            sourceFormat: 'OrcaSlicer',
+            origin: 'System',
+          },
+          {
+            id: 'bambu',
+            name: 'My tuned PLA',
+            sourceFormat: 'BambuStudio',
+            origin: 'User',
+          },
+        ],
+      },
+    });
+    const { onChange } = renderPicker({
+      kind: 'filament',
+      brand: 'Bambu',
+      modelCode: 'P1S',
+      nozzleDiameterMm: 0.4,
+    });
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Select a profile…' }));
+    expect(await screen.findByText('OrcaSlicer · System')).toBeInTheDocument();
+    expect(screen.getByText('Bambu Studio · User')).toBeInTheDocument();
+    expect(screen.getAllByText('Compatible with P1S · 0.4 mm')).toHaveLength(2);
+    await userEvent.setup().click(screen.getByText('Bambu PLA Basic @BBL X1C'));
+    expect(onChange).toHaveBeenCalledWith('orca', 'Bambu PLA Basic @BBL X1C');
+  });
 });

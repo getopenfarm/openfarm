@@ -17,6 +17,7 @@ public sealed class QueueJobRowResponse
     public Guid? DispatchedPrinterId { get; set; }
 
     public bool IsBlocked { get; set; }
+    public string? BlockingReason { get; set; }
 
     public Guid PartId { get; set; }
 
@@ -39,6 +40,7 @@ public sealed class QueueJobRowResponse
         PinnedPrinterId = row.PinnedPrinterId,
         DispatchedPrinterId = row.DispatchedPrinterId,
         IsBlocked = row.IsBlocked,
+        BlockingReason = row.BlockingReason,
         PartId = row.PartId,
         PartName = row.PartName,
         PlateQuantity = row.PlateQuantity,
@@ -56,6 +58,8 @@ public sealed class JobFilamentConsumptionResponse
 
     public string? DetectedColorHex { get; set; }
 
+    public Guid? NarrowFilamentVariantId { get; set; }
+    public Guid? NarrowFilamentProfileId { get; set; }
     public Guid? SpoolId { get; set; }
 
     public decimal? GramsConsumed { get; set; }
@@ -65,6 +69,8 @@ public sealed class JobFilamentConsumptionResponse
         Id = detail.Id,
         MaterialType = detail.MaterialType,
         DetectedColorHex = detail.DetectedColorHex,
+        NarrowFilamentVariantId = detail.NarrowFilamentVariantId,
+        NarrowFilamentProfileId = detail.NarrowFilamentProfileId,
         SpoolId = detail.SpoolId,
         GramsConsumed = detail.GramsConsumed,
     };

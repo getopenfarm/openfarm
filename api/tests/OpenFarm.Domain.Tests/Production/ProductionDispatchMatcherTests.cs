@@ -10,6 +10,23 @@ public class ProductionDispatchMatcherTests
         new(jobId, queuePosition, nozzleDiameterMm, filament);
 
     [Fact]
+    public void ExplicitCatalogVariantRemovesDetectedColourFromCoarseMatching()
+    {
+        var spec = new JobFilamentRequirementSpec("PETG", "#000000", Guid.NewGuid());
+        var candidate = Candidate(Guid.NewGuid(), 1024, 0.6m, spec.MatchingValues);
+        ProductionDispatchMatcher.SelectNextJob(0.6m, [("PETG", "#27272a")], [candidate]).Should().Be(candidate.JobId);
+        // Identity is validated separately against the active tracked spool during readiness.
+        new JobFilamentRequirementSpec("PETG", "#000000").MatchingValues.ColorHex.Should().Be("#000000");
+    }
+
+    [Fact]
+    public void ColourHexCasingDoesNotChangeCompatibility()
+    {
+        var candidate = Candidate(Guid.NewGuid(), 1024, 0.4m, ("PETG", "#abcdef"));
+        ProductionDispatchMatcher.SelectNextJob(0.4m, [("PETG", "#ABCDEF")], [candidate]).Should().Be(candidate.JobId);
+    }
+
+    [Fact]
     public void SelectNextJob_MatchingNozzleAndMaterial_SelectsTheCandidate()
     {
         var jobId = Guid.NewGuid();

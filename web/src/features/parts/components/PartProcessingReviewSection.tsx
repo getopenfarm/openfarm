@@ -63,7 +63,11 @@ export function PartProcessingReviewSection({
           ? overrides[requirement.requirementIndex]
           : requirement.narrowFilamentVariantId
         : requirement.narrowFilamentVariantId,
-    narrowFilamentProfileId: requirement.narrowFilamentProfileId,
+    narrowFilamentProfileId:
+      requirement.requirementIndex !== undefined &&
+      Object.hasOwn(overrides, requirement.requirementIndex)
+        ? null
+        : requirement.narrowFilamentProfileId,
   }));
 
   const estimateStatus = preview.estimateStatus;

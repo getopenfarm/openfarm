@@ -34,6 +34,7 @@ interface PickerItem {
   name: string;
   origin: string;
   vendorName?: string | null;
+  sourceFormat?: string | null;
 }
 
 export interface ProfilePickerComboboxProps {
@@ -54,6 +55,9 @@ export interface ProfilePickerComboboxProps {
   compatibleWithMachineName?: string | null;
   /** process only — sugar over compatibleWithMachineName. */
   printerId?: string | null;
+  brand?: string;
+  modelCode?: string;
+  nozzleDiameterMm?: number;
   /** filament only. */
   materialType?: string | null;
 }
@@ -81,6 +85,7 @@ function toPickerItem(
     name: item.name,
     origin: item.origin ?? 'User',
     vendorName: item.vendorName,
+    sourceFormat: item.sourceFormat,
   };
 }
 
@@ -104,6 +109,9 @@ export function ProfilePickerCombobox({
   compatibleWithMachineName,
   printerId,
   materialType,
+  brand,
+  modelCode,
+  nozzleDiameterMm,
 }: ProfilePickerComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -112,7 +120,13 @@ export function ProfilePickerCombobox({
 
   const machineQuery =
     useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint(
-      { origin: 'All', q, page: 1, pageSize: 50 },
+      {
+        origin: 'All',
+        q,
+        printerId: printerId ?? undefined,
+        page: 1,
+        pageSize: 50,
+      },
       { query: { enabled: open && kind === 'machine' } },
     );
   const processQuery =
@@ -134,6 +148,9 @@ export function ProfilePickerCombobox({
         q,
         compatibleWithMachineName: compatibleWithMachineName ?? undefined,
         materialType: materialType ?? undefined,
+        brand,
+        modelCode,
+        nozzleDiameterMm,
         page: 1,
         pageSize: 50,
       },
@@ -215,12 +232,22 @@ export function ProfilePickerCombobox({
           aria-label={ariaLabel}
           variant="outline"
           disabled={disabled}
-          className="w-full justify-start font-normal"
+          className="w-full min-w-0 justify-start font-normal"
         >
-          {disabled ? disabledPlaceholder : (resolvedLabel ?? placeholder)}
+          <span
+            className="truncate"
+            title={
+              disabled ? disabledPlaceholder : (resolvedLabel ?? placeholder)
+            }
+          >
+            {disabled ? disabledPlaceholder : (resolvedLabel ?? placeholder)}
+          </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="start">
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+      >
         <div className="flex flex-col gap-2 p-2">
           <Input
             autoFocus
@@ -257,16 +284,28 @@ export function ProfilePickerCombobox({
                 type="button"
                 onClick={() => handleSelect(item.id, item.name)}
                 className={cn(
-                  'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
+                  'flex min-w-0 flex-col items-start gap-1 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
                   value === item.id ? 'bg-muted font-medium' : '',
                 )}
               >
-                <span className="truncate">{item.name}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
+                <span className="w-full truncate" title={item.name}>
+                  {item.name}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {item.sourceFormat === 'BambuStudio'
+                    ? 'Bambu Studio · '
+                    : item.sourceFormat === 'OrcaSlicer'
+                      ? 'OrcaSlicer · '
+                      : ''}
                   {item.origin === 'System'
                     ? `System${item.vendorName ? `: ${item.vendorName}` : ''}`
                     : 'User'}
                 </span>
+                {kind === 'filament' && modelCode && nozzleDiameterMm && (
+                  <span className="text-xs text-muted-foreground">
+                    Compatible with {modelCode} · {nozzleDiameterMm} mm
+                  </span>
+                )}
               </button>
             ))}
           </div>

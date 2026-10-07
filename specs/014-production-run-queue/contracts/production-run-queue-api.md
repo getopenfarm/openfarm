@@ -128,6 +128,11 @@ demand).
 AwaitingClear (FR-007c) — surfaced to the operator rather than left ambiguous alongside an ordinary queued
 job.
 
+Cancelled jobs are excluded from both queue views and their `totalCount`. Removing an
+undispatched queued job uses the individual cancel endpoint; its job detail and production-run
+history remain available, including shortfall/requeue tracking. The matching field opens the
+general job diagnosis dialog for blocked and eligible jobs; job detail also exposes diagnosis.
+
 ### `GET /api/v1/print-jobs/{id}`
 `[Permission("print-jobs:view")]` — full job detail including `FilamentConsumption`,
 `FileRevisionHash`/`Number`, timestamps. **Response 404** — not found.

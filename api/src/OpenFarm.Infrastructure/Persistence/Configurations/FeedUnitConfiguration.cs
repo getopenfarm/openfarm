@@ -29,6 +29,12 @@ public sealed class FeedUnitConfiguration : IEntityTypeConfiguration<FeedUnit>
         builder.Property(u => u.Name);
 
         builder.Property(u => u.ReplacesFeedUnitId);
+        builder.Property(u => u.ArchivedAtUtc);
+        builder.Property(u => u.FeedingSlotId);
+        builder.Property(u => u.FeedingSelectionSource);
+        builder.Property<uint>("Version").IsRowVersion();
+        builder.HasIndex(u => u.ReplacesFeedUnitId).IsUnique()
+            .HasFilter("\"ArchivedAtUtc\" IS NULL AND \"Kind\" = 'AutomaticFilamentReloader'");
 
         builder.Property(u => u.IsRevealed)
             .IsRequired();

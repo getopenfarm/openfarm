@@ -5,4 +5,4 @@ namespace OpenFarm.Application.FilamentTracking;
 /// <see cref="SlotCount"/> (+ optional <see cref="ReplacesFeedUnitId"/>) and creates new rows;
 /// <c>ExternalSpool</c> needs no extra fields — finds the printer's own row and reveals it.
 /// </summary>
-public sealed record AddFeedUnitCommand(Guid PrinterId, string Kind, string? Name, int? SlotCount, Guid? ReplacesFeedUnitId);
+public sealed record AddFeedUnitCommand(Guid PrinterId, string Kind, string? Name, int? SlotCount, Guid? ReplacesFeedUnitId, int? StartingSlotPosition = null, bool TransferExternalSpool = true);

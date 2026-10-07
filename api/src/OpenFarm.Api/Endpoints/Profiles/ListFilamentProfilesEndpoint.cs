@@ -7,6 +7,9 @@ namespace OpenFarm.Api.Endpoints.Profiles;
 
 public sealed class ListFilamentProfilesRequest
 {
+    public string? Brand { get; set; }
+    public string? ModelCode { get; set; }
+    public decimal? NozzleDiameterMm { get; set; }
     public string? Origin { get; set; }
     public string? Q { get; set; }
     public string? CompatibleWithMachineName { get; set; }
@@ -81,7 +84,7 @@ public sealed class ListFilamentProfilesEndpoint(IQueryHandler<GetFilamentProfil
     public override async Task HandleAsync(ListFilamentProfilesRequest req, CancellationToken ct)
     {
         var result = await handler.HandleAsync(
-            new GetFilamentProfilesQuery(req.Origin, req.Q, req.CompatibleWithMachineName, req.MaterialType, req.Page, req.PageSize), ct);
+            new GetFilamentProfilesQuery(req.Origin, req.Q, req.CompatibleWithMachineName, req.MaterialType, req.Page, req.PageSize, req.Brand, req.ModelCode, req.NozzleDiameterMm), ct);
 
         Response = new ListFilamentProfilesResponse
         {

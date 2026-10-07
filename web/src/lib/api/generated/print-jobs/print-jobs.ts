@@ -24,6 +24,7 @@ import { httpClient } from '../../httpClient';
 import type {
   CompletePrintJobRequest,
   FailPrintJobRequest,
+  JobMatchingDiagnostics,
   ListQueueJobsResponse,
   OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
   PinPrintJobRequest,
@@ -451,6 +452,285 @@ export const useOpenFarmApiEndpointsPrintJobsFailPrintJobEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse200 =
+  {
+    data: JobMatchingDiagnostics;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse401
+    | openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse =
+  | openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointUrl =
+  (id: string) => {
+    return `/api/v1/print-jobs/${id}/matching-diagnostics`;
+  };
+
+export const openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint =
+  async (
+    id: string,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointResponse>(
+      getOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointUrl(id),
+      {
+        ...options,
+        method: 'GET',
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointQueryKey =
+  (id: string) => {
+    return [`/api/v1/print-jobs/${id}/matching-diagnostics`] as const;
+  };
+
+export const getOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+      >
+    >,
+    TError = void,
+  >(
+    id: string,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointQueryKey(
+        id,
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+        >
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint(id, {
+        signal,
+      });
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: id !== null && id !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+    >
+  >,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+    >
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+    >
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+    >
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpointQueryOptions(
+      id,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export type openFarmApiEndpointsPrintJobsGetPrintJobEndpointResponse200 = {
   data: PrintJobResponse;
   status: 200;

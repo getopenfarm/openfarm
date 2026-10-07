@@ -4,7 +4,7 @@ namespace OpenFarm.Application.Production;
 
 public sealed record GetPrintJobQuery(Guid JobId);
 
-public sealed record JobFilamentConsumptionDetail(Guid Id, string? MaterialType, string? DetectedColorHex, Guid? SpoolId, decimal? GramsConsumed);
+public sealed record JobFilamentConsumptionDetail(Guid Id, string? MaterialType, string? DetectedColorHex, Guid? SpoolId, decimal? GramsConsumed, Guid? NarrowFilamentVariantId = null, Guid? NarrowFilamentProfileId = null);
 
 public sealed record PrintJobDetail(
     Guid Id,

@@ -12,18 +12,23 @@ namespace OpenFarm.Application.FilamentTracking;
 public sealed class AddFeedUnitCommandHandler(
     IFeedUnitRepository feedUnitRepository,
     IPrinterRepository printerRepository,
-    IFilamentTrackingEventPublisher eventPublisher) : ICommandHandler<AddFeedUnitCommand, FeedUnit>
+    IFilamentTrackingEventPublisher eventPublisher, ReloaderConfigurationService configuration) : ICommandHandler<AddFeedUnitCommand, FeedUnit>
 {
     public async Task<FeedUnit> HandleAsync(AddFeedUnitCommand command, CancellationToken cancellationToken)
     {
         var printer = await printerRepository.GetByIdAsync(command.PrinterId, cancellationToken)
             ?? throw new PrinterNotFoundException(command.PrinterId);
 
-        var existingUnits = await feedUnitRepository.GetByPrinterIdAsync(command.PrinterId, cancellationToken);
+        var result = await feedUnitRepository.ExecuteAtomicallyAsync(async () =>
+        {
+            var existingUnits = await feedUnitRepository.GetByPrinterIdAsync(command.PrinterId, cancellationToken);
 
-        var result = command.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader
-            ? await AddAutomaticFilamentReloaderAsync(command, printer.OrganizationId, existingUnits, cancellationToken)
-            : await RevealExternalSpoolAsync(command.PrinterId, existingUnits, cancellationToken);
+            var created = command.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader
+                ? await AddAutomaticFilamentReloaderAsync(command, printer.OrganizationId, existingUnits, cancellationToken)
+                : await RevealExternalSpoolAsync(command.PrinterId, existingUnits, cancellationToken);
+
+            return created;
+        }, cancellationToken, command.PrinterId);
 
         await eventPublisher.FeedUnitsChangedAsync(printer.OrganizationId, command.PrinterId, cancellationToken);
 
@@ -36,7 +41,7 @@ public sealed class AddFeedUnitCommandHandler(
         IReadOnlyList<FeedUnit> existingUnits,
         CancellationToken cancellationToken)
     {
-        if (existingUnits.Any(u => u.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader && string.Equals(u.Name, command.Name, StringComparison.Ordinal)))
+        if (existingUnits.Any(u => u.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader && u.ArchivedAtUtc is null && string.Equals(u.Name, command.Name, StringComparison.Ordinal)))
         {
             throw new DuplicateAutomaticFilamentReloaderNameException(command.Name!, command.PrinterId);
         }
@@ -61,6 +66,12 @@ public sealed class AddFeedUnitCommandHandler(
             unit.AddFeedSlot(position);
         }
 
+        var startingSlot = command.StartingSlotPosition is { } startingPosition
+            ? unit.FeedSlots.FirstOrDefault(s => s.SlotPosition == startingPosition)
+                ?? throw new InvalidReloaderConfigurationException("Invalid starting channel.")
+            : null;
+        await configuration.ApplyAsync(unit, existingUnits, replacesFeedUnitId, startingSlot?.Id,
+            command.TransferExternalSpool, cancellationToken);
         await feedUnitRepository.AddAsync(unit, cancellationToken);
 
         return unit;

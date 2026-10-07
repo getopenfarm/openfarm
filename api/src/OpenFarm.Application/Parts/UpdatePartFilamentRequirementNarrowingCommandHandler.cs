@@ -10,7 +10,8 @@ namespace OpenFarm.Application.Parts;
 public sealed class UpdatePartFilamentRequirementNarrowingCommandHandler(
     IPartRepository partRepository,
     IFilamentProfileRepository filamentProfileRepository,
-    IActivityLogWriter activityLogWriter) : ICommandHandler<UpdatePartFilamentRequirementNarrowingCommand, PartFilamentRequirement>
+    IActivityLogWriter activityLogWriter, PartFilamentSelectionValidator? filamentValidator = null,
+    OpenFarm.Application.Production.ProductionDispatchRequestService? dispatchRequests = null) : ICommandHandler<UpdatePartFilamentRequirementNarrowingCommand, PartFilamentRequirement>
 {
     public async Task<PartFilamentRequirement> HandleAsync(UpdatePartFilamentRequirementNarrowingCommand command, CancellationToken cancellationToken)
     {
@@ -33,6 +34,10 @@ public sealed class UpdatePartFilamentRequirementNarrowingCommandHandler(
             throw new InvalidProfileReferenceException("filament", profileId);
         }
 
+        if (filamentValidator is not null)
+            await filamentValidator.ValidateAsync(part.FilamentRequirements.First(r => r.Id == command.RequirementId).MaterialType,
+                command.NarrowFilamentVariantId, cancellationToken);
+
         var requirement = part.NarrowFilamentRequirement(command.RequirementId, command.NarrowFilamentVariantId, command.NarrowFilamentProfileId);
         await partRepository.SaveChangesAsync(cancellationToken);
 
@@ -43,6 +48,7 @@ public sealed class UpdatePartFilamentRequirementNarrowingCommandHandler(
             ActivityLogEntry.Create(part.OrganizationId, "Part", part.Id.ToString(), eventType, command.ActorId, command.ActorType),
             cancellationToken);
 
+        if (dispatchRequests is not null) await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);
         return requirement;
     }
 }

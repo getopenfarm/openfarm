@@ -6,14 +6,16 @@ namespace OpenFarm.Application.Parts;
 /// Result of an in-app slice — estimate summed across every plate, plus per-plate thumbnails
 /// (research.md §4/§8). <see cref="OutputFileBytes"/> is the actual sliced output (014 FR-011,
 /// job-dispatch-time re-slicing) — every producer populates it, but only dispatch-time callers read
-/// it; the upload-time estimate pipeline (009) discards it same as before.
+/// it; the upload-time estimate pipeline (009) discards it same as before. <see cref="OutputFileFormat"/>
+/// distinguishes a retained sliced 3MF archive from bare G-code.
 /// </summary>
 public sealed record SlicingResult(
     int PlateCount,
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
     IReadOnlyList<ThumbnailSpec> Thumbnails,
-    byte[] OutputFileBytes);
+    byte[] OutputFileBytes,
+    PartFileFormat OutputFileFormat = PartFileFormat.GCode);
 
 /// <summary>
 /// Invokes the configured headless slicer CLI. Reusable, unmodified, by Phase 7's future
@@ -28,6 +30,10 @@ public interface ISlicerEngine
     Task<SlicingResult> EstimateAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
         EstimationConfiguration configuration, CancellationToken cancellationToken) =>
         throw new SlicingFailedException("The selected slicer does not support file-based estimation.");
+
+    Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+        string materialType, decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken)
+        => SliceAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, printerId, cancellationToken);
 
     /// <param name="printerId">The assigned production printer. Library estimates use EstimateAsync.</param>
     /// <exception cref="SlicingFailedException">The CLI process failed, timed out, or produced unparseable output.</exception>

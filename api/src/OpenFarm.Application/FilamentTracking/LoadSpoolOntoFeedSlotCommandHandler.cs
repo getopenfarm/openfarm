@@ -23,37 +23,37 @@ public sealed class LoadSpoolOntoFeedSlotCommandHandler(
 {
     public async Task<LoadSpoolResult> HandleAsync(LoadSpoolOntoFeedSlotCommand command, CancellationToken cancellationToken)
     {
-        var spool = await spoolRepository.GetByIdAsync(command.SpoolId, cancellationToken)
-            ?? throw new SpoolNotFoundException(command.SpoolId);
-
-        var feedSlot = await feedUnitRepository.GetFeedSlotByIdAsync(command.FeedSlotId, cancellationToken)
+        var initialSlot = await feedUnitRepository.GetFeedSlotByIdAsync(command.FeedSlotId, cancellationToken)
             ?? throw new FeedSlotNotFoundException(command.FeedSlotId);
-
-        if (feedSlot.DeactivatedAtUtc is not null)
-        {
-            throw new FeedSlotDeactivatedException(command.FeedSlotId);
-        }
-
-        var alreadyUsing = await spoolRepository.FindUsingFeedSlotAsync(command.FeedSlotId, cancellationToken);
-        if (alreadyUsing is not null)
-        {
-            throw new FeedSlotOccupiedException(command.FeedSlotId);
-        }
-
-        var feedUnit = await feedUnitRepository.GetByFeedSlotIdAsync(command.FeedSlotId, cancellationToken)
+        var printerId = await feedUnitRepository.GetPrinterIdAsync(initialSlot.FeedUnitId, cancellationToken)
             ?? throw new FeedSlotNotFoundException(command.FeedSlotId);
+        var requestDispatch = false;
+        var result = await feedUnitRepository.ExecuteAtomicallyAsync(async () =>
+        {
+            var feedUnit = await feedUnitRepository.GetByFeedSlotIdAsync(command.FeedSlotId, cancellationToken)
+                ?? throw new FeedSlotNotFoundException(command.FeedSlotId);
+            var feedSlot = feedUnit.FeedSlots.First(s => s.Id == command.FeedSlotId);
+            if (feedSlot.DeactivatedAtUtc is not null || feedUnit.ArchivedAtUtc is not null)
+                throw new FeedSlotDeactivatedException(command.FeedSlotId);
+            var spool = await spoolRepository.GetByIdAsync(command.SpoolId, cancellationToken)
+                ?? throw new SpoolNotFoundException(command.SpoolId);
+            if (await spoolRepository.FindUsingFeedSlotAsync(command.FeedSlotId, cancellationToken) is not null)
+                throw new FeedSlotOccupiedException(command.FeedSlotId);
 
-        var printer = await printerRepository.GetByIdAsync(feedUnit.PrinterId, cancellationToken)
-            ?? throw new PrinterNotFoundException(feedUnit.PrinterId);
+            var printer = await printerRepository.GetByIdAsync(feedUnit.PrinterId, cancellationToken)
+                ?? throw new PrinterNotFoundException(feedUnit.PrinterId);
 
-        var rfidMismatchWarning = await ResolveRfidMismatchAsync(spool, feedUnit, feedSlot, printer, cancellationToken);
-        var portSharingNote = await ResolvePortSharingNoteAsync(feedUnit, printer, cancellationToken);
+            var rfidMismatchWarning = await ResolveRfidMismatchAsync(spool, feedUnit, feedSlot, printer, cancellationToken);
+            var portSharingNote = await ResolvePortSharingNoteAsync(feedUnit, printer, cancellationToken);
 
-        spool.LoadOntoFeedSlot(command.FeedSlotId);
-        await spoolRepository.SaveChangesAsync(cancellationToken);
+            spool.LoadOntoFeedSlot(command.FeedSlotId);
+            await spoolRepository.SaveChangesAsync(cancellationToken);
 
-        if (printer.Status == PrinterStatus.Idle) dispatcher?.RequestDispatchAttempt(printer.Id);
-        return new LoadSpoolResult(spool, rfidMismatchWarning, portSharingNote);
+            requestDispatch = printer.Status == PrinterStatus.Idle;
+            return new LoadSpoolResult(spool, rfidMismatchWarning, portSharingNote);
+        }, cancellationToken, printerId);
+        if (requestDispatch) dispatcher?.RequestDispatchAttempt(printerId);
+        return result;
     }
 
     private async Task<bool> ResolveRfidMismatchAsync(Spool spool, FeedUnit feedUnit, FeedSlot feedSlot, Printer printer, CancellationToken cancellationToken)

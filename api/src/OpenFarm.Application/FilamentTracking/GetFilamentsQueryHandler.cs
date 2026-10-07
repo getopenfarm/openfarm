@@ -18,7 +18,7 @@ public sealed class GetFilamentsQueryHandler(
                 vendors.TryGetValue(f.VendorId, out var vendor) ? vendor.Name : string.Empty,
                 f.Material,
                 f.MaterialType,
-                f.FilamentProfileId,
+                f.ProfileAssignments.Select(a => new FilamentProfileAssignmentInput(a.Brand, a.ModelCode, a.NozzleDiameterMm, a.FilamentProfileId, f.Variants.FirstOrDefault(v => v.Id == a.FilamentVariantId)?.ColorHex)).ToList(),
                 f.Variants.Select(v => new FilamentVariantSummary(v.Id, v.ColorName, v.ColorHex)).ToList()))
             .ToList();
     }

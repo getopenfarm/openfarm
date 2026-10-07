@@ -26,6 +26,8 @@ internal static class FeedUnitDisplay
             .FirstOrDefault(a => a.UnitIndex == unit.UnitIndex)?.Trays
             .FirstOrDefault(t => t.SlotIndex == slot.SlotPosition),
         FeedUnitKindCatalog.ExternalSpool => printer.ExternalSpoolTray,
+        FeedUnitKindCatalog.AutomaticFilamentReloader when unit.ArchivedAtUtc is null
+            && unit.ReplacesFeedUnitId is not null && unit.FeedingSlotId == slot.Id => printer.ExternalSpoolTray,
         _ => null,
     };
 
@@ -37,7 +39,7 @@ internal static class FeedUnitDisplay
             return null;
         }
 
-        var declaringAfr = allUnits.FirstOrDefault(u => u.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader && u.ReplacesFeedUnitId == unit.Id);
+        var declaringAfr = allUnits.FirstOrDefault(u => u.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader && u.ArchivedAtUtc is null && u.ReplacesFeedUnitId == unit.Id);
         if (declaringAfr is not null)
         {
             return declaringAfr.Id;

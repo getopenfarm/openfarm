@@ -18,7 +18,7 @@ public class AutomaticFilamentReloaderTests(CustomWebApplicationFactory factory)
         var printerId = await RegisterSimulatorPrinterAsync(client);
         await WaitForFeedUnitsAsync(client, printerId);
 
-        var afrResponse = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printerId}/feed-units", UriKind.Relative), new { kind = "AutomaticFilamentReloader", name = $"Splicer {Guid.NewGuid():N}", slotCount = 2 });
+        var afrResponse = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printerId}/feed-units", UriKind.Relative), new { kind = "AutomaticFilamentReloader", name = $"Splicer {Guid.NewGuid():N}", slotCount = 2, startingSlotPosition = 0 });
         var afr = await afrResponse.Content.ReadFromJsonAsync<AddFeedUnitResponse>();
 
         var variantA = await CreateFilamentVariantAsync(client, colorName: "A", colorHex: "#111111");
@@ -43,7 +43,7 @@ public class AutomaticFilamentReloaderTests(CustomWebApplicationFactory factory)
         var printerId = await RegisterSimulatorPrinterAsync(client);
         await WaitForFeedUnitsAsync(client, printerId);
 
-        var afrResponse = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printerId}/feed-units", UriKind.Relative), new { kind = "AutomaticFilamentReloader", name = $"Splicer {Guid.NewGuid():N}", slotCount = 2 });
+        var afrResponse = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printerId}/feed-units", UriKind.Relative), new { kind = "AutomaticFilamentReloader", name = $"Splicer {Guid.NewGuid():N}", slotCount = 2, startingSlotPosition = 0 });
         var afr = await afrResponse.Content.ReadFromJsonAsync<AddFeedUnitResponse>();
 
         var variantA = await CreateFilamentVariantAsync(client);

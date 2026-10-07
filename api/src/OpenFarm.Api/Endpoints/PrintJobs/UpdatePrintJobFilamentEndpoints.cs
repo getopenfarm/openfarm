@@ -10,16 +10,29 @@ using RecordHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Appli
 
 namespace OpenFarm.Api.Endpoints.PrintJobs;
 
+public sealed class JobFilamentRequirementRequest
+{
+    public string? MaterialType { get; set; }
+    public string? DetectedColorHex { get; set; }
+    public Guid? NarrowFilamentVariantId { get; set; }
+    public Guid? NarrowFilamentProfileId { get; set; }
+}
+
 public sealed class SetPrintJobFilamentRequirementsRequest : IActivityLoggable
 {
     public Guid Id { get; set; }
-    public List<FilamentConsumptionLineRequest> Requirements { get; set; } = [];
+    public List<JobFilamentRequirementRequest> Requirements { get; set; } = [];
     public string EntityType => "PrintJob";
     public string EventType => "PrintJobFilamentRequirementsChanged";
 }
 public sealed class SetPrintJobFilamentRequirementsRequestValidator : AbstractValidator<SetPrintJobFilamentRequirementsRequest>
 {
-    public SetPrintJobFilamentRequirementsRequestValidator() => RuleFor(r => r.Requirements).NotEmpty();
+    public SetPrintJobFilamentRequirementsRequestValidator()
+    {
+        RuleFor(r => r.Requirements).NotEmpty();
+        RuleForEach(r => r.Requirements).Must(r => r.NarrowFilamentVariantId is null || r.NarrowFilamentProfileId is null)
+            .WithMessage("Choose a catalog variant or a direct profile constraint, not both.");
+    }
 }
 
 [Permission("print-jobs:pin")]
@@ -31,7 +44,7 @@ public sealed class SetPrintJobFilamentRequirementsEndpoint(SetHandler handler, 
     {
         req.Id = Route<Guid>("id");
         var job = await handler.HandleAsync(new SetPrintJobFilamentRequirementsCommand(req.Id,
-            req.Requirements.Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex)).ToList()), ct);
+            req.Requirements.Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId)).ToList()), ct);
         Response = PrintJobResponse.FromDetail((await detail.HandleAsync(new GetPrintJobQuery(job.Id), ct))!);
     }
 }

@@ -29,6 +29,9 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
                 printerId,
                 telemetry = new
                 {
+                    nozzleDiameterMm = telemetry.NozzleDiameterMm,
+                    nozzleObservedAtUtc = telemetry.NozzleObservedAtUtc,
+                    nozzleConfirmed = telemetry.NozzleConfirmed,
                     nozzleTempC = telemetry.NozzleTempC,
                     bedTempC = telemetry.BedTempC,
                     printProgressPercent = telemetry.PrintProgressPercent,
@@ -37,6 +40,7 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
                     currentJobName = telemetry.CurrentJobName,
                 },
                 amsUnits = telemetry.AmsUnits,
+                externalSpoolTray = telemetry.ExternalSpoolTray,
             },
             cancellationToken);
 

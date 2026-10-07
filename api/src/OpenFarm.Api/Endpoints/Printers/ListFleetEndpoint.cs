@@ -25,6 +25,10 @@ public sealed class FleetPrinterResponse
 
     public int? PrintProgressPercent { get; set; }
 
+    public decimal? NozzleDiameterMm { get; set; }
+    public DateTimeOffset? NozzleObservedAtUtc { get; set; }
+    public bool NozzleConfirmed { get; set; }
+
     public decimal? NozzleTempC { get; set; }
 
     public decimal? BedTempC { get; set; }
@@ -71,6 +75,9 @@ public sealed class ListFleetEndpoint(IQueryHandler<GetFleetQuery, IReadOnlyList
                     Status = p.Status.ToString(),
                     IsReachable = p.IsReachable,
                     PrintProgressPercent = p.PrintProgressPercent,
+                    NozzleDiameterMm = p.NozzleDiameterMm,
+                    NozzleObservedAtUtc = p.NozzleObservedAtUtc,
+                    NozzleConfirmed = p.NozzleConfirmed,
                     NozzleTempC = p.NozzleTempC,
                     BedTempC = p.BedTempC,
                     CurrentStageLabel = p.CurrentStageLabel,

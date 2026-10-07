@@ -1,3 +1,4 @@
+using OpenFarm.Domain.FilamentTracking;
 using System.Net;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -108,6 +109,22 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         db.MachineProfiles.Add(profile);
         var printer = Printer.Create(Organization.WellKnownId, $"Printer {Guid.NewGuid():N}", "System", "Simulation", "127.0.0.1", $"SN{Guid.NewGuid():N}");
         printer.LinkMachineProfile(profile.Id);
+        printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
+        var filamentProfile = FilamentProfile.Create(Organization.WellKnownId, $"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+            """{"filament_type":["PLA"],"hot_plate_temp":["55"]}""");
+        db.FilamentProfiles.Add(filamentProfile);
+        var vendor = Vendor.Create(Organization.WellKnownId, $"Vendor {Guid.NewGuid():N}");
+        db.Vendors.Add(vendor);
+        var filament = Filament.Create(Organization.WellKnownId, vendor.Id, "PLA", "PLA");
+        filament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(Organization.WellKnownId, filament.Id, "System", "Simulation", 0.4m, filamentProfile.Id)]);
+        var variant = filament.AddVariant("White", "FFFFFF");
+        db.Filaments.Add(filament);
+        var feedUnit = FeedUnit.CreateConnectorDerived(Organization.WellKnownId, printer.Id, FeedUnitKindCatalog.ExternalSpool, 0);
+        var slot = feedUnit.AddFeedSlot(0);
+        db.FeedUnits.Add(feedUnit);
+        var spool = Spool.Create(Organization.WellKnownId, variant.Id, null, 1000, 1000);
+        spool.LoadOntoFeedSlot(slot.Id);
+        db.Spools.Add(spool);
         printer.MarkReachable(DateTimeOffset.UtcNow);
         printer.RecordTelemetry(null, null, null, null, null, null, [], new AmsTray(0, false, "PLA", "FFFFFF", null, null, false));
         printer.ObserveStatus(state);

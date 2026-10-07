@@ -1,6 +1,6 @@
 namespace OpenFarm.Application.FilamentTracking;
 
-public sealed record GetFeedUnitsQuery(Guid PrinterId);
+public sealed record GetFeedUnitsQuery(Guid PrinterId, bool IncludeHidden = false, bool IncludeArchived = false);
 
 public sealed record CurrentSpoolSummary(Guid Id, Guid FilamentVariantId, decimal RemainingWeightGrams);
 
@@ -22,4 +22,7 @@ public sealed record FeedUnitDetail(
     bool IsRevealed,
     Guid? ReplacesFeedUnitId,
     Guid? SupersededByFeedUnitId,
-    IReadOnlyList<FeedSlotDetail> FeedSlots);
+    IReadOnlyList<FeedSlotDetail> FeedSlots,
+    DateTimeOffset? ArchivedAtUtc = null,
+    Guid? FeedingSlotId = null,
+    string? FeedingSelectionSource = null);

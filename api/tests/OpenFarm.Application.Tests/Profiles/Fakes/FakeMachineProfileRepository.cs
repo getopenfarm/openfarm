@@ -26,11 +26,11 @@ public sealed class FakeMachineProfileRepository : IMachineProfileRepository
         Task.FromResult<IReadOnlyList<MachineProfile>>(
             _rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-    public Task<MachineProfile?> FindByExternalIdAsync(string vendorName, string externalId, CancellationToken cancellationToken) =>
+    public Task<MachineProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
         Task.FromResult(_rows.FirstOrDefault(p =>
             p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId));
 
-    public Task<MachineProfile?> FindSystemByNameAsync(string vendorName, string name, CancellationToken cancellationToken) =>
+    public Task<MachineProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
         Task.FromResult(_rows.FirstOrDefault(p =>
             p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
 

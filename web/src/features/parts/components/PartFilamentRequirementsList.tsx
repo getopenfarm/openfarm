@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -29,17 +30,9 @@ export interface DisplayFilamentRequirement {
 
 interface PartFilamentRequirementsListProps {
   requirements: DisplayFilamentRequirement[];
-  /** Present only in the review dialog — lets the operator attach/change a narrower
-   * Filament Profile/color-variant override per requirement (FR-012a). Absent = read-only
-   * display, used on PartDetailPage where narrowing already happened at confirm time. */
+  /** Shared catalog colour-variant selector for preview, saved parts and queued jobs. */
   onNarrow?: (key: string | number, filamentVariantId: string | null) => void;
-  /**
-   * Present only on PartDetailPage — the standalone narrow/change/clear control reachable at any
-   * time after confirm (FR-012, US4), calling `PATCH .../filament-requirements/{requirementId}`
-   * with the requirement's own real id (never `requirementIndex`). Distinct from `onNarrow` above,
-   * which only ever narrows to a FilamentVariant color pick at Confirm time; this narrows to the
-   * combined System+User FilamentProfile catalog via `ProfilePickerCombobox`.
-   */
+  /** Allows changing or clearing an existing legacy direct profile constraint. */
   onNarrowToProfile?: (
     requirementId: string,
     filamentProfileId: string | null,
@@ -66,7 +59,7 @@ export function PartFilamentRequirementsList({
   onNarrowToProfile,
 }: PartFilamentRequirementsListProps) {
   const filamentsQuery = useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint({
-    query: { enabled: Boolean(onNarrow) },
+    query: { enabled: true },
   });
   const filamentsData = filamentsQuery.data?.data as
     | ListFilamentsResponse
@@ -84,63 +77,138 @@ export function PartFilamentRequirementsList({
       {requirements.map((requirement) => (
         <li
           key={requirement.key}
-          className="flex flex-wrap items-center gap-2 rounded-lg border p-2"
+          className="flex flex-col gap-3 rounded-lg border p-4"
         >
-          <span
-            className="size-3 shrink-0 rounded-full border"
-            style={{
-              backgroundColor: requirement.detectedColorHex ?? undefined,
-            }}
-            aria-hidden
-          />
-          <Badge variant="secondary">{requirementLabel(requirement)}</Badge>
+          <div className="flex items-center gap-2">
+            <span
+              className="size-4 shrink-0 rounded-full border"
+              style={{
+                backgroundColor:
+                  filaments
+                    .flatMap((f) => f.variants ?? [])
+                    .find((v) => v.id === requirement.narrowFilamentVariantId)
+                    ?.colorHex ??
+                  requirement.detectedColorHex ??
+                  undefined,
+              }}
+              aria-hidden
+            />
+            <Badge variant="secondary">{requirementLabel(requirement)}</Badge>
+            <span className="text-xs text-muted-foreground">
+              File colour: {requirement.detectedColorHex ?? 'Unspecified'}
+            </span>
+          </div>
           {requirement.narrowFilamentVariantUnresolved ? (
             <Badge variant="destructive">Narrowed filament deleted</Badge>
           ) : null}
           {requirement.narrowFilamentProfileUnresolved ? (
             <Badge variant="destructive">Narrowed profile deleted</Badge>
           ) : null}
-          {onNarrowToProfile ? (
-            <div className="ml-auto w-64">
+          {onNarrow ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Production filament</span>
+              <Select
+                value={requirement.narrowFilamentVariantId ?? NO_NARROW_VALUE}
+                onValueChange={(value) =>
+                  onNarrow(
+                    requirement.key,
+                    value === NO_NARROW_VALUE ? null : value,
+                  )
+                }
+                disabled={filamentsQuery.isLoading || filamentsQuery.isError}
+              >
+                <SelectTrigger
+                  className="w-full"
+                  aria-label="Production filament"
+                >
+                  <SelectValue placeholder="Choose catalog filament" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_NARROW_VALUE}>
+                    Use file material and colour
+                  </SelectItem>
+                  {requirement.narrowFilamentVariantId &&
+                    !filaments
+                      .flatMap((f) => f.variants ?? [])
+                      .some(
+                        (v) => v.id === requirement.narrowFilamentVariantId,
+                      ) && (
+                      <SelectItem value={requirement.narrowFilamentVariantId}>
+                        Selected filament unavailable
+                      </SelectItem>
+                    )}
+                  {filaments
+                    .filter(
+                      (f) =>
+                        !requirement.materialType ||
+                        f.materialType === requirement.materialType,
+                    )
+                    .flatMap((filament) =>
+                      (filament.variants ?? []).map((variant) => (
+                        <SelectItem key={variant.id} value={variant.id ?? ''}>
+                          {filament.vendorName} {filament.material} ·{' '}
+                          {variant.colorName}
+                        </SelectItem>
+                      )),
+                    )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                A catalog choice matches a loaded spool of that exact colour
+                variant, overriding the file colour.
+              </p>
+              {filamentsQuery.isError && (
+                <p role="alert" className="text-sm text-destructive">
+                  Could not load the filament catalog.
+                </p>
+              )}
+            </div>
+          ) : requirement.narrowFilamentVariantId ? (
+            <p className="text-sm">
+              {filaments
+                .flatMap((f) =>
+                  (f.variants ?? []).map((v) => ({
+                    ...v,
+                    name: `${f.vendorName} ${f.material} · ${v.colorName}`,
+                  })),
+                )
+                .find((v) => v.id === requirement.narrowFilamentVariantId)
+                ?.name ?? 'Selected filament unavailable'}
+            </p>
+          ) : null}
+          {requirement.narrowFilamentProfileId && (
+            <div className="flex flex-col gap-2 rounded-md bg-muted/40 p-3">
+              <span className="text-xs font-medium">
+                Existing direct profile constraint
+              </span>
               <ProfilePickerCombobox
                 kind="filament"
-                value={requirement.narrowFilamentProfileId ?? null}
-                onChange={(filamentProfileId) =>
-                  onNarrowToProfile(String(requirement.key), filamentProfileId)
+                value={requirement.narrowFilamentProfileId}
+                disabled={!onNarrowToProfile}
+                onChange={(id) =>
+                  onNarrowToProfile?.(String(requirement.key), id)
                 }
-                placeholder="Match by generic type only"
-                searchPlaceholder="Search filament profiles…"
+                placeholder="Selected profile unavailable"
                 materialType={requirement.materialType ?? undefined}
               />
+              {onNarrowToProfile && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    onNarrowToProfile(String(requirement.key), null)
+                  }
+                >
+                  Clear profile constraint
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Selecting a catalog filament replaces this constraint. Its
+                printer-specific profile is resolved from the loaded filament.
+              </p>
             </div>
-          ) : onNarrow ? (
-            <Select
-              value={requirement.narrowFilamentVariantId ?? NO_NARROW_VALUE}
-              onValueChange={(value) =>
-                onNarrow(
-                  requirement.key,
-                  value === NO_NARROW_VALUE ? null : value,
-                )
-              }
-            >
-              <SelectTrigger size="sm" className="ml-auto w-56">
-                <SelectValue placeholder="Narrow to a specific filament" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_NARROW_VALUE}>
-                  Match by generic type only
-                </SelectItem>
-                {filaments.flatMap((filament) =>
-                  (filament.variants ?? []).map((variant) => (
-                    <SelectItem key={variant.id} value={variant.id ?? ''}>
-                      {filament.vendorName} {filament.material}{' '}
-                      {variant.colorName}
-                    </SelectItem>
-                  )),
-                )}
-              </SelectContent>
-            </Select>
-          ) : null}
+          )}
         </li>
       ))}
     </ul>

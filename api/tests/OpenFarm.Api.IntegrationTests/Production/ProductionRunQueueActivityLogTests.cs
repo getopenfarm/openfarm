@@ -33,7 +33,7 @@ public class ProductionRunQueueActivityLogTests(ProductionTestFactory factory) :
     {
         var client = await ClientAsync();
         var part = await PartAsync();
-        var printer = await PrinterAsync(manual: true);
+        var printer = await PrinterAsync();
         var run = await RunAsync(client, part.Id);
         var job = (await JobsAsync(run.Id)).Single();
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/reorder", body: new { afterJobId = (Guid?)null });
@@ -47,10 +47,13 @@ public class ProductionRunQueueActivityLogTests(ProductionTestFactory factory) :
         try
         {
             await WaitForAssignmentAsync(run.Id);
-            await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/mark-started");
-            await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/pause");
-            await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/resume");
-            await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/cancel");
+            await ReplayAsync(printer.Id, "RUNNING");
+            await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/pause", expected: System.Net.HttpStatusCode.Accepted);
+            await ReplayAsync(printer.Id, "PAUSE");
+            await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/resume", expected: System.Net.HttpStatusCode.Accepted);
+            await ReplayAsync(printer.Id, "RUNNING");
+            await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/cancel", expected: System.Net.HttpStatusCode.Accepted);
+            await ReplayAsync(printer.Id, "FAILED");
             await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/requeue", expected: System.Net.HttpStatusCode.Created);
             await PostAsync(client, $"/api/v1/production-runs/{run.Id}/cancel");
             using var scope = Factory.CreateTenantScope();

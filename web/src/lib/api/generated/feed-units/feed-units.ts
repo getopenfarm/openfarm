@@ -12,9 +12,313 @@ import type {
   UseMutationResult,
 } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
-
 import { httpClient } from '../../httpClient';
+import type {
+  ConfigureReloaderRequest,
+  SelectReloaderChannelRequest,
+} from '../endpoints.schemas';
 
+export type openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse204 =
+  {
+    data: void;
+    status: 204;
+  };
+
+export type openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponseSuccess =
+  openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponseError =
+  (
+    | openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse401
+    | openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse =
+  | openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponseSuccess
+  | openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponseError;
+
+export const getOpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/feed-units/${id}/configuration`;
+};
+
+export const openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint = async (
+  id: string,
+  configureReloaderRequest: ConfigureReloaderRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse>(
+    getOpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpointUrl(id),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(configureReloaderRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: ConfigureReloaderRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint>
+    >,
+    TError,
+    { id: string; data: ConfigureReloaderRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint
+        >
+      >,
+      { id: string; data: ConfigureReloaderRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpointMutationBody =
+  ConfigureReloaderRequest;
+export type OpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: ConfigureReloaderRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint>
+  >,
+  TError,
+  { id: string; data: ConfigureReloaderRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse204 =
+  {
+    data: void;
+    status: 204;
+  };
+
+export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponseSuccess =
+  openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponseError =
+  (
+    | openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse401
+    | openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse =
+  | openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponseSuccess
+  | openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponseError;
+
+export const getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointUrl =
+  (id: string) => {
+    return `/api/v1/feed-units/${id}/feeding-channel`;
+  };
+
+export const openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint =
+  async (
+    id: string,
+    selectReloaderChannelRequest: SelectReloaderChannelRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse>(
+      getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointUrl(id),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(selectReloaderChannelRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: SelectReloaderChannelRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: SelectReloaderChannelRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+        >
+      >,
+      { id: string; data: SelectReloaderChannelRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint(
+        id,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationBody =
+  SelectReloaderChannelRequest;
+export type OpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: SelectReloaderChannelRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+    >
+  >,
+  TError,
+  { id: string; data: SelectReloaderChannelRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsFeedUnitsRemoveFeedUnitEndpointResponse204 = {
   data: void;
   status: 204;

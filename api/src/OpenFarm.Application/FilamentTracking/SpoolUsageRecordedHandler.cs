@@ -31,22 +31,35 @@ public sealed class SpoolUsageRecordedHandler(
 
         var policy = FeedUnitKindCatalog.Resolve(feedUnit.Kind);
 
+        var isReloader = feedUnit.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader;
+        var wasFeeding = feedUnit.FeedingSlotId == feedSlotId;
         depletedSpool.MarkFinished();
-        await spoolRepository.SaveChangesAsync(cancellationToken);
-
+        if (isReloader && (!wasFeeding || feedUnit.ArchivedAtUtc is not null))
+        {
+            await spoolRepository.SaveChangesAsync(cancellationToken);
+            return AutoContinuationResult.None;
+        }
         if (policy == ReloadPolicy.None)
         {
+            await spoolRepository.SaveChangesAsync(cancellationToken);
             return AutoContinuationResult.None;
         }
 
         var siblings = await spoolRepository.FindLoadedInFeedUnitAsync(feedUnit.Id, cancellationToken);
+        var available = siblings.Where(s => s.Id != depletedSpool.Id && s.State == SpoolState.Using && s.RemainingWeightGrams > 0
+            && feedUnit.FeedSlots.Any(slot => slot.Id == s.FeedSlotId && slot.DeactivatedAtUtc is null));
         var candidates = policy == ReloadPolicy.MatchRequired
-            ? siblings.Where(s => s.FilamentVariantId == depletedSpool.FilamentVariantId)
-            : siblings;
+            ? available.Where(s => s.FilamentVariantId == depletedSpool.FilamentVariantId)
+            : available;
 
         var continuedSpool = candidates
             .OrderBy(s => SlotPositionOf(feedUnit, s))
             .FirstOrDefault();
+
+        if (isReloader) feedUnit.SelectFeedingSlot(continuedSpool?.FeedSlotId, estimated: true);
+        await spoolRepository.SaveChangesAsync(cancellationToken);
+        if (isReloader)
+            await eventPublisher.FeedUnitsChangedAsync(feedUnit.OrganizationId, feedUnit.PrinterId, cancellationToken);
 
         if (continuedSpool is null)
         {

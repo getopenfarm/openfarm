@@ -12,7 +12,7 @@ namespace OpenFarm.Application.Production;
 public static class PrintJobFilamentConsumptionRecorder
 {
     public static async Task RecordAsync(
-        PrintJob job, IReadOnlyList<FilamentConsumptionLineInput> lines, ISpoolRepository spoolRepository, CancellationToken cancellationToken, IPrintJobRepository? jobRepository = null)
+        PrintJob job, IReadOnlyList<FilamentConsumptionLineInput> lines, ISpoolRepository spoolRepository, CancellationToken cancellationToken, IPrintJobRepository? jobRepository = null, IAutoContinuationResolver? continuation = null)
     {
         foreach (var line in lines)
         {
@@ -32,6 +32,9 @@ public static class PrintJobFilamentConsumptionRecorder
                 var spool = await spoolRepository.GetByIdAsync(spoolId, cancellationToken)
                     ?? throw new SpoolNotFoundException(spoolId);
                 spool.RecordUsage(delta);
+                job.RecordFilamentConsumption(matched.Id, line.SpoolId, line.GramsConsumed);
+                if (spool.RemainingWeightGrams == 0 && continuation is not null)
+                    await continuation.ResolveAsync(spool, cancellationToken);
             }
             job.RecordFilamentConsumption(matched.Id, line.SpoolId, line.GramsConsumed);
         }

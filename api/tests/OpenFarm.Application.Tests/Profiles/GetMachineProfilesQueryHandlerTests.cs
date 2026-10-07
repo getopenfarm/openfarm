@@ -12,7 +12,7 @@ namespace OpenFarm.Application.Tests.Profiles;
 public class GetMachineProfilesQueryHandlerTests
 {
     private static GetMachineProfilesQueryHandler CreateHandler(FakeMachineProfileRepository machineRepo) =>
-        new(machineRepo, new StubProfileBundleParser());
+        new(machineRepo, new StubProfileBundleParser(), new FakePrinterRepository(), new ProfileCompatibility(machineRepo, new FakeFilamentProfileRepository()));
 
     [Fact]
     public async Task HandleAsync_LegacyBrowseCall_ExcludesSystemRows()

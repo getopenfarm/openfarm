@@ -251,7 +251,7 @@ builder.Services.AddScoped<IPrinterConnectorFactory, PrinterConnectorFactory>();
 
 builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();
 builder.Services.AddSingleton<PrinterConnectionBackgroundService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
+if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
 // Must be Singleton, not Scoped — same reasoning as IPartProcessingDispatcher's registration
 // below: a Scoped factory returning an already-singleton IDisposable gets that instance disposed
 // at the end of whichever HTTP request scope first resolves it, killing the shared connection
@@ -307,6 +307,9 @@ builder.Services.AddScoped<RecordSpoolUsageHandlerType, RecordSpoolUsageCommandH
 builder.Services.AddScoped<CorrectRemainingWeightHandlerType, CorrectRemainingWeightCommandHandler>();
 builder.Services.AddScoped<AddFeedUnitHandlerType, AddFeedUnitCommandHandler>();
 builder.Services.AddScoped<RemoveFeedUnitHandlerType, RemoveFeedUnitCommandHandler>();
+builder.Services.AddScoped<ReloaderConfigurationService>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<ConfigureReloaderCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>, ConfigureReloaderCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SelectReloaderChannelCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>, SelectReloaderChannelCommandHandler>();
 
 builder.Services.Configure<PartFileStorageOptions>(builder.Configuration.GetSection(PartFileStorageOptions.SectionName));
 builder.Services.Configure<SlicerOptions>(builder.Configuration.GetSection(SlicerOptions.SectionName));
@@ -339,7 +342,7 @@ builder.Services.AddScoped<IJobTelemetrySync, JobTelemetrySync>();
 builder.Services.AddScoped<IProductionEventPublisher, FarmHubProductionEventPublisher>();
 
 builder.Services.AddSingleton<ProductionDispatchBackgroundService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());
+if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());
 // Must be Singleton, not Scoped — same reasoning as IPartProcessingDispatcher's registration above.
 builder.Services.AddSingleton<IProductionDispatcher>(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());
 
@@ -353,10 +356,18 @@ builder.Services.AddSingleton<ISlicerInvocation, PrusaSliceFamilyInvocation>();
 builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
 builder.Services.AddScoped<ResolveSlicerSelection>();
 builder.Services.AddScoped<RepresentativeFilamentResolver>();
+builder.Services.AddScoped<ProfileCompatibility>();
+builder.Services.AddScoped<ProductionProfileReadiness>();
+builder.Services.AddScoped<ProductionJobRequirements>();
+builder.Services.AddScoped<PartFilamentSelectionValidator>();
+builder.Services.AddScoped<FilamentProfileAssignmentService>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<UpdateFilamentProfileAssignmentsCommand, OpenFarm.Domain.FilamentTracking.Filament>, UpdateFilamentProfileAssignmentsCommandHandler>();
 builder.Services.AddScoped<ResolveSlicingProfileSelection>();
 builder.Services.AddScoped<ResolveEstimationProfiles>();
 
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
+builder.Services.AddSingleton<ProfileEngineValidationCache>();
+builder.Services.AddScoped<IProfileEngineValidator, ProfileEngineValidator>();
 builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();
 builder.Services.AddScoped<IPartFileProcessor, PartFileProcessor>();
 
@@ -364,7 +375,7 @@ builder.Services.AddSingleton(sp => new PartProcessingBackgroundService(
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<ILogger<PartProcessingBackgroundService>>(),
     sp.GetRequiredService<IOptions<SlicerOptions>>().Value.MaxConcurrentSlicingOperations));
-builder.Services.AddHostedService(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
+if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<PartProcessingBackgroundService>());
 // Must be Singleton, not Scoped: the factory returns an already-singleton BackgroundService
 // (IDisposable via its base class). A Scoped registration whose factory returns a disposable
 // instance gets that instance added to the CURRENT scope's own disposables list — meaning every
@@ -486,6 +497,18 @@ app.MapHub<FarmHub>("/hubs/farm");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
+
+// Generate contracts without a database or starting printer/background services.
+if (args.Contains("export-openapi"))
+{
+    app.Urls.Clear();
+    app.Urls.Add("http://127.0.0.1:0");
+    await app.StartAsync();
+    var document = await app.Services.GetRequiredService<NSwag.Generation.IOpenApiDocumentGenerator>().GenerateAsync("v1");
+    await File.WriteAllTextAsync("openapi.json", document.ToJson());
+    await app.StopAsync();
+    return;
+}
 
 using (var scope = app.Services.CreateScope())
 {

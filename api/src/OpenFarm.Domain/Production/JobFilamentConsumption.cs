@@ -27,12 +27,23 @@ public sealed class JobFilamentConsumption
 
     public string? DetectedColorHex { get; }
 
+    public Guid? NarrowFilamentVariantId { get; private set; }
+    public Guid? NarrowFilamentProfileId { get; private set; }
+    public JobFilamentRequirementSpec Requirement => new(MaterialType, DetectedColorHex, NarrowFilamentVariantId, NarrowFilamentProfileId);
+
     public Guid? SpoolId { get; private set; }
 
     public decimal? GramsConsumed { get; private set; }
 
     internal static JobFilamentConsumption Create(Guid organizationId, Guid printJobId, string? materialType, string? detectedColorHex) =>
         new(Guid.NewGuid(), organizationId, printJobId, materialType, detectedColorHex);
+
+    internal static JobFilamentConsumption Create(Guid organizationId, Guid printJobId, JobFilamentRequirementSpec requirement) =>
+        new(Guid.NewGuid(), organizationId, printJobId, requirement.MaterialType, requirement.DetectedColorHex)
+        {
+            NarrowFilamentVariantId = requirement.NarrowFilamentVariantId,
+            NarrowFilamentProfileId = requirement.NarrowFilamentProfileId
+        };
 
     internal void Record(Guid? spoolId, decimal gramsConsumed)
     {

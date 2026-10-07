@@ -1,13 +1,14 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Printers;
 
 public sealed class GetPrinterDetailQueryHandler(
     IPrinterRepository printerRepository,
     IMachineProfileRepository machineProfileRepository,
-    IProcessProfileRepository processProfileRepository)
+    IProcessProfileRepository processProfileRepository, ProfileCompatibility compatibility)
     : IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>
 {
     public async Task<PrinterDetail?> HandleAsync(GetPrinterDetailQuery query, CancellationToken cancellationToken)
@@ -23,6 +24,16 @@ public sealed class GetPrinterDetailQueryHandler(
         var machineProfileName = printer.MachineProfileId is { } machineProfileId
             ? (await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken))?.Name
             : null;
+
+        string? machineProfileIssue = null;
+        if (printer.MachineProfileId is { } selectedId)
+        {
+            var machine = await machineProfileRepository.GetByIdAsync(selectedId, cancellationToken);
+            if (machine is null) machineProfileIssue = "The linked machine profile no longer exists.";
+            else
+                try { await compatibility.ValidateMachineAsync(printer, machine, cancellationToken); }
+                catch (SlicingProfileUnconfiguredException ex) { machineProfileIssue = ex.Message; }
+        }
 
         var processProfileName = printer.ProcessProfileId is { } processProfileId
             ? (await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken))?.Name
@@ -61,6 +72,6 @@ public sealed class GetPrinterDetailQueryHandler(
             processProfileName,
             printer.BuildPlateType,
             buildPlateTypeLabel,
-            compatibleBuildPlateTypes);
+            compatibleBuildPlateTypes, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, machineProfileIssue, printer.ExternalSpoolTray);
     }
 }

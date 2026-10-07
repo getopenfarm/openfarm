@@ -17,6 +17,51 @@ namespace OpenFarm.Application.Tests.Parts;
 // RepresentativeFilamentResolver — organization-level defaults no longer exist anywhere in this path.
 public class ResolveSlicingProfileSelectionTests
 {
+    [Theory]
+    [InlineData("valid")]
+    [InlineData("missing")]
+    [InlineData("cycle")]
+    [InlineData("ambiguous")]
+    public async Task ImportedBambuPresetsResolveInheritedTemplatesFromTheirOwnCatalog(string templateState)
+    {
+        var machines = new FakeMachineProfileRepository();
+        var processes = new FakeProcessProfileRepository();
+        var filaments = new FakeFilamentProfileRepository();
+        var org = Guid.NewGuid();
+        var machine = MachineProfile.Create(org, "P1S", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        var process = ProcessProfile.CreateSystemProfile(org, "Standard", ProfileSourceFormat.OrcaSlicer, null,
+            "{}", "Bambu", "process", true, [machine.Name]);
+        var parent = FilamentProfile.Create(org, "Bambu base", ProfileSourceFormat.BambuStudio, null,
+            """{"filament_type":["PLA"],"hot_plate_temp":["55"],"include":["start template"]}""");
+        var child = FilamentProfile.Create(org, "Imported PLA", ProfileSourceFormat.BambuStudio, parent.Name,
+            """{"filament_flow_ratio":["0.99"]}""");
+        child.ResolveBaseProfile(parent.Id);
+        await machines.AddAsync(machine, default);
+        await processes.AddAsync(process, default);
+        await filaments.AddAsync(parent, default);
+        await filaments.AddAsync(child, default);
+        // Identical template names in another engine catalog must not satisfy this import.
+        await filaments.AddAsync(FilamentProfile.Create(org, "start template", ProfileSourceFormat.OrcaSlicer, null,
+            """{"filament_start_gcode":["wrong source"]}"""), default);
+        if (templateState != "missing")
+            await filaments.AddAsync(FilamentProfile.Create(org, "start template", ProfileSourceFormat.BambuStudio, null,
+                templateState == "cycle" ? """{"include":["start template"]}""" :
+                """{"filament_start_gcode":["G28"],"filament_flow_ratio":["0.90"]}"""), default);
+        if (templateState == "ambiguous")
+            await filaments.AddAsync(FilamentProfile.Create(org, "start template", ProfileSourceFormat.BambuStudio, null, "{}"), default);
+        var resolver = CreateSelection(new FakePrinterRepository(), machines, processes, filaments);
+        var resolve = () => resolver.ResolveProfilesAsync(machine.Id, process.Id, child.Id, BuildPlateType.HighTemp, default, SlicerEngine.OrcaSlicer);
+        if (templateState == "valid")
+        {
+            var result = await resolve();
+            result.FilamentSettingsJson.Should().Contain("G28").And.Contain("0.99").And.NotContain("wrong source");
+            result.FilamentSourceFormat.Should().Be(ProfileSourceFormat.BambuStudio);
+            await ((Func<Task>)(() => resolver.ResolveProfilesAsync(machine.Id, process.Id, child.Id, BuildPlateType.HighTemp, default, SlicerEngine.BambuStudio)))
+                .Should().ThrowAsync<SlicingProfileUnconfiguredException>();
+        }
+        else await resolve.Should().ThrowAsync<SlicingProfileUnconfiguredException>();
+    }
+
     private static ResolveSlicingProfileSelection CreateSelection(
         FakePrinterRepository printerRepo,
         FakeMachineProfileRepository machineRepo,
@@ -24,13 +69,41 @@ public class ResolveSlicingProfileSelectionTests
         FakeFilamentProfileRepository filamentRepo,
         FakeSpoolRepository? spoolRepo = null,
         FakeFilamentRepository? filamentTrackingRepo = null,
-        FakeFeedUnitRepository? feedUnitRepo = null) =>
-        new(printerRepo, machineRepo, processRepo, filamentRepo,
+        FakeFeedUnitRepository? feedUnitRepo = null)
+    {
+        if (spoolRepo is null)
+        {
+            spoolRepo = new FakeSpoolRepository();
+            filamentTrackingRepo = new FakeFilamentRepository();
+            feedUnitRepo = new FakeFeedUnitRepository();
+            // Explicit production inventory fixture; settings/plate tests need a valid assigned spool.
+            var profileRows = filamentRepo.ListAsync(default).GetAwaiter().GetResult();
+            var profile = profileRows.Count > 0 ? profileRows[0] : null;
+            if (profile is not null)
+                foreach (var printer in printerRepo.ListAsync(default).GetAwaiter().GetResult())
+                {
+                    var diameter = printer.ModelCode == "P1S" ? 0.2m : 0.4m;
+                    printer.ObserveNozzle(diameter, DateTimeOffset.UtcNow);
+                    var filament = Filament.Create(printer.OrganizationId, Guid.NewGuid(), "PLA", "PLA");
+                    var variant = filament.AddVariant("Black", "#000000");
+                    filament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(printer.OrganizationId, filament.Id, printer.Brand, printer.ModelCode, diameter, profile.Id)]);
+                    filamentTrackingRepo.AddAsync(filament, default).GetAwaiter().GetResult();
+                    var unit = FeedUnit.CreateConnectorDerived(printer.OrganizationId, printer.Id, FeedUnitKindCatalog.ExternalSpool, 0);
+                    var slot = unit.AddFeedSlot(0);
+                    feedUnitRepo.AddAsync(unit, default).GetAwaiter().GetResult();
+                    var spool = Spool.Create(printer.OrganizationId, variant.Id, null, 1000, 800);
+                    spool.LoadOntoFeedSlot(slot.Id);
+                    spoolRepo.AddAsync(spool, default).GetAwaiter().GetResult();
+                }
+        }
+        return new(printerRepo, machineRepo, processRepo, filamentRepo,
             new RepresentativeFilamentResolver(
                 filamentRepo,
                 spoolRepo ?? new FakeSpoolRepository(),
                 filamentTrackingRepo ?? new FakeFilamentRepository(),
-                feedUnitRepo ?? new FakeFeedUnitRepository()));
+                feedUnitRepo ?? new FakeFeedUnitRepository(), printerRepo, machineRepo, new ProfileCompatibility(machineRepo, filamentRepo)),
+            new ProfileCompatibility(machineRepo, filamentRepo));
+    }
 
     // 012 US2 — every printer here defaults to a compatible, real-plate-typed selection (X1C's
     // catalog set includes HighTemp) so the pre-existing success-path tests below stay unaffected by
@@ -39,6 +112,7 @@ public class ResolveSlicingProfileSelectionTests
     private static Printer CreatePrinter(string serial = "SN-1", BuildPlateType? buildPlateType = BuildPlateType.HighTemp)
     {
         var printer = Printer.Create(Guid.NewGuid(), "Printer A", "Bambu", "X1C", "10.0.0.5", serial);
+        printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
         if (buildPlateType is { } value)
         {
             printer.SelectBuildPlate(value);
@@ -62,7 +136,7 @@ public class ResolveSlicingProfileSelectionTests
         var filamentRepo = new FakeFilamentProfileRepository();
 
         var printer = CreatePrinter();
-        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
 
@@ -140,7 +214,7 @@ public class ResolveSlicingProfileSelectionTests
 
         var printerA = Printer.Create(Guid.NewGuid(), "Printer A", "Bambu", "X1C", "10.0.0.10", "SN-A");
         printerA.SelectBuildPlate(BuildPlateType.HighTemp);
-        var machineA = MachineProfile.Create(printerA.OrganizationId, "Machine A", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machineA = MachineProfile.Create(printerA.OrganizationId, "Machine A", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machineA, CancellationToken.None);
         printerA.LinkMachineProfile(machineA.Id);
         var processA = ProcessProfile.CreateSystemProfile(printerA.OrganizationId, "Process A", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.1"}""", "Bambulab", "GPA", true, ["Machine A"]);
@@ -150,7 +224,7 @@ public class ResolveSlicingProfileSelectionTests
 
         var printerB = Printer.Create(Guid.NewGuid(), "Printer B", "Bambu", "P1S", "10.0.0.11", "SN-B");
         printerB.SelectBuildPlate(BuildPlateType.HighTemp);
-        var machineB = MachineProfile.Create(printerB.OrganizationId, "Machine B", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.2"]}""");
+        var machineB = MachineProfile.Create(printerB.OrganizationId, "Machine B", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab P1S","nozzle_diameter":["0.2"]}""");
         await machineRepo.AddAsync(machineB, CancellationToken.None);
         printerB.LinkMachineProfile(machineB.Id);
         var processB = ProcessProfile.CreateSystemProfile(printerB.OrganizationId, "Process B", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.3"}""", "Bambulab", "GPB", true, ["Machine B"]);
@@ -245,7 +319,7 @@ public class ResolveSlicingProfileSelectionTests
 
         var machine = MachineProfile.CreateSystemProfile(
             printer.OrganizationId, "X1C 0.4 nozzle", ProfileSourceFormat.BambuStudio, null,
-            """{"type":"machine","nozzle_diameter":["0.4"]}""",
+            """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""",
             "Bambulab", "GM001", isSelectable: true, vendorMachineModelName: null,
             includedTemplateNames: ["X1C template machine_start_gcode"]);
         await machineRepo.AddAsync(machine, CancellationToken.None);
@@ -257,13 +331,13 @@ public class ResolveSlicingProfileSelectionTests
         await processRepo.AddAsync(process, CancellationToken.None);
         printer.LinkProcessProfile(process.Id);
 
-        var filament = CreateSystemFilament(printer.OrganizationId, "Bambulab", "GFSA00", "PLA");
+        var filament = FilamentProfile.CreateSystemProfile(printer.OrganizationId, "PLA", ProfileSourceFormat.BambuStudio, null, """{"filament_type":["PLA"],"hot_plate_temp":["55"]}""", "Bambulab", "GFSA00", true, null, "PLA", null);
         await filamentRepo.AddAsync(filament, CancellationToken.None);
         await printerRepo.AddAsync(printer, CancellationToken.None);
 
         var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo);
 
-        var result = await selection.ResolveAsync(printer.Id, "PLA", narrowedFilamentProfileId: null, CancellationToken.None);
+        var result = await selection.ResolveProfilesAsync(machine.Id, process.Id, filament.Id, BuildPlateType.HighTemp, CancellationToken.None);
 
         result.MachineSettingsJson.Should().Contain("\"machine_start_gcode\"");
         result.MachineSettingsJson.Should().Contain("\"nozzle_diameter\"");
@@ -334,7 +408,7 @@ public class ResolveSlicingProfileSelectionTests
         var feedUnitRepo = new FakeFeedUnitRepository();
 
         var printer = CreatePrinter();
-        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
 
@@ -357,7 +431,8 @@ public class ResolveSlicingProfileSelectionTests
             "Polymaker", "P001", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentRepo.AddAsync(loadedFilamentProfile, CancellationToken.None);
 
-        var trackedFilament = Filament.Create(printer.OrganizationId, Guid.NewGuid(), "PLA", "PLA", loadedFilamentProfile.Id);
+        var trackedFilament = Filament.Create(printer.OrganizationId, Guid.NewGuid(), "PLA", "PLA");
+        trackedFilament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(printer.OrganizationId, trackedFilament.Id, "Bambu", "X1C", 0.4m, loadedFilamentProfile.Id)]);
         var variant = trackedFilament.AddVariant("Black", "#000000");
         await filamentTrackingRepo.AddAsync(trackedFilament, CancellationToken.None);
 
@@ -378,10 +453,9 @@ public class ResolveSlicingProfileSelectionTests
     }
 
     [Fact]
-    public async Task ResolveAsync_NarrowedFilamentProfile_NeverInvokesMatchingCapabilityEvenWhenAFleetLoadedSpoolWouldWin()
+    public async Task ResolveAsync_NarrowedFilamentProfileCannotBypassLoadedAssignment()
     {
-        // FR-011 regression — a manually narrowed filament requirement must bypass the matching
-        // capability entirely, even when a fleet-loaded spool would otherwise win tier 1/2.
+        // A part constraint must agree with the physical spool assignment.
         var printerRepo = new FakePrinterRepository();
         var machineRepo = new FakeMachineProfileRepository();
         var processRepo = new FakeProcessProfileRepository();
@@ -391,7 +465,7 @@ public class ResolveSlicingProfileSelectionTests
         var feedUnitRepo = new FakeFeedUnitRepository();
 
         var printer = CreatePrinter();
-        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
 
@@ -407,7 +481,8 @@ public class ResolveSlicingProfileSelectionTests
             "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentRepo.AddAsync(wouldWinProfile, CancellationToken.None);
 
-        var trackedFilament = Filament.Create(printer.OrganizationId, Guid.NewGuid(), "PLA", "PLA", wouldWinProfile.Id);
+        var trackedFilament = Filament.Create(printer.OrganizationId, Guid.NewGuid(), "PLA", "PLA");
+        trackedFilament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(printer.OrganizationId, trackedFilament.Id, "Bambu", "X1C", 0.4m, wouldWinProfile.Id)]);
         var variant = trackedFilament.AddVariant("Black", "#000000");
         await filamentTrackingRepo.AddAsync(trackedFilament, CancellationToken.None);
 
@@ -428,10 +503,8 @@ public class ResolveSlicingProfileSelectionTests
 
         var selection = CreateSelection(printerRepo, machineRepo, processRepo, filamentRepo, spoolRepo, filamentTrackingRepo, feedUnitRepo);
 
-        var result = await selection.ResolveAsync(printer.Id, "PLA", narrowedFilamentProfileId: narrowedProfile.Id, CancellationToken.None);
-
-        result.FilamentSettingsJson.Should().Contain("narrowed-pick");
-        result.FilamentSettingsJson.Should().NotContain("would-win");
+        var act = () => selection.ResolveAsync(printer.Id, "PLA", narrowedFilamentProfileId: narrowedProfile.Id, CancellationToken.None);
+        await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*assignment*required filament profile*");
     }
 
     // --- 012 US2: build-plate-required resolution + bed-temp injection (TDD, research.md R8) ---
@@ -445,7 +518,7 @@ public class ResolveSlicingProfileSelectionTests
         var filamentRepo = new FakeFilamentProfileRepository();
 
         var printer = CreatePrinter(buildPlateType: null);
-        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
         var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
@@ -472,7 +545,7 @@ public class ResolveSlicingProfileSelectionTests
         var filamentRepo = new FakeFilamentProfileRepository();
 
         var printer = CreatePrinter(buildPlateType: BuildPlateType.Engineering);
-        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
         var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
@@ -504,7 +577,7 @@ public class ResolveSlicingProfileSelectionTests
         var filamentRepo = new FakeFilamentProfileRepository();
 
         var printer = CreatePrinter(buildPlateType: BuildPlateType.Cool);
-        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
         var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
@@ -535,7 +608,7 @@ public class ResolveSlicingProfileSelectionTests
         var filamentRepo = new FakeFilamentProfileRepository();
 
         var printer = CreatePrinter(buildPlateType: BuildPlateType.TexturedPei);
-        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machine = MachineProfile.Create(printer.OrganizationId, "My Printer", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
         var process = ProcessProfile.CreateSystemProfile(printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["My Printer"]);
@@ -564,7 +637,7 @@ public class ResolveSlicingProfileSelectionTests
         var processRepo = new FakeProcessProfileRepository();
         var filamentRepo = new FakeFilamentProfileRepository();
 
-        var machine = MachineProfile.Create(Guid.NewGuid(), "Shared Machine", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","nozzle_diameter":["0.4"]}""");
+        var machine = MachineProfile.Create(Guid.NewGuid(), "Shared Machine", ProfileSourceFormat.OrcaSlicer, null, """{"type":"machine","printer_model":"Bambu Lab X1 Carbon","nozzle_diameter":["0.4"]}""");
         await machineRepo.AddAsync(machine, CancellationToken.None);
         var process = ProcessProfile.CreateSystemProfile(machine.OrganizationId, "Shared Process", ProfileSourceFormat.OrcaSlicer, null, """{"type":"process","layer_height":"0.2"}""", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: ["Shared Machine"]);
         await processRepo.AddAsync(process, CancellationToken.None);

@@ -10,5 +10,5 @@ public sealed record FilamentSummary(
     string VendorName,
     string Material,
     string MaterialType,
-    Guid? FilamentProfileId,
+    IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments,
     IReadOnlyList<FilamentVariantSummary> Variants);

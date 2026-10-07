@@ -2,9 +2,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { FeedUnitResponse } from '@/lib/api/generated/endpoints.schemas';
 import { FeedUnitsCard, type FeedUnitsCardProps } from './FeedUnitsCard';
 
-function stubFetch(onDelete?: (url: string) => void) {
+function stubFetch(
+  onDelete?: (url: string) => void,
+  feedUnits?: FeedUnitResponse[],
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -19,7 +23,7 @@ function stubFetch(onDelete?: (url: string) => void) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              feedUnits: [
+              feedUnits: feedUnits ?? [
                 {
                   id: 'fu-1',
                   kind: 'MultiMaterialUnit',
@@ -98,8 +102,9 @@ function stubFetch(onDelete?: (url: string) => void) {
 function renderCard(
   onDelete?: (url: string) => void,
   props: Partial<FeedUnitsCardProps> = {},
+  feedUnits?: FeedUnitResponse[],
 ) {
-  stubFetch(onDelete);
+  stubFetch(onDelete, feedUnits);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -320,6 +325,77 @@ describe('FeedUnitsCard', () => {
 
     await waitFor(() =>
       expect(deletedUrl).toContain('/api/v1/feed-units/fu-2'),
+    );
+  });
+
+  it.each([undefined, null])(
+    'hides Remove for a lone external spool with replacement %s',
+    async (supersededByFeedUnitId) => {
+      renderCard(undefined, {}, [
+        {
+          id: 'external-1',
+          kind: 'ExternalSpool',
+          displayLabel: 'External Spool',
+          supersededByFeedUnitId,
+          feedSlots: [],
+        },
+      ]);
+
+      await screen.findByText('External Spool');
+      expect(
+        screen.queryByRole('button', { name: 'Remove' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('hides Remove for an external spool without a replacement alongside other units', async () => {
+    renderCard(undefined, {}, [
+      {
+        id: 'external-1',
+        kind: 'ExternalSpool',
+        displayLabel: 'External Spool',
+        supersededByFeedUnitId: null,
+        feedSlots: [],
+      },
+      {
+        id: 'reloader-1',
+        kind: 'AutomaticFilamentReloader',
+        displayLabel: 'Splicer',
+        feedSlots: [],
+      },
+    ]);
+
+    const label = await screen.findByText('External Spool');
+    const header = label.parentElement;
+    if (!header) throw new Error('Expected a feed unit header');
+    expect(
+      within(header).queryByRole('button', { name: 'Remove' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
+  });
+
+  it('removes a superseded external spool through its endpoint', async () => {
+    const user = userEvent.setup();
+    let deletedUrl: string | undefined;
+    renderCard(
+      (url) => {
+        deletedUrl = url;
+      },
+      {},
+      [
+        {
+          id: 'external-1',
+          kind: 'ExternalSpool',
+          displayLabel: 'External Spool',
+          supersededByFeedUnitId: 'reloader-1',
+          feedSlots: [],
+        },
+      ],
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+    await waitFor(() =>
+      expect(deletedUrl).toContain('/api/v1/feed-units/external-1'),
     );
   });
 });

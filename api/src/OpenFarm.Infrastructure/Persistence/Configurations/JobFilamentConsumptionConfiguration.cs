@@ -19,6 +19,9 @@ public sealed class JobFilamentConsumptionConfiguration : IEntityTypeConfigurati
         builder.Property(c => c.MaterialType);
         builder.Property(c => c.DetectedColorHex);
         builder.Property(c => c.SpoolId);
+        builder.Property(c => c.NarrowFilamentVariantId);
+        builder.Property(c => c.NarrowFilamentProfileId);
+        builder.Ignore(c => c.Requirement);
         builder.Property(c => c.GramsConsumed).HasColumnType("numeric");
 
         builder.HasOne<Spool>().WithMany().HasForeignKey(c => c.SpoolId).OnDelete(DeleteBehavior.SetNull);

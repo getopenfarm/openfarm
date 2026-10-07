@@ -43,14 +43,15 @@ public sealed class RequeuePrintJobCommandHandler(
             ?? throw new PartNotFoundException(requirement.PartId);
 
         var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(job.OrganizationId, cancellationToken) ?? 0) + 1024;
-        var filamentSpecs = part.FilamentRequirements
-            .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex))
+        var filamentSpecs = job.FilamentConsumption
+            .Select(c => c.Requirement)
             .ToList();
 
         var replacement = PrintJob.Create(
             job.OrganizationId, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
             job.AssignmentMode, job.PinnedPrinterId, job.FileRevisionHash, job.FileRevisionNumber, filamentSpecs);
 
+        if (job.HasFilamentRequirementOverride) replacement.SetFilamentRequirements(filamentSpecs);
         await jobRepository.AddAsync(replacement, cancellationToken);
         job.MarkRequeuedAs(replacement.Id);
         await jobRepository.SaveChangesAsync(cancellationToken);

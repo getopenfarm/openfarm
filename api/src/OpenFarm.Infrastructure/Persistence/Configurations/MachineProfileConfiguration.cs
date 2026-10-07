@@ -60,11 +60,11 @@ public sealed class MachineProfileConfiguration : IEntityTypeConfiguration<Machi
 
         // Research.md §1 idempotency keys — leaf rows keyed by (VendorName, ExternalId), abstract
         // bases (no ExternalId) keyed by (VendorName, Name). Both partial, System-only.
-        builder.HasIndex(p => new { p.OrganizationId, p.VendorName, p.ExternalId })
+        builder.HasIndex(p => new { p.OrganizationId, p.SourceFormat, p.VendorName, p.ExternalId })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-        builder.HasIndex(p => new { p.OrganizationId, p.VendorName, p.Name })
+        builder.HasIndex(p => new { p.OrganizationId, p.SourceFormat, p.VendorName, p.Name })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 

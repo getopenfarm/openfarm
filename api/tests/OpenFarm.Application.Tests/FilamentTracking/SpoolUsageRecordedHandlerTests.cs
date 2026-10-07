@@ -24,6 +24,7 @@ public class SpoolUsageRecordedHandlerTests
             : FeedUnit.CreateConnectorDerived(_organizationId, Guid.NewGuid(), kind, 0);
 
         var slots = Enumerable.Range(0, slotCount).Select(i => unit.AddFeedSlot(i)).ToArray();
+        if (kind == FeedUnitKindCatalog.AutomaticFilamentReloader) unit.SelectFeedingSlot(slots[0].Id);
         _feedUnitRepository.Add(unit);
         foreach (var slot in slots)
         {
@@ -109,6 +110,8 @@ public class SpoolUsageRecordedHandlerTests
         result.Occurred.Should().BeTrue();
         result.ContinuedSpoolId.Should().Be(sibling.Id);
         result.MaterialMismatch.Should().BeTrue();
+        unit.FeedingSlotId.Should().Be(slots[1].Id);
+        unit.FeedingSelectionSource.Should().Be("Estimated");
     }
 
     [Fact]
@@ -147,6 +150,131 @@ public class SpoolUsageRecordedHandlerTests
 
         result.Occurred.Should().BeFalse();
         depleted.State.Should().Be(SpoolState.Finished);
+    }
+
+    [Fact]
+    public async Task Reloader_StandbyDepletion_DoesNotChangeFeedingChannel()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        CreateUsingSpool(Guid.NewGuid(), slots[0]);
+        var standby = CreateUsingSpool(Guid.NewGuid(), slots[1]);
+        var result = await CreateHandler().ResolveAsync(standby, CancellationToken.None);
+        result.Occurred.Should().BeFalse();
+        unit.FeedingSlotId.Should().Be(slots[0].Id);
+        unit.FeedingSelectionSource.Should().Be("Operator");
+    }
+
+    [Fact]
+    public async Task Reloader_ChannelTwoDepletion_ContinuesBackToChannelOne()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        unit.SelectFeedingSlot(slots[1].Id);
+        var standby = CreateUsingSpool(Guid.NewGuid(), slots[0]);
+        var depleted = CreateUsingSpool(Guid.NewGuid(), slots[1]);
+        var result = await CreateHandler().ResolveAsync(depleted, CancellationToken.None);
+        result.ContinuedSpoolId.Should().Be(standby.Id);
+        unit.FeedingSlotId.Should().Be(slots[0].Id);
+        unit.FeedingSelectionSource.Should().Be("Estimated");
+    }
+
+    [Fact]
+    public async Task Reloader_NoUsableStandby_ClearsSelection()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        var depleted = CreateUsingSpool(Guid.NewGuid(), slots[0]);
+        CreateUsingSpool(Guid.NewGuid(), slots[1]);
+        slots[1].Deactivate();
+        var result = await CreateHandler().ResolveAsync(depleted, CancellationToken.None);
+        result.Occurred.Should().BeFalse();
+        unit.FeedingSlotId.Should().BeNull();
+        unit.FeedingSelectionSource.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Configuration_TransfersExternalSpool_AndHidesPort()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        var external = FeedUnit.CreateConnectorDerived(_organizationId, unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
+        var externalSlot = external.AddFeedSlot(0);
+        external.Reveal();
+        _spoolRepository.FeedSlotOwners[externalSlot.Id] = external.Id;
+        var spool = CreateUsingSpool(Guid.NewGuid(), externalSlot);
+        await new ReloaderConfigurationService(_spoolRepository).ApplyAsync(unit, [unit, external], external.Id, slots[1].Id, true, CancellationToken.None);
+        spool.State.Should().Be(SpoolState.Using);
+        spool.FeedSlotId.Should().Be(slots[1].Id);
+        spool.RemainingWeightGrams.Should().Be(1000);
+        external.IsRevealed.Should().BeFalse();
+        unit.ReplacesFeedUnitId.Should().Be(external.Id);
+    }
+
+    [Fact]
+    public async Task Configuration_RejectsOccupiedTransfer_BeforeChangingAssignments()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        var external = FeedUnit.CreateConnectorDerived(_organizationId, unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
+        var externalSlot = external.AddFeedSlot(0);
+        _spoolRepository.FeedSlotOwners[externalSlot.Id] = external.Id;
+        var original = CreateUsingSpool(Guid.NewGuid(), externalSlot);
+        CreateUsingSpool(Guid.NewGuid(), slots[0]);
+        var act = () => new ReloaderConfigurationService(_spoolRepository).ApplyAsync(unit, [unit, external], external.Id, slots[0].Id, true, CancellationToken.None);
+        await act.Should().ThrowAsync<FeedSlotOccupiedException>();
+        original.FeedSlotId.Should().Be(externalSlot.Id);
+        unit.ReplacesFeedUnitId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Configuration_CanUnloadExternalSpoolInsteadOfTransfer()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        var external = FeedUnit.CreateConnectorDerived(_organizationId, unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
+        var externalSlot = external.AddFeedSlot(0);
+        _spoolRepository.FeedSlotOwners[externalSlot.Id] = external.Id;
+        var original = CreateUsingSpool(Guid.NewGuid(), externalSlot);
+        await new ReloaderConfigurationService(_spoolRepository).ApplyAsync(unit, [unit, external], external.Id, slots[0].Id, false, CancellationToken.None);
+        original.State.Should().Be(SpoolState.InStorage);
+        original.FeedSlotId.Should().BeNull();
+        original.RemainingWeightGrams.Should().Be(1000);
+    }
+
+    [Fact]
+    public async Task Removal_UnloadsBothSpools_ArchivesAndClearsSelection()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        var first = CreateUsingSpool(Guid.NewGuid(), slots[0]);
+        var second = CreateUsingSpool(Guid.NewGuid(), slots[1]);
+        await new RemoveFeedUnitCommandHandler(_feedUnitRepository, _eventPublisher, _spoolRepository)
+            .HandleAsync(new(unit.Id), CancellationToken.None);
+        unit.ArchivedAtUtc.Should().NotBeNull();
+        unit.FeedingSlotId.Should().BeNull();
+        unit.FeedSlots.Should().OnlyContain(s => s.DeactivatedAtUtc != null);
+        new[] { first, second }.Should().OnlyContain(s => s.State == SpoolState.InStorage && s.FeedSlotId == null && s.RemainingWeightGrams == 1000);
+    }
+
+    [Fact]
+    public async Task UnloadFeedingChannel_ClearsSelectionWithoutAssumingSwitch()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        var spool = CreateUsingSpool(Guid.NewGuid(), slots[0]);
+        CreateUsingSpool(Guid.NewGuid(), slots[1]);
+        await new UnloadSpoolCommandHandler(_spoolRepository, _feedUnitRepository, _eventPublisher)
+            .HandleAsync(new(spool.Id, UnloadSpoolAction.ReturnToStorage), CancellationToken.None);
+        unit.FeedingSlotId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ProductionConsumption_UsesContinuation_AndRepeatedSubmissionDoesNotConsumeTwice()
+    {
+        var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
+        var first = CreateUsingSpool(Guid.NewGuid(), slots[0]);
+        var second = CreateUsingSpool(first.FilamentVariantId, slots[1]);
+        var job = OpenFarm.Application.Tests.Production.Fakes.ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
+        var requirement = job.FilamentConsumption[0];
+        var lines = new[] { new OpenFarm.Application.Production.FilamentConsumptionLineInput(requirement.MaterialType, requirement.DetectedColorHex, first.Id, 1000) };
+        await OpenFarm.Application.Production.PrintJobFilamentConsumptionRecorder.RecordAsync(job, lines, _spoolRepository, CancellationToken.None, continuation: CreateHandler());
+        await OpenFarm.Application.Production.PrintJobFilamentConsumptionRecorder.RecordAsync(job, lines, _spoolRepository, CancellationToken.None, continuation: CreateHandler());
+        first.State.Should().Be(SpoolState.Finished);
+        unit.FeedingSlotId.Should().Be(slots[1].Id);
+        second.RemainingWeightGrams.Should().Be(1000);
     }
 
     private sealed class InMemorySpoolRepository : ISpoolRepository

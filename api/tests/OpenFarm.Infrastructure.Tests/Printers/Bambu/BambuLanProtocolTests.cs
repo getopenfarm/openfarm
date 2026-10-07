@@ -1,8 +1,11 @@
 using System.Collections.Concurrent;
+using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using FluentFTP;
+using FluentFTP.Exceptions;
 using Microsoft.Extensions.Logging.Abstractions;
 using MQTTnet;
 using MQTTnet.Adapter;
@@ -13,6 +16,70 @@ namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
 
 public class BambuLanProtocolTests
 {
+    [Theory]
+    [InlineData("/cache/../escape.3mf")]
+    [InlineData("/cache/file.3mf\r\nDELE other.3mf")]
+    public async Task UploadNewFile_UnsafeDestination_StillRejected(string path)
+    {
+        await using var client = new AsyncFtpClient("127.0.0.1", "bblp", "test-code");
+        using var content = new MemoryStream([1, 2, 3]);
+        var upload = () => BambuLanConnector.UploadNewFileAsync(client, content, path, CancellationToken.None);
+
+        await upload.Should().ThrowAsync<FtpSanitizeException>();
+    }
+
+    [Fact]
+    public async Task StartJob_ExistingPrinterFilenameWithRepeatedDots_DoesNotBlockUpload()
+    {
+        await using var mqtt = new BambuMqttHarness();
+        await using var ftp = new BambuFtpsHarness();
+        var connector = mqtt.CreateConnector(mqtt.Options with
+        {
+            UploadFileAsync = async (details, content, path, token) =>
+            {
+                await using var client = new AsyncFtpClient(details.IpAddress, "bblp", details.AccessCode, ftp.Port);
+                client.Config.EncryptionMode = FtpEncryptionMode.Implicit;
+                client.Config.ValidateAnyCertificate = true;
+                await client.Connect(token);
+
+                // Prove the peer recreates the reported failure under the normal existence check.
+                var check = () => client.FileExists(path, token);
+                await check.Should().ThrowAsync<FtpSanitizeException>()
+                    .WithMessage($"*{BambuFtpsHarness.ExistingFileName}*");
+                ftp.Commands.Clear();
+                return await BambuLanConnector.UploadNewFileAsync(client, content, path, token);
+            },
+        });
+        byte[] bytes = Encoding.UTF8.GetBytes("print payload");
+        using var file = new MemoryStream(bytes);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        try
+        {
+            await connector.StartJobAsync(mqtt.Details, file, "new part.gcode", cts.Token);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"FTPS commands: {string.Join(", ", ftp.Commands)}", ex);
+        }
+
+        using (var uploaded = new MemoryStream(ftp.UploadedBytes!))
+        using (var archive = new ZipArchive(uploaded))
+        using (var plate = archive.GetEntry(BambuPrintFile.PlatePath)!.Open())
+        using (var copy = new MemoryStream())
+        {
+            await plate.CopyToAsync(copy);
+            copy.ToArray().Should().Equal(bytes);
+        }
+        ftp.UploadedPath.Should().StartWith("/cache/").And.EndWith(".3mf");
+        ftp.UploadedPath.Should().MatchRegex(@"^/cache/new_part_\d{8}-\d{9}\.gcode\.3mf$");
+        ftp.Commands.Should().NotContain(command => command.StartsWith("NLST", StringComparison.Ordinal));
+        ftp.Commands.Should().NotContain(command => command.StartsWith("DELE", StringComparison.Ordinal));
+        using var document = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
+        document.RootElement.GetProperty("print").GetProperty("url").GetString()
+            .Should().Be($"file:///sdcard{ftp.UploadedPath}");
+    }
+
     [Fact]
     public async Task Verify_AuthenticatesSubscribesRequestsBothReportsAndDisconnects()
     {
@@ -151,7 +218,7 @@ public class BambuLanProtocolTests
     public async Task StartJob_UploadsExactBytesBeforePublishingEscapedNameAndChecksum()
     {
         await using var harness = new BambuMqttHarness();
-        byte[] fileBytes = Encoding.UTF8.GetBytes("a test 3mf payload");
+        byte[] fileBytes = Encoding.UTF8.GetBytes("; test G-code\nG28\n");
         byte[]? uploadedBytes = null;
         string? uploadedPath = null;
         var uploadCompleted = false;
@@ -170,22 +237,85 @@ public class BambuLanProtocolTests
             },
         });
         using var file = new MemoryStream(fileBytes);
-        const string jobName = "part \"quoted\" \\ folder\n雪.3mf";
+        const string jobName = "part \"quoted\" \\ folder\n雪.gcode";
 
         await connector.StartJobAsync(harness.Details, file, jobName, CancellationToken.None);
 
         uploadCompleted.Should().BeTrue();
-        uploadedBytes.Should().Equal(fileBytes);
+        using (var archive = new ZipArchive(new MemoryStream(uploadedBytes!)))
+        using (var plate = archive.GetEntry(BambuPrintFile.PlatePath)!.Open())
+        using (var copy = new MemoryStream())
+        {
+            await plate.CopyToAsync(copy);
+            copy.ToArray().Should().Equal(fileBytes);
+        }
         using var document = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
         var print = document.RootElement.GetProperty("print");
         print.GetProperty("subtask_name").GetString().Should().Be(jobName);
         print.GetProperty("command").GetString().Should().Be("project_file");
         print.GetProperty("param").GetString().Should().Be("Metadata/plate_1.gcode");
-        print.GetProperty("url").GetString().Should().Be($"ftp:///{Path.GetFileName(uploadedPath)}");
+        print.GetProperty("url").GetString().Should().Be($"file:///sdcard{uploadedPath}");
         uploadedPath.Should().StartWith("/cache/").And.EndWith(".3mf");
-        print.GetProperty("md5").GetString().Should().Be("d08a01130a952f060cd359e51e0540d9");
+        uploadedPath.Should().MatchRegex(@"^/cache/part_quoted_folder_\d{8}-\d{9}\.gcode\.3mf$");
+#pragma warning disable CA5351 // Verify the Bambu protocol integrity checksum against uploaded bytes.
+        print.GetProperty("md5").GetString().Should().Be(Convert.ToHexStringLower(MD5.HashData(uploadedBytes!)));
+#pragma warning restore CA5351
         print.GetProperty("use_ams").GetBoolean().Should().BeFalse();
         await WaitUntilAsync(() => harness.ActiveConnections == 0);
+    }
+
+    [Theory]
+    [InlineData("P1P", "file:///sdcard")]
+    [InlineData("P1S", "file:///sdcard")]
+    [InlineData("A1", "file:///sdcard")]
+    [InlineData("A1MINI", "file:///sdcard")]
+    [InlineData("X1", "ftp://")]
+    [InlineData("X1C", "ftp://")]
+    [InlineData("X1E", "ftp://")]
+    public async Task StartJob_ProjectUrlPointsToExactUploadPath(string model, string prefix)
+    {
+        await using var harness = new BambuMqttHarness();
+        string? uploadPath = null;
+        byte[]? uploadedBytes = null;
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            UploadFileAsync = async (_, content, path, token) =>
+            {
+                uploadPath = path;
+                using var buffer = new MemoryStream();
+                await content.CopyToAsync(buffer, token);
+                uploadedBytes = buffer.ToArray();
+                return FtpStatus.Success;
+            },
+        });
+        var project = BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode");
+        using var file = new MemoryStream(project);
+
+        await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", default);
+
+        uploadedBytes.Should().Equal(project, "an existing project must retain settings, thumbnails and checksums");
+        uploadPath.Should().StartWith("/cache/");
+        using var request = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
+        request.RootElement.GetProperty("print").GetProperty("url").GetString().Should().Be(prefix + uploadPath);
+    }
+
+    [Fact]
+    public async Task StartJob_ProjectMissingRequestedPlate_DoesNotUploadOrPublish()
+    {
+        var uploadCalled = false;
+        await using var harness = new BambuMqttHarness();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            UploadFileAsync = (_, _, _, _) => { uploadCalled = true; return Task.FromResult(FtpStatus.Success); },
+        });
+        using var file = new MemoryStream();
+        using (var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true)) archive.CreateEntry("3D/3dmodel.model");
+        file.Position = 0;
+        var start = () => connector.StartJobAsync(harness.Details, file, "unsliced.3mf", default);
+
+        await start.Should().ThrowAsync<IOException>().WithMessage("*Metadata/plate_1.gcode*");
+        uploadCalled.Should().BeFalse();
+        harness.ConnectionCount.Should().Be(0);
     }
 
     [Theory]
@@ -307,7 +437,7 @@ public class BambuLanProtocolTests
         await ReadNextAsync(events, cts);
         await cts.CancelAsync();
 
-        var next = async () => await events.MoveNextAsync();
+        var next = async () => { while (await events.MoveNextAsync()) { } };
         await next.Should().ThrowAsync<OperationCanceledException>();
         await WaitUntilAsync(() => harness.ActiveConnections == 0);
         clients.Should().ContainSingle().Which.IsConnected.Should().BeFalse();
@@ -320,7 +450,12 @@ public class BambuLanProtocolTests
         var read = events.MoveNextAsync().AsTask();
         try
         {
-            return await read.WaitAsync(TimeSpan.FromSeconds(3));
+            while (await read.WaitAsync(TimeSpan.FromSeconds(3)))
+            {
+                if (!events.Current.ConnectionStarted && !events.Current.ConnectionEnded) return true;
+                read = events.MoveNextAsync().AsTask();
+            }
+            return false;
         }
         catch (TimeoutException)
         {

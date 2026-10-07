@@ -12,7 +12,7 @@ namespace OpenFarm.Application.Tests.Profiles;
 public class GetFilamentProfilesQueryHandlerTests
 {
     private static GetFilamentProfilesQueryHandler CreateHandler(FakeFilamentProfileRepository filamentRepo) =>
-        new(filamentRepo, new StubProfileBundleParser());
+        new(filamentRepo, new StubProfileBundleParser(), new ProfileCompatibility(new FakeMachineProfileRepository(), filamentRepo), new FakeSlicingDefaultsQuery());
 
     [Fact]
     public async Task HandleAsync_LegacyBrowseCall_ExcludesSystemRows()

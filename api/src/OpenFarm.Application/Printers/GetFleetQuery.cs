@@ -19,4 +19,4 @@ public sealed record FleetPrinterSummary(
     string? CurrentStageLabel,
     int? RemainingTimeMinutes,
     string? CurrentJobName,
-    string? FilamentColorHex);
+    string? FilamentColorHex, decimal? NozzleDiameterMm = null, DateTimeOffset? NozzleObservedAtUtc = null, bool NozzleConfirmed = false);

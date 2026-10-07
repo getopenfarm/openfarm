@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { PackageIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -31,6 +32,7 @@ function selectionKey(
 }
 
 export function SlicingDefaultsPage() {
+  const queryClient = useQueryClient();
   const query = useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint();
   const data = query.data?.data;
   const available = data?.available ?? [];
@@ -72,6 +74,13 @@ export function SlicingDefaultsPage() {
         onSuccess: () => {
           toast.success('Slicing defaults updated.');
           query.refetch();
+          queryClient.invalidateQueries({
+            predicate: ({ queryKey }) =>
+              typeof queryKey[0] === 'string' &&
+              (queryKey[0].startsWith('/api/v1/profiles') ||
+                queryKey[0].startsWith('/api/v1/filaments') ||
+                queryKey[0].startsWith('/api/v1/print-jobs')),
+          });
         },
         onError: async (error: unknown) => {
           let message =

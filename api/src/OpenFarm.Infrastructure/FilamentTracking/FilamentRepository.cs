@@ -14,10 +14,10 @@ public sealed class FilamentRepository(OpenFarmDbContext dbContext) : IFilamentR
     }
 
     public Task<Filament?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Filaments.Include(f => f.Variants).FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
+        dbContext.Filaments.Include(f => f.Variants).Include(f => f.ProfileAssignments).FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Filament>> ListAsync(CancellationToken cancellationToken) =>
-        await dbContext.Filaments.AsNoTracking().Include(f => f.Variants).OrderBy(f => f.Material).ToListAsync(cancellationToken);
+        await dbContext.Filaments.AsNoTracking().Include(f => f.Variants).Include(f => f.ProfileAssignments).OrderBy(f => f.Material).ToListAsync(cancellationToken);
 
     public Task<FilamentVariant?> FindVariantByIdAsync(Guid filamentVariantId, CancellationToken cancellationToken) =>
         dbContext.FilamentVariants.FirstOrDefaultAsync(v => v.Id == filamentVariantId, cancellationToken);
@@ -28,5 +28,18 @@ public sealed class FilamentRepository(OpenFarmDbContext dbContext) : IFilamentR
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
+    public Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        // DetectChanges would attach new Guid-keyed children as Modified before we can mark them Added.
+        var autoDetect = dbContext.ChangeTracker.AutoDetectChangesEnabled;
+        dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+        try
+        {
+            foreach (var filament in dbContext.ChangeTracker.Entries<Filament>().Select(e => e.Entity).ToList())
+                foreach (var assignment in filament.ProfileAssignments)
+                    if (dbContext.Entry(assignment).State == EntityState.Detached) dbContext.Add(assignment);
+        }
+        finally { dbContext.ChangeTracker.AutoDetectChangesEnabled = autoDetect; }
+        return dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

@@ -42,7 +42,50 @@ public sealed class FeedUnit
 
     public string? Name { get; }
 
-    public Guid? ReplacesFeedUnitId { get; }
+    public Guid? ReplacesFeedUnitId { get; private set; }
+
+    public DateTimeOffset? ArchivedAtUtc { get; private set; }
+
+    public Guid? FeedingSlotId { get; private set; }
+
+    public string? FeedingSelectionSource { get; private set; }
+
+    public void ConfigureReplacement(Guid? targetId)
+    {
+        EnsureConfigurable();
+        ReplacesFeedUnitId = targetId;
+    }
+
+    public void SelectFeedingSlot(Guid? slotId, bool estimated = false)
+    {
+        EnsureConfigurable();
+        if (slotId is not null && !_feedSlots.Any(s => s.Id == slotId && s.DeactivatedAtUtc is null))
+            throw new InvalidReloaderConfigurationException("The feeding channel must be an active slot of this reloader.");
+        FeedingSlotId = slotId;
+        FeedingSelectionSource = slotId is null ? null : estimated ? "Estimated" : "Operator";
+    }
+
+    public void Archive()
+    {
+        EnsureReloader();
+        ArchivedAtUtc ??= DateTimeOffset.UtcNow;
+        FeedingSlotId = null;
+        FeedingSelectionSource = null;
+        DeactivateAllSlots();
+    }
+
+    private void EnsureReloader()
+    {
+        if (Kind != FeedUnitKindCatalog.AutomaticFilamentReloader)
+            throw new NotAnAutomaticFilamentReloaderException(Id, Kind);
+    }
+
+    private void EnsureConfigurable()
+    {
+        EnsureReloader();
+        if (ArchivedAtUtc is not null)
+            throw new InvalidReloaderConfigurationException("This reloader has been removed.");
+    }
 
     public bool IsRevealed { get; private set; }
 

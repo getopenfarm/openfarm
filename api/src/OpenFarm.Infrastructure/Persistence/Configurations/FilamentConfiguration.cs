@@ -22,7 +22,8 @@ public sealed class FilamentConfiguration : IEntityTypeConfiguration<Filament>
         builder.Property(f => f.MaterialType)
             .IsRequired();
 
-        builder.Property(f => f.FilamentProfileId);
+        builder.HasMany(f => f.ProfileAssignments).WithOne().HasForeignKey(a => a.FilamentId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(f => f.ProfileAssignments).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Property(f => f.CreatedAtUtc)
             .IsRequired();

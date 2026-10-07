@@ -1,4 +1,5 @@
 import type {
+  AmsTrayResponse,
   AmsUnitResponse,
   FeedSlotResponse,
   FeedUnitResponse,
@@ -19,17 +20,27 @@ export function feedSlotView(
   slot: FeedSlotResponse,
   amsUnits: AmsUnitResponse[],
   isReachable: boolean,
+  externalSpoolTray?: AmsTrayResponse | null,
+  externalPortReplacedByReloader = false,
 ) {
-  const tray =
-    unit.kind === 'MultiMaterialUnit' &&
-    unit.unitIndex != null &&
-    slot.slotPosition != null
+  const feedingReloader =
+    unit.kind === 'AutomaticFilamentReloader' &&
+    Boolean(unit.replacesFeedUnitId) &&
+    unit.feedingSlotId === slot.id;
+  const portTelemetry =
+    (unit.kind === 'ExternalSpool' && !externalPortReplacedByReloader) ||
+    feedingReloader;
+  const tray = portTelemetry
+    ? externalSpoolTray
+    : unit.kind === 'MultiMaterialUnit' &&
+        unit.unitIndex != null &&
+        slot.slotPosition != null
       ? amsUnits
           .find((ams) => ams.unitIndex === unit.unitIndex)
           ?.trays?.find((t) => t.slotIndex === slot.slotPosition)
       : undefined;
   // For AMS, absence from the current snapshot means unknown, not stale REST detection.
-  const useRestDetection = unit.kind === 'ExternalSpool';
+  const useRestDetection = portTelemetry && externalSpoolTray === undefined;
   const material = tray?.empty
     ? null
     : (tray?.materialType ??
