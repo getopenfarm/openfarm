@@ -1,7 +1,6 @@
 import { PrinterIcon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { DensityToggle } from '@/components/density-toggle/DensityToggle';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
@@ -24,9 +23,8 @@ import { useMarkPrinterReady } from './hooks/useMarkPrinterReady';
 export function PrintersPage() {
   const navigate = useNavigate();
   const fleetQuery = useOpenFarmApiEndpointsPrintersListFleetEndpoint();
-  const { getListView, getListDensity } = usePreferences();
+  const { getListView } = usePreferences();
   const view = getListView('printers');
-  const density = getListDensity('printers');
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<PrinterStatusFilter>('all');
@@ -120,10 +118,7 @@ export function PrintersPage() {
               onStatusFilterChange={setStatusFilter}
               counts={counts}
             />
-            <div className="flex items-center gap-2">
-              <DensityToggle page="printers" />
-              <ViewToggle page="printers" />
-            </div>
+            <ViewToggle page="printers" />
           </div>
 
           {filteredPrinters.length === 0 ? (
@@ -135,14 +130,14 @@ export function PrintersPage() {
             <PrintersTable
               printers={filteredPrinters}
               maintenanceByPrinterId={maintenanceByPrinterId}
-              density={density}
+              density="medium"
               onOpen={(id) => navigate(`/printers/${id}`)}
               onMarkReady={(id) => markReadyMutation.mutate({ id })}
             />
           ) : (
             <PrintersGrid
               printers={filteredPrinters}
-              density={density}
+              density="small"
               onMarkReady={(id) => markReadyMutation.mutate({ id })}
             />
           )}

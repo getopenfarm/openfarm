@@ -21,6 +21,7 @@ export interface PrinterTileProps {
   jobName: string | null;
   stageLabel: string | null;
   size?: DensityMode;
+  onMarkReady?: () => void;
 }
 
 function formatEta(etaMinutes: number | null): string {
@@ -46,11 +47,26 @@ export const PrinterTile = memo(function PrinterTile({
   jobName,
   stageLabel,
   size = 'medium',
+  onMarkReady,
 }: PrinterTileProps) {
   const badge = printerStatusToBadge(status, isReachable);
   const isPrinting = isReachable && status === 'Printing';
   // A finished print still sitting on the bed keeps its name until it's cleared.
   const hasJob = isReachable && (isPrinting || status === 'AwaitingClear');
+  const statusChip =
+    isReachable && status === 'AwaitingClear' && onMarkReady ? (
+      <button
+        type="button"
+        className="relative z-20 shrink-0 cursor-pointer rounded-full transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        aria-label={`Mark ${name} ready`}
+        title="Mark printer ready"
+        onClick={onMarkReady}
+      >
+        <StatusBadge kind={badge.kind} label={badge.label} />
+      </button>
+    ) : (
+      <StatusBadge kind={badge.kind} label={badge.label} />
+    );
 
   const jobLine =
     hasJob && jobName ? (
@@ -81,21 +97,23 @@ export const PrinterTile = memo(function PrinterTile({
           <span className="min-w-0 flex-1 truncate text-sm font-medium">
             {name}
           </span>
-          <StatusBadge kind={badge.kind} label={badge.label} />
+          {statusChip}
         </div>
         <p className="truncate text-xs text-muted-foreground">{jobLine}</p>
-        {isPrinting && (
-          <div className="flex items-center gap-2">
-            <Progress
-              value={progressPercent}
-              className="h-1 flex-1"
-              indicatorClassName="bg-status-printing"
-            />
-            <span className="shrink-0 font-mono text-[11px] font-medium text-status-printing">
-              {progressPercent}%
-            </span>
-          </div>
-        )}
+        <div className="flex min-h-4 items-center gap-2">
+          {isPrinting && (
+            <>
+              <Progress
+                value={progressPercent}
+                className="h-1 flex-1"
+                indicatorClassName="bg-status-printing"
+              />
+              <span className="shrink-0 font-mono text-[11px] font-medium text-status-printing">
+                {progressPercent}%
+              </span>
+            </>
+          )}
+        </div>
         <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground">
           <span>
             {formatTemp(nozzleTempC)} / {formatTemp(bedTempC)}
@@ -120,11 +138,9 @@ export const PrinterTile = memo(function PrinterTile({
             !isReachable && 'opacity-50 grayscale',
           )}
         />
-        <StatusBadge
-          kind={badge.kind}
-          label={badge.label}
-          className="absolute top-2 left-2 bg-background/85 backdrop-blur-sm"
-        />
+        <div className="absolute top-2 left-2 rounded-full bg-background/85 backdrop-blur-sm">
+          {statusChip}
+        </div>
       </div>
 
       <CardContent
@@ -144,18 +160,20 @@ export const PrinterTile = memo(function PrinterTile({
 
         <p className="truncate text-sm text-muted-foreground">{jobLine}</p>
 
-        {isPrinting && (
-          <div className="flex items-center gap-3">
-            <Progress
-              value={progressPercent}
-              className="h-1.5 flex-1"
-              indicatorClassName="bg-status-printing"
-            />
-            <span className="shrink-0 font-mono text-xs font-medium text-status-printing">
-              {progressPercent}%
-            </span>
-          </div>
-        )}
+        <div className="flex min-h-4 items-center gap-3">
+          {isPrinting && (
+            <>
+              <Progress
+                value={progressPercent}
+                className="h-1.5 flex-1"
+                indicatorClassName="bg-status-printing"
+              />
+              <span className="shrink-0 font-mono text-xs font-medium text-status-printing">
+                {progressPercent}%
+              </span>
+            </>
+          )}
+        </div>
 
         <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
           <span>

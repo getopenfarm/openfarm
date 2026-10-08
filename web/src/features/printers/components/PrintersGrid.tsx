@@ -1,8 +1,6 @@
-import { CheckCircle2Icon } from 'lucide-react';
 import { Link } from 'react-router';
 import { PrinterTile } from '@/components/printer-tile/PrinterTile';
 import type { PrinterStatus } from '@/components/printer-tile/status';
-import { Button } from '@/components/ui/button';
 import type { FleetPrinterResponse } from '@/lib/api/generated/endpoints.schemas';
 import type { DensityMode } from '@/lib/preferences/types';
 
@@ -27,34 +25,26 @@ export function PrintersGrid({
   return (
     <div className={`grid gap-4 ${GRID_COLUMNS[density]}`}>
       {printers.map((printer) => (
-        <div key={printer.id} className="group relative">
-          <Link to={`/printers/${printer.id}`} className="block">
-            <PrinterTile
-              name={printer.name ?? ''}
-              status={(printer.status ?? 'Idle') as PrinterStatus}
-              isReachable={printer.isReachable ?? false}
-              filamentColorHex={printer.filamentColorHex ?? null}
-              progressPercent={printer.printProgressPercent ?? 0}
-              nozzleTempC={printer.nozzleTempC}
-              bedTempC={printer.bedTempC}
-              etaMinutes={printer.remainingTimeMinutes ?? null}
-              jobName={printer.currentJobName ?? null}
-              stageLabel={printer.currentStageLabel ?? null}
-              size={density}
-            />
-          </Link>
-          {printer.status === 'AwaitingClear' && (
-            <div className="absolute top-2 right-11 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Mark ${printer.name} ready`}
-                onClick={() => onMarkReady(printer.id ?? '')}
-              >
-                <CheckCircle2Icon className="size-4" />
-              </Button>
-            </div>
-          )}
+        <div key={printer.id} className="relative">
+          <Link
+            to={`/printers/${printer.id}`}
+            aria-label={`Open ${printer.name ?? 'printer'}`}
+            className="absolute inset-0 z-10 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+          <PrinterTile
+            name={printer.name ?? ''}
+            status={(printer.status ?? 'Idle') as PrinterStatus}
+            isReachable={printer.isReachable ?? false}
+            filamentColorHex={printer.filamentColorHex ?? null}
+            progressPercent={printer.printProgressPercent ?? 0}
+            nozzleTempC={printer.nozzleTempC}
+            bedTempC={printer.bedTempC}
+            etaMinutes={printer.remainingTimeMinutes ?? null}
+            jobName={printer.currentJobName ?? null}
+            stageLabel={printer.currentStageLabel ?? null}
+            size={density}
+            onMarkReady={() => onMarkReady(printer.id ?? '')}
+          />
         </div>
       ))}
     </div>
