@@ -50,6 +50,13 @@ export function cameraFrameQueryKey(printerId: string) {
   return ['printer-camera-frame', printerId] as const;
 }
 
+export const farmConnectionQueryKey = ['farm-connection-status'] as const;
+export type FarmConnectionStatus =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected';
+
 type FleetQueryData = {
   data: ListFleetResponse;
   status: number;
@@ -104,9 +111,19 @@ export function useFarmHub() {
   useEffect(() => {
     const topologyByPrinter = new Map<string, string>();
     const nozzleByPrinter = new Map<string, string>();
+    const setConnectionStatus = (status: FarmConnectionStatus) =>
+      queryClient.setQueryData(farmConnectionQueryKey, status);
+    setConnectionStatus('connecting');
     const { connection, stop } = connectFarmHub({
-      onConnected: () => invalidatePrinterQueries(queryClient),
+      onConnected: () => {
+        setConnectionStatus('connected');
+        invalidatePrinterQueries(queryClient);
+      },
+      onReconnecting: () => setConnectionStatus('reconnecting'),
+      onClose: () => setConnectionStatus('disconnected'),
       onReconnected: () => {
+        setConnectionStatus('connected');
+        invalidateFilamentTrackingQueries(queryClient);
         topologyByPrinter.clear();
         queryClient.invalidateQueries({
           queryKey:

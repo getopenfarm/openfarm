@@ -62,6 +62,7 @@ export function connectFarmHub(options: ConnectFarmHubOptions = {}) {
       // withAutomaticReconnect() handles retries; a failed initial connect just means no
       // live updates until connectivity returns.
       console.warn('[farmHub] SignalR failed to connect.', error);
+      options.onClose?.(error instanceof Error ? error : undefined);
     });
 
   return {
