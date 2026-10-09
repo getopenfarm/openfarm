@@ -1,212 +1,496 @@
+/** biome-ignore-all lint/a11y/useSemanticElements: ARIA table elements allow independently scrolling, virtualized row groups with a shared column header. */
+/** biome-ignore-all lint/a11y/useFocusableInteractive: This is a static table, not an interactive grid; links and action buttons provide keyboard access. */
 import { useQueryClient } from '@tanstack/react-query';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { ClipboardListIcon, ListIcon } from 'lucide-react';
-import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { ClipboardListIcon, GripVerticalIcon, SearchIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
-import type { ListQueueJobsResponse } from '@/lib/api/generated/endpoints.schemas';
+import type {
+  ListQueueJobsResponse,
+  QueueJobRowResponse,
+} from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryKey,
   useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint,
   useOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
-import { QueueJobRow } from './components/QueueJobRow';
+import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
+import { JobMatchingDialog } from './components/JobMatchingDialog';
+import {
+  QueueJobActions,
+  type RemoteAction,
+} from './components/QueueJobActions';
+import {
+  QUEUE_COLUMNS,
+  QueueTableCell,
+  QueueTableSection,
+} from './components/QueueTableSection';
 import { useProductionHub } from './hooks/useProductionHub';
 
-const PAGE_SIZE = 200;
-const ROW_HEIGHT = 56;
-
-/**
- * The flat, `QueuePosition`-ordered "dispatch order" queue (FR-008) — TanStack Virtual-backed
- * (constitution Principle V, this codebase's first real consumer, tasks.md T085) with native HTML5
- * drag-and-drop reordering: dropping a row onto another places it immediately after that row
- * (contracts/production-run-queue-api.md's `afterJobId` semantic). Routed at the pre-existing
- * `/jobs` path (tasks.md T075).
- */
+const PAGE_SIZE = 50;
+const STATUSES = [
+  'Active',
+  'Queued',
+  'Printing',
+  'Paused',
+  'Completed',
+  'Failed',
+  'Cancelled',
+] as const;
+const GROUPS = ['queue', 'backfill'] as const;
+type Group = (typeof GROUPS)[number];
+const LABELS = { queue: 'Finite jobs', backfill: 'Backfill jobs' };
+/** One virtualized table, with independently paged finite and backfill sections. */
 export function QueuePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  useProductionHub();
-
-  const parentRef = useRef<HTMLDivElement>(null);
-  const [page, setPage] = useState(1);
-  const [view, setView] = useState<'queue' | 'backfill'>('queue');
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-
-  const queueQuery = useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint({
-    view,
-    page,
+  const finiteScrollRef = useRef<HTMLDivElement>(null);
+  const backfillScrollRef = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState<string>('Active');
+  const [search, setSearch] = useState('');
+  const [backfillCollapsedOverride, setBackfillCollapsedOverride] = useState<
+    boolean | null
+  >(null);
+  const [pages, setPages] = useState({ queue: 1, backfill: 1 });
+  const [dragged, setDragged] = useState<{
+    jobId: string;
+    group: Group;
+  } | null>(null);
+  const [pending, setPending] = useState<
+    Record<string, { action: RemoteAction; status: string }>
+  >({});
+  useProductionHub((jobId, observedStatus) =>
+    setPending((previous) => {
+      if (!previous[jobId] || previous[jobId].status === observedStatus)
+        return previous;
+      const next = { ...previous };
+      delete next[jobId];
+      return next;
+    }),
+  );
+  const finiteQuery = useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint({
+    view: 'queue',
+    page: pages.queue,
     pageSize: PAGE_SIZE,
+    status,
+    search,
   });
-  const listData = queueQuery.data?.data as ListQueueJobsResponse | undefined;
-  const jobs = listData?.items ?? [];
-
-  const virtualizer = useVirtualizer({
-    count: jobs.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 8,
+  const backfillQuery = useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint({
+    view: 'backfill',
+    page: pages.backfill,
+    pageSize: PAGE_SIZE,
+    status,
+    search,
+  });
+  const queries = { queue: finiteQuery, backfill: backfillQuery };
+  const finiteData = finiteQuery.data?.data as
+    | ListQueueJobsResponse
+    | undefined;
+  const backfillData = backfillQuery.data?.data as
+    | ListQueueJobsResponse
+    | undefined;
+  const dataByGroup = { queue: finiteData, backfill: backfillData };
+  const backfillCollapsed =
+    backfillCollapsedOverride ?? (backfillData?.totalCount ?? 0) === 0;
+  const printers =
+    useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data?.printers ??
+    [];
+  const canReorder = status === 'Queued' && !search.trim();
+  const reorder = useOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpoint({
+    mutation: {
+      onSuccess: () =>
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryKey(),
+        }),
+      onError: async (error) =>
+        toast.error(
+          await extractErrorDetail(error, 'Could not reorder this job.'),
+        ),
+    },
   });
 
-  const reorderMutation =
-    useOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpoint({
-      mutation: {
-        onSuccess: () => {
-          queryClient.invalidateQueries({
-            queryKey:
-              getOpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryKey(),
-          });
-        },
-        onError: async (error) => {
-          toast.error(
-            await extractErrorDetail(error, 'Could not reorder this job.'),
-          );
-        },
-      },
+  // A removal or live transition can invalidate the last page in either section.
+  useEffect(() => {
+    setPages((previous) => {
+      const queue = finiteData
+        ? Math.min(
+            previous.queue,
+            Math.max(1, Math.ceil((finiteData?.totalCount ?? 0) / PAGE_SIZE)),
+          )
+        : previous.queue;
+      const backfill = backfillData
+        ? Math.min(
+            previous.backfill,
+            Math.max(1, Math.ceil((backfillData?.totalCount ?? 0) / PAGE_SIZE)),
+          )
+        : previous.backfill;
+      return queue === previous.queue && backfill === previous.backfill
+        ? previous
+        : { queue, backfill };
     });
+  }, [finiteData, backfillData]);
 
-  function handleDrop(dropIndex: number) {
-    const fromIndex = draggedIndex;
-    setDraggedIndex(null);
-    if (fromIndex === null || fromIndex === dropIndex) {
-      return;
-    }
-
-    const draggedJob = jobs[fromIndex];
-    const targetJob = jobs[dropIndex];
-    if (!draggedJob?.jobId) {
-      return;
-    }
-
-    reorderMutation.mutate({
-      id: draggedJob.jobId,
-      data: { afterJobId: targetJob?.jobId ?? null },
-    });
+  function resetFilters(nextStatus: string, nextSearch: string) {
+    setStatus(nextStatus);
+    setSearch(nextSearch);
+    setPages({ queue: 1, backfill: 1 });
+    setDragged(null);
+    finiteScrollRef.current?.scrollTo?.(0, 0);
+    backfillScrollRef.current?.scrollTo?.(0, 0);
+  }
+  function count(value: string) {
+    if (
+      finiteQuery.isError ||
+      backfillQuery.isError ||
+      !finiteQuery.data ||
+      !backfillData
+    )
+      return '—';
+    const statuses =
+      value === 'Active' ? ['Queued', 'Printing', 'Paused'] : [value];
+    return GROUPS.reduce(
+      (total, group) =>
+        total +
+        statuses.reduce(
+          (sum, s) => sum + (dataByGroup[group]?.statusCounts?.[s] ?? 0),
+          0,
+        ),
+      0,
+    );
+  }
+  function move(jobId: string, afterJobId: string | null) {
+    if (canReorder && !reorder.isPending)
+      reorder.mutate({ id: jobId, data: { afterJobId } });
+  }
+  function pendingAction(job: QueueJobRowResponse) {
+    const request = pending[job.jobId ?? ''];
+    return request?.status === job.status ? request.action : null;
   }
 
-  const queuedCount = jobs.filter((j) => j.status === 'Queued').length;
-  const printingCount = jobs.filter(
-    (j) => j.status === 'Printing' || j.status === 'Paused',
-  ).length;
-
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
       <PageHeader
         title="Print queue"
-        description={`${listData?.totalCount ?? 0} jobs · ${printingCount} printing and ${queuedCount} queued on this page`}
+        description="Finite and backfill jobs · status updates live."
         action={
           <Button
             variant="outline"
             onClick={() => navigate('/production-runs')}
           >
-            <ClipboardListIcon /> Production runs
+            <ClipboardListIcon />
+            Production runs
           </Button>
         }
       />
-
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex gap-2">
-          <Button
-            variant={view === 'queue' ? 'default' : 'outline'}
-            onClick={() => {
-              setView('queue');
-              setPage(1);
-            }}
-          >
-            Finite jobs
-          </Button>
-          <Button
-            variant={view === 'backfill' ? 'default' : 'outline'}
-            onClick={() => {
-              setView('backfill');
-              setPage(1);
-            }}
-          >
-            Backfill jobs
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={page === 1}
-            onClick={() => {
-              setPage(page - 1);
-              parentRef.current?.scrollTo?.(0, 0);
-            }}
-          >
-            Previous
-          </Button>
-          <span className="text-sm">
-            Page {page} of{' '}
-            {Math.max(1, Math.ceil((listData?.totalCount ?? 0) / PAGE_SIZE))}
-          </span>
-          <Button
-            variant="outline"
-            disabled={page * PAGE_SIZE >= (listData?.totalCount ?? 0)}
-            onClick={() => {
-              setPage(page + 1);
-              parentRef.current?.scrollTo?.(0, 0);
-            }}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
-      {queueQuery.isLoading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : jobs.length === 0 ? (
-        <EmptyState
-          icon={<ListIcon className="size-8 text-muted-foreground" />}
-          title="No jobs in the queue"
-          description="Queue a production run to see its jobs here."
-        />
-      ) : (
-        <div
-          ref={parentRef}
-          className="max-h-[70vh] overflow-auto rounded-md border"
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <Tabs
+          className="min-h-0 flex-1 gap-4"
+          value={status}
+          onValueChange={(value) => resetFilters(value, search)}
         >
-          <div
-            style={{
-              height: virtualizer.getTotalSize(),
-              position: 'relative',
-            }}
-          >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const job = jobs[virtualRow.index];
-              if (!job) {
-                return null;
-              }
-
-              return (
-                <div
-                  key={job.jobId}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    transform: `translateY(${virtualRow.start}px)`,
-                    height: virtualRow.size,
-                  }}
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+            <TabsList className="max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto">
+              {STATUSES.map((value) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="h-7 flex-none"
                 >
-                  <QueueJobRow
-                    job={job}
-                    draggable={job.status === 'Queued'}
-                    onDragStart={() => setDraggedIndex(virtualRow.index)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => handleDrop(virtualRow.index)}
-                  />
-                </div>
-              );
-            })}
+                  {value}{' '}
+                  <span className="ml-1 tabular-nums opacity-70">
+                    {count(value)}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <div className="relative ml-auto w-64 max-w-full shrink-0">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search jobs by part name"
+                placeholder="Search jobs by part name…"
+                className="w-full pl-8"
+                value={search}
+                onChange={(event) => resetFilters(status, event.target.value)}
+              />
+            </div>
           </div>
-        </div>
-      )}
+          <TabsContent
+            value={status}
+            className="flex min-h-0 flex-1 flex-col gap-4"
+          >
+            <div className="flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden rounded-xl ring-1 ring-foreground/10">
+              <div
+                role="table"
+                aria-label="Print queue"
+                aria-colcount={6}
+                className="flex min-h-0 min-w-[900px] flex-1 flex-col text-sm"
+              >
+                <div role="rowgroup" className="shrink-0 bg-muted">
+                  <div
+                    role="row"
+                    className="grid h-10"
+                    style={{ gridTemplateColumns: QUEUE_COLUMNS }}
+                  >
+                    {[
+                      'Job',
+                      'Units',
+                      'Printer',
+                      'Status',
+                      'Readiness',
+                      'Actions',
+                    ].map((label) => (
+                      <div
+                        role="columnheader"
+                        key={label}
+                        className="flex items-center px-2 font-medium"
+                      >
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div
+                  className={`grid min-h-0 flex-1 ${backfillCollapsed ? 'grid-rows-[minmax(0,1fr)_auto]' : 'grid-rows-[minmax(0,7fr)_minmax(0,3fr)]'}`}
+                >
+                  {GROUPS.map((group) => {
+                    const query = queries[group];
+                    const data = dataByGroup[group];
+                    return (
+                      <QueueTableSection
+                        key={group}
+                        label={LABELS[group]}
+                        collapsed={group === 'backfill' && backfillCollapsed}
+                        onToggle={
+                          group === 'backfill'
+                            ? () =>
+                                setBackfillCollapsedOverride(!backfillCollapsed)
+                            : undefined
+                        }
+                        description={
+                          group === 'queue'
+                            ? 'Fixed production quantity'
+                            : 'Unlimited production demand'
+                        }
+                        jobs={data?.items ?? []}
+                        totalCount={data?.totalCount ?? 0}
+                        page={pages[group]}
+                        pageSize={PAGE_SIZE}
+                        isFetching={query.isFetching}
+                        isError={query.isError}
+                        isLoading={query.isLoading}
+                        scrollRef={
+                          group === 'queue'
+                            ? finiteScrollRef
+                            : backfillScrollRef
+                        }
+                        onPageChange={(page) => {
+                          setPages((previous) => ({
+                            ...previous,
+                            [group]: page,
+                          }));
+                          (group === 'queue'
+                            ? finiteScrollRef
+                            : backfillScrollRef
+                          ).current?.scrollTo?.(0, 0);
+                        }}
+                        feedback={
+                          query.isLoading ? (
+                            <Skeleton className="h-32 w-full" />
+                          ) : query.isError ? (
+                            <ErrorState
+                              bordered={false}
+                              size="sm"
+                              title={`Couldn't load ${LABELS[group].toLowerCase()}`}
+                              onRetry={() => query.refetch()}
+                            />
+                          ) : (
+                            <EmptyState
+                              bordered={false}
+                              size="sm"
+                              title={
+                                search
+                                  ? 'No jobs match your search'
+                                  : `No ${status.toLowerCase()} ${LABELS[group].toLowerCase()}`
+                              }
+                              description="Try another status or queue a production run."
+                            />
+                          )
+                        }
+                        rowProps={(job) => ({
+                          draggable:
+                            canReorder &&
+                            job.status === 'Queued' &&
+                            !job.dispatchedPrinterId &&
+                            !reorder.isPending,
+                          onDragStart: () =>
+                            job.jobId &&
+                            setDragged({ jobId: job.jobId, group }),
+                          onDragEnd: () => setDragged(null),
+                          onDragOver: (event) => {
+                            if (
+                              job.status === 'Queued' &&
+                              !job.dispatchedPrinterId &&
+                              dragged?.group === group &&
+                              canReorder
+                            )
+                              event.preventDefault();
+                          },
+                          onDrop: (event) => {
+                            event.preventDefault();
+                            if (
+                              job.jobId &&
+                              !job.dispatchedPrinterId &&
+                              dragged?.group === group &&
+                              dragged.jobId !== job.jobId
+                            )
+                              move(dragged.jobId, job.jobId);
+                            setDragged(null);
+                          },
+                        })}
+                        renderRow={(job) => {
+                          const request = pendingAction(job);
+                          const printerId =
+                            job.dispatchedPrinterId ?? job.pinnedPrinterId;
+                          const printer = printers.find(
+                            (p) => p.id === printerId,
+                          );
+                          return (
+                            <>
+                              <QueueTableCell className="flex items-center gap-2 whitespace-normal">
+                                {canReorder && !job.dispatchedPrinterId && (
+                                  <GripVerticalIcon
+                                    aria-hidden
+                                    className="size-4 shrink-0 text-muted-foreground"
+                                  />
+                                )}
+                                <div className="min-w-0">
+                                  <Link
+                                    to={`/jobs/${job.jobId}`}
+                                    className="font-medium hover:underline"
+                                  >
+                                    {job.partName}
+                                  </Link>
+                                  <Link
+                                    to={`/production-runs/${job.productionRunId}`}
+                                    className="mt-0.5 block text-xs text-muted-foreground hover:underline"
+                                  >
+                                    {job.runDisplayLabel}
+                                  </Link>
+                                </div>
+                              </QueueTableCell>
+                              <QueueTableCell className="flex items-center tabular-nums">
+                                {job.plateQuantity ?? '—'}
+                              </QueueTableCell>
+                              <QueueTableCell className="flex flex-col justify-center whitespace-normal">
+                                {printerId ? (
+                                  <Link
+                                    className="hover:underline"
+                                    to={`/printers/${printerId}`}
+                                  >
+                                    {printer?.name ?? 'Unknown printer'}
+                                  </Link>
+                                ) : (
+                                  <span className="text-muted-foreground">
+                                    Automatic assignment
+                                  </span>
+                                )}
+                                {job.pinnedPrinterId &&
+                                  !job.dispatchedPrinterId && (
+                                    <span className="text-xs text-muted-foreground">
+                                      Pinned
+                                    </span>
+                                  )}
+                              </QueueTableCell>
+                              <QueueTableCell className="flex flex-col items-start justify-center gap-1 whitespace-normal">
+                                <Badge
+                                  variant={
+                                    job.status === 'Failed'
+                                      ? 'destructive'
+                                      : job.status === 'Printing'
+                                        ? 'default'
+                                        : 'secondary'
+                                  }
+                                >
+                                  {job.status}
+                                </Badge>
+                                {request && (
+                                  <span
+                                    role="status"
+                                    className="text-xs text-muted-foreground"
+                                  >
+                                    {request === 'pause'
+                                      ? 'Pause'
+                                      : request === 'resume'
+                                        ? 'Resume'
+                                        : 'Cancel'}{' '}
+                                    requested…
+                                  </span>
+                                )}
+                              </QueueTableCell>
+                              <QueueTableCell className="flex items-center whitespace-normal">
+                                <JobMatchingDialog
+                                  jobId={job.jobId ?? ''}
+                                  trigger={
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className={`h-auto justify-start px-0 text-left whitespace-normal ${job.isBlocked ? 'text-destructive' : ''}`}
+                                      title={job.blockingReason ?? undefined}
+                                    >
+                                      {job.isBlocked
+                                        ? 'No matching printer'
+                                        : job.status === 'Queued'
+                                          ? job.dispatchedPrinterId
+                                            ? 'Dispatching…'
+                                            : 'Matching printer available'
+                                          : 'Job diagnosis'}
+                                    </Button>
+                                  }
+                                />
+                              </QueueTableCell>
+                              <QueueTableCell className="flex items-center justify-end">
+                                <QueueJobActions
+                                  job={job}
+                                  printers={printers}
+                                  onMoveToTop={
+                                    canReorder && !reorder.isPending
+                                      ? () => job.jobId && move(job.jobId, null)
+                                      : undefined
+                                  }
+                                  pending={request}
+                                  onPendingChange={(action) =>
+                                    job.jobId &&
+                                    setPending((previous) => ({
+                                      ...previous,
+                                      [job.jobId ?? '']: {
+                                        action,
+                                        status: job.status ?? '',
+                                      },
+                                    }))
+                                  }
+                                />
+                              </QueueTableCell>
+                            </>
+                          );
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

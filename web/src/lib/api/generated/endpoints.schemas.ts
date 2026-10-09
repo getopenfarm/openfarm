@@ -715,6 +715,8 @@ export interface JobMatchingDiagnostics {
   printers?: PrinterMatchingDiagnostics[];
 }
 
+export type ListQueueJobsResponseStatusCounts = { [key: string]: number };
+
 export interface QueueJobRowResponse {
   jobId?: string;
   queuePosition?: number;
@@ -738,6 +740,7 @@ export interface QueueJobRowResponse {
 export interface ListQueueJobsResponse {
   items?: QueueJobRowResponse[];
   totalCount?: number;
+  statusCounts?: ListQueueJobsResponseStatusCounts;
 }
 
 export interface ListQueueJobsRequest {
@@ -838,7 +841,21 @@ export interface PrinterCatalogResponse {
   brands?: PrinterCatalogBrandResponse[];
 }
 
+export interface PrinterAlert {
+  source?: string;
+  code?: string;
+  severity?: string;
+  message?: string;
+  /** @nullable */
+  troubleshootingUrl?: string | null;
+}
+
 export interface PrinterDetailTelemetryResponse {
+  /** @nullable */
+  reportedState?: string | null;
+  /** @nullable */
+  stateObservedAtUtc?: string | null;
+  activeAlerts?: PrinterAlert[];
   /** @nullable */
   nozzleDiameterMm?: number | null;
   /** @nullable */
@@ -1534,7 +1551,21 @@ export interface RemoveBomLineRequest {
   assemblyId?: string;
 }
 
+export interface ActivityLogDetails {
+  /** @nullable */
+  previousState?: string | null;
+  /** @nullable */
+  reportedState?: string | null;
+  /** @nullable */
+  observedAtUtc?: string | null;
+  /** @nullable */
+  previousAlerts?: PrinterAlert[] | null;
+  /** @nullable */
+  activeAlerts?: PrinterAlert[] | null;
+}
+
 export interface ActivityLogEntryResponse {
+  details?: ActivityLogDetails | null;
   id?: string;
   entityType?: string;
   entityId?: string;
@@ -1673,6 +1704,14 @@ export type OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams = {
   view: string;
   page: number;
   pageSize: number;
+  /**
+   * @nullable
+   */
+  status?: string | null;
+  /**
+   * @nullable
+   */
+  search?: string | null;
 };
 
 export type OpenFarmApiEndpointsPartsListPartsEndpointParams = {
@@ -1711,6 +1750,14 @@ export type OpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointParams = {
 };
 
 export type OpenFarmApiEndpointsActivityLogGetActivityLogEndpointParams = {
+  /**
+   * @nullable
+   */
+  entityType?: string | null;
+  /**
+   * @nullable
+   */
+  entityId?: string | null;
   page: number;
   pageSize: number;
 };

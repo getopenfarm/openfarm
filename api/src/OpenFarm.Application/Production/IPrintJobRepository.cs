@@ -30,7 +30,8 @@ public interface IPrintJobRepository
     /// selects jobs belonging to an unlimited requirement (US3's lazily-created tier), the default
     /// selects jobs belonging to a finite one, matching `view=queue`/`view=backfill`.
     /// </summary>
-    Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount)> ListQueueAsync(bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken);
+    Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount, IReadOnlyDictionary<string, int> StatusCounts)> ListQueueAsync(
+        bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken, string? status = null, string? search = null);
 
     /// <summary>research.md R3 — the Queued job with the smallest QueuePosition greater than <paramref name="afterQueuePosition"/>, excluding <paramref name="excludeJobId"/> (the job being moved), or null if none.</summary>
     Task<PrintJob?> GetNextQueuedJobAsync(double afterQueuePosition, Guid excludeJobId, CancellationToken cancellationToken);

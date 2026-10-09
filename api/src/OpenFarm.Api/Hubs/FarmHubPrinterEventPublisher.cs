@@ -6,6 +6,9 @@ namespace OpenFarm.Api.Hubs;
 
 public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext) : IPrinterEventPublisher
 {
+    public Task PrinterActivityChangedAsync(Guid organizationId, Guid printerId, CancellationToken cancellationToken) =>
+        Group(organizationId).SendAsync("PrinterActivityChanged", new { printerId }, cancellationToken);
+
     public Task PrinterStatusChangedAsync(
         Guid organizationId,
         Guid printerId,
@@ -29,6 +32,9 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
                 printerId,
                 telemetry = new
                 {
+                    reportedState = telemetry.ReportedState,
+                    stateObservedAtUtc = telemetry.StateObservedAtUtc,
+                    activeAlerts = telemetry.ActiveAlerts ?? [],
                     nozzleDiameterMm = telemetry.NozzleDiameterMm,
                     nozzleObservedAtUtc = telemetry.NozzleObservedAtUtc,
                     nozzleConfirmed = telemetry.NozzleConfirmed,

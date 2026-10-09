@@ -138,6 +138,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Details")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("EntityId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1094,6 +1097,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ActiveAlerts")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("AmsUnits")
                         .IsRequired()
                         .HasColumnType("jsonb");
@@ -1165,9 +1172,15 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("ReportedNozzleDiameterMm")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("ReportedState")
+                        .HasColumnType("text");
+
                     b.Property<string>("SerialNumber")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("StateObservedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()

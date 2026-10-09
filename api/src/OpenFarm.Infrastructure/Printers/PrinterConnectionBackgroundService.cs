@@ -303,7 +303,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             await connectionPublisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id,
                 new(printer.NozzleTempC, printer.BedTempC, printer.PrintProgressPercent, printer.CurrentStageLabel,
                     printer.RemainingTimeMinutes, printer.CurrentJobName, printer.AmsUnits, printer.ExternalSpoolTray,
-                    printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, false), cancellationToken);
+                    printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, false, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts), cancellationToken);
             return DateTimeOffset.MinValue;
         }
         var previousNozzle = printer.ReportedNozzleDiameterMm;
@@ -316,6 +316,10 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             LogPrinterReachable(logger, printer.Id);
         }
 
+        var previousState = printer.ReportedState;
+        var previousAlerts = printer.ActiveAlerts;
+        var reportedStateChanged = printer.ObserveReportedState(connectorEvent.GcodeState, connectorEvent.ReceivedAtUtc);
+        var alertsChanged = printer.ObserveAlerts(connectorEvent.HmsAlerts, connectorEvent.PrintErrors);
         var statusChanged = connectorEvent.GcodeState is not null && printer.ObserveStatus(connectorEvent.GcodeState);
 
         if (connectorEvent.GcodeState is not null)
@@ -344,7 +348,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 telemetry.ExternalSpoolTray);
         }
 
-        var mustFlushNow = statusChanged || !wasReachable || previousNozzle != printer.ReportedNozzleDiameterMm || previouslyConfirmed != printer.NozzleConfirmed;
+        var mustFlushNow = reportedStateChanged || alertsChanged || statusChanged || !wasReachable || previousNozzle != printer.ReportedNozzleDiameterMm || previouslyConfirmed != printer.NozzleConfirmed;
         if (!mustFlushNow && connectorEvent.ReceivedAtUtc - lastFlushUtc < flushInterval)
         {
             return lastFlushUtc;
@@ -358,7 +362,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
         var publisher = services.GetRequiredService<IPrinterEventPublisher>();
 
-        if (statusChanged)
+        if (reportedStateChanged || statusChanged)
         {
             var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
             var entry = ActivityLogEntry.Create(
@@ -367,9 +371,21 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 entityId: printer.Id.ToString(),
                 eventType: "PrinterStatusObserved",
                 actorId: null,
-                actorType: ActorType.System);
+                actorType: ActorType.System,
+                details: new ActivityLogDetails(PreviousState: previousState, ReportedState: printer.ReportedState, ObservedAtUtc: connectorEvent.ReceivedAtUtc));
             await activityLogWriter.WriteAsync(entry, cancellationToken);
         }
+
+        if (alertsChanged)
+        {
+            var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
+            await activityLogWriter.WriteAsync(ActivityLogEntry.Create(
+                printer.OrganizationId, "Printer", printer.Id.ToString(), "PrinterAlertsChanged", null, ActorType.System,
+                new ActivityLogDetails(ObservedAtUtc: connectorEvent.ReceivedAtUtc, PreviousAlerts: previousAlerts, ActiveAlerts: printer.ActiveAlerts)), cancellationToken);
+        }
+
+        if (reportedStateChanged || statusChanged || alertsChanged)
+            await publisher.PrinterActivityChangedAsync(printer.OrganizationId, printer.Id, cancellationToken);
 
         if (statusChanged || !wasReachable)
         {
@@ -390,7 +406,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             productionDispatcher.RequestDispatchAttempt(printer.Id);
         }
 
-        if (connectorEvent.Telemetry is not null)
+        if (connectorEvent.Telemetry is not null || reportedStateChanged || alertsChanged)
         {
             // Broadcast the printer's own merged state, not the raw (possibly-partial) connector
             // event — RecordTelemetry above already folded this delta into last-known-good values.
@@ -402,7 +418,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 printer.RemainingTimeMinutes,
                 printer.CurrentJobName,
                 printer.AmsUnits,
-                printer.ExternalSpoolTray, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed);
+                printer.ExternalSpoolTray, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts);
             await publisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id, mergedTelemetry, cancellationToken);
         }
 

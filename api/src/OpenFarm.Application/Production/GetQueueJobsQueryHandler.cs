@@ -17,7 +17,7 @@ public sealed class GetQueueJobsQueryHandler(
 {
     public async Task<QueueJobsPage> HandleAsync(GetQueueJobsQuery query, CancellationToken cancellationToken)
     {
-        var (jobs, totalCount) = await jobRepository.ListQueueAsync(query.BackfillOnly, query.Page, query.PageSize, cancellationToken);
+        var (jobs, totalCount, statusCounts) = await jobRepository.ListQueueAsync(query.BackfillOnly, query.Page, query.PageSize, cancellationToken, query.Status, query.Search);
 
         var eligibleIds = eligibilityQuery is null ? null : await eligibilityQuery.GetEligibleJobIdsAsync(jobs, cancellationToken);
         var runLabelCache = new Dictionary<Guid, (Guid RunId, string DisplayLabel)>();
@@ -66,6 +66,6 @@ public sealed class GetQueueJobsQueryHandler(
                 isBlocked && eligibilityQuery is not null ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null));
         }
 
-        return new QueueJobsPage(items, totalCount);
+        return new QueueJobsPage(items, totalCount, statusCounts);
     }
 }

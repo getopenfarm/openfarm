@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
 
 interface ProductionRunStatusChangedPayload {
@@ -36,7 +36,11 @@ function invalidateProductionQueries(
  * live-integrated job's remote-control actions are deliberately request/confirm, not optimistic
  * (research.md R12, FR-024a) — the client always re-reads the server's own authoritative state.
  */
-export function useProductionHub() {
+export function useProductionHub(
+  onJobStatusChanged?: (jobId: string, status: string) => void,
+) {
+  const statusChangedRef = useRef(onJobStatusChanged);
+  statusChangedRef.current = onJobStatusChanged;
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -54,7 +58,8 @@ export function useProductionHub() {
 
     connection.on(
       'PrintJobStatusChanged',
-      (_payload: PrintJobStatusChangedPayload) => {
+      (payload: PrintJobStatusChangedPayload) => {
+        statusChangedRef.current?.(payload.printJobId, payload.status);
         invalidateProductionQueries(queryClient);
       },
     );

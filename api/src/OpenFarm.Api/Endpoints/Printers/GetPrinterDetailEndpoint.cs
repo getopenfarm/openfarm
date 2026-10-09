@@ -8,6 +8,10 @@ namespace OpenFarm.Api.Endpoints.Printers;
 
 public sealed class PrinterDetailTelemetryResponse
 {
+    public string? ReportedState { get; set; }
+    public DateTimeOffset? StateObservedAtUtc { get; set; }
+    public IReadOnlyList<PrinterAlert> ActiveAlerts { get; set; } = [];
+
     public decimal? NozzleDiameterMm { get; set; }
     public DateTimeOffset? NozzleObservedAtUtc { get; set; }
     public bool NozzleConfirmed { get; set; }
@@ -134,6 +138,9 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
             IsReachable = detail.IsReachable,
             Telemetry = new PrinterDetailTelemetryResponse
             {
+                ReportedState = detail.ReportedState,
+                StateObservedAtUtc = detail.StateObservedAtUtc,
+                ActiveAlerts = detail.ActiveAlerts ?? [],
                 NozzleDiameterMm = detail.ReportedNozzleDiameterMm,
                 NozzleObservedAtUtc = detail.NozzleObservedAtUtc,
                 NozzleConfirmed = detail.NozzleConfirmed,

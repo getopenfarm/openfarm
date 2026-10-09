@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router';
+import { Outlet, useMatches } from 'react-router';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useFarmHub } from '@/features/printers/hooks/useFarmHub';
@@ -14,17 +14,28 @@ function readSidebarCookie(): boolean | null {
 
 export function AppShell() {
   useFarmHub();
+  const fillViewport = useMatches().some(
+    (match) =>
+      (match.handle as { fillViewport?: boolean } | undefined)?.fillViewport,
+  );
 
   const cookieState = readSidebarCookie();
   const defaultOpen = cookieState ?? true;
 
   return (
     <TooltipProvider>
-      <SidebarProvider defaultOpen={defaultOpen}>
+      <SidebarProvider
+        defaultOpen={defaultOpen}
+        className={fillViewport ? 'h-dvh min-h-0' : undefined}
+      >
         <AppSidebar />
-        <SidebarInset>
+        <SidebarInset className={fillViewport ? 'min-h-0 min-w-0' : undefined}>
           <TitleBar />
-          <div className="flex-1 p-4">
+          <div
+            className={
+              fillViewport ? 'flex min-h-0 flex-1 flex-col p-4' : 'flex-1 p-4'
+            }
+          >
             <Outlet />
           </div>
         </SidebarInset>

@@ -41,6 +41,30 @@ public sealed class Printer
 
     public PrinterStatus Status { get; private set; }
 
+    public string? ReportedState { get; private set; }
+    public DateTimeOffset? StateObservedAtUtc { get; private set; }
+    public IReadOnlyList<PrinterAlert> ActiveAlerts { get; private set; } = [];
+
+    public bool ObserveReportedState(string? state, DateTimeOffset atUtc)
+    {
+        if (string.IsNullOrWhiteSpace(state)) return false;
+        var changed = ReportedState != state;
+        ReportedState = state;
+        StateObservedAtUtc = atUtc;
+        return changed;
+    }
+
+    // Null means absent from a delta; an empty list explicitly clears that source.
+    public bool ObserveAlerts(IReadOnlyList<PrinterAlert>? hms, IReadOnlyList<PrinterAlert>? printErrors)
+    {
+        var merged = (hms ?? ActiveAlerts.Where(a => a.Source == "Hms").ToArray())
+            .Concat(printErrors ?? ActiveAlerts.Where(a => a.Source == "PrintError").ToArray())
+            .Distinct().OrderBy(a => a.Source, StringComparer.Ordinal).ThenBy(a => a.Code, StringComparer.Ordinal).ToArray();
+        if (ActiveAlerts.SequenceEqual(merged)) return false;
+        ActiveAlerts = merged;
+        return true;
+    }
+
     public bool IsReachable { get; private set; }
 
     public DateTimeOffset? LastMessageUtc { get; private set; }

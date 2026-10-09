@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -21,6 +22,12 @@ public sealed class ActivityLogEntryConfiguration : IEntityTypeConfiguration<Act
 
         builder.Property(a => a.EventType)
             .IsRequired();
+
+        builder.Property(a => a.Details)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                details => JsonSerializer.Serialize(details, (JsonSerializerOptions?)null),
+                json => JsonSerializer.Deserialize<ActivityLogDetails>(json, (JsonSerializerOptions?)null));
 
         builder.Property(a => a.ActorId);
 

@@ -432,6 +432,44 @@ public class PrinterConnectionBackgroundServiceTests
         }
     }
 
+    [Fact]
+    public async Task ExactStateAndAlerts_InsideThrottle_LogAndBroadcastEveryChange()
+    {
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Printer", "Bambu", "P1S", "10.0.0.1", "SN-EXACT");
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var connector = new EmittingPrinterConnector();
+        var publisher = new RecordingPrinterEventPublisher();
+        using var provider = BuildServiceProvider(printer, secret, connector, out var writer, publisher);
+        var service = new PrinterConnectionBackgroundService(provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance, SweepInterval, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            var at = DateTimeOffset.UtcNow;
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(at, GcodeState: "RUNNING"));
+            await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count == 1, TimeSpan.FromSeconds(2));
+            var warning = new PrinterAlert("Hms", "0300_0100_0002_0001", "Warning", "Test warning");
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(at.AddMilliseconds(1), GcodeState: "PAUSE", HmsAlerts: [warning]));
+            await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count == 2, TimeSpan.FromSeconds(2));
+            printer.Status.Should().Be(PrinterStatus.Printing);
+            publisher.TelemetryBroadcasts.Last().ReportedState.Should().Be("PAUSE");
+            publisher.TelemetryBroadcasts.Last().ActiveAlerts.Should().Equal(warning);
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(at.AddMilliseconds(2), GcodeState: "RUNNING", HmsAlerts: []));
+            await WaitUntilAsync(() => publisher.TelemetryBroadcasts.Count == 3, TimeSpan.FromSeconds(2));
+            writer.Entries.Where(e => e.EventType == "PrinterStatusObserved").Select(e => e.Details!.ReportedState)
+                .Should().Equal("RUNNING", "PAUSE", "RUNNING");
+            writer.Entries.Should().HaveCount(5);
+            writer.Entries.Last().Details!.PreviousAlerts.Should().Equal(warning);
+            writer.Entries.Last().Details!.ActiveAlerts.Should().BeEmpty();
+            publisher.ActivityNotifications.Should().HaveCount(3);
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(at.AddMilliseconds(3), GcodeState: "RUNNING", HmsAlerts: []));
+            await Task.Delay(100);
+            writer.Entries.Should().HaveCount(5);
+        }
+        finally { await service.StopAsync(CancellationToken.None); }
+    }
+
     private static ServiceProvider BuildServiceProvider(
         Printer printer,
         ConnectionSecret secret,
@@ -668,6 +706,13 @@ public class PrinterConnectionBackgroundServiceTests
 
     private sealed class RecordingPrinterEventPublisher : IPrinterEventPublisher
     {
+        public List<Guid> ActivityNotifications { get; } = [];
+        public Task PrinterActivityChangedAsync(Guid organizationId, Guid printerId, CancellationToken cancellationToken)
+        {
+            ActivityNotifications.Add(printerId);
+            return Task.CompletedTask;
+        }
+
         public List<PrinterTelemetrySnapshot> TelemetryBroadcasts { get; } = [];
 
         public List<string> CameraFramesReceived { get; } = [];

@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey } from '@/lib/api/generated/activity-log/activity-log';
 import type {
   AmsTrayResponse,
   AmsUnitResponse,
@@ -107,6 +108,10 @@ export function useFarmHub() {
       onConnected: () => invalidatePrinterQueries(queryClient),
       onReconnected: () => {
         topologyByPrinter.clear();
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey(),
+        });
         nozzleByPrinter.clear();
         invalidatePrinterQueries(queryClient);
       },
@@ -259,6 +264,25 @@ export function useFarmHub() {
             };
           },
         );
+      },
+    );
+
+    connection.on(
+      'PrinterActivityChanged',
+      (payload: { printerId: string }) => {
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey(),
+          predicate: (query) => {
+            const filters = query.queryKey[1] as
+              | { entityType?: string; entityId?: string }
+              | undefined;
+            return (
+              (!filters?.entityType || filters.entityType === 'Printer') &&
+              (!filters?.entityId || filters.entityId === payload.printerId)
+            );
+          },
+        });
       },
     );
 

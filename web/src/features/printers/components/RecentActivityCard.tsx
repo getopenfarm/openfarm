@@ -1,4 +1,10 @@
+import { BADGE_KIND_META } from '@/components/status-badge/kinds';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ActivityDetails } from '@/features/activity-log/components/ActivityDetails';
+import {
+  activityEventKind,
+  describeActivityEvent,
+} from '@/features/activity-log/lib/activityEvent';
 import { useOpenFarmApiEndpointsActivityLogGetActivityLogEndpoint } from '@/lib/api/generated/activity-log/activity-log';
 import type {
   ActivityLogEntryResponse,
@@ -7,13 +13,6 @@ import type {
 
 export interface RecentActivityCardProps {
   printerId: string;
-}
-
-/** Splits a PascalCase event type (e.g. "PrinterStatusChanged") into readable words. */
-function humanizeEvent(eventType: string | undefined): string {
-  if (!eventType) return 'Activity';
-  const spaced = eventType.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
 }
 
 function relativeTime(iso: string | undefined): string {
@@ -35,6 +34,8 @@ export function RecentActivityCard({ printerId }: RecentActivityCardProps) {
     useOpenFarmApiEndpointsActivityLogGetActivityLogEndpoint({
       page: 1,
       pageSize: 20,
+      entityType: 'Printer',
+      entityId: printerId,
     });
 
   const page = activityQuery.data?.data as ActivityLogPageResponse | undefined;
@@ -60,14 +61,21 @@ export function RecentActivityCard({ printerId }: RecentActivityCardProps) {
                 key={entry.id}
                 className="flex gap-3 border-b px-[18px] py-3 last:border-b-0"
               >
-                <span className="mt-1.5 size-[7px] shrink-0 rounded-full bg-status-printing" />
+                <span
+                  className={`mt-1.5 size-[7px] shrink-0 rounded-full ${BADGE_KIND_META[activityEventKind(entry.eventType ?? '', entry.details)].dotClass}`}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] text-foreground">
-                    {humanizeEvent(entry.eventType)}
+                    {describeActivityEvent(
+                      entry.entityType ?? 'Printer',
+                      entry.eventType ?? 'Activity',
+                      entry.details,
+                    )}
                     {entry.actorDisplayName
                       ? ` · ${entry.actorDisplayName}`
                       : ''}
                   </p>
+                  <ActivityDetails details={entry.details} />
                   <p className="mt-0.5 text-[11.5px] text-muted-foreground">
                     {relativeTime(entry.timestampUtc)}
                   </p>

@@ -2,6 +2,7 @@ import { PauseIcon, PlayIcon, XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   useOpenFarmApiEndpointsPrintJobsCancelPrintJobEndpoint,
@@ -14,6 +15,9 @@ type PendingAction = 'pause' | 'resume' | 'cancel' | null;
 interface JobRemoteControlsProps {
   jobId: string;
   status: string;
+  menu?: boolean;
+  pending?: PendingAction;
+  onPendingChange?: (action: PendingAction) => void;
 }
 
 /**
@@ -21,12 +25,23 @@ interface JobRemoteControlsProps {
  * FR-024a): a click shows a "requested, awaiting confirmation" state until the job's `status`
  * prop (driven by the FarmHub push -> query invalidation -> refetch) actually changes.
  */
-export function JobRemoteControls({ jobId, status }: JobRemoteControlsProps) {
-  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+export function JobRemoteControls({
+  jobId,
+  status,
+  menu = false,
+  pending,
+  onPendingChange,
+}: JobRemoteControlsProps) {
+  const [localPending, setLocalPending] = useState<PendingAction>(null);
+  const pendingAction = pending === undefined ? localPending : pending;
+  function setPendingAction(action: PendingAction) {
+    setLocalPending(action);
+    onPendingChange?.(action);
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: clears the pending flag once the server's own reported status (fed back through this prop) actually moves — not on every render.
   useEffect(() => {
-    setPendingAction(null);
+    setLocalPending(null);
   }, [status]);
 
   const pauseMutation = useOpenFarmApiEndpointsPrintJobsPausePrintJobEndpoint();
@@ -80,8 +95,33 @@ export function JobRemoteControls({ jobId, status }: JobRemoteControlsProps) {
         : pendingAction === 'resume'
           ? 'Resume requested…'
           : 'Cancel requested…';
-    return <span className="text-xs text-muted-foreground">{label}</span>;
+    return menu ? (
+      <DropdownMenuItem disabled>{label}</DropdownMenuItem>
+    ) : (
+      <span className="text-xs text-muted-foreground">{label}</span>
+    );
   }
+
+  if (menu)
+    return (
+      <>
+        {status === 'Printing' ? (
+          <DropdownMenuItem onSelect={handlePause}>
+            <PauseIcon />
+            Pause
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onSelect={handleResume}>
+            <PlayIcon />
+            Resume
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem variant="destructive" onSelect={handleCancel}>
+          <XIcon />
+          Cancel print
+        </DropdownMenuItem>
+      </>
+    );
 
   return (
     <div className="flex items-center gap-1">

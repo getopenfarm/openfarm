@@ -1770,6 +1770,22 @@
               "type": "integer",
               "format": "int32"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
           }
         ],
         "responses": {
@@ -1779,6 +1795,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListQueueJobsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -4567,6 +4593,22 @@
         "operationId": "OpenFarmApiEndpointsActivityLogGetActivityLogEndpoint",
         "parameters": [
           {
+            "name": "entityType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "entityId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": true,
@@ -6470,6 +6512,13 @@
           "totalCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "statusCounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
           }
         }
       },
@@ -6829,6 +6878,21 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "reportedState": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateObservedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "activeAlerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrinterAlert"
+            }
+          },
           "nozzleDiameterMm": {
             "type": "number",
             "format": "decimal",
@@ -6867,6 +6931,28 @@
             "nullable": true
           },
           "currentJobName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PrinterAlert": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "troubleshootingUrl": {
             "type": "string",
             "nullable": true
           }
@@ -8608,6 +8694,14 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "details": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActivityLogDetails"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8636,6 +8730,39 @@
           "timestampUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ActivityLogDetails": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "previousState": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportedState": {
+            "type": "string",
+            "nullable": true
+          },
+          "observedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "previousAlerts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/PrinterAlert"
+            }
+          },
+          "activeAlerts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/PrinterAlert"
+            }
           }
         }
       },

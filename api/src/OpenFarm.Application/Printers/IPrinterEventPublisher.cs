@@ -10,6 +10,8 @@ namespace OpenFarm.Application.Printers;
 /// </summary>
 public interface IPrinterEventPublisher
 {
+    Task PrinterActivityChangedAsync(Guid organizationId, Guid printerId, CancellationToken cancellationToken) => Task.CompletedTask;
+
     Task PrinterStatusChangedAsync(
         Guid organizationId,
         Guid printerId,

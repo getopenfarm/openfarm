@@ -9,6 +9,9 @@
     <!-- Bambu's own per-device TLS cert bundle (vendored from pybambu/certs/), used to pin
          BambuLanConnector's TLS trust store per research.md §1 instead of the system CA store. -->
     <EmbeddedResource Include="Printers\Bambu\Certs\*.cert" />
+    <!-- Vendored printer error text and model-specific links; no runtime network lookup. -->
+    <EmbeddedResource Include="Printers/Bambu/AlertData/hms_en.json.gz" LogicalName="OpenFarm.BambuAlerts.hms_en.json.gz" />
+    <EmbeddedResource Include="Printers/Bambu/AlertData/wiki_links.json.gz" LogicalName="OpenFarm.BambuAlerts.wiki_links.json.gz" />
   </ItemGroup>
 
   <ItemGroup>

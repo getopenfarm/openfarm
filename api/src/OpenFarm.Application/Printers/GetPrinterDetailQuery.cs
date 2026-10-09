@@ -27,6 +27,7 @@ public sealed record PrinterDetail(
     BuildPlateType? BuildPlateType,
     string? BuildPlateTypeLabel,
     IReadOnlyList<BuildPlateTypeOption> CompatibleBuildPlateTypes,
-    decimal? ReportedNozzleDiameterMm = null, DateTimeOffset? NozzleObservedAtUtc = null, bool NozzleConfirmed = false, string? MachineProfileIssue = null, AmsTray? ExternalSpoolTray = null);
+    decimal? ReportedNozzleDiameterMm = null, DateTimeOffset? NozzleObservedAtUtc = null, bool NozzleConfirmed = false, string? MachineProfileIssue = null, AmsTray? ExternalSpoolTray = null,
+    string? ReportedState = null, DateTimeOffset? StateObservedAtUtc = null, IReadOnlyList<PrinterAlert>? ActiveAlerts = null);
 
 public sealed record BuildPlateTypeOption(BuildPlateType Value, string Label);

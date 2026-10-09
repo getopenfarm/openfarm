@@ -29,6 +29,7 @@ import type {
   OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
   PinPrintJobRequest,
   PrintJobResponse,
+  ProblemDetails,
   RecordPrintJobFilamentConsumptionRequest,
   ReorderPrintJobRequest,
   ReorderPrintJobResponse,
@@ -1225,6 +1226,11 @@ export type openFarmApiEndpointsPrintJobsListQueueJobsEndpointResponse200 = {
   status: 200;
 };
 
+export type openFarmApiEndpointsPrintJobsListQueueJobsEndpointResponse400 = {
+  data: ProblemDetails;
+  status: 400;
+};
+
 export type openFarmApiEndpointsPrintJobsListQueueJobsEndpointResponse401 = {
   data: void;
   status: 401;
@@ -1240,6 +1246,7 @@ export type openFarmApiEndpointsPrintJobsListQueueJobsEndpointResponseSuccess =
     headers: Headers;
   };
 export type openFarmApiEndpointsPrintJobsListQueueJobsEndpointResponseError = (
+  | openFarmApiEndpointsPrintJobsListQueueJobsEndpointResponse400
   | openFarmApiEndpointsPrintJobsListQueueJobsEndpointResponse401
   | openFarmApiEndpointsPrintJobsListQueueJobsEndpointResponse403
 ) & {
@@ -1292,7 +1299,7 @@ export const getOpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryOptions =
     TData = Awaited<
       ReturnType<typeof openFarmApiEndpointsPrintJobsListQueueJobsEndpoint>
     >,
-    TError = void,
+    TError = ProblemDetails | void,
   >(
     params: OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
     options?: {
@@ -1337,13 +1344,14 @@ export type OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryResult =
       ReturnType<typeof openFarmApiEndpointsPrintJobsListQueueJobsEndpoint>
     >
   >;
-export type OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryError = void;
+export type OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryError =
+  ProblemDetails | void;
 
 export function useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint<
   TData = Awaited<
     ReturnType<typeof openFarmApiEndpointsPrintJobsListQueueJobsEndpoint>
   >,
-  TError = void,
+  TError = ProblemDetails | void,
 >(
   params: OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
   options: {
@@ -1381,7 +1389,7 @@ export function useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint<
   TData = Awaited<
     ReturnType<typeof openFarmApiEndpointsPrintJobsListQueueJobsEndpoint>
   >,
-  TError = void,
+  TError = ProblemDetails | void,
 >(
   params: OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
   options?: {
@@ -1419,7 +1427,7 @@ export function useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint<
   TData = Awaited<
     ReturnType<typeof openFarmApiEndpointsPrintJobsListQueueJobsEndpoint>
   >,
-  TError = void,
+  TError = ProblemDetails | void,
 >(
   params: OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
   options?: {
@@ -1442,7 +1450,7 @@ export function useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint<
   TData = Awaited<
     ReturnType<typeof openFarmApiEndpointsPrintJobsListQueueJobsEndpoint>
   >,
-  TError = void,
+  TError = ProblemDetails | void,
 >(
   params: OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
   options?: {

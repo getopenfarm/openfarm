@@ -49,6 +49,17 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.Property(p => p.CurrentStageLabel);
         builder.Property(p => p.RemainingTimeMinutes);
         builder.Property(p => p.CurrentJobName);
+        builder.Property(p => p.ReportedState);
+        builder.Property(p => p.StateObservedAtUtc);
+        builder.Property(p => p.ActiveAlerts)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                alerts => JsonSerializer.Serialize(alerts, (JsonSerializerOptions?)null),
+                json => JsonSerializer.Deserialize<IReadOnlyList<PrinterAlert>>(json, (JsonSerializerOptions?)null) ?? Array.Empty<PrinterAlert>())
+            .Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<PrinterAlert>>(
+                (left, right) => (left ?? Array.Empty<PrinterAlert>()).SequenceEqual(right ?? Array.Empty<PrinterAlert>()),
+                alerts => alerts.Aggregate(0, (hash, alert) => HashCode.Combine(hash, alert.GetHashCode())),
+                alerts => alerts.ToList()));
 
         builder.Property(p => p.AmsUnits)
             .HasColumnType("jsonb")

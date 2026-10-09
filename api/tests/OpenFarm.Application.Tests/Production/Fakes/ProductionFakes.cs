@@ -55,9 +55,9 @@ public sealed class InMemoryPrintJobRepository(params PrintJob[] seedJobs) : IPr
     public Task<double?> GetMaxQueuePositionAsync(Guid organizationId, CancellationToken cancellationToken) =>
         Task.FromResult(_jobs.Values.Count == 0 ? (double?)null : _jobs.Values.Max(j => j.QueuePosition));
 
-    public Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount)> ListQueueAsync(
-        bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken) =>
-        Task.FromResult<(IReadOnlyList<PrintJob>, int)>(([], 0));
+    public Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount, IReadOnlyDictionary<string, int> StatusCounts)> ListQueueAsync(
+        bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken, string? status = null, string? search = null) =>
+        Task.FromResult<(IReadOnlyList<PrintJob>, int, IReadOnlyDictionary<string, int>)>(([], 0, new Dictionary<string, int>()));
 
     public Task<PrintJob?> GetNextQueuedJobAsync(double afterQueuePosition, Guid excludeJobId, CancellationToken cancellationToken) =>
         Task.FromResult(_jobs.Values

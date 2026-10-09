@@ -18,6 +18,7 @@ import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
+import { PrinterReportedStatus } from './components/PrinterReportedStatus';
 import { RecentActivityCard } from './components/RecentActivityCard';
 import { useMarkPrinterReady } from './hooks/useMarkPrinterReady';
 import { printerStatusToBadge } from './lib/printerStatusBadge';
@@ -95,6 +96,10 @@ export function PrinterDetailPage() {
               onRemove={() => setConfirmRemoveOpen(true)}
             />
           </div>
+          <PrinterReportedStatus
+            telemetry={printer.telemetry}
+            isReachable={printer.isReachable ?? false}
+          />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
             <div className="flex flex-col gap-4">
               <CameraView

@@ -1,73 +1,84 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 import { QueuePage } from './QueuePage';
 
-function jsonResponse(body: unknown, status = 200) {
+vi.mock('./hooks/useProductionHub', () => ({ useProductionHub: vi.fn() }));
+function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
 }
-
-function stubFetch(routes: Record<string, unknown>) {
-  const sortedRoutes = Object.entries(routes).sort(
-    ([a], [b]) => b.length - a.length,
+function job(id: string, name = id) {
+  return {
+    jobId: id,
+    partName: name,
+    plateQuantity: 4,
+    status: 'Queued',
+    assignmentMode: 'Unassigned',
+    productionRunId: 'run-1',
+    runDisplayLabel: 'Bracket ×20',
+  };
+}
+function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const result = render(
+    <QueryClientProvider client={queryClient}>
+      <PreferencesProvider>
+        <MemoryRouter>
+          <QueuePage />
+        </MemoryRouter>
+      </PreferencesProvider>
+    </QueryClientProvider>,
   );
+  return { ...result, queryClient };
+}
+function stub(handler: (params: URLSearchParams) => Response) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
-    const url = typeof input === 'string' ? input : input.toString();
-    for (const [path, body] of sortedRoutes) {
-      if (url.includes(path)) {
-        return Promise.resolve(jsonResponse(body));
-      }
-    }
-    return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+    const url = input.toString();
+    return Promise.resolve(
+      url.includes('/api/v1/print-jobs')
+        ? handler(new URL(url).searchParams)
+        : json({ printers: [] }),
+    );
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
 
-function renderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-
-  function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>{children}</MemoryRouter>
-      </QueryClientProvider>
-    );
-  }
-
-  return render(<QueuePage />, { wrapper: Wrapper });
-}
-
 describe('QueuePage', () => {
-  // TanStack Virtual measures its scroll container's real layout (getBoundingClientRect,
-  // offsetWidth/Height, and a ResizeObserver) — none of which jsdom provides, so without stubbing
-  // all three the virtualizer computes a zero-size viewport and renders no rows at all.
   beforeEach(() => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      width: 800,
-      height: 600,
-      top: 0,
-      left: 0,
-      bottom: 600,
-      right: 800,
-      x: 0,
-      y: 0,
-      toJSON: () => {},
-    });
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: Element) {
+        const height = this.getAttribute('role') === 'row' ? 56 : 600;
+        return {
+          width: 1000,
+          height,
+          top: 0,
+          left: 0,
+          bottom: height,
+          right: 1000,
+          x: 0,
+          y: 0,
+          toJSON: () => {},
+        };
+      },
+    );
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
       configurable: true,
-      value: 600,
+      get() {
+        return this.getAttribute('role') === 'row' ? 56 : 600;
+      },
     });
     Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
       configurable: true,
-      value: 800,
+      value: 1000,
     });
     vi.stubGlobal(
       'ResizeObserver',
@@ -78,78 +89,288 @@ describe('QueuePage', () => {
       },
     );
   });
-
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it('can browse beyond the first 200 jobs in a thousand-job queue', async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = input.toString();
-      if (!url.includes('/api/v1/print-jobs'))
-        return Promise.resolve(jsonResponse({ printers: [] }));
-      const page = Number(new URL(url).searchParams.get('page'));
-      return Promise.resolve(
-        jsonResponse({
-          totalCount: 1001,
-          items: [
-            {
-              jobId: `job-${page}`,
-              partName: `Page ${page} part`,
-              status: 'Queued',
-              assignmentMode: 'Unassigned',
-            },
-          ],
-        }),
-      );
-    });
-    vi.stubGlobal('fetch', fetchMock);
+  it('pages finite jobs independently of backfill in a thousand-job queue', async () => {
+    stub((params) =>
+      params.get('view') === 'backfill'
+        ? json({ totalCount: 1, items: [job('b1', 'Backfill part')] })
+        : json({
+            totalCount: 1001,
+            items: [
+              job(
+                `finite-${params.get('page')}`,
+                `Page ${params.get('page')} part`,
+              ),
+            ],
+          }),
+    );
     renderPage();
     expect(await screen.findByText('Page 1 part')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Backfill part')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Next finite jobs page' }),
+    );
     expect(await screen.findByText('Page 2 part')).toBeInTheDocument();
-    expect(screen.getByText('Page 2 of 6')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
+    expect(screen.getByText('Page 2 of 21')).toBeInTheDocument();
+    expect(screen.getByText('Backfill part')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Previous finite jobs page' }),
+    );
     expect(await screen.findByText('Page 1 part')).toBeInTheDocument();
   });
 
-  it('shows an empty state before any job exists', async () => {
-    stubFetch({ '/api/v1/print-jobs': { items: [], totalCount: 0 } });
-
+  it('collapses backfill details and restores its current page with keyboard controls', async () => {
+    const user = userEvent.setup();
+    stub((params) =>
+      params.get('view') === 'backfill'
+        ? json({
+            totalCount: 60,
+            items: [
+              job(
+                `b-${params.get('page')}`,
+                `Backfill page ${params.get('page')}`,
+              ),
+            ],
+          })
+        : json({ totalCount: 1, items: [job('f1', 'Finite part')] }),
+    );
     renderPage();
-
-    expect(await screen.findByText('No jobs in the queue')).toBeInTheDocument();
+    expect(await screen.findByText('Backfill page 1')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Next backfill jobs page' }),
+    );
+    expect(await screen.findByText('Backfill page 2')).toBeInTheDocument();
+    const toggle = screen.getByRole('button', {
+      name: 'Collapse backfill jobs',
+    });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveTextContent('60');
+    expect(
+      screen.queryByRole('region', { name: 'Backfill jobs rows' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('navigation', { name: 'Backfill jobs pagination' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Finite part')).toBeVisible();
+    await user.keyboard('{Enter}');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(await screen.findByText('Backfill page 2')).toBeVisible();
+    expect(
+      screen.getByRole('navigation', { name: 'Backfill jobs pagination' }),
+    ).toHaveTextContent('Page 2 of 2');
   });
 
-  it('renders queue jobs fetched from the real API', async () => {
-    stubFetch({
-      '/api/v1/print-jobs': {
+  it('expands when jobs arrive and respects a manual collapse across live updates', async () => {
+    let totalCount = 0;
+    stub((params) =>
+      json({
+        totalCount: params.get('view') === 'backfill' ? totalCount : 0,
+        items:
+          params.get('view') === 'backfill' && totalCount > 0
+            ? [job('b1')]
+            : [],
+      }),
+    );
+    const { queryClient } = renderPage();
+    await screen.findByText('No active finite jobs');
+    expect(
+      screen.getByRole('button', { name: 'Expand backfill jobs' }),
+    ).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('region', { name: 'Backfill jobs rows' }),
+    ).not.toBeInTheDocument();
+    totalCount = 1;
+    await queryClient.invalidateQueries();
+    expect(await screen.findByText('b1')).toBeVisible();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Collapse backfill jobs' }),
+    );
+    totalCount = 2;
+    await queryClient.invalidateQueries();
+    expect(
+      screen.getByRole('button', { name: 'Expand backfill jobs' }),
+    ).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('region', { name: 'Backfill jobs rows' }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Expand backfill jobs' }),
+    );
+    expect(await screen.findByText('b1')).toBeVisible();
+  });
+
+  it('shows empty feedback for both sections', async () => {
+    stub(() => json({ items: [], totalCount: 0 }));
+    renderPage();
+    expect(
+      await screen.findByText('No active finite jobs'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: 'Backfill jobs rows' }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Expand backfill jobs' }),
+    );
+    expect(screen.getByText('No active backfill jobs')).toBeVisible();
+  });
+
+  it('renders one labelled table containing both types of jobs', async () => {
+    stub((params) =>
+      json({
         items: [
-          {
-            jobId: 'job-1',
-            queuePosition: 1024,
-            status: 'Queued',
-            assignmentMode: 'Unassigned',
-            pinnedPrinterId: null,
-            dispatchedPrinterId: null,
-            isBlocked: false,
-            partId: 'part-1',
-            partName: 'Bracket',
-            plateQuantity: 4,
-            runLineId: 'line-1',
-            productionRunId: 'run-1',
-            runDisplayLabel: 'Bracket ×20',
-          },
+          job(params.get('view') === 'queue' ? 'Bracket' : 'Backfill bracket'),
         ],
         totalCount: 1,
-      },
-    });
-
+      }),
+    );
     renderPage();
-
     expect(await screen.findByText('Bracket')).toBeInTheDocument();
-    expect(screen.getByText('Bracket ×20')).toBeInTheDocument();
-    expect(screen.getByText('Queued')).toBeInTheDocument();
+    expect(screen.getByText('Backfill bracket')).toBeInTheDocument();
+    expect(screen.getAllByRole('table')).toHaveLength(1);
+    expect(
+      screen.getByRole('columnheader', { name: 'Units' }),
+    ).toBeInTheDocument();
+  });
+
+  it('uses server-wide counts and resets both pages when filtering', async () => {
+    const fetchMock = stub((params) =>
+      json({
+        totalCount: 1001,
+        statusCounts: {
+          Queued: 1001,
+          Printing: 4,
+          Paused: 2,
+          Completed: 10,
+          Failed: 3,
+          Cancelled: 5,
+        },
+        items: [job(params.get('view') ?? 'job')],
+      }),
+    );
+    renderPage();
+    expect(
+      await screen.findByRole('tab', { name: 'Active 2014' }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Next finite jobs page' }),
+    );
+    await screen.findByText('Page 2 of 21');
+    await userEvent.click(screen.getByRole('tab', { name: 'Cancelled 10' }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(
+          ([url]) =>
+            url.toString().includes('status=Cancelled') &&
+            url.toString().includes('page=1'),
+        ).length,
+      ).toBe(2),
+    );
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Search jobs by part name' }),
+      { target: { value: 'Bracket' } },
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([url]) =>
+          url.toString().includes('search=Bracket'),
+        ).length,
+      ).toBe(2),
+    );
+  });
+
+  it('keeps the healthy section visible when the other fails and offers retry', async () => {
+    let fail = true;
+    stub((params) =>
+      params.get('view') === 'backfill'
+        ? json({ totalCount: 1, items: [job('Healthy backfill')] })
+        : fail
+          ? json({ detail: 'Unavailable' }, 500)
+          : json({ totalCount: 0, items: [] }),
+    );
+    renderPage();
+    expect(
+      await screen.findByText("Couldn't load finite jobs"),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Healthy backfill')).toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(
+      await screen.findByText('No active finite jobs'),
+    ).toBeInTheDocument();
+  });
+
+  it('virtualizes a full page rather than mounting every job', async () => {
+    stub((params) =>
+      json({
+        totalCount: 1001,
+        items:
+          params.get('view') === 'backfill'
+            ? []
+            : Array.from({ length: 50 }, (_, index) =>
+                job(`job-${index}`, `Virtual part ${index}`),
+              ),
+      }),
+    );
+    renderPage();
+    await screen.findByText('Virtual part 0');
+    expect(screen.getAllByText(/Virtual part/).length).toBeLessThan(50);
+  });
+  it('restricts drag reordering to queued jobs in the same section', async () => {
+    const fetchMock = stub((params) =>
+      json({
+        totalCount: params.get('view') === 'queue' ? 2 : 1,
+        statusCounts: { Queued: params.get('view') === 'queue' ? 2 : 1 },
+        items:
+          params.get('view') === 'queue' ? [job('f1'), job('f2')] : [job('b1')],
+      }),
+    );
+    renderPage();
+    await screen.findByText('f1');
+    await userEvent.click(screen.getByRole('tab', { name: 'Queued 3' }));
+    const source = screen.getByText('f1').closest('[role="row"]');
+    const target = screen.getByText('f2').closest('[role="row"]');
+    const backfill = screen.getByText('b1').closest('[role="row"]');
+    if (!source || !target || !backfill) throw new Error('Missing queue row');
+    fireEvent.dragStart(source);
+    fireEvent.drop(backfill);
+    expect(
+      fetchMock.mock.calls.some(([url]) => url.toString().includes('/reorder')),
+    ).toBe(false);
+    fireEvent.dragStart(source);
+    fireEvent.drop(target);
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          url.toString().includes('/f1/reorder'),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it('clamps a section page when a live update shrinks its result set', async () => {
+    let totalCount = 51;
+    stub((params) =>
+      params.get('view') === 'backfill'
+        ? json({ totalCount: 0, items: [] })
+        : json({ totalCount, items: [job(`page-${params.get('page')}`)] }),
+    );
+    const { queryClient } = renderPage();
+    await screen.findByText('page-1');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Next finite jobs page' }),
+    );
+    await screen.findByText('page-2');
+    totalCount = 1;
+    await queryClient.invalidateQueries();
+    expect(await screen.findByText('page-1')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getAllByText('Page 1 of 1')).toHaveLength(2),
+    );
   });
 });

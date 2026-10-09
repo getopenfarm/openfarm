@@ -70,7 +70,11 @@ export const router = createBrowserRouter([
               },
             ],
           },
-          { path: '/jobs', element: <QueuePage />, handle: { title: 'Jobs' } },
+          {
+            path: '/jobs',
+            element: <QueuePage />,
+            handle: { title: 'Jobs', fillViewport: true },
+          },
           {
             path: '/jobs/:id',
             element: <PrintJobDetailPage />,

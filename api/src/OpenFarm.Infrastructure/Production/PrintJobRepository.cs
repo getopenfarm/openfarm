@@ -71,20 +71,43 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             ? await dbContext.PrintJobs.MaxAsync(j => j.QueuePosition, cancellationToken)
             : null;
 
-    public async Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount)> ListQueueAsync(
-        bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken)
+    public async Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount, IReadOnlyDictionary<string, int> StatusCounts)> ListQueueAsync(
+        bool backfillOnly, int page, int pageSize, CancellationToken cancellationToken, string? status = null, string? search = null)
     {
         var query =
             from job in dbContext.PrintJobs
             join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
             where backfillOnly ? requirement.Quantity == null : requirement.Quantity != null
-            where job.Status != PrintJobStatus.Cancelled
-            orderby job.QueuePosition
             select job;
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
+            query = from job in query
+                    join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
+                    join part in dbContext.Parts on requirement.PartId equals part.Id
+                    where EF.Functions.ILike(part.Name, $"%{term}%", "\\")
+                    select job;
+        }
+
+        var counts = await query.GroupBy(j => j.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+        var statusCounts = Enum.GetValues<PrintJobStatus>().ToDictionary(value => value.ToString(), _ => 0);
+        foreach (var count in counts) statusCounts[count.Status.ToString()] = count.Count;
+
+        if (string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(j => !TerminalStatuses.Contains(j.Status));
+        else if (Enum.TryParse<PrintJobStatus>(status, true, out var selectedStatus))
+            query = query.Where(j => j.Status == selectedStatus);
+        else
+            query = query.Where(j => j.Status != PrintJobStatus.Cancelled);
+
         var totalCount = await query.CountAsync(cancellationToken);
-        var jobs = await query.Include(j => j.FilamentConsumption).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
-        return (jobs, totalCount);
+        var jobs = await query.OrderBy(j => j.QueuePosition).ThenBy(j => j.Id)
+            .Include(j => j.FilamentConsumption).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return (jobs, totalCount, statusCounts);
     }
 
     public Task<PrintJob?> GetNextQueuedJobAsync(double afterQueuePosition, Guid excludeJobId, CancellationToken cancellationToken) =>

@@ -192,6 +192,16 @@ describe('PrinterDetailPage', () => {
     renderPage(printerId);
 
     expect(await screen.findByText('Detail Test Printer')).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) => {
+        const url = new URL(input.toString());
+        return (
+          url.pathname.endsWith('/activity-log') &&
+          url.searchParams.get('entityType') === 'Printer' &&
+          url.searchParams.get('entityId') === printerId
+        );
+      }),
+    ).toBe(true);
     expect(screen.getByText('219.4°C')).toBeInTheDocument();
     expect(screen.getByText('59.8°C')).toBeInTheDocument();
     // Progress appears in both the telemetry strip and the current-job card.

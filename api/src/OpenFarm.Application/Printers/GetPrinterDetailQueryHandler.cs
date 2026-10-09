@@ -72,6 +72,6 @@ public sealed class GetPrinterDetailQueryHandler(
             processProfileName,
             printer.BuildPlateType,
             buildPlateTypeLabel,
-            compatibleBuildPlateTypes, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, machineProfileIssue, printer.ExternalSpoolTray);
+            compatibleBuildPlateTypes, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, machineProfileIssue, printer.ExternalSpoolTray, printer.ReportedState, printer.StateObservedAtUtc, printer.ActiveAlerts);
     }
 }

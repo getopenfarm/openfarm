@@ -45,6 +45,65 @@ public class QueueOrderingAndPinningTests(ProductionTestFactory factory) : Produ
         (await JobsAsync(run.Id)).Should().Contain(j => j.Id == id && j.Status == PrintJobStatus.Cancelled);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task QueueFiltersBeforePagination_AndCountsAllStatuses(bool backfill)
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var run = await RunAsync(client, part.Id, backfill ? null : 6);
+        using (var scope = Factory.CreateTenantScope())
+        {
+            var repository = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
+            var jobs = (await repository.ListByProductionRunIdAsync(run.Id, default)).ToList();
+            if (backfill)
+            {
+                for (var i = 0; i < 6; i++)
+                {
+                    var job = PrintJob.Create(Organization.WellKnownId, run.Lines[0].Requirements[0].Id,
+                        1024 * (i + 1), 1, AssignmentMode.Unassigned, null, part.RevisionHash, part.RevisionNumber, []);
+                    await repository.AddAsync(job, default);
+                    jobs.Add(job);
+                }
+            }
+            jobs[1].MarkStarted();
+            jobs[2].MarkStarted(); jobs[2].MarkPaused();
+            jobs[3].MarkStarted(); jobs[3].MarkCompleted();
+            jobs[4].MarkStarted(); jobs[4].MarkFailed("Test failure");
+            jobs[5].MarkCancelled();
+            await repository.SaveChangesAsync(default);
+        }
+        var view = backfill ? "backfill" : "queue";
+        var url = $"/api/v1/print-jobs?view={view}&search={Uri.EscapeDataString(part.Name.ToUpperInvariant())}&pageSize=1";
+        var active = await client.GetFromJsonAsync<ListQueueJobsResponse>($"{url}&status=Active&page=2");
+        active!.TotalCount.Should().Be(3);
+        active.Items.Should().ContainSingle(j => j.Status == "Printing");
+        active.StatusCounts.Should().HaveCount(6);
+        active.StatusCounts.Values.Should().OnlyContain(count => count == 1);
+        foreach (var status in Enum.GetNames<PrintJobStatus>())
+        {
+            var filtered = await client.GetFromJsonAsync<ListQueueJobsResponse>($"{url}&status={status}");
+            filtered!.TotalCount.Should().Be(1);
+            filtered.Items.Should().ContainSingle(j => j.Status == status);
+        }
+        var legacy = await client.GetFromJsonAsync<ListQueueJobsResponse>(url);
+        legacy!.TotalCount.Should().Be(5);
+        var noMatch = await client.GetFromJsonAsync<ListQueueJobsResponse>($"/api/v1/print-jobs?view={view}&status=Active&search=never-matches-%25");
+        noMatch!.TotalCount.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("1")]
+    [InlineData("")]
+    public async Task QueueRejectsInvalidStatus(string status)
+    {
+        var client = await ClientAsync();
+        var response = await client.GetAsync($"/api/v1/print-jobs?status={status}");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task Reorder_ChangesMatcherOrder_AndPinnedUnclearedPrinterStaysBlocked()
     {

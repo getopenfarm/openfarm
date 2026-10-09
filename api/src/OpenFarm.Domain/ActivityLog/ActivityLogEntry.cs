@@ -22,6 +22,8 @@ public sealed class ActivityLogEntry
         TimestampUtc = timestampUtc;
     }
 
+    public ActivityLogDetails? Details { get; private set; }
+
     public Guid Id { get; }
 
     public Guid OrganizationId { get; }
@@ -44,7 +46,8 @@ public sealed class ActivityLogEntry
         string entityId,
         string eventType,
         Guid? actorId,
-        ActorType actorType)
+        ActorType actorType,
+        ActivityLogDetails? details = null)
     {
         if (string.IsNullOrWhiteSpace(entityType))
         {
@@ -74,6 +77,6 @@ public sealed class ActivityLogEntry
             eventType,
             actorId,
             actorType,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow) { Details = details };
     }
 }

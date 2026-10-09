@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FastEndpoints;
 using OpenFarm.Application.ActivityLog;
+using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ActivityLog;
 
 namespace OpenFarm.Api.Processors;
@@ -43,6 +44,7 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
                 var bulkEntry = ActivityLogEntry.Create(
                     organizationId.Value, loggable.EntityType, entityId, loggable.EventType, actorId, actorType);
                 await writer.WriteAsync(bulkEntry, ct);
+                await NotifyPrinterActivityAsync(httpContext, bulkEntry, ct);
             }
 
             return;
@@ -63,7 +65,14 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
             actorType);
 
         await writer.WriteAsync(entry, ct);
+        await NotifyPrinterActivityAsync(httpContext, entry, ct);
     }
+
+    private static Task NotifyPrinterActivityAsync(HttpContext context, ActivityLogEntry entry, CancellationToken ct) =>
+        entry.EntityType == "Printer" && Guid.TryParse(entry.EntityId, out var printerId)
+            ? context.RequestServices.GetRequiredService<IPrinterEventPublisher>()
+                .PrinterActivityChangedAsync(entry.OrganizationId, printerId, ct)
+            : Task.CompletedTask;
 
     private static string? ExtractEntityId(object? response) =>
         response?.GetType().GetProperty("Id")?.GetValue(response)?.ToString();

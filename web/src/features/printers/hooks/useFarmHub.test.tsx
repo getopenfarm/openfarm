@@ -26,6 +26,38 @@ vi.mock('@/lib/signalr/farmHubConnection', () => ({
   },
 }));
 
+describe('Printer activity live updates', () => {
+  beforeEach(() => hub.handlers.clear());
+  it('refreshes this printer and organization history while retaining other printer caches', () => {
+    const client = new QueryClient();
+    const own = [
+      '/api/v1/activity-log',
+      { page: 1, pageSize: 20, entityType: 'Printer', entityId: 'p1' },
+    ];
+    const other = [
+      '/api/v1/activity-log',
+      { page: 1, pageSize: 20, entityType: 'Printer', entityId: 'p2' },
+    ];
+    const global = ['/api/v1/activity-log', { page: 1, pageSize: 25 }];
+    for (const key of [own, other, global])
+      client.setQueryData(key, { items: [] });
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    act(() =>
+      hub.handlers.get('PrinterActivityChanged')?.({ printerId: 'p1' }),
+    );
+    expect(client.getQueryState(own)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(global)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(other)?.isInvalidated).toBe(false);
+    act(() => hub.reconnected());
+    expect(client.getQueryState(other)?.isInvalidated).toBe(true);
+    unmount();
+  });
+});
+
 describe('Feed Units live updates', () => {
   beforeEach(() => hub.handlers.clear());
   it('refreshes only the affected topology on first event and position changes while updating live contents', () => {

@@ -121,10 +121,11 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
             var hasGcodeState = BambuMqttMessageParser.TryParseGcodeState(payload, out var gcodeState);
             var telemetry = BambuMqttMessageParser.TryParseTelemetry(payload);
+            var alerts = BambuAlertParser.Parse(payload, details.ModelCode);
 
             if (hasGcodeState || telemetry is not null)
             {
-                channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: gcodeState, Telemetry: telemetry));
+                channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: gcodeState, Telemetry: telemetry, HmsAlerts: alerts.Hms, PrintErrors: alerts.PrintErrors));
             }
 
             return Task.CompletedTask;

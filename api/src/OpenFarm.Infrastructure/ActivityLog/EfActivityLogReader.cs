@@ -6,9 +6,12 @@ namespace OpenFarm.Infrastructure.ActivityLog;
 
 public sealed class EfActivityLogReader(OpenFarmDbContext dbContext) : IActivityLogReader
 {
-    public async Task<ActivityLogPageResult> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken)
+    public async Task<ActivityLogPageResult> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken, string? entityType = null, string? entityId = null)
     {
         var query = dbContext.ActivityLogEntries.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(entityType)) query = query.Where(e => e.EntityType == entityType);
+        if (!string.IsNullOrWhiteSpace(entityId)) query = query.Where(e => e.EntityId == entityId);
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -38,7 +41,7 @@ public sealed class EfActivityLogReader(OpenFarmDbContext dbContext) : IActivity
                 e.ActorId,
                 e.ActorType,
                 e.ActorId.HasValue && actorNames.TryGetValue(e.ActorId.Value, out var name) ? name : null,
-                e.TimestampUtc))
+                e.TimestampUtc, e.Details))
             .ToList();
 
         return new ActivityLogPageResult(items, page, pageSize, totalCount);
