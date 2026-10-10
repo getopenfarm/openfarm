@@ -183,6 +183,35 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
+    public async Task Connect_AttemptTimeout_RetriesWithoutEndingTheStream()
+    {
+        await using var harness = new BambuMqttHarness { WithholdFirstConnack = true };
+        var connector = harness.CreateConnector(harness.Options with { ConnectTimeout = TimeSpan.FromMilliseconds(200) });
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        (await ReadNextAsync(events, cts)).Should().BeTrue();
+        events.Current.GcodeState.Should().Be("IDLE");
+        harness.ConnectionCount.Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    [Fact]
+    public async Task Connect_OpenButSilentBroker_ReconnectsAndRequestsFreshReports()
+    {
+        await using var harness = new BambuMqttHarness();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            TelemetryTimeout = TimeSpan.FromMilliseconds(200),
+        });
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        (await ReadNextAsync(events, cts)).Should().BeTrue();
+        await WaitUntilAsync(() => harness.SubscriptionCount >= 2);
+        (await ReadNextAsync(events, cts)).Should().BeTrue();
+        events.Current.GcodeState.Should().Be("IDLE");
+        harness.ConnectionCount.Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    [Fact]
     public async Task Commands_UseSeparateConnectionsWhileTelemetryRemainsConnected()
     {
         await using var harness = new BambuMqttHarness();

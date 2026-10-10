@@ -102,6 +102,41 @@ public class BambuCameraRelayTests
         await pendingRead.Should().ThrowAsync<OperationCanceledException>();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StreamFrames_OpenButStalledConnection_Reconnects(bool partialPayload)
+    {
+        var connections = 0;
+        byte[] jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0xFF, 0xD9];
+        await using var server = new LoopbackTlsServer(async (stream, token) =>
+        {
+            await stream.ReadExactlyAsync(new byte[80], token);
+            if (Interlocked.Increment(ref connections) == 1)
+            {
+                if (partialPayload)
+                {
+                    await stream.WriteAsync(BuildHeader(jpeg.Length), token);
+                    await stream.WriteAsync(jpeg.AsMemory(0, 2), token);
+                }
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            }
+            await WriteFrameAsync(stream, jpeg, token);
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+        });
+        var relay = new BambuCameraRelay(new BambuTransportOptions
+        {
+            CameraPort = server.Port,
+            ValidateCertificate = server.TrustCertificate,
+            ReconnectDelay = TimeSpan.FromMilliseconds(30),
+            CameraFrameTimeout = TimeSpan.FromMilliseconds(200),
+        });
+        await using var frames = relay.StreamFramesAsync(Details, CancellationToken.None).GetAsyncEnumerator();
+        (await frames.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3))).Should().BeTrue();
+        frames.Current.Should().Equal(jpeg);
+        Volatile.Read(ref connections).Should().Be(2);
+    }
+
     [Fact]
     public async Task StreamFrames_ProductionTrustRejectsTestCertificateBeforeSendingCredentials()
     {

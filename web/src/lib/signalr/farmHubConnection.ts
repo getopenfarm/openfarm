@@ -12,7 +12,10 @@ function buildFarmHubConnection(): signalR.HubConnection {
       // requests avoids requiring Access-Control-Allow-Credentials on the CORS policy.
       withCredentials: false,
     })
-    .withAutomaticReconnect()
+    .withAutomaticReconnect({
+      nextRetryDelayInMilliseconds: ({ previousRetryCount }) =>
+        [0, 2000, 10000, 30000][Math.min(previousRetryCount, 3)],
+    })
     .build();
 }
 
@@ -34,45 +37,63 @@ export interface ConnectFarmHubOptions {
 export function connectFarmHub(options: ConnectFarmHubOptions = {}) {
   const connection = buildFarmHubConnection();
 
+  let stopped = false;
+  let hasConnected = false;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let startPromise: Promise<void> = Promise.resolve();
+
+  const scheduleStart = () => {
+    if (stopped || retryTimer !== undefined) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined;
+      startPromise = start();
+    }, 5000);
+  };
+
+  const start = async () => {
+    try {
+      await connection.start();
+      if (stopped) return;
+      console.info('[farmHub] SignalR connected.');
+      if (hasConnected) options.onReconnected?.();
+      else options.onConnected?.();
+      hasConnected = true;
+    } catch (error: unknown) {
+      if (stopped) return;
+      console.warn('[farmHub] SignalR failed to connect; retrying.', error);
+      options.onClose?.(error instanceof Error ? error : undefined);
+      scheduleStart();
+    }
+  };
+
   connection.onreconnecting((error) => {
+    if (stopped) return;
     console.warn('[farmHub] SignalR connection lost, reconnecting…', error);
     options.onReconnecting?.(error);
   });
 
   connection.onreconnected(() => {
+    if (stopped) return;
     console.info('[farmHub] SignalR reconnected.');
     options.onReconnected?.();
   });
 
   connection.onclose((error) => {
-    console.warn(
-      '[farmHub] SignalR connection closed — no more live updates until this component remounts.',
-      error,
-    );
+    if (stopped) return;
+    console.warn('[farmHub] SignalR connection closed; retrying.', error);
     options.onClose?.(error);
+    scheduleStart();
   });
 
-  const startPromise = connection
-    .start()
-    .then(() => {
-      console.info('[farmHub] SignalR connected.');
-      options.onConnected?.();
-    })
-    .catch((error: unknown) => {
-      // withAutomaticReconnect() handles retries; a failed initial connect just means no
-      // live updates until connectivity returns.
-      console.warn('[farmHub] SignalR failed to connect.', error);
-      options.onClose?.(error instanceof Error ? error : undefined);
-    });
+  startPromise = start();
 
   return {
     connection,
-    /**
-     * Safe to call even while start() is still negotiating — calling connection.stop() mid-
-     * negotiation throws ("connection was stopped during negotiation") and logs a console error,
-     * which happens on every mount under React StrictMode's dev-only double-invoke. Waits for
-     * start() to settle first so stop() always acts on a connection that's actually stoppable.
-     */
-    stop: () => startPromise.finally(() => connection.stop()),
+    // Wait for negotiation to settle before stopping, including StrictMode cleanup.
+    stop: () => {
+      stopped = true;
+      clearTimeout(retryTimer);
+      return startPromise.finally(() => connection.stop());
+    },
   };
 }

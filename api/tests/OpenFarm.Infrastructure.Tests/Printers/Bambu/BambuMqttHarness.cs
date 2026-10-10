@@ -32,6 +32,7 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
     public PrinterConnectionDetails Details { get; }
     public bool ReplyToVersion { get; init; } = true;
     public bool ReplyToPushAll { get; init; } = true;
+    public bool WithholdFirstConnack { get; init; }
     public string InitialReport { get; init; } = """{"print":{"gcode_state":"IDLE","nozzle_temper":25,"bed_temper":24,"mc_percent":0}}""";
     public int ConnectionCount => Volatile.Read(ref _connectionCount);
     public int SubscriptionCount => Volatile.Read(ref _subscriptionCount);
@@ -93,6 +94,8 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
         Handshakes.Enqueue((protocol, version, username));
         var accepted = protocol == "MQTT" && version == 4 && username == "bblp" && password == Details.AccessCode;
         var id = Interlocked.Increment(ref _connectionCount);
+        if (WithholdFirstConnack && id == 1)
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         using var session = new Session(stream);
         await session.SendAsync(0x20, [0, accepted ? (byte)0 : (byte)4], cancellationToken);
         if (!accepted)

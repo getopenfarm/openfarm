@@ -110,6 +110,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         var connectionToken = connectionCts.Token;
         var channel = Channel.CreateUnbounded<PrinterConnectorEvent>();
         using var client = _options.CreateMqttClient();
+        var lastReportTicks = DateTimeOffset.UtcNow.UtcTicks;
 
         client.ApplicationMessageReceivedAsync += e =>
         {
@@ -125,6 +126,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
             if (hasGcodeState || telemetry is not null)
             {
+                Interlocked.Exchange(ref lastReportTicks, DateTimeOffset.UtcNow.UtcTicks);
                 channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: gcodeState, Telemetry: telemetry, HmsAlerts: alerts.Hms, PrintErrors: alerts.PrintErrors));
             }
 
@@ -133,6 +135,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
         client.ConnectedAsync += async _ =>
         {
+            Interlocked.Exchange(ref lastReportTicks, DateTimeOffset.UtcNow.UtcTicks);
             channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionStarted: true));
             LogConnected(_logger, details.SerialNumber);
             await SubscribeAndRequestAsync(client, details.SerialNumber, connectionToken);
@@ -144,7 +147,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             return Task.CompletedTask;
         };
 
-        var maintainTask = MaintainConnectionAsync(client, BuildClientOptions(details, _options), details.SerialNumber, _logger, connectionToken);
+        var maintainTask = MaintainConnectionAsync(client, BuildClientOptions(details, _options), details.SerialNumber,
+            _logger, () => new DateTimeOffset(Interlocked.Read(ref lastReportTicks), TimeSpan.Zero), channel.Writer, connectionToken);
 
         try
         {
@@ -273,36 +277,50 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         MqttClientOptions options,
         string serialNumber,
         ILogger logger,
+        Func<DateTimeOffset> lastReportUtc,
+        ChannelWriter<PrinterConnectorEvent> writer,
         CancellationToken cancellationToken)
     {
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (!client.IsConnected)
+                try
                 {
-                    try
+                    if (client.IsConnected && DateTimeOffset.UtcNow - lastReportUtc() > _options.TelemetryTimeout)
                     {
-                        await client.ConnectAsync(options, cancellationToken);
+                        LogTelemetryStalled(logger, serialNumber);
+                        using var disconnectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        disconnectCts.CancelAfter(_options.ConnectTimeout);
+                        await client.DisconnectAsync(cancellationToken: disconnectCts.Token);
                     }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    if (!client.IsConnected)
                     {
-                        LogReconnectFailed(logger, serialNumber, ex);
+                        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        connectCts.CancelAfter(_options.ConnectTimeout);
+                        await client.ConnectAsync(options, connectCts.Token);
                     }
+                }
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // A per-attempt timeout is recoverable; only lifecycle cancellation ends retries.
+                    LogReconnectFailed(logger, serialNumber, ex);
                 }
 
                 await Task.Delay(_options.ReconnectDelay, cancellationToken);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Expected on shutdown.
         }
         finally
         {
+            writer.TryComplete();
             if (client.IsConnected)
             {
-                await client.DisconnectAsync(cancellationToken: CancellationToken.None);
+                using var cleanupCts = new CancellationTokenSource(_options.ConnectTimeout);
+                await client.DisconnectAsync(cancellationToken: cleanupCts.Token);
             }
         }
     }
@@ -332,6 +350,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             .WithTcpServer(details.IpAddress, options?.MqttPort ?? 8883)
             .WithCredentials(MqttUsername, details.AccessCode)
             .WithKeepAlivePeriod(TimeSpan.FromSeconds(5))
+            .WithTimeout(options?.ConnectTimeout ?? TimeSpan.FromSeconds(10))
             .WithCleanSession()
             // MQTTnet defaults to MQTT 5, but Bambu's LAN broker only speaks v3.1.1 (research.md §1;
             // confirmed against pybambu's mqtt.Client(protocol=mqtt.MQTTv311)) — a v5 CONNECT gets a
@@ -359,6 +378,9 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "MQTT reconnect attempt to printer {SerialNumber} failed.")]
     private static partial void LogReconnectFailed(ILogger logger, string serialNumber, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {SerialNumber} telemetry stalled despite an MQTT connection; reconnecting and requesting a full report.")]
+    private static partial void LogTelemetryStalled(ILogger logger, string serialNumber);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Verify connection to {IpAddress} failed.")]
     private static partial void LogVerifyFailed(ILogger logger, string ipAddress, Exception exception);

@@ -25,7 +25,7 @@ public sealed class PrinterConnectorFactory(
     public IPrinterCameraRelay CreateCameraRelay(PrinterConnectionDetails details) =>
         IsSimulated(details)
             ? simulatorCameraRelay
-            : new BambuCameraRelay();
+            : new BambuCameraRelay(loggerFactory.CreateLogger<BambuCameraRelay>());
 
     private static bool IsSimulated(PrinterConnectionDetails details) =>
         string.Equals(details.Brand, "System", StringComparison.OrdinalIgnoreCase)

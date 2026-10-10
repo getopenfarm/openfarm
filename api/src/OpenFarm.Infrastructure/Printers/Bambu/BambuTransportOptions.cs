@@ -17,6 +17,9 @@ internal sealed record BambuTransportOptions
     public TimeSpan VerifyTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan CommandTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan ReconnectDelay { get; init; } = TimeSpan.FromSeconds(5);
+    public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan CameraFrameTimeout { get; init; } = TimeSpan.FromSeconds(15);
+    public TimeSpan TelemetryTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public Func<IMqttClient> CreateMqttClient { get; init; } = () => new MqttClientFactory().CreateMqttClient();
     public Func<X509Certificate?, bool> ValidateCertificate { get; init; } = BambuCertificateTrust.Validate;
     public Func<PrinterConnectionDetails, Stream, string, CancellationToken, Task<FtpStatus>>? UploadFileAsync { get; init; }

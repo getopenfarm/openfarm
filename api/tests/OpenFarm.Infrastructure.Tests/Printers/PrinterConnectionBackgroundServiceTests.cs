@@ -30,6 +30,42 @@ public class PrinterConnectionBackgroundServiceTests
     // like the pre-throttle code (every event flushes), so they stay deterministic.
     private static readonly TimeSpan NoFlushThrottling = TimeSpan.Zero;
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublisherFailure_RetriesWithoutOrphaningCamera_AndStopsRequestStartedConnections(bool failCamera)
+    {
+        var organizationId = Guid.NewGuid();
+        var printer = Printer.Create(organizationId, "Recovery", "Bambu", "P1S", "10.0.0.50", "SN-RECOVERY");
+        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "code");
+        var connector = new EmittingPrinterConnector();
+        var publisher = new FailOncePublisher(failCamera);
+        var relay = new TrackingCameraRelay();
+        using var provider = BuildServiceProvider(printer, secret, connector, out _, publisher, cameraRelay: relay);
+        using var service = new PrinterConnectionBackgroundService(provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance, SweepInterval, TimeSpan.FromSeconds(10),
+            NoFlushThrottling, retryDelay: TimeSpan.FromMilliseconds(30));
+        await service.StartAsync(CancellationToken.None);
+        // Connection edits/registration use None, so shutdown must not rely on the supplied token.
+        service.StopConnection(printer.Id);
+        service.StartConnection(printer.Id, CancellationToken.None);
+        try
+        {
+            connector.Emit(printer.SerialNumber, new(DateTimeOffset.UtcNow,
+                Telemetry: new(210, null, 1, null, null, null, [])));
+            await WaitUntilAsync(() => publisher.Attempts >= 1, TimeSpan.FromSeconds(3));
+            if (!failCamera)
+                connector.Emit(printer.SerialNumber, new(DateTimeOffset.UtcNow,
+                    Telemetry: new(220, null, 2, null, null, null, [])));
+            await WaitUntilAsync(() => publisher.Attempts >= 2, TimeSpan.FromSeconds(3));
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
+        }
+        relay.Active.Should().Be(0);
+    }
+
     [Fact]
     public async Task RealMqttReports_SilenceAndRecovery_UpdateReachabilityAndPreserveMergedTelemetry()
     {
@@ -690,6 +726,38 @@ public class PrinterConnectionBackgroundServiceTests
             Entries.Add(entry);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class TrackingCameraRelay : IPrinterCameraRelay
+    {
+        private int _active;
+        public int Active => Volatile.Read(ref _active);
+        public async IAsyncEnumerable<byte[]> StreamFramesAsync(PrinterConnectionDetails details,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _active);
+            try
+            {
+                yield return [1, 2, 3];
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            finally { Interlocked.Decrement(ref _active); }
+        }
+    }
+
+    private sealed class FailOncePublisher(bool failCamera) : IPrinterEventPublisher
+    {
+        private int _attempts;
+        public int Attempts => Volatile.Read(ref _attempts);
+        private Task Publish(bool camera)
+        {
+            if (camera == failCamera && Interlocked.Increment(ref _attempts) == 1)
+                throw new IOException("Transient publisher failure");
+            return Task.CompletedTask;
+        }
+        public Task PrinterStatusChangedAsync(Guid organizationId, Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PrinterTelemetryUpdatedAsync(Guid organizationId, Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) => Publish(false);
+        public Task CameraFrameReceivedAsync(Guid organizationId, Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) => Publish(true);
     }
 
     private sealed class NoOpPrinterEventPublisher : IPrinterEventPublisher

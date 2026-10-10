@@ -3,6 +3,8 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OpenFarm.Application.Printers;
 
 namespace OpenFarm.Infrastructure.Printers.Bambu;
@@ -16,17 +18,23 @@ namespace OpenFarm.Infrastructure.Printers.Bambu;
 /// hardware in this environment — see <c>Printers/Fixtures/README.md</c> and quickstart.md's manual
 /// physical-hardware validation section.
 /// </summary>
-public sealed class BambuCameraRelay : IPrinterCameraRelay
+public sealed partial class BambuCameraRelay : IPrinterCameraRelay
 {
     private readonly BambuTransportOptions _options;
+    private readonly ILogger<BambuCameraRelay> _logger;
 
     public BambuCameraRelay() : this(new BambuTransportOptions())
     {
     }
 
-    internal BambuCameraRelay(BambuTransportOptions options)
+    public BambuCameraRelay(ILogger<BambuCameraRelay> logger) : this(new BambuTransportOptions(), logger)
+    {
+    }
+
+    internal BambuCameraRelay(BambuTransportOptions options, ILogger<BambuCameraRelay>? logger = null)
     {
         _options = options;
+        _logger = logger ?? NullLogger<BambuCameraRelay>.Instance;
     }
 
     public async IAsyncEnumerable<byte[]> StreamFramesAsync(
@@ -34,7 +42,10 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var connectionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var channel = Channel.CreateUnbounded<byte[]>();
+        var channel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
         var pumpTask = MaintainConnectionAsync(details, channel.Writer, connectionCts.Token);
 
         try
@@ -66,12 +77,9 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
                 {
                     break;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Connection dropped or rejected (wrong access code/IP) — retry after a delay,
-                    // mirroring ChamberImageThread's reconnect-with-backoff loop. Attempts aren't
-                    // capped here since PrinterConnectionBackgroundService owns the printer's
-                    // overall lifecycle/reachability tracking, not this relay.
+                    LogReconnectFailed(_logger, details.SerialNumber, _options.ReconnectDelay.TotalSeconds, ex);
                 }
 
                 if (!cancellationToken.IsCancellationRequested)
@@ -89,7 +97,9 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
     private async Task ReadFramesUntilDisconnectedAsync(PrinterConnectionDetails details, ChannelWriter<byte[]> writer, CancellationToken cancellationToken)
     {
         using var tcpClient = new TcpClient();
-        await tcpClient.ConnectAsync(details.IpAddress, _options.CameraPort, cancellationToken);
+        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        connectCts.CancelAfter(_options.ConnectTimeout);
+        await tcpClient.ConnectAsync(details.IpAddress, _options.CameraPort, connectCts.Token);
 
         await using var sslStream = new SslStream(
             tcpClient.GetStream(),
@@ -102,14 +112,17 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
                 TargetHost = details.IpAddress,
                 EnabledSslProtocols = SslProtocols.Tls12,
             },
-            cancellationToken);
+            connectCts.Token);
 
-        await sslStream.WriteAsync(BambuCameraFrameCodec.BuildAuthBlob(details.AccessCode), cancellationToken);
+        await sslStream.WriteAsync(BambuCameraFrameCodec.BuildAuthBlob(details.AccessCode), connectCts.Token);
 
         var header = new byte[BambuCameraFrameCodec.HeaderSize];
         while (!cancellationToken.IsCancellationRequested)
         {
-            await ReadExactAsync(sslStream, header, cancellationToken);
+            // A deadline for the whole frame also catches partial frames and slow trickles.
+            using var frameCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            frameCts.CancelAfter(_options.CameraFrameTimeout);
+            await ReadExactAsync(sslStream, header, frameCts.Token);
             var payloadSize = BambuCameraFrameCodec.ParsePayloadSize(header);
             if (payloadSize > BambuCameraFrameCodec.MaxPayloadSize)
             {
@@ -118,7 +131,7 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
             }
 
             var payload = new byte[payloadSize];
-            await ReadExactAsync(sslStream, payload, cancellationToken);
+            await ReadExactAsync(sslStream, payload, frameCts.Token);
 
             if (BambuCameraFrameCodec.IsValidJpegFrame(payload))
             {
@@ -146,4 +159,7 @@ public sealed class BambuCameraRelay : IPrinterCameraRelay
             offset += read;
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Camera connection to printer {SerialNumber} failed or stalled; retrying in {DelaySeconds}s.")]
+    private static partial void LogReconnectFailed(ILogger logger, string serialNumber, double delaySeconds, Exception exception);
 }

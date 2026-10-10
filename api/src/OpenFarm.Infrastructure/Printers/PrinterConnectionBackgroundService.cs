@@ -40,6 +40,11 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     private readonly TimeSpan _flushInterval;
 
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _activeConnections = new();
+    private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _printerLocks = new();
+    private readonly ConcurrentDictionary<CancellationTokenSource, Task> _connectionTasks = new();
+    private readonly CancellationTokenSource _lifetimeCts = new();
+    private readonly TimeSpan _retryDelay;
+    private int _disposed;
 
     // Resolved once and reused for every scope this service creates — see CreateTenantScope's
     // remarks for why. Written once from ExecuteAsync before any tenant-scoped work starts.
@@ -50,26 +55,47 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         ILogger<PrinterConnectionBackgroundService> logger,
         TimeSpan? sweepInterval = null,
         TimeSpan? unreachableThreshold = null,
-        TimeSpan? flushInterval = null)
+        TimeSpan? flushInterval = null,
+        TimeSpan? retryDelay = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _sweepInterval = sweepInterval ?? DefaultSweepInterval;
         _unreachableThreshold = unreachableThreshold ?? DefaultUnreachableThreshold;
         _flushInterval = flushInterval ?? DefaultFlushInterval;
+        _retryDelay = retryDelay ?? TimeSpan.FromSeconds(5);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            await EnsureTenantInfoResolvedAsync(stoppingToken);
-            await StartConnectionsForRegisteredPrintersAsync(stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await EnsureTenantInfoResolvedAsync(stoppingToken);
+                    await StartConnectionsForRegisteredPrintersAsync(stoppingToken);
+                    break;
+                }
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+                {
+                    LogStartupFailed(_logger, ex);
+                    await Task.Delay(_retryDelay, stoppingToken);
+                }
+            }
 
             using var timer = new PeriodicTimer(_sweepInterval);
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                await SweepUnreachablePrintersAsync(stoppingToken);
+                try
+                {
+                    await SweepUnreachablePrintersAsync(stoppingToken);
+                }
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+                {
+                    LogSweepFailed(_logger, ex);
+                }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -88,14 +114,16 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     /// </summary>
     public void StartConnection(Guid printerId, CancellationToken cancellationToken)
     {
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeCts.Token);
         if (!_activeConnections.TryAdd(printerId, linkedCts))
         {
             linkedCts.Dispose();
             return;
         }
 
-        _ = RunConnectionLoopAsync(printerId, linkedCts);
+        var task = RunConnectionLoopAsync(printerId, linkedCts);
+        _connectionTasks.TryAdd(linkedCts, task);
+        _ = RemoveCompletedTaskAsync(linkedCts, task);
     }
 
     /// <summary>Stops a printer's connection loop (e.g. it was just removed).</summary>
@@ -103,9 +131,30 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     {
         if (_activeConnections.TryRemove(printerId, out var cts))
         {
-            cts.Cancel();
-            cts.Dispose();
+            try { cts.Cancel(); }
+            catch (ObjectDisposedException) { /* The loop already completed concurrently. */ }
         }
+    }
+
+    private async Task RemoveCompletedTaskAsync(CancellationTokenSource cts, Task task)
+    {
+        try { await task; }
+        finally { _connectionTasks.TryRemove(cts, out _); }
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifetimeCts.CancelAsync();
+        await base.StopAsync(cancellationToken);
+        await Task.WhenAll(_connectionTasks.Values.ToArray()).WaitAsync(cancellationToken);
+    }
+
+    public override void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _lifetimeCts.Cancel();
+        base.Dispose();
+        _lifetimeCts.Dispose();
     }
 
     /// <summary>
@@ -166,72 +215,112 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     /// synchronization between them, so by the time this loop's <c>finally</c> runs, a *newer* CTS
     /// may already occupy <paramref name="printerId"/>'s slot in <see cref="_activeConnections"/>.
     /// The identity-checked <c>Remove(KeyValuePair&lt;,&gt;)</c> below only tears down the dictionary
-    /// entry (and disposes the CTS) if it's still this loop's own instance — never someone else's.
+    /// entry if it's still this loop's own instance — never someone else's.
     /// </summary>
     private async Task RunConnectionLoopAsync(Guid printerId, CancellationTokenSource ownedCts)
     {
         var connectionToken = ownedCts.Token;
         try
         {
-            await EnsureTenantInfoResolvedAsync(connectionToken);
-            using var scope = CreateTenantScope();
-            var services = scope.ServiceProvider;
-            var printerRepository = services.GetRequiredService<IPrinterRepository>();
-            var connectionSecrets = services.GetRequiredService<IConnectionSecretRepository>();
-            var secretProtector = services.GetRequiredService<ISecretProtector>();
-            var connectorFactory = services.GetRequiredService<IPrinterConnectorFactory>();
-
-            var printer = await printerRepository.GetByIdAsync(printerId, connectionToken);
-            if (printer is null)
+            while (!connectionToken.IsCancellationRequested)
             {
-                return;
-            }
+                try
+                {
+                    if (!await RunConnectionAttemptAsync(printerId, connectionToken)) return;
+                    LogConnectionEnded(_logger, printerId);
+                }
+                catch (OperationCanceledException) when (connectionToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    LogConnectionLoopFailed(_logger, printerId, ex);
+                }
 
-            var secret = await connectionSecrets.GetByPrinterSerialNumberAsync(printer.SerialNumber, connectionToken);
-            if (secret is null)
-            {
-                LogNoConnectionSecret(_logger, printerId);
-                return;
-            }
-
-            var details = new PrinterConnectionDetails(
-                printer.Brand,
-                printer.ModelCode,
-                printer.IpAddress,
-                printer.SerialNumber,
-                secretProtector.Unprotect(secret.EncryptedAccessCode));
-
-            if (PrinterModelCatalog.TryResolve(printer.Brand, printer.ModelCode, out var model)
-                && model!.CameraTransport == CameraTransport.BinaryImage)
-            {
-                _ = RunCameraLoopAsync(printerId, details, connectionToken);
-            }
-
-            printer.BeginConnection();
-            await printerRepository.SaveChangesAsync(connectionToken);
-            var connector = connectorFactory.CreateConnector(details);
-            var lastFlushUtc = DateTimeOffset.MinValue;
-            await foreach (var connectorEvent in connector.ConnectAsync(details, connectionToken))
-            {
-                lastFlushUtc = await HandleEventAsync(printer, connectorEvent, services, _logger, lastFlushUtc, _flushInterval, connectionToken);
+                await Task.Delay(_retryDelay, connectionToken);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (connectionToken.IsCancellationRequested)
         {
             // Expected on shutdown or StopConnection().
         }
-        catch (Exception ex)
+        finally
         {
-            LogConnectionLoopFailed(_logger, printerId, ex);
+            ((ICollection<KeyValuePair<Guid, CancellationTokenSource>>)_activeConnections)
+                .Remove(new KeyValuePair<Guid, CancellationTokenSource>(printerId, ownedCts));
+            ownedCts.Dispose();
+        }
+    }
+
+    private async Task<bool> RunConnectionAttemptAsync(Guid printerId, CancellationToken connectionToken)
+    {
+        await EnsureTenantInfoResolvedAsync(connectionToken);
+        PrinterConnectionDetails details;
+        IPrinterConnector connector;
+        using (var scope = CreateTenantScope())
+        {
+            var services = scope.ServiceProvider;
+            var repository = services.GetRequiredService<IPrinterRepository>();
+            var printer = await repository.GetByIdAsync(printerId, connectionToken);
+            if (printer is null) return false;
+            var secret = await services.GetRequiredService<IConnectionSecretRepository>()
+                .GetByPrinterSerialNumberAsync(printer.SerialNumber, connectionToken);
+            if (secret is null)
+            {
+                LogNoConnectionSecret(_logger, printerId);
+                return false;
+            }
+
+            details = new PrinterConnectionDetails(printer.Brand, printer.ModelCode, printer.IpAddress,
+                printer.SerialNumber, services.GetRequiredService<ISecretProtector>().Unprotect(secret.EncryptedAccessCode));
+            printer.BeginConnection();
+            await repository.SaveChangesAsync(connectionToken);
+            connector = services.GetRequiredService<IPrinterConnectorFactory>().CreateConnector(details);
+        }
+
+        using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(connectionToken);
+        var cameraTask = PrinterModelCatalog.TryResolve(details.Brand, details.ModelCode, out var model)
+            && model!.CameraTransport == CameraTransport.BinaryImage
+                ? RunCameraLoopAsync(printerId, details, attemptCts.Token)
+                : Task.CompletedTask;
+        try
+        {
+            var lastFlushUtc = DateTimeOffset.MinValue;
+            PrinterTelemetrySnapshot? pendingTelemetry = null;
+            var gate = _printerLocks.GetOrAdd(printerId, _ => new SemaphoreSlim(1, 1));
+            await foreach (var connectorEvent in connector.ConnectAsync(details, attemptCts.Token))
+            {
+                await gate.WaitAsync(connectionToken);
+                try
+                {
+                    // Reload persisted reachability/status on each event. The silence sweep and
+                    // operator actions use different scopes; a long-lived tracked entity misses them.
+                    using var scope = CreateTenantScope();
+                    var services = scope.ServiceProvider;
+                    var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, connectionToken);
+                    if (printer is null) return false;
+                    if (pendingTelemetry is { } pending)
+                        printer.RecordTelemetry(pending.NozzleTempC, pending.BedTempC, pending.PrintProgressPercent,
+                            pending.CurrentStageLabel, pending.RemainingTimeMinutes, pending.CurrentJobName,
+                            pending.AmsUnits, pending.ExternalSpoolTray);
+
+                    lastFlushUtc = await HandleEventAsync(printer, connectorEvent, services, _logger,
+                        lastFlushUtc, _flushInterval, connectionToken);
+                    // Only carry unsaved telemetry across scopes; never carry reachability or
+                    // operator-controlled state. This preserves delta merging during throttling.
+                    pendingTelemetry = new(printer.NozzleTempC, printer.BedTempC, printer.PrintProgressPercent,
+                        printer.CurrentStageLabel, printer.RemainingTimeMinutes, printer.CurrentJobName,
+                        printer.AmsUnits, printer.ExternalSpoolTray);
+                }
+                finally { gate.Release(); }
+            }
+            return true;
         }
         finally
         {
-            var stillOwnsSlot = ((ICollection<KeyValuePair<Guid, CancellationTokenSource>>)_activeConnections)
-                .Remove(new KeyValuePair<Guid, CancellationTokenSource>(printerId, ownedCts));
-            if (stillOwnsSlot)
-            {
-                ownedCts.Dispose();
-            }
+            await attemptCts.CancelAsync();
+            await cameraTask;
         }
     }
 
@@ -245,32 +334,23 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     /// </summary>
     private async Task RunCameraLoopAsync(Guid printerId, PrinterConnectionDetails details, CancellationToken connectionToken)
     {
-        try
+        while (!connectionToken.IsCancellationRequested)
         {
-            using var scope = CreateTenantScope();
-            var services = scope.ServiceProvider;
-            var printerRepository = services.GetRequiredService<IPrinterRepository>();
-            var cameraRelay = services.GetRequiredService<IPrinterConnectorFactory>().CreateCameraRelay(details);
-            var publisher = services.GetRequiredService<IPrinterEventPublisher>();
-
-            var printer = await printerRepository.GetByIdAsync(printerId, connectionToken);
-            if (printer is null)
+            try
             {
-                return;
+                using var scope = CreateTenantScope();
+                var services = scope.ServiceProvider;
+                var cameraRelay = services.GetRequiredService<IPrinterConnectorFactory>().CreateCameraRelay(details);
+                var publisher = services.GetRequiredService<IPrinterEventPublisher>();
+                var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, connectionToken);
+                if (printer is null) return;
+                await foreach (var frame in cameraRelay.StreamFramesAsync(details, connectionToken))
+                    await publisher.CameraFrameReceivedAsync(printer.OrganizationId, printer.Id, Convert.ToBase64String(frame), connectionToken);
             }
-
-            await foreach (var frame in cameraRelay.StreamFramesAsync(details, connectionToken))
-            {
-                await publisher.CameraFrameReceivedAsync(printer.OrganizationId, printer.Id, Convert.ToBase64String(frame), connectionToken);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected on shutdown or StopConnection().
-        }
-        catch (Exception ex)
-        {
-            LogCameraLoopFailed(_logger, printerId, ex);
+            catch (OperationCanceledException) when (connectionToken.IsCancellationRequested) { return; }
+            catch (Exception ex) { LogCameraLoopFailed(_logger, printerId, ex); }
+            try { await Task.Delay(_retryDelay, connectionToken); }
+            catch (OperationCanceledException) when (connectionToken.IsCancellationRequested) { return; }
         }
     }
 
@@ -442,32 +522,40 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
             if (now - lastMessageUtc > _unreachableThreshold)
             {
-                var tracked = await printerRepository.GetByIdAsync(summary.Id, stoppingToken);
-                if (tracked is null || !tracked.IsReachable)
+                var gate = _printerLocks.GetOrAdd(summary.Id, _ => new SemaphoreSlim(1, 1));
+                await gate.WaitAsync(stoppingToken);
+                try
                 {
-                    continue;
+                    var tracked = await printerRepository.GetByIdAsync(summary.Id, stoppingToken);
+                    if (tracked is null || !tracked.IsReachable || tracked.LastMessageUtc is not { } latest
+                        || now - latest <= _unreachableThreshold) continue;
+                    tracked.MarkUnreachable();
+                    LogPrinterUnreachable(_logger, tracked.Id, _unreachableThreshold.TotalSeconds);
+                    await printerRepository.SaveChangesAsync(stoppingToken);
+                    await publisher.PrinterStatusChangedAsync(tracked.OrganizationId, tracked.Id,
+                        tracked.Status, tracked.IsReachable, stoppingToken);
                 }
-
-                tracked.MarkUnreachable();
-                LogPrinterUnreachable(_logger, tracked.Id, _unreachableThreshold.TotalSeconds);
-                await printerRepository.SaveChangesAsync(stoppingToken);
-                await publisher.PrinterStatusChangedAsync(
-                    tracked.OrganizationId,
-                    tracked.Id,
-                    tracked.Status,
-                    tracked.IsReachable,
-                    stoppingToken);
+                finally { gate.Release(); }
             }
         }
     }
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {PrinterId} connection stream ended; retrying.")]
+    private static partial void LogConnectionEnded(ILogger logger, Guid printerId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Starting printer connections failed; retrying.")]
+    private static partial void LogStartupFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Printer reachability sweep failed; retrying on the next tick.")]
+    private static partial void LogSweepFailed(ILogger logger, Exception exception);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "No connection secret found for printer {PrinterId}; not connecting.")]
     private static partial void LogNoConnectionSecret(ILogger logger, Guid printerId);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Printer {PrinterId} connection loop terminated unexpectedly.")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Printer {PrinterId} connection loop failed; retrying.")]
     private static partial void LogConnectionLoopFailed(ILogger logger, Guid printerId, Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Printer {PrinterId} camera loop terminated unexpectedly.")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Printer {PrinterId} camera loop failed; retrying.")]
     private static partial void LogCameraLoopFailed(ILogger logger, Guid printerId, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Printer {PrinterId} marked reachable.")]
