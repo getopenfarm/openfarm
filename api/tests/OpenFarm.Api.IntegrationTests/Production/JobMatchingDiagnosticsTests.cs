@@ -8,6 +8,7 @@ using OpenFarm.Api.Endpoints.Parts;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Api.IntegrationTests.Production;
@@ -53,7 +54,20 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
         reopened!.FilamentRequirements.Single().NarrowFilamentVariantId.Should().Be(variantId);
         using (var scope = Factory.CreateTenantScope())
             part = (await scope.ServiceProvider.GetRequiredService<IPartRepository>().GetByIdAsync(saved.Id, default))!;
-        var run = await RunAsync(client, part.Id, revisionMode: mode, pinned: printer.Id);
+        var run = await RunAsync(client, part.Id, quantity: follows ? null : 1, revisionMode: mode, pinned: printer.Id);
+        if (follows)
+        {
+            // An unsent backfill attempt remains library-dependent until dispatch commits.
+            using var scope = Factory.CreateTenantScope();
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var requirement = await db.PartRequirements.SingleAsync(r => r.RunLineId == run.Lines.Single().Id);
+            var pending = PrintJob.Create(part.OrganizationId, requirement.Id, 1024, part.UnitsPerPrint,
+                AssignmentMode.Pinned, printer.Id, part.RevisionHash, part.RevisionNumber,
+                ProductionJobRequirements.FromPart(part));
+            pending.CaptureProductionSnapshot(part);
+            db.PrintJobs.Add(pending);
+            await db.SaveChangesAsync();
+        }
         var job = (await JobsAsync(run.Id)).Single();
         job.FilamentConsumption.Single().NarrowFilamentVariantId.Should().Be(variantId);
         var diagnostics = await client.GetFromJsonAsync<JobMatchingDiagnostics>($"/api/v1/print-jobs/{job.Id}/matching-diagnostics");
@@ -62,8 +76,13 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
         diagnostics.Requirements.Single().SelectedVariantId.Should().Be(variantId);
 
         // A part edit clears the selected identity: only Follow-latest returns to file-colour matching.
-        var patch = await client.PatchAsJsonAsync($"/api/v1/parts/{part.Id}/filament-requirements/{part.FilamentRequirements.Single().Id}",
-            new { narrowFilamentVariantId = (Guid?)null, narrowFilamentProfileId = (Guid?)null });
+        var patch = await client.PutAsJsonAsync($"/api/v1/parts/{part.Id}", new
+        {
+            name = part.Name,
+            tags = Array.Empty<string>(),
+            unitsPerPrint = part.UnitsPerPrint,
+            filamentRequirements = new[] { new { requirementId = part.FilamentRequirements.Single().Id, narrowFilamentVariantId = (Guid?)null, narrowFilamentProfileId = (Guid?)null } },
+        });
         patch.EnsureSuccessStatusCode();
         diagnostics = await client.GetFromJsonAsync<JobMatchingDiagnostics>($"/api/v1/print-jobs/{job.Id}/matching-diagnostics");
         var result = diagnostics!.Printers.Single(p => p.PrinterId == printer.Id);
@@ -71,7 +90,7 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
         diagnostics.RequirementSource.Should().Be(follows ? "Follow-latest part" : "Job snapshot");
         if (follows) result.Checks.Should().Contain(c => c.Code == "filament" && c.Status == "Failed");
 
-        var queue = await client.GetFromJsonAsync<ListQueueJobsResponse>("/api/v1/print-jobs?view=queue&pageSize=1000");
+        var queue = await client.GetFromJsonAsync<ListQueueJobsResponse>($"/api/v1/print-jobs?view={(follows ? "backfill" : "queue")}&pageSize=1000");
         queue!.Items.Single(j => j.JobId == job.Id).IsBlocked.Should().Be(follows);
         // An explicit job override wins over Follow-latest and the part's detected colour.
         var change = await client.PutAsJsonAsync($"/api/v1/print-jobs/{job.Id}/filament-requirements",
@@ -114,8 +133,13 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
     {
         var client = await ClientAsync();
         var part = await PartAsync();
-        var response = await client.PatchAsJsonAsync($"/api/v1/parts/{part.Id}/filament-requirements/{part.FilamentRequirements.Single().Id}",
-            new { narrowFilamentVariantId = Guid.NewGuid() });
+        var response = await client.PutAsJsonAsync($"/api/v1/parts/{part.Id}", new
+        {
+            name = part.Name,
+            tags = Array.Empty<string>(),
+            unitsPerPrint = part.UnitsPerPrint,
+            filamentRequirements = new[] { new { requirementId = part.FilamentRequirements.Single().Id, narrowFilamentVariantId = Guid.NewGuid() } },
+        });
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 }

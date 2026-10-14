@@ -6,7 +6,7 @@ import {
   getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
 } from '@/lib/api/generated/printers/printers';
-import { useFarmHub } from './useFarmHub';
+import { cameraFrameQueryKey, useFarmHub } from './useFarmHub';
 
 const hub = vi.hoisted(() => ({
   handlers: new Map<string, (payload: unknown) => void>(),
@@ -170,6 +170,44 @@ describe('Feed Units live updates', () => {
     invalidate.mockClear();
     emit(0.6, false);
     expect(invalidate).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+});
+
+describe('Camera receipt timestamps', () => {
+  it('uses server time, promotes a snapshot to live, and rejects delayed or invalid events', () => {
+    const client = new QueryClient();
+    const key = cameraFrameQueryKey('p1');
+    const receivedAtUtc = Date.now() - 60000;
+    client.setQueryData(key, {
+      frameJpegBase64: 'snapshot',
+      receivedAtUtc,
+      fromSnapshot: true,
+    });
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    const emit = (frame: string, time: string) =>
+      act(() =>
+        hub.handlers.get('CameraFrameReceived')?.({
+          printerId: 'p1',
+          frameJpegBase64: frame,
+          receivedAtUtc: time,
+        }),
+      );
+    emit('live', new Date(receivedAtUtc).toISOString());
+    expect(client.getQueryData(key)).toEqual({
+      frameJpegBase64: 'live',
+      receivedAtUtc,
+    });
+    emit('delayed', new Date(receivedAtUtc - 1000).toISOString());
+    emit('invalid', 'bad date');
+    expect(client.getQueryData(key)).toEqual({
+      frameJpegBase64: 'live',
+      receivedAtUtc,
+    });
     unmount();
   });
 });

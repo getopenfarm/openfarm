@@ -40,7 +40,7 @@ public class ProductionRunQueueActivityLogTests(ProductionTestFactory factory) :
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/pin", body: new { printerId = printer.Id });
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/unpin");
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/pin", body: new { printerId = printer.Id });
-        var revision = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}/lines/{run.Lines.Single().Id}/revision-mode", new { revisionMode = "FollowLatest" });
+        var revision = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}/lines/{run.Lines.Single().Id}/revision-mode", new { revisionMode = "Snapshot" });
         revision.EnsureSuccessStatusCode();
         using var worker = Worker();
         await worker.StartAsync(default);

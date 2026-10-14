@@ -1,9 +1,10 @@
-import { ClipboardListIcon, WrenchIcon } from 'lucide-react';
+import { ClipboardListIcon, PlusIcon, WrenchIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { NeedsAttentionCard } from './components/NeedsAttentionCard';
@@ -36,50 +37,70 @@ export function MaintenancePage() {
           </>
         }
         action={
-          <Button onClick={() => toast('Not yet implemented')}>New task</Button>
+          <Button onClick={() => toast('Not yet implemented')}>
+            <PlusIcon data-icon="inline-start" />
+            Add task
+          </Button>
         }
       />
 
-      <div className="flex flex-col gap-3">
-        <h3 className="font-heading text-lg font-semibold">Needs attention</h3>
-        {fleetQuery.isLoading ? (
-          <SkeletonGrid itemClassName="h-32" />
-        ) : printers.length === 0 ? (
-          <EmptyState
-            icon={<WrenchIcon className="size-8 text-muted-foreground" />}
-            description="No printers registered yet. Add one on the Printers page to see maintenance flags here."
-          />
-        ) : (
-          <div className="grid grid-cols-1 gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] sm:grid-cols-2 xl:grid-cols-3">
-            {flags.map((flag) => (
-              <NeedsAttentionCard
-                key={`${flag.printerId}-${flag.task}`}
-                flag={flag}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      <Card className="shrink-0">
+        <CardHeader>
+          <CardTitle>Needs attention</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {fleetQuery.isLoading ? (
+            <SkeletonGrid itemClassName="h-32" />
+          ) : fleetQuery.isError ? (
+            <ErrorState
+              size="sm"
+              title="Could not load printers"
+              onRetry={() => fleetQuery.refetch()}
+            />
+          ) : printers.length === 0 ? (
+            <EmptyState
+              size="sm"
+              icon={<WrenchIcon className="size-8 text-muted-foreground" />}
+              description="No printers registered yet. Add one on the Printers page to see maintenance flags here."
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] sm:grid-cols-2 xl:grid-cols-3">
+              {flags.map((flag) => (
+                <NeedsAttentionCard
+                  key={`${flag.printerId}-${flag.task}`}
+                  flag={flag}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-3">
-        <h3 className="font-heading text-lg font-semibold">Task templates</h3>
-        {TASK_TEMPLATES.length === 0 ? (
-          <EmptyState
-            icon={
-              <ClipboardListIcon className="size-8 text-muted-foreground" />
-            }
-            title="No task templates yet"
-            description="Task templates define what maintenance to track and when."
-            action={
-              <Button onClick={() => toast('Not yet implemented')}>
-                New task
-              </Button>
-            }
-          />
-        ) : (
-          <TaskTemplatesTable templates={TASK_TEMPLATES} />
-        )}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Task templates</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {TASK_TEMPLATES.length === 0 ? (
+            <EmptyState
+              size="sm"
+              icon={
+                <ClipboardListIcon className="size-8 text-muted-foreground" />
+              }
+              title="No task templates yet"
+              description="Task templates define what maintenance to track and when."
+              action={
+                <Button onClick={() => toast('Not yet implemented')}>
+                  <PlusIcon data-icon="inline-start" />
+                  Add task
+                </Button>
+              }
+            />
+          ) : (
+            <TaskTemplatesTable templates={TASK_TEMPLATES} />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -24,7 +24,6 @@ public sealed class FakeFilamentRepository : IFilamentRepository
 
     // The variant already lives on its parent Filament.Variants (Filament.AddVariant appends it
     // in-memory) — this only mirrors the real repository's explicit-tracking seam, a no-op here.
-    public Task AddVariantAsync(FilamentVariant variant, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

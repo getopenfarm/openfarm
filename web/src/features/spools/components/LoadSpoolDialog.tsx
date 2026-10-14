@@ -1,23 +1,27 @@
 import { useQueryClient } from '@tanstack/react-query';
+import type { RefObject } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import type {
   FeedUnitResponse,
   ListFeedUnitsResponse,
@@ -47,12 +51,14 @@ interface LoadSpoolDialogProps {
   spoolId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  returnFocusRef?: RefObject<HTMLButtonElement | null>;
 }
 
 export function LoadSpoolDialog({
   spoolId,
   open,
   onOpenChange,
+  returnFocusRef,
 }: LoadSpoolDialogProps) {
   const [printerId, setPrinterId] = useState('');
   const [feedSlotId, setFeedSlotId] = useState('');
@@ -103,16 +109,23 @@ export function LoadSpoolDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        onCloseAutoFocus={(event) => {
+          if (returnFocusRef?.current?.isConnected) {
+            event.preventDefault();
+            returnFocusRef.current.focus();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Load spool</DialogTitle>
           <DialogDescription>
             Choose the printer and Feed Slot this spool is being loaded onto.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="load-printer">Printer</Label>
+        <FieldGroup className="flex flex-col gap-4">
+          <Field className="flex flex-col gap-1.5">
+            <FieldLabel htmlFor="load-printer">Printer</FieldLabel>
             <Select
               value={printerId}
               onValueChange={(value) => {
@@ -124,16 +137,18 @@ export function LoadSpoolDialog({
                 <SelectValue placeholder="Choose a printer" />
               </SelectTrigger>
               <SelectContent>
-                {printers.map((printer) => (
-                  <SelectItem key={printer.id} value={printer.id ?? ''}>
-                    {printer.name}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {printers.map((printer) => (
+                    <SelectItem key={printer.id} value={printer.id ?? ''}>
+                      {printer.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="load-feed-slot">Feed Slot</Label>
+          </Field>
+          <Field data-disabled={!printerId} className="flex flex-col gap-1.5">
+            <FieldLabel htmlFor="load-feed-slot">Feed Slot</FieldLabel>
             <Select
               value={feedSlotId}
               onValueChange={setFeedSlotId}
@@ -147,27 +162,35 @@ export function LoadSpoolDialog({
                 />
               </SelectTrigger>
               <SelectContent>
-                {slotOptions.length === 0 ? (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">
-                    No available Feed Slots on this printer.
-                  </p>
-                ) : (
-                  slotOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))
-                )}
+                <SelectGroup>
+                  {slotOptions.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">
+                      No available Feed Slots on this printer.
+                    </p>
+                  ) : (
+                    slotOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectGroup>
               </SelectContent>
             </Select>
-          </div>
-        </div>
+          </Field>
+        </FieldGroup>
         <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
           <Button
             type="button"
             onClick={handleSubmit}
             disabled={!feedSlotId || loadMutation.isPending}
           >
+            {loadMutation.isPending && <Spinner data-icon="inline-start" />}
             {loadMutation.isPending ? 'Loading…' : 'Load spool'}
           </Button>
         </DialogFooter>

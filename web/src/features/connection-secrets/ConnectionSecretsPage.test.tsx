@@ -78,7 +78,8 @@ describe('ConnectionSecretsPage', () => {
       </QueryClientProvider>,
     );
 
-    const addButton = await screen.findByRole('button', {
+    // Header action and empty-state action both read "Add credential".
+    const [addButton] = await screen.findAllByRole('button', {
       name: 'Add credential',
     });
     await user.click(addButton);
@@ -95,7 +96,7 @@ describe('ConnectionSecretsPage', () => {
     renderPage();
 
     expect(
-      await screen.findByText(/Couldn't load connection secrets/),
+      await screen.findByText(/Couldn't load connection credentials/),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });

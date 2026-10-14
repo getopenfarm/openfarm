@@ -44,6 +44,23 @@ public static class PrinterModelCatalog
     // never a restructure of the dispatcher/command-handler branches that already read it (FR-012/FR-024b).
     private static readonly HashSet<PrinterBrand> LiveIntegratedBrands = new() { PrinterBrand.Bambu, PrinterBrand.System };
 
+    // Bambu SSDP DevModel.bambu.com codes -> catalog ModelCode, for LAN discovery prefill.
+    // ponytail: C11/C12/N2S/N1 confirmed via ha-bambulab pybambu/utils.py; the X-series codes are
+    // from public docs only — verify against real hardware, an unmapped code just means a manual model pick.
+    private static readonly Dictionary<string, string> BambuDeviceModelCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["BL-P001"] = "X1C",
+        ["BL-P002"] = "X1",
+        ["C13"] = "X1E",
+        ["C11"] = "P1P",
+        ["C12"] = "P1S",
+        ["N2S"] = "A1",
+        ["N1"] = "A1MINI",
+    };
+
+    public static string? TryMapBambuDeviceModel(string deviceModel) =>
+        BambuDeviceModelCodes.GetValueOrDefault(deviceModel.Trim());
+
     public static bool SupportsLiveIntegration(string brand) =>
         Enum.TryParse<PrinterBrand>(brand, ignoreCase: true, out var parsedBrand) && LiveIntegratedBrands.Contains(parsedBrand);
 

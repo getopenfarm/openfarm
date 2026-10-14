@@ -1,5 +1,13 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -87,82 +95,95 @@ function PresetSection({
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10" />
-            <TableHead>Name</TableHead>
-            <TableHead>Base / Override</TableHead>
-            <TableHead>Duplicate</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {presets.map((preset) => {
-            const name = preset.name ?? '';
-            const key = profileSelectionKey(type, name);
-            const state = selections[key] ?? { selected: true };
+      <div className="overflow-hidden rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10" />
+              <TableHead>Name</TableHead>
+              <TableHead>Base / Override</TableHead>
+              <TableHead>Duplicate</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {presets.map((preset) => {
+              const name = preset.name ?? '';
+              const key = profileSelectionKey(type, name);
+              const state = selections[key] ?? { selected: true };
 
-            // FR-006 — warn when a selected override's base is present elsewhere in this same
-            // bundle but not also selected, computed entirely from data already in hand (the full
-            // preview array + live selection state), no backend round trip (research.md §4).
-            const baseName = preset.baseProfileName;
-            const baseIsInBundle =
-              baseName != null && presets.some((p) => p.name === baseName);
-            const baseIsSelected =
-              baseName != null &&
-              (selections[profileSelectionKey(type, baseName)]?.selected ??
-                true);
-            const showUnselectedBaseWarning =
-              state.selected && baseIsInBundle && !baseIsSelected;
+              // FR-006 — warn when a selected override's base is present elsewhere in this same
+              // bundle but not also selected, computed entirely from data already in hand (the full
+              // preview array + live selection state), no backend round trip (research.md §4).
+              const baseName = preset.baseProfileName;
+              const baseIsInBundle =
+                baseName != null && presets.some((p) => p.name === baseName);
+              const baseIsSelected =
+                baseName != null &&
+                (selections[profileSelectionKey(type, baseName)]?.selected ??
+                  true);
+              const showUnselectedBaseWarning =
+                state.selected && baseIsInBundle && !baseIsSelected;
 
-            return (
-              <TableRow key={key}>
-                <TableCell>
-                  <Checkbox
-                    checked={state.selected}
-                    onCheckedChange={(checked) =>
-                      onChange(key, { ...state, selected: checked === true })
-                    }
-                    aria-label={`Select ${name}`}
-                  />
-                </TableCell>
-                <TableCell>{name}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {preset.baseProfileName
-                    ? `Override of ${preset.baseProfileName}`
-                    : 'Base'}
-                  {showUnselectedBaseWarning && (
-                    <p className="text-xs text-destructive">
-                      Base "{baseName}" is in this bundle but not selected.
-                    </p>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {preset.isDuplicate ? (
-                    <select
-                      className="h-8 rounded-md border bg-transparent px-2 text-xs"
-                      value={state.duplicateAction ?? 'Skip'}
-                      onChange={(e) =>
-                        onChange(key, {
-                          ...state,
-                          duplicateAction: e.target
-                            .value as ProfileDuplicateAction,
-                        })
+              return (
+                <TableRow
+                  key={key}
+                  data-state={state.selected ? 'selected' : undefined}
+                >
+                  <TableCell>
+                    <Checkbox
+                      checked={state.selected}
+                      onCheckedChange={(checked) =>
+                        onChange(key, { ...state, selected: checked === true })
                       }
-                      aria-label={`Duplicate action for ${name}`}
-                    >
-                      <option value="Skip">Skip</option>
-                      <option value="ImportAsNew">Import as new</option>
-                    </select>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+                      aria-label={`Select ${name}`}
+                    />
+                  </TableCell>
+                  <TableCell>{name}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {preset.baseProfileName
+                      ? `Override of ${preset.baseProfileName}`
+                      : 'Base'}
+                    {showUnselectedBaseWarning && (
+                      <p className="text-xs text-destructive">
+                        Base "{baseName}" is in this bundle but not selected.
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {preset.isDuplicate ? (
+                      <Select
+                        value={state.duplicateAction ?? 'Skip'}
+                        onValueChange={(value) =>
+                          onChange(key, {
+                            ...state,
+                            duplicateAction: value as ProfileDuplicateAction,
+                          })
+                        }
+                      >
+                        <SelectTrigger
+                          aria-label={`Duplicate action for ${name}`}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="Skip">Skip</SelectItem>
+                            <SelectItem value="ImportAsNew">
+                              Import as new
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

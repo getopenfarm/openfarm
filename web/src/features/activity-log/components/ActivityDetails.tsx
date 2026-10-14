@@ -49,7 +49,7 @@ export function ActivityDetails({
       .map((alert) => ({ alert, cleared: true })),
   ];
   return (
-    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+    <div className="mt-1 flex flex-col gap-1 text-xs text-muted-foreground">
       {details.reportedState && (
         <p>
           {details.previousState

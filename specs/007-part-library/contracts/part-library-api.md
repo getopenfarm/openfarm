@@ -164,10 +164,65 @@ part; does **not** change anything on the `Part` yet.
 **Response 202** (always). **Response 404** — no such part. **Response 400/422** — same validation as
 `POST`.
 
+### `POST /api/v1/parts/deletion-check`
+
+Permission: `parts:delete`. Read-only preview; no activity event or catalog/history changes.
+Request: `{ "partIds": ["uuid", "uuid"] }` containing 1–200 unique, non-empty IDs.
+Invalid batches return `400`; unauthenticated/unauthorized requests return `401`/`403`.
+
+**Response 200**: `{ "parts": [...] }`, one result per requested ID, in request order:
+
+```json
+{
+  "partId": "uuid",
+  "name": "Slab",
+  "status": "Blocked",
+  "blockers": [
+    { "code": "AssemblyReference", "entityType": "Assembly", "entityId": "uuid", "name": "Slab Ass" }
+  ],
+  "legacyJobsLosingRecovery": 0
+}
+```
+
+Statuses are `Eligible`, `Blocked`, and `Absent`. Missing and foreign-tenant IDs both return
+`Absent`, null name, no blockers, and zero impact. Blockers identify all direct assembly
+references (`AssemblyReference`), active/complete unlimited demand (`UnlimitedRun`), and
+unfinished jobs without snapshots (`UnfinishedLegacyJob`). Entity types are `Assembly`,
+`ProductionRun`, and `PrintJob`. `legacyJobsLosingRecovery` counts terminal jobs without
+snapshots whose source actions would become permanently unavailable if deletion proceeds.
+Verified snapshots do not block removal or count toward that impact.
+
+The preview is advisory. DELETE re-evaluates this same policy under its part-row lock and
+retains database FK safeguards. Preflight runs before any confirmation appears. If no
+parts can be removed, show one dismissible Sonner toast per affected part, titled `Cannot remove <part name>`
+with its reasons and dependency links underneath; no inline callout, modal, or footer is shown. Dependency blockers use warning severity (yellow); request and permission failures use error severity (red).
+Detailed feedback stays visible until dismissed. Successful removal counts use a separate success toast.
+If any parts can be removed, show the shared destructive confirmation for those parts only,
+with a short list identifying parts that will remain. Keep applicable legacy-job warnings.
+
+Blocked and failed parts remain selected. After partial removal or a request failure, close the
+confirmation and report the outcome in a toast. A new removal attempt always performs a fresh check
+before a separate confirmation; expose no pipeline status table, zero-count summary, check, or
+retry controls. A missing part is reconciled as already absent, not counted as a confirmed
+removal. Access failures stop the remaining batch. Removed and absent IDs leave selection and
+detail caches; list refresh failures do not change deletion results. Preserve pending protection,
+abort stale preflight requests, and restore focus to the initiating action or its fallback.
+
 ### `DELETE /api/v1/parts/{id}`
 `[Permission("parts:delete")]`
 
-**Response 204**. **Response 404** — no such part.
+**Response 204** — removes the catalog record and its own tag associations, filament requirements,
+and thumbnails. Content-addressed file bytes are retained because other parts, processing jobs,
+and pinned production revisions can share them; reference-aware garbage collection is deferred.
+**Response 404** — no such part. **Response 409** — referenced by an assembly, an Active/Complete
+unlimited run, or an unfinished unresolved legacy job. Errors name referencing assemblies or runs. Verified
+finite snapshots and terminal unlimited history do not block removal.
+
+Deletion conflicts add stable ProblemDetails extensions: `code: "PartDeletionBlocked"` with
+`blockers` matching the preview shape; `PartConcurrencyConflict` requires another check;
+`PartDependenciesChanged` covers the database reference backstop. Existing human-readable
+ProblemDetails fields and HTTP status behavior remain compatible. A post-commit SignalR
+notification failure is logged and does not change a successful database deletion into a failure.
 
 ### `POST /api/v1/parts/{id}/tags`
 `[Permission("parts:tag")]`
@@ -327,3 +382,28 @@ already running is given a chance to terminate) and moves the job straight to `D
 All five follow the exact `IHubContext<FarmHub>` + `FarmHub.GroupName(organizationId)` +
 `Application`-defined-publisher-interface (`IPartEventPublisher`) shape `FarmHubPrinterEventPublisher`
 already establishes for printer events — no hub-level changes.
+
+### Production snapshot deletion amendment (October 13, 2026)
+
+Verified finite jobs do not block deletion. Active or Complete unlimited runs and unfinished unresolved legacy
+jobs do; dependency errors name the referencing runs. Cancelled or Closed unlimited history permits
+removal once retained jobs have verified snapshots or are terminal. Historical IDs/names and stored bytes remain.
+Creation/deletion races are serialized by source-row locks and restrictive library foreign keys.
+
+### Finished legacy jobs
+
+Cancelled, Failed and Completed jobs with missing snapshots permit source part removal. Deletion
+preserves history and marks missing snapshots permanently Unavailable: retry and download return 409.
+Valid snapshots remain independent. Unfinished unresolved jobs, assemblies and eligible unlimited
+runs still protect their source. Cancelling one unlimited job does not cancel its owning run.
+
+## List sorting
+
+Applies to `GET /api/v1/parts`.
+
+Optional `sortBy=name` and `sortDirection=asc|desc` order the entire filtered
+collection before pagination. Omitting sorting retains newest-first ordering;
+`sortBy` alone means ascending. All orders use ascending entity ID as a stable
+tie-breaker; name sorting is case-insensitive and lexical. Unknown fields,
+invalid directions, and a direction without a field return `400`. Existing
+page/pageSize limits and response shapes are unchanged.

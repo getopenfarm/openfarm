@@ -52,7 +52,7 @@ describe('AddFeedUnitDialog', () => {
     });
 
     await user.type(screen.getByLabelText('Name'), 'Splicer');
-    await user.click(screen.getByRole('button', { name: 'Add Feed Unit' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() =>
       expect(postedBody).toEqual({
@@ -107,7 +107,7 @@ describe('AddFeedUnitDialog', () => {
       screen.getByLabelText('Move external spool to the feeding channel'),
     ).toBeChecked();
     await user.type(screen.getByLabelText('Name'), 'Reloader');
-    await user.click(screen.getByRole('button', { name: 'Add Feed Unit' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(posted).toMatchObject({
         replacesFeedUnitId: 'external',
@@ -163,9 +163,7 @@ describe('AddFeedUnitDialog', () => {
     await screen.findByLabelText('Feeds through external spool port');
     await user.click(screen.getByRole('combobox', { name: 'Feeding channel' }));
     await user.click(screen.getByRole('option', { name: 'Channel 2' }));
-    await user.click(
-      screen.getByRole('button', { name: 'Save Configuration' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(submitted).toMatchObject({
         replacesFeedUnitId: 'external',
@@ -183,7 +181,7 @@ describe('AddFeedUnitDialog', () => {
 
     await user.click(screen.getByRole('combobox', { name: 'Kind' }));
     await user.click(screen.getByRole('option', { name: 'External Spool' }));
-    await user.click(screen.getByRole('button', { name: 'Add Feed Unit' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(postedBody).toEqual({ kind: 'ExternalSpool' }));
   });

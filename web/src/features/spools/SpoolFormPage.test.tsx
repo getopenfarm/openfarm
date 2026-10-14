@@ -93,10 +93,12 @@ describe('SpoolFormPage', () => {
 
     renderRoute();
 
-    await user.click(screen.getByRole('button', { name: 'Add spool' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(
-      await screen.findByText('Choose a filament colour', { selector: 'p' }),
+      await screen.findByText('Choose a filament colour', {
+        selector: '[role=alert]',
+      }),
     ).toBeInTheDocument();
   });
 
@@ -116,7 +118,7 @@ describe('SpoolFormPage', () => {
       }),
     );
 
-    await user.click(screen.getByRole('button', { name: 'Add spool' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(postedBody).toMatchObject({

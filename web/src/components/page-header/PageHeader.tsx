@@ -29,7 +29,7 @@ export function PageHeader({
     <div
       data-slot="page-header"
       className={cn(
-        'flex flex-wrap items-center justify-between gap-4',
+        'flex shrink-0 flex-wrap items-center justify-between gap-4',
         className,
       )}
     >

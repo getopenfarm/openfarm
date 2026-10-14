@@ -121,9 +121,12 @@ describe('ProfileReviewList', () => {
     const select = screen.getByRole('combobox', {
       name: 'Duplicate action for Existing PLA',
     });
-    await user.selectOptions(select, 'ImportAsNew');
+    await user.click(select);
+    await user.click(
+      await screen.findByRole('option', { name: 'Import as new' }),
+    );
 
-    expect(select).toHaveValue('ImportAsNew');
+    expect(select).toHaveTextContent('Import as new');
   });
 
   it('FR-006: warns when a selected override is checked but its bundle-present base is unchecked', async () => {

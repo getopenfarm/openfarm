@@ -87,7 +87,7 @@ public sealed class BomLine
     }
 
     /// <summary>FR-004a/FR-004b: whole number ≥ 1 for Part/Assembly targets; fractional &gt; 0 allowed for NonPrintedComponent.</summary>
-    private static void ValidateQuantity(BomLineTargetKind targetKind, decimal quantity)
+    internal static void ValidateQuantity(BomLineTargetKind targetKind, decimal quantity)
     {
         if (targetKind == BomLineTargetKind.NonPrintedComponent)
         {

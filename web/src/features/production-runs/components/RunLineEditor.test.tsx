@@ -52,7 +52,7 @@ function renderEditor() {
   return render(<Harness />, { wrapper: Wrapper });
 }
 
-describe('RunLineEditor revision-mode toggle', () => {
+describe('RunLineEditor revision behavior', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('defaults a new line to Snapshot revision mode', async () => {
@@ -73,7 +73,7 @@ describe('RunLineEditor revision-mode toggle', () => {
     ).toBeInTheDocument();
   });
 
-  it('records Follow-latest when the toggle is switched before adding', async () => {
+  it('derives Follow-latest from unlimited quantity using the keyboard', async () => {
     stubFetch();
     const user = userEvent.setup();
     renderEditor();
@@ -81,8 +81,15 @@ describe('RunLineEditor revision-mode toggle', () => {
     await user.click(await screen.findByRole('combobox', { name: 'Target' }));
     await user.click(await screen.findByText('Bracket'));
 
-    await user.click(screen.getByRole('combobox', { name: 'Revision mode' }));
-    await user.click(await screen.findByText('Follow-latest'));
+    expect(
+      screen.queryByRole('combobox', { name: 'Revision mode' }),
+    ).not.toBeInTheDocument();
+    const unlimited = screen.getByRole('checkbox', { name: /unlimited/i });
+    unlimited.focus();
+    await user.keyboard(' ');
+    expect(
+      screen.getByText(/Unlimited runs use the latest library part/),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /add line/i }));
 

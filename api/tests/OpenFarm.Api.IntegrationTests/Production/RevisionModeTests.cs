@@ -38,12 +38,13 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
         await parts.SaveChangesAsync(default);
         var content = await scope.ServiceProvider.GetRequiredService<IJobFileResolver>().ResolveAsync(current, job, printer.Id, 0.4m, default);
         Encoding.UTF8.GetString(content.Bytes).Should().Be("; revision one\n");
-        content.FileName.Should().Be($"{part.Name}_PLA.gcode", "an older revision must not use the replacement's duration");
+        content.FileName.Should().Be($"{part.Name}_PLA_1h0m.gcode", "the original estimate belongs to the snapshot");
         job.FileRevisionHash.Should().Be(part.RevisionHash);
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/cancel");
         var requeue = await client.PostAsJsonAsync($"/api/v1/print-jobs/{job.Id}/requeue", new { });
         requeue.EnsureSuccessStatusCode();
         (await requeue.Content.ReadFromJsonAsync<PrintJobResponse>())!.FileRevisionHash.Should().Be(part.RevisionHash);
+        await PostAsync(client, $"/api/v1/production-runs/{run.Id}/cancel");
     }
 
     [Fact]
@@ -55,11 +56,12 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
         finite.Lines.Single().RevisionMode.Should().Be("Snapshot");
         var backfill = await RunAsync(client, part.Id, quantity: null);
         backfill.Lines.Single().RevisionMode.Should().Be("FollowLatest");
+        await PostAsync(client, $"/api/v1/production-runs/{backfill.Id}/cancel");
         var printer = await PrinterAsync();
         var job = (await JobsAsync(finite.Id)).Single();
         await AssignAsync(job.Id, printer.Id);
         var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{finite.Id}/lines/{finite.Lines.Single().Id}/revision-mode", new { revisionMode = "FollowLatest" });
-        response.EnsureSuccessStatusCode();
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.UnprocessableEntity);
         (await JobsAsync(finite.Id)).Single().FileRevisionHash.Should().Be(job.FileRevisionHash);
         (await DetailAsync(client, finite.Id)).Lines.Single().SpansMultipleRevisions.Should().BeFalse();
     }
@@ -69,10 +71,7 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
         var client = await ClientAsync();
         var part = await PartAsync();
         var printer = await PrinterAsync();
-        var run = await RunAsync(client, part.Id, 2, revisionMode: "FollowLatest", pinned: printer.Id);
-        var queued = await JobsAsync(run.Id);
-        await PostAsync(client, $"/api/v1/print-jobs/{queued[0].Id}/reorder", body: new { afterJobId = (Guid?)null });
-        await PostAsync(client, $"/api/v1/print-jobs/{queued[1].Id}/reorder", body: new { afterJobId = queued[0].Id });
+        var run = await RunAsync(client, part.Id, quantity: null, pinned: printer.Id);
         using var worker = Worker();
         await worker.StartAsync(default);
         try

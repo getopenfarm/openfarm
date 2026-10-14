@@ -1,10 +1,10 @@
-import { Badge } from '@/components/ui/badge';
+import { DataTableToolbar } from '@/components/data-table/DataTableToolbar';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type {
   ListTagsResponse,
   TagResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsTagsListTagsEndpoint } from '@/lib/api/generated/tags/tags';
-import { cn } from '@/lib/utils';
 
 interface PartFilterBarProps {
   selectedTags: string[];
@@ -23,27 +23,28 @@ export function PartFilterBar({ selectedTags, onToggle }: PartFilterBarProps) {
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {tags.map((tag) => {
-        const isSelected = tag.name ? selectedTags.includes(tag.name) : false;
-        return (
-          <button
-            key={tag.id}
-            type="button"
-            onClick={() => tag.name && onToggle(tag.name)}
-          >
-            <Badge
-              variant={isSelected ? 'default' : 'outline'}
-              className={cn(
-                'cursor-pointer font-normal',
-                isSelected && 'ring-2 ring-primary/30',
-              )}
-            >
+    <DataTableToolbar>
+      <ToggleGroup
+        type="multiple"
+        variant="outline"
+        aria-label="Filter parts by tags"
+        value={selectedTags}
+        onValueChange={(next) => {
+          const changed = [...new Set([...selectedTags, ...next])].find(
+            (tag) => selectedTags.includes(tag) !== next.includes(tag),
+          );
+          if (changed) onToggle(changed);
+        }}
+        className="max-w-full flex-wrap justify-start"
+      >
+        {tags
+          .filter((tag) => tag.name)
+          .map((tag) => (
+            <ToggleGroupItem key={tag.id} value={tag.name ?? ''}>
               {tag.name}
-            </Badge>
-          </button>
-        );
-      })}
-    </div>
+            </ToggleGroupItem>
+          ))}
+      </ToggleGroup>
+    </DataTableToolbar>
   );
 }

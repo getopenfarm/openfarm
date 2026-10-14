@@ -34,6 +34,10 @@ public sealed class RunLine
 
     public Guid TargetId { get; }
 
+    public string? TargetName { get; private set; }
+
+    public void CaptureTargetName(string name) => TargetName ??= name;
+
     /// <summary>Null means unlimited/backfill (FR-006) — the discriminator lives in the value, not a second flag.</summary>
     public int? Quantity { get; }
 
@@ -67,8 +71,10 @@ public sealed class RunLine
             throw new ArgumentOutOfRangeException(nameof(spec), "Backfill printer cap must be at least 1.");
         }
 
-        // FR-009a: finite lines default to Snapshot, unlimited lines default to FollowLatest.
-        var revisionMode = spec.RevisionMode ?? (spec.Quantity is null ? Production.RevisionMode.FollowLatest : Production.RevisionMode.Snapshot);
+        // Quantity fixes revision behavior: finite snapshots and unlimited library demand.
+        var revisionMode = spec.Quantity is null ? Production.RevisionMode.FollowLatest : Production.RevisionMode.Snapshot;
+        if (spec.RevisionMode is { } requested && requested != revisionMode)
+            throw new InvalidRevisionModeException();
 
         return new RunLine(
             Guid.NewGuid(), organizationId, productionRunId, spec.TargetKind, spec.TargetId, spec.Quantity,
@@ -76,8 +82,13 @@ public sealed class RunLine
             spec.BackfillCumulativeUnitCeiling);
     }
 
-    /// <summary>FR-009b — editable after queueing; affects only future plates, never a currently-printing one.</summary>
-    public void SetRevisionMode(RevisionMode mode) => RevisionMode = mode;
+    /// <summary>Compatibility validation only; revision behavior is fixed by quantity.</summary>
+    public void SetRevisionMode(RevisionMode mode)
+    {
+        var expected = Quantity is null ? Production.RevisionMode.FollowLatest : Production.RevisionMode.Snapshot;
+        if (mode != expected) throw new InvalidRevisionModeException();
+        RevisionMode = expected;
+    }
 
     /// <summary>FR-006c/d — meaningful only on an unlimited line; the caller enforces that (PrintJobNotEligibleForRequeueException's sibling check lives at the command handler).</summary>
     public void SetBackfillLimits(int printerCap, int? cumulativeUnitCeiling)

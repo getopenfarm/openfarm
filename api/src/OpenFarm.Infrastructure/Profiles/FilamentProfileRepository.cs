@@ -3,6 +3,8 @@ using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Persistence;
 
+#pragma warning disable CA1304, CA1311 // SQL LOWER uses the database collation; ToLowerInvariant is not SQL-translatable.
+
 namespace OpenFarm.Infrastructure.Profiles;
 
 public sealed class FilamentProfileRepository(OpenFarmDbContext dbContext) : IFilamentProfileRepository
@@ -42,7 +44,7 @@ public sealed class FilamentProfileRepository(OpenFarmDbContext dbContext) : IFi
         string? searchText,
         int page,
         int pageSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
     {
         var query = dbContext.FilamentProfiles.AsNoTracking().AsQueryable();
 
@@ -71,7 +73,9 @@ public sealed class FilamentProfileRepository(OpenFarmDbContext dbContext) : IFi
         // CompatibleMachineNames is JSONB via a value converter — not translatable to SQL, so the
         // remaining filter and pagination run in memory over the DB-narrowed candidate set
         // (research.md §6's documented tradeoff).
-        var candidates = await query.OrderBy(p => p.Name).ToListAsync(cancellationToken);
+        var ordered = (sorting?.Descending == true ? query.OrderByDescending(p => p.Name.ToLower())
+            : query.OrderBy(p => p.Name.ToLower())).ThenBy(p => p.Id);
+        var candidates = await ordered.ToListAsync(cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(compatibleWithMachineName))
         {

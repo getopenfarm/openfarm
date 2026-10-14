@@ -18,10 +18,12 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { QueueJobRowResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
@@ -30,6 +32,7 @@ import {
   useOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
+import { cn } from '@/lib/utils';
 import { JobMatchingDialog } from './JobMatchingDialog';
 import { JobRemoteControls } from './JobRemoteControls';
 import { RemoveJobButton } from './RemoveJobButton';
@@ -150,13 +153,16 @@ export function QueueJobRow({
               type="button"
               variant="link"
               size="sm"
-              className={`h-auto shrink-0 px-0 text-xs ${job.isBlocked ? 'text-destructive' : ''}`}
+              className={cn(
+                'h-auto shrink-0 px-0 text-xs',
+                job.isBlocked ? 'text-destructive' : '',
+              )}
               title={job.blockingReason ?? 'Open job diagnosis'}
             >
               {job.isBlocked ? (
-                <AlertTriangleIcon className="size-3.5" />
+                <AlertTriangleIcon data-icon="inline-start" className="" />
               ) : job.status === 'Queued' && !job.dispatchedPrinterId ? (
-                <CheckCircle2Icon className="size-3.5" />
+                <CheckCircle2Icon data-icon="inline-start" className="" />
               ) : null}
               {job.isBlocked
                 ? job.assignmentMode === 'Pinned'
@@ -191,14 +197,15 @@ export function QueueJobRow({
                 job.jobId && unpinMutation.mutate({ id: job.jobId })
               }
             >
-              <PinOffIcon className="size-3.5" />
+              {unpinMutation.isPending && <Spinner data-icon="inline-start" />}
+              <PinOffIcon data-icon="inline-start" className="" />
               Unpin
             </Button>
           ) : (
             <Popover open={pinPickerOpen} onOpenChange={setPinPickerOpen}>
               <PopoverTrigger asChild>
                 <Button type="button" size="sm" variant="ghost">
-                  <PinIcon className="size-3.5" />
+                  <PinIcon data-icon="inline-start" className="" />
                   Pin
                 </Button>
               </PopoverTrigger>
@@ -211,11 +218,13 @@ export function QueueJobRow({
                     <SelectValue placeholder="Choose a printer" />
                   </SelectTrigger>
                   <SelectContent>
-                    {printers.map((printer) => (
-                      <SelectItem key={printer.id} value={printer.id ?? ''}>
-                        {printer.name}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {printers.map((printer) => (
+                        <SelectItem key={printer.id} value={printer.id ?? ''}>
+                          {printer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <Button
@@ -233,7 +242,7 @@ export function QueueJobRow({
       )}
 
       {job.jobId && job.status === 'Queued' && !job.dispatchedPrinterId && (
-        <RemoveJobButton jobId={job.jobId} />
+        <RemoveJobButton jobId={job.jobId} compact />
       )}
 
       <div className="shrink-0">

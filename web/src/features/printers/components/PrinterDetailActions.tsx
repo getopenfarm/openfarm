@@ -1,7 +1,8 @@
-import { CheckCircle2Icon, SettingsIcon, Trash2Icon } from 'lucide-react';
+import { CheckCircle2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 interface PrinterDetailActionsProps {
   status: PrinterStatus;
@@ -9,7 +10,7 @@ interface PrinterDetailActionsProps {
   isMarkReadyPending: boolean;
   isRemovePending: boolean;
   onMarkReady: () => void;
-  onOpenSettings: () => void;
+  onEdit: () => void;
   onRemove: () => void;
 }
 
@@ -17,7 +18,7 @@ function notImplemented(action: string) {
   toast(`${action} isn't implemented yet.`);
 }
 
-/** Only "Mark ready", "Settings" (→ /printers/:id/edit), and "Remove" are backed by real mutations
+/** Only "Mark ready", "Edit" (→ /printers/:id/edit), and "Remove" are backed by real mutations
  * today — every other status-driven action here is intentionally decorative, matching the redesign
  * mockup's own lack of wiring for them. Don't fake a state change for the disabled ones. Remove is
  * never blocked by status (FR-006) and is offered from every branch below, matching today's
@@ -28,17 +29,16 @@ export function PrinterDetailActions({
   isMarkReadyPending,
   isRemovePending,
   onMarkReady,
-  onOpenSettings,
+  onEdit,
   onRemove,
 }: PrinterDetailActionsProps) {
   const removeButton = (
-    <Button
-      variant="ghost"
-      onClick={onRemove}
-      disabled={isRemovePending}
-      className="text-destructive hover:text-destructive"
-    >
-      <Trash2Icon />
+    <Button variant="destructive" onClick={onRemove} disabled={isRemovePending}>
+      {isRemovePending ? (
+        <Spinner data-icon="inline-start" />
+      ) : (
+        <Trash2Icon data-icon="inline-start" />
+      )}
       {isRemovePending ? 'Removing…' : 'Remove'}
     </Button>
   );
@@ -49,8 +49,8 @@ export function PrinterDetailActions({
         <Button variant="outline" onClick={() => notImplemented('Reconnect')}>
           Reconnect
         </Button>
-        <Button variant="ghost" onClick={onOpenSettings}>
-          <SettingsIcon /> Settings
+        <Button variant="outline" onClick={onEdit}>
+          <PencilIcon data-icon="inline-start" /> Edit
         </Button>
         {removeButton}
       </div>
@@ -61,7 +61,11 @@ export function PrinterDetailActions({
     return (
       <div className="flex gap-2">
         <Button onClick={onMarkReady} disabled={isMarkReadyPending}>
-          <CheckCircle2Icon />
+          {isMarkReadyPending ? (
+            <Spinner data-icon="inline-start" />
+          ) : (
+            <CheckCircle2Icon data-icon="inline-start" />
+          )}
           {isMarkReadyPending ? 'Marking ready…' : 'Mark ready'}
         </Button>
         <Button variant="ghost" onClick={() => notImplemented('View job')}>
@@ -91,8 +95,8 @@ export function PrinterDetailActions({
       <Button variant="outline" onClick={() => notImplemented('Assign job')}>
         Assign job
       </Button>
-      <Button variant="ghost" onClick={onOpenSettings}>
-        <SettingsIcon /> Settings
+      <Button variant="outline" onClick={onEdit}>
+        <PencilIcon data-icon="inline-start" /> Edit
       </Button>
       {removeButton}
     </div>

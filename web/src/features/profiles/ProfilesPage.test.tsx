@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -65,7 +64,9 @@ describe('ProfilesPage', () => {
     expect(
       screen.queryByRole('tab', { name: 'Process' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Import profiles' }),
+    ).toBeInTheDocument();
   });
 
   it('shows an empty-state message before any profiles are imported', async () => {
@@ -114,52 +115,18 @@ describe('ProfilesPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('opens the raw data dialog within one interaction from a catalog row (SC-006)', async () => {
-    const user = userEvent.setup();
+  it('links each catalog row to its profile detail page', async () => {
     stubFetch({
       '/profiles/machine': {
-        items: [
-          {
-            id: 'm1',
-            name: 'Bambu X1 Carbon 0.4 nozzle',
-            sourceFormat: 'OrcaSlicer',
-            baseProfileId: null,
-            baseProfileName: null,
-            hasUnresolvedBaseInChain: false,
-            nozzleSizeMm: 0.4,
-            bedSizeXMm: null,
-            bedSizeYMm: null,
-            maxHeightMm: null,
-            hasEnclosure: null,
-            supportedMaterials: [],
-          },
-        ],
+        items: [{ id: 'm1', name: 'Bambu X1 Carbon 0.4 nozzle' }],
       },
       '/profiles/filament': { items: [] },
-      '/profiles/machine/m1': {
-        id: 'm1',
-        name: 'Bambu X1 Carbon 0.4 nozzle',
-        sourceFormat: 'OrcaSlicer',
-        baseProfileId: null,
-        baseProfileName: null,
-        hasUnresolvedBaseInChain: false,
-        rawDataJson: '{"nozzle_diameter":["0.4"]}',
-        createdAtUtc: '2026-01-01T00:00:00Z',
-        nozzleSizeMm: 0.4,
-        bedSizeXMm: null,
-        bedSizeYMm: null,
-        maxHeightMm: null,
-        hasEnclosure: null,
-        supportedMaterials: [],
-      },
     });
 
     renderPage();
 
-    const row = await screen.findByText('Bambu X1 Carbon 0.4 nozzle');
-    await user.click(row);
-
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-    expect(await screen.findByText(/nozzle_diameter/)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('link', { name: 'Bambu X1 Carbon 0.4 nozzle' }),
+    ).toHaveAttribute('href', '/profiles/machine/m1');
   });
 });

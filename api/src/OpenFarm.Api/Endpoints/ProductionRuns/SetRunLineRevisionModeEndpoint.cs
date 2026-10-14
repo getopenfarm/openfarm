@@ -26,8 +26,8 @@ public sealed class RunLineRevisionModeResponse
 }
 
 /// <summary>
-/// PUT /api/v1/production-runs/{runId}/lines/{lineId}/revision-mode — FR-009b, editable after
-/// queueing; affects only plates dispatched after this call, never a currently-printing one.
+/// Deprecated compatibility endpoint: accepts only the quantity-derived revision mode.
+/// Finite lines use Snapshot and unlimited lines use FollowLatest; conflicts return 422.
 /// </summary>
 [Permission("production-runs:edit")]
 public sealed class SetRunLineRevisionModeEndpoint(SetRunLineRevisionModeHandler handler)

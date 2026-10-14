@@ -2,11 +2,12 @@ import { PlusIcon, TrashIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -35,6 +36,10 @@ export interface EditableRunLine {
   pinnedPrinterId?: string;
   /** FR-009 — Snapshot pins the revision at queue time; Follow-latest re-reads it at dispatch time. */
   revisionMode: RunLineRevisionMode;
+  /** Unlimited lines only: max printers backfilling this line at once. */
+  backfillPrinterCap?: number;
+  /** Unlimited lines only: stop backfilling after this many units; null = no ceiling. */
+  backfillCumulativeUnitCeiling?: number | null;
 }
 
 interface RunLineEditorProps {
@@ -51,8 +56,11 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
   const [draftAssignmentMode, setDraftAssignmentMode] =
     useState<RunLineAssignmentMode>('Unassigned');
   const [draftPinnedPrinterId, setDraftPinnedPrinterId] = useState('');
-  const [draftRevisionMode, setDraftRevisionMode] =
-    useState<RunLineRevisionMode>('Snapshot');
+  const [draftPrinterCap, setDraftPrinterCap] = useState('1');
+  const [draftCeiling, setDraftCeiling] = useState('');
+  const draftRevisionMode: RunLineRevisionMode = draftUnlimited
+    ? 'FollowLatest'
+    : 'Snapshot';
 
   const partsQuery = useOpenFarmApiEndpointsPartsListPartsEndpoint({
     page: 1,
@@ -84,7 +92,8 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
     setDraftQuantity('1');
     setDraftAssignmentMode('Unassigned');
     setDraftPinnedPrinterId('');
-    setDraftRevisionMode('Snapshot');
+    setDraftPrinterCap('1');
+    setDraftCeiling('');
   }
 
   function handleAdd() {
@@ -92,9 +101,20 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
     if (draftAssignmentMode === 'Pinned' && !draftPinnedPrinterId) return;
 
     let quantity: number | null = null;
+    let backfill: Partial<EditableRunLine> = {};
     if (!draftUnlimited) {
       quantity = Number(draftQuantity);
       if (Number.isNaN(quantity) || quantity < 1) return;
+    } else {
+      const cap = Number(draftPrinterCap);
+      const ceiling = draftCeiling.trim() === '' ? null : Number(draftCeiling);
+      if (!Number.isInteger(cap) || cap < 1) return;
+      if (ceiling !== null && (!Number.isInteger(ceiling) || ceiling < 0))
+        return;
+      backfill = {
+        backfillPrinterCap: cap,
+        backfillCumulativeUnitCeiling: ceiling,
+      };
     }
 
     const option = draftOptions.find((o) => o.id === draftTargetId);
@@ -110,6 +130,7 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
         pinnedPrinterId:
           draftAssignmentMode === 'Pinned' ? draftPinnedPrinterId : undefined,
         revisionMode: draftRevisionMode,
+        ...backfill,
       },
     ]);
     resetDraft();
@@ -138,6 +159,8 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
               </span>
               <span className="w-24 shrink-0 text-xs text-muted-foreground">
                 {line.quantity === null ? 'Unlimited' : `Qty ${line.quantity}`}
+                {line.quantity === null &&
+                  ` · cap ${line.backfillPrinterCap ?? 1}${line.backfillCumulativeUnitCeiling != null ? ` · ceiling ${line.backfillCumulativeUnitCeiling}` : ''}`}
               </span>
               <span className="w-28 shrink-0 text-xs text-muted-foreground">
                 {line.assignmentMode === 'Pinned'
@@ -156,16 +179,16 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
                 onClick={() => handleRemove(line.key)}
                 aria-label={`Remove ${line.targetName}`}
               >
-                <TrashIcon className="size-4" />
+                <TrashIcon data-icon="inline-start" className="" />
               </Button>
             </div>
           ))}
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-2 border-t pt-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="run-line-target-kind">Target kind</Label>
+      <FieldGroup className="flex flex-wrap items-end gap-2 border-t pt-3">
+        <Field className="flex flex-col gap-1.5">
+          <FieldLabel htmlFor="run-line-target-kind">Target kind</FieldLabel>
           <Select
             value={draftKind}
             onValueChange={(value) => {
@@ -177,31 +200,35 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Part">Part</SelectItem>
-              <SelectItem value="Assembly">Assembly</SelectItem>
+              <SelectGroup>
+                <SelectItem value="Part">Part</SelectItem>
+                <SelectItem value="Assembly">Assembly</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
-        </div>
+        </Field>
 
-        <div className="flex flex-1 flex-col gap-1.5">
-          <Label htmlFor="run-line-target">Target</Label>
+        <Field className="flex flex-1 flex-col gap-1.5">
+          <FieldLabel htmlFor="run-line-target">Target</FieldLabel>
           <Select value={draftTargetId} onValueChange={setDraftTargetId}>
             <SelectTrigger id="run-line-target" className="w-full">
               <SelectValue placeholder="Choose a target" />
             </SelectTrigger>
             <SelectContent>
-              {draftOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.name}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {draftOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
-        </div>
+        </Field>
 
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Quantity</span>
-          <div className="flex items-center gap-2">
+          <FieldGroup className="flex items-center gap-2">
             <Input
               type="number"
               min={1}
@@ -211,7 +238,10 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
               onChange={(e) => setDraftQuantity(e.target.value)}
               className="w-20"
             />
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Field
+              orientation="horizontal"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            >
               <Checkbox
                 id="run-line-unlimited"
                 checked={draftUnlimited}
@@ -219,15 +249,49 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
                   setDraftUnlimited(checked === true)
                 }
               />
-              <Label htmlFor="run-line-unlimited" className="font-normal">
+              <FieldLabel htmlFor="run-line-unlimited" className="font-normal">
                 Unlimited
-              </Label>
-            </div>
-          </div>
+              </FieldLabel>
+            </Field>
+          </FieldGroup>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="run-line-assignment-mode">Assignment</Label>
+        {draftUnlimited && (
+          <>
+            <Field className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor="run-line-backfill-cap">
+                Backfill printer cap
+              </FieldLabel>
+              <Input
+                id="run-line-backfill-cap"
+                type="number"
+                min={1}
+                step={1}
+                value={draftPrinterCap}
+                onChange={(e) => setDraftPrinterCap(e.target.value)}
+                className="w-24"
+              />
+            </Field>
+            <Field className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor="run-line-backfill-ceiling">
+                Cumulative unit ceiling
+              </FieldLabel>
+              <Input
+                id="run-line-backfill-ceiling"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="No ceiling"
+                value={draftCeiling}
+                onChange={(e) => setDraftCeiling(e.target.value)}
+                className="w-32"
+              />
+            </Field>
+          </>
+        )}
+
+        <Field className="flex flex-col gap-1.5">
+          <FieldLabel htmlFor="run-line-assignment-mode">Assignment</FieldLabel>
           <Select
             value={draftAssignmentMode}
             onValueChange={(value) =>
@@ -238,33 +302,23 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Unassigned">Unassigned</SelectItem>
-              <SelectItem value="Pinned">Pinned</SelectItem>
+              <SelectGroup>
+                <SelectItem value="Unassigned">Unassigned</SelectItem>
+                <SelectItem value="Pinned">Pinned</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="run-line-revision-mode">Revision mode</Label>
-          <Select
-            value={draftRevisionMode}
-            onValueChange={(value) =>
-              setDraftRevisionMode(value as RunLineRevisionMode)
-            }
-          >
-            <SelectTrigger id="run-line-revision-mode" className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Snapshot">Snapshot</SelectItem>
-              <SelectItem value="FollowLatest">Follow-latest</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {draftUnlimited
+            ? 'Unlimited runs use the latest library part for each dispatch. The part must stay in the library until the run is cancelled or closed.'
+            : 'Finite jobs keep their own snapshot. Library changes and removal will not affect these jobs.'}
+        </p>
 
         {draftAssignmentMode === 'Pinned' && (
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="run-line-pinned-printer">Printer</Label>
+          <Field className="flex flex-col gap-1.5">
+            <FieldLabel htmlFor="run-line-pinned-printer">Printer</FieldLabel>
             <Select
               value={draftPinnedPrinterId}
               onValueChange={setDraftPinnedPrinterId}
@@ -273,20 +327,22 @@ export function RunLineEditor({ lines, onChange }: RunLineEditorProps) {
                 <SelectValue placeholder="Choose a printer" />
               </SelectTrigger>
               <SelectContent>
-                {printers.map((printer) => (
-                  <SelectItem key={printer.id} value={printer.id ?? ''}>
-                    {printer.name}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {printers.map((printer) => (
+                    <SelectItem key={printer.id} value={printer.id ?? ''}>
+                      {printer.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
-          </div>
+          </Field>
         )}
 
         <Button type="button" onClick={handleAdd} disabled={!draftTargetId}>
-          <PlusIcon /> Add line
+          <PlusIcon data-icon="inline-start" /> Add line
         </Button>
-      </div>
+      </FieldGroup>
     </div>
   );
 }

@@ -42,34 +42,47 @@ public class ConcurrentCycleRejectionTests(CustomWebApplicationFactory factory) 
         return part.Id;
     }
 
-    private static async Task<Guid> CreateAssemblyAsync(HttpClient client, string name, Guid partId)
+    private static async Task<AssemblyResponse> CreateAssemblyAsync(HttpClient client, string name, Guid partId)
     {
         var response = await client.PostAsJsonAsync(
             new Uri("/api/v1/assemblies", UriKind.Relative),
             new { name, description = (string?)null, lines = new[] { new { targetKind = "Part", targetId = partId, quantity = 1 } } });
-        var body = await response.Content.ReadFromJsonAsync<AssemblyResponse>();
-        return body!.Id;
+        return (await response.Content.ReadFromJsonAsync<AssemblyResponse>())!;
     }
+
+    // Keeps the assembly's existing part line and adds an Assembly-kind line — the full-replace PUT.
+    private static Task<HttpResponseMessage> AddSubAssemblyAsync(HttpClient client, AssemblyResponse assembly, Guid partId, Guid subAssemblyId) =>
+        client.PutAsJsonAsync(
+            new Uri($"/api/v1/assemblies/{assembly.Id}", UriKind.Relative),
+            new
+            {
+                name = assembly.Name,
+                description = (string?)null,
+                lines = new object[]
+                {
+                    new { lineId = assembly.Lines.Single().Id, targetKind = "Part", targetId = partId, quantity = 1 },
+                    new { targetKind = "Assembly", targetId = subAssemblyId, quantity = 1 },
+                },
+            });
 
     [Fact]
     public async Task TwoParallelClientsRaceOppositeEdges_ExactlyOneCommits_LoserSeesCycleRejection()
     {
         var setupClient = await AuthenticatedClientAsync();
         var partId = await SeedPartAsync($"Race Part {Guid.NewGuid():N}");
-        var x = await CreateAssemblyAsync(setupClient, $"X {Guid.NewGuid():N}", partId);
-        var y = await CreateAssemblyAsync(setupClient, $"Y {Guid.NewGuid():N}", partId);
+        var xAssembly = await CreateAssemblyAsync(setupClient, $"X {Guid.NewGuid():N}", partId);
+        var yAssembly = await CreateAssemblyAsync(setupClient, $"Y {Guid.NewGuid():N}", partId);
+        var (x, y) = (xAssembly.Id, yAssembly.Id);
 
         var clientA = await AuthenticatedClientAsync();
         var clientB = await AuthenticatedClientAsync();
 
-        var taskA = clientA.PostAsJsonAsync(
-            new Uri($"/api/v1/assemblies/{x}/lines", UriKind.Relative), new { targetKind = "Assembly", targetId = y, quantity = 1 });
-        var taskB = clientB.PostAsJsonAsync(
-            new Uri($"/api/v1/assemblies/{y}/lines", UriKind.Relative), new { targetKind = "Assembly", targetId = x, quantity = 1 });
+        var taskA = AddSubAssemblyAsync(clientA, xAssembly, partId, y);
+        var taskB = AddSubAssemblyAsync(clientB, yAssembly, partId, x);
 
         var responses = await Task.WhenAll(taskA, taskB);
 
-        var succeeded = responses.Count(r => r.StatusCode == HttpStatusCode.Created);
+        var succeeded = responses.Count(r => r.StatusCode == HttpStatusCode.OK);
         var rejected = responses.Count(r => r.StatusCode == HttpStatusCode.UnprocessableEntity);
         succeeded.Should().Be(1, "exactly one of the two racing edges should commit");
         rejected.Should().Be(1, "the loser should see the ordinary cycle-rejection status, not a generic conflict");

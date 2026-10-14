@@ -31,6 +31,66 @@ public sealed class PrintJob
         CreatedAtUtc = createdAtUtc;
     }
 
+    public string? ProductionSnapshotJson { get; private set; }
+
+    public string? SnapshotRecoveryReason { get; private set; }
+
+    public DateTimeOffset? SnapshotUnavailableAtUtc { get; private set; }
+
+    public string GetSnapshotState() => ProductionSnapshotJson is not null ? "Ready"
+        : SnapshotUnavailableAtUtc is not null ? "Unavailable" : "Unresolved";
+
+    public void MarkSnapshotUnavailable(DateTimeOffset removedAtUtc)
+    {
+        if (ProductionSnapshotJson is not null || SnapshotUnavailableAtUtc is not null) return;
+        if (Status is not (PrintJobStatus.Cancelled or PrintJobStatus.Failed or PrintJobStatus.Completed))
+            throw new InvalidOperationException("Unfinished jobs must retain their production source.");
+        SnapshotUnavailableAtUtc = removedAtUtc;
+        SnapshotRecoveryReason = "Source part removed; retry and file download are unavailable.";
+    }
+
+    public OpenFarm.Domain.Parts.Part? GetProductionPart() => ProductionSnapshotJson is null ? null
+        : OpenFarm.Domain.Parts.Part.FromProductionSnapshot(
+            System.Text.Json.JsonSerializer.Deserialize<ProductionPartSnapshot>(ProductionSnapshotJson)!);
+
+    public void CaptureProductionSnapshot(OpenFarm.Domain.Parts.Part part, OpenFarm.Domain.Parts.SlicerRef? slicer = null)
+    {
+        if (SnapshotUnavailableAtUtc is not null)
+            throw new ProductionSnapshotUnavailableException(Id, SnapshotRecoveryReason);
+        if (ProductionSnapshotJson is not null) return;
+        part.EnsurePrintRequirementsComplete();
+        if (part.RevisionHash != FileRevisionHash || part.RevisionNumber != FileRevisionNumber)
+            throw new InvalidOperationException("The production snapshot must match the job revision.");
+        ProductionSnapshotJson = System.Text.Json.JsonSerializer.Serialize(ProductionPartSnapshot.Capture(part, slicer));
+        SnapshotRecoveryReason = null;
+    }
+
+    public void CopyProductionSnapshot(PrintJob source)
+    {
+        if (SnapshotUnavailableAtUtc is not null)
+            throw new ProductionSnapshotUnavailableException(Id, SnapshotRecoveryReason);
+        if (source.ProductionSnapshotJson is null)
+            throw new InvalidOperationException("The original job snapshot needs recovery before requeueing.");
+        ProductionSnapshotJson = source.ProductionSnapshotJson;
+        SnapshotRecoveryReason = null;
+    }
+
+    public void ResetUnsentBackfillSnapshot(OpenFarm.Domain.Parts.Part part)
+    {
+        if (SnapshotUnavailableAtUtc is not null)
+            throw new ProductionSnapshotUnavailableException(Id, SnapshotRecoveryReason);
+        EnsureQueued();
+        if (DispatchedAtUtc is not null) throw new InvalidOperationException("A dispatched snapshot is immutable.");
+        ProductionSnapshotJson = null;
+        FileRevisionHash = part.RevisionHash;
+        FileRevisionNumber = part.RevisionNumber;
+    }
+
+    public void MarkSnapshotUnresolved(string reason)
+    {
+        if (SnapshotUnavailableAtUtc is null) SnapshotRecoveryReason = reason;
+    }
+
     public Guid Id { get; }
 
     public Guid OrganizationId { get; }

@@ -86,8 +86,7 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
                 .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
             query = from job in query
                     join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
-                    join part in dbContext.Parts on requirement.PartId equals part.Id
-                    where EF.Functions.ILike(part.Name, $"%{term}%", "\\")
+                    where EF.Functions.ILike(requirement.PartName ?? "", $"%{term}%", "\\")
                     select job;
         }
 

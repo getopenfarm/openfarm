@@ -61,6 +61,14 @@ a cycle (FR-007) or exceed the 10-level depth limit (FR-006a) — response `deta
 containment path or states the limit, per FR-007/FR-006a's own wording requirement.
 
 ### `GET /api/v1/assemblies`
+
+Optional `sortBy=name` and `sortDirection=asc|desc` order the entire filtered
+collection before pagination. Omitting sorting retains newest-first ordering;
+`sortBy` alone means ascending. All orders use ascending entity ID as a stable
+tie-breaker; name sorting is case-insensitive and lexical. Unknown fields,
+invalid directions, and a direction without a field return `400`. Existing
+page/pageSize limits and response shapes are unchanged.
+
 `[Permission("assemblies:view")]` — paginated list, mirrors `GET /parts`'s `page`/`pageSize` query
 params and `{ items, totalCount }` envelope.
 
@@ -178,6 +186,14 @@ or, when the exploded tree contains no printed parts at all (FR-010d):
 **Response 400** — empty `name`/`unit`.
 
 ### `GET /api/v1/non-printed-components`
+
+Optional `sortBy=name` and `sortDirection=asc|desc` order the entire filtered
+collection before pagination. Omitting sorting retains newest-first ordering;
+`sortBy` alone means ascending. All orders use ascending entity ID as a stable
+tie-breaker; name sorting is case-insensitive and lexical. Unknown fields,
+invalid directions, and a direction without a field return `400`. Existing
+page/pageSize limits and response shapes are unchanged.
+
 `[Permission("non-printed-components:view")]` — paginated list, same envelope shape as `GET /assemblies`.
 
 ### `PUT /api/v1/non-printed-components/{id}`

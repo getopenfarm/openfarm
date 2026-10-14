@@ -1,39 +1,35 @@
 import type { Table } from '@tanstack/react-table';
-import { Button } from '@/components/ui/button';
-
-interface DataTablePaginationProps<TData> {
-  table: Table<TData>;
-}
+import { TablePagination } from './TablePagination';
 
 export function DataTablePagination<TData>({
   table,
-}: DataTablePaginationProps<TData>) {
-  const pageIndex = table.getState().pagination.pageIndex;
-  const pageCount = table.getPageCount();
-
+  pending = false,
+  onPageSizeChange,
+  label,
+}: {
+  table: Table<TData>;
+  pending?: boolean;
+  onPageSizeChange?: (size: number) => void;
+  label?: string;
+}) {
+  const { pageIndex, pageSize } = table.getState().pagination;
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-muted-foreground">
-        Page {pageIndex + 1} of {Math.max(pageCount, 1)}
-      </span>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!table.getCanPreviousPage()}
-          onClick={() => table.previousPage()}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!table.getCanNextPage()}
-          onClick={() => table.nextPage()}
-        >
-          Next
-        </Button>
-      </div>
-    </div>
+    <TablePagination
+      label={label}
+      page={pageIndex + 1}
+      pageSize={pageSize}
+      totalCount={table.getRowCount()}
+      disabled={pending}
+      onPageChange={(page) => table.setPageIndex(page - 1)}
+      onPageSizeChange={
+        onPageSizeChange ??
+        (!table.options.manualPagination
+          ? (size) => {
+              table.setPageSize(size);
+              table.setPageIndex(0);
+            }
+          : undefined)
+      }
+    />
   );
 }

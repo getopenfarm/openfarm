@@ -12,4 +12,4 @@ public sealed record PartRequirementSummary(
     decimal? Quantity,
     int JobCount,
     int CompletedJobCount,
-    IReadOnlyList<Guid> JobsNeedingRequeue);
+    IReadOnlyList<Guid> JobsNeedingRequeue, bool SourcePartAvailable = true, IReadOnlyList<Guid>? JobsBlockedForRequeue = null);

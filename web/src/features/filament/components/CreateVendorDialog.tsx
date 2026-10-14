@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -14,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -23,6 +25,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import type { VendorResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsVendorsListVendorsEndpointQueryKey,
@@ -94,24 +97,34 @@ export function CreateVendorDialog({ onCreated }: CreateVendorDialogProps) {
             }}
             className="flex flex-col gap-4"
           >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g. Bambu Lab" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? 'Adding…' : 'Add vendor'}
-              </Button>
-            </DialogFooter>
+            <FieldGroup className="gap-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Bambu Lab" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button type="submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending && (
+                    <Spinner data-icon="inline-start" />
+                  )}
+                  {createMutation.isPending ? 'Saving…' : 'Save'}
+                </Button>
+              </DialogFooter>
+            </FieldGroup>
           </form>
         </Form>
       </DialogContent>

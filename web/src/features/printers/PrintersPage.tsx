@@ -1,35 +1,26 @@
-import { PrinterIcon, TriangleAlertIcon } from 'lucide-react';
+import { PlusIcon, PrinterIcon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
 import { Button } from '@/components/ui/button';
-import { ViewToggle } from '@/components/view-toggle/ViewToggle';
+import { Skeleton } from '@/components/ui/skeleton';
 import { MAINTENANCE_FLAG_SEEDS } from '@/features/maintenance/data/mockMaintenance';
 import { matchMaintenanceToFleet } from '@/features/maintenance/lib/matchMaintenanceToFleet';
 import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
-import { usePreferences } from '@/lib/preferences/usePreferences';
 import {
   PrinterFilterBar,
   type PrinterStatusFilter,
 } from './components/PrinterFilterBar';
-import { PrintersGrid } from './components/PrintersGrid';
 import { PrintersTable } from './components/PrintersTable';
-
-import { useMarkPrinterReady } from './hooks/useMarkPrinterReady';
 
 export function PrintersPage() {
   const navigate = useNavigate();
   const fleetQuery = useOpenFarmApiEndpointsPrintersListFleetEndpoint();
-  const { getListView } = usePreferences();
-  const view = getListView('printers');
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<PrinterStatusFilter>('all');
-
-  const markReadyMutation = useMarkPrinterReady();
 
   const printers =
     (fleetQuery.data?.data as ListFleetResponse | undefined)?.printers ?? [];
@@ -80,17 +71,18 @@ export function PrintersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {markReadyMutation.confirmationDialog}
       <PageHeader
         title="Printers"
         description="Fleet status updates live — no refresh needed."
         action={
-          <Button onClick={() => navigate('/printers/new')}>Add printer</Button>
+          <Button onClick={() => navigate('/printers/new')}>
+            <PlusIcon data-icon="inline-start" /> Add printer
+          </Button>
         }
       />
 
       {fleetQuery.isLoading ? (
-        <SkeletonGrid />
+        <Skeleton className="h-64 w-full" />
       ) : fleetQuery.isError ? (
         <ErrorState
           icon={<TriangleAlertIcon className="size-8 text-destructive" />}
@@ -104,41 +96,31 @@ export function PrintersPage() {
           description="No printers registered yet. Add one to see its live status here."
           action={
             <Button onClick={() => navigate('/printers/new')}>
-              Add printer
+              <PlusIcon data-icon="inline-start" /> Add printer
             </Button>
           }
         />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <PrinterFilterBar
-              query={query}
-              onQueryChange={setQuery}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              counts={counts}
-            />
-            <ViewToggle page="printers" />
-          </div>
+          <PrinterFilterBar
+            query={query}
+            onQueryChange={setQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            counts={counts}
+          />
 
           {filteredPrinters.length === 0 ? (
             <EmptyState
               title="No printers match"
               description="Try a different search or status filter."
             />
-          ) : view === 'table' ? (
+          ) : (
             <PrintersTable
               printers={filteredPrinters}
               maintenanceByPrinterId={maintenanceByPrinterId}
               density="medium"
               onOpen={(id) => navigate(`/printers/${id}`)}
-              onMarkReady={(id) => markReadyMutation.mutate({ id })}
-            />
-          ) : (
-            <PrintersGrid
-              printers={filteredPrinters}
-              density="small"
-              onMarkReady={(id) => markReadyMutation.mutate({ id })}
             />
           )}
         </div>

@@ -10,6 +10,7 @@ import type {
   ActivityLogEntryResponse,
   ActivityLogPageResponse,
 } from '@/lib/api/generated/endpoints.schemas';
+import { cn } from '@/lib/utils';
 
 export interface RecentActivityCardProps {
   printerId: string;
@@ -62,7 +63,12 @@ export function RecentActivityCard({ printerId }: RecentActivityCardProps) {
                 className="flex gap-3 border-b px-[18px] py-3 last:border-b-0"
               >
                 <span
-                  className={`mt-1.5 size-[7px] shrink-0 rounded-full ${BADGE_KIND_META[activityEventKind(entry.eventType ?? '', entry.details)].dotClass}`}
+                  className={cn(
+                    'mt-1.5 size-[7px] shrink-0 rounded-full',
+                    BADGE_KIND_META[
+                      activityEventKind(entry.eventType ?? '', entry.details)
+                    ].dotClass,
+                  )}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] text-foreground">

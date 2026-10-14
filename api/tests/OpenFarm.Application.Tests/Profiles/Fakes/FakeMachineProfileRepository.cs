@@ -42,7 +42,7 @@ public sealed class FakeMachineProfileRepository : IMachineProfileRepository
         string? searchText,
         int page,
         int pageSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
     {
         var candidates = _rows.AsEnumerable();
 
@@ -63,7 +63,7 @@ public sealed class FakeMachineProfileRepository : IMachineProfileRepository
             candidates = candidates.Where(p => p.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
         }
 
-        var ordered = candidates.OrderBy(p => p.Name, StringComparer.Ordinal).ToList();
+        var ordered = (sorting ?? new OpenFarm.Application.Common.ListSort("name", false)).Order(candidates, p => p.Name, p => p.Id).ToList();
         var totalCount = ordered.Count;
         var items = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 

@@ -27,7 +27,7 @@ public sealed class ProductionRunDisplayLabelResolver(IPartRepository partReposi
         }
 
         var names = new List<string>();
-        foreach (var line in run.Lines)
+        foreach (var line in run.Lines.OrderBy(l => l.Id))
         {
             names.Add(await ResolveTargetNameAsync(line, cancellationToken));
         }
@@ -37,6 +37,7 @@ public sealed class ProductionRunDisplayLabelResolver(IPartRepository partReposi
 
     private async Task<string> ResolveTargetNameAsync(RunLine line, CancellationToken cancellationToken)
     {
+        if (line.TargetName is not null) return line.TargetName;
         if (line.TargetKind == RunLineTargetKind.Part)
         {
             var part = await partRepository.GetByIdAsync(line.TargetId, cancellationToken);

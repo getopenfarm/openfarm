@@ -14,6 +14,7 @@ public sealed class PartRequirement
         OrganizationId = organizationId;
         RunLineId = runLineId;
         PartId = partId;
+        LibraryPartId = partId;
         Quantity = quantity;
     }
 
@@ -24,6 +25,14 @@ public sealed class PartRequirement
     public Guid RunLineId { get; }
 
     public Guid PartId { get; }
+
+    public Guid? LibraryPartId { get; private set; }
+
+    public string? PartName { get; private set; }
+
+    public void CaptureName(string name) => PartName ??= name;
+
+    public void DetachLibraryPart() => LibraryPartId = null;
 
     /// <summary>Null mirrors the owning RunLine's unlimited quantity; otherwise the summed exploded total (FR-004).</summary>
     public decimal? Quantity { get; }

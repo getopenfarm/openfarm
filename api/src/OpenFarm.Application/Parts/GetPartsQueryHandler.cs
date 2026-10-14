@@ -6,7 +6,7 @@ public sealed class GetPartsQueryHandler(IPartRepository partRepository) : IQuer
 {
     public async Task<PartsPage> HandleAsync(GetPartsQuery query, CancellationToken cancellationToken)
     {
-        var (parts, totalCount) = await partRepository.ListAsync(query.Tags, query.Page, query.PageSize, cancellationToken);
+        var (parts, totalCount) = await partRepository.ListAsync(query.Tags, query.Page, query.PageSize, cancellationToken, query.Sorting);
 
         var summaries = parts.Select(part =>
         {

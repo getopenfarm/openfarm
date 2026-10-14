@@ -11,7 +11,8 @@ import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { ListNonPrintedComponentsResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -142,28 +144,33 @@ export function NonPrintedComponentFormPage({
       },
     });
 
-  if (mode === 'edit' && componentsQuery.isLoading) {
-    return (
-      <div className="flex flex-col gap-6">
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
-  }
+  const backLink = (
+    <BackLink to="/non-printed-components" className="mb-1">
+      Back to non-printed components
+    </BackLink>
+  );
 
   if (mode === 'edit' && !existing) {
     return (
-      <EmptyState
-        title="Component not found"
-        description="It may have been removed, or the link is out of date."
-        action={
-          <Button
-            variant="outline"
-            onClick={() => navigate('/non-printed-components')}
-          >
-            Back to non-printed components
-          </Button>
-        }
-      />
+      <div className="flex flex-col gap-6">
+        <PageHeader above={backLink} title="Edit component" />
+        {componentsQuery.isLoading ? (
+          <Skeleton className="h-48 w-full" />
+        ) : (
+          <EmptyState
+            title="Component not found"
+            description="It may have been removed, or the link is out of date."
+            action={
+              <Button
+                variant="outline"
+                onClick={() => navigate('/non-printed-components')}
+              >
+                Back to non-printed components
+              </Button>
+            }
+          />
+        )}
+      </div>
     );
   }
 
@@ -188,14 +195,10 @@ export function NonPrintedComponentFormPage({
   const isSaving = createMutation.isPending || editMutation.isPending;
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader
-        above={
-          <BackLink to="/non-printed-components" className="mb-1">
-            Back to non-printed components
-          </BackLink>
-        }
-        title={mode === 'add' ? 'New non-printed component' : 'Edit component'}
+        above={backLink}
+        title={mode === 'add' ? 'Add component' : 'Edit component'}
         description="Screws, inserts, packaging, and other reusable BOM components that aren't printed."
         action={
           mode === 'edit' ? (
@@ -213,72 +216,74 @@ export function NonPrintedComponentFormPage({
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-6"
+          className="flex flex-1 flex-col gap-6"
         >
-          <Card>
-            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="M3x8 screw" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="unit"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit</FormLabel>
-                    <FormControl>
-                      <Input placeholder="each" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="unitCost"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit cost (optional)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="any" min={0} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+          <FieldGroup className="flex-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="M3x8 screw" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="unit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit</FormLabel>
+                      <FormControl>
+                        <Input placeholder="each" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="unitCost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit cost (optional)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" min={0} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
 
-          <FormFooter
-            end={
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => navigate('/non-printed-components')}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving
-                    ? 'Saving…'
-                    : mode === 'add'
-                      ? 'Create component'
-                      : 'Save changes'}
-                </Button>
-              </>
-            }
-          />
+            <FormFooter
+              end={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/non-printed-components')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Spinner data-icon="inline-start" />}
+                    {isSaving ? 'Saving…' : 'Save'}
+                  </Button>
+                </>
+              }
+            />
+          </FieldGroup>
         </form>
       </Form>
 
@@ -290,6 +295,8 @@ export function NonPrintedComponentFormPage({
         title="Delete this component?"
         description="This cannot be undone. Deletion is blocked if a BOM line still references it."
         confirmLabel="Delete"
+        destructive
+        isPending={deleteMutation.isPending}
         onConfirm={() => id && deleteMutation.mutate({ id })}
       />
     </div>

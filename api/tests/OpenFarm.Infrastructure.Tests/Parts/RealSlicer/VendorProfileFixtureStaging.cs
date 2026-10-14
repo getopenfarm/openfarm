@@ -93,7 +93,7 @@ internal static class VendorProfileFixtureStaging
 
         public Task<(IReadOnlyList<MachineProfile> Items, int TotalCount)> SearchAsync(
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
-            string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
+            string? searchText, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
             throw new NotSupportedException("Not exercised by the real-slicer golden-file harness.");
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -159,7 +159,7 @@ internal static class VendorProfileFixtureStaging
 
         public Task<(IReadOnlyList<FilamentProfile> Items, int TotalCount)> SearchAsync(
             ProfileOrigin? origin, bool? isSelectable, string? compatibleWithMachineName, string? materialType,
-            string? searchText, int page, int pageSize, CancellationToken cancellationToken) =>
+            string? searchText, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
             throw new NotSupportedException("Not exercised by the real-slicer golden-file harness.");
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -245,7 +245,6 @@ internal static class VendorProfileFixtureStaging
         public Task<FilamentVariant?> FindVariantByIdAsync(Guid filamentVariantId, CancellationToken cancellationToken) =>
             Task.FromResult<FilamentVariant?>(null);
 
-        public Task AddVariantAsync(FilamentVariant variant, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

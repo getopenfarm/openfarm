@@ -22,12 +22,6 @@ public sealed class FilamentRepository(OpenFarmDbContext dbContext) : IFilamentR
     public Task<FilamentVariant?> FindVariantByIdAsync(Guid filamentVariantId, CancellationToken cancellationToken) =>
         dbContext.FilamentVariants.FirstOrDefaultAsync(v => v.Id == filamentVariantId, cancellationToken);
 
-    public async Task AddVariantAsync(FilamentVariant variant, CancellationToken cancellationToken)
-    {
-        dbContext.FilamentVariants.Add(variant);
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
-
     public Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         // DetectChanges would attach new Guid-keyed children as Modified before we can mark them Added.
@@ -36,8 +30,12 @@ public sealed class FilamentRepository(OpenFarmDbContext dbContext) : IFilamentR
         try
         {
             foreach (var filament in dbContext.ChangeTracker.Entries<Filament>().Select(e => e.Entity).ToList())
+            {
+                foreach (var variant in filament.Variants)
+                    if (dbContext.Entry(variant).State == EntityState.Detached) dbContext.Add(variant);
                 foreach (var assignment in filament.ProfileAssignments)
                     if (dbContext.Entry(assignment).State == EntityState.Detached) dbContext.Add(assignment);
+            }
         }
         finally { dbContext.ChangeTracker.AutoDetectChangesEnabled = autoDetect; }
         return dbContext.SaveChangesAsync(cancellationToken);

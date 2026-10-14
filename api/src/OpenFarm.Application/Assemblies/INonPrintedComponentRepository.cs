@@ -10,7 +10,7 @@ public interface INonPrintedComponentRepository
 
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<(IReadOnlyList<NonPrintedComponent> Components, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken);
+    Task<(IReadOnlyList<NonPrintedComponent> Components, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null);
 
     Task RemoveAsync(NonPrintedComponent component, CancellationToken cancellationToken);
 

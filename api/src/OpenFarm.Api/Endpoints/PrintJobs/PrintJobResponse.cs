@@ -18,6 +18,9 @@ public sealed class QueueJobRowResponse
 
     public bool IsBlocked { get; set; }
     public string? BlockingReason { get; set; }
+    public bool SourcePartAvailable { get; set; }
+    public string SnapshotState { get; set; } = string.Empty;
+    public string? SnapshotRecoveryReason { get; set; }
 
     public Guid PartId { get; set; }
 
@@ -41,6 +44,9 @@ public sealed class QueueJobRowResponse
         DispatchedPrinterId = row.DispatchedPrinterId,
         IsBlocked = row.IsBlocked,
         BlockingReason = row.BlockingReason,
+        SourcePartAvailable = row.SourcePartAvailable,
+        SnapshotState = row.SnapshotState,
+        SnapshotRecoveryReason = row.SnapshotRecoveryReason,
         PartId = row.PartId,
         PartName = row.PartName,
         PlateQuantity = row.PlateQuantity,
@@ -113,6 +119,8 @@ public sealed class PrintJobResponse
     public List<JobFilamentConsumptionResponse> FilamentConsumption { get; set; } = [];
 
     public DateTimeOffset CreatedAtUtc { get; set; }
+    public string SnapshotState { get; set; } = string.Empty;
+    public string? SnapshotRecoveryReason { get; set; }
 
     public static PrintJobResponse FromDetail(PrintJobDetail detail) => new()
     {
@@ -134,5 +142,7 @@ public sealed class PrintJobResponse
         RequeuedAsJobId = detail.RequeuedAsJobId,
         FilamentConsumption = detail.FilamentConsumption.Select(JobFilamentConsumptionResponse.FromDetail).ToList(),
         CreatedAtUtc = detail.CreatedAtUtc,
+        SnapshotState = detail.SnapshotState,
+        SnapshotRecoveryReason = detail.SnapshotRecoveryReason,
     };
 }

@@ -22,15 +22,12 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
-  AddFilamentVariantRequest,
   CreateFilamentRequest,
+  EditFilamentRequest,
   FilamentAssignmentFleet,
   FilamentProfileAssignmentsResponse,
   FilamentResponse,
-  FilamentVariantResponse,
   ListFilamentsResponse,
-  ProblemDetails,
-  UpdateFilamentProfileAssignmentsRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -51,152 +48,6 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
-export type openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse200 =
-  {
-    data: FilamentVariantResponse;
-    status: 200;
-  };
-
-export type openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse401 =
-  {
-    data: void;
-    status: 401;
-  };
-
-export type openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse403 =
-  {
-    data: void;
-    status: 403;
-  };
-
-export type openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponseSuccess =
-  openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponseError =
-  (
-    | openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse401
-    | openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse403
-  ) & {
-    headers: Headers;
-  };
-
-export type openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse =
-  | openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponseSuccess
-  | openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponseError;
-
-export const getOpenFarmApiEndpointsFilamentsAddFilamentVariantEndpointUrl = (
-  id: string,
-) => {
-  return `/api/v1/filaments/${id}/variants`;
-};
-
-export const openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint = async (
-  id: string,
-  addFilamentVariantRequest: AddFilamentVariantRequest,
-  options?: RequestInit,
-): Promise<openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse> => {
-  return httpClient<openFarmApiEndpointsFilamentsAddFilamentVariantEndpointResponse>(
-    getOpenFarmApiEndpointsFilamentsAddFilamentVariantEndpointUrl(id),
-    {
-      ...options,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(addFilamentVariantRequest),
-    },
-  );
-};
-
-export const getOpenFarmApiEndpointsFilamentsAddFilamentVariantEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint
-        >
-      >,
-      TError,
-      { id: string; data: AddFilamentVariantRequest },
-      TContext
-    >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint>
-    >,
-    TError,
-    { id: string; data: AddFilamentVariantRequest },
-    TContext
-  > => {
-    const mutationKey = [
-      'openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint',
-    ];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        'mutationKey' in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint
-        >
-      >,
-      { id: string; data: AddFilamentVariantRequest }
-    > = (props) => {
-      const { id, data } = props ?? {};
-
-      return openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint(id, data);
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type OpenFarmApiEndpointsFilamentsAddFilamentVariantEndpointMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint>
-    >
-  >;
-export type OpenFarmApiEndpointsFilamentsAddFilamentVariantEndpointMutationBody =
-  AddFilamentVariantRequest;
-export type OpenFarmApiEndpointsFilamentsAddFilamentVariantEndpointMutationError =
-  void;
-
-export const useOpenFarmApiEndpointsFilamentsAddFilamentVariantEndpoint = <
-  TError = void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint
-        >
-      >,
-      TError,
-      { id: string; data: AddFilamentVariantRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<
-    ReturnType<typeof openFarmApiEndpointsFilamentsAddFilamentVariantEndpoint>
-  >,
-  TError,
-  { id: string; data: AddFilamentVariantRequest },
-  TContext
-> => {
-  return useMutation(
-    getOpenFarmApiEndpointsFilamentsAddFilamentVariantEndpointMutationOptions(
-      options,
-    ),
-    queryClient,
-  );
-};
 export type openFarmApiEndpointsFilamentsCreateFilamentEndpointResponse200 = {
   data: FilamentResponse;
   status: 200;
@@ -554,6 +405,138 @@ export function useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export type openFarmApiEndpointsFilamentsEditFilamentEndpointResponse200 = {
+  data: FilamentResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsFilamentsEditFilamentEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsFilamentsEditFilamentEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsFilamentsEditFilamentEndpointResponseSuccess =
+  openFarmApiEndpointsFilamentsEditFilamentEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsFilamentsEditFilamentEndpointResponseError = (
+  | openFarmApiEndpointsFilamentsEditFilamentEndpointResponse401
+  | openFarmApiEndpointsFilamentsEditFilamentEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsFilamentsEditFilamentEndpointResponse =
+  | openFarmApiEndpointsFilamentsEditFilamentEndpointResponseSuccess
+  | openFarmApiEndpointsFilamentsEditFilamentEndpointResponseError;
+
+export const getOpenFarmApiEndpointsFilamentsEditFilamentEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/filaments/${id}`;
+};
+
+export const openFarmApiEndpointsFilamentsEditFilamentEndpoint = async (
+  id: string,
+  editFilamentRequest: EditFilamentRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsFilamentsEditFilamentEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsFilamentsEditFilamentEndpointResponse>(
+    getOpenFarmApiEndpointsFilamentsEditFilamentEndpointUrl(id),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(editFilamentRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsFilamentsEditFilamentEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsFilamentsEditFilamentEndpoint>
+      >,
+      TError,
+      { id: string; data: EditFilamentRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsFilamentsEditFilamentEndpoint>
+    >,
+    TError,
+    { id: string; data: EditFilamentRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsFilamentsEditFilamentEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsFilamentsEditFilamentEndpoint>
+      >,
+      { id: string; data: EditFilamentRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsFilamentsEditFilamentEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsFilamentsEditFilamentEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsFilamentsEditFilamentEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsFilamentsEditFilamentEndpointMutationBody =
+  EditFilamentRequest;
+export type OpenFarmApiEndpointsFilamentsEditFilamentEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsFilamentsEditFilamentEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsFilamentsEditFilamentEndpoint>
+      >,
+      TError,
+      { id: string; data: EditFilamentRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsFilamentsEditFilamentEndpoint>>,
+  TError,
+  { id: string; data: EditFilamentRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsFilamentsEditFilamentEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsFilamentsGetFilamentAssignmentFleetEndpointResponse200 =
   {
     data: FilamentAssignmentFleet;
@@ -1097,166 +1080,3 @@ export function useOpenFarmApiEndpointsFilamentsGetFilamentProfileAssignmentsEnd
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-export type openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse200 =
-  {
-    data: FilamentProfileAssignmentsResponse;
-    status: 200;
-  };
-
-export type openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse400 =
-  {
-    data: ProblemDetails;
-    status: 400;
-  };
-
-export type openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse401 =
-  {
-    data: void;
-    status: 401;
-  };
-
-export type openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse403 =
-  {
-    data: void;
-    status: 403;
-  };
-
-export type openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponseSuccess =
-  openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponseError =
-  (
-    | openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse400
-    | openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse401
-    | openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse403
-  ) & {
-    headers: Headers;
-  };
-
-export type openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse =
-  | openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponseSuccess
-  | openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponseError;
-
-export const getOpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointUrl =
-  (id: string) => {
-    return `/api/v1/filaments/${id}/profile-assignments`;
-  };
-
-export const openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint =
-  async (
-    id: string,
-    updateFilamentProfileAssignmentsRequest: UpdateFilamentProfileAssignmentsRequest,
-    options?: RequestInit,
-  ): Promise<openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse> => {
-    return httpClient<openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointResponse>(
-      getOpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointUrl(
-        id,
-      ),
-      {
-        ...options,
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(updateFilamentProfileAssignmentsRequest),
-      },
-    );
-  };
-
-export const getOpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointMutationOptions =
-  <TError = ProblemDetails | void, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint
-        >
-      >,
-      TError,
-      { id: string; data: UpdateFilamentProfileAssignmentsRequest },
-      TContext
-    >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint
-      >
-    >,
-    TError,
-    { id: string; data: UpdateFilamentProfileAssignmentsRequest },
-    TContext
-  > => {
-    const mutationKey = [
-      'openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint',
-    ];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        'mutationKey' in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint
-        >
-      >,
-      { id: string; data: UpdateFilamentProfileAssignmentsRequest }
-    > = (props) => {
-      const { id, data } = props ?? {};
-
-      return openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint(
-        id,
-        data,
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type OpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint
-      >
-    >
-  >;
-export type OpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointMutationBody =
-  UpdateFilamentProfileAssignmentsRequest;
-export type OpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointMutationError =
-  ProblemDetails | void;
-
-export const useOpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint =
-  <TError = ProblemDetails | void, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint
-          >
-        >,
-        TError,
-        { id: string; data: UpdateFilamentProfileAssignmentsRequest },
-        TContext
-      >;
-    },
-    queryClient?: QueryClient,
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint
-      >
-    >,
-    TError,
-    { id: string; data: UpdateFilamentProfileAssignmentsRequest },
-    TContext
-  > => {
-    return useMutation(
-      getOpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpointMutationOptions(
-        options,
-      ),
-      queryClient,
-    );
-  };

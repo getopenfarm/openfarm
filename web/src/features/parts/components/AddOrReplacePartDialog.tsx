@@ -6,10 +6,11 @@ import {
   DialogScrollableContent,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -150,8 +151,8 @@ export function AddOrReplacePartDialog({
           ) : !file ? (
             <div className="flex flex-col gap-4">
               {availableSlicers.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="part-slicer-override">Slicer</Label>
+                <Field className="flex flex-col gap-1.5">
+                  <FieldLabel htmlFor="part-slicer-override">Slicer</FieldLabel>
                   <Select
                     value={slicerSelection}
                     onValueChange={setSlicerSelection}
@@ -160,27 +161,29 @@ export function AddOrReplacePartDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={USE_DEFAULT_SLICER}>
-                        Organization default
-                        {effectiveDefault
-                          ? ` (${effectiveDefault.engine} ${effectiveDefault.version})`
-                          : ''}
-                      </SelectItem>
-                      {availableSlicers.map((slicer) => (
-                        <SelectItem
-                          key={slicerSelectionKey(slicer)}
-                          value={slicerSelectionKey(slicer)}
-                        >
-                          {slicer.engine} {slicer.version}
+                      <SelectGroup>
+                        <SelectItem value={USE_DEFAULT_SLICER}>
+                          Organization default
+                          {effectiveDefault
+                            ? ` (${effectiveDefault.engine} ${effectiveDefault.version})`
+                            : ''}
                         </SelectItem>
-                      ))}
+                        {availableSlicers.map((slicer) => (
+                          <SelectItem
+                            key={slicerSelectionKey(slicer)}
+                            value={slicerSelectionKey(slicer)}
+                          >
+                            {slicer.engine} {slicer.version}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <p className="text-muted-foreground text-xs">
                     Only used for files that need slicing (STL or an unsliced
                     3MF) — ignored otherwise.
                   </p>
-                </div>
+                </Field>
               )}
               <div className="flex flex-col gap-2">
                 <button

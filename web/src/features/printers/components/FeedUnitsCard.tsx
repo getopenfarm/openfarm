@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import type {
   AmsTrayResponse,
@@ -161,6 +162,7 @@ function FeedSlotRow({
             disabled={channelMutation.isPending}
             onClick={() => channelMutation.mutate()}
           >
+            {channelMutation.isPending && <Spinner data-icon="inline-start" />}
             Set feeding channel
           </Button>
         )}
@@ -267,6 +269,7 @@ function FeedUnitGroup({
               disabled={removeMutation.isPending}
               onClick={() => removeMutation.mutate({ id: unit.id ?? '' })}
             >
+              {removeMutation.isPending && <Spinner data-icon="inline-start" />}
               Remove
             </Button>
           ) : null}
@@ -329,7 +332,7 @@ export function FeedUnitsCard({
           title="Add a Feed Unit"
           onClick={() => setAddOpen(true)}
         >
-          <Plus className="size-4" aria-hidden="true" />
+          <Plus data-icon="inline-start" className="" aria-hidden="true" />
         </Button>
       </CardHeader>
       <CardContent className="p-0">

@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -94,6 +100,54 @@ describe('QueuePage', () => {
     vi.restoreAllMocks();
   });
 
+  it('changes only the chosen queue section size and resets its page', async () => {
+    const requests = stub((params) =>
+      json({
+        totalCount: 150,
+        items: [job(`${params.get('view')}-${params.get('page')}`)],
+      }),
+    );
+    renderPage();
+    await screen.findByText('queue-1');
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: 'Next finite jobs page' }),
+    );
+    await screen.findByText('queue-2');
+    const finite = screen.getByRole('navigation', {
+      name: 'Finite jobs pagination',
+    });
+    await user.click(
+      within(finite).getByRole('combobox', { name: 'Rows per page' }),
+    );
+    await user.click(screen.getByRole('option', { name: '10' }));
+    expect(await screen.findByText('queue-1')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(finite).getByText('1–10 of 150')).toBeInTheDocument(),
+    );
+    expect(
+      within(
+        screen.getByRole('navigation', { name: 'Backfill jobs pagination' }),
+      ).getByRole('combobox', { name: 'Rows per page' }),
+    ).toHaveTextContent('50');
+    const urls = requests.mock.calls.map(
+      ([input]) => new URL(input.toString()),
+    );
+    expect(
+      urls.some(
+        (url) =>
+          url.searchParams.get('view') === 'queue' &&
+          url.searchParams.get('page') === '1' &&
+          url.searchParams.get('pageSize') === '10',
+      ),
+    ).toBe(true);
+    expect(
+      urls
+        .filter((url) => url.searchParams.get('view') === 'backfill')
+        .every((url) => url.searchParams.get('pageSize') === '50'),
+    ).toBe(true);
+  });
+
   it('pages finite jobs independently of backfill in a thousand-job queue', async () => {
     stub((params) =>
       params.get('view') === 'backfill'
@@ -115,7 +169,7 @@ describe('QueuePage', () => {
       screen.getByRole('button', { name: 'Next finite jobs page' }),
     );
     expect(await screen.findByText('Page 2 part')).toBeInTheDocument();
-    expect(screen.getByText('Page 2 of 21')).toBeInTheDocument();
+    expect(screen.getByText('51–100 of 1001')).toBeInTheDocument();
     expect(screen.getByText('Backfill part')).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole('button', { name: 'Previous finite jobs page' }),
@@ -163,7 +217,7 @@ describe('QueuePage', () => {
     expect(await screen.findByText('Backfill page 2')).toBeVisible();
     expect(
       screen.getByRole('navigation', { name: 'Backfill jobs pagination' }),
-    ).toHaveTextContent('Page 2 of 2');
+    ).toHaveTextContent('51–60 of 60');
   });
 
   it('expands when jobs arrive and respects a manual collapse across live updates', async () => {
@@ -260,7 +314,7 @@ describe('QueuePage', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Next finite jobs page' }),
     );
-    await screen.findByText('Page 2 of 21');
+    await screen.findByText('51–100 of 1001');
     await userEvent.click(screen.getByRole('tab', { name: 'Cancelled 10' }));
     await waitFor(() =>
       expect(
@@ -370,7 +424,7 @@ describe('QueuePage', () => {
     await queryClient.invalidateQueries();
     expect(await screen.findByText('page-1')).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getAllByText('Page 1 of 1')).toHaveLength(2),
+      expect(screen.getAllByRole('button', { name: 'Page 1' })).toHaveLength(1),
     );
   });
 });

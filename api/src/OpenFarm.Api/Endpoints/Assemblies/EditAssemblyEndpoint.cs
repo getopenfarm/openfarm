@@ -4,9 +4,22 @@ using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Common;
+using OpenFarm.Domain.Assemblies;
 using EditAssemblyHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.EditAssemblyCommand, OpenFarm.Domain.Assemblies.Assembly>;
 
 namespace OpenFarm.Api.Endpoints.Assemblies;
+
+public sealed class EditAssemblyLineRequest
+{
+    /// <summary>An existing line's id to keep (quantity may change); omit to add a new line.</summary>
+    public Guid? LineId { get; set; }
+
+    public string TargetKind { get; set; } = string.Empty;
+
+    public Guid TargetId { get; set; }
+
+    public decimal Quantity { get; set; }
+}
 
 public sealed class EditAssemblyRequest : IActivityLoggable
 {
@@ -16,6 +29,9 @@ public sealed class EditAssemblyRequest : IActivityLoggable
 
     public string? Description { get; set; }
 
+    /// <summary>Full replacement of the BOM; omit (null) to rename/redescribe only.</summary>
+    public List<EditAssemblyLineRequest>? Lines { get; set; }
+
     public string EntityType => "Assembly";
 
     public string EventType => "AssemblyEdited";
@@ -23,10 +39,20 @@ public sealed class EditAssemblyRequest : IActivityLoggable
 
 public sealed class EditAssemblyRequestValidator : AbstractValidator<EditAssemblyRequest>
 {
-    public EditAssemblyRequestValidator() => RuleFor(x => x.Name).NotEmpty();
+    public EditAssemblyRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty();
+        RuleFor(x => x.Lines).NotEmpty().When(x => x.Lines is not null);
+        RuleForEach(x => x.Lines).ChildRules(line =>
+        {
+            line.RuleFor(l => l.TargetKind).Must(k => Enum.TryParse<BomLineTargetKind>(k, out _))
+                .WithMessage("targetKind must be one of Part, Assembly, NonPrintedComponent.");
+            line.RuleFor(l => l.Quantity).GreaterThan(0);
+        });
+    }
 }
 
-/// <summary>PUT /api/v1/assemblies/{id} — renames/redescribes only; line changes go through the line endpoints (contracts/assembly-bom-api.md).</summary>
+/// <summary>PUT /api/v1/assemblies/{id} — renames/redescribes and, when <c>lines</c> is sent, fully replaces the BOM in one all-or-nothing save.</summary>
 [Permission("assemblies:edit")]
 public sealed class EditAssemblyEndpoint(EditAssemblyHandler handler, IQueryHandler<GetAssemblyQuery, AssemblyDetail?> getAssembly)
     : Endpoint<EditAssemblyRequest, AssemblyResponse>
@@ -40,7 +66,8 @@ public sealed class EditAssemblyEndpoint(EditAssemblyHandler handler, IQueryHand
     public override async Task HandleAsync(EditAssemblyRequest req, CancellationToken ct)
     {
         req.Id = Route<Guid>("id");
-        await handler.HandleAsync(new EditAssemblyCommand(req.Id, req.Name, req.Description), ct);
+        var lines = req.Lines?.Select(l => new AssemblyLineEditInput(l.LineId, Enum.Parse<BomLineTargetKind>(l.TargetKind), l.TargetId, l.Quantity)).ToList();
+        await handler.HandleAsync(new EditAssemblyCommand(req.Id, req.Name, req.Description, lines), ct);
 
         var detail = await getAssembly.HandleAsync(new GetAssemblyQuery(req.Id), ct);
         Response = AssemblyResponse.FromDetail(detail!);

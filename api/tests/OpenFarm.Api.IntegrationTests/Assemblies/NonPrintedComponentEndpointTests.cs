@@ -110,8 +110,11 @@ public class NonPrintedComponentEndpointTests(CustomWebApplicationFactory factor
         var detail = await blockedResponse.Content.ReadAsStringAsync();
         detail.Should().Contain(assembly!.Name);
 
-        var lineId = assembly!.Lines.Single(l => l.TargetKind == "NonPrintedComponent").Id;
-        await client.DeleteAsync(new Uri($"/api/v1/assemblies/{assembly.Id}/lines/{lineId}", UriKind.Relative));
+        var partLine = assembly!.Lines.Single(l => l.TargetKind == "Part");
+        var editResponse = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/assemblies/{assembly.Id}", UriKind.Relative),
+            new { name = assembly.Name, lines = new[] { new { lineId = partLine.Id, targetKind = "Part", targetId = partId, quantity = 1 } } });
+        editResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var unblockedResponse = await client.DeleteAsync(new Uri($"/api/v1/non-printed-components/{component.Id}", UriKind.Relative));
         unblockedResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);

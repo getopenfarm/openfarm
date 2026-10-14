@@ -6,7 +6,7 @@ public sealed class GetAssembliesQueryHandler(IAssemblyRepository assemblyReposi
 {
     public async Task<AssembliesPage> HandleAsync(GetAssembliesQuery query, CancellationToken cancellationToken)
     {
-        var (assemblies, totalCount) = await assemblyRepository.ListAsync(query.Page, query.PageSize, cancellationToken);
+        var (assemblies, totalCount) = await assemblyRepository.ListAsync(query.Page, query.PageSize, cancellationToken, query.Sorting);
 
         var summaries = assemblies
             .Select(a => new AssemblySummary(a.Id, a.Name, a.Description, a.Lines.Count))

@@ -33,7 +33,7 @@ namespace OpenFarm.Api.IntegrationTests.Production;
 
 // Real HTTP, tenancy, repositories and PostgreSQL. Tests explicitly start the real dispatcher or
 // replay telemetry so connection workers cannot race assertions about intermediate states.
-public sealed class ProductionTestFactory : CustomWebApplicationFactory
+public class ProductionTestFactory : CustomWebApplicationFactory
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -178,6 +178,10 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         }
         throw new TimeoutException("The dispatcher did not assign the expected job.");
     }
+
+    protected static async Task<List<string>> ActivityEventTypesAsync(HttpClient client, Guid entityId) =>
+        (await client.GetFromJsonAsync<OpenFarm.Api.Endpoints.ActivityLog.ActivityLogPageResponse>(
+            $"/api/v1/activity-log?entityId={entityId}&pageSize=100"))!.Items.Select(i => i.EventType).ToList();
 
     protected static async Task PostAsync(HttpClient client, string route, HttpStatusCode expected = HttpStatusCode.OK, object? body = null)
     {

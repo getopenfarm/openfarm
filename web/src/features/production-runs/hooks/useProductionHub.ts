@@ -64,6 +64,10 @@ export function useProductionHub(
       },
     );
 
+    connection.on('PartDeleted', () =>
+      invalidateProductionQueries(queryClient),
+    );
+
     connection.on(
       'PrintJobDispatched',
       (_payload: PrintJobDispatchedPayload) => {

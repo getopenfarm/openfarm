@@ -134,7 +134,7 @@ describe('ProfilesImportPage', () => {
     });
     await user.click(filamentCheckbox);
 
-    await user.click(screen.getByRole('button', { name: 'Confirm import' }));
+    await user.click(screen.getByRole('button', { name: 'Import' }));
 
     expect(await screen.findByText('Profiles list page')).toBeInTheDocument();
 

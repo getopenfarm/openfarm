@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -20,6 +21,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { useOpenFarmApiEndpointsAuthLoginEndpoint } from '@/lib/api/generated/auth/auth';
 import { useAuth } from '@/lib/auth/useAuth';
 
@@ -74,43 +76,48 @@ export function LoginPage() {
               onSubmit={form.handleSubmit(onSubmit)}
               className="flex flex-col gap-4"
             >
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input autoComplete="username" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        autoComplete="current-password"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                disabled={loginMutation.isPending}
-                className="w-full"
-              >
-                {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
-              </Button>
+              <FieldGroup className="gap-4">
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username</FormLabel>
+                      <FormControl>
+                        <Input autoComplete="username" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          autoComplete="current-password"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="submit"
+                  disabled={loginMutation.isPending}
+                  className="w-full"
+                >
+                  {loginMutation.isPending && (
+                    <Spinner data-icon="inline-start" />
+                  )}
+                  {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
+                </Button>
+              </FieldGroup>
             </form>
           </Form>
         </CardContent>

@@ -20,7 +20,7 @@ public sealed class CreateProductionRunCommandHandler(
     IPartRequirementRepository requirementRepository,
     IPrintJobRepository jobRepository,
     IPartRepository partRepository,
-    IAssemblyGraphQueryService graphQueryService, ProductionDispatchRequestService? dispatchRequests = null, IAssemblyRepository? assemblyRepository = null, IPartFileStorage? fileStorage = null) : ICommandHandler<CreateProductionRunCommand, ProductionRun>
+    IAssemblyGraphQueryService graphQueryService, ProductionDispatchRequestService? dispatchRequests = null, IAssemblyRepository? assemblyRepository = null, IPartFileStorage? fileStorage = null, ProductionSnapshotFactory? snapshotFactory = null) : ICommandHandler<CreateProductionRunCommand, ProductionRun>
 {
     public async Task<ProductionRun> HandleAsync(CreateProductionRunCommand command, CancellationToken cancellationToken)
     {
@@ -40,6 +40,8 @@ public sealed class CreateProductionRunCommandHandler(
                 var part = await partRepository.GetByIdAsync(item.PartId, cancellationToken) ?? throw new PartNotFoundException(item.PartId);
                 part.EnsurePrintRequirementsComplete();
             }
+            line.CaptureTargetName(line.TargetKind == RunLineTargetKind.Part ? exploded[0].PartName
+                : assemblyRepository is null ? "Assembly" : (await assemblyRepository.GetByIdAsync(line.TargetId, cancellationToken))!.Name);
             explodedByLine.Add(line.Id, exploded);
         }
         await runRepository.AddAsync(run, cancellationToken);
@@ -54,6 +56,8 @@ public sealed class CreateProductionRunCommandHandler(
                 .Select(exploded => PartRequirement.Create(
                     Organization.WellKnownId, line.Id, exploded.PartId, line.Quantity is null ? null : exploded.Quantity))
                 .ToList();
+            foreach (var requirement in requirements)
+                requirement.CaptureName(explodedParts.First(p => p.PartId == requirement.PartId).PartName);
             await requirementRepository.AddRangeAsync(requirements, cancellationToken);
 
             // Resolve placeholders left by the upgrade migration from the actual stored bytes,
@@ -98,6 +102,9 @@ public sealed class CreateProductionRunCommandHandler(
                         line.DefaultAssignmentMode, line.DefaultPinnedPrinterId, part.RevisionHash, part.RevisionNumber, filamentSpecs));
                 }
 
+                foreach (var job in jobs)
+                    if (snapshotFactory is not null) await snapshotFactory.CaptureAsync(job, part, cancellationToken);
+                    else job.CaptureProductionSnapshot(part);
                 await jobRepository.AddRangeAsync(jobs, cancellationToken);
             }
         }

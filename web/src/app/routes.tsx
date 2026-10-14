@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
 import { AssemblyDetailPage } from '../features/assemblies/AssemblyDetailPage';
@@ -21,12 +21,15 @@ import { PrintersPage } from '../features/printers/PrintersPage';
 import { NewProductionRunPage } from '../features/production-runs/NewProductionRunPage';
 import { PrintJobDetailPage } from '../features/production-runs/PrintJobDetailPage';
 import { ProductionRunDetailPage } from '../features/production-runs/ProductionRunDetailPage';
+import { ProductionRunEditPage } from '../features/production-runs/ProductionRunEditPage';
 import { ProductionRunsPage } from '../features/production-runs/ProductionRunsPage';
 import { QueuePage } from '../features/production-runs/QueuePage';
+import { ProfileDetailPage } from '../features/profiles/ProfileDetailPage';
 import { ProfilesImportPage } from '../features/profiles/ProfilesImportPage';
 import { ProfilesPage } from '../features/profiles/ProfilesPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { SlicingDefaultsPage } from '../features/settings/SlicingDefaultsPage';
+import { SpoolDetailPage } from '../features/spools/SpoolDetailPage';
 import { SpoolFormPage } from '../features/spools/SpoolFormPage';
 import { SpoolsPage } from '../features/spools/SpoolsPage';
 import { AppShell } from './layout/AppShell';
@@ -52,7 +55,10 @@ export const router = createBrowserRouter([
             path: '/printers',
             handle: { title: 'Printers' },
             children: [
-              { index: true, element: <PrintersPage /> },
+              {
+                index: true,
+                element: <PrintersPage />,
+              },
               {
                 path: 'new',
                 element: <PrinterFormPage mode="add" />,
@@ -84,7 +90,10 @@ export const router = createBrowserRouter([
             path: '/production-runs',
             handle: { title: 'Production Runs' },
             children: [
-              { index: true, element: <ProductionRunsPage /> },
+              {
+                index: true,
+                element: <ProductionRunsPage />,
+              },
               {
                 path: 'new',
                 element: <NewProductionRunPage />,
@@ -95,13 +104,21 @@ export const router = createBrowserRouter([
                 element: <ProductionRunDetailPage />,
                 handle: { title: 'Production Run' },
               },
+              {
+                path: ':id/edit',
+                element: <ProductionRunEditPage />,
+                handle: { title: 'Edit Production Run' },
+              },
             ],
           },
           {
             path: '/filament',
             handle: { title: 'Filament' },
             children: [
-              { index: true, element: <FilamentPage /> },
+              {
+                index: true,
+                element: <FilamentPage />,
+              },
               {
                 path: 'new',
                 element: <FilamentFormPage mode="add" />,
@@ -118,11 +135,19 @@ export const router = createBrowserRouter([
             path: '/spools',
             handle: { title: 'Spools' },
             children: [
-              { index: true, element: <SpoolsPage /> },
+              {
+                index: true,
+                element: <SpoolsPage />,
+              },
               {
                 path: 'new',
                 element: <SpoolFormPage />,
                 handle: { title: 'Add Spool' },
+              },
+              {
+                path: ':id',
+                element: <SpoolDetailPage />,
+                handle: { title: 'Spool' },
               },
             ],
           },
@@ -130,7 +155,10 @@ export const router = createBrowserRouter([
             path: '/parts',
             handle: { title: 'Parts' },
             children: [
-              { index: true, element: <PartsPage /> },
+              {
+                index: true,
+                element: <PartsPage />,
+              },
               {
                 path: 'new',
                 element: <PartFormPage />,
@@ -147,10 +175,13 @@ export const router = createBrowserRouter([
             path: '/assemblies',
             handle: { title: 'Assemblies' },
             children: [
-              { index: true, element: <AssembliesPage /> },
+              {
+                index: true,
+                element: <AssembliesPage />,
+              },
               {
                 path: 'new',
-                element: <AssemblyFormPage mode="add" />,
+                element: <AssemblyFormPage />,
                 handle: { title: 'New Assembly' },
               },
               {
@@ -160,8 +191,7 @@ export const router = createBrowserRouter([
               },
               {
                 path: ':id/edit',
-                element: <AssemblyFormPage mode="edit" />,
-                handle: { title: 'Edit Assembly' },
+                element: <Navigate to=".." relative="path" replace />,
               },
             ],
           },
@@ -169,7 +199,10 @@ export const router = createBrowserRouter([
             path: '/non-printed-components',
             handle: { title: 'Non-Printed Components' },
             children: [
-              { index: true, element: <NonPrintedComponentsPage /> },
+              {
+                index: true,
+                element: <NonPrintedComponentsPage />,
+              },
               {
                 path: 'new',
                 element: <NonPrintedComponentFormPage mode="add" />,
@@ -186,11 +219,19 @@ export const router = createBrowserRouter([
             path: '/profiles',
             handle: { title: 'Profiles' },
             children: [
-              { index: true, element: <ProfilesPage /> },
+              {
+                index: true,
+                element: <ProfilesPage />,
+              },
               {
                 path: 'import',
                 element: <ProfilesImportPage />,
                 handle: { title: 'Import Profiles' },
+              },
+              {
+                path: ':type/:id',
+                element: <ProfileDetailPage />,
+                handle: { title: 'Profile' },
               },
             ],
           },
@@ -213,7 +254,10 @@ export const router = createBrowserRouter([
                 path: 'connection-secrets',
                 handle: { title: 'Connection Secrets' },
                 children: [
-                  { index: true, element: <ConnectionSecretsPage /> },
+                  {
+                    index: true,
+                    element: <ConnectionSecretsPage />,
+                  },
                   {
                     path: 'new',
                     element: <ConnectionSecretFormPage />,

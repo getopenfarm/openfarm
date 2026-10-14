@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import { KeyIcon } from 'lucide-react';
+import { KeyIcon, PlusIcon } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { BackLink } from '@/components/back-link/BackLink';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
@@ -47,10 +48,16 @@ export function ConnectionSecretsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Connection secrets"
+        above={
+          <BackLink to="/settings" className="mb-1">
+            Back to settings
+          </BackLink>
+        }
+        title="Connection credentials"
         description="Encrypted LAN access codes used to connect directly to printers."
         action={
           <Button onClick={() => navigate('/settings/connection-secrets/new')}>
+            <PlusIcon data-icon="inline-start" />
             Add credential
           </Button>
         }
@@ -60,17 +67,25 @@ export function ConnectionSecretsPage() {
         <Skeleton className="h-64 w-full" />
       ) : listQuery.isError ? (
         <ErrorState
-          description="Couldn't load connection secrets."
+          description="Couldn't load connection credentials."
           onRetry={() => listQuery.refetch()}
         />
       ) : secrets.length === 0 ? (
         <EmptyState
           icon={<KeyIcon className="size-8 text-muted-foreground" />}
           title="No credentials yet"
-          description="Use Add credential above to register a printer's LAN access code."
+          description="Register a printer's LAN access code to connect to it directly."
+          action={
+            <Button
+              onClick={() => navigate('/settings/connection-secrets/new')}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add credential
+            </Button>
+          }
         />
       ) : (
-        <DataTable columns={columns} data={secrets} />
+        <DataTable pageSize={25} columns={columns} data={secrets} />
       )}
     </div>
   );

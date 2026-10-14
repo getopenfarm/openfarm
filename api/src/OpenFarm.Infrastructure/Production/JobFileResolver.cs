@@ -26,6 +26,7 @@ public sealed class JobFileResolver(
 {
     public async Task<JobFileContent> ResolveAsync(Part part, PrintJob job, Guid printerId, decimal nozzleDiameterMm, CancellationToken cancellationToken)
     {
+        part = job.GetProductionPart() ?? throw new ProductionSnapshotUnavailableException(job.Id, job.SnapshotRecoveryReason);
         part.EnsurePrintRequirementsComplete();
         if (printerId == Guid.Empty) throw new SlicingProfileUnconfiguredException("Assign a printer before generating a production file.");
         var printer = await printers.GetByIdAsync(printerId, cancellationToken)

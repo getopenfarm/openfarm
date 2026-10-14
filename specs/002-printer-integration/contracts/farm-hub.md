@@ -42,13 +42,29 @@ push (P1/A1) or the FFmpeg-relayed RTSP stream (X1) — one contract for both tr
 §4). SC-005 requires the first frame within 3 seconds of opening the detail page.
 
 ```jsonc
-{ "printerId": "guid", "frameJpegBase64": "..." }
+{ "printerId": "guid", "frameJpegBase64": "...", "receivedAtUtc": "2026-10-10T07:00:00Z" }
 ```
 
 Camera-unavailable state (feed temporarily unreachable, or the printer's camera transport hasn't
 produced a frame yet) is represented by the client-side detail page simply not having received a
 recent `CameraFrameReceived` event for that printer within a short freshness window — no separate
-"camera unavailable" event is needed; the frontend degrades gracefully by timeout (FR-009).
+"camera unavailable" event is needed. After five seconds without a fresh live event, or immediately
+when the printer becomes unreachable, the frontend retains the latest good image and replaces Live
+with its age. `receivedAtUtc` is the server receipt timestamp, shared with the persisted snapshot.
+
+### Last snapshot REST bootstrap
+
+Authenticated `GET /api/v1/printers/{id}/camera-snapshot` returns
+`{ "frameJpegBase64": "...", "receivedAtUtc": "..." }`, 204 when no snapshot exists, or 404
+when the printer is missing or outside the caller's tenant. Responses use `Cache-Control: no-store`.
+One latest frame per printer is atomically stored on disk under `CameraSnapshotStorage:RootDirectory`
+(default `/data/camera-snapshots`, local development `./data/camera-snapshots`). Docker mounts a
+persistent volume. Snapshots survive browser and server restarts and remain until replaced or the
+printer is deleted. Storage failures are logged without interrupting the camera stream.
+
+Visible camera surfaces fetch this snapshot to bootstrap their shared latest-frame cache. They merge
+by receipt time, so HTTP cannot overwrite newer live events. An HTTP snapshot alone never establishes
+Live. Unsupported cameras and cameras without any usable image retain their existing placeholders.
 
 ## Group membership
 

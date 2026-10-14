@@ -134,4 +134,22 @@ public class PrinterModelCatalogTests
             }
         }
     }
+
+    [Theory]
+    [InlineData("C12", "P1S")]
+    [InlineData("c11", "P1P")]
+    [InlineData("N2S", "A1")]
+    [InlineData("N1", "A1MINI")]
+    [InlineData("BL-P001", "X1C")]
+    [InlineData("ZZZ", null)]
+    public void TryMapBambuDeviceModel_MapsSsdpCodesToCatalogCodes(string deviceModel, string? expected)
+    {
+        var mapped = PrinterModelCatalog.TryMapBambuDeviceModel(deviceModel);
+
+        mapped.Should().Be(expected);
+        if (mapped is not null)
+        {
+            PrinterModelCatalog.TryResolve("Bambu", mapped, out _).Should().BeTrue();
+        }
+    }
 }

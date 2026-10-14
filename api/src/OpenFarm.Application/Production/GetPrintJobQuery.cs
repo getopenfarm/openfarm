@@ -24,4 +24,4 @@ public sealed record PrintJobDetail(
     DateTimeOffset? CancelRequestedAtUtc,
     Guid? RequeuedAsJobId,
     IReadOnlyList<JobFilamentConsumptionDetail> FilamentConsumption,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc, string SnapshotState = "Ready", string? SnapshotRecoveryReason = null);

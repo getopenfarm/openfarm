@@ -11,7 +11,7 @@ public sealed record GetMachineProfilesQuery(
     string? Origin = null,
     string? SearchText = null,
     int? Page = null,
-    int? PageSize = null, Guid? PrinterId = null);
+    int? PageSize = null, Guid? PrinterId = null, ListSort? Sorting = null);
 
 public sealed record MachineProfileSummary(
     Guid Id,
@@ -55,13 +55,14 @@ public sealed class GetMachineProfilesQueryHandler(IMachineProfileRepository rep
                 }
             var size = Math.Clamp(query.PageSize ?? 50, 1, 1000);
             var requestedPage = Math.Max(query.Page ?? 1, 1);
-            return new(matches.OrderBy(p => p.Name).Skip((requestedPage - 1) * size).Take(size).ToList(), requestedPage, size, matches.Count);
+            return new((query.Sorting ?? new ListSort("name", false)).Order(matches, p => p.Name, p => p.Id).Skip((requestedPage - 1) * size).Take(size).ToList(), requestedPage, size, matches.Count);
         }
         var isPickerStyleCall = query.Origin is not null || query.SearchText is not null || query.Page is not null || query.PageSize is not null;
 
         if (!isPickerStyleCall)
         {
-            return await BuildLegacyBrowsePageResultAsync(cancellationToken);
+            var legacy = await BuildLegacyBrowsePageResultAsync(cancellationToken);
+            return query.Sorting is null ? legacy : legacy with { Items = query.Sorting.Order(legacy.Items, p => p.Name, p => p.Id).ToList() };
         }
 
         // US2 picker path (research.md §6) — the DB/repository already narrowed and paginated the
@@ -70,7 +71,7 @@ public sealed class GetMachineProfilesQueryHandler(IMachineProfileRepository rep
         var page = query.Page ?? 1;
         var (rows, totalCount) = await repository.SearchAsync(
             ProfileOriginQueryParser.ParseEffectiveFilter(query.Origin), true, null,
-            null, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken);
+            null, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken, query.Sorting);
 
         var leanSummaries = rows.Select(r => new MachineProfileSummary(
             r.Id, r.Name, r.Origin, r.VendorName, r.SourceFormat, r.BaseProfileId, r.BaseProfileName,

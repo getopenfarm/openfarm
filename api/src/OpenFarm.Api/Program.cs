@@ -43,6 +43,7 @@ using OpenFarm.Infrastructure.Parts;
 using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
+using OpenFarm.Infrastructure.Printers.Bambu;
 using OpenFarm.Infrastructure.Printers.Simulator;
 using OpenFarm.Infrastructure.Production;
 using OpenFarm.Infrastructure.Profiles;
@@ -62,12 +63,10 @@ using UpdateMachineProfileRawDataHandlerType = OpenFarm.Application.Common.IComm
 using UpdateFilamentProfileRawDataHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Profiles.UpdateFilamentProfileRawDataCommand, OpenFarm.Application.Profiles.FilamentProfileDetail>;
 using CreateVendorHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CreateVendorCommand, OpenFarm.Domain.FilamentTracking.Vendor>;
 using CreateFilamentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CreateFilamentCommand, OpenFarm.Domain.FilamentTracking.Filament>;
-using AddFilamentVariantHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.AddFilamentVariantCommand, OpenFarm.Domain.FilamentTracking.FilamentVariant>;
 using RegisterSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RegisterSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 using LoadSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.LoadSpoolOntoFeedSlotCommand, OpenFarm.Application.FilamentTracking.LoadSpoolResult>;
 using UnloadSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.UnloadSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 using RecordSpoolUsageHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RecordSpoolUsageCommand, OpenFarm.Application.FilamentTracking.RecordSpoolUsageResult>;
-using CorrectRemainingWeightHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.CorrectRemainingWeightCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 using AddFeedUnitHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.AddFeedUnitCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>;
 using RemoveFeedUnitHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.RemoveFeedUnitCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>;
 using AddPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.AddPartCommand, OpenFarm.Application.Parts.AddPartResult>;
@@ -75,16 +74,10 @@ using ReplacePartFileHandlerType = OpenFarm.Application.Common.ICommandHandler<O
 using ConfirmPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.ConfirmPartProcessingJobCommand, OpenFarm.Domain.Parts.Part>;
 using DiscardPartProcessingJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DiscardPartProcessingJobCommand, bool>;
 using DeletePartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.DeletePartCommand, bool>;
-using TagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.TagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
-using UntagPartHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UntagPartCommand, OpenFarm.Application.Parts.PartTagsResult>;
-using UpdatePartFilamentRequirementNarrowingHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdatePartFilamentRequirementNarrowingCommand, OpenFarm.Domain.Parts.PartFilamentRequirement>;
 using UpdateSlicingDefaultsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.UpdateSlicingDefaultsCommand, OpenFarm.Application.Parts.SlicingDefaults>;
 using CreateAssemblyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.CreateAssemblyCommand, OpenFarm.Domain.Assemblies.Assembly>;
 using EditAssemblyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.EditAssemblyCommand, OpenFarm.Domain.Assemblies.Assembly>;
 using DeleteAssemblyHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.DeleteAssemblyCommand, bool>;
-using AddBomLineHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.AddBomLineCommand, OpenFarm.Domain.Assemblies.BomLine>;
-using UpdateBomLineQuantityHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.UpdateBomLineQuantityCommand, OpenFarm.Domain.Assemblies.BomLine>;
-using RemoveBomLineHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.RemoveBomLineCommand, bool>;
 using CreateNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.CreateNonPrintedComponentCommand, OpenFarm.Domain.Assemblies.NonPrintedComponent>;
 using EditNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.EditNonPrintedComponentCommand, OpenFarm.Domain.Assemblies.NonPrintedComponent>;
 using DeleteNonPrintedComponentHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Assemblies.DeleteNonPrintedComponentCommand, bool>;
@@ -101,7 +94,6 @@ using FailPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<Open
 using ReorderPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.ReorderPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using PinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.PinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using UnpinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.UnpinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
-using SetRunLineBackfillLimitsHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.SetRunLineBackfillLimitsCommand, OpenFarm.Domain.Production.RunLine>;
 using SetRunLineRevisionModeHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.SetRunLineRevisionModeCommand, OpenFarm.Domain.Production.RunLine>;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -249,6 +241,8 @@ builder.Services.AddSingleton<SimulatorPrinterConnector>();
 builder.Services.AddSingleton<SimulatorPrinterCameraRelay>();
 builder.Services.AddScoped<IPrinterConnectorFactory, PrinterConnectorFactory>();
 
+builder.Services.Configure<CameraSnapshotStorageOptions>(builder.Configuration.GetSection(CameraSnapshotStorageOptions.SectionName));
+builder.Services.AddSingleton<IPrinterCameraSnapshotStore, LocalDiskPrinterCameraSnapshotStore>();
 builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();
 builder.Services.AddSingleton<PrinterConnectionBackgroundService>();
 if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
@@ -258,6 +252,9 @@ if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp
 // manager's worker loops for the rest of the process's lifetime. Dormant here only because no
 // exercised code path happens to resolve IPrinterConnectionManager from within a request scope yet.
 builder.Services.AddSingleton<IPrinterConnectionManager>(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
+builder.Services.AddSingleton<BambuSsdpDiscoveryService>();
+if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<BambuSsdpDiscoveryService>());
+builder.Services.AddSingleton<IPrinterDiscovery>(sp => sp.GetRequiredService<BambuSsdpDiscoveryService>());
 
 builder.Services.AddScoped<RegisterPrinterHandlerType, RegisterPrinterCommandHandler>();
 builder.Services.AddScoped<EditPrinterHandlerType, EditPrinterCommandHandler>();
@@ -266,6 +263,7 @@ builder.Services.AddScoped<MarkPrinterReadyHandlerType, MarkPrinterReadyCommandH
 builder.Services.AddScoped<IQueryHandler<GetFleetQuery, IReadOnlyList<FleetPrinterSummary>>, GetFleetQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>, GetPrinterDetailQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPrinterCatalogQuery, PrinterCatalogResult>, GetPrinterCatalogQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetDiscoveredPrintersQuery, IReadOnlyList<DiscoveredPrinterResult>>, GetDiscoveredPrintersQueryHandler>();
 
 builder.Services.AddScoped<IMachineProfileRepository, MachineProfileRepository>();
 builder.Services.AddScoped<IFilamentProfileRepository, FilamentProfileRepository>();
@@ -294,7 +292,6 @@ builder.Services.AddScoped<IFilamentTrackingEventPublisher, FarmHubFilamentTrack
 builder.Services.AddScoped<CreateVendorHandlerType, CreateVendorCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetVendorsQuery, IReadOnlyList<VendorSummary>>, GetVendorsQueryHandler>();
 builder.Services.AddScoped<CreateFilamentHandlerType, CreateFilamentCommandHandler>();
-builder.Services.AddScoped<AddFilamentVariantHandlerType, AddFilamentVariantCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentsQuery, IReadOnlyList<FilamentSummary>>, GetFilamentsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFeedUnitsQuery, IReadOnlyList<FeedUnitDetail>>, GetFeedUnitsQueryHandler>();
 builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler>();
@@ -304,7 +301,6 @@ builder.Services.AddScoped<UnloadSpoolHandlerType, UnloadSpoolCommandHandler>();
 builder.Services.AddScoped<ISpoolUsageRecordRepository, SpoolUsageRecordRepository>();
 builder.Services.AddScoped<IAutoContinuationResolver, SpoolUsageRecordedHandler>();
 builder.Services.AddScoped<RecordSpoolUsageHandlerType, RecordSpoolUsageCommandHandler>();
-builder.Services.AddScoped<CorrectRemainingWeightHandlerType, CorrectRemainingWeightCommandHandler>();
 builder.Services.AddScoped<AddFeedUnitHandlerType, AddFeedUnitCommandHandler>();
 builder.Services.AddScoped<RemoveFeedUnitHandlerType, RemoveFeedUnitCommandHandler>();
 builder.Services.AddScoped<ReloaderConfigurationService>();
@@ -317,6 +313,7 @@ builder.Services.Configure<SlicerBundleOptions>(builder.Configuration.GetSection
 
 builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
 builder.Services.AddScoped<IPartRepository, PartRepository>();
+builder.Services.AddScoped<IPartDeletionEligibilityReader, PartDeletionEligibilityReader>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<IPartProcessingJobRepository, PartProcessingJobRepository>();
 builder.Services.AddScoped<IPartFileStorage, LocalDiskPartFileStorage>();
@@ -328,9 +325,7 @@ builder.Services.AddScoped<IUnslicedProjectMaterialResolver, UnslicedProjectMate
 builder.Services.AddScoped<IAssemblyRepository, AssemblyRepository>();
 builder.Services.AddScoped<INonPrintedComponentRepository, NonPrintedComponentRepository>();
 builder.Services.AddScoped<IAssemblyGraphQueryService, AssemblyGraphQueryService>();
-builder.Services.AddScoped<OpenFarm.Api.Endpoints.Assemblies.BomLineTargetNameResolver>();
 
-builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SetPartUnitsPerPrintCommand, OpenFarm.Domain.Parts.Part>, SetPartUnitsPerPrintCommandHandler>();
 builder.Services.AddScoped<IProductionRunRepository, ProductionRunRepository>();
 builder.Services.AddScoped<IPartRequirementRepository, PartRequirementRepository>();
 builder.Services.AddScoped<IPrintJobRepository, PrintJobRepository>();
@@ -359,9 +354,10 @@ builder.Services.AddScoped<RepresentativeFilamentResolver>();
 builder.Services.AddScoped<ProfileCompatibility>();
 builder.Services.AddScoped<ProductionProfileReadiness>();
 builder.Services.AddScoped<ProductionJobRequirements>();
+builder.Services.AddScoped<ProductionSnapshotFactory>();
+builder.Services.AddScoped<ProductionSnapshotReconciler>();
 builder.Services.AddScoped<PartFilamentSelectionValidator>();
 builder.Services.AddScoped<FilamentProfileAssignmentService>();
-builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<UpdateFilamentProfileAssignmentsCommand, OpenFarm.Domain.FilamentTracking.Filament>, UpdateFilamentProfileAssignmentsCommandHandler>();
 builder.Services.AddScoped<ResolveSlicingProfileSelection>();
 builder.Services.AddScoped<ResolveEstimationProfiles>();
 
@@ -391,9 +387,6 @@ builder.Services.AddScoped<ReplacePartFileHandlerType, ReplacePartFileCommandHan
 builder.Services.AddScoped<ConfirmPartProcessingJobHandlerType, ConfirmPartProcessingJobCommandHandler>();
 builder.Services.AddScoped<DiscardPartProcessingJobHandlerType, DiscardPartProcessingJobCommandHandler>();
 builder.Services.AddScoped<DeletePartHandlerType, DeletePartCommandHandler>();
-builder.Services.AddScoped<TagPartHandlerType, TagPartCommandHandler>();
-builder.Services.AddScoped<UntagPartHandlerType, UntagPartCommandHandler>();
-builder.Services.AddScoped<UpdatePartFilamentRequirementNarrowingHandlerType, UpdatePartFilamentRequirementNarrowingCommandHandler>();
 builder.Services.AddScoped<UpdateSlicingDefaultsHandlerType, UpdateSlicingDefaultsCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>, GetPartProcessingJobQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPartsQuery, PartsPage>, GetPartsQueryHandler>();
@@ -404,10 +397,11 @@ builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefault
 
 builder.Services.AddScoped<CreateAssemblyHandlerType, CreateAssemblyCommandHandler>();
 builder.Services.AddScoped<EditAssemblyHandlerType, EditAssemblyCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<EditPartCommand, OpenFarm.Domain.Parts.Part>, EditPartCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<EditFilamentCommand, OpenFarm.Domain.FilamentTracking.Filament>, EditFilamentCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<EditSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>, EditSpoolCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SetRunBackfillLimitsCommand, OpenFarm.Domain.Production.ProductionRun>, SetRunBackfillLimitsCommandHandler>();
 builder.Services.AddScoped<DeleteAssemblyHandlerType, DeleteAssemblyCommandHandler>();
-builder.Services.AddScoped<AddBomLineHandlerType, AddBomLineCommandHandler>();
-builder.Services.AddScoped<UpdateBomLineQuantityHandlerType, UpdateBomLineQuantityCommandHandler>();
-builder.Services.AddScoped<RemoveBomLineHandlerType, RemoveBomLineCommandHandler>();
 builder.Services.AddScoped<CreateNonPrintedComponentHandlerType, CreateNonPrintedComponentCommandHandler>();
 builder.Services.AddScoped<EditNonPrintedComponentHandlerType, EditNonPrintedComponentCommandHandler>();
 builder.Services.AddScoped<DeleteNonPrintedComponentHandlerType, DeleteNonPrintedComponentCommandHandler>();
@@ -438,7 +432,6 @@ builder.Services.AddScoped<FailPrintJobHandlerType, FailPrintJobCommandHandler>(
 builder.Services.AddScoped<ReorderPrintJobHandlerType, ReorderPrintJobCommandHandler>();
 builder.Services.AddScoped<PinPrintJobHandlerType, PinPrintJobCommandHandler>();
 builder.Services.AddScoped<UnpinPrintJobHandlerType, UnpinPrintJobCommandHandler>();
-builder.Services.AddScoped<SetRunLineBackfillLimitsHandlerType, SetRunLineBackfillLimitsCommandHandler>();
 builder.Services.AddScoped<SetRunLineRevisionModeHandlerType, SetRunLineRevisionModeCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProductionRunsQuery, ProductionRunsPage>, GetProductionRunsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>, GetProductionRunDetailQueryHandler>();
@@ -457,6 +450,12 @@ builder.Services
         // /api/v1/{tag}/... -> group generated Orval hooks/files by resource.
         o.AutoTagPathSegmentIndex = 3;
         o.ShortSchemaNames = true;
+        o.DocumentSettings = settings => settings.AddOperationFilter(context =>
+        {
+            if (context.OperationDescription.Path.EndsWith("/revision-mode", StringComparison.Ordinal))
+                context.OperationDescription.Operation.IsDeprecated = true;
+            return true;
+        });
     });
 
 var app = builder.Build();

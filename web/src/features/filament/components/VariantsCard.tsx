@@ -14,6 +14,7 @@ export interface DisplayedVariant {
 interface VariantsCardProps {
   variants: DisplayedVariant[];
   onAdd: (variant: NewFilamentVariant) => void;
+  /** Shown only for variants without an id (staged, not yet saved). */
   onRemove?: (index: number) => void;
   isAdding?: boolean;
 }
@@ -37,7 +38,7 @@ export function VariantsCard({
           disabled={isAdding}
           onClick={() => setDialogOpen(true)}
         >
-          <PlusIcon /> Add variant
+          <PlusIcon data-icon="inline-start" /> Add variant
         </Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
@@ -55,7 +56,7 @@ export function VariantsCard({
               <span className="flex-1 text-sm font-medium">
                 {variant.colorName}
               </span>
-              {onRemove ? (
+              {onRemove && !variant.id ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -63,7 +64,10 @@ export function VariantsCard({
                   aria-label={`Remove ${variant.colorName}`}
                   onClick={() => onRemove(index)}
                 >
-                  <Trash2Icon className="text-destructive" />
+                  <Trash2Icon
+                    data-icon="inline-start"
+                    className="text-destructive"
+                  />
                 </Button>
               ) : null}
             </div>

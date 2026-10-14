@@ -40,7 +40,7 @@ Assembly line (FR-003), and eagerly creates every finite line's whole-plate jobs
       "targetKind": "Part",          // | "Assembly"
       "targetId": "guid",
       "quantity": 20,                 // integer >= 1, or null for unlimited/backfill (FR-006)
-      "revisionMode": "Snapshot | FollowLatest | null",   // null => default per FR-009a (Snapshot for finite, FollowLatest for unlimited)
+      "revisionMode": "Snapshot | FollowLatest | null",   // null => derived from quantity; contradictory values return 422
       "assignmentMode": "Unassigned | Pinned",             // default Unassigned, applied to every job this line creates
       "pinnedPrinterId": "guid | null",                    // required iff assignmentMode == Pinned
       "backfillPrinterCap": 1,                              // meaningful only when quantity is null; default 1
@@ -95,8 +95,10 @@ run; a job already printing is left alone and still records its eventual outcome
 updated run (status `Cancelled`). **Response 409** — run already `Closed`/`Cancelled`.
 
 ### `PUT /api/v1/production-runs/{runId}/lines/{lineId}/revision-mode`
-`[Permission("production-runs:edit")]` — FR-009b. `{ "revisionMode": "Snapshot" | "FollowLatest" }` →
-`200`. Affects only plates dispatched after this call — already-dispatched/printing jobs are untouched.
+`[Permission("production-runs:edit")]` — deprecated compatibility endpoint.
+`{ "revisionMode": "Snapshot" | "FollowLatest" }` → `200` only when it matches the fixed mode
+(Snapshot for finite, FollowLatest for unlimited); contradictory values return `422`. It cannot
+change revision behavior.
 
 ### `PUT /api/v1/production-runs/{runId}/lines/{lineId}/backfill-limits`
 `[Permission("production-runs:edit")]` — FR-006c/d, only valid on a line with `quantity: null`.
@@ -244,3 +246,40 @@ printing job).
   matching terminal outcome. A requested stop followed by either FINISH or FAILED resolves Cancelled.
 - Revision-mode and backfill-limit requests validate enum names and positive limits (400), and reject
   a line belonging to a different route run (404).
+
+## Independent snapshot response fields (October 13, 2026)
+
+Queue items add `sourcePartAvailable`, `snapshotState` (`Ready`, `Unresolved`, or `Unavailable`), and nullable
+`snapshotRecoveryReason`. Job detail adds `snapshotState` and `snapshotRecoveryReason`; requirement
+summaries add `sourcePartAvailable` and `jobsBlockedForRequeue`. Only failed/cancelled finite jobs
+with verified snapshots appear in `jobsNeedingRequeue`; failed/cancelled jobs without snapshots
+remain visible through `jobsBlockedForRequeue`, linking to history and source diagnostics. Source IDs remain historical identifiers after library removal,
+while names come from retained snapshots. Missing sources must not render catalog navigation links.
+
+Finite requeue copies the exact original production snapshot, plate quantity and job requirements.
+Unresolved snapshots return `409` for file retrieval and requeue and appear blocked in matching.
+Unlimited demand remains library-dependent until dispatch; dispatched job file retrieval uses its
+own snapshot even after run cancellation and catalog removal.
+
+### Finished legacy source removal
+
+Cancelled, Failed and Completed jobs without snapshots do not block part deletion. The deletion
+transaction preserves IDs, names and results, marks these missing snapshots permanently Unavailable,
+and detaches library links. Retry and file retrieval return `409` with the explicit reason that the
+source was removed; reconciliation must not recover these snapshots. Valid snapshots retain their
+existing capabilities. Unfinished jobs without snapshots and Active/Complete unlimited runs still
+block removal; requesting live cancellation does not release a dependency until status is terminal.
+
+## Production run list sorting
+
+`GET /api/v1/production-runs` accepts optional `sortBy=displayLabel` and
+`sortDirection=asc|desc`; `sortBy` alone means ascending. The database read
+projection sorts the actual displayed label before pagination, using
+case-insensitive lexical order and ascending run ID ties. Explicit run names
+win; unnamed runs use captured target names or tenant-scoped legacy lookups,
+quantity suffixes, and the existing Unknown/Empty fallback wording. Multiline
+label contents are consistently ordered by line ID. No label is persisted.
+Omitted sorting keeps newest-first order with ascending ID ties. Unsupported
+fields, invalid directions, and direction without a field return `400`.
+Existing page/pageSize limits and response shapes are unchanged. Queue position,
+reordering, and queue pagination are unaffected.

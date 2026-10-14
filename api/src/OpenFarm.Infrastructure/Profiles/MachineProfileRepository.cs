@@ -3,6 +3,8 @@ using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Persistence;
 
+#pragma warning disable CA1304, CA1311 // SQL LOWER uses the database collation; ToLowerInvariant is not SQL-translatable.
+
 namespace OpenFarm.Infrastructure.Profiles;
 
 public sealed class MachineProfileRepository(OpenFarmDbContext dbContext) : IMachineProfileRepository
@@ -42,7 +44,7 @@ public sealed class MachineProfileRepository(OpenFarmDbContext dbContext) : IMac
         string? searchText,
         int page,
         int pageSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
     {
         // compatibleWithMachineName/materialType have no matching column on MachineProfile — a
         // machine profile IS a machine, so neither filter applies here (research.md §6).
@@ -60,10 +62,11 @@ public sealed class MachineProfileRepository(OpenFarmDbContext dbContext) : IMac
             query = query.Where(p => EF.Functions.ILike(p.Name, $"%{searchText}%"));
         }
 
-        query = query.OrderBy(p => p.Name);
+        var ordered = (sorting?.Descending == true ? query.OrderByDescending(p => p.Name.ToLower())
+            : query.OrderBy(p => p.Name.ToLower())).ThenBy(p => p.Id);
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var items = await ordered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
 
         return (items, totalCount);
     }

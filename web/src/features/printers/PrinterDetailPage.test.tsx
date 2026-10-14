@@ -91,7 +91,7 @@ describe('PrinterDetailPage', () => {
     expect(requests).toEqual([false]);
     await user.click(
       within(dialog).getByRole('button', {
-        name: 'Confirm complete and mark ready',
+        name: 'Mark ready',
       }),
     );
     await screen.findByText('Printer marked ready.');
@@ -366,7 +366,7 @@ describe('PrinterDetailPage', () => {
 
     renderPage('22222222-2222-2222-2222-222222222222');
 
-    expect(await screen.findByText('Printer not found.')).toBeInTheDocument();
+    expect(await screen.findByText('Printer not found')).toBeInTheDocument();
   });
 
   it('shows a working Remove action that navigates back to the fleet list (SC-003/SC-004)', async () => {

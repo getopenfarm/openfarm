@@ -87,24 +87,7 @@ public class AssemblyCrudEndpointTests(CustomWebApplicationFactory factory) : IC
     }
 
     [Fact]
-    public async Task RemoveLine_LastRemainingLine_Returns422()
-    {
-        var client = await AuthenticatedClientAsync();
-        var partId = await SeedPartAsync($"Solo Part {Guid.NewGuid():N}");
-
-        var createResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/assemblies", UriKind.Relative),
-            new { name = "Single Line", description = (string?)null, lines = new[] { new { targetKind = "Part", targetId = partId, quantity = 1 } } });
-        var created = await createResponse.Content.ReadFromJsonAsync<AssemblyResponse>();
-        var lineId = created!.Lines.Single().Id;
-
-        var deleteResponse = await client.DeleteAsync(new Uri($"/api/v1/assemblies/{created.Id}/lines/{lineId}", UriKind.Relative));
-
-        deleteResponse.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-    }
-
-    [Fact]
-    public async Task AddLine_DuplicateTarget_Returns409()
+    public async Task EditLines_DuplicateTarget_Returns409()
     {
         var client = await AuthenticatedClientAsync();
         var partId = await SeedPartAsync($"Dup Part {Guid.NewGuid():N}");
@@ -114,9 +97,17 @@ public class AssemblyCrudEndpointTests(CustomWebApplicationFactory factory) : IC
             new { name = "Dup Target", description = (string?)null, lines = new[] { new { targetKind = "Part", targetId = partId, quantity = 1 } } });
         var created = await createResponse.Content.ReadFromJsonAsync<AssemblyResponse>();
 
-        var addResponse = await client.PostAsJsonAsync(
-            new Uri($"/api/v1/assemblies/{created!.Id}/lines", UriKind.Relative),
-            new { targetKind = "Part", targetId = partId, quantity = 3 });
+        var addResponse = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/assemblies/{created!.Id}", UriKind.Relative),
+            new
+            {
+                name = created.Name,
+                lines = new object[]
+                {
+                    new { lineId = created.Lines.Single().Id, targetKind = "Part", targetId = partId, quantity = 1 },
+                    new { targetKind = "Part", targetId = partId, quantity = 3 },
+                },
+            });
 
         addResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }

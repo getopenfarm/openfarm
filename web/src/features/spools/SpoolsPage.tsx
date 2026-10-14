@@ -1,6 +1,6 @@
-import { Package2Icon } from 'lucide-react';
+import { Package2Icon, PlusIcon } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,11 +38,19 @@ export function SpoolsPage() {
           </>
         }
         action={
-          <Button onClick={() => navigate('/spools/new')}>Add spool</Button>
+          <Button onClick={() => navigate('/spools/new')}>
+            <PlusIcon data-icon="inline-start" />
+            Add spool
+          </Button>
         }
       />
       {spoolsQuery.isLoading ? (
         <Skeleton className="h-64 w-full" />
+      ) : spoolsQuery.isError ? (
+        <ErrorState
+          title="Could not load spools"
+          onRetry={() => spoolsQuery.refetch()}
+        />
       ) : spools.length === 0 ? (
         <EmptyState
           icon={<Package2Icon className="size-8 text-muted-foreground" />}

@@ -1,3 +1,9 @@
+> October 13, 2026 amendment: the fixed finite/unlimited snapshot rules in FR-009 supersede
+> earlier acceptance scenarios describing an editable revision toggle. Printer profiles and loaded
+> inventory remain live production dependencies. Unverifiable unfinished legacy jobs block deletion
+> and execution until recovered. Finished legacy sources may be removed, permanently disabling
+> retry/download where snapshots are missing; current metadata never replaces historical inputs.
+
 # Feature Specification: Phase 7 — Production runs, jobs & print queue
 
 **Feature Branch**: `014-production-run-queue`
@@ -308,13 +314,14 @@ afterward uses the new revision.
   offer an idle printer the topmost job in queue order that printer is eligible for.
   - **FR-008a**: Queue order MUST NOT be influenced by a run's due date, priority, or any automatic
     scheduling signal in this phase — ordering is manual only.
-- **FR-009**: System MUST let the operator explicitly choose, per RunLine, between Snapshot (the part's
-  file revision is pinned at queue time) and Follow-latest (each plate resolves the part's current
-  revision at its own dispatch time).
-  - **FR-009a**: Finite lines MUST default to Snapshot; unlimited lines MUST default to Follow-latest;
-    either mode MAY be chosen explicitly regardless of quantity type.
-  - **FR-009b**: The toggle MUST remain editable after queueing, and any change MUST affect only plates
-    dispatched afterward — never a plate already printing.
+- **FR-009**: Revision behavior MUST be fixed by quantity: finite lines use independent snapshots;
+  unlimited lines follow the current library part at each dispatch.
+  - **FR-009a**: Finite jobs MUST capture immutable source-file, part-name, nozzle, quantity, estimate,
+    filament requirements and resolved slicer inputs when queued. Editing or deleting the library
+    part MUST NOT alter matching, file generation, dispatch, retry, or history.
+  - **FR-009b**: Revision behavior MUST NOT be editable. Unlimited runs require their library parts
+    while Active or Complete; cancellation or closure releases that dependency once retained jobs
+    have verified snapshots or are terminal. Dispatched jobs retain their captured inputs.
   - **FR-009c**: Every job MUST record the exact file revision it printed. System MUST add a
     content-hash-based revision identifier plus an incrementing revision counter to the Part entity,
     since Phase 4 makes file replacement destructive with nothing today distinguishing one revision from
@@ -380,7 +387,7 @@ afterward uses the new revision.
 - **FR-019**: System MUST support unlimited queue depth for the job queue while remaining fast to browse
   as it grows.
 - **FR-020**: System MUST record run creation, run/job status transitions, queueing actions, dispatch
-  assignment, cancellation, and Snapshot/Follow-latest toggle changes in the activity log, including who
+  assignment, cancellation, and compatible legacy revision-mode requests in the activity log, including who
   acted and when.
 - **FR-021**: System MUST NOT pool identical part demand across separate runs or lines — each RunLine's
   requirement and jobs are produced independently even when another line elsewhere needs the identical

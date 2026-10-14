@@ -89,9 +89,9 @@ public class VendorAndFilamentCatalogTests(CustomWebApplicationFactory factory) 
     {
         var client = await AuthenticatedClientAsync();
 
-        var response = await client.PostAsJsonAsync(
-            new Uri($"/api/v1/filaments/{Guid.NewGuid()}/variants", UriKind.Relative),
-            new AddFilamentVariantRequest { ColorName = "White", ColorHex = "#f4f4f5" });
+        var response = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/filaments/{Guid.NewGuid()}", UriKind.Relative),
+            new EditFilamentRequest { NewVariants = [new() { ColorName = "White", ColorHex = "#f4f4f5" }] });
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -112,9 +112,9 @@ public class VendorAndFilamentCatalogTests(CustomWebApplicationFactory factory) 
         });
         var filament = await filamentResponse.Content.ReadFromJsonAsync<FilamentResponse>();
 
-        var duplicateVariantResponse = await client.PostAsJsonAsync(
-            new Uri($"/api/v1/filaments/{filament!.Id}/variants", UriKind.Relative),
-            new AddFilamentVariantRequest { ColorName = "Black", ColorHex = "#000000" });
+        var duplicateVariantResponse = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/filaments/{filament!.Id}", UriKind.Relative),
+            new EditFilamentRequest { NewVariants = [new() { ColorName = "Black", ColorHex = "#000000" }] });
 
         duplicateVariantResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }

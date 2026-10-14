@@ -8,7 +8,8 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -21,10 +22,12 @@ import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import {
@@ -110,10 +113,13 @@ export function SpoolFormPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink to="/spools">Back to spools</BackLink>
-
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader
+        above={
+          <BackLink to="/spools" className="mb-1">
+            Back to spools
+          </BackLink>
+        }
         title="Add spool"
         description="Register a physical spool of filament from the catalog."
       />
@@ -121,97 +127,110 @@ export function SpoolFormPage() {
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-6"
+          className="flex flex-1 flex-col gap-6"
         >
-          <Card>
-            <CardContent className="flex flex-col gap-4">
-              <FormField
-                control={form.control}
-                name="filamentVariantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Filament</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+          <FieldGroup className="flex-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Spool details</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="filamentVariantId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Filament</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Choose a filament colour" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectGroup>
+                            {variantOptions.map((option) => (
+                              <SelectItem key={option.id} value={option.id}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="label"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Label (optional)</FormLabel>
                       <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Choose a filament colour" />
-                        </SelectTrigger>
+                        <Input placeholder="e.g. Shelf B, spool 3" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        {variantOptions.map((option) => (
-                          <SelectItem key={option.id} value={option.id}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="label"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Label (optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Shelf B, spool 3" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="spoolWeightGrams"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Spool weight (g)</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={1} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="remainingWeightGrams"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Remaining weight (g, optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="Defaults to full spool weight"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="spoolWeightGrams"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Spool weight (g)</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="remainingWeightGrams"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Remaining weight (g, optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          placeholder="Defaults to full spool weight"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
 
-          <FormFooter
-            start={
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => navigate('/spools')}
-              >
-                Cancel
-              </Button>
-            }
-            end={
-              <Button type="submit" disabled={registerMutation.isPending}>
-                {registerMutation.isPending ? 'Adding…' : 'Add spool'}
-              </Button>
-            }
-          />
+            <FormFooter
+              end={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/spools')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={registerMutation.isPending}>
+                    {registerMutation.isPending && (
+                      <Spinner data-icon="inline-start" />
+                    )}
+                    {registerMutation.isPending ? 'Saving…' : 'Save'}
+                  </Button>
+                </>
+              }
+            />
+          </FieldGroup>
         </form>
       </Form>
 

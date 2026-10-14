@@ -110,12 +110,12 @@
         ]
       }
     },
-    "/api/v1/spools/{id}/remaining-weight": {
+    "/api/v1/spools/{id}": {
       "put": {
         "tags": [
           "Spools"
         ],
-        "operationId": "OpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint",
+        "operationId": "OpenFarmApiEndpointsSpoolsEditSpoolEndpoint",
         "parameters": [
           {
             "name": "id",
@@ -128,12 +128,12 @@
           }
         ],
         "requestBody": {
-          "x-name": "CorrectRemainingWeightRequest",
+          "x-name": "EditSpoolRequest",
           "description": "",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CorrectRemainingWeightRequest"
+                "$ref": "#/components/schemas/EditSpoolRequest"
               }
             }
           },
@@ -146,7 +146,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SpoolResponseLite"
+                  "$ref": "#/components/schemas/SpoolResponse"
                 }
               }
             }
@@ -717,6 +717,22 @@
             }
           },
           {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
             "name": "origin",
             "in": "query",
             "schema": {
@@ -805,6 +821,22 @@
             "schema": {
               "type": "string",
               "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string",
               "nullable": true
             }
           },
@@ -1240,6 +1272,22 @@
         "operationId": "OpenFarmApiEndpointsProductionRunsListProductionRunsEndpoint",
         "parameters": [
           {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": true,
@@ -1324,23 +1372,15 @@
         ]
       }
     },
-    "/api/v1/production-runs/{runId}/lines/{lineId}/backfill-limits": {
+    "/api/v1/production-runs/{id}/backfill-limits": {
       "put": {
         "tags": [
           "Production-Runs"
         ],
-        "operationId": "OpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint",
+        "operationId": "OpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint",
         "parameters": [
           {
-            "name": "runId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "lineId",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -1350,12 +1390,12 @@
           }
         ],
         "requestBody": {
-          "x-name": "SetRunLineBackfillLimitsRequest",
+          "x-name": "SetRunBackfillLimitsRequest",
           "description": "",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SetRunLineBackfillLimitsRequest"
+                "$ref": "#/components/schemas/SetRunBackfillLimitsRequest"
               }
             }
           },
@@ -1368,7 +1408,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunLineBackfillLimitsResponse"
+                  "$ref": "#/components/schemas/ProductionRunDetailResponse"
                 }
               }
             }
@@ -1463,6 +1503,7 @@
             "description": "Forbidden"
           }
         },
+        "deprecated": true,
         "security": [
           {
             "JWTBearerAuth": []
@@ -2380,6 +2421,87 @@
         ]
       }
     },
+    "/api/v1/printers/discovered": {
+      "get": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintersGetDiscoveredPrintersEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DiscoveredPrinterResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/printers/{id}/camera-snapshot": {
+      "get": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrinterCameraSnapshot"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/printers/catalog": {
       "get": {
         "tags": [
@@ -2603,6 +2725,50 @@
         }
       }
     },
+    "/api/v1/parts/deletion-check": {
+      "post": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsCheckPartDeletionEndpoint",
+        "requestBody": {
+          "x-name": "CheckPartDeletionRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckPartDeletionRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckPartDeletionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/parts": {
       "post": {
         "tags": [
@@ -2663,6 +2829,22 @@
               "items": {
                 "type": "string"
               }
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
             }
           },
           {
@@ -2729,6 +2911,59 @@
         "responses": {
           "204": {
             "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsEditPartEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "EditPartRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditPartRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
@@ -2892,226 +3127,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PartProcessingJobSubmittedResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/parts/{id}/units-per-print": {
-      "patch": {
-        "tags": [
-          "Parts"
-        ],
-        "operationId": "OpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "SetPartUnitsPerPrintRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetPartUnitsPerPrintRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PartResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/parts/{id}/tags": {
-      "post": {
-        "tags": [
-          "Parts"
-        ],
-        "operationId": "OpenFarmApiEndpointsPartsTagPartEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "TagPartRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TagPartRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PartTagsResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/parts/{id}/tags/{tagId}": {
-      "delete": {
-        "tags": [
-          "Parts"
-        ],
-        "operationId": "OpenFarmApiEndpointsPartsUntagPartEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tagId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PartTagsResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/parts/{id}/filament-requirements/{requirementId}": {
-      "patch": {
-        "tags": [
-          "Parts"
-        ],
-        "operationId": "OpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "requirementId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "UpdatePartFilamentRequirementNarrowingRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePartFilamentRequirementNarrowingRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PartFilamentRequirementResponse"
                 }
               }
             }
@@ -3308,6 +3323,22 @@
         "operationId": "OpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpoint",
         "parameters": [
           {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": true,
@@ -3439,61 +3470,6 @@
         ]
       }
     },
-    "/api/v1/filaments/{id}/variants": {
-      "post": {
-        "tags": [
-          "Filaments"
-        ],
-        "operationId": "OpenFarmApiEndpointsFilamentsAddFilamentVariantEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "AddFilamentVariantRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddFilamentVariantRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FilamentVariantResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
     "/api/v1/filaments": {
       "post": {
         "tags": [
@@ -3567,6 +3543,61 @@
         ]
       }
     },
+    "/api/v1/filaments/{id}": {
+      "put": {
+        "tags": [
+          "Filaments"
+        ],
+        "operationId": "OpenFarmApiEndpointsFilamentsEditFilamentEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "EditFilamentRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditFilamentRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilamentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/filaments/profile-assignment-fleet": {
       "get": {
         "tags": [
@@ -3621,68 +3652,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FilamentProfileAssignmentsResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      },
-      "put": {
-        "tags": [
-          "Filaments"
-        ],
-        "operationId": "OpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "UpdateFilamentProfileAssignmentsRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateFilamentProfileAssignmentsRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FilamentProfileAssignmentsResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -4083,60 +4052,6 @@
         ]
       }
     },
-    "/api/v1/assemblies/{id}/lines": {
-      "post": {
-        "tags": [
-          "Assemblies"
-        ],
-        "operationId": "OpenFarmApiEndpointsAssembliesAddBomLineEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "AddBomLineRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddBomLineRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BomLineResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
     "/api/v1/assemblies/{id}/buildable-units": {
       "post": {
         "tags": [
@@ -4241,6 +4156,22 @@
         ],
         "operationId": "OpenFarmApiEndpointsAssembliesListAssembliesEndpoint",
         "parameters": [
+          {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
           {
             "name": "page",
             "in": "query",
@@ -4397,128 +4328,6 @@
                 }
               }
             }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/assemblies/{id}/lines/{lineId}": {
-      "put": {
-        "tags": [
-          "Assemblies"
-        ],
-        "operationId": "OpenFarmApiEndpointsAssembliesEditBomLineEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "lineId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "EditBomLineRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditBomLineRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BomLineResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Assemblies"
-        ],
-        "operationId": "OpenFarmApiEndpointsAssembliesRemoveBomLineEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "lineId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "RemoveBomLineRequest",
-          "description": "",
-          "content": {
-            "*/*": {
-              "schema": {
-                "$ref": "#/components/schemas/RemoveBomLineRequest"
-              }
-            },
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RemoveBomLineRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "204": {
-            "description": "No Content"
           },
           "401": {
             "description": "Unauthorized"
@@ -4714,48 +4523,6 @@
           }
         }
       },
-      "SpoolResponseLite": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "state": {
-            "type": "string"
-          },
-          "remainingWeightGrams": {
-            "type": "number",
-            "format": "decimal"
-          },
-          "hasUsageOverrun": {
-            "type": "boolean"
-          }
-        }
-      },
-      "CorrectRemainingWeightRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "remainingWeightGrams": {
-            "type": "number",
-            "format": "decimal"
-          }
-        }
-      },
-      "ListSpoolsResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "spools": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SpoolResponse"
-            }
-          }
-        }
-      },
       "SpoolResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -4806,6 +4573,32 @@
           },
           "hasUsageOverrun": {
             "type": "boolean"
+          }
+        }
+      },
+      "EditSpoolRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "ListSpoolsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "spools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpoolResponse"
+            }
           }
         }
       },
@@ -5895,6 +5688,9 @@
           "partName": {
             "type": "string"
           },
+          "sourcePartAvailable": {
+            "type": "boolean"
+          },
           "quantity": {
             "type": "number",
             "format": "decimal",
@@ -5909,6 +5705,13 @@
             "format": "int32"
           },
           "jobsNeedingRequeue": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "jobsBlockedForRequeue": {
             "type": "array",
             "items": {
               "type": "string",
@@ -6071,34 +5874,29 @@
         "type": "object",
         "additionalProperties": false
       },
-      "RunLineBackfillLimitsResponse": {
+      "SetRunBackfillLimitsRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "id": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunLineBackfillLimitsRequest"
+            }
+          }
+        }
+      },
+      "RunLineBackfillLimitsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lineId": {
             "type": "string",
             "format": "guid"
           },
           "backfillPrinterCap": {
             "type": "integer",
             "format": "int32"
-          },
-          "backfillCumulativeUnitCeiling": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          }
-        }
-      },
-      "SetRunLineBackfillLimitsRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "backfillPrinterCap": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 0.0,
-            "exclusiveMinimum": true
           },
           "backfillCumulativeUnitCeiling": {
             "type": "integer",
@@ -6277,6 +6075,13 @@
           "createdAtUtc": {
             "type": "string",
             "format": "date-time"
+          },
+          "snapshotState": {
+            "type": "string"
+          },
+          "snapshotRecoveryReason": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -6557,6 +6362,16 @@
             "type": "string",
             "nullable": true
           },
+          "sourcePartAvailable": {
+            "type": "boolean"
+          },
+          "snapshotState": {
+            "type": "string"
+          },
+          "snapshotRecoveryReason": {
+            "type": "string",
+            "nullable": true
+          },
           "partId": {
             "type": "string",
             "format": "guid"
@@ -6760,6 +6575,51 @@
           "buildPlateType": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "DiscoveredPrinterResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "serialNumber": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "modelCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "rawModel": {
+            "type": "string"
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "alreadyRegistered": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PrinterCameraSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "frameJpegBase64": {
+            "type": "string"
+          },
+          "receivedAtUtc": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -7190,6 +7050,77 @@
           }
         }
       },
+      "CheckPartDeletionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartDeletionEligibility"
+            }
+          }
+        }
+      },
+      "PartDeletionEligibility": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "partId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartDeletionBlocker"
+            }
+          },
+          "legacyJobsLosingRecovery": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PartDeletionBlocker": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CheckPartDeletionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "partIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        }
+      },
       "PartProcessingJobSubmittedResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -7427,6 +7358,51 @@
           }
         }
       },
+      "EditPartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unitsPerPrint": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "filamentRequirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditPartFilamentRequirementRequest"
+            }
+          }
+        }
+      },
+      "EditPartFilamentRequirementRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirementId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "narrowFilamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "narrowFilamentProfileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
       "ListPartsResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -7535,53 +7511,6 @@
           },
           "slicerVersion": {
             "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "SetPartUnitsPerPrintRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "unitsPerPrint": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "PartTagsResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "TagPartRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "UpdatePartFilamentRequirementNarrowingRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "narrowFilamentVariantId": {
-            "type": "string",
-            "format": "guid",
-            "nullable": true
-          },
-          "narrowFilamentProfileId": {
-            "type": "string",
-            "format": "guid",
             "nullable": true
           }
         }
@@ -7848,34 +7777,6 @@
         "type": "object",
         "additionalProperties": false
       },
-      "FilamentVariantResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "colorName": {
-            "type": "string"
-          },
-          "colorHex": {
-            "type": "string"
-          }
-        }
-      },
-      "AddFilamentVariantRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "colorName": {
-            "type": "string"
-          },
-          "colorHex": {
-            "type": "string"
-          }
-        }
-      },
       "FilamentResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -7935,6 +7836,22 @@
           }
         }
       },
+      "FilamentVariantResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "colorName": {
+            "type": "string"
+          },
+          "colorHex": {
+            "type": "string"
+          }
+        }
+      },
       "CreateFilamentRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -7972,6 +7889,24 @@
           },
           "colorHex": {
             "type": "string"
+          }
+        }
+      },
+      "EditFilamentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "newVariants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateFilamentVariantRequest"
+            }
+          },
+          "profileAssignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentProfileAssignmentInput"
+            }
           }
         }
       },
@@ -8040,22 +7975,6 @@
           },
           "message": {
             "type": "string"
-          }
-        }
-      },
-      "UpdateFilamentProfileAssignmentsRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "assignments"
-        ],
-        "properties": {
-          "assignments": {
-            "type": "array",
-            "nullable": false,
-            "items": {
-              "$ref": "#/components/schemas/FilamentProfileAssignmentInput"
-            }
           }
         }
       },
@@ -8382,51 +8301,6 @@
           }
         }
       },
-      "BomLineResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "targetKind": {
-            "type": "string"
-          },
-          "targetId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "targetName": {
-            "type": "string"
-          },
-          "quantity": {
-            "type": "number",
-            "format": "decimal"
-          }
-        }
-      },
-      "AddBomLineRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "assemblyId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "targetKind": {
-            "type": "string"
-          },
-          "targetId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "quantity": {
-            "type": "number",
-            "format": "decimal"
-          }
-        }
-      },
       "BuildableUnitsResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -8489,6 +8363,30 @@
           }
         }
       },
+      "BomLineResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "targetKind": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "targetName": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
       "CreateAssemblyRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -8539,14 +8437,29 @@
           "description": {
             "type": "string",
             "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/EditAssemblyLineRequest"
+            }
           }
         }
       },
-      "EditBomLineRequest": {
+      "EditAssemblyLineRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "assemblyId": {
+          "lineId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "targetKind": {
+            "type": "string"
+          },
+          "targetId": {
             "type": "string",
             "format": "guid"
           },
@@ -8655,16 +8568,6 @@
       "ListAssembliesRequest": {
         "type": "object",
         "additionalProperties": false
-      },
-      "RemoveBomLineRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "assemblyId": {
-            "type": "string",
-            "format": "guid"
-          }
-        }
       },
       "ActivityLogPageResponse": {
         "type": "object",

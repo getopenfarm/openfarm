@@ -54,6 +54,20 @@ public sealed class Part
         UpdatedAtUtc = createdAtUtc;
     }
 
+    /// <summary>Detached adapter for existing production validation; never attach this object to EF.</summary>
+    public static Part FromProductionSnapshot(OpenFarm.Domain.Production.ProductionPartSnapshot snapshot)
+    {
+        var part = new Part(snapshot.PartId, snapshot.OrganizationId, snapshot.Name, snapshot.FileFormat,
+            snapshot.RequiresSlicing, snapshot.OriginalFileName, snapshot.StoragePath, snapshot.FileSizeBytes,
+            snapshot.NozzleDiameterMm, snapshot.SlicerEngine, snapshot.SlicerVersion, snapshot.EstimateStatus,
+            snapshot.EstimatedPrintTimeMinutes, snapshot.EstimatedFilamentWeightGrams, snapshot.PlateCount,
+            snapshot.UnitsPerPrint, snapshot.RevisionHash, snapshot.RevisionNumber, DateTimeOffset.UtcNow)
+        { MaterialMetadataComplete = snapshot.MaterialMetadataComplete };
+        foreach (var requirement in snapshot.FilamentRequirements)
+            part._filamentRequirements.Add(PartFilamentRequirement.Create(part.OrganizationId, part.Id, requirement));
+        return part;
+    }
+
     public Guid Id { get; }
 
     public Guid OrganizationId { get; }
@@ -219,6 +233,17 @@ public sealed class Part
         }
 
         return part;
+    }
+
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Part name is required.", nameof(name));
+        }
+
+        Name = name.Trim();
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
     /// <summary>

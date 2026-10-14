@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -37,6 +38,7 @@ function jsonResponse(body: unknown, status = 200) {
 describe('PrintersPage', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    window.localStorage.removeItem(PREFERENCES_STORAGE_KEY);
   });
 
   it('renders the fleet list with status and reachability', async () => {
@@ -75,6 +77,20 @@ describe('PrintersPage', () => {
     expect(
       screen.queryByRole('button', { name: /actions for/i }),
     ).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    const search = screen.getByRole('textbox', {
+      name: 'Search printers by name or model',
+    });
+    await user.type(search, 'missing');
+    expect(screen.getByText('No printers match')).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'P1S');
+    expect(screen.getByRole('table')).toHaveTextContent('Test Printer');
+    await user.click(screen.getByRole('radio', { name: /^Printing/ }));
+    expect(screen.getByText('No printers match')).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /^All/ }));
+    expect(screen.getByRole('table')).toHaveTextContent('Test Printer');
   });
 
   it('shows an empty state when no printers are registered', async () => {
@@ -149,7 +165,7 @@ describe('PrintersPage', () => {
     expect(table.queryByText('Idle')).not.toBeInTheDocument();
   });
 
-  it('renders no Edit/Remove control in grid view either (SC-003)', async () => {
+  it('always renders a table without readiness controls despite a saved grid preference', async () => {
     window.localStorage.setItem(
       PREFERENCES_STORAGE_KEY,
       JSON.stringify({ listViews: { printers: 'grid' } }),
@@ -164,10 +180,10 @@ describe('PrintersPage', () => {
           printers: [
             {
               id: '11111111-1111-1111-1111-111111111111',
-              name: 'Grid Test Printer',
+              name: 'Finished Printer',
               brand: 'Bambu',
               modelCode: 'P1S',
-              status: 'Idle',
+              status: 'AwaitingClear',
               isReachable: true,
               printProgressPercent: null,
             },
@@ -179,14 +195,25 @@ describe('PrintersPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('Grid Test Printer')).toBeInTheDocument();
+    expect(await screen.findByText('Finished Printer')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByText('Awaiting Clear')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {
+        name: /grid view|table view|mark ready|^clear$|actions for/i,
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.every(
+        ([input]) => !input.toString().includes('/mark-ready'),
+      ),
+    ).toBe(true);
     expect(
       screen.queryByRole('button', { name: /^edit /i }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /^remove /i }),
     ).not.toBeInTheDocument();
-
-    window.localStorage.removeItem(PREFERENCES_STORAGE_KEY);
   });
 });

@@ -27,9 +27,8 @@ import type {
   OpenFarmApiEndpointsProductionRunsListProductionRunsEndpointParams,
   ProblemDetails,
   ProductionRunDetailResponse,
-  RunLineBackfillLimitsResponse,
   RunLineRevisionModeResponse,
-  SetRunLineBackfillLimitsRequest,
+  SetRunBackfillLimitsRequest,
   SetRunLineRevisionModeRequest,
 } from '../endpoints.schemas';
 
@@ -1065,97 +1064,93 @@ export function useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse200 =
+export type openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse200 =
   {
-    data: RunLineBackfillLimitsResponse;
+    data: ProductionRunDetailResponse;
     status: 200;
   };
 
-export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse400 =
+export type openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse400 =
   {
     data: ProblemDetails;
     status: 400;
   };
 
-export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse401 =
+export type openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse401 =
   {
     data: void;
     status: 401;
   };
 
-export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse403 =
+export type openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse403 =
   {
     data: void;
     status: 403;
   };
 
-export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponseSuccess =
-  openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse200 & {
+export type openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponseSuccess =
+  openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse200 & {
     headers: Headers;
   };
-export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponseError =
+export type openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponseError =
   (
-    | openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse400
-    | openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse401
-    | openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse403
+    | openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse400
+    | openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse401
+    | openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse403
   ) & {
     headers: Headers;
   };
 
-export type openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse =
-  | openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponseSuccess
-  | openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponseError;
+export type openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse =
+  | openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponseSuccess
+  | openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponseError;
 
-export const getOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointUrl =
-  (runId: string, lineId: string) => {
-    return `/api/v1/production-runs/${runId}/lines/${lineId}/backfill-limits`;
+export const getOpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointUrl =
+  (id: string) => {
+    return `/api/v1/production-runs/${id}/backfill-limits`;
   };
 
-export const openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint =
+export const openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint =
   async (
-    runId: string,
-    lineId: string,
-    setRunLineBackfillLimitsRequest: SetRunLineBackfillLimitsRequest,
+    id: string,
+    setRunBackfillLimitsRequest: SetRunBackfillLimitsRequest,
     options?: RequestInit,
-  ): Promise<openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse> => {
-    return httpClient<openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointResponse>(
-      getOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointUrl(
-        runId,
-        lineId,
-      ),
+  ): Promise<openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointResponse>(
+      getOpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointUrl(id),
       {
         ...options,
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(setRunLineBackfillLimitsRequest),
+        body: JSON.stringify(setRunBackfillLimitsRequest),
       },
     );
   };
 
-export const getOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationOptions =
+export const getOpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointMutationOptions =
   <TError = ProblemDetails | void, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint
+          typeof openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint
         >
       >,
       TError,
-      { runId: string; lineId: string; data: SetRunLineBackfillLimitsRequest },
+      { id: string; data: SetRunBackfillLimitsRequest },
       TContext
     >;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint
+        typeof openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint
       >
     >,
     TError,
-    { runId: string; lineId: string; data: SetRunLineBackfillLimitsRequest },
+    { id: string; data: SetRunBackfillLimitsRequest },
     TContext
   > => {
     const mutationKey = [
-      'openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint',
+      'openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint',
     ];
     const { mutation: mutationOptions } = options
       ? options.mutation &&
@@ -1168,16 +1163,15 @@ export const getOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoi
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint
+          typeof openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint
         >
       >,
-      { runId: string; lineId: string; data: SetRunLineBackfillLimitsRequest }
+      { id: string; data: SetRunBackfillLimitsRequest }
     > = (props) => {
-      const { runId, lineId, data } = props ?? {};
+      const { id, data } = props ?? {};
 
-      return openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint(
-        runId,
-        lineId,
+      return openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint(
+        id,
         data,
       );
     };
@@ -1185,34 +1179,30 @@ export const getOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoi
     return { mutationFn, ...mutationOptions };
   };
 
-export type OpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationResult =
+export type OpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint
+        typeof openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint
       >
     >
   >;
-export type OpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationBody =
-  SetRunLineBackfillLimitsRequest;
-export type OpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationError =
+export type OpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointMutationBody =
+  SetRunBackfillLimitsRequest;
+export type OpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointMutationError =
   ProblemDetails | void;
 
-export const useOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint =
+export const useOpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint =
   <TError = ProblemDetails | void, TContext = unknown>(
     options?: {
       mutation?: UseMutationOptions<
         Awaited<
           ReturnType<
-            typeof openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint
+            typeof openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint
           >
         >,
         TError,
-        {
-          runId: string;
-          lineId: string;
-          data: SetRunLineBackfillLimitsRequest;
-        },
+        { id: string; data: SetRunBackfillLimitsRequest },
         TContext
       >;
     },
@@ -1220,15 +1210,15 @@ export const useOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoi
   ): UseMutationResult<
     Awaited<
       ReturnType<
-        typeof openFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpoint
+        typeof openFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint
       >
     >,
     TError,
-    { runId: string; lineId: string; data: SetRunLineBackfillLimitsRequest },
+    { id: string; data: SetRunBackfillLimitsRequest },
     TContext
   > => {
     return useMutation(
-      getOpenFarmApiEndpointsProductionRunsSetRunLineBackfillLimitsEndpointMutationOptions(
+      getOpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpointMutationOptions(
         options,
       ),
       queryClient,
@@ -1280,6 +1270,9 @@ export const getOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint
     return `/api/v1/production-runs/${runId}/lines/${lineId}/revision-mode`;
   };
 
+/**
+ * @deprecated
+ */
 export const openFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint =
   async (
     runId: string,
@@ -1367,6 +1360,9 @@ export type OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMuta
 export type OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpointMutationError =
   ProblemDetails | void;
 
+/**
+ * @deprecated
+ */
 export const useOpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint =
   <TError = ProblemDetails | void, TContext = unknown>(
     options?: {

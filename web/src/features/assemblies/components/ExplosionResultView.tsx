@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpoint } from '@/lib/api/generated/assemblies/assemblies';
 
@@ -25,9 +25,9 @@ export function ExplosionResultView({ assemblyId }: ExplosionResultViewProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-end gap-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="explosion-quantity">Build quantity</Label>
+      <FieldGroup className="flex items-end gap-2">
+        <Field className="flex flex-col gap-1.5">
+          <FieldLabel htmlFor="explosion-quantity">Build quantity</FieldLabel>
           <Input
             id="explosion-quantity"
             type="number"
@@ -37,8 +37,8 @@ export function ExplosionResultView({ assemblyId }: ExplosionResultViewProps) {
             onChange={(e) => setQuantity(e.target.value)}
             className="w-28"
           />
-        </div>
-      </div>
+        </Field>
+      </FieldGroup>
 
       {!isValidQuantity ? (
         <p className="text-sm text-destructive">

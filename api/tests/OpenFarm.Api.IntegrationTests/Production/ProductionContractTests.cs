@@ -19,12 +19,12 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
     {
         var client = await ClientAsync();
         var part = await PartAsync();
-        var response = await client.PatchAsJsonAsync($"/api/v1/parts/{part.Id}/units-per-print", new { unitsPerPrint = 4 });
+        var response = await client.PutAsJsonAsync($"/api/v1/parts/{part.Id}", new { name = part.Name, tags = Array.Empty<string>(), unitsPerPrint = 4 });
         response.EnsureSuccessStatusCode();
         (await client.GetFromJsonAsync<PartResponse>($"/api/v1/parts/{part.Id}"))!.UnitsPerPrint.Should().Be(4);
         var run = await RunAsync(client, part.Id, 20);
         (await JobsAsync(run.Id)).Should().HaveCount(5);
-        response = await client.PatchAsJsonAsync($"/api/v1/parts/{part.Id}/units-per-print", new { unitsPerPrint = 0 });
+        response = await client.PutAsJsonAsync($"/api/v1/parts/{part.Id}", new { name = part.Name, tags = Array.Empty<string>(), unitsPerPrint = 0 });
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -51,7 +51,9 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         var response = await client.GetAsync("/swagger/v1/swagger.json");
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadAsStringAsync();
-        json.Should().Contain("confirmRunCompletion").And.Contain("/api/v1/production-runs");
+        json.Should().Contain("confirmRunCompletion").And.Contain("/api/v1/production-runs")
+            .And.Contain("snapshotState").And.Contain("snapshotRecoveryReason").And.Contain("sourcePartAvailable")
+            .And.Contain("\"deprecated\": true");
         if (Environment.GetEnvironmentVariable("OPENFARM_TEST_OPENAPI_EXPORT") is { Length: > 0 } path)
             await File.WriteAllTextAsync(path, json);
     }
@@ -88,8 +90,9 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         Encoding.UTF8.GetString(content.Bytes).Should().Be("; revision one\n");
         var legacySnapshot = OpenFarm.Domain.Production.PrintJob.Create(legacy.OrganizationId, snapshot.PartRequirementId, 1024, 1,
             OpenFarm.Domain.Production.AssignmentMode.Unassigned, null, legacy.RevisionHash, 1, [new("PLA", null)]);
-        var legacyBytes = await scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>().ResolveAsync(current, legacySnapshot, printer.Id, 0.4m, default);
-        Encoding.UTF8.GetString(legacyBytes.Bytes).Should().Be("; revision one\n");
+        var unresolved = () => scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>()
+            .ResolveAsync(current, legacySnapshot, printer.Id, 0.4m, default);
+        await unresolved.Should().ThrowAsync<OpenFarm.Domain.Production.ProductionSnapshotUnavailableException>();
     }
 
 }

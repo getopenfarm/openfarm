@@ -17,6 +17,7 @@ public sealed class EfActivityLogReader(OpenFarmDbContext dbContext) : IActivity
 
         var entries = await query
             .OrderByDescending(e => e.TimestampUtc)
+            .ThenBy(e => e.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);

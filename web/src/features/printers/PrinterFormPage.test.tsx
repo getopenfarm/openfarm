@@ -98,6 +98,134 @@ function renderRoute(initialPath: string) {
   render(<RouterProvider router={router} />, { wrapper: Wrapper });
 }
 
+async function openManualEntry() {
+  fireEvent.click(await screen.findByRole('radio', { name: 'Enter manually' }));
+}
+
+const DISCOVERED = [
+  {
+    serialNumber: '01P00A123456789',
+    name: 'P1S-Bay3',
+    brand: 'Bambu',
+    modelCode: 'P1S',
+    rawModel: 'C12',
+    ipAddress: '192.168.1.42',
+    lastSeenAt: '2026-10-10T00:00:00Z',
+    alreadyRegistered: false,
+  },
+  {
+    serialNumber: '01S00C000000001',
+    name: 'X1C-01',
+    brand: 'Bambu',
+    modelCode: 'X1C',
+    rawModel: 'BL-P001',
+    ipAddress: '192.168.1.40',
+    lastSeenAt: '2026-10-10T00:00:00Z',
+    alreadyRegistered: true,
+  },
+];
+
+describe('PrinterFormPage add mode — discovery', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('prefills the form from a discovered printer, then verifies and adds it', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/printers/discovered')) {
+        return Promise.resolve(jsonResponse(DISCOVERED));
+      }
+      if (url.includes('/printers/catalog')) {
+        return Promise.resolve(jsonResponse(CATALOG_RESPONSE));
+      }
+      if (url.includes('verify-connection')) {
+        return Promise.resolve(jsonResponse({ verified: true }));
+      }
+      if (url.endsWith('/api/v1/printers') && init?.method === 'POST') {
+        return Promise.resolve(jsonResponse({ id: 'new-id' }, 201));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderRoute('/printers/new');
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Select P1S-Bay3' }),
+    );
+
+    expect(screen.getByLabelText('Name')).toHaveValue('P1S-Bay3');
+    expect(screen.getByLabelText('IP address')).toHaveValue('192.168.1.42');
+    expect(screen.getByLabelText('Serial number')).toHaveValue(
+      '01P00A123456789',
+    );
+    expect(screen.getByLabelText('Serial number')).toHaveAttribute('readonly');
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Model' })).toHaveTextContent(
+        'P1S',
+      ),
+    );
+
+    await user.type(screen.getByLabelText('LAN access code'), '12345678');
+    await user.tab();
+    const submitButton = screen.getByRole('button', { name: 'Save' });
+    await waitFor(() => expect(submitButton).not.toBeDisabled());
+    await user.click(submitButton);
+
+    expect(await screen.findByText('Printers list page')).toBeInTheDocument();
+    const registerCall = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input).endsWith('/api/v1/printers') && init?.method === 'POST',
+    );
+    expect(JSON.parse(String(registerCall?.[1]?.body))).toMatchObject({
+      serialNumber: '01P00A123456789',
+      modelCode: 'P1S',
+      accessCode: '12345678',
+    });
+  });
+
+  it('marks already-registered printers instead of offering Select', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(DISCOVERED))),
+    );
+
+    renderRoute('/printers/new');
+
+    expect(await screen.findByText('Already added')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Select X1C-01' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('offers manual entry when nothing is found', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        return Promise.resolve(
+          jsonResponse(
+            url.includes('/printers/catalog') ? CATALOG_RESPONSE : [],
+          ),
+        );
+      }),
+    );
+
+    renderRoute('/printers/new');
+
+    expect(
+      await screen.findByText('No printers found yet'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Enter manually' }));
+    expect(await screen.findByLabelText('Serial number')).not.toHaveAttribute(
+      'readonly',
+    );
+  });
+});
+
 describe('PrinterFormPage add mode', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -114,21 +242,29 @@ describe('PrinterFormPage add mode', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderRoute('/printers/new');
+    await openManualEntry();
 
-    await waitFor(() => {
-      const brandSelect = screen.getByLabelText('Brand') as HTMLSelectElement;
-      expect(Array.from(brandSelect.options).map((o) => o.value)).toEqual([
-        'Bambu',
-        'System',
-      ]);
-    });
-
-    const modelSelect = screen.getByLabelText('Model') as HTMLSelectElement;
-    expect(Array.from(modelSelect.options).map((o) => o.value)).toEqual([
+    const user = userEvent.setup();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('combobox', { name: 'Brand' }),
+      ).not.toBeDisabled(),
+    );
+    expect(screen.getByRole('combobox', { name: 'Brand' })).toHaveTextContent(
+      'Bambu',
+    );
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveTextContent(
       'X1',
-      'X1C',
-      'P1S',
-    ]);
+    );
+    await user.click(screen.getByRole('combobox', { name: 'Brand' }));
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual(['Bambu', 'System']);
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('combobox', { name: 'Model' }));
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual(['X1', 'X1C', 'P1S']);
   });
 
   it('disables submission and shows an error state when the catalog fails to load', async () => {
@@ -142,11 +278,12 @@ describe('PrinterFormPage add mode', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderRoute('/printers/new');
+    await openManualEntry();
 
     expect(
       await screen.findByText(/Couldn't load the printer catalog/),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add printer' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
   it('adds a printer once verification succeeds and navigates to /printers', async () => {
@@ -167,6 +304,7 @@ describe('PrinterFormPage add mode', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderRoute('/printers/new');
+    await openManualEntry();
 
     await waitFor(() =>
       expect(screen.getByLabelText('Brand')).not.toBeDisabled(),
@@ -182,7 +320,7 @@ describe('PrinterFormPage add mode', () => {
       expect(screen.getByText('Connection verified.')).toBeInTheDocument(),
     );
 
-    const submitButton = screen.getByRole('button', { name: 'Add printer' });
+    const submitButton = screen.getByRole('button', { name: 'Save' });
     await waitFor(() => expect(submitButton).not.toBeDisabled());
     await user.click(submitButton);
 
@@ -201,6 +339,7 @@ describe('PrinterFormPage add mode', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderRoute('/printers/new');
+    await openManualEntry();
 
     await waitFor(() =>
       expect(screen.getByLabelText('Brand')).not.toBeDisabled(),
@@ -329,6 +468,33 @@ describe('PrinterFormPage edit mode', () => {
     expect(
       within(dialog).getByText('Discard unsaved changes?'),
     ).toBeInTheDocument();
+  });
+
+  it('blocks navigation when only a picker outside the form changed', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.includes(`/api/v1/printers/${PRINTER_ID}`)) {
+          return Promise.resolve(jsonResponse(printerDetailBody()));
+        }
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+
+    renderRoute(`/printers/${PRINTER_ID}/edit`);
+
+    await screen.findByLabelText('Name');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(
+      await screen.findByRole('option', { name: 'High Temp Plate' }),
+    );
+    await user.click(screen.getByRole('link', { name: 'Nav away' }));
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      'Discard unsaved changes?',
+    );
   });
 
   // --- 012 US1: build plate <Select> (test-after, plan.md's TDD scoping) ---

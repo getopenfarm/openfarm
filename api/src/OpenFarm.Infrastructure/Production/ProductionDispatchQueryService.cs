@@ -51,11 +51,15 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
     public async Task<string?> GetReadinessIssueAsync(Guid printerId, Guid partId,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, Guid? jobId = null)
     {
-        var part = await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == partId, ct);
+        var job = jobId is null ? null : await dbContext.PrintJobs.Include(j => j.FilamentConsumption).FirstAsync(j => j.Id == jobId, ct);
+        var requirement = job is null ? null : await dbContext.PartRequirements.FirstAsync(r => r.Id == job.PartRequirementId, ct);
+        var libraryPart = job is null || requirement?.Quantity is null && job.DispatchedAtUtc is null
+            ? await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == partId, ct) : null;
+        var part = job is null ? libraryPart : OpenFarm.Application.Production.ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
+        if (job is not null && part is null) return job.SnapshotRecoveryReason ?? "Production snapshot needs recovery.";
         if (part is null) return "Part not found.";
-        if (jobId is null) return await readiness.GetIssueAsync(printerId, part,
+        if (job is null) return await readiness.GetIssueAsync(printerId, part,
             OpenFarm.Application.Production.ProductionJobRequirements.FromPart(part), ct);
-        var job = await dbContext.PrintJobs.Include(j => j.FilamentConsumption).FirstAsync(j => j.Id == jobId, ct);
         var effective = await jobRequirements.ResolveAsync(job, part, ct);
         return await readiness.GetIssueAsync(printerId, part, effective.Requirements, ct, effective.RevisionHash);
     }
@@ -99,29 +103,23 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
     private async Task<IReadOnlyList<DispatchCandidate>> GetCandidatesAsync(
         System.Linq.Expressions.Expression<Func<PrintJob, bool>> predicate, CancellationToken cancellationToken)
     {
-        var rows = await (
-            from job in dbContext.PrintJobs.Where(predicate)
-            join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
-            join part in dbContext.Parts on requirement.PartId equals part.Id
-            where part.NozzleDiameterMm != null && part.MaterialMetadataComplete
-                && dbContext.PartFilamentRequirements.Any(r => r.PartId == part.Id)
-                && (part.RequiresSlicing || !dbContext.PartFilamentRequirements.Any(r => r.PartId == part.Id && r.MaterialType == null))
-            orderby job.QueuePosition
-            select new { JobId = job.Id, job.QueuePosition, PartId = part.Id, part.NozzleDiameterMm })
-            .ToListAsync(cancellationToken);
-
-        if (rows.Count == 0)
-        {
-            return [];
-        }
-
+        var jobs = await dbContext.PrintJobs.Where(predicate).Include(j => j.FilamentConsumption)
+            .OrderBy(j => j.QueuePosition).ToListAsync(cancellationToken);
         var candidates = new List<DispatchCandidate>();
-        foreach (var row in rows)
+        foreach (var job in jobs)
         {
-            var job = await dbContext.PrintJobs.Include(j => j.FilamentConsumption).FirstAsync(j => j.Id == row.JobId, cancellationToken);
-            var part = await dbContext.Parts.Include(p => p.FilamentRequirements).FirstAsync(p => p.Id == row.PartId, cancellationToken);
+            var requirement = await dbContext.PartRequirements.FirstAsync(r => r.Id == job.PartRequirementId, cancellationToken);
+            var run = await (from line in dbContext.RunLines
+                             join productionRun in dbContext.ProductionRuns on line.ProductionRunId equals productionRun.Id
+                             where line.Id == requirement.RunLineId
+                             select productionRun).FirstAsync(cancellationToken);
+            if (run.Status is ProductionRunStatus.Cancelled or ProductionRunStatus.Closed) continue;
+            var libraryPart = requirement.Quantity is null && job.DispatchedAtUtc is null
+                ? await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == requirement.PartId, cancellationToken) : null;
+            var part = OpenFarm.Application.Production.ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
+            if (part?.PrintRequirementsStatus != PrintRequirementsStatus.Complete) continue;
             var effective = await jobRequirements.ResolveAsync(job, part, cancellationToken);
-            candidates.Add(new DispatchCandidate(row.JobId, row.QueuePosition, row.NozzleDiameterMm!.Value,
+            candidates.Add(new DispatchCandidate(job.Id, job.QueuePosition, part.NozzleDiameterMm!.Value,
                 effective.Requirements.Select(r => r.MatchingValues).ToList()));
         }
         return candidates;
@@ -209,7 +207,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
         }
 
         var partIds = requirements.Select(r => r.PartId).Distinct().ToList();
-        var partsById = await dbContext.Parts.Where(p => partIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, cancellationToken);
+        var partsById = await dbContext.Parts.Include(p => p.FilamentRequirements).Where(p => partIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, cancellationToken);
         var filamentRequirementsByPart = await dbContext.PartFilamentRequirements
             .Where(r => partIds.Contains(r.PartId))
             .GroupBy(r => r.PartId)

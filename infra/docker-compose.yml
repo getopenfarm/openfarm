@@ -16,6 +16,9 @@ services:
       retries: 10
 
   api:
+    # Linux only: printer discovery listens for LAN broadcast/multicast (UDP 2021/1990), which a bridged
+    # container never receives (Docker Desktop on macOS/Windows cannot do this at all).
+    # network_mode: host
     build:
       # Repo root, not api/ — the build now also needs tools/provision-slicers and the root
       # slicers.manifest.json (infra/docker/api.Dockerfile provisions the bundle at build time).
@@ -28,11 +31,13 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       SlicerBundle__RootDirectory: /opt/slicers
+      CameraSnapshotStorage__RootDirectory: /data/camera-snapshots
     ports:
       - "${API_HTTP_PORT}:8888"
     volumes:
       - ..:/src
       - openfarm_part_files:/data/part-files
+      - openfarm_camera_snapshots:/data/camera-snapshots
 
   web:
     build:
@@ -49,3 +54,4 @@ services:
 volumes:
   openfarm_pg_data:
   openfarm_part_files:
+  openfarm_camera_snapshots:

@@ -415,3 +415,31 @@ note) operates over this shape, kept deliberately separate from the EF query tha
 
 All follow the existing `DomainExceptionHandler` switch-expression pattern — one new arm per exception, no
 new middleware.
+
+## Independent production inputs (October 13, 2026)
+
+- `PrintJob.ProductionSnapshotJson` stores immutable `ProductionPartSnapshot` inputs: source identity
+  and name, exact retained path/hash/revision, filename/format/size, slicing requirement, nozzle,
+  material completeness, units per print, estimates, resolved slicer engine/version and filament
+  requirements. Job filament consumption remains the authoritative editable job requirement set.
+- Finite jobs capture at queueing and copy that snapshot and original plate quantity on retry.
+  Unlimited jobs capture before dispatch; an unsent retry refreshes from the current library part.
+- `PartRequirement.PartId` remains a historical source identifier without a catalog foreign key.
+  Nullable `LibraryPartId` has a Restrict FK; catalog deletion detaches safe references transactionally.
+  `PartName` and `RunLine.TargetName` retain readable history independently of catalog records.
+- `RevisionMode` is fixed to Snapshot for finite and FollowLatest for unlimited. Upgrade normalizes
+  existing lines without rewriting dispatched revisions. `SnapshotRecoveryReason` explains unresolved
+  legacy data. Recovery verifies unchanged metadata, an exact revision and file hash, and an explicit
+  slicer version for unsliced inputs; ambiguous inputs remain protected and blocked.
+- Part deletion locks the source row, rechecks eligible unlimited/legacy dependencies and detaches
+  safe library links before deleting. Run creation locks source rows in stable ID order before
+  inserting dependency FKs. Assembly dependencies retain database Restrict protection.
+
+## Finished legacy source removal
+
+`PrintJob.SnapshotUnavailableAtUtc` is nullable and initially null for existing rows. Catalog deletion
+sets it only for terminal jobs (Cancelled, Failed, Completed) with no ProductionSnapshotJson and
+preserves SnapshotRecoveryReason as the explicit removal explanation. Valid snapshots are unchanged.
+The timestamp is permanent; recovery, snapshot copying and backfill refresh cannot restore an
+unavailable source. Snapshot state is Ready for verified snapshots, Unavailable for this timestamp,
+and Unresolved otherwise. Source-row locks serialize deletion with per-requirement reconciliation.

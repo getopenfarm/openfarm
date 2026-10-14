@@ -298,7 +298,23 @@ rather than one (`research.md` §3b):
    `DELETE .../confirm`. `Status=Discarded`; no `Part` created/changed. `204`. Best-effort-cancels an
    in-flight step-2b slice if one is still running; if it completes anyway, its result is simply dropped.
 - **Delete a part**: removes the `Part` row (cascades `PartTags`, `PartFilamentRequirement`s, and
-  `PartThumbnail`s) and calls `IPartFileStorage.DeleteAsync`. `PartProcessingJob` rows are historical and
+  `PartThumbnail`s). Assembly and production references block removal, including completed runs.
+  Shared content-addressed files are retained until reference-aware garbage collection exists.
+  `PartProcessingJob` rows are historical and
   simply retain a now-dangling, unenforced `PartId` once terminal; if a step-2b continuation is still
   in-flight against a job whose `Part` was deleted in the meantime, its write is a no-op (the `Part` no
   longer exists to update).
+
+### Production references (October 13, 2026)
+
+Production requirements retain a historical `PartId` and name; only nullable `LibraryPartId` has a
+catalog FK. Deletion detaches verified independent production references under a row lock, retains
+content-addressed files, and never cascades to production history. Unresolved legacy jobs and
+eligible unlimited runs remain protected.
+
+### Finished legacy jobs
+
+Cancelled, Failed and Completed jobs with missing snapshots permit source part removal. Deletion
+preserves history and marks missing snapshots permanently Unavailable: retry and download return 409.
+Valid snapshots remain independent. Unfinished unresolved jobs, assemblies and eligible unlimited
+runs still protect their source. Cancelling one unlimited job does not cancel its owning run.

@@ -17,8 +17,12 @@ public sealed class RequeuePrintJobCommandHandler(
 {
     public async Task<PrintJob> HandleAsync(RequeuePrintJobCommand command, CancellationToken cancellationToken)
     {
+        _ = partRepository;
         var job = await jobRepository.GetByIdAsync(command.JobId, cancellationToken)
             ?? throw new PrintJobNotFoundException(command.JobId);
+
+        if (job.SnapshotUnavailableAtUtc is not null)
+            throw new ProductionSnapshotUnavailableException(job.Id, job.SnapshotRecoveryReason);
 
         if (job.Status is not (PrintJobStatus.Cancelled or PrintJobStatus.Failed))
         {
@@ -39,8 +43,8 @@ public sealed class RequeuePrintJobCommandHandler(
             throw new PrintJobNotEligibleForRequeueException(job.Id);
         }
 
-        var part = await partRepository.GetByIdAsync(requirement.PartId, cancellationToken)
-            ?? throw new PartNotFoundException(requirement.PartId);
+        if (job.ProductionSnapshotJson is null)
+            throw new ProductionSnapshotUnavailableException(job.Id, job.SnapshotRecoveryReason);
 
         var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(job.OrganizationId, cancellationToken) ?? 0) + 1024;
         var filamentSpecs = job.FilamentConsumption
@@ -48,9 +52,10 @@ public sealed class RequeuePrintJobCommandHandler(
             .ToList();
 
         var replacement = PrintJob.Create(
-            job.OrganizationId, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
+            job.OrganizationId, requirement.Id, nextQueuePosition, job.PlateQuantity,
             job.AssignmentMode, job.PinnedPrinterId, job.FileRevisionHash, job.FileRevisionNumber, filamentSpecs);
 
+        replacement.CopyProductionSnapshot(job);
         if (job.HasFilamentRequirementOverride) replacement.SetFilamentRequirements(filamentSpecs);
         await jobRepository.AddAsync(replacement, cancellationToken);
         job.MarkRequeuedAs(replacement.Id);

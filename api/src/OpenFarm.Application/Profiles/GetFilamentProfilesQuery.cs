@@ -14,7 +14,7 @@ public sealed record GetFilamentProfilesQuery(
     string? CompatibleWithMachineName = null,
     string? MaterialType = null,
     int? Page = null,
-    int? PageSize = null, string? Brand = null, string? ModelCode = null, decimal? NozzleDiameterMm = null);
+    int? PageSize = null, string? Brand = null, string? ModelCode = null, decimal? NozzleDiameterMm = null, ListSort? Sorting = null);
 
 public sealed record FilamentProfileSummary(
     Guid Id,
@@ -83,8 +83,11 @@ public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository r
             }
             var size = Math.Clamp(query.PageSize ?? 50, 1, 1000);
             var requestedPage = Math.Max(query.Page ?? 1, 1);
-            return new(matches.OrderBy(p => engine is { } selected && ProfileEngineCompatibility.NativeEngine(p.SourceFormat) != selected)
-                .ThenBy(p => p.Name).ThenBy(p => p.Id).Skip((requestedPage - 1) * size).Take(size).ToList(), requestedPage, size, matches.Count);
+            var ordered = query.Sorting is null
+                ? matches.OrderBy(p => engine is { } selected && ProfileEngineCompatibility.NativeEngine(p.SourceFormat) != selected)
+                    .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.Id)
+                : query.Sorting.Order(matches, p => p.Name, p => p.Id);
+            return new(ordered.Skip((requestedPage - 1) * size).Take(size).ToList(), requestedPage, size, matches.Count);
         }
         var isPickerStyleCall = query.Origin is not null || query.SearchText is not null
             || query.CompatibleWithMachineName is not null || query.MaterialType is not null
@@ -92,13 +95,14 @@ public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository r
 
         if (!isPickerStyleCall)
         {
-            return await BuildLegacyBrowsePageResultAsync(cancellationToken);
+            var legacy = await BuildLegacyBrowsePageResultAsync(cancellationToken);
+            return query.Sorting is null ? legacy : legacy with { Items = query.Sorting.Order(legacy.Items, p => p.Name, p => p.Id).ToList() };
         }
 
         var page = query.Page ?? 1;
         var (rows, totalCount) = await repository.SearchAsync(
             ProfileOriginQueryParser.ParseEffectiveFilter(query.Origin), true, query.CompatibleWithMachineName,
-            query.MaterialType, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken);
+            query.MaterialType, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken, query.Sorting);
 
         var leanSummaries = rows.Select(r => new FilamentProfileSummary(
             r.Id, r.Name, r.Origin, r.VendorName, r.SourceFormat, r.BaseProfileId, r.BaseProfileName,

@@ -1,31 +1,34 @@
-using OpenFarm.Application.Assemblies;
+using Microsoft.Extensions.Logging;
 using OpenFarm.Application.Common;
-using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
 
-public sealed class DeletePartCommandHandler(
-    IPartRepository partRepository, IPartFileStorage storage, IPartEventPublisher eventPublisher, IAssemblyRepository assemblyRepository)
+public sealed partial class DeletePartCommandHandler(
+    IPartRepository partRepository, IPartEventPublisher eventPublisher, ILogger<DeletePartCommandHandler>? logger = null)
     : ICommandHandler<DeletePartCommand, bool>
 {
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Part {PartId} was deleted but its notification could not be published")]
+    private static partial void LogNotificationFailure(ILogger logger, Guid partId, Exception exception);
+
     public async Task<bool> HandleAsync(DeletePartCommand command, CancellationToken cancellationToken)
     {
         var part = await partRepository.GetByIdAsync(command.PartId, cancellationToken)
             ?? throw new PartNotFoundException(command.PartId);
 
-        // FR-011 (013-assembly-bom): narrows this feature's own "delete cascades to the part's own
-        // data" rule — a Part still targeted by a BOM line cannot be deleted out from under it.
-        var referencingNames = await assemblyRepository.GetReferencingAssemblyNamesAsync(
-            BomLineTargetKind.Part, part.Id, cancellationToken);
-        if (referencingNames.Count > 0)
-        {
-            throw new PartReferencedByAssemblyException(part.Id, referencingNames);
-        }
-
+        // The repository evaluates all dependencies under the deletion lock.
         await partRepository.RemoveAsync(part, cancellationToken);
-        await storage.DeleteAsync(part.StoragePath, cancellationToken);
-        await eventPublisher.PartDeletedAsync(part.OrganizationId, part.Id, cancellationToken);
+        // Content-addressed files can be shared by other parts, processing jobs and pinned
+        // production revisions. Retain bytes until reference-aware garbage collection exists.
+        try
+        {
+            await eventPublisher.PartDeletedAsync(part.OrganizationId, part.Id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // The database commit is authoritative; clients also invalidate their own queries.
+            if (logger is not null) LogNotificationFailure(logger, part.Id, ex);
+        }
 
         return true;
     }

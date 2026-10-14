@@ -1,14 +1,41 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import { useFieldArray, useForm } from 'react-hook-form';
-import { useParams } from 'react-router';
+import { useState } from 'react';
+import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PageHeader } from '@/components/page-header/PageHeader';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogClose,
+  DialogScrollableContent,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import { PartFilamentRequirementsList } from '@/features/parts/components/PartFilamentRequirementsList';
 import type { PrintJobResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
@@ -42,12 +69,45 @@ const schema = z.object({
     .min(1),
 });
 
-function JobFilamentForm({ job }: { job: PrintJobResponse }) {
-  const queryClient = useQueryClient();
-  const editable = job.status === 'Queued' && !job.dispatchedAtUtc;
-  const terminal = ['Completed', 'Failed', 'Cancelled'].includes(
-    job.status ?? '',
+const TERMINAL_STATUSES = ['Completed', 'Failed', 'Cancelled'];
+
+type FilamentDialogMode = 'requirements' | 'usage';
+
+/** Header-triggered dialog; the form mounts only while open so each open starts from the server state. */
+function JobFilamentDialog({
+  job,
+  mode,
+}: {
+  job: PrintJobResponse;
+  mode: FilamentDialogMode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          {mode === 'requirements' ? 'Edit filament' : 'Record usage'}
+        </Button>
+      </DialogTrigger>
+      {open && (
+        <JobFilamentForm job={job} mode={mode} onDone={() => setOpen(false)} />
+      )}
+    </Dialog>
   );
+}
+
+function JobFilamentForm({
+  job,
+  mode,
+  onDone,
+}: {
+  job: PrintJobResponse;
+  mode: FilamentDialogMode;
+  onDone: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const editable = mode === 'requirements';
+  const terminal = mode === 'usage';
   const spools =
     useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint().data?.data?.spools ?? [];
   const form = useForm<z.infer<typeof schema>>({
@@ -68,7 +128,8 @@ function JobFilamentForm({ job }: { job: PrintJobResponse }) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries();
-        toast.success('Job filament saved.');
+        toast.success(editable ? 'Saved.' : 'Usage recorded.');
+        onDone();
       },
       onError: () => toast.error('Could not save job filament.'),
     },
@@ -81,146 +142,223 @@ function JobFilamentForm({ job }: { job: PrintJobResponse }) {
     useOpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint(
       options,
     );
+  const saving = requirements.isPending || usage.isPending;
   return (
-    <form
-      className="space-y-3 rounded-md border p-4"
-      onSubmit={form.handleSubmit(({ lines }) => {
-        const values = lines.map((line) => ({
-          materialType: line.materialType || null,
-          detectedColorHex: line.color || null,
-          narrowFilamentVariantId: line.variantId ?? null,
-          narrowFilamentProfileId: line.profileId ?? null,
-          spoolId: line.spoolId || null,
-          gramsConsumed: line.grams,
-        }));
-        if (!job.id) return;
-        if (editable)
-          requirements.mutate({ id: job.id, data: { requirements: values } });
-        else
-          usage.mutate({ id: job.id, data: { filamentConsumption: values } });
-      })}
+    <DialogScrollableContent
+      className="sm:max-w-3xl"
+      header={
+        <DialogTitle>
+          {editable ? 'Edit filament requirements' : 'Record filament usage'}
+        </DialogTitle>
+      }
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button type="submit" form="job-filament-form" disabled={saving}>
+            {saving && <Spinner data-icon="inline-start" />}
+            {editable
+              ? saving
+                ? 'Saving…'
+                : 'Save'
+              : saving
+                ? 'Recording…'
+                : 'Record usage'}
+          </Button>
+        </>
+      }
     >
-      <h3 className="font-semibold">
-        {terminal ? 'Filament consumed' : 'Filament requirements'}
-      </h3>
-      {editable && (
-        <PartFilamentRequirementsList
-          requirements={form.watch('lines').map((line, index) => ({
-            key: fields.fields[index]?.id ?? String(index),
+      <form
+        id="job-filament-form"
+        onSubmit={form.handleSubmit(({ lines }) => {
+          const values = lines.map((line) => ({
             materialType: line.materialType || null,
             detectedColorHex: line.color || null,
-            detectedSubBrand: null,
-            narrowFilamentVariantId: line.variantId,
-            narrowFilamentProfileId: line.profileId,
-          }))}
-          onNarrow={(key, variantId) => {
-            const index = fields.fields.findIndex((field) => field.id === key);
-            if (index < 0) return;
-            form.setValue(`lines.${index}.variantId`, variantId, {
-              shouldDirty: true,
-            });
-            form.setValue(`lines.${index}.profileId`, null, {
-              shouldDirty: true,
-            });
-          }}
-          onNarrowToProfile={(key, profileId) => {
-            const index = fields.fields.findIndex((field) => field.id === key);
-            if (index < 0) return;
-            form.setValue(`lines.${index}.profileId`, profileId, {
-              shouldDirty: true,
-            });
-            form.setValue(`lines.${index}.variantId`, null, {
-              shouldDirty: true,
-            });
-          }}
-        />
-      )}
-      {fields.fields.map((field, index) => (
-        <div key={field.id} className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div>
-            <Label htmlFor={`material-${index}`}>Material</Label>
-            <Input
-              id={`material-${index}`}
-              placeholder="Any material"
-              disabled={!editable}
-              {...form.register(`lines.${index}.materialType`)}
+            narrowFilamentVariantId: line.variantId ?? null,
+            narrowFilamentProfileId: line.profileId ?? null,
+            spoolId: line.spoolId || null,
+            gramsConsumed: line.grams,
+          }));
+          if (!job.id) return;
+          if (editable)
+            requirements.mutate({ id: job.id, data: { requirements: values } });
+          else
+            usage.mutate({ id: job.id, data: { filamentConsumption: values } });
+        })}
+      >
+        <FieldGroup className="gap-4">
+          {editable && (
+            <PartFilamentRequirementsList
+              requirements={form.watch('lines').map((line, index) => ({
+                key: fields.fields[index]?.id ?? String(index),
+                materialType: line.materialType || null,
+                detectedColorHex: line.color || null,
+                detectedSubBrand: null,
+                narrowFilamentVariantId: line.variantId,
+                narrowFilamentProfileId: line.profileId,
+              }))}
+              onNarrow={(key, variantId) => {
+                const index = fields.fields.findIndex(
+                  (field) => field.id === key,
+                );
+                if (index < 0) return;
+                form.setValue(`lines.${index}.variantId`, variantId, {
+                  shouldDirty: true,
+                });
+                form.setValue(`lines.${index}.profileId`, null, {
+                  shouldDirty: true,
+                });
+              }}
+              onNarrowToProfile={(key, profileId) => {
+                const index = fields.fields.findIndex(
+                  (field) => field.id === key,
+                );
+                if (index < 0) return;
+                form.setValue(`lines.${index}.profileId`, profileId, {
+                  shouldDirty: true,
+                });
+                form.setValue(`lines.${index}.variantId`, null, {
+                  shouldDirty: true,
+                });
+              }}
             />
-          </div>
-          <div>
-            <Label htmlFor={`color-${index}`}>Color</Label>
-            <Input
-              id={`color-${index}`}
-              placeholder="Any color"
-              disabled={!editable}
-              {...form.register(`lines.${index}.color`)}
-            />
-          </div>
-          {terminal && (
-            <>
-              <div>
-                <Label htmlFor={`spool-${index}`}>Spool</Label>
-                <select
-                  id={`spool-${index}`}
-                  className="h-9 w-full rounded-md border bg-background px-2"
-                  {...form.register(`lines.${index}.spoolId`)}
-                >
-                  <option value="">Untracked spool</option>
-                  {spools.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label ?? s.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor={`grams-${index}`}>Grams consumed</Label>
+          )}
+          {fields.fields.map((field, index) => (
+            <FieldGroup
+              key={field.id}
+              className="grid grid-cols-2 gap-3 md:grid-cols-4"
+            >
+              <Field data-disabled={!editable}>
+                <FieldLabel htmlFor={`material-${index}`}>Material</FieldLabel>
                 <Input
-                  id={`grams-${index}`}
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  {...form.register(`lines.${index}.grams`, {
-                    valueAsNumber: true,
-                  })}
+                  id={`material-${index}`}
+                  placeholder="Any material"
+                  disabled={!editable}
+                  {...form.register(`lines.${index}.materialType`)}
                 />
-              </div>
-            </>
-          )}
-          {terminal && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                fields.append({
-                  ...form.getValues(`lines.${index}`),
-                  spoolId: '',
-                  grams: 0,
-                })
-              }
-            >
-              Add spool for {field.materialType || 'this material'}
-            </Button>
+              </Field>
+              <Field data-disabled={!editable}>
+                <FieldLabel htmlFor={`color-${index}`}>Color</FieldLabel>
+                <Input
+                  id={`color-${index}`}
+                  placeholder="Any color"
+                  disabled={!editable}
+                  {...form.register(`lines.${index}.color`)}
+                />
+              </Field>
+              {terminal && (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor={`spool-${index}`}>Spool</FieldLabel>
+                    <Controller
+                      control={form.control}
+                      name={`lines.${index}.spoolId`}
+                      render={({ field }) => (
+                        <Select
+                          name={field.name}
+                          value={field.value || '__untracked'}
+                          onValueChange={(value) =>
+                            field.onChange(value === '__untracked' ? '' : value)
+                          }
+                        >
+                          <SelectTrigger
+                            id={`spool-${index}`}
+                            ref={field.ref}
+                            onBlur={field.onBlur}
+                            className="w-full"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectItem value="__untracked">
+                                Untracked spool
+                              </SelectItem>
+                              {spools
+                                .filter((spool) => spool.id)
+                                .map((spool) => (
+                                  <SelectItem
+                                    key={spool.id}
+                                    value={spool.id ?? ''}
+                                  >
+                                    {spool.label ?? spool.id}
+                                  </SelectItem>
+                                ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </Field>
+                  <Field
+                    data-invalid={!!form.formState.errors.lines?.[index]?.grams}
+                  >
+                    <FieldLabel htmlFor={`grams-${index}`}>
+                      Grams consumed
+                    </FieldLabel>
+                    <Input
+                      id={`grams-${index}`}
+                      aria-invalid={
+                        !!form.formState.errors.lines?.[index]?.grams
+                      }
+                      aria-describedby={
+                        form.formState.errors.lines?.[index]?.grams
+                          ? `grams-${index}-error`
+                          : undefined
+                      }
+                      type="number"
+                      min={0}
+                      step="0.1"
+                      {...form.register(`lines.${index}.grams`, {
+                        valueAsNumber: true,
+                      })}
+                    />
+                    <FieldError
+                      id={`grams-${index}-error`}
+                      errors={[form.formState.errors.lines?.[index]?.grams]}
+                    />
+                  </Field>
+                </>
+              )}
+              {terminal && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    fields.append({
+                      ...form.getValues(`lines.${index}`),
+                      spoolId: '',
+                      grams: 0,
+                    })
+                  }
+                >
+                  Add spool for {field.materialType || 'this material'}
+                </Button>
+              )}
+              {editable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fields.remove(index)}
+                >
+                  Remove
+                </Button>
+              )}
+            </FieldGroup>
+          ))}
+          {Object.keys(form.formState.errors).length > 0 && (
+            <p role="alert">
+              Enter valid filament lines and non-negative grams.
+            </p>
           )}
           {editable && (
             <Button
               type="button"
               variant="outline"
-              onClick={() => fields.remove(index)}
-            >
-              Remove
-            </Button>
-          )}
-        </div>
-      ))}
-      {Object.keys(form.formState.errors).length > 0 && (
-        <p role="alert">Enter valid filament lines and non-negative grams.</p>
-      )}
-      {(editable || terminal) && (
-        <div className="flex gap-2">
-          {editable && (
-            <Button
-              type="button"
-              variant="outline"
+              className="self-start"
               onClick={() =>
                 fields.append({
                   materialType: '',
@@ -233,20 +371,68 @@ function JobFilamentForm({ job }: { job: PrintJobResponse }) {
               Add requirement
             </Button>
           )}
-          <Button
-            type="submit"
-            disabled={requirements.isPending || usage.isPending}
-          >
-            Save filament
-          </Button>
-        </div>
-      )}
-    </form>
+        </FieldGroup>
+      </form>
+    </DialogScrollableContent>
+  );
+}
+
+function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
+  const terminal = TERMINAL_STATUSES.includes(job.status ?? '');
+  const lines = job.filamentConsumption ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {terminal ? 'Filament consumed' : 'Filament requirements'}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {lines.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No filament requirements.
+          </p>
+        ) : (
+          lines.map((line, index) => (
+            <div
+              key={line.id ?? index}
+              className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm"
+            >
+              <span className="flex items-center gap-2">
+                {line.detectedColorHex && (
+                  <span
+                    aria-hidden
+                    className="size-3 rounded-full border"
+                    style={{
+                      backgroundColor: `#${line.detectedColorHex.replace(/^#/, '')}`,
+                    }}
+                  />
+                )}
+                {line.materialType || 'Any material'}
+                {line.detectedColorHex && (
+                  <span className="text-muted-foreground">
+                    #{line.detectedColorHex.replace(/^#/, '')}
+                  </span>
+                )}
+              </span>
+              {terminal && (
+                <span className="text-muted-foreground">
+                  {line.gramsConsumed != null
+                    ? `${line.gramsConsumed} g`
+                    : 'Not recorded'}
+                </span>
+              )}
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
 export function PrintJobDetailPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   useProductionHub();
   const queryClient = useQueryClient();
   const query = useOpenFarmApiEndpointsPrintJobsGetPrintJobEndpoint(id);
@@ -289,66 +475,128 @@ export function PrintJobDetailPage() {
     link.click();
     URL.revokeObjectURL(url);
   }
+  const backLink = (
+    <BackLink to="/jobs" className="mb-1">
+      Back to print queue
+    </BackLink>
+  );
+  const queryError: unknown = query.error;
+  const isNotFound =
+    !query.isError ||
+    (queryError instanceof Response && queryError.status === 404);
   return (
     <div className="flex flex-col gap-6">
-      <BackLink to="/jobs">Back to print queue</BackLink>
       {query.isLoading ? (
-        <p>Loading job…</p>
+        <>
+          <PageHeader above={backLink} title="Print job" />
+          <Skeleton className="h-64 w-full" />
+        </>
       ) : !job ? (
-        <p>Print job not found.</p>
+        <>
+          <PageHeader above={backLink} title="Print job" />
+          {isNotFound ? (
+            <EmptyState
+              title="Print job not found"
+              description="It may have been removed, or the link is out of date."
+              action={
+                <Button variant="outline" onClick={() => navigate('/jobs')}>
+                  Back to print queue
+                </Button>
+              }
+            />
+          ) : (
+            <ErrorState
+              title="Could not load this print job"
+              onRetry={() => query.refetch()}
+            />
+          )}
+        </>
       ) : (
         <>
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold">
-              Print job · {job.plateQuantity} units
-            </h2>
-            <Badge>{job.status}</Badge>
-            <Button variant="outline" onClick={download}>
-              Download print file
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            File revision {job.fileRevisionNumber} · {job.fileRevisionHash}
-          </p>
-          <div className="flex items-center gap-3">
-            <JobMatchingDialog jobId={id} />
-            {job.status === 'Queued' && !job.dispatchedAtUtc && (
-              <RemoveJobButton jobId={id} />
-            )}
-          </div>
-          <JobRemoteControls jobId={id} status={job.status ?? ''} />
-          {manual && (
-            <div className="flex gap-2">
-              {job.status === 'Queued' && job.dispatchedPrinterId && (
-                <Button onClick={() => started.mutate({ id })}>
-                  Mark started
+          <PageHeader
+            above={backLink}
+            title={
+              <span className="flex flex-wrap items-center gap-3">
+                Print job · {job.plateQuantity} units
+                <Badge>{job.status}</Badge>
+              </span>
+            }
+            description={`File revision ${job.fileRevisionNumber} · ${job.fileRevisionHash}`}
+            action={
+              <div className="flex flex-wrap items-center gap-2">
+                {manual &&
+                  job.status === 'Queued' &&
+                  job.dispatchedPrinterId && (
+                    <Button onClick={() => started.mutate({ id })}>
+                      Mark started
+                    </Button>
+                  )}
+                {manual &&
+                  ['Printing', 'Paused'].includes(job.status ?? '') && (
+                    <>
+                      <Button
+                        onClick={() =>
+                          complete.mutate({
+                            id,
+                            data: { filamentConsumption: [] },
+                          })
+                        }
+                      >
+                        Mark completed
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          fail.mutate({ id, data: { filamentConsumption: [] } })
+                        }
+                      >
+                        Mark failed
+                      </Button>
+                    </>
+                  )}
+                {job.status === 'Queued' && !job.dispatchedAtUtc && (
+                  <JobFilamentDialog job={job} mode="requirements" />
+                )}
+                {TERMINAL_STATUSES.includes(job.status ?? '') && (
+                  <JobFilamentDialog job={job} mode="usage" />
+                )}
+                <JobMatchingDialog
+                  jobId={id}
+                  trigger={<Button variant="outline">Job diagnosis</Button>}
+                />
+                <Button
+                  variant="outline"
+                  onClick={download}
+                  disabled={job.snapshotState !== 'Ready'}
+                  aria-describedby={
+                    job.snapshotState !== 'Ready'
+                      ? 'job-source-warning'
+                      : undefined
+                  }
+                >
+                  Download print file
                 </Button>
-              )}
-              {['Printing', 'Paused'].includes(job.status ?? '') && (
-                <>
-                  <Button
-                    onClick={() =>
-                      complete.mutate({ id, data: { filamentConsumption: [] } })
-                    }
-                  >
-                    Mark completed
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      fail.mutate({ id, data: { filamentConsumption: [] } })
-                    }
-                  >
-                    Mark failed
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-          <JobFilamentForm
-            key={`${job.id}-${job.status}-${JSON.stringify(job.filamentConsumption)}`}
-            job={job}
+                {job.status === 'Queued' && !job.dispatchedAtUtc && (
+                  <RemoveJobButton jobId={id} />
+                )}
+              </div>
+            }
           />
+          <JobRemoteControls jobId={id} status={job.status ?? ''} />
+          {job.snapshotState !== 'Ready' && (
+            <Alert id="job-source-warning">
+              <AlertTitle>
+                {job.snapshotState === 'Unavailable'
+                  ? 'Job source removed'
+                  : 'Job snapshot needs recovery'}
+              </AlertTitle>
+              <AlertDescription>
+                {job.snapshotRecoveryReason ??
+                  'The original production inputs could not be verified. Restore the original inputs or cancel and recreate the run.'}
+              </AlertDescription>
+            </Alert>
+          )}
+          <JobFilamentSummary job={job} />
         </>
       )}
     </div>

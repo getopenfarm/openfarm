@@ -1,10 +1,9 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import { CheckCircle2Icon } from 'lucide-react';
+import { Link } from 'react-router';
 import { DataTable } from '@/components/data-table/DataTable';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
-import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import type { MatchedMaintenanceFlag } from '@/features/maintenance/lib/matchMaintenanceToFleet';
 import type { FleetPrinterResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -25,7 +24,6 @@ interface PrintersTableProps {
   maintenanceByPrinterId: Map<string, MatchedMaintenanceFlag>;
   density?: DensityMode;
   onOpen: (id: string) => void;
-  onMarkReady: (id: string) => void;
 }
 
 export function PrintersTable({
@@ -33,7 +31,6 @@ export function PrintersTable({
   maintenanceByPrinterId,
   density = 'medium',
   onOpen,
-  onMarkReady,
 }: PrintersTableProps) {
   const columns: ColumnDef<FleetPrinterResponse>[] = [
     {
@@ -42,7 +39,12 @@ export function PrintersTable({
       accessorFn: (row) => row.name ?? '',
       cell: ({ row }) => (
         <div className="flex flex-col gap-0.5">
-          <span className="font-medium">{row.original.name}</span>
+          <Link
+            className="font-medium hover:underline"
+            to={`/printers/${row.original.id}`}
+          >
+            {row.original.name}
+          </Link>
           <span className="font-mono text-xs text-muted-foreground">
             {row.original.brand} {row.original.modelCode}
           </span>
@@ -107,34 +109,11 @@ export function PrintersTable({
         );
       },
     },
-    {
-      id: 'actions',
-      header: () => <span className="sr-only">Actions</span>,
-      cell: ({ row }) => {
-        const printer = row.original;
-        if (printer.status !== 'AwaitingClear') {
-          return null;
-        }
-        return (
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(event) => {
-                event.stopPropagation();
-                onMarkReady(printer.id ?? '');
-              }}
-            >
-              <CheckCircle2Icon /> Clear
-            </Button>
-          </div>
-        );
-      },
-    },
   ];
 
   return (
     <DataTable
+      pageSize={25}
       columns={columns}
       data={printers}
       cellClassName={DENSITY_CELL_PADDING[density]}

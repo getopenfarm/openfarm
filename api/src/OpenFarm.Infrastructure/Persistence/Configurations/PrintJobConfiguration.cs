@@ -31,6 +31,9 @@ public sealed class PrintJobConfiguration : IEntityTypeConfiguration<PrintJob>
         builder.Property(j => j.CancelRequestedAtUtc);
         builder.Property(j => j.RequeuedAsJobId);
         builder.Property(j => j.CreatedAtUtc).IsRequired();
+        builder.Property(j => j.ProductionSnapshotJson).HasColumnType("jsonb");
+        builder.Property(j => j.SnapshotRecoveryReason);
+        builder.Property(j => j.SnapshotUnavailableAtUtc);
         builder.Property(j => j.HasFilamentRequirementOverride).HasDefaultValue(false);
 
         builder.HasOne<PartRequirement>().WithMany().HasForeignKey(j => j.PartRequirementId).OnDelete(DeleteBehavior.Cascade);

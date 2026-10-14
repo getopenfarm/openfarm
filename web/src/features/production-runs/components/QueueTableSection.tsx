@@ -39,6 +39,7 @@ interface QueueTableSectionProps {
   renderRow: (job: QueueJobRowResponse) => ReactNode;
   rowProps: (job: QueueJobRowResponse) => HTMLAttributes<HTMLDivElement>;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
 }
 
 /** Each section owns its vertical viewport; headers and pagination never scroll away. */
@@ -59,6 +60,7 @@ export function QueueTableSection({
   renderRow,
   rowProps,
   onPageChange,
+  onPageSizeChange,
 }: QueueTableSectionProps) {
   const contentId = useId();
   const virtualizer = useVirtualizer({
@@ -165,6 +167,7 @@ export function QueueTableSection({
               isFetching={isFetching}
               isError={isError}
               onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
             />
           </div>
         </div>

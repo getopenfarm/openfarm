@@ -65,38 +65,57 @@ public sealed class Assembly
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>FR-013 duplicate-target check happens here. Cycle/depth validation (Assembly-kind targets) is the caller's job, run before this against the org-wide edge graph.</summary>
-    public BomLine AddLine(BomLineSpec spec)
+    /// <summary>
+    /// Full replace of <see cref="Lines"/>, validated before anything mutates: kept lines (by id) take
+    /// the new quantity, lines not listed are removed, and specs without an id are added. Swapping
+    /// every old line for new ones is fine — only an empty result is rejected (FR-002). FR-013 duplicate
+    /// targets are rejected here. Returns the added lines; cycle/depth validation of Assembly-kind ones is the caller's job.
+    /// </summary>
+    public IReadOnlyList<BomLine> ReplaceLines(IReadOnlyList<BomLineEdit> edits)
     {
-        var line = BomLine.Create(OrganizationId, Id, spec);
-        EnsureNoDuplicateTarget(_lines, line);
-
-        _lines.Add(line);
-        UpdatedAtUtc = DateTimeOffset.UtcNow;
-
-        return line;
-    }
-
-    public void UpdateLineQuantity(Guid lineId, decimal quantity)
-    {
-        var line = _lines.FirstOrDefault(l => l.Id == lineId) ?? throw new BomLineNotFoundException(Id, lineId);
-
-        line.UpdateQuantity(quantity);
-        UpdatedAtUtc = DateTimeOffset.UtcNow;
-    }
-
-    /// <summary>Rejects if it would leave zero lines (FR-002) — delete the assembly itself instead.</summary>
-    public void RemoveLine(Guid lineId)
-    {
-        var line = _lines.FirstOrDefault(l => l.Id == lineId) ?? throw new BomLineNotFoundException(Id, lineId);
-
-        if (_lines.Count == 1)
+        if (edits.Count == 0)
         {
             throw new AssemblyMustHaveAtLeastOneLineException();
         }
 
-        _lines.Remove(line);
+        var kept = new List<(BomLine Line, decimal Quantity)>();
+        var added = new List<BomLine>();
+        var finalLines = new List<BomLine>();
+        foreach (var edit in edits)
+        {
+            if (edit.LineId is { } lineId)
+            {
+                var line = _lines.FirstOrDefault(l => l.Id == lineId) ?? throw new BomLineNotFoundException(Id, lineId);
+                if (line.TargetKind != edit.Spec.TargetKind || line.TargetPartId != edit.Spec.TargetPartId
+                    || line.TargetAssemblyId != edit.Spec.TargetAssemblyId || line.TargetNonPrintedComponentId != edit.Spec.TargetNonPrintedComponentId)
+                {
+                    throw new ArgumentException("An existing BOM line's target cannot change; remove it and add a new line.", nameof(edits));
+                }
+
+                BomLine.ValidateQuantity(line.TargetKind, edit.Spec.Quantity);
+                EnsureNoDuplicateTarget(finalLines, line);
+                finalLines.Add(line);
+                kept.Add((line, edit.Spec.Quantity));
+            }
+            else
+            {
+                var line = BomLine.Create(OrganizationId, Id, edit.Spec);
+                EnsureNoDuplicateTarget(finalLines, line);
+                finalLines.Add(line);
+                added.Add(line);
+            }
+        }
+
+        foreach (var (line, quantity) in kept)
+        {
+            line.UpdateQuantity(quantity);
+        }
+
+        _lines.RemoveAll(l => !finalLines.Contains(l));
+        _lines.AddRange(added);
         UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        return added;
     }
 
     private static void EnsureNoDuplicateTarget(List<BomLine> lines, BomLine candidate)

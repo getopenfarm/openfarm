@@ -56,7 +56,7 @@ describe('CreateVendorDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add vendor' }));
     await user.type(screen.getByLabelText('Name'), 'New Vendor Co');
-    await user.click(screen.getByRole('button', { name: 'Add vendor' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(postedBody).toEqual({ name: 'New Vendor Co' }));
     await waitFor(() =>

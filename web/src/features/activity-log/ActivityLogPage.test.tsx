@@ -60,9 +60,13 @@ describe('ActivityLogPage', () => {
       await screen.findByText('Connection secret created'),
     ).toBeInTheDocument();
     expect(screen.getByText(/admin@openfarm\.local/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
-    expect(screen.getByText('Page 1 · 1 entries')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Previous activity log page' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Next activity log page' }),
+    ).toBeDisabled();
+    expect(screen.getByText('1–1 of 1')).toBeInTheDocument();
   });
 
   it('shows an error state with a retry button when the request fails', async () => {
@@ -78,4 +82,32 @@ describe('ActivityLogPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
+});
+
+it('resets Activity Log to page one when changing page size with the keyboard', async () => {
+  const requests: URL[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(input.toString());
+      requests.push(url);
+      return jsonResponse({
+        items: [{ id: 'entry', entityType: 'Part', eventType: 'Created' }],
+        totalCount: 70,
+      });
+    }),
+  );
+  renderPage();
+  const { default: userEvent } = await import('@testing-library/user-event');
+  const user = userEvent.setup();
+  await screen.findByText('1–25 of 70');
+  await user.click(screen.getByRole('button', { name: 'Page 2' }));
+  await screen.findByText('26–50 of 70');
+  const select = screen.getByRole('combobox', { name: 'Rows per page' });
+  select.focus();
+  await user.keyboard(' ');
+  await user.keyboard('{Home}{Enter}');
+  await screen.findByText('1–10 of 70');
+  expect(requests.at(-1)?.searchParams.get('page')).toBe('1');
+  expect(requests.at(-1)?.searchParams.get('pageSize')).toBe('10');
 });

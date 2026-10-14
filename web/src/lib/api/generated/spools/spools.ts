@@ -22,7 +22,7 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
-  CorrectRemainingWeightRequest,
+  EditSpoolRequest,
   ListSpoolsResponse,
   LoadSpoolRequest,
   LoadSpoolResponse,
@@ -31,7 +31,6 @@ import type {
   RecordSpoolUsageResponse,
   RegisterSpoolRequest,
   SpoolResponse,
-  SpoolResponseLite,
   UnloadSpoolRequest,
 } from '../endpoints.schemas';
 
@@ -53,153 +52,124 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
-export type openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse200 =
-  {
-    data: SpoolResponseLite;
-    status: 200;
-  };
-
-export type openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse401 =
-  {
-    data: void;
-    status: 401;
-  };
-
-export type openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse403 =
-  {
-    data: void;
-    status: 403;
-  };
-
-export type openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponseSuccess =
-  openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponseError =
-  (
-    | openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse401
-    | openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse403
-  ) & {
-    headers: Headers;
-  };
-
-export type openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse =
-  | openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponseSuccess
-  | openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponseError;
-
-export const getOpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointUrl = (
-  id: string,
-) => {
-  return `/api/v1/spools/${id}/remaining-weight`;
+export type openFarmApiEndpointsSpoolsEditSpoolEndpointResponse200 = {
+  data: SpoolResponse;
+  status: 200;
 };
 
-export const openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint = async (
+export type openFarmApiEndpointsSpoolsEditSpoolEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSpoolsEditSpoolEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSpoolsEditSpoolEndpointResponseSuccess =
+  openFarmApiEndpointsSpoolsEditSpoolEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSpoolsEditSpoolEndpointResponseError = (
+  | openFarmApiEndpointsSpoolsEditSpoolEndpointResponse401
+  | openFarmApiEndpointsSpoolsEditSpoolEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSpoolsEditSpoolEndpointResponse =
+  | openFarmApiEndpointsSpoolsEditSpoolEndpointResponseSuccess
+  | openFarmApiEndpointsSpoolsEditSpoolEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSpoolsEditSpoolEndpointUrl = (
   id: string,
-  correctRemainingWeightRequest: CorrectRemainingWeightRequest,
+) => {
+  return `/api/v1/spools/${id}`;
+};
+
+export const openFarmApiEndpointsSpoolsEditSpoolEndpoint = async (
+  id: string,
+  editSpoolRequest: EditSpoolRequest,
   options?: RequestInit,
-): Promise<openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse> => {
-  return httpClient<openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointResponse>(
-    getOpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointUrl(id),
+): Promise<openFarmApiEndpointsSpoolsEditSpoolEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSpoolsEditSpoolEndpointResponse>(
+    getOpenFarmApiEndpointsSpoolsEditSpoolEndpointUrl(id),
     {
       ...options,
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(correctRemainingWeightRequest),
+      body: JSON.stringify(editSpoolRequest),
     },
   );
 };
 
-export const getOpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint
-        >
-      >,
-      TError,
-      { id: string; data: CorrectRemainingWeightRequest },
-      TContext
-    >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint
-      >
-    >,
+export const getOpenFarmApiEndpointsSpoolsEditSpoolEndpointMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsEditSpoolEndpoint>>,
     TError,
-    { id: string; data: CorrectRemainingWeightRequest },
+    { id: string; data: EditSpoolRequest },
     TContext
-  > => {
-    const mutationKey = [
-      'openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint',
-    ];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        'mutationKey' in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsEditSpoolEndpoint>>,
+  TError,
+  { id: string; data: EditSpoolRequest },
+  TContext
+> => {
+  const mutationKey = ['openFarmApiEndpointsSpoolsEditSpoolEndpoint'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      'mutationKey' in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint
-        >
-      >,
-      { id: string; data: CorrectRemainingWeightRequest }
-    > = (props) => {
-      const { id, data } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsEditSpoolEndpoint>>,
+    { id: string; data: EditSpoolRequest }
+  > = (props) => {
+    const { id, data } = props ?? {};
 
-      return openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint(id, data);
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return openFarmApiEndpointsSpoolsEditSpoolEndpoint(id, data);
   };
 
-export type OpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint
-      >
-    >
-  >;
-export type OpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointMutationBody =
-  CorrectRemainingWeightRequest;
-export type OpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointMutationError =
-  void;
+  return { mutationFn, ...mutationOptions };
+};
 
-export const useOpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint = <
+export type OpenFarmApiEndpointsSpoolsEditSpoolEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsEditSpoolEndpoint>>
+  >;
+export type OpenFarmApiEndpointsSpoolsEditSpoolEndpointMutationBody =
+  EditSpoolRequest;
+export type OpenFarmApiEndpointsSpoolsEditSpoolEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsSpoolsEditSpoolEndpoint = <
   TError = void,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint
-        >
-      >,
+      Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsEditSpoolEndpoint>>,
       TError,
-      { id: string; data: CorrectRemainingWeightRequest },
+      { id: string; data: EditSpoolRequest },
       TContext
     >;
   },
   queryClient?: QueryClient,
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof openFarmApiEndpointsSpoolsCorrectRemainingWeightEndpoint>
-  >,
+  Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsEditSpoolEndpoint>>,
   TError,
-  { id: string; data: CorrectRemainingWeightRequest },
+  { id: string; data: EditSpoolRequest },
   TContext
 > => {
   return useMutation(
-    getOpenFarmApiEndpointsSpoolsCorrectRemainingWeightEndpointMutationOptions(
-      options,
-    ),
+    getOpenFarmApiEndpointsSpoolsEditSpoolEndpointMutationOptions(options),
     queryClient,
   );
 };

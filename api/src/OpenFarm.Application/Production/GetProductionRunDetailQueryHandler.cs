@@ -23,9 +23,9 @@ public sealed class GetProductionRunDetailQueryHandler(
         var lines = new List<RunLineSummary>();
         foreach (var line in run.Lines)
         {
-            var targetName = line.TargetKind == RunLineTargetKind.Part
+            var targetName = line.TargetName ?? (line.TargetKind == RunLineTargetKind.Part
                 ? (await partRepository.GetByIdAsync(line.TargetId, cancellationToken))?.Name ?? "Unknown part"
-                : (await assemblyRepository.GetByIdAsync(line.TargetId, cancellationToken))?.Name ?? "Unknown assembly";
+                : (await assemblyRepository.GetByIdAsync(line.TargetId, cancellationToken))?.Name ?? "Unknown assembly");
 
             var requirements = new List<PartRequirementSummary>();
             var cumulativeProducedUnits = 0;
@@ -37,13 +37,19 @@ public sealed class GetProductionRunDetailQueryHandler(
 
                 // research.md R13 — a plain filter, never a stored/computed aggregate.
                 var jobsNeedingRequeue = (requirement.Quantity is null ? [] : jobs)
-                    .Where(j => j.Status is PrintJobStatus.Cancelled or PrintJobStatus.Failed && j.RequeuedAsJobId is null)
+                    .Where(j => j.Status is PrintJobStatus.Cancelled or PrintJobStatus.Failed && j.RequeuedAsJobId is null
+                        && j.ProductionSnapshotJson != null)
                     .Select(j => j.Id)
                     .ToList();
 
+                var jobsBlockedForRequeue = (requirement.Quantity is null ? [] : jobs)
+                    .Where(j => j.Status is PrintJobStatus.Cancelled or PrintJobStatus.Failed && j.RequeuedAsJobId is null
+                        && j.ProductionSnapshotJson == null)
+                    .Select(j => j.Id).ToList();
+
                 requirements.Add(new PartRequirementSummary(
-                    requirement.Id, requirement.PartId, part?.Name ?? "Unknown part", requirement.Quantity,
-                    jobs.Count, jobs.Count(j => j.Status == PrintJobStatus.Completed), jobsNeedingRequeue));
+                    requirement.Id, requirement.PartId, requirement.PartName ?? part?.Name ?? "Unknown part", requirement.Quantity,
+                    jobs.Count, jobs.Count(j => j.Status == PrintJobStatus.Completed), jobsNeedingRequeue, part is not null, jobsBlockedForRequeue));
 
                 // FR-006e — coarse cumulative count, research.md R4's own occupancy/ceiling formula.
                 cumulativeProducedUnits += jobs.Where(j => j.Status == PrintJobStatus.Completed).Sum(j => j.PlateQuantity);

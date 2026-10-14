@@ -1,129 +1,98 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { SettingsIcon, SwatchBookIcon } from 'lucide-react';
-import { useState } from 'react';
+import { SettingsIcon, SwatchBookIcon, UploadIcon } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { toast } from 'sonner';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import {
+  DataTableTabsList,
+  DataTableToolbar,
+} from '@/components/data-table/DataTableToolbar';
+import {
+  serverListQueryOptions,
+  useRetainedListData,
+  useServerListState,
+  useServerPageRecovery,
+} from '@/components/data-table/useServerListState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import type {
-  FilamentProfileDetailResponse,
   ListFilamentProfilesResponse,
   ListMachineProfilesResponse,
-  MachineProfileDetailResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
-  getOpenFarmApiEndpointsProfilesGetFilamentProfileEndpointQueryKey,
-  getOpenFarmApiEndpointsProfilesGetMachineProfileEndpointQueryKey,
-  getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey,
-  getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey,
-  useOpenFarmApiEndpointsProfilesGetFilamentProfileEndpoint,
-  useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint,
   useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint,
   useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint,
-  useOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint,
-  useOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint,
 } from '@/lib/api/generated/profiles/profiles';
 import { FilamentProfilesTable } from './components/FilamentProfilesTable';
 import { MachineProfilesTable } from './components/MachineProfilesTable';
-import { ProfileRawDataDialog } from './components/ProfileRawDataDialog';
-
-type SelectedProfile = {
-  type: 'Machine' | 'Filament';
-  id: string;
-} | null;
 
 // User-imported profiles only (FR-013) — process profiles are exclusively System-sourced after 009
 // and never appear on this browse/import page; select/narrow them from the printer page and part
 // detail page instead.
 export function ProfilesPage() {
   const navigate = useNavigate();
-  const [selected, setSelected] = useState<SelectedProfile>(null);
-  const queryClient = useQueryClient();
+  const machineList = useServerListState('name', 'name', true);
+  const {
+    page: machinePage,
+    pageSize: machinePageSize,
+    setPage: setMachinePage,
+    setPageSize: setMachinePageSize,
+  } = machineList;
+  const filamentList = useServerListState('name', 'name', true);
+  const {
+    page: filamentPage,
+    pageSize: filamentPageSize,
+    setPage: setFilamentPage,
+    setPageSize: setFilamentPageSize,
+  } = filamentList;
 
   const machineListQuery =
-    useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint();
+    useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint(
+      {
+        ...machineList.params,
+      },
+      { query: serverListQueryOptions },
+    );
   const filamentListQuery =
-    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint();
-
-  const machineDetailQuery =
-    useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint(
-      selected?.type === 'Machine' ? selected.id : '',
-      { query: { enabled: selected?.type === 'Machine' } },
-    );
-  const filamentDetailQuery =
-    useOpenFarmApiEndpointsProfilesGetFilamentProfileEndpoint(
-      selected?.type === 'Filament' ? selected.id : '',
-      { query: { enabled: selected?.type === 'Filament' } },
+    useOpenFarmApiEndpointsProfilesListFilamentProfilesEndpoint(
+      {
+        ...filamentList.params,
+      },
+      { query: serverListQueryOptions },
     );
 
-  const machineProfiles =
-    (machineListQuery.data?.data as ListMachineProfilesResponse | undefined)
-      ?.items ?? [];
-  const filamentProfiles =
-    (filamentListQuery.data?.data as ListFilamentProfilesResponse | undefined)
-      ?.items ?? [];
+  const machineData = useRetainedListData(
+    machineListQuery.data?.data as ListMachineProfilesResponse | undefined,
+  );
+  const machineProfiles = machineData?.items ?? [];
+  const filamentData = useRetainedListData(
+    filamentListQuery.data?.data as ListFilamentProfilesResponse | undefined,
+  );
+  const filamentProfiles = filamentData?.items ?? [];
 
-  const detailQuery =
-    selected?.type === 'Machine' ? machineDetailQuery : filamentDetailQuery;
-  const detail = detailQuery.data?.data as
-    | MachineProfileDetailResponse
-    | FilamentProfileDetailResponse
-    | undefined;
+  useServerPageRecovery(
+    machinePage,
+    machinePageSize,
+    machineListQuery.data?.status === 200
+      ? (machineListQuery.data.data.totalCount ?? 0)
+      : 0,
+    machineListQuery.isSuccess &&
+      !machineListQuery.isFetching &&
+      !machineListQuery.isPlaceholderData,
+    setMachinePage,
+  );
 
-  const updateMachineMutation =
-    useOpenFarmApiEndpointsProfilesUpdateMachineProfileRawDataEndpoint();
-  const updateFilamentMutation =
-    useOpenFarmApiEndpointsProfilesUpdateFilamentProfileRawDataEndpoint();
-
-  async function handleSaveRawData(rawDataJson: string) {
-    if (!selected) {
-      return;
-    }
-
-    try {
-      if (selected.type === 'Machine') {
-        await updateMachineMutation.mutateAsync({
-          id: selected.id,
-          data: { rawDataJson },
-        });
-        queryClient.invalidateQueries({
-          queryKey:
-            getOpenFarmApiEndpointsProfilesGetMachineProfileEndpointQueryKey(
-              selected.id,
-            ),
-        });
-        queryClient.invalidateQueries({
-          queryKey:
-            getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey(),
-        });
-      } else {
-        await updateFilamentMutation.mutateAsync({
-          id: selected.id,
-          data: { rawDataJson },
-        });
-        queryClient.invalidateQueries({
-          queryKey:
-            getOpenFarmApiEndpointsProfilesGetFilamentProfileEndpointQueryKey(
-              selected.id,
-            ),
-        });
-        queryClient.invalidateQueries({
-          queryKey:
-            getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey(),
-        });
-      }
-      toast.success('Profile updated.');
-    } catch (error) {
-      if (error instanceof Response && error.status === 422) {
-        const problem = await error.json();
-        throw new Error(problem.detail ?? 'The raw data is not valid JSON.');
-      }
-      throw new Error('Could not save this profile.');
-    }
-  }
+  useServerPageRecovery(
+    filamentPage,
+    filamentPageSize,
+    filamentListQuery.data?.status === 200
+      ? (filamentListQuery.data.data.totalCount ?? 0)
+      : 0,
+    filamentListQuery.isSuccess &&
+      !filamentListQuery.isFetching &&
+      !filamentListQuery.isPlaceholderData,
+    setFilamentPage,
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -131,72 +100,122 @@ export function ProfilesPage() {
         title="Profiles"
         description="Machine and filament profiles imported from slicer bundles"
         action={
-          <Button onClick={() => navigate('/profiles/import')}>Import</Button>
+          <Button onClick={() => navigate('/profiles/import')}>
+            <UploadIcon data-icon="inline-start" />
+            Import profiles
+          </Button>
         }
       />
-      <Tabs defaultValue="machine">
-        <TabsList>
-          <TabsTrigger value="machine">Machine</TabsTrigger>
-          <TabsTrigger value="filament">Filament</TabsTrigger>
-        </TabsList>
-        <TabsContent value="machine">
+      <Tabs defaultValue="machine" className="gap-4">
+        <DataTableToolbar>
+          <DataTableTabsList aria-label="Profile type">
+            <TabsTrigger value="machine">Machine</TabsTrigger>
+            <TabsTrigger value="filament">Filament</TabsTrigger>
+          </DataTableTabsList>
+        </DataTableToolbar>
+        <TabsContent value="machine" className="flex flex-col gap-3">
+          {machineListQuery.isError && machineData ? (
+            <ErrorState
+              title="Could not refresh profiles"
+              onRetry={() => machineListQuery.refetch()}
+            />
+          ) : null}
           {machineListQuery.isLoading ? (
             <Skeleton className="h-64 w-full" />
-          ) : machineProfiles.length === 0 ? (
+          ) : machineListQuery.isError && !machineData ? (
+            <ErrorState
+              title="Could not load machine profiles"
+              onRetry={() => machineListQuery.refetch()}
+            />
+          ) : machineProfiles.length === 0 && machinePage === 1 ? (
             <EmptyState
               icon={<SettingsIcon className="size-8 text-muted-foreground" />}
               title="No machine profiles yet"
               description="Import a slicer bundle to populate this catalog."
               action={
                 <Button onClick={() => navigate('/profiles/import')}>
-                  Import
+                  Import profiles
                 </Button>
               }
             />
           ) : (
             <MachineProfilesTable
+              sorting={{
+                ...machineList.serverSorting,
+                disabled: machineListQuery.isError,
+                pending: machineListQuery.isFetching,
+              }}
+              pagination={{
+                page: machinePage,
+                pageSize: machinePageSize,
+                totalCount: machineData?.totalCount ?? machineProfiles.length,
+                onPageChange: setMachinePage,
+                onPageSizeChange: (size) => {
+                  setMachinePageSize(size);
+                  setMachinePage(1);
+                },
+                disabled: machineListQuery.isError,
+                pending:
+                  machineListQuery.isFetching ||
+                  machineListQuery.isPlaceholderData,
+              }}
               profiles={machineProfiles}
-              onRowClick={(id) => setSelected({ type: 'Machine', id })}
+              onRowClick={(id) => navigate(`/profiles/machine/${id}`)}
             />
           )}
         </TabsContent>
-        <TabsContent value="filament">
+        <TabsContent value="filament" className="flex flex-col gap-3">
+          {filamentListQuery.isError && filamentData ? (
+            <ErrorState
+              title="Could not refresh profiles"
+              onRetry={() => filamentListQuery.refetch()}
+            />
+          ) : null}
           {filamentListQuery.isLoading ? (
             <Skeleton className="h-64 w-full" />
-          ) : filamentProfiles.length === 0 ? (
+          ) : filamentListQuery.isError && !filamentData ? (
+            <ErrorState
+              title="Could not load filament profiles"
+              onRetry={() => filamentListQuery.refetch()}
+            />
+          ) : filamentProfiles.length === 0 && filamentPage === 1 ? (
             <EmptyState
               icon={<SwatchBookIcon className="size-8 text-muted-foreground" />}
               title="No filament profiles yet"
               description="Import a slicer bundle to populate this catalog."
               action={
                 <Button onClick={() => navigate('/profiles/import')}>
-                  Import
+                  Import profiles
                 </Button>
               }
             />
           ) : (
             <FilamentProfilesTable
+              sorting={{
+                ...filamentList.serverSorting,
+                disabled: filamentListQuery.isError,
+                pending: filamentListQuery.isFetching,
+              }}
+              pagination={{
+                page: filamentPage,
+                pageSize: filamentPageSize,
+                totalCount: filamentData?.totalCount ?? filamentProfiles.length,
+                onPageChange: setFilamentPage,
+                onPageSizeChange: (size) => {
+                  setFilamentPageSize(size);
+                  setFilamentPage(1);
+                },
+                disabled: filamentListQuery.isError,
+                pending:
+                  filamentListQuery.isFetching ||
+                  filamentListQuery.isPlaceholderData,
+              }}
               profiles={filamentProfiles}
-              onRowClick={(id) => setSelected({ type: 'Filament', id })}
+              onRowClick={(id) => navigate(`/profiles/filament/${id}`)}
             />
           )}
         </TabsContent>
       </Tabs>
-      <ProfileRawDataDialog
-        open={selected !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelected(null);
-          }
-        }}
-        name={detail?.name}
-        rawDataJson={detail?.rawDataJson}
-        isLoading={detailQuery.isLoading}
-        onSave={handleSaveRawData}
-        isSaving={
-          updateMachineMutation.isPending || updateFilamentMutation.isPending
-        }
-      />
     </div>
   );
 }

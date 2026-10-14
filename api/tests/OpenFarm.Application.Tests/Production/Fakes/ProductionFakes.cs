@@ -84,7 +84,7 @@ public sealed class InMemoryProductionRunRepository(params ProductionRun[] runs)
     public Task<ProductionRun?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         Task.FromResult(_runs.GetValueOrDefault(id));
 
-    public Task<(IReadOnlyList<ProductionRun> Runs, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken) =>
+    public Task<(IReadOnlyList<ProductionRun> Runs, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
         Task.FromResult<(IReadOnlyList<ProductionRun>, int)>((_runs.Values.ToList(), _runs.Count));
 
     public Task<ProductionRun?> GetByRunLineIdAsync(Guid runLineId, CancellationToken cancellationToken) =>
@@ -96,6 +96,9 @@ public sealed class InMemoryProductionRunRepository(params ProductionRun[] runs)
 public sealed class InMemoryPartRequirementRepository(params PartRequirement[] seedRequirements) : IPartRequirementRepository
 {
     private readonly Dictionary<Guid, PartRequirement> _requirements = seedRequirements.ToDictionary(r => r.Id);
+
+    public Task<bool> HasPartReferenceAsync(Guid partId, CancellationToken cancellationToken) =>
+        Task.FromResult(_requirements.Values.Any(r => r.PartId == partId));
 
     public Task AddRangeAsync(IReadOnlyList<PartRequirement> requirements, CancellationToken cancellationToken)
     {
@@ -131,7 +134,7 @@ public sealed class InMemoryPartRepository(params Part[] parts) : IPartRepositor
         Task.FromResult(_parts.GetValueOrDefault(id));
 
     public Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(
-        IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken) =>
+        IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
         Task.FromResult<(IReadOnlyList<Part>, int)>((_parts.Values.ToList(), _parts.Count));
 
     public Task<IReadOnlyList<Part>> ListWithResolvingEstimateAsync(CancellationToken cancellationToken) =>

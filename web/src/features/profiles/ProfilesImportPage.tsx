@@ -1,14 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Upload } from 'lucide-react';
+import { PackageOpenIcon, Upload } from 'lucide-react';
 import type { ChangeEvent, DragEvent } from 'react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import type { PreviewProfileImportResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
@@ -188,10 +190,13 @@ export function ProfilesImportPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink to="/profiles">Back to profiles</BackLink>
-
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader
+        above={
+          <BackLink to="/profiles" className="mb-1">
+            Back to profiles
+          </BackLink>
+        }
         title="Import profiles"
         description="Upload an OrcaSlicer or Bambu Studio profile bundle, then choose which presets to keep. Nothing is saved until you confirm."
       />
@@ -241,9 +246,25 @@ export function ProfilesImportPage() {
           )}
 
           {nothingImportable && (
-            <p className="text-sm text-muted-foreground">
-              Nothing importable was found in this bundle.
-            </p>
+            <EmptyState
+              size="sm"
+              icon={
+                <PackageOpenIcon className="size-8 text-muted-foreground" />
+              }
+              title="Nothing to import"
+              description="Nothing importable was found in this bundle."
+              action={
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFile(null);
+                    setPreview(null);
+                  }}
+                >
+                  Choose another file
+                </Button>
+              }
+            />
           )}
 
           {hasPreview && !nothingImportable && (
@@ -258,24 +279,27 @@ export function ProfilesImportPage() {
       </Card>
 
       <FormFooter
-        start={
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => navigate('/profiles')}
-          >
-            Cancel
-          </Button>
-        }
         end={
-          hasPreview && !nothingImportable ? (
+          <>
             <Button
-              onClick={handleConfirm}
-              disabled={confirmMutation.isPending || nothingSelected}
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/profiles')}
             >
-              {confirmMutation.isPending ? 'Importing…' : 'Confirm import'}
+              Cancel
             </Button>
-          ) : undefined
+            {hasPreview && !nothingImportable ? (
+              <Button
+                onClick={handleConfirm}
+                disabled={confirmMutation.isPending || nothingSelected}
+              >
+                {confirmMutation.isPending && (
+                  <Spinner data-icon="inline-start" />
+                )}
+                {confirmMutation.isPending ? 'Importing…' : 'Import'}
+              </Button>
+            ) : undefined}
+          </>
         }
       />
 

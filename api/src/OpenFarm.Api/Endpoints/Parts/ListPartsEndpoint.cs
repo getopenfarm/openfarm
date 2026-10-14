@@ -9,6 +9,9 @@ public sealed class ListPartsRequest
 {
     public List<string>? Tag { get; set; }
 
+    public string? SortBy { get; set; }
+    public string? SortDirection { get; set; }
+
     public int Page { get; set; } = 1;
 
     public int PageSize { get; set; } = 25;
@@ -54,7 +57,7 @@ public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> ha
         var page = Math.Max(req.Page, 1);
         var pageSize = req.PageSize is < 1 or > 200 ? 25 : req.PageSize;
 
-        var result = await handler.HandleAsync(new GetPartsQuery(req.Tag ?? [], page, pageSize), ct);
+        var result = await handler.HandleAsync(new GetPartsQuery(req.Tag ?? [], page, pageSize, ListSort.Parse(req.SortBy, req.SortDirection, "name")), ct);
 
         Response = new ListPartsResponse
         {

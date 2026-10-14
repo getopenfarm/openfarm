@@ -26,17 +26,6 @@ export interface ListTagsResponse {
   tags?: TagResponse[];
 }
 
-export interface SpoolResponseLite {
-  id?: string;
-  state?: string;
-  remainingWeightGrams?: number;
-  hasUsageOverrun?: boolean;
-}
-
-export interface CorrectRemainingWeightRequest {
-  remainingWeightGrams?: number;
-}
-
 export interface SpoolResponse {
   id?: string;
   /** @nullable */
@@ -54,6 +43,12 @@ export interface SpoolResponse {
   /** @nullable */
   feedSlotLabel?: string | null;
   hasUsageOverrun?: boolean;
+}
+
+export interface EditSpoolRequest {
+  /** @nullable */
+  label?: string | null;
+  remainingWeightGrams?: number;
 }
 
 export interface ListSpoolsResponse {
@@ -438,11 +433,13 @@ export interface PartRequirementSummaryResponse {
   id?: string;
   partId?: string;
   partName?: string;
+  sourcePartAvailable?: boolean;
   /** @nullable */
   quantity?: number | null;
   jobCount?: number;
   completedJobCount?: number;
   jobsNeedingRequeue?: string[];
+  jobsBlockedForRequeue?: string[];
 }
 
 export interface RunLineSummaryResponse {
@@ -538,18 +535,15 @@ export interface ListProductionRunsRequest {
   [key: string]: unknown;
 }
 
-export interface RunLineBackfillLimitsResponse {
-  id?: string;
+export interface RunLineBackfillLimitsRequest {
+  lineId?: string;
   backfillPrinterCap?: number;
   /** @nullable */
   backfillCumulativeUnitCeiling?: number | null;
 }
 
-export interface SetRunLineBackfillLimitsRequest {
-  /** @exclusiveMinimum 0 */
-  backfillPrinterCap?: number;
-  /** @nullable */
-  backfillCumulativeUnitCeiling?: number | null;
+export interface SetRunBackfillLimitsRequest {
+  lines?: RunLineBackfillLimitsRequest[];
 }
 
 /**
@@ -642,6 +636,9 @@ export interface PrintJobResponse {
   requeuedAsJobId?: string | null;
   filamentConsumption?: JobFilamentConsumptionResponse[];
   createdAtUtc?: string;
+  snapshotState?: string;
+  /** @nullable */
+  snapshotRecoveryReason?: string | null;
 }
 
 export interface CancelPrintJobRequest {
@@ -729,6 +726,10 @@ export interface QueueJobRowResponse {
   isBlocked?: boolean;
   /** @nullable */
   blockingReason?: string | null;
+  sourcePartAvailable?: boolean;
+  snapshotState?: string;
+  /** @nullable */
+  snapshotRecoveryReason?: string | null;
   partId?: string;
   partName?: string;
   plateQuantity?: number;
@@ -830,6 +831,23 @@ export interface EditPrinterRequest {
   processProfileId?: string | null;
   /** @nullable */
   buildPlateType?: string | null;
+}
+
+export interface DiscoveredPrinterResponse {
+  serialNumber?: string;
+  name?: string;
+  brand?: string;
+  /** @nullable */
+  modelCode?: string | null;
+  rawModel?: string;
+  ipAddress?: string;
+  lastSeenAt?: string;
+  alreadyRegistered?: boolean;
+}
+
+export interface PrinterCameraSnapshot {
+  frameJpegBase64?: string;
+  receivedAtUtc?: string;
 }
 
 export interface PrinterCatalogBrandResponse {
@@ -997,6 +1015,30 @@ export interface PingResponse {
   timestampUtc?: string;
 }
 
+export interface PartDeletionBlocker {
+  code?: string;
+  entityType?: string;
+  entityId?: string;
+  name?: string;
+}
+
+export interface PartDeletionEligibility {
+  partId?: string;
+  /** @nullable */
+  name?: string | null;
+  status?: string;
+  blockers?: PartDeletionBlocker[];
+  legacyJobsLosingRecovery?: number;
+}
+
+export interface CheckPartDeletionResponse {
+  parts?: PartDeletionEligibility[];
+}
+
+export interface CheckPartDeletionRequest {
+  partIds?: string[];
+}
+
 export interface PartProcessingJobSubmittedResponse {
   jobId?: string;
   status?: string;
@@ -1085,6 +1127,21 @@ export interface PartResponse {
   tags?: string[];
 }
 
+export interface EditPartFilamentRequirementRequest {
+  requirementId?: string;
+  /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentProfileId?: string | null;
+}
+
+export interface EditPartRequest {
+  name?: string;
+  tags?: string[];
+  unitsPerPrint?: number;
+  filamentRequirements?: EditPartFilamentRequirementRequest[];
+}
+
 export interface PartSummaryResponse {
   id?: string;
   name?: string;
@@ -1123,25 +1180,6 @@ export interface ReplacePartFileRequest {
   slicerEngine?: string | null;
   /** @nullable */
   slicerVersion?: string | null;
-}
-
-export interface SetPartUnitsPerPrintRequest {
-  unitsPerPrint?: number;
-}
-
-export interface PartTagsResponse {
-  tags?: string[];
-}
-
-export interface TagPartRequest {
-  name?: string;
-}
-
-export interface UpdatePartFilamentRequirementNarrowingRequest {
-  /** @nullable */
-  narrowFilamentVariantId?: string | null;
-  /** @nullable */
-  narrowFilamentProfileId?: string | null;
 }
 
 export interface FilamentRequirementOverrideRequest {
@@ -1245,17 +1283,6 @@ export interface ListNonPrintedComponentsRequest {
   [key: string]: unknown;
 }
 
-export interface FilamentVariantResponse {
-  id?: string;
-  colorName?: string;
-  colorHex?: string;
-}
-
-export interface AddFilamentVariantRequest {
-  colorName?: string;
-  colorHex?: string;
-}
-
 export interface FilamentProfileAssignmentInput {
   brand?: string;
   modelCode?: string;
@@ -1263,6 +1290,12 @@ export interface FilamentProfileAssignmentInput {
   filamentProfileId?: string;
   /** @nullable */
   colorHex?: string | null;
+}
+
+export interface FilamentVariantResponse {
+  id?: string;
+  colorName?: string;
+  colorHex?: string;
 }
 
 export interface FilamentResponse {
@@ -1288,6 +1321,11 @@ export interface CreateFilamentRequest {
   variants?: CreateFilamentVariantRequest[];
 }
 
+export interface EditFilamentRequest {
+  newVariants?: CreateFilamentVariantRequest[];
+  profileAssignments?: FilamentProfileAssignmentInput[];
+}
+
 export interface FleetFilamentVariant {
   brand?: string;
   modelCode?: string;
@@ -1308,10 +1346,6 @@ export interface FilamentProfileAssignmentIssue {
 export interface FilamentProfileAssignmentsResponse {
   assignments?: FilamentProfileAssignmentInput[];
   issues?: FilamentProfileAssignmentIssue[];
-}
-
-export interface UpdateFilamentProfileAssignmentsRequest {
-  assignments: FilamentProfileAssignmentInput[];
 }
 
 export interface ListFilamentsResponse {
@@ -1439,21 +1473,6 @@ export interface WhoAmIResult {
   organizationId?: string;
 }
 
-export interface BomLineResponse {
-  id?: string;
-  targetKind?: string;
-  targetId?: string;
-  targetName?: string;
-  quantity?: number;
-}
-
-export interface AddBomLineRequest {
-  assemblyId?: string;
-  targetKind?: string;
-  targetId?: string;
-  quantity?: number;
-}
-
 export interface BuildableUnitsResponse {
   isApplicable?: boolean;
   /** @nullable */
@@ -1468,6 +1487,14 @@ export type CalculateBuildableUnitsRequestGoodQuantities = {
 
 export interface CalculateBuildableUnitsRequest {
   goodQuantities?: CalculateBuildableUnitsRequestGoodQuantities;
+}
+
+export interface BomLineResponse {
+  id?: string;
+  targetKind?: string;
+  targetId?: string;
+  targetName?: string;
+  quantity?: number;
 }
 
 export interface AssemblyResponse {
@@ -1497,15 +1524,20 @@ export interface DeleteAssemblyRequest {
   [key: string]: unknown;
 }
 
+export interface EditAssemblyLineRequest {
+  /** @nullable */
+  lineId?: string | null;
+  targetKind?: string;
+  targetId?: string;
+  quantity?: number;
+}
+
 export interface EditAssemblyRequest {
   name?: string;
   /** @nullable */
   description?: string | null;
-}
-
-export interface EditBomLineRequest {
-  assemblyId?: string;
-  quantity?: number;
+  /** @nullable */
+  lines?: EditAssemblyLineRequest[] | null;
 }
 
 export interface ExplodedPartResponse {
@@ -1545,10 +1577,6 @@ export interface ListAssembliesResponse {
 
 export interface ListAssembliesRequest {
   [key: string]: unknown;
-}
-
-export interface RemoveBomLineRequest {
-  assemblyId?: string;
 }
 
 export interface ActivityLogDetails {
@@ -1621,6 +1649,14 @@ export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {
   /**
    * @nullable
    */
+  sortBy?: string | null;
+  /**
+   * @nullable
+   */
+  sortDirection?: string | null;
+  /**
+   * @nullable
+   */
   origin?: string | null;
   /**
    * @nullable
@@ -1649,6 +1685,14 @@ export type OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams = {
    * @nullable
    */
   printerId?: string | null;
+  /**
+   * @nullable
+   */
+  sortBy?: string | null;
+  /**
+   * @nullable
+   */
+  sortDirection?: string | null;
   /**
    * @nullable
    */
@@ -1696,6 +1740,14 @@ export type OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams = {
 
 export type OpenFarmApiEndpointsProductionRunsListProductionRunsEndpointParams =
   {
+    /**
+     * @nullable
+     */
+    sortBy?: string | null;
+    /**
+     * @nullable
+     */
+    sortDirection?: string | null;
     page: number;
     pageSize: number;
   };
@@ -1719,12 +1771,28 @@ export type OpenFarmApiEndpointsPartsListPartsEndpointParams = {
    * @nullable
    */
   tag?: string[] | null;
+  /**
+   * @nullable
+   */
+  sortBy?: string | null;
+  /**
+   * @nullable
+   */
+  sortDirection?: string | null;
   page: number;
   pageSize: number;
 };
 
 export type OpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpointParams =
   {
+    /**
+     * @nullable
+     */
+    sortBy?: string | null;
+    /**
+     * @nullable
+     */
+    sortDirection?: string | null;
     page: number;
     pageSize: number;
   };
@@ -1741,6 +1809,14 @@ export type OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams = {
 };
 
 export type OpenFarmApiEndpointsAssembliesListAssembliesEndpointParams = {
+  /**
+   * @nullable
+   */
+  sortBy?: string | null;
+  /**
+   * @nullable
+   */
+  sortDirection?: string | null;
   page: number;
   pageSize: number;
 };

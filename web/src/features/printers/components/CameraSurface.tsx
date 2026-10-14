@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { VideoOffIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint } from '@/lib/api/generated/printers/printers';
 import { cn } from '@/lib/utils';
 import {
   type CameraFrameQueryData,
@@ -12,6 +14,14 @@ const FRESHNESS_TIMEOUT_MS = 5000;
 /** X1-family RTSP is not implemented by the current relay (PrinterModelCatalog). */
 export function cameraSupported(modelCode?: string) {
   return !['X1', 'X1C', 'X1E'].includes(modelCode?.toUpperCase() ?? '');
+}
+
+export function formatCameraAge(ageMs: number) {
+  const seconds = Math.max(0, Math.floor(ageMs / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 export function CameraSurface({
@@ -50,23 +60,61 @@ export function CameraSurface({
     initialData: null,
     staleTime: Infinity,
   });
+  const client = useQueryClient();
+  useQuery({
+    queryKey: ['printer-camera-snapshot', printerId],
+    enabled: visible && supported && Boolean(printerId),
+    queryFn: async ({ signal }) => {
+      const response =
+        await openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint(
+          printerId,
+          {
+            signal,
+          },
+        );
+      const snapshot = response.status === 200 ? response.data : null;
+      if (snapshot?.frameJpegBase64 && snapshot.receivedAtUtc) {
+        const frameJpegBase64 = snapshot.frameJpegBase64;
+        const receivedAtUtc = Date.parse(snapshot.receivedAtUtc);
+        if (Number.isFinite(receivedAtUtc)) {
+          client.setQueryData<CameraFrameQueryData | null>(
+            cameraFrameQueryKey(printerId),
+            (previous) =>
+              previous && previous.receivedAtUtc >= receivedAtUtc
+                ? previous
+                : {
+                    frameJpegBase64,
+                    receivedAtUtc,
+                    fromSnapshot: true,
+                  },
+          );
+        }
+      }
+      return snapshot;
+    },
+    refetchOnWindowFocus: true,
+  });
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
+    if (!data || !visible) return;
     setNow(Date.now());
-    if (!data) return;
-    const remaining = data.receivedAtUtc + FRESHNESS_TIMEOUT_MS - Date.now();
-    if (remaining <= 0) return;
-    const timeout = setTimeout(() => setNow(Date.now()), remaining);
-    return () => clearTimeout(timeout);
-  }, [data]);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [data, visible]);
+  const [lastGood, setLastGood] = useState<
+    (CameraFrameQueryData & { printerId: string }) | null
+  >(null);
+  const [failedFrame, setFailedFrame] = useState<string | null>(null);
+  const invalidFrame = Boolean(data && failedFrame === data.frameJpegBase64);
+  const fallback = lastGood?.printerId === printerId ? lastGood : null;
+  const displayed = invalidFrame ? fallback : data;
   const fresh = Boolean(
     data &&
       now - data.receivedAtUtc < FRESHNESS_TIMEOUT_MS &&
       Date.now() - data.receivedAtUtc < FRESHNESS_TIMEOUT_MS,
   );
-  const [failedFrame, setFailedFrame] = useState<string | null>(null);
-  const invalidFrame = Boolean(data && failedFrame === data.frameJpegBase64);
-  const live = isReachable && supported && fresh && !invalidFrame;
+  const live =
+    isReachable && supported && fresh && !invalidFrame && !data?.fromSnapshot;
   const label = !isReachable
     ? 'Printer offline'
     : !supported
@@ -96,9 +144,10 @@ export function CameraSurface({
         className,
       )}
     >
-      {visible && data && supported && !invalidFrame ? (
+      {visible && displayed && supported ? (
         <img
           onLoad={({ currentTarget }) => {
+            setLastGood({ ...displayed, printerId });
             if (
               currentTarget.naturalWidth > 0 &&
               currentTarget.naturalHeight > 0
@@ -107,25 +156,34 @@ export function CameraSurface({
                 currentTarget.naturalWidth / currentTarget.naturalHeight,
               );
           }}
-          onError={() => setFailedFrame(data.frameJpegBase64)}
-          src={`data:image/jpeg;base64,${data.frameJpegBase64}`}
+          onError={() => setFailedFrame(displayed.frameJpegBase64)}
+          src={`data:image/jpeg;base64,${displayed.frameJpegBase64}`}
           alt={`${name} camera${live ? ' live view' : ' last received frame'}`}
-          className={cn(
-            'absolute inset-0 size-full object-contain',
-            !live && 'opacity-30 grayscale',
-          )}
+          className="absolute inset-0 size-full object-contain"
         />
       ) : null}
-      {live ? (
-        <span
+      {displayed && supported ? (
+        <Badge
+          variant="secondary"
+          title={`Last frame received ${new Date(displayed.receivedAtUtc).toLocaleString()} · ${live ? 'Live' : label}`}
+          aria-label={
+            live
+              ? 'Live camera'
+              : `Last camera frame ${formatCameraAge(now - displayed.receivedAtUtc)}. ${label}. Received ${new Date(displayed.receivedAtUtc).toLocaleString()}`
+          }
           className={cn(
-            'absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm',
-            compact && 'top-1.5 left-1.5 gap-1 px-1.5 py-0.5',
+            'absolute top-3 left-3 shadow-sm',
+            compact && 'top-1.5 left-1.5',
           )}
         >
-          <span className="size-1.5 rounded-full bg-kind-green" />
-          Live
-        </span>
+          <span
+            className={cn(
+              'size-1.5 rounded-full',
+              live ? 'bg-kind-green' : 'bg-muted-foreground',
+            )}
+          />
+          {live ? 'Live' : formatCameraAge(now - displayed.receivedAtUtc)}
+        </Badge>
       ) : (
         <div
           title={label}

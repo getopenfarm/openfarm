@@ -34,17 +34,18 @@ interface PrinterTelemetryUpdatedPayload {
 interface CameraFrameReceivedPayload {
   printerId: string;
   frameJpegBase64: string;
+  receivedAtUtc: string;
 }
 
 export interface CameraFrameQueryData {
   frameJpegBase64: string;
   receivedAtUtc: number;
+  fromSnapshot?: boolean;
 }
 
 /**
- * Not backed by any HTTP endpoint — CameraFrameReceived is push-only (contracts/farm-hub.md), so
- * this cache slot exists purely as a place for useFarmHub to write frames and CameraView to read
- * them reactively, same TanStack Query cache used for every other real-time update in this app.
+ * Shared latest-frame slot: live events and the snapshot bootstrap merge here by server receipt time.
+ * The snapshot HTTP query uses a separate key so a slow response cannot replace a newer live frame.
  */
 export function cameraFrameQueryKey(printerId: string) {
   return ['printer-camera-frame', printerId] as const;
@@ -318,12 +319,14 @@ export function useFarmHub() {
     connection.on(
       'CameraFrameReceived',
       (payload: CameraFrameReceivedPayload) => {
+        const receivedAtUtc = Date.parse(payload.receivedAtUtc);
+        if (!Number.isFinite(receivedAtUtc)) return;
         queryClient.setQueryData<CameraFrameQueryData>(
           cameraFrameQueryKey(payload.printerId),
-          {
-            frameJpegBase64: payload.frameJpegBase64,
-            receivedAtUtc: Date.now(),
-          },
+          (previous) =>
+            previous && previous.receivedAtUtc > receivedAtUtc
+              ? previous
+              : { frameJpegBase64: payload.frameJpegBase64, receivedAtUtc },
         );
       },
     );

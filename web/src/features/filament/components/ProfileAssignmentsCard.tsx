@@ -1,23 +1,14 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { ErrorState } from '@/components/empty-state/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
-import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import type {
   FilamentAssignmentFleet,
   FilamentProfileAssignmentInput,
   FilamentProfileAssignmentIssue,
-  FilamentProfileAssignmentsResponse,
   FilamentVariantResponse,
 } from '@/lib/api/generated/endpoints.schemas';
-import {
-  useOpenFarmApiEndpointsFilamentsGetFilamentAssignmentFleetEndpoint,
-  useOpenFarmApiEndpointsFilamentsGetFilamentProfileAssignmentsEndpoint,
-  useOpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint,
-} from '@/lib/api/generated/filaments/filaments';
+import { useOpenFarmApiEndpointsFilamentsGetFilamentAssignmentFleetEndpoint } from '@/lib/api/generated/filaments/filaments';
 
 interface Props {
   materialType: string;
@@ -97,21 +88,18 @@ export function ProfileAssignmentsCard({
       </CardHeader>
       <CardContent className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
         {fleetQuery.isLoading && (
-          <p className="col-span-full text-sm text-muted-foreground">
-            Loading fleet variants…
-          </p>
+          <>
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </>
         )}
         {fleetQuery.isError && (
-          <div className="col-span-full text-sm text-destructive">
-            Could not load fleet variants.{' '}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fleetQuery.refetch()}
-            >
-              Retry
-            </Button>
-          </div>
+          <ErrorState
+            className="col-span-full"
+            size="sm"
+            title="Could not load fleet variants"
+            onRetry={() => fleetQuery.refetch()}
+          />
         )}
         {fleet && rows.length === 0 && (
           <p className="col-span-full text-sm text-muted-foreground">
@@ -120,7 +108,7 @@ export function ProfileAssignmentsCard({
           </p>
         )}
         {!!fleet?.printersAwaitingNozzle?.length && (
-          <p className="col-span-full text-sm text-amber-600">
+          <p className="col-span-full text-sm text-status-attention">
             Waiting for nozzle information:{' '}
             {fleet.printersAwaitingNozzle.join(', ')}.
           </p>
@@ -247,109 +235,5 @@ export function ProfileAssignmentsCard({
         })}
       </CardContent>
     </Card>
-  );
-}
-
-export function EditProfileAssignments({
-  filamentId,
-  materialType,
-  variants,
-}: {
-  filamentId: string;
-  materialType: string;
-  variants: FilamentVariantResponse[];
-}) {
-  const queryClient = useQueryClient();
-  const query =
-    useOpenFarmApiEndpointsFilamentsGetFilamentProfileAssignmentsEndpoint(
-      filamentId,
-    );
-  const form = useForm<{ assignments: FilamentProfileAssignmentInput[] }>({
-    defaultValues: { assignments: [] },
-  });
-  const { reset } = form;
-  const isDirty = form.formState.isDirty;
-  const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
-    form.formState.isDirty,
-  );
-  useEffect(() => {
-    if (query.data && !isDirty)
-      reset({
-        assignments:
-          (query.data.data as FilamentProfileAssignmentsResponse).assignments ??
-          [],
-      });
-  }, [query.data, reset, isDirty]);
-  const mutation =
-    useOpenFarmApiEndpointsFilamentsUpdateFilamentProfileAssignmentsEndpoint({
-      mutation: {
-        onSuccess: (response) => {
-          form.reset({
-            assignments:
-              (response.data as FilamentProfileAssignmentsResponse)
-                .assignments ?? [],
-          });
-          markClean();
-          queryClient.invalidateQueries({
-            predicate: (query) =>
-              query.queryKey.some(
-                (key) =>
-                  typeof key === 'string' &&
-                  /filaments|print-jobs|activity/.test(key),
-              ),
-          });
-          toast.success('Profile assignments saved.');
-        },
-        onError: (error: unknown) =>
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : 'Could not save profile assignments.',
-          ),
-      },
-    });
-  if (query.isLoading)
-    return (
-      <p className="text-sm text-muted-foreground">
-        Loading profile assignments…
-      </p>
-    );
-  if (query.isError)
-    return (
-      <p className="text-sm text-destructive">
-        Could not load profile assignments.{' '}
-        <Button variant="outline" onClick={() => query.refetch()}>
-          Retry
-        </Button>
-      </p>
-    );
-  return (
-    <form
-      className="flex flex-col gap-3"
-      onSubmit={form.handleSubmit((values) =>
-        mutation.mutate({ id: filamentId, data: values }),
-      )}
-    >
-      <ProfileAssignmentsCard
-        materialType={materialType}
-        variants={variants}
-        assignments={form.watch('assignments')}
-        issues={
-          (query.data?.data as FilamentProfileAssignmentsResponse | undefined)
-            ?.issues
-        }
-        onChange={(value) =>
-          form.setValue('assignments', value, { shouldDirty: true })
-        }
-      />
-      <Button
-        className="self-end"
-        type="submit"
-        disabled={mutation.isPending || !form.formState.isDirty}
-      >
-        {mutation.isPending ? 'Saving…' : 'Save profile assignments'}
-      </Button>
-      <ConfirmLeaveDialog />
-    </form>
   );
 }

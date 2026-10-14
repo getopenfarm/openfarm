@@ -144,7 +144,11 @@ As a print farm operator with a growing catalog, I want to tag parts by category
 - What happens when a slice reaches "ready for review" but the operator discards it instead of confirming? Nothing is saved — for an add, no part is created; for a replace, the part's existing file and data remain exactly as they were, identical to a slicing failure's outcome except the slice itself succeeded.
 - What happens when an operator confirms/saves a part before its estimated print time/weight or thumbnail have finished resolving? The part is created/updated immediately with nozzle diameter and material set; print time/weight/thumbnail show as "still resolving" until the background work completes, at which point they update onto the part in place, pushed to the operator's view over the same real-time channel used elsewhere (FR-009e) — no manual refresh needed.
 - What happens when a Filament Profile/color-variant an operator used to narrow one of a part's filament requirements is later deleted from the Phase 2/3 catalog? That requirement's narrowing reference becomes unresolved and is surfaced as such, but it (and the part as a whole) continues matching on its parsed generic material type and the part's nozzle diameter alone — the other requirements on the same part are unaffected.
-- What happens when an operator deletes a part? Its file and all derived data are deleted with it, since nothing in this phase (no Job entity yet) references a part's data independently of the part itself.
+- What happens when an operator removes a part? An unused catalog record and its derived child data
+  are deleted. Assembly and production references (including completed runs) block removal with an
+  actionable conflict. Files are content-addressed and may be shared, so bytes are retained until
+  reference-aware garbage collection exists. This supersedes the initial phase's file-deletion rule
+  now that production jobs and shared uploads exist.
 - What happens when an operator tries to add a part with no file at all? The system rejects it — a part must have exactly one file to exist.
 - What happens when a thumbnail cannot be derived for one or more of a part's plates (e.g. no embedded preview image present)? The part is still saved, just with those plates showing no thumbnail — this never blocks saving, unlike the part's nozzle-diameter/material data.
 - What happens when two operators upload a replacement file for the same part at the same time? The system applies one replacement and rejects the conflicting concurrent one rather than corrupt the part's file or derived data.
@@ -232,3 +236,16 @@ As a print farm operator with a growing catalog, I want to tag parts by category
 - A file requiring slicing is assumed to be a clean mesh/project export, not another slicer's fully-baked project file, so it's assumed not to carry another slicer's project-level settings/metadata. The documented OrcaSlicer/Bambu Studio cross-compatibility gaps (one rejecting or partially loading the other's saved project `.3mf`) are therefore not a blocker for feeding it into whichever engine is configured; that risk applies only to a manually-uploaded, already-sliced file produced externally by a specific slicer, which this phase's parsing (FR-011/FR-012/FR-013) treats as metadata to scan rather than a project file to fully reopen.
 - Running a headless slicer engine (OrcaSlicer and/or Bambu Studio CLI) is a new external infrastructure/tooling dependency this phase introduces — installed and invoked from the backend — distinct from anything Phase 0–3 needed.
 - **3MF requires-slicing/already-sliced disambiguation (FR-003)** is based on the file's own embedded metadata — specifically, whether it contains actual sliced G-code/toolpath data and the slicing-result metadata produced alongside it (e.g. Bambu's `Metadata/slice_info.config`, which only exists in an already-sliced `.gcode.3mf`, versus an unsliced project/mesh 3MF which lacks it). An uploaded STL can never be ambiguous this way (STL has no capacity to embed toolpath data at all), and a plain `.gcode` file is unambiguously always already-sliced (there's no "unsliced" form of a G-code file).
+
+### Production dependency amendment (October 13, 2026)
+
+Removal preserves finite job snapshots, retries and production history. Only assembly references,
+Active/Complete unlimited demand, and unfinished unresolved legacy snapshots block catalog removal. Cancelled
+or Closed unlimited runs release their dependency once retained jobs have verified snapshots or are terminal.
+
+### Finished legacy jobs
+
+Cancelled, Failed and Completed jobs with missing snapshots permit source part removal. Deletion
+preserves history and marks missing snapshots permanently Unavailable: retry and download return 409.
+Valid snapshots remain independent. Unfinished unresolved jobs, assemblies and eligible unlimited
+runs still protect their source. Cancelling one unlimited job does not cancel its owning run.

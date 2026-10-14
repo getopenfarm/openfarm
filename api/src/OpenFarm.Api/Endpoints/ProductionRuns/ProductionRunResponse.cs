@@ -59,6 +59,7 @@ public sealed class PartRequirementSummaryResponse
     public Guid PartId { get; set; }
 
     public string PartName { get; set; } = string.Empty;
+    public bool SourcePartAvailable { get; set; }
 
     public decimal? Quantity { get; set; }
 
@@ -67,16 +68,19 @@ public sealed class PartRequirementSummaryResponse
     public int CompletedJobCount { get; set; }
 
     public List<Guid> JobsNeedingRequeue { get; set; } = [];
+    public List<Guid> JobsBlockedForRequeue { get; set; } = [];
 
     public static PartRequirementSummaryResponse FromSummary(PartRequirementSummary summary) => new()
     {
         Id = summary.Id,
         PartId = summary.PartId,
         PartName = summary.PartName,
+        SourcePartAvailable = summary.SourcePartAvailable,
         Quantity = summary.Quantity,
         JobCount = summary.JobCount,
         CompletedJobCount = summary.CompletedJobCount,
         JobsNeedingRequeue = summary.JobsNeedingRequeue.ToList(),
+        JobsBlockedForRequeue = summary.JobsBlockedForRequeue?.ToList() ?? [],
     };
 }
 

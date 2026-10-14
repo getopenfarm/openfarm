@@ -1255,11 +1255,17 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("LibraryPartId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("PartId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("PartName")
+                        .HasColumnType("text");
 
                     b.Property<decimal?>("Quantity")
                         .HasColumnType("numeric");
@@ -1273,7 +1279,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PartId");
+                    b.HasIndex("LibraryPartId");
 
                     b.HasIndex("RunLineId", "PartId")
                         .IsUnique();
@@ -1335,11 +1341,20 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<int>("PlateQuantity")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ProductionSnapshotJson")
+                        .HasColumnType("jsonb");
+
                     b.Property<double>("QueuePosition")
                         .HasColumnType("double precision");
 
                     b.Property<Guid?>("RequeuedAsJobId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("SnapshotRecoveryReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("SnapshotUnavailableAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("StartedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -1463,6 +1478,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("TargetKind")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TargetName")
                         .HasColumnType("text");
 
                     b.Property<string>("TenantId")
@@ -2022,9 +2040,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("OpenFarm.Domain.Parts.Part", null)
                         .WithMany()
-                        .HasForeignKey("PartId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .HasForeignKey("LibraryPartId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("OpenFarm.Domain.Production.RunLine", null)
                         .WithMany()

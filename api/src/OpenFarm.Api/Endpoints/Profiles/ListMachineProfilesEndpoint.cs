@@ -8,6 +8,8 @@ namespace OpenFarm.Api.Endpoints.Profiles;
 public sealed class ListMachineProfilesRequest
 {
     public Guid? PrinterId { get; set; }
+    public string? SortBy { get; set; }
+    public string? SortDirection { get; set; }
     public string? Origin { get; set; }
     public string? Q { get; set; }
     public int? Page { get; set; }
@@ -71,7 +73,7 @@ public sealed class ListMachineProfilesEndpoint(IQueryHandler<GetMachineProfiles
 
     public override async Task HandleAsync(ListMachineProfilesRequest req, CancellationToken ct)
     {
-        var result = await handler.HandleAsync(new GetMachineProfilesQuery(req.Origin, req.Q, req.Page, req.PageSize, req.PrinterId), ct);
+        var result = await handler.HandleAsync(new GetMachineProfilesQuery(req.Origin, req.Q, req.Page, req.PageSize, req.PrinterId, ListSort.Parse(req.SortBy, req.SortDirection, "name")), ct);
 
         Response = new ListMachineProfilesResponse
         {

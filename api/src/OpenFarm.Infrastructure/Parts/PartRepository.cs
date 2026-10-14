@@ -1,7 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.Persistence;
+using OpenFarm.Domain.Production;
+
+#pragma warning disable CA1304, CA1311 // SQL LOWER uses the database collation; ToLowerInvariant is not SQL-translatable.
 
 namespace OpenFarm.Infrastructure.Parts;
 
@@ -17,7 +21,7 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         Include(dbContext.Parts).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
     public async Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(
-        IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken)
+        IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
     {
         var query = Include(dbContext.Parts).AsQueryable();
 
@@ -29,8 +33,10 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var parts = await query
-            .OrderByDescending(p => p.CreatedAtUtc)
+        var ordered = sorting is null ? query.OrderByDescending(p => p.CreatedAtUtc)
+            : sorting.Descending ? query.OrderByDescending(p => p.Name.ToLower())
+            : query.OrderBy(p => p.Name.ToLower());
+        var parts = await ordered.ThenBy(p => p.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -43,10 +49,50 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
             .Where(p => p.EstimateStatus == EstimateStatus.Resolving)
             .ToListAsync(cancellationToken);
 
-    public Task RemoveAsync(Part part, CancellationToken cancellationToken)
+    public async Task RemoveAsync(Part part, CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        // FK inserts take key-share locks, so no new requirement can appear between this
+        // locked dependency check, detachment and deletion. Creation locks in the same order.
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"Parts\" WHERE \"Id\" = {part.Id} AND \"OrganizationId\" = {part.OrganizationId} FOR UPDATE", cancellationToken);
+        var eligibility = (await new PartDeletionEligibilityReader(dbContext).CheckAsync([part.Id], cancellationToken))[0];
+        if (eligibility.Status == "Absent") throw new PartNotFoundException(part.Id);
+        if (eligibility.Status == "Blocked") throw new PartDeletionBlockedException(eligibility);
+        var references = await dbContext.PartRequirements.Where(r => r.PartId == part.Id).ToListAsync(cancellationToken);
+        foreach (var reference in references)
+        {
+            reference.CaptureName(part.Name);
+            reference.DetachLibraryPart();
+        }
+        var requirementIds = references.Select(r => r.Id).ToList();
+        var unavailableJobs = await dbContext.PrintJobs.Where(j => requirementIds.Contains(j.PartRequirementId)
+            && j.ProductionSnapshotJson == null).ToListAsync(cancellationToken);
+        var removedAtUtc = DateTimeOffset.UtcNow;
+        foreach (var job in unavailableJobs) job.MarkSnapshotUnavailable(removedAtUtc);
+        var lineIds = references.Select(r => r.RunLineId).ToList();
+        var sourceLines = await dbContext.RunLines.Where(l => lineIds.Contains(l.Id)
+            && l.TargetKind == RunLineTargetKind.Part && l.TargetId == part.Id).ToListAsync(cancellationToken);
+        foreach (var line in sourceLines) line.CaptureTargetName(part.Name);
         dbContext.Parts.Remove(part);
-        return dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (PartConcurrencyConflictException)
+        {
+            throw new PartConcurrencyConflictException(part.Id);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.ForeignKeyViolation or PostgresErrorCodes.RestrictViolation,
+            ConstraintName: "FK_BomLines_Parts_TargetPartId" or "FK_PartRequirements_Parts_LibraryPartId"
+        })
+        {
+            // References can be added after the handler's preflight checks.
+            throw new PartReferencedException(part.Id, "it is referenced by an assembly or production run. Refresh and review its dependencies.");
+        }
     }
 
     public void TrackReplacementChildren(Part part)

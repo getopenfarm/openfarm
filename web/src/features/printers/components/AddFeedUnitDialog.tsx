@@ -5,21 +5,24 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import type {
   FeedUnitResponse,
   ListFeedUnitsResponse,
@@ -181,6 +184,8 @@ export function AddFeedUnitDialog({
     });
   }
 
+  const isSaving = addMutation.isPending || configureMutation.isPending;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -196,8 +201,8 @@ export function AddFeedUnitDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           {!unit && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="feed-unit-kind">Kind</Label>
+            <Field className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor="feed-unit-kind">Kind</FieldLabel>
               <Select
                 value={kind}
                 onValueChange={(value) => setKind(value as Kind)}
@@ -206,18 +211,25 @@ export function AddFeedUnitDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="AutomaticFilamentReloader">
-                    Automatic Filament Reloader
-                  </SelectItem>
-                  <SelectItem value="ExternalSpool">External Spool</SelectItem>
+                  <SelectGroup>
+                    <SelectItem value="AutomaticFilamentReloader">
+                      Automatic Filament Reloader
+                    </SelectItem>
+                    <SelectItem value="ExternalSpool">
+                      External Spool
+                    </SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           )}
           {kind === 'AutomaticFilamentReloader' ? (
             <>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="feed-unit-name">Name</Label>
+              <Field
+                data-disabled={Boolean(unit)}
+                className="flex flex-col gap-1.5"
+              >
+                <FieldLabel htmlFor="feed-unit-name">Name</FieldLabel>
                 <Input
                   disabled={Boolean(unit)}
                   id="feed-unit-name"
@@ -225,9 +237,14 @@ export function AddFeedUnitDialog({
                   onChange={(event) => setName(event.target.value)}
                   placeholder="e.g. Splicer"
                 />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="feed-unit-slot-count">Slot count</Label>
+              </Field>
+              <Field
+                data-disabled={Boolean(unit)}
+                className="flex flex-col gap-1.5"
+              >
+                <FieldLabel htmlFor="feed-unit-slot-count">
+                  Slot count
+                </FieldLabel>
                 <Input
                   disabled={Boolean(unit)}
                   id="feed-unit-slot-count"
@@ -236,9 +253,11 @@ export function AddFeedUnitDialog({
                   value={slotCount}
                   onChange={(event) => setSlotCount(event.target.value)}
                 />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="reloader-start-channel">Feeding channel</Label>
+              </Field>
+              <Field className="flex flex-col gap-1.5">
+                <FieldLabel htmlFor="reloader-start-channel">
+                  Feeding channel
+                </FieldLabel>
                 <Select
                   value={startingChannel}
                   onValueChange={setStartingChannel}
@@ -247,28 +266,33 @@ export function AddFeedUnitDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from(
-                      {
-                        length: Math.min(
-                          100,
-                          Math.max(0, Number(slotCount) || 0),
-                        ),
-                      },
-                      (_, position) => position,
-                    ).map((position) => (
-                      <SelectItem key={position} value={String(position)}>
-                        Channel {position + 1}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {Array.from(
+                        {
+                          length: Math.min(
+                            100,
+                            Math.max(0, Number(slotCount) || 0),
+                          ),
+                        },
+                        (_, position) => position,
+                      ).map((position) => (
+                        <SelectItem key={position} value={String(position)}>
+                          Channel {position + 1}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Select the physical feeding channel. Continuation from
                   recorded depletion is estimated and can be corrected.
                 </p>
-              </div>
+              </Field>
               {external && (
-                <div className="flex items-center gap-2">
+                <Field
+                  orientation="horizontal"
+                  className="flex items-center gap-2"
+                >
                   <Checkbox
                     id="replace-external"
                     checked={replaceExternal}
@@ -276,13 +300,16 @@ export function AddFeedUnitDialog({
                       setReplaceExternal(value === true)
                     }
                   />
-                  <Label htmlFor="replace-external">
+                  <FieldLabel htmlFor="replace-external">
                     Feeds through external spool port
-                  </Label>
-                </div>
+                  </FieldLabel>
+                </Field>
               )}
               {replaceExternal && externalSpool && (
-                <div className="flex items-center gap-2">
+                <Field
+                  orientation="horizontal"
+                  className="flex items-center gap-2"
+                >
                   <Checkbox
                     id="transfer-external"
                     checked={transferExternal}
@@ -290,10 +317,10 @@ export function AddFeedUnitDialog({
                       setTransferExternal(value === true)
                     }
                   />
-                  <Label htmlFor="transfer-external">
+                  <FieldLabel htmlFor="transfer-external">
                     Move external spool to the feeding channel
-                  </Label>
-                </div>
+                  </FieldLabel>
+                </Field>
               )}
               {replaceExternal && externalSpool && !transferExternal && (
                 <p className="text-xs text-muted-foreground">
@@ -319,20 +346,18 @@ export function AddFeedUnitDialog({
           ) : null}
         </div>
         <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={
-              !canSubmit || addMutation.isPending || configureMutation.isPending
-            }
+            disabled={!canSubmit || isSaving}
           >
-            {unit
-              ? configureMutation.isPending
-                ? 'Saving…'
-                : 'Save Configuration'
-              : addMutation.isPending
-                ? 'Adding…'
-                : 'Add Feed Unit'}
+            {isSaving && <Spinner data-icon="inline-start" />}
+            {isSaving ? 'Saving…' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>

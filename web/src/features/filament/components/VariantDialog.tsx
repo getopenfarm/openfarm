@@ -9,8 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { NAMED_COLOR_SWATCHES } from '../lib/colorSwatches';
 
@@ -64,61 +70,63 @@ export function VariantDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="variant-color-name">Name</Label>
-            <Input
-              id="variant-color-name"
-              value={variant.colorName}
-              onChange={(event) =>
-                setVariant((prev) => ({
-                  ...prev,
-                  colorName: event.target.value,
-                }))
-              }
-              placeholder="e.g. Black"
-            />
-          </div>
+          <FieldGroup className="gap-4">
+            <Field className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor="variant-color-name">Name</FieldLabel>
+              <Input
+                id="variant-color-name"
+                value={variant.colorName}
+                onChange={(event) =>
+                  setVariant((prev) => ({
+                    ...prev,
+                    colorName: event.target.value,
+                  }))
+                }
+                placeholder="e.g. Black"
+              />
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Colour</Label>
-            <div className="flex flex-wrap gap-2">
-              {NAMED_COLOR_SWATCHES.map((option) => (
-                <button
-                  key={option.hex}
-                  type="button"
-                  aria-label={option.name}
-                  aria-pressed={variant.colorHex === option.hex}
-                  onClick={() =>
-                    setVariant((prev) => ({
-                      ...prev,
-                      colorHex: option.hex,
-                      colorName: prev.colorName || option.name,
-                    }))
-                  }
-                  className={cn(
-                    'rounded-[6px] p-0.5 ring-1 ring-transparent transition-all',
-                    variant.colorHex === option.hex &&
-                      'ring-2 ring-ring ring-offset-1 ring-offset-background',
-                  )}
-                >
-                  <Swatch colorHex={option.hex} size="lg" />
-                </button>
-              ))}
-            </div>
-          </div>
+            <FieldSet>
+              <FieldLegend variant="label">Colour</FieldLegend>
+              <div className="flex flex-wrap gap-2">
+                {NAMED_COLOR_SWATCHES.map((option) => (
+                  <button
+                    key={option.hex}
+                    type="button"
+                    aria-label={option.name}
+                    aria-pressed={variant.colorHex === option.hex}
+                    onClick={() =>
+                      setVariant((prev) => ({
+                        ...prev,
+                        colorHex: option.hex,
+                        colorName: prev.colorName || option.name,
+                      }))
+                    }
+                    className={cn(
+                      'rounded-[6px] p-0.5 ring-1 ring-transparent transition-all',
+                      variant.colorHex === option.hex &&
+                        'ring-2 ring-ring ring-offset-1 ring-offset-background',
+                    )}
+                  >
+                    <Swatch colorHex={option.hex} size="lg" />
+                  </button>
+                ))}
+              </div>
+            </FieldSet>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSave}>
-              Add variant
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!canSave}>
+                Add variant
+              </Button>
+            </DialogFooter>
+          </FieldGroup>
         </form>
       </DialogContent>
     </Dialog>

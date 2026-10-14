@@ -150,3 +150,16 @@ by the requirement's own real `Id` — already returned as `PartFilamentRequirem
 
 Every removed endpoint's request/response types and command/handler/validator classes are deleted in the
 same PR that removes them (constitution's "the two states never coexist silently past that PR").
+
+## Machine and filament list sorting
+
+`GET /api/v1/profiles/machine` and `GET /api/v1/profiles/filament` accept optional
+`sortBy=name` and `sortDirection=asc|desc`; `sortBy` alone means ascending.
+Explicit sorting applies to the entire filtered result before pagination,
+including compatibility-filtered server-memory paths, with case-insensitive
+lexical name order and ascending ID ties. Unknown fields, invalid directions,
+and direction without a field return `400`. No sorting parameters preserves
+existing browse/picker behavior, including native-engine prioritization in
+filament compatibility pickers. Explicit sorting overrides that priority while
+preserving compatibility filtering. Calls without paging retain their existing
+response shape and behavior. Process-profile picker sorting is unchanged.

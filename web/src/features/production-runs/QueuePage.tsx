@@ -1,17 +1,21 @@
 /** biome-ignore-all lint/a11y/useSemanticElements: ARIA table elements allow independently scrolling, virtualized row groups with a shared column header. */
 /** biome-ignore-all lint/a11y/useFocusableInteractive: This is a static table, not an interactive grid; links and action buttons provide keyboard access. */
 import { useQueryClient } from '@tanstack/react-query';
-import { ClipboardListIcon, GripVerticalIcon, SearchIcon } from 'lucide-react';
+import { ClipboardListIcon, GripVerticalIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { DataTableSearch } from '@/components/data-table/DataTableSearch';
+import {
+  DataTableTabsList,
+  DataTableToolbar,
+} from '@/components/data-table/DataTableToolbar';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
   ListQueueJobsResponse,
@@ -23,6 +27,7 @@ import {
   useOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
+import { cn } from '@/lib/utils';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
 import {
   QueueJobActions,
@@ -35,7 +40,6 @@ import {
 } from './components/QueueTableSection';
 import { useProductionHub } from './hooks/useProductionHub';
 
-const PAGE_SIZE = 50;
 const STATUSES = [
   'Active',
   'Queued',
@@ -59,6 +63,7 @@ export function QueuePage() {
   const [backfillCollapsedOverride, setBackfillCollapsedOverride] = useState<
     boolean | null
   >(null);
+  const [pageSizes, setPageSizes] = useState({ queue: 50, backfill: 50 });
   const [pages, setPages] = useState({ queue: 1, backfill: 1 });
   const [dragged, setDragged] = useState<{
     jobId: string;
@@ -79,14 +84,14 @@ export function QueuePage() {
   const finiteQuery = useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint({
     view: 'queue',
     page: pages.queue,
-    pageSize: PAGE_SIZE,
+    pageSize: pageSizes.queue,
     status,
     search,
   });
   const backfillQuery = useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint({
     view: 'backfill',
     page: pages.backfill,
-    pageSize: PAGE_SIZE,
+    pageSize: pageSizes.backfill,
     status,
     search,
   });
@@ -124,20 +129,26 @@ export function QueuePage() {
       const queue = finiteData
         ? Math.min(
             previous.queue,
-            Math.max(1, Math.ceil((finiteData?.totalCount ?? 0) / PAGE_SIZE)),
+            Math.max(
+              1,
+              Math.ceil((finiteData?.totalCount ?? 0) / pageSizes.queue),
+            ),
           )
         : previous.queue;
       const backfill = backfillData
         ? Math.min(
             previous.backfill,
-            Math.max(1, Math.ceil((backfillData?.totalCount ?? 0) / PAGE_SIZE)),
+            Math.max(
+              1,
+              Math.ceil((backfillData?.totalCount ?? 0) / pageSizes.backfill),
+            ),
           )
         : previous.backfill;
       return queue === previous.queue && backfill === previous.backfill
         ? previous
         : { queue, backfill };
     });
-  }, [finiteData, backfillData]);
+  }, [finiteData, backfillData, pageSizes]);
 
   function resetFilters(nextStatus: string, nextSearch: string) {
     setStatus(nextStatus);
@@ -186,7 +197,7 @@ export function QueuePage() {
             variant="outline"
             onClick={() => navigate('/production-runs')}
           >
-            <ClipboardListIcon />
+            <ClipboardListIcon data-icon="inline-start" />
             Production runs
           </Button>
         }
@@ -197,37 +208,32 @@ export function QueuePage() {
           value={status}
           onValueChange={(value) => resetFilters(value, search)}
         >
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-            <TabsList className="max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto">
+          <DataTableToolbar
+            search={
+              <DataTableSearch
+                label="Search jobs by part name"
+                placeholder="Search jobs by part name…"
+                value={search}
+                onValueChange={(value) => resetFilters(status, value)}
+              />
+            }
+          >
+            <DataTableTabsList aria-label="Job status">
               {STATUSES.map((value) => (
-                <TabsTrigger
-                  key={value}
-                  value={value}
-                  className="h-7 flex-none"
-                >
+                <TabsTrigger key={value} value={value}>
                   {value}{' '}
                   <span className="ml-1 tabular-nums opacity-70">
                     {count(value)}
                   </span>
                 </TabsTrigger>
               ))}
-            </TabsList>
-            <div className="relative ml-auto w-64 max-w-full shrink-0">
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                aria-label="Search jobs by part name"
-                placeholder="Search jobs by part name…"
-                className="w-full pl-8"
-                value={search}
-                onChange={(event) => resetFilters(status, event.target.value)}
-              />
-            </div>
-          </div>
+            </DataTableTabsList>
+          </DataTableToolbar>
           <TabsContent
             value={status}
             className="flex min-h-0 flex-1 flex-col gap-4"
           >
-            <div className="flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden rounded-xl ring-1 ring-foreground/10">
+            <div className="flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden rounded-md border">
               <div
                 role="table"
                 aria-label="Print queue"
@@ -259,7 +265,12 @@ export function QueuePage() {
                   </div>
                 </div>
                 <div
-                  className={`grid min-h-0 flex-1 ${backfillCollapsed ? 'grid-rows-[minmax(0,1fr)_auto]' : 'grid-rows-[minmax(0,7fr)_minmax(0,3fr)]'}`}
+                  className={cn(
+                    'grid min-h-0 flex-1',
+                    backfillCollapsed
+                      ? 'grid-rows-[minmax(0,1fr)_auto]'
+                      : 'grid-rows-[minmax(0,7fr)_minmax(0,3fr)]',
+                  )}
                 >
                   {GROUPS.map((group) => {
                     const query = queries[group];
@@ -283,7 +294,18 @@ export function QueuePage() {
                         jobs={data?.items ?? []}
                         totalCount={data?.totalCount ?? 0}
                         page={pages[group]}
-                        pageSize={PAGE_SIZE}
+                        pageSize={pageSizes[group]}
+                        onPageSizeChange={(size) => {
+                          setPageSizes((previous) => ({
+                            ...previous,
+                            [group]: size,
+                          }));
+                          setPages((previous) => ({ ...previous, [group]: 1 }));
+                          (group === 'queue'
+                            ? finiteScrollRef
+                            : backfillScrollRef
+                          ).current?.scrollTo?.(0, 0);
+                        }}
                         isFetching={query.isFetching}
                         isError={query.isError}
                         isLoading={query.isLoading}
@@ -443,7 +465,10 @@ export function QueuePage() {
                                     <Button
                                       variant="link"
                                       size="sm"
-                                      className={`h-auto justify-start px-0 text-left whitespace-normal ${job.isBlocked ? 'text-destructive' : ''}`}
+                                      className={cn(
+                                        'h-auto justify-start px-0 text-left whitespace-normal',
+                                        job.isBlocked ? 'text-destructive' : '',
+                                      )}
                                       title={job.blockingReason ?? undefined}
                                     >
                                       {job.isBlocked

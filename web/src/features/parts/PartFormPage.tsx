@@ -9,6 +9,7 @@ import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -18,14 +19,15 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { cn } from '@/lib/utils';
 import { PartProcessingReviewSection } from './components/PartProcessingReviewSection';
@@ -115,10 +117,13 @@ export function PartFormPage() {
     status === 'ReadyForReview' && form.watch('name').trim().length > 0;
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink to="/parts">Back to parts</BackLink>
-
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader
+        above={
+          <BackLink to="/parts" className="mb-1">
+            Back to parts
+          </BackLink>
+        }
         title="Add part"
         description="Upload an STL, 3MF, or G-code file, review its metadata, and choose your production filament. You can save a valid file while estimates are still resolving."
       />
@@ -126,158 +131,168 @@ export function PartFormPage() {
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-6"
+          className="flex flex-1 flex-col gap-6"
         >
-          <Card>
-            <CardHeader>
-              <CardTitle>Part file and details</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {!file ? (
-                <div className="flex flex-col gap-4">
-                  {availableSlicers.length > 0 && (
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="part-slicer-override">Slicer</Label>
-                      <Select
-                        value={slicerSelection}
-                        onValueChange={setSlicerSelection}
-                      >
-                        <SelectTrigger
-                          id="part-slicer-override"
-                          className="w-full"
+          <FieldGroup className="flex-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Part file and details</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {!file ? (
+                  <div className="flex flex-col gap-4">
+                    {availableSlicers.length > 0 && (
+                      <Field className="flex flex-col gap-1.5">
+                        <FieldLabel htmlFor="part-slicer-override">
+                          Slicer
+                        </FieldLabel>
+                        <Select
+                          value={slicerSelection}
+                          onValueChange={setSlicerSelection}
                         >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={USE_DEFAULT_SLICER}>
-                            Organization default
-                            {effectiveDefault
-                              ? ` (${effectiveDefault.engine} ${effectiveDefault.version})`
-                              : ''}
-                          </SelectItem>
-                          {availableSlicers.map((slicer) => (
-                            <SelectItem
-                              key={slicerSelectionKey(slicer)}
-                              value={slicerSelectionKey(slicer)}
-                            >
-                              {slicer.engine} {slicer.version}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-muted-foreground text-xs">
-                        Only used for files that need slicing (STL or an
-                        unsliced 3MF) — ignored otherwise.
-                      </p>
+                          <SelectTrigger
+                            id="part-slicer-override"
+                            className="w-full"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectItem value={USE_DEFAULT_SLICER}>
+                                Organization default
+                                {effectiveDefault
+                                  ? ` (${effectiveDefault.engine} ${effectiveDefault.version})`
+                                  : ''}
+                              </SelectItem>
+                              {availableSlicers.map((slicer) => (
+                                <SelectItem
+                                  key={slicerSelectionKey(slicer)}
+                                  value={slicerSelectionKey(slicer)}
+                                >
+                                  {slicer.engine} {slicer.version}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-muted-foreground text-xs">
+                          Only used for files that need slicing (STL or an
+                          unsliced 3MF) — ignored otherwise.
+                        </p>
+                      </Field>
+                    )}
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        aria-label="Choose a part file, or drag and drop it here"
+                        onClick={openFileDialog}
+                        onDragOver={handleDragOver}
+                        onDragEnter={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={cn(
+                          'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
+                          isDragging
+                            ? 'border-primary bg-primary/5'
+                            : 'border-input hover:border-primary/50',
+                        )}
+                      >
+                        <Upload className="size-6 text-muted-foreground" />
+                        <p className="text-sm">
+                          <span className="font-medium text-primary">
+                            Click to browse
+                          </span>{' '}
+                          or drag and drop a file
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          STL, 3MF, or G-code
+                        </p>
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept={ACCEPTED_EXTENSIONS}
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
                     </div>
-                  )}
-                  <div className="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      aria-label="Choose a part file, or drag and drop it here"
-                      onClick={openFileDialog}
-                      onDragOver={handleDragOver}
-                      onDragEnter={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      className={cn(
-                        'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
-                        isDragging
-                          ? 'border-primary bg-primary/5'
-                          : 'border-input hover:border-primary/50',
-                      )}
-                    >
-                      <Upload className="size-6 text-muted-foreground" />
-                      <p className="text-sm">
-                        <span className="font-medium text-primary">
-                          Click to browse
-                        </span>{' '}
-                        or drag and drop a file
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        STL, 3MF, or G-code
-                      </p>
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept={ACCEPTED_EXTENSIONS}
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
                   </div>
-                </div>
-              ) : (
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {file.name}
+                      </span>{' '}
+                      — {(file.size / 1024).toFixed(0)} KB
+                    </p>
+
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              autoFocus
+                              placeholder="Widget Bracket"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="tags"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tags</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Brackets, Enclosure (comma separated)"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <PartProcessingReviewSection
+                      status={status}
+                      preview={job?.preview}
+                      errorMessage={job?.errorMessage}
+                      overrides={overrides}
+                      onNarrow={handleNarrow}
+                    />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <FormFooter
+              end={
                 <>
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      {file.name}
-                    </span>{' '}
-                    — {(file.size / 1024).toFixed(0)} KB
-                  </p>
-
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            autoFocus
-                            placeholder="Widget Bracket"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tags"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tags</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Brackets, Enclosure (comma separated)"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <PartProcessingReviewSection
-                    status={status}
-                    preview={job?.preview}
-                    errorMessage={job?.errorMessage}
-                    overrides={overrides}
-                    onNarrow={handleNarrow}
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/parts')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={!canConfirm || isConfirmPending}
+                  >
+                    {isConfirmPending && <Spinner data-icon="inline-start" />}
+                    {isConfirmPending ? 'Saving…' : 'Save'}
+                  </Button>
                 </>
-              )}
-            </CardContent>
-          </Card>
-
-          <FormFooter
-            start={
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => navigate('/parts')}
-              >
-                Cancel
-              </Button>
-            }
-            end={
-              <Button type="submit" disabled={!canConfirm || isConfirmPending}>
-                {isConfirmPending ? 'Saving…' : 'Add part'}
-              </Button>
-            }
-          />
+              }
+            />
+          </FieldGroup>
         </form>
       </Form>
 

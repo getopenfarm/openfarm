@@ -2,7 +2,10 @@ import { PauseIcon, PlayIcon, XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   useOpenFarmApiEndpointsPrintJobsCancelPrintJobEndpoint,
@@ -116,6 +119,7 @@ export function JobRemoteControls({
             Resume
           </DropdownMenuItem>
         )}
+        <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={handleCancel}>
           <XIcon />
           Cancel print
@@ -133,7 +137,7 @@ export function JobRemoteControls({
           aria-label="Pause"
           onClick={handlePause}
         >
-          <PauseIcon className="size-4" />
+          <PauseIcon data-icon="inline-start" className="" />
         </Button>
       )}
       {status === 'Paused' && (
@@ -144,7 +148,7 @@ export function JobRemoteControls({
           aria-label="Resume"
           onClick={handleResume}
         >
-          <PlayIcon className="size-4" />
+          <PlayIcon data-icon="inline-start" className="" />
         </Button>
       )}
       <Button
@@ -154,7 +158,7 @@ export function JobRemoteControls({
         aria-label="Cancel"
         onClick={handleCancel}
       >
-        <XIcon className="size-4" />
+        <XIcon data-icon="inline-start" className="" />
       </Button>
     </div>
   );

@@ -30,7 +30,7 @@ public interface IFilamentProfileRepository
         string? searchText,
         int page,
         int pageSize,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

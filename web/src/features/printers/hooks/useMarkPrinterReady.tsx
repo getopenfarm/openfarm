@@ -41,9 +41,10 @@ export function useMarkPrinterReady() {
         onOpenChange={(open) => {
           if (!open) setConfirmationPrinterId(null);
         }}
-        title="Confirm production run complete?"
+        title="Mark production run complete?"
         description="Every finite requirement has finished printing. Confirm the named run is complete and the printer is clear before marking it ready."
-        confirmLabel="Confirm complete and mark ready"
+        confirmLabel="Mark ready"
+        isPending={mutation.isPending}
         onConfirm={() => {
           if (confirmationPrinterId)
             mutation.mutate({

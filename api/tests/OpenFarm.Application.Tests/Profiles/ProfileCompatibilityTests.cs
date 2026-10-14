@@ -99,6 +99,52 @@ public sealed class ProfileCompatibilityTests
         await ((Func<Task>)(() => compatibility.ValidateFilamentAsync(filament, "PLA", "Bambu", "P1S", 0.6m, default, machine)))
             .Should().ThrowAsync<SlicingProfileUnconfiguredException>();
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MachineCompatibilityPickerSortsAllMatchesBeforeTakingThePage(bool descending)
+    {
+        var printer = Printer.Create(Guid.NewGuid(), "P1S", "Bambu", "P1S", "127.0.0.1", "SN");
+        printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
+        var machines = new FakeMachineProfileRepository();
+        var rows = new List<MachineProfile>();
+        foreach (var name in new[] { "Zulu", "alpha", "ALPHA", "Bravo" })
+        {
+            var profile = MachineProfile.Create(printer.OrganizationId, name, ProfileSourceFormat.OrcaSlicer, null,
+                """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""");
+            rows.Add(profile);
+            await machines.AddAsync(profile, default);
+        }
+        var compatibility = new ProfileCompatibility(machines, new FakeFilamentProfileRepository());
+        var handler = new GetMachineProfilesQueryHandler(machines, new StubProfileBundleParser(), new FakePrinterRepository(printer), compatibility);
+        var sorting = new OpenFarm.Application.Common.ListSort("name", descending);
+        var page = await handler.HandleAsync(new(Origin: "All", Page: 2, PageSize: 2, PrinterId: printer.Id, Sorting: sorting), default);
+        var expected = (descending ? rows.OrderByDescending(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            : rows.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)).ThenBy(p => p.Id).Skip(2).Select(p => p.Id);
+        page.TotalCount.Should().Be(4);
+        page.Items.Select(p => p.Id).Should().Equal(expected);
+    }
+
+    [Fact]
+    public async Task ExplicitFilamentSortOverridesDefaultEnginePreferenceBeforePagination()
+    {
+        var profiles = new FakeFilamentProfileRepository();
+        await profiles.AddAsync(FilamentProfile.Create(Guid.NewGuid(), "Zulu Bambu", ProfileSourceFormat.BambuStudio, null,
+            """{"filament_type":["PLA"]}"""), default);
+        await profiles.AddAsync(FilamentProfile.Create(Guid.NewGuid(), "alpha Orca", ProfileSourceFormat.OrcaSlicer, null,
+            """{"filament_type":["PLA"]}"""), default);
+        var handler = new GetFilamentProfilesQueryHandler(profiles, new StubProfileBundleParser(),
+            new ProfileCompatibility(new FakeMachineProfileRepository(), profiles), new FakeSlicingDefaultsQuery(SlicerEngine.OrcaSlicer));
+        var defaults = new GetFilamentProfilesQuery(Origin: "All", MaterialType: "PLA", Brand: "Bambu", ModelCode: "P1S",
+            NozzleDiameterMm: 0.4m, PageSize: 1);
+        (await handler.HandleAsync(defaults, default)).Items.Should().ContainSingle().Which.Name.Should().Be("alpha Orca");
+        var sorted = defaults with { Sorting = new OpenFarm.Application.Common.ListSort("name", true) };
+        var first = await handler.HandleAsync(sorted, default);
+        first.TotalCount.Should().Be(2);
+        first.Items.Should().ContainSingle().Which.Name.Should().Be("Zulu Bambu");
+        (await handler.HandleAsync(sorted with { Page = 2 }, default)).Items.Should().ContainSingle().Which.Name.Should().Be("alpha Orca");
+    }
+
     private sealed class StubProfileBundleParser : IProfileBundleParser
     {
         public Task<ParsedProfileBundle> ParseAsync(Stream bundleStream, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken) => throw new NotSupportedException();

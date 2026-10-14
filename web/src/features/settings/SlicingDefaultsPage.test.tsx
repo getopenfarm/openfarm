@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { SlicingDefaultsPage } from './SlicingDefaultsPage';
@@ -13,10 +14,12 @@ function renderPage() {
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <QueryClientProvider client={queryClient}>
-        {children}
-        <Toaster />
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          {children}
+          <Toaster />
+        </QueryClientProvider>
+      </MemoryRouter>
     );
   }
 
@@ -95,7 +98,7 @@ describe('SlicingDefaultsPage', () => {
         name: 'SuperSlicer 2.5.59.13 (Linux)',
       }),
     );
-    await user.click(screen.getByRole('button', { name: 'Save default' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       const putCalls = fetchMock.mock.calls.filter(
@@ -153,7 +156,7 @@ describe('SlicingDefaultsPage', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Clear estimation profiles' }),
     );
-    await user.click(screen.getByRole('button', { name: 'Save default' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT'),
@@ -204,9 +207,9 @@ describe('SlicingDefaultsPage', () => {
       await screen.findByRole('button', { name: 'Estimation machine profile' }),
     );
     await user.click(
-      await screen.findByRole('button', { name: /New machine/ }),
+      await screen.findByRole('option', { name: /New machine/ }),
     );
-    expect(screen.getByRole('button', { name: 'Save default' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(
       screen.getByText(
         /Select machine, process, filament, and build plate before saving/,

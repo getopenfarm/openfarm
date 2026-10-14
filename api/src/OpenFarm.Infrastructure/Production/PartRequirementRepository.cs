@@ -7,6 +7,19 @@ namespace OpenFarm.Infrastructure.Production;
 
 public sealed class PartRequirementRepository(OpenFarmDbContext dbContext) : IPartRequirementRepository
 {
+    public Task<bool> HasPartReferenceAsync(Guid partId, CancellationToken cancellationToken) =>
+        GetBlockingReferences(partId).AnyAsync(cancellationToken);
+
+    internal IQueryable<PartRequirement> GetBlockingReferences(Guid partId) =>
+        from requirement in dbContext.PartRequirements
+        join line in dbContext.RunLines on requirement.RunLineId equals line.Id
+        join run in dbContext.ProductionRuns on line.ProductionRunId equals run.Id
+        where requirement.PartId == partId && (
+            line.Quantity == null && (run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)
+            || dbContext.PrintJobs.Any(j => j.PartRequirementId == requirement.Id && j.ProductionSnapshotJson == null
+                && j.Status != PrintJobStatus.Cancelled && j.Status != PrintJobStatus.Failed && j.Status != PrintJobStatus.Completed))
+        select requirement;
+
     public Task AddRangeAsync(IReadOnlyList<PartRequirement> requirements, CancellationToken cancellationToken)
     {
         dbContext.PartRequirements.AddRange(requirements);

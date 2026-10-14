@@ -13,6 +13,8 @@ public sealed class TagRepository(OpenFarmDbContext dbContext) : ITagRepository
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public void Stage(Tag tag) => dbContext.Tags.Add(tag);
+
     public Task<Tag?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Tags.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 

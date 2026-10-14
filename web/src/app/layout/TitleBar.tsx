@@ -21,17 +21,19 @@ export function TitleBar() {
     <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
       <SidebarTrigger />
       <Separator orientation="vertical" />
-      <Breadcrumb>
-        <BreadcrumbList className="flex-nowrap text-sm">
+      <Breadcrumb className="min-w-0 flex-1">
+        <BreadcrumbList className="flex-nowrap overflow-hidden">
           {trail.map((entry, index) => {
             const isLast = index === trail.length - 1;
             return (
               <Fragment key={`${entry.title}-${entry.url ?? index}`}>
                 <BreadcrumbItem
-                  className={isLast ? undefined : 'text-muted-foreground'}
+                  className={
+                    isLast ? 'min-w-0' : 'hidden shrink-0 sm:inline-flex'
+                  }
                 >
                   {isLast ? (
-                    <BreadcrumbPage className="font-heading font-semibold text-foreground">
+                    <BreadcrumbPage className="truncate">
                       {entry.title}
                     </BreadcrumbPage>
                   ) : entry.url ? (
@@ -42,13 +44,15 @@ export function TitleBar() {
                     entry.title
                   )}
                 </BreadcrumbItem>
-                {isLast ? null : <BreadcrumbSeparator />}
+                {isLast ? null : (
+                  <BreadcrumbSeparator className="hidden sm:block" />
+                )}
               </Fragment>
             );
           })}
         </BreadcrumbList>
       </Breadcrumb>
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex shrink-0 items-center gap-3">
         <FarmPulse />
         <Separator orientation="vertical" />
         <ThemeToggle />

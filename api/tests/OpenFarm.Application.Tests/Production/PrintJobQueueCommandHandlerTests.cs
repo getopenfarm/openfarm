@@ -133,7 +133,9 @@ public class RequeuePrintJobCommandHandlerTests
         var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 5);
         var part = ProductionTestFixtures.CreatePart();
         var requirementWithPart = PartRequirement.Create(Guid.NewGuid(), requirement.RunLineId, part.Id, 5);
-        var job = ProductionTestFixtures.CreateQueuedJob(requirementWithPart.Id);
+        var job = PrintJob.Create(part.OrganizationId, requirementWithPart.Id, 1024, part.UnitsPerPrint,
+            AssignmentMode.Unassigned, null, part.RevisionHash, part.RevisionNumber, ProductionJobRequirements.FromPart(part));
+        job.CaptureProductionSnapshot(part);
         job.MarkCancelled();
 
         var jobRepository = new InMemoryPrintJobRepository(job);

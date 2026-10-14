@@ -20,9 +20,12 @@ public sealed class CreateAssemblyCommandHandler(
 {
     public async Task<Assembly> HandleAsync(CreateAssemblyCommand command, CancellationToken cancellationToken)
     {
-        await EnsureTargetsExistAsync(command.Lines, cancellationToken);
+        foreach (var line in command.Lines)
+        {
+            await BomLineTargets.EnsureExistsAsync(line.TargetKind, line.TargetId, partRepository, assemblyRepository, nonPrintedComponentRepository, cancellationToken);
+        }
 
-        var lineSpecs = command.Lines.Select(ToSpec).ToList();
+        var lineSpecs = command.Lines.Select(l => BomLineTargets.ToSpec(l.TargetKind, l.TargetId, l.Quantity)).ToList();
         var hasAssemblyLine = command.Lines.Any(l => l.TargetKind == BomLineTargetKind.Assembly);
 
         if (!hasAssemblyLine)
@@ -50,43 +53,4 @@ public sealed class CreateAssemblyCommandHandler(
             },
             cancellationToken);
     }
-
-    private async Task EnsureTargetsExistAsync(IReadOnlyList<AssemblyLineInput> lines, CancellationToken cancellationToken)
-    {
-        foreach (var line in lines)
-        {
-            switch (line.TargetKind)
-            {
-                case BomLineTargetKind.Part:
-                    if (await partRepository.GetByIdAsync(line.TargetId, cancellationToken) is null)
-                    {
-                        throw new PartNotFoundException(line.TargetId);
-                    }
-
-                    break;
-                case BomLineTargetKind.Assembly:
-                    if (!await assemblyRepository.ExistsAsync(line.TargetId, cancellationToken))
-                    {
-                        throw new AssemblyNotFoundException(line.TargetId);
-                    }
-
-                    break;
-                case BomLineTargetKind.NonPrintedComponent:
-                    if (!await nonPrintedComponentRepository.ExistsAsync(line.TargetId, cancellationToken))
-                    {
-                        throw new NonPrintedComponentNotFoundException(line.TargetId);
-                    }
-
-                    break;
-            }
-        }
-    }
-
-    private static BomLineSpec ToSpec(AssemblyLineInput line) => line.TargetKind switch
-    {
-        BomLineTargetKind.Part => new BomLineSpec(BomLineTargetKind.Part, line.TargetId, null, null, line.Quantity),
-        BomLineTargetKind.Assembly => new BomLineSpec(BomLineTargetKind.Assembly, null, line.TargetId, null, line.Quantity),
-        BomLineTargetKind.NonPrintedComponent => new BomLineSpec(BomLineTargetKind.NonPrintedComponent, null, null, line.TargetId, line.Quantity),
-        _ => throw new ArgumentOutOfRangeException(nameof(line)),
-    };
 }

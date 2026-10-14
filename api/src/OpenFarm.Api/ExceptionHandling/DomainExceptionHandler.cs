@@ -22,6 +22,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
     {
         var (statusCode, title) = exception switch
         {
+            OpenFarm.Application.Common.InvalidListSortException => (StatusCodes.Status400BadRequest, "Invalid list sorting"),
             DuplicatePrinterSerialNumberException => (StatusCodes.Status409Conflict, "Duplicate printer serial number"),
             PrinterConnectionVerificationFailedException => (StatusCodes.Status422UnprocessableEntity, "Printer connection could not be verified"),
             UnknownPrinterModelException => (StatusCodes.Status422UnprocessableEntity, "Unknown printer model"),
@@ -58,6 +59,10 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             NotAnAutomaticFilamentReloaderException => (StatusCodes.Status422UnprocessableEntity, "Feed unit cannot be manually removed"),
             PartPrintRequirementsIncompleteException => (StatusCodes.Status422UnprocessableEntity, "Incomplete print requirements"),
             PartNotFoundException => (StatusCodes.Status404NotFound, "Part not found"),
+            InvalidRevisionModeException => (StatusCodes.Status422UnprocessableEntity, "Revision behavior is fixed by quantity"),
+            ProductionSnapshotUnavailableException => (StatusCodes.Status409Conflict, "Production snapshot unavailable"),
+            PartDeletionBlockedException => (StatusCodes.Status409Conflict, "Part removal blocked"),
+            PartReferencedException => (StatusCodes.Status409Conflict, "Part is still referenced"),
             PartFilamentRequirementNotFoundException => (StatusCodes.Status404NotFound, "Filament requirement not found"),
             TagNotFoundException => (StatusCodes.Status404NotFound, "Tag not found"),
             PartProcessingJobNotFoundException => (StatusCodes.Status404NotFound, "Part processing job not found"),
@@ -106,6 +111,8 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             PrintJobAlreadyRequeuedException => (StatusCodes.Status409Conflict, "Print job has already been requeued"),
             PrintJobNotEligibleForRequeueException => (StatusCodes.Status409Conflict, "Print job is not eligible for requeue"),
             RunLineNotEligibleForBackfillLimitsException => (StatusCodes.Status409Conflict, "Run line is not unlimited, so backfill limits don't apply"),
+            // Backstop for domain invariant guards (blank names, weight above capacity, ...) not caught by a request validator.
+            ArgumentException => (StatusCodes.Status422UnprocessableEntity, "Invalid request"),
             _ => (0, null),
         };
 
@@ -114,6 +121,14 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             return false;
         }
 
+        var extensions = new Dictionary<string, object?>();
+        if (exception is PartDeletionBlockedException blocked)
+        {
+            extensions["code"] = "PartDeletionBlocked";
+            extensions["blockers"] = blocked.Eligibility.Blockers;
+        }
+        else if (exception is PartConcurrencyConflictException) extensions["code"] = "PartConcurrencyConflict";
+        else if (exception is PartReferencedException or PartReferencedByAssemblyException) extensions["code"] = "PartDependenciesChanged";
         httpContext.Response.StatusCode = statusCode;
         await httpContext.Response.WriteAsJsonAsync(
             new ProblemDetails
@@ -122,6 +137,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
                 Title = title,
                 Status = statusCode,
                 Detail = exception.Message,
+                Extensions = extensions,
             },
             cancellationToken);
 

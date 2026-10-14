@@ -3,6 +3,8 @@ using OpenFarm.Application.Assemblies;
 using OpenFarm.Domain.Assemblies;
 using OpenFarm.Infrastructure.Persistence;
 
+#pragma warning disable CA1304, CA1311 // SQL LOWER uses the database collation; ToLowerInvariant is not SQL-translatable.
+
 namespace OpenFarm.Infrastructure.Assemblies;
 
 public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyRepository
@@ -19,13 +21,15 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Assemblies.AnyAsync(a => a.Id == id, cancellationToken);
 
-    public async Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken)
+    public async Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
     {
         var query = dbContext.Assemblies.Include(a => a.Lines).AsQueryable();
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var assemblies = await query
-            .OrderByDescending(a => a.CreatedAtUtc)
+        var ordered = sorting is null ? query.OrderByDescending(a => a.CreatedAtUtc)
+            : sorting.Descending ? query.OrderByDescending(a => a.Name.ToLower())
+            : query.OrderBy(a => a.Name.ToLower());
+        var assemblies = await ordered.ThenBy(a => a.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -74,20 +78,7 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
         }
     }
 
-    public async Task AddLineAsync(BomLine line, CancellationToken cancellationToken)
-    {
-        dbContext.BomLines.Add(line);
-
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            var assemblyId = ex.Entries.Select(e => e.Entity).OfType<Assembly>().FirstOrDefault()?.Id ?? Guid.Empty;
-            throw new AssemblyConcurrencyConflictException(assemblyId);
-        }
-    }
+    public void StageLine(BomLine line) => dbContext.BomLines.Add(line);
 
     public async Task<TResult> RunWithStructuralLockAsync<TResult>(
         Guid organizationId, Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken)

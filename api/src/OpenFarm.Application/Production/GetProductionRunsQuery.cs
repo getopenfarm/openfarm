@@ -2,7 +2,7 @@ using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-public sealed record GetProductionRunsQuery(int Page, int PageSize);
+public sealed record GetProductionRunsQuery(int Page, int PageSize, OpenFarm.Application.Common.ListSort? Sorting = null);
 
 public sealed record JobStatusSummary(int Queued, int Printing, int Paused, int Completed, int Failed, int Cancelled);
 

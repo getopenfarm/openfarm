@@ -1,5 +1,5 @@
-import { SearchIcon } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { DataTableSearch } from '@/components/data-table/DataTableSearch';
+import { DataTableToolbar } from '@/components/data-table/DataTableToolbar';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 export type PrinterStatusFilter =
@@ -44,17 +44,19 @@ export function PrinterFilterBar({
   counts,
 }: PrinterFilterBarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="relative">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
+    <DataTableToolbar
+      search={
+        <DataTableSearch
           value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search printers, models, jobs…"
-          className="w-64 pl-8"
+          onValueChange={onQueryChange}
+          label="Search printers by name or model"
+          placeholder="Search printers or models…"
         />
-      </div>
+      }
+    >
       <ToggleGroup
+        aria-label="Filter printers by status"
+        className="max-w-full flex-wrap justify-start"
         type="single"
         variant="outline"
         value={statusFilter}
@@ -71,6 +73,6 @@ export function PrinterFilterBar({
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-    </div>
+    </DataTableToolbar>
   );
 }

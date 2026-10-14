@@ -186,7 +186,7 @@ describe('Fixed compact dashboard', () => {
     const confirmation = await screen.findByRole('alertdialog');
     fireEvent.click(
       within(confirmation).getByRole('button', {
-        name: 'Confirm complete and mark ready',
+        name: 'Mark ready',
       }),
     );
     await waitFor(() =>

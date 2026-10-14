@@ -6,6 +6,10 @@ namespace OpenFarm.Application.Production;
 /// <summary>One source of effective filament requirements for matching, diagnostics and dispatch.</summary>
 public sealed class ProductionJobRequirements(IProductionRunRepository runs, IPartRequirementRepository requirements)
 {
+    public static Part? ResolvePart(PrintJob job, PartRequirement? requirement, Part? libraryPart) =>
+        requirement is not null && requirement.Quantity is null && job.DispatchedAtUtc is null
+            ? libraryPart : job.GetProductionPart();
+
     public static IReadOnlyList<JobFilamentRequirementSpec> FromPart(Part part) => part.FilamentRequirements
         .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex,
             r.NarrowFilamentVariantId, r.NarrowFilamentProfileId)).ToList();
@@ -18,6 +22,9 @@ public sealed class ProductionJobRequirements(IProductionRunRepository runs, IPa
         PrintJob job, Part part, CancellationToken ct)
     {
         var requirement = await requirements.GetByIdAsync(job.PartRequirementId, ct);
+        if (job.ProductionSnapshotJson is not null && (requirement?.Quantity is not null || job.DispatchedAtUtc is not null))
+            return (job.FilamentConsumption.Select(c => c.Requirement).ToList(),
+                job.HasFilamentRequirementOverride ? "Job override" : "Job snapshot", job.FileRevisionHash);
         var run = requirement is null ? null : await runs.GetByRunLineIdAsync(requirement.RunLineId, ct);
         var mode = run?.Lines.FirstOrDefault(l => l.Id == requirement!.RunLineId)?.RevisionMode ?? RevisionMode.Snapshot;
         var latest = !job.HasFilamentRequirementOverride && job.DispatchedAtUtc is null && mode == RevisionMode.FollowLatest;

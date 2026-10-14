@@ -48,16 +48,18 @@ public sealed class PrintJobEligibilityQuery(IPrinterRepository printers, IPartR
     {
         var ct = cancellationToken;
         var requirement = await requirements.GetByIdAsync(job.PartRequirementId, ct);
-        var part = requirement is null ? null : await parts.GetByIdAsync(requirement.PartId, ct);
+        var libraryPart = requirement is not null && requirement.Quantity is null && job.DispatchedAtUtc is null
+            ? await parts.GetByIdAsync(requirement.PartId, ct) : null;
+        var part = ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
         var jobChecks = new List<MatchingCheck>
         {
             Check("job-state", "Job is waiting for assignment", job.Status == PrintJobStatus.Queued && job.DispatchedAtUtc is null,
                 "Queued, not dispatched", job.DispatchedAtUtc is null ? job.Status.ToString() : "Already dispatched"),
-            Check("part-requirements", "Part print requirements", part?.PrintRequirementsStatus == OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete,
-                "Complete nozzle and material requirements", part?.PrintRequirementsStatus.ToString() ?? "Part not found",
-                part is null ? null : $"/parts/{part.Id}")
+            Check("part-requirements", "Production print requirements", part?.PrintRequirementsStatus == OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete,
+                "Complete nozzle and material requirements", part?.PrintRequirementsStatus.ToString() ?? "Snapshot needs recovery",
+                libraryPart is null ? null : $"/parts/{libraryPart.Id}")
         };
-        if (part is null) return new(job.Id, DateTimeOffset.UtcNow, "Job snapshot", "Blocked", "Part not found.", [], jobChecks, []);
+        if (part is null) return new(job.Id, DateTimeOffset.UtcNow, "Job snapshot", "Blocked", job.SnapshotRecoveryReason ?? "Production snapshot needs recovery.", [], jobChecks, []);
         var effective = await jobRequirements.ResolveAsync(job, part, ct);
         var display = new List<MatchingFilamentRequirement>();
         foreach (var spec in effective.Requirements)

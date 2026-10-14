@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, XIcon } from 'lucide-react';
+import { CheckIcon, PencilIcon, XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   getOpenFarmApiEndpointsProductionRunsGetProductionRunEndpointQueryKey,
@@ -19,8 +20,6 @@ import {
   useOpenFarmApiEndpointsProductionRunsCloseProductionRunEndpoint,
   useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint,
 } from '@/lib/api/generated/production-runs/production-runs';
-import { BackfillLimitsPanel } from './components/BackfillLimitsPanel';
-import { RevisionModeControl } from './components/RevisionModeControl';
 import { ShortfallBanner } from './components/ShortfallBanner';
 import { useProductionHub } from './hooks/useProductionHub';
 
@@ -81,9 +80,16 @@ export function ProductionRunDetailPage() {
       },
     });
 
+  const backLink = (
+    <BackLink to="/production-runs" className="mb-1">
+      Back to production runs
+    </BackLink>
+  );
+
   if (runQuery.isLoading) {
     return (
       <div className="flex flex-col gap-6">
+        <PageHeader above={backLink} title="Production run" />
         <Skeleton className="h-64 w-full" />
       </div>
     );
@@ -91,32 +97,34 @@ export function ProductionRunDetailPage() {
 
   if (!run) {
     return (
-      <EmptyState
-        title="Production run not found"
-        description="It may have been removed, or the link is out of date."
-        action={
-          <Button
-            variant="outline"
-            onClick={() => navigate('/production-runs')}
-          >
-            Back to production runs
-          </Button>
-        }
-      />
+      <div className="flex flex-col gap-6">
+        <PageHeader above={backLink} title="Production run" />
+        <EmptyState
+          title="Production run not found"
+          description="It may have been removed, or the link is out of date."
+          action={
+            <Button
+              variant="outline"
+              onClick={() => navigate('/production-runs')}
+            >
+              Back to production runs
+            </Button>
+          }
+        />
+      </div>
     );
   }
 
   const title =
     run.name ?? run.lines?.[0]?.targetName ?? 'Unnamed production run';
+  const canEditLimits =
+    run.status === 'Active' &&
+    (run.lines ?? []).some((l) => l.quantity == null);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        above={
-          <BackLink to="/production-runs" className="mb-1">
-            Back to production runs
-          </BackLink>
-        }
+        above={backLink}
         title={title}
         description={
           <span className="flex items-center gap-2">
@@ -126,13 +134,26 @@ export function ProductionRunDetailPage() {
         }
         action={
           <div className="flex gap-2">
+            {canEditLimits && (
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/production-runs/${id}/edit`)}
+              >
+                <PencilIcon data-icon="inline-start" /> Edit
+              </Button>
+            )}
             {run.status === 'Complete' && (
               <Button
                 variant="outline"
                 onClick={() => id && closeMutation.mutate({ id })}
                 disabled={closeMutation.isPending}
               >
-                <CheckIcon /> Close run
+                {closeMutation.isPending ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <CheckIcon data-icon="inline-start" />
+                )}
+                Close run
               </Button>
             )}
             {(run.status === 'Active' || run.status === 'Complete') && (
@@ -140,7 +161,7 @@ export function ProductionRunDetailPage() {
                 variant="destructive"
                 onClick={() => setConfirmCancelOpen(true)}
               >
-                <XIcon /> Cancel run
+                <XIcon data-icon="inline-start" /> Cancel run
               </Button>
             )}
           </div>
@@ -163,13 +184,11 @@ export function ProductionRunDetailPage() {
                     ? 'Unlimited (backfill)'
                     : `Qty ${line.quantity}`}
                 </span>
-                {id && line.id && (
-                  <RevisionModeControl
-                    runId={id}
-                    lineId={line.id}
-                    revisionMode={line.revisionMode ?? 'Snapshot'}
-                  />
-                )}
+                <Badge variant="outline">
+                  {line.quantity == null
+                    ? 'Follows library'
+                    : 'Independent snapshot'}
+                </Badge>
                 {line.spansMultipleRevisions && (
                   <Badge variant="outline">Spans multiple revisions</Badge>
                 )}
@@ -195,19 +214,15 @@ export function ProductionRunDetailPage() {
                   )}
                 </div>
               ))}
-              {id &&
-                (line.quantity === null || line.quantity === undefined) &&
-                line.id && (
-                  <BackfillLimitsPanel
-                    runId={id}
-                    lineId={line.id}
-                    backfillPrinterCap={line.backfillPrinterCap ?? 1}
-                    backfillCumulativeUnitCeiling={
-                      line.backfillCumulativeUnitCeiling
-                    }
-                    cumulativeProducedUnits={line.cumulativeProducedUnits ?? 0}
-                  />
-                )}
+              {line.quantity == null && (
+                <p className="text-xs text-muted-foreground">
+                  Backfill printer cap {line.backfillPrinterCap ?? 1} ·{' '}
+                  {line.backfillCumulativeUnitCeiling != null
+                    ? `ceiling ${line.backfillCumulativeUnitCeiling} units`
+                    : 'no ceiling'}{' '}
+                  · {line.cumulativeProducedUnits ?? 0} produced so far
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -219,6 +234,9 @@ export function ProductionRunDetailPage() {
         title="Cancel this production run?"
         description="Every queued, undispatched job on this run will be cancelled. A job already printing is left alone and still records its outcome."
         confirmLabel="Cancel run"
+        cancelLabel="Keep run"
+        destructive
+        isPending={cancelMutation.isPending}
         onConfirm={() => {
           if (id) cancelMutation.mutate({ id });
           setConfirmCancelOpen(false);

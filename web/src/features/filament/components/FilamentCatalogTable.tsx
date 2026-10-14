@@ -1,11 +1,15 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { PlusIcon } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
+import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
-import { Button } from '@/components/ui/button';
+import {
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import type { FilamentResponse } from '@/lib/api/generated/endpoints.schemas';
 
 const MAX_VISIBLE_SWATCHES = 4;
@@ -25,9 +29,12 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
         <DataTableColumnHeader column={column} title="Filament" />
       ),
       cell: ({ row }) => (
-        <span className="font-medium">
+        <Link
+          to={`/filament/${row.original.id}/edit`}
+          className="font-medium hover:underline"
+        >
           {row.original.vendorName} · {row.original.material}
-        </span>
+        </Link>
       ),
     },
     {
@@ -67,28 +74,29 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
       ),
     },
     {
-      id: 'addVariant',
-      header: () => <span className="sr-only">Add variant</span>,
+      id: 'actions',
+      enableSorting: false,
+      header: () => <span className="sr-only">Actions</span>,
       cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Add variant to ${row.original.vendorName} ${row.original.material}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              navigate(`/filament/${row.original.id}/edit`);
-            }}
-          >
-            <PlusIcon />
-          </Button>
-        </div>
+        <DataTableRowActions
+          label={`${row.original.vendorName} ${row.original.material}`}
+          disabled={!row.original.id}
+        >
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              onSelect={() => navigate(`/filament/${row.original.id}/edit`)}
+            >
+              <PlusIcon /> Add variant
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DataTableRowActions>
       ),
     },
   ];
 
   return (
     <DataTable
+      pageSize={25}
       columns={columns}
       data={filaments}
       onRowClick={(row) => navigate(`/filament/${row.id}/edit`)}

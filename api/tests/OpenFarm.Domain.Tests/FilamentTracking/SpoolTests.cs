@@ -143,4 +143,27 @@ public class SpoolTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void Relabel_TrimsLabel()
+    {
+        var spool = NewSpool();
+
+        spool.Relabel("  Shelf B-2 ");
+
+        spool.Label.Should().Be("Shelf B-2");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Relabel_BlankLabel_ClearsIt(string? label)
+    {
+        var spool = NewSpool();
+
+        spool.Relabel(label);
+
+        spool.Label.Should().BeNull();
+    }
 }

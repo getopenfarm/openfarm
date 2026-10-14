@@ -29,7 +29,7 @@ public sealed class Spool
 
     public Guid FilamentVariantId { get; }
 
-    public string? Label { get; }
+    public string? Label { get; private set; }
 
     public decimal SpoolWeightGrams { get; }
 
@@ -124,4 +124,7 @@ public sealed class Spool
         RemainingWeightGrams = remainingWeightGrams;
         HasUsageOverrun = false;
     }
+
+    /// <summary>Free-text shelf label; blank clears it.</summary>
+    public void Relabel(string? label) => Label = string.IsNullOrWhiteSpace(label) ? null : label.Trim();
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useOpenFarmApiEndpointsAssembliesCalculateBuildableUnitsEndpoint,
@@ -62,10 +62,10 @@ export function BuildableUnitsPanel({ assemblyId }: BuildableUnitsPanelProps) {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {printedParts.map((part) => (
-          <div key={part.partId} className="flex flex-col gap-1.5">
-            <Label htmlFor={`good-qty-${part.partId}`}>
+          <Field key={part.partId} className="flex flex-col gap-1.5">
+            <FieldLabel htmlFor={`good-qty-${part.partId}`}>
               {part.partName} on hand
-            </Label>
+            </FieldLabel>
             <Input
               id={`good-qty-${part.partId}`}
               type="number"
@@ -75,7 +75,7 @@ export function BuildableUnitsPanel({ assemblyId }: BuildableUnitsPanelProps) {
                 part.partId && handleQuantityChange(part.partId, e.target.value)
               }
             />
-          </div>
+          </Field>
         ))}
       </div>
 

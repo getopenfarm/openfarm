@@ -14,7 +14,7 @@ describe('SettingsPage', () => {
       </PreferencesProvider>,
     );
     expect(
-      screen.getByRole('link', { name: /Connection Secrets/ }),
+      screen.getByRole('link', { name: /Connection credentials/ }),
     ).toHaveAttribute('href', '/settings/connection-secrets');
   });
 

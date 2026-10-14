@@ -1,6 +1,13 @@
+import { ChevronsUpDownIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   Popover,
   PopoverContent,
@@ -25,7 +32,6 @@ import {
   useOpenFarmApiEndpointsProfilesListMachineProfilesEndpoint,
   useOpenFarmApiEndpointsProfilesListProcessProfilesEndpoint,
 } from '@/lib/api/generated/profiles/profiles';
-import { cn } from '@/lib/utils';
 
 export type ProfilePickerKind = 'machine' | 'process' | 'filament';
 
@@ -39,6 +45,10 @@ interface PickerItem {
 
 export interface ProfilePickerComboboxProps {
   ariaLabel?: string;
+  id?: string;
+  ref?: React.Ref<HTMLButtonElement>;
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean;
   kind: ProfilePickerKind;
   value: string | null | undefined;
   /** `name` is the picked item's display name — already known from the list render, no extra lookup. */
@@ -98,6 +108,10 @@ function toPickerItem(
  */
 export function ProfilePickerCombobox({
   ariaLabel,
+  id,
+  ref,
+  'aria-describedby': describedBy,
+  'aria-invalid': invalid,
   kind,
   value,
   onChange,
@@ -194,6 +208,14 @@ export function ProfilePickerCombobox({
         ? processQuery.isLoading
         : filamentQuery.isLoading;
 
+  const query =
+    kind === 'machine'
+      ? machineQuery
+      : kind === 'process'
+        ? processQuery
+        : filamentQuery;
+  const searching = isLoading || search !== debouncedSearch || query.isFetching;
+
   const items: PickerItem[] =
     (kind === 'machine'
       ? (machineQuery.data?.data as ListMachineProfilesResponse | undefined)
@@ -229,10 +251,21 @@ export function ProfilePickerCombobox({
       <PopoverTrigger asChild>
         <Button
           type="button"
+          id={id}
+          ref={ref}
           aria-label={ariaLabel}
+          aria-describedby={describedBy}
+          aria-invalid={invalid}
+          aria-haspopup="listbox"
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              setOpen(true);
+            }
+          }}
           variant="outline"
           disabled={disabled}
-          className="w-full min-w-0 justify-start font-normal"
+          className="w-full min-w-0 justify-between"
         >
           <span
             className="truncate"
@@ -242,74 +275,92 @@ export function ProfilePickerCombobox({
           >
             {disabled ? disabledPlaceholder : (resolvedLabel ?? placeholder)}
           </span>
+          <ChevronsUpDownIcon data-icon="inline-end" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         className="w-[var(--radix-popover-trigger-width)] p-0"
         align="start"
       >
-        <div className="flex flex-col gap-2 p-2">
-          <Input
+        <Command shouldFilter={false}>
+          <CommandInput
             autoFocus
+            aria-label={searchPlaceholder}
             placeholder={searchPlaceholder}
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onValueChange={setSearch}
           />
-          <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => handleSelect(null, null)}
-              className={cn(
-                'flex items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
-                value === null || value === undefined
-                  ? 'bg-muted font-medium'
-                  : '',
-              )}
-            >
-              None
-            </button>
-            {isLoading && (
-              <p className="px-2 py-1.5 text-xs text-muted-foreground">
+          <CommandList aria-label={`${kind} profiles`} aria-busy={searching}>
+            <CommandGroup>
+              <CommandItem
+                data-checked={!value}
+                value="__none"
+                onSelect={() => handleSelect(null, null)}
+              >
+                None
+              </CommandItem>
+            </CommandGroup>
+            {searching ? (
+              <p
+                role="status"
+                className="px-2 py-1.5 text-xs text-muted-foreground"
+              >
                 Loading…
               </p>
-            )}
-            {!isLoading && items.length === 0 && (
-              <p className="px-2 py-1.5 text-xs text-muted-foreground">
+            ) : query.isError ? (
+              <div role="alert" className="flex flex-col gap-2 p-2">
+                <p>Couldn't load profiles.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => query.refetch()}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : items.length === 0 ? (
+              <p
+                role="status"
+                className="px-2 py-1.5 text-xs text-muted-foreground"
+              >
                 No profiles found.
               </p>
+            ) : (
+              <CommandGroup>
+                {items.map((item) => (
+                  <CommandItem
+                    data-checked={value === item.id}
+                    key={item.id}
+                    value={item.id}
+                    onSelect={() => handleSelect(item.id, item.name)}
+                  >
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="truncate" title={item.name}>
+                        {item.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {item.sourceFormat === 'BambuStudio'
+                          ? 'Bambu Studio · '
+                          : item.sourceFormat === 'OrcaSlicer'
+                            ? 'OrcaSlicer · '
+                            : ''}
+                        {item.origin === 'System'
+                          ? `System${item.vendorName ? `: ${item.vendorName}` : ''}`
+                          : 'User'}
+                      </span>
+                      {kind === 'filament' && modelCode && nozzleDiameterMm && (
+                        <span className="text-xs text-muted-foreground">
+                          Compatible with {modelCode} · {nozzleDiameterMm} mm
+                        </span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
             )}
-            {items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleSelect(item.id, item.name)}
-                className={cn(
-                  'flex min-w-0 flex-col items-start gap-1 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
-                  value === item.id ? 'bg-muted font-medium' : '',
-                )}
-              >
-                <span className="w-full truncate" title={item.name}>
-                  {item.name}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {item.sourceFormat === 'BambuStudio'
-                    ? 'Bambu Studio · '
-                    : item.sourceFormat === 'OrcaSlicer'
-                      ? 'OrcaSlicer · '
-                      : ''}
-                  {item.origin === 'System'
-                    ? `System${item.vendorName ? `: ${item.vendorName}` : ''}`
-                    : 'User'}
-                </span>
-                {kind === 'filament' && modelCode && nozzleDiameterMm && (
-                  <span className="text-xs text-muted-foreground">
-                    Compatible with {modelCode} · {nozzleDiameterMm} mm
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );

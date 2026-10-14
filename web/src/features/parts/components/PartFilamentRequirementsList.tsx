@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -124,33 +125,35 @@ export function PartFilamentRequirementsList({
                   <SelectValue placeholder="Choose catalog filament" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_NARROW_VALUE}>
-                    Use file material and colour
-                  </SelectItem>
-                  {requirement.narrowFilamentVariantId &&
-                    !filaments
-                      .flatMap((f) => f.variants ?? [])
-                      .some(
-                        (v) => v.id === requirement.narrowFilamentVariantId,
-                      ) && (
-                      <SelectItem value={requirement.narrowFilamentVariantId}>
-                        Selected filament unavailable
-                      </SelectItem>
-                    )}
-                  {filaments
-                    .filter(
-                      (f) =>
-                        !requirement.materialType ||
-                        f.materialType === requirement.materialType,
-                    )
-                    .flatMap((filament) =>
-                      (filament.variants ?? []).map((variant) => (
-                        <SelectItem key={variant.id} value={variant.id ?? ''}>
-                          {filament.vendorName} {filament.material} ·{' '}
-                          {variant.colorName}
+                  <SelectGroup>
+                    <SelectItem value={NO_NARROW_VALUE}>
+                      Use file material and colour
+                    </SelectItem>
+                    {requirement.narrowFilamentVariantId &&
+                      !filaments
+                        .flatMap((f) => f.variants ?? [])
+                        .some(
+                          (v) => v.id === requirement.narrowFilamentVariantId,
+                        ) && (
+                        <SelectItem value={requirement.narrowFilamentVariantId}>
+                          Selected filament unavailable
                         </SelectItem>
-                      )),
-                    )}
+                      )}
+                    {filaments
+                      .filter(
+                        (f) =>
+                          !requirement.materialType ||
+                          f.materialType === requirement.materialType,
+                      )
+                      .flatMap((filament) =>
+                        (filament.variants ?? []).map((variant) => (
+                          <SelectItem key={variant.id} value={variant.id ?? ''}>
+                            {filament.vendorName} {filament.material} ·{' '}
+                            {variant.colorName}
+                          </SelectItem>
+                        )),
+                      )}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">

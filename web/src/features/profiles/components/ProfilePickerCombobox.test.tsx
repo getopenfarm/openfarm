@@ -183,3 +183,66 @@ describe('ProfilePickerCombobox', () => {
     expect(onChange).toHaveBeenCalledWith('orca', 'Bambu PLA Basic @BBL X1C');
   });
 });
+
+describe('ProfilePickerCombobox keyboard and failure behavior', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('opens with ArrowDown, selects with Enter, and restores trigger focus', async () => {
+    stubFetch({
+      '/profiles/machine': {
+        items: [{ id: 'm1', name: 'Keyboard printer', origin: 'User' }],
+      },
+    });
+    const { onChange } = renderPicker();
+    const user = userEvent.setup();
+    const trigger = screen.getByRole('button', { name: 'Select a profile…' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    await screen.findByRole('option', { name: /Keyboard printer/ });
+    expect(screen.getByRole('combobox')).toHaveFocus();
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(onChange).toHaveBeenCalledWith('m1', 'Keyboard printer');
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('clears the selection and closes with Escape without changing it', async () => {
+    stubFetch({ '/profiles/machine': { items: [] } });
+    const { onChange } = renderPicker({
+      value: 'm1',
+      selectedLabel: 'Saved profile',
+    });
+    const user = userEvent.setup();
+    const trigger = screen.getByRole('button', { name: 'Saved profile' });
+    await user.click(trigger);
+    await user.keyboard('{Escape}');
+    expect(onChange).not.toHaveBeenCalled();
+    await waitFor(() => expect(trigger).toHaveFocus());
+    await user.click(trigger);
+    await user.click(screen.getByRole('option', { name: 'None' }));
+    expect(onChange).toHaveBeenCalledWith(null, null);
+  });
+
+  it('reports request errors separately from no results and retries', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ title: 'Unavailable' }, 500))
+      .mockImplementation(() =>
+        Promise.resolve(
+          jsonResponse({ items: [{ id: 'retry', name: 'Recovered profile' }] }),
+        ),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    renderPicker();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Select a profile…' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't load profiles.",
+    );
+    expect(screen.queryByText('No profiles found.')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(
+      await screen.findByRole('option', { name: /Recovered profile/ }),
+    ).toBeInTheDocument();
+  });
+});

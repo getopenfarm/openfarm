@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import type { MatchingCheck } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint } from '@/lib/api/generated/print-jobs/print-jobs';
+import { cn } from '@/lib/utils';
 
 function CheckRow({
   check,
@@ -36,7 +37,14 @@ function CheckRow({
     <li className="flex items-start gap-2 border-t py-3 first:border-t-0">
       <Icon
         aria-hidden
-        className={`mt-0.5 size-4 shrink-0 ${check.status === 'Failed' ? 'text-destructive' : check.status === 'Passed' ? 'text-green-600' : 'text-muted-foreground'}`}
+        className={cn(
+          'mt-0.5 size-4 shrink-0',
+          check.status === 'Failed'
+            ? 'text-destructive'
+            : check.status === 'Passed'
+              ? 'text-status-complete'
+              : 'text-muted-foreground',
+        )}
       />
       <div className="min-w-0 flex-1 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -119,7 +127,7 @@ export function JobMatchingDialog({
             disabled={query.isFetching}
             onClick={() => query.refetch()}
           >
-            <RefreshCwIcon className="size-3.5" />
+            <RefreshCwIcon data-icon="inline-start" className="" />
             Refresh
           </Button>
         </div>
@@ -152,7 +160,7 @@ export function JobMatchingDialog({
               <h3 className="mb-2 text-sm font-semibold">
                 Effective filament requirements
               </h3>
-              <ul className="space-y-2">
+              <ul className="flex flex-col gap-2">
                 {(diagnostics.requirements ?? []).map((requirement) => (
                   <li
                     key={`${requirement.selectedVariantId ?? requirement.materialType}-${requirement.detectedColorHex}-${requirement.profileConstraintId}`}

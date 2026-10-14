@@ -26,7 +26,7 @@ function renderPage() {
 
   const router = createMemoryRouter(
     [
-      { path: '/assemblies/new', element: <AssemblyFormPage mode="add" /> },
+      { path: '/assemblies/new', element: <AssemblyFormPage /> },
       { path: '/assemblies', element: <div>Assemblies catalog page</div> },
       { path: '/assemblies/:id', element: <div>Assembly detail page</div> },
     ],
@@ -81,7 +81,7 @@ describe('AssemblyFormPage (add)', () => {
     await user.click(await screen.findByRole('option', { name: 'Bracket' }));
     await user.click(screen.getByRole('button', { name: /add line/i }));
 
-    await user.click(screen.getByRole('button', { name: /create assembly/i }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await vi.waitFor(() => {
       expect(capturedBody).toEqual({

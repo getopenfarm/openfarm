@@ -6,10 +6,12 @@ import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -22,14 +24,19 @@ import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import type {
   BuildPlateTypeOptionResponse,
+  DiscoveredPrinterResponse,
   PrinterCatalogResponse,
   PrinterDetailResponse,
 } from '@/lib/api/generated/endpoints.schemas';
@@ -42,6 +49,7 @@ import {
   useOpenFarmApiEndpointsPrintersRegisterPrinterEndpoint,
   useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint,
 } from '@/lib/api/generated/printers/printers';
+import { DiscoverPrinters } from './DiscoverPrinters';
 
 interface PrinterFormPageProps {
   mode: 'add' | 'edit';
@@ -49,7 +57,7 @@ interface PrinterFormPageProps {
 
 export function PrinterFormPage({ mode }: PrinterFormPageProps) {
   if (mode === 'add') {
-    return <AddPrinterForm />;
+    return <AddPrinterPage />;
   }
   return <EditPrinterForm />;
 }
@@ -69,7 +77,66 @@ const addSchema = z.object({
 
 type AddFormValues = z.infer<typeof addSchema>;
 
-function AddPrinterForm() {
+// Discovery-first: pick a printer announcing itself on the LAN, then confirm it in the regular
+// form (only the access code left to type). Manual entry stays one click away.
+function AddPrinterPage() {
+  const [source, setSource] = useState<'discover' | 'manual'>('discover');
+  const [picked, setPicked] = useState<DiscoveredPrinterResponse>();
+
+  return (
+    <div className="flex flex-1 flex-col gap-6">
+      <PageHeader
+        above={
+          <BackLink to="/printers" className="mb-1">
+            Back to fleet
+          </BackLink>
+        }
+        title="Add printer"
+        description="Connecting directly over LAN disconnects this printer from Bambu Cloud and the official app while OpenFarm is connected."
+      />
+
+      {picked ? (
+        <>
+          <Button
+            variant="link"
+            className="self-start px-0"
+            onClick={() => setPicked(undefined)}
+          >
+            ← Back to discovered printers
+          </Button>
+          <AddPrinterForm key={picked.serialNumber} prefill={picked} />
+        </>
+      ) : (
+        <>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            className="self-start"
+            value={source}
+            onValueChange={(next) => {
+              if (next === 'discover' || next === 'manual') setSource(next);
+            }}
+          >
+            <ToggleGroupItem value="discover">
+              Discover on network
+            </ToggleGroupItem>
+            <ToggleGroupItem value="manual">Enter manually</ToggleGroupItem>
+          </ToggleGroup>
+          {source === 'discover' ? (
+            <DiscoverPrinters
+              onSelect={setPicked}
+              onManual={() => setSource('manual')}
+            />
+          ) : (
+            <AddPrinterForm />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AddPrinterForm({ prefill }: { prefill?: DiscoveredPrinterResponse }) {
   const navigate = useNavigate();
   const [verified, setVerified] = useState(false);
   const queryClient = useQueryClient();
@@ -101,14 +168,19 @@ function AddPrinterForm() {
   const form = useForm<AddFormValues>({
     resolver: zodResolver(validatedSchema),
     defaultValues: {
-      name: '',
-      brand: '',
-      modelCode: '',
-      ipAddress: '',
-      serialNumber: '',
+      name: prefill?.name ?? '',
+      brand: prefill?.brand ?? '',
+      modelCode: prefill?.modelCode ?? '',
+      ipAddress: prefill?.ipAddress ?? '',
+      serialNumber: prefill?.serialNumber ?? '',
       accessCode: '',
     },
   });
+
+  // A discovered printer arrives with everything but the access code filled in.
+  useEffect(() => {
+    if (prefill) form.setFocus('accessCode');
+  }, [prefill, form]);
 
   const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
     form.formState.isDirty,
@@ -174,6 +246,8 @@ function AddPrinterForm() {
   // Brand/Model determine which connector a printer routes to, so switching either invalidates
   // any prior verify result exactly like a connection-field edit does.
   function handleBrandChange(newBrand: string) {
+    // Radix's hidden form control can emit an empty value while options mount.
+    if (!newBrand) return;
     form.setValue('brand', newBrand);
     const models = catalog?.brands?.find((b) => b.brand === newBrand)?.models;
     form.setValue('modelCode', models?.[0] ?? '');
@@ -181,6 +255,7 @@ function AddPrinterForm() {
   }
 
   function handleModelChange(newModelCode: string) {
+    if (!newModelCode) return;
     form.setValue('modelCode', newModelCode);
     handleConnectionFieldBlur();
   }
@@ -192,191 +267,225 @@ function AddPrinterForm() {
   const catalogUnavailable = catalogQuery.isError;
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink to="/printers">Back to fleet</BackLink>
-
-      <PageHeader
-        title="Add printer"
-        description="Connecting directly over LAN disconnects this printer from Bambu Cloud and the official app while OpenFarm is connected."
-      />
-
+    <>
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-6"
+          className="flex flex-1 flex-col gap-6"
         >
-          <Card>
-            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="brand"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Brand</FormLabel>
-                    <FormControl>
-                      <select
-                        className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+          <FieldGroup className="flex-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Connection details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="brand"
+                  render={({ field }) => (
+                    <FormItem
+                      data-disabled={
+                        catalogQuery.isLoading || catalogUnavailable
+                      }
+                    >
+                      <FormLabel>Brand</FormLabel>
+                      <Select
+                        name={field.name}
+                        value={field.value}
+                        onValueChange={handleBrandChange}
                         disabled={catalogQuery.isLoading || catalogUnavailable}
-                        {...field}
-                        onChange={(e) => handleBrandChange(e.target.value)}
                       >
-                        {(catalog?.brands ?? []).map((b) => (
-                          <option key={b.brand} value={b.brand}>
-                            {b.brand}
-                          </option>
-                        ))}
-                      </select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="modelCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Model</FormLabel>
-                    <FormControl>
-                      <select
-                        className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                        <FormControl>
+                          <SelectTrigger
+                            ref={field.ref}
+                            onBlur={field.onBlur}
+                            className="w-full"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectGroup>
+                            {(catalog?.brands ?? []).map((b) => (
+                              <SelectItem key={b.brand} value={b.brand ?? ''}>
+                                {b.brand}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="modelCode"
+                  render={({ field }) => (
+                    <FormItem
+                      data-disabled={
+                        catalogQuery.isLoading || catalogUnavailable
+                      }
+                    >
+                      <FormLabel>Model</FormLabel>
+                      <Select
+                        name={field.name}
+                        value={field.value}
+                        onValueChange={handleModelChange}
                         disabled={catalogQuery.isLoading || catalogUnavailable}
-                        {...field}
-                        onChange={(e) => handleModelChange(e.target.value)}
                       >
-                        {modelsForBrand.map((model) => (
-                          <option key={model} value={model}>
-                            {model}
-                          </option>
-                        ))}
-                      </select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                        <FormControl>
+                          <SelectTrigger
+                            ref={field.ref}
+                            onBlur={field.onBlur}
+                            className="w-full"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectGroup>
+                            {modelsForBrand.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="ipAddress"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>IP address</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          onBlur={() => {
+                            field.onBlur();
+                            handleConnectionFieldBlur();
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="serialNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Serial number</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          readOnly={!!prefill}
+                          onBlur={() => {
+                            field.onBlur();
+                            handleConnectionFieldBlur();
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="accessCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>LAN access code</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          {...field}
+                          onBlur={() => {
+                            field.onBlur();
+                            handleConnectionFieldBlur();
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {catalogUnavailable && (
+                  <p className="text-sm text-destructive sm:col-span-2">
+                    Couldn't load the printer catalog. Try again before adding a
+                    printer.
+                  </p>
                 )}
-              />
-              <FormField
-                control={form.control}
-                name="ipAddress"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>IP address</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        onBlur={() => {
-                          field.onBlur();
-                          handleConnectionFieldBlur();
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                {verifyMutation.isPending && (
+                  <p className="text-sm text-muted-foreground sm:col-span-2">
+                    Verifying connection…
+                  </p>
                 )}
-              />
-              <FormField
-                control={form.control}
-                name="serialNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Serial number</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        onBlur={() => {
-                          field.onBlur();
-                          handleConnectionFieldBlur();
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                {verifyMutation.isError && !verifyMutation.isPending && (
+                  <p className="text-sm text-destructive sm:col-span-2">
+                    Could not verify this printer's connection. Check the IP
+                    address and LAN access code.
+                  </p>
                 )}
-              />
-              <FormField
-                control={form.control}
-                name="accessCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>LAN access code</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        {...field}
-                        onBlur={() => {
-                          field.onBlur();
-                          handleConnectionFieldBlur();
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                {verified && !verifyMutation.isPending && (
+                  <p className="text-sm text-status-complete sm:col-span-2">
+                    Connection verified.
+                  </p>
                 )}
-              />
-              {catalogUnavailable && (
-                <p className="text-sm text-destructive sm:col-span-2">
-                  Couldn't load the printer catalog. Try again before adding a
-                  printer.
-                </p>
-              )}
-              {verifyMutation.isPending && (
-                <p className="text-sm text-muted-foreground sm:col-span-2">
-                  Verifying connection…
-                </p>
-              )}
-              {verifyMutation.isError && !verifyMutation.isPending && (
-                <p className="text-sm text-destructive sm:col-span-2">
-                  Could not verify this printer's connection. Check the IP
-                  address and LAN access code.
-                </p>
-              )}
-              {verified && !verifyMutation.isPending && (
-                <p className="text-sm text-status-complete sm:col-span-2">
-                  Connection verified.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <FormFooter
-            start={
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => navigate('/printers')}
-              >
-                Cancel
-              </Button>
-            }
-            end={
-              <Button
-                type="submit"
-                disabled={
-                  !verified || registerMutation.isPending || catalogUnavailable
-                }
-              >
-                {registerMutation.isPending ? 'Adding…' : 'Add printer'}
-              </Button>
-            }
-          />
+            <FormFooter
+              end={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/printers')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={
+                      !verified ||
+                      registerMutation.isPending ||
+                      catalogUnavailable
+                    }
+                  >
+                    {registerMutation.isPending && (
+                      <Spinner data-icon="inline-start" />
+                    )}
+                    {registerMutation.isPending ? 'Saving…' : 'Save'}
+                  </Button>
+                </>
+              }
+            />
+          </FieldGroup>
         </form>
       </Form>
 
       <ConfirmLeaveDialog />
-    </div>
+    </>
   );
 }
 
@@ -390,24 +499,36 @@ type EditFormValues = z.infer<typeof editSchema>;
 
 function EditPrinterForm() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const detailQuery = useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint(
     id ?? '',
   );
   const printer = detailQuery.data?.data as PrinterDetailResponse | undefined;
 
-  if (detailQuery.isLoading) {
+  if (detailQuery.isLoading || !printer) {
     return (
       <div className="flex flex-col gap-6">
-        <BackLink to="/printers">Back to fleet</BackLink>
-      </div>
-    );
-  }
-
-  if (!printer) {
-    return (
-      <div className="flex flex-col gap-6">
-        <BackLink to="/printers">Back to fleet</BackLink>
-        <p className="text-sm text-muted-foreground">Printer not found.</p>
+        <PageHeader
+          above={
+            <BackLink to="/printers" className="mb-1">
+              Back to fleet
+            </BackLink>
+          }
+          title="Edit printer"
+        />
+        {detailQuery.isLoading ? (
+          <Skeleton className="h-64 w-full" />
+        ) : (
+          <EmptyState
+            title="Printer not found"
+            description="It may have been removed, or the link is out of date."
+            action={
+              <Button variant="outline" onClick={() => navigate('/printers')}>
+                Back to fleet
+              </Button>
+            }
+          />
+        )}
       </div>
     );
   }
@@ -504,8 +625,12 @@ function EditPrinterFormLoaded({
     },
   });
 
+  // The profile and build-plate pickers live outside react-hook-form, so they join the dirty check here.
   const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
-    form.formState.isDirty,
+    form.formState.isDirty ||
+      selectedMachineProfileId !== (machineProfileId ?? null) ||
+      selectedProcessProfileId !== (processProfileId ?? null) ||
+      selectedBuildPlateType !== (buildPlateType ?? null),
   );
 
   const ipAddress = form.watch('ipAddress');
@@ -613,10 +738,13 @@ function EditPrinterFormLoaded({
     : editMutation.isPending;
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink to="/printers">Back to fleet</BackLink>
-
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader
+        above={
+          <BackLink to="/printers" className="mb-1">
+            Back to fleet
+          </BackLink>
+        }
         title={`Edit ${printerName}`}
         description={`${brand} ${modelCode} — connection changes stay gated on verification; renaming alone saves immediately.`}
       />
@@ -624,164 +752,174 @@ function EditPrinterFormLoaded({
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-6"
+          className="flex flex-1 flex-col gap-6"
         >
-          <Card>
-            <CardContent className="flex flex-col gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="ipAddress"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>IP address</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        onBlur={() => {
-                          field.onBlur();
-                          handleConnectionFieldBlur();
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="accessCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>LAN access code</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="Leave blank to keep the current connection"
-                        {...field}
-                        onBlur={() => {
-                          field.onBlur();
-                          handleConnectionFieldBlur();
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {connectionChanged && verifyMutation.isPending && (
-                <p className="text-sm text-muted-foreground">
-                  Verifying connection…
-                </p>
-              )}
-              {connectionChanged &&
-                verifyMutation.isError &&
-                !verifyMutation.isPending && (
-                  <p className="text-sm text-destructive">
-                    Could not verify this printer's connection. Check the IP
-                    address and LAN access code.
+          <FieldGroup className="flex-1 gap-6">
+            <Card>
+              <CardContent className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="ipAddress"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>IP address</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          onBlur={() => {
+                            field.onBlur();
+                            handleConnectionFieldBlur();
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="accessCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>LAN access code</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="Leave blank to keep the current connection"
+                          {...field}
+                          onBlur={() => {
+                            field.onBlur();
+                            handleConnectionFieldBlur();
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {connectionChanged && verifyMutation.isPending && (
+                  <p className="text-sm text-muted-foreground">
+                    Verifying connection…
                   </p>
                 )}
-              {connectionChanged && verified && !verifyMutation.isPending && (
-                <p className="text-sm text-status-complete">
-                  Connection verified.
-                </p>
-              )}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium">Machine profile</span>
-                <p className="text-xs text-muted-foreground">
-                  {nozzleConfirmed
-                    ? `Printer-reported nozzle: ${nozzleDiameterMm} mm`
-                    : 'Waiting for nozzle information from the current connection.'}
-                </p>
-                {selectedMachineProfileId === machineProfileId &&
-                  machineProfileIssue && (
+                {connectionChanged &&
+                  verifyMutation.isError &&
+                  !verifyMutation.isPending && (
                     <p className="text-sm text-destructive">
-                      {machineProfileIssue}
+                      Could not verify this printer's connection. Check the IP
+                      address and LAN access code.
                     </p>
                   )}
-                <ProfilePickerCombobox
-                  kind="machine"
-                  printerId={printerId}
-                  disabled={!nozzleConfirmed}
-                  disabledPlaceholder="Waiting for printer nozzle information"
-                  value={selectedMachineProfileId}
-                  onChange={handleMachineProfileChange}
-                  selectedLabel={selectedMachineProfileName}
-                  placeholder="No machine profile linked"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium">Process profile</span>
-                <ProfilePickerCombobox
-                  kind="process"
-                  value={selectedProcessProfileId}
-                  onChange={handleProcessProfileChange}
-                  selectedLabel={selectedProcessProfileName}
-                  placeholder="No process profile linked"
-                  disabled={!selectedMachineProfileId || !nozzleConfirmed}
-                  disabledPlaceholder="Select a machine profile first"
-                  compatibleWithMachineName={
-                    selectedMachineProfileName ?? undefined
-                  }
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium">Build plate</span>
-                <Select
-                  value={selectedBuildPlateType ?? NO_BUILD_PLATE_VALUE}
-                  onValueChange={(value) =>
-                    setSelectedBuildPlateType(
-                      value === NO_BUILD_PLATE_VALUE ? null : value,
-                    )
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Not selected" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_BUILD_PLATE_VALUE}>
-                      Not selected
-                    </SelectItem>
-                    {(compatibleBuildPlateTypes ?? []).map((option) => (
-                      <SelectItem key={option.value} value={option.value ?? ''}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+                {connectionChanged && verified && !verifyMutation.isPending && (
+                  <p className="text-sm text-status-complete">
+                    Connection verified.
+                  </p>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium">Machine profile</span>
+                  <p className="text-xs text-muted-foreground">
+                    {nozzleConfirmed
+                      ? `Printer-reported nozzle: ${nozzleDiameterMm} mm`
+                      : 'Waiting for nozzle information from the current connection.'}
+                  </p>
+                  {selectedMachineProfileId === machineProfileId &&
+                    machineProfileIssue && (
+                      <p className="text-sm text-destructive">
+                        {machineProfileIssue}
+                      </p>
+                    )}
+                  <ProfilePickerCombobox
+                    kind="machine"
+                    printerId={printerId}
+                    disabled={!nozzleConfirmed}
+                    disabledPlaceholder="Waiting for printer nozzle information"
+                    value={selectedMachineProfileId}
+                    onChange={handleMachineProfileChange}
+                    selectedLabel={selectedMachineProfileName}
+                    placeholder="No machine profile linked"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium">Process profile</span>
+                  <ProfilePickerCombobox
+                    kind="process"
+                    value={selectedProcessProfileId}
+                    onChange={handleProcessProfileChange}
+                    selectedLabel={selectedProcessProfileName}
+                    placeholder="No process profile linked"
+                    disabled={!selectedMachineProfileId || !nozzleConfirmed}
+                    disabledPlaceholder="Select a machine profile first"
+                    compatibleWithMachineName={
+                      selectedMachineProfileName ?? undefined
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium">Build plate</span>
+                  <Select
+                    value={selectedBuildPlateType ?? NO_BUILD_PLATE_VALUE}
+                    onValueChange={(value) =>
+                      setSelectedBuildPlateType(
+                        value === NO_BUILD_PLATE_VALUE ? null : value,
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Not selected" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value={NO_BUILD_PLATE_VALUE}>
+                          Not selected
+                        </SelectItem>
+                        {(compatibleBuildPlateTypes ?? []).map((option) => (
+                          <SelectItem
+                            key={option.value}
+                            value={option.value ?? ''}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
 
-          <FormFooter
-            start={
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => navigate('/printers')}
-              >
-                Cancel
-              </Button>
-            }
-            end={
-              <Button type="submit" disabled={saveDisabled}>
-                {editMutation.isPending ? 'Saving…' : 'Save'}
-              </Button>
-            }
-          />
+            <FormFooter
+              end={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/printers')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={saveDisabled}>
+                    {editMutation.isPending && (
+                      <Spinner data-icon="inline-start" />
+                    )}
+                    {editMutation.isPending ? 'Saving…' : 'Save'}
+                  </Button>
+                </>
+              }
+            />
+          </FieldGroup>
         </form>
       </Form>
 

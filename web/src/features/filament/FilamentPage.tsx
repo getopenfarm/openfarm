@@ -1,11 +1,15 @@
-import { PackageIcon, StoreIcon } from 'lucide-react';
-import { useMemo } from 'react';
+import { PackageIcon, PlusIcon, StoreIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import {
+  DataTableTabsList,
+  DataTableToolbar,
+} from '@/components/data-table/DataTableToolbar';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import type {
   ListFilamentsResponse,
   ListVendorsResponse,
@@ -18,6 +22,7 @@ import { VendorTable } from './components/VendorTable';
 
 export function FilamentPage() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('catalog');
   const filamentsQuery =
     useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
   const filaments =
@@ -51,16 +56,27 @@ export function FilamentPage() {
         }
         action={
           <Button onClick={() => navigate('/filament/new')}>
+            <PlusIcon data-icon="inline-start" />
             Add filament
           </Button>
         }
       />
-      <Tabs defaultValue="catalog">
-        <TabsList>
-          <TabsTrigger value="catalog">Catalog</TabsTrigger>
-          <TabsTrigger value="vendors">Vendors</TabsTrigger>
-        </TabsList>
-        <TabsContent value="catalog">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
+        <DataTableToolbar
+          actions={
+            activeTab === 'vendors' &&
+            !vendorsQuery.isLoading &&
+            vendors.length > 0 ? (
+              <CreateVendorDialog />
+            ) : undefined
+          }
+        >
+          <DataTableTabsList aria-label="Filament views">
+            <TabsTrigger value="catalog">Catalog</TabsTrigger>
+            <TabsTrigger value="vendors">Vendors</TabsTrigger>
+          </DataTableTabsList>
+        </DataTableToolbar>
+        <TabsContent value="catalog" className="flex flex-col gap-3">
           {filamentsQuery.isLoading ? (
             <Skeleton className="h-64 w-full" />
           ) : filaments.length === 0 ? (
@@ -89,12 +105,7 @@ export function FilamentPage() {
               action={<CreateVendorDialog />}
             />
           ) : (
-            <>
-              <div className="flex justify-end">
-                <CreateVendorDialog />
-              </div>
-              <VendorTable vendors={vendors} />
-            </>
+            <VendorTable vendors={vendors} />
           )}
         </TabsContent>
       </Tabs>

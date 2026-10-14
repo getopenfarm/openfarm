@@ -19,6 +19,14 @@ const FILAMENTS: FilamentResponse[] = [
   },
 ];
 
+const SAVED_ASSIGNMENT = {
+  brand: 'Bambu',
+  modelCode: 'X1C',
+  nozzleDiameterMm: 0.6,
+  filamentProfileId: 'fp-old',
+  colorHex: null,
+};
+
 const VENDORS = [{ id: 'v-1', name: 'Prusament' }];
 
 function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
@@ -96,13 +104,30 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
           ),
         );
       }
-      if (method === 'POST' && url.includes('/variants')) {
+      if (method === 'GET' && url.endsWith('/f-1/profile-assignments')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ assignments: [SAVED_ASSIGNMENT], issues: [] }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+      }
+      if (method === 'PUT' && url.endsWith('/api/v1/filaments/f-1')) {
+        const body = JSON.parse(init?.body as string);
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              id: 'var-new',
-              colorName: 'Red',
-              colorHex: '#ef4444',
+              ...FILAMENTS[0],
+              variants: [
+                ...(FILAMENTS[0].variants ?? []),
+                ...body.newVariants.map(
+                  (v: { colorName: string; colorHex: string }, i: number) => ({
+                    id: `var-new-${i}`,
+                    ...v,
+                  }),
+                ),
+              ],
+              profileAssignments: body.profileAssignments,
             }),
             { status: 200, headers: { 'Content-Type': 'application/json' } },
           ),
@@ -210,7 +235,7 @@ describe('FilamentFormPage', () => {
     renderAddPage();
 
     await screen.findByRole('combobox', { name: 'Vendor' });
-    await user.click(screen.getByRole('button', { name: 'Add filament' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByText('Vendor is required')).toBeInTheDocument();
     expect(screen.getByText('Material name is required')).toBeInTheDocument();
@@ -238,7 +263,7 @@ describe('FilamentFormPage', () => {
     await user.click(screen.getByRole('button', { name: 'Black' }));
     await user.click(screen.getByRole('button', { name: 'Add variant' }));
 
-    await user.click(screen.getByRole('button', { name: 'Add filament' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(createBody).toMatchObject({
@@ -269,16 +294,16 @@ describe('FilamentFormPage', () => {
       screen.getByRole('button', { name: 'Default profile for P1S · 0.4 mm' }),
     );
     expect(
-      await screen.findByRole('button', { name: /Generic PETG/ }),
+      await screen.findByRole('option', { name: /Generic PETG/ }),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Generic PETG/ }));
+    await user.click(screen.getByRole('option', { name: /Generic PETG/ }));
 
     await user.click(screen.getByRole('button', { name: /add variant/i }));
     await user.type(screen.getByLabelText('Name'), 'Galaxy Black');
     await user.click(screen.getByRole('button', { name: 'Black' }));
     await user.click(screen.getByRole('button', { name: 'Add variant' }));
 
-    await user.click(screen.getByRole('button', { name: 'Add filament' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(createBody).toMatchObject({
@@ -318,16 +343,23 @@ describe('FilamentFormPage', () => {
     expect(screen.getByText('Galaxy Black')).toBeInTheDocument();
   });
 
-  it('adds a variant to an existing filament via the API', async () => {
+  it('stages a new variant and assignment change in the draft and saves them in one PUT', async () => {
     const user = userEvent.setup();
-    let addVariantCalled = false;
+    const writes: { url: string; method: string; body: unknown }[] = [];
     renderEditPage('f-1', (url, init) => {
-      if (init?.method === 'POST' && url.includes('/variants')) {
-        addVariantCalled = true;
+      const method = init?.method?.toUpperCase() ?? 'GET';
+      if (method !== 'GET') {
+        writes.push({ url, method, body: JSON.parse(init?.body as string) });
       }
     });
 
     await screen.findByText('Variants (1)');
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save).toBeDisabled();
+    // Saved variants cannot be removed.
+    expect(
+      screen.queryByRole('button', { name: 'Remove Galaxy Black' }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /add variant/i }));
     const dialog = within(screen.getByRole('dialog'));
@@ -335,6 +367,46 @@ describe('FilamentFormPage', () => {
     await user.click(dialog.getByRole('button', { name: 'Red' }));
     await user.click(dialog.getByRole('button', { name: 'Add variant' }));
 
-    await waitFor(() => expect(addVariantCalled).toBe(true));
+    expect(await screen.findByText('Variants (2)')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remove Red' }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Default profile for P1S · 0.4 mm' }),
+    );
+    await user.click(
+      await screen.findByRole('option', { name: /Generic PETG/ }),
+    );
+
+    expect(writes).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      method: 'PUT',
+      url: expect.stringMatching(/\/api\/v1\/filaments\/f-1$/),
+      body: {
+        newVariants: [{ colorName: 'Red', colorHex: '#ef4444' }],
+        profileAssignments: [
+          SAVED_ASSIGNMENT,
+          {
+            brand: 'Bambu',
+            modelCode: 'P1S',
+            nozzleDiameterMm: 0.4,
+            filamentProfileId: 'fp-1',
+            colorHex: null,
+          },
+        ],
+      },
+    });
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Remove Red' }),
+    ).not.toBeInTheDocument();
   });
 });

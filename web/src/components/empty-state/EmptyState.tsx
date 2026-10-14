@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { cn } from '@/lib/utils';
 
 interface EmptyStateProps {
@@ -32,22 +40,23 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <div
+    <Empty
       data-slot="empty-state"
       className={cn(
-        'flex flex-col items-center gap-2 text-center',
-        bordered && 'border border-dashed',
-        size === 'sm' ? 'rounded-lg p-8' : 'rounded-xl p-12',
+        bordered && 'border',
+        size === 'sm' ? 'p-8' : 'p-12',
         className,
       )}
     >
-      {icon}
-      {title ? <p className="text-sm font-medium">{title}</p> : null}
-      {description ? (
-        <p className="text-sm text-muted-foreground">{description}</p>
-      ) : null}
-      {action}
-    </div>
+      <EmptyHeader>
+        {icon ? <EmptyMedia>{icon}</EmptyMedia> : null}
+        {title ? <EmptyTitle>{title}</EmptyTitle> : null}
+        {description ? (
+          <EmptyDescription>{description}</EmptyDescription>
+        ) : null}
+      </EmptyHeader>
+      {action ? <EmptyContent>{action}</EmptyContent> : null}
+    </Empty>
   );
 }
 

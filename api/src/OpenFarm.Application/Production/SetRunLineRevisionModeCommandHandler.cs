@@ -3,7 +3,7 @@ using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-/// <summary>FR-009b — editable after queueing; affects only plates dispatched after this call, never a currently-printing one (RunLine.SetRevisionMode's own doc comment).</summary>
+/// <summary>Deprecated compatibility command; accepts only the quantity-derived revision mode.</summary>
 public sealed class SetRunLineRevisionModeCommandHandler(IProductionRunRepository runRepository)
     : ICommandHandler<SetRunLineRevisionModeCommand, RunLine>
 {

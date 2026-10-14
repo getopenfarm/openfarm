@@ -26,6 +26,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
             // Fixtures deliberately seed Linux AppRun shell scripts, which also execute on macOS.
             // Keep their catalog selection independent of the machine running the test suite.
             services.AddSingleton<IHostPlatformProvider, FixtureHostPlatformProvider>();
+            services.PostConfigure<OpenFarm.Infrastructure.Printers.CameraSnapshotStorageOptions>(options =>
+                options.RootDirectory = Path.Combine(_partFilesDirectory, "camera-snapshots"));
             services.PostConfigure<OpenFarm.Infrastructure.Parts.PartFileStorageOptions>(options =>
                 options.RootDirectory = _partFilesDirectory);
         });
@@ -150,8 +152,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
 
     public new async Task DisposeAsync()
     {
-        await _postgres.StopAsync();
+        // Stop workers before their database so teardown cannot race background queries.
         await base.DisposeAsync();
+        await _postgres.StopAsync();
 
         try
         {

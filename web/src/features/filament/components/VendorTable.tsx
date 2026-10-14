@@ -19,5 +19,5 @@ interface VendorTableProps {
 }
 
 export function VendorTable({ vendors }: VendorTableProps) {
-  return <DataTable columns={columns} data={vendors} />;
+  return <DataTable pageSize={25} columns={columns} data={vendors} />;
 }

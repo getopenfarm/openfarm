@@ -10,7 +10,7 @@ public interface IPartRepository
 
     /// <summary><paramref name="tags"/> filters to parts carrying ALL given tag names (AND-semantics, FR of US5).</summary>
     Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(
-        IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken);
+        IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null);
 
     /// <summary>
     /// Confirmed parts whose estimate is still <c>Resolving</c> — only reachable at process startup

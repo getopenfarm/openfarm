@@ -43,8 +43,8 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
         var printer = await PrinterAsync();
         var finite = await RunAsync(client, part.Id, quantity: 4, pinned: printer.Id);
         var backfill = await RunAsync(client, part.Id, quantity: null);
-        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{backfill.Id}/lines/{backfill.Lines.Single().Id}/backfill-limits",
-            new { backfillPrinterCap = 1, backfillCumulativeUnitCeiling = 4 });
+        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{backfill.Id}/backfill-limits",
+            new { lines = new[] { new { lineId = backfill.Lines.Single().Id, backfillPrinterCap = 1, backfillCumulativeUnitCeiling = 4 } } });
         response.EnsureSuccessStatusCode();
         using var worker = Worker();
         await worker.StartAsync(default);
@@ -61,7 +61,7 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
             await ReplayAsync(printer.Id, "RUNNING");
             await ReplayAsync(printer.Id, "FINISH");
             // Changing a Part default cannot rewrite the completed plate's cumulative output.
-            var changed = await client.PatchAsJsonAsync($"/api/v1/parts/{part.Id}/units-per-print", new { unitsPerPrint = 1 });
+            var changed = await client.PutAsJsonAsync($"/api/v1/parts/{part.Id}", new { name = part.Name, tags = Array.Empty<string>(), unitsPerPrint = 1 });
             changed.EnsureSuccessStatusCode();
             await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready");
             worker.RequestDispatchAttempt(printer.Id);

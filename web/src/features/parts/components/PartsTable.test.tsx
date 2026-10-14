@@ -71,6 +71,15 @@ function setup(
   return { requests, queryClient, onRowClick };
 }
 
+async function openQueue() {
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Actions for Bracket' }),
+  );
+  await userEvent.click(
+    screen.getByRole('menuitem', { name: 'Send to queue' }),
+  );
+}
+
 describe('PartsTable queue action', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -82,7 +91,7 @@ describe('PartsTable queue action', () => {
     const success = vi.spyOn(toast, 'success');
     const { requests, queryClient, onRowClick } = setup();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
-    await user.click(screen.getByRole('button', { name: 'Send to queue' }));
+    await openQueue();
     expect(onRowClick).not.toHaveBeenCalled();
     const input = await screen.findByLabelText('Quantity (units)');
     expect(input).toHaveValue(4);
@@ -137,7 +146,7 @@ describe('PartsTable queue action', () => {
   it('cancels without creating jobs', async () => {
     const user = userEvent.setup();
     const { requests } = setup();
-    await user.click(screen.getByRole('button', { name: 'Send to queue' }));
+    await openQueue();
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(
@@ -145,7 +154,7 @@ describe('PartsTable queue action', () => {
     ).toBe(false);
   });
 
-  it('disables incomplete parts while allowing parts without estimates', () => {
+  it('disables incomplete parts while allowing parts without estimates', async () => {
     setup({
       parts: [
         part,
@@ -157,15 +166,21 @@ describe('PartsTable queue action', () => {
         },
       ],
     });
-    const rows = screen.getAllByRole('row');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Actions for Bracket' }),
+    );
     expect(
-      within(rows[1]).getByRole('button', { name: 'Send to queue' }),
-    ).toBeEnabled();
+      screen.getByRole('menuitem', { name: 'Send to queue' }),
+    ).not.toHaveAttribute('aria-disabled');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Actions for Incomplete part' }),
+    );
     expect(
-      within(rows[2]).getByRole('button', { name: 'Send to queue' }),
-    ).toBeDisabled();
+      screen.getByRole('menuitem', { name: 'Send to queue' }),
+    ).toHaveAttribute('aria-disabled', 'true');
     expect(
-      within(rows[2]).getByRole('button', { name: 'Send to queue' }),
+      screen.getByRole('menuitem', { name: 'Send to queue' }),
     ).toHaveAttribute(
       'title',
       'Complete this part’s print requirements before queueing.',
@@ -174,9 +189,7 @@ describe('PartsTable queue action', () => {
 
   it('rechecks requirements after opening a stale table row', async () => {
     setup({ detailStatus: 'Incomplete' });
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Send to queue' }),
-    );
+    await openQueue();
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Complete this part’s print requirements before queueing.',
     );
@@ -187,7 +200,7 @@ describe('PartsTable queue action', () => {
     const user = userEvent.setup();
     const { queryClient } = setup({ failure: true });
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
-    await user.click(screen.getByRole('button', { name: 'Send to queue' }));
+    await openQueue();
     const input = await screen.findByLabelText('Quantity (units)');
     fireEvent.change(input, { target: { value: '9' } });
     await user.click(
@@ -203,9 +216,8 @@ describe('PartsTable queue action', () => {
   });
 
   it('rejects a fractional number of units without creating jobs', async () => {
-    const user = userEvent.setup();
     const { requests } = setup();
-    await user.click(screen.getByRole('button', { name: 'Send to queue' }));
+    await openQueue();
     fireEvent.change(await screen.findByLabelText('Quantity (units)'), {
       target: { value: '1.5' },
     });

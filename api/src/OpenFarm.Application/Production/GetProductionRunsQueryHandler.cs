@@ -9,7 +9,7 @@ public sealed class GetProductionRunsQueryHandler(
 {
     public async Task<ProductionRunsPage> HandleAsync(GetProductionRunsQuery query, CancellationToken cancellationToken)
     {
-        var (runs, totalCount) = await runRepository.ListAsync(query.Page, query.PageSize, cancellationToken);
+        var (runs, totalCount) = await runRepository.ListAsync(query.Page, query.PageSize, cancellationToken, query.Sorting);
 
         var items = new List<ProductionRunSummary>();
         foreach (var run in runs)

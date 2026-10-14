@@ -124,11 +124,15 @@ public class CalculateBuildableUnitsQueryHandlerTests
     {
         public Task AddAsync(Assembly assembly, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public void StageLine(BomLine line)
+        {
+        }
+
         public Task<Assembly?> GetByIdAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<Assembly?>(null);
 
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(exists);
 
-        public Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken) =>
+        public Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
             Task.FromResult<(IReadOnlyList<Assembly>, int)>(([], 0));
 
         public Task<IReadOnlyList<string>> GetReferencingAssemblyNamesAsync(BomLineTargetKind targetKind, Guid targetId, CancellationToken cancellationToken) =>
@@ -138,7 +142,6 @@ public class CalculateBuildableUnitsQueryHandlerTests
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task AddLineAsync(BomLine line, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<TResult> RunWithStructuralLockAsync<TResult>(
             Guid organizationId, Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken) =>

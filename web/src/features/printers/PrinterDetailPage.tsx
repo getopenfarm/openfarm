@@ -4,8 +4,11 @@ import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PageHeader } from '@/components/page-header/PageHeader';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PrinterDetailResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -55,23 +58,53 @@ export function PrinterDetailPage() {
 
   const printer = detailQuery.data?.data as PrinterDetailResponse | undefined;
 
+  const backLink = (
+    <BackLink to="/printers" className="mb-1">
+      Back to fleet
+    </BackLink>
+  );
+  const queryError: unknown = detailQuery.error;
+  const isNotFound =
+    !printer &&
+    (!detailQuery.isError ||
+      (queryError instanceof Response && queryError.status === 404));
+
   return (
     <div className="flex flex-col gap-6">
       {markReadyMutation.confirmationDialog}
-      <BackLink to="/printers">Back to fleet</BackLink>
 
       {detailQuery.isLoading ? (
-        <Skeleton className="h-64 w-full" />
+        <>
+          <PageHeader above={backLink} title="Printer" />
+          <Skeleton className="h-64 w-full" />
+        </>
       ) : !printer ? (
-        <p className="text-sm text-muted-foreground">Printer not found.</p>
+        <>
+          <PageHeader above={backLink} title="Printer" />
+          {isNotFound ? (
+            <EmptyState
+              title="Printer not found"
+              description="It may have been removed, or the link is out of date."
+              action={
+                <Button variant="outline" onClick={() => navigate('/printers')}>
+                  Back to fleet
+                </Button>
+              }
+            />
+          ) : (
+            <ErrorState
+              title="Could not load this printer"
+              onRetry={() => detailQuery.refetch()}
+            />
+          )}
+        </>
       ) : (
         <>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-3">
-                <h2 className="font-heading text-2xl font-semibold">
-                  {printer.name}
-                </h2>
+          <PageHeader
+            above={backLink}
+            title={
+              <span className="flex items-center gap-3">
+                {printer.name}
                 {(() => {
                   const { kind, label } = printerStatusToBadge(
                     (printer.status ?? 'Idle') as PrinterStatus,
@@ -79,23 +112,27 @@ export function PrinterDetailPage() {
                   );
                   return <StatusBadge kind={kind} label={label} />;
                 })()}
-              </div>
-              <p className="font-mono text-sm text-muted-foreground">
+              </span>
+            }
+            description={
+              <span className="font-mono">
                 {printer.brand} {printer.modelCode} · {printer.ipAddress}
-              </p>
-            </div>
-            <PrinterDetailActions
-              status={(printer.status ?? 'Idle') as PrinterStatus}
-              isReachable={printer.isReachable ?? false}
-              isMarkReadyPending={markReadyMutation.isPending}
-              isRemovePending={removeMutation.isPending}
-              onMarkReady={() =>
-                markReadyMutation.mutate({ id: printer.id ?? '' })
-              }
-              onOpenSettings={() => navigate(`/printers/${printer.id}/edit`)}
-              onRemove={() => setConfirmRemoveOpen(true)}
-            />
-          </div>
+              </span>
+            }
+            action={
+              <PrinterDetailActions
+                status={(printer.status ?? 'Idle') as PrinterStatus}
+                isReachable={printer.isReachable ?? false}
+                isMarkReadyPending={markReadyMutation.isPending}
+                isRemovePending={removeMutation.isPending}
+                onMarkReady={() =>
+                  markReadyMutation.mutate({ id: printer.id ?? '' })
+                }
+                onEdit={() => navigate(`/printers/${printer.id}/edit`)}
+                onRemove={() => setConfirmRemoveOpen(true)}
+              />
+            }
+          />
           <PrinterReportedStatus
             telemetry={printer.telemetry}
             isReachable={printer.isReachable ?? false}
@@ -103,6 +140,8 @@ export function PrinterDetailPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
             <div className="flex flex-col gap-4">
               <CameraView
+                isReachable={printer.isReachable ?? false}
+                modelCode={printer.modelCode}
                 printerId={printer.id ?? ''}
                 telemetry={printer.telemetry ?? {}}
               />
@@ -170,6 +209,8 @@ export function PrinterDetailPage() {
             title="Remove printer?"
             description={`Remove ${printer.name}? This can't be undone. Removal isn't blocked by its current print status.`}
             confirmLabel="Remove"
+            destructive
+            isPending={removeMutation.isPending}
             onConfirm={() => handleConfirmRemove(printer.id ?? '')}
           />
         </>

@@ -67,5 +67,5 @@ interface TaskTemplatesTableProps {
 }
 
 export function TaskTemplatesTable({ templates }: TaskTemplatesTableProps) {
-  return <DataTable columns={columns} data={templates} />;
+  return <DataTable pageSize={25} columns={columns} data={templates} />;
 }

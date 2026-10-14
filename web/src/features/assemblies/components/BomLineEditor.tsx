@@ -1,11 +1,12 @@
 import { PlusIcon, TrashIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -162,16 +163,16 @@ export function BomLineEditor({
                 onClick={() => handleRemove(line.key)}
                 aria-label={`Remove ${line.targetName}`}
               >
-                <TrashIcon className="size-4" />
+                <TrashIcon data-icon="inline-start" className="" />
               </Button>
             </div>
           ))}
         </div>
       )}
 
-      <div className="flex items-end gap-2 border-t pt-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="bom-line-target-kind">Target kind</Label>
+      <FieldGroup className="flex items-end gap-2 border-t pt-3">
+        <Field className="flex flex-col gap-1.5">
+          <FieldLabel htmlFor="bom-line-target-kind">Target kind</FieldLabel>
           <Select
             value={draftKind}
             onValueChange={(value) => {
@@ -183,30 +184,34 @@ export function BomLineEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Part">Part</SelectItem>
-              <SelectItem value="Assembly">Assembly</SelectItem>
-              <SelectItem value="NonPrintedComponent">
-                Non-printed component
-              </SelectItem>
+              <SelectGroup>
+                <SelectItem value="Part">Part</SelectItem>
+                <SelectItem value="Assembly">Assembly</SelectItem>
+                <SelectItem value="NonPrintedComponent">
+                  Non-printed component
+                </SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
-        </div>
+        </Field>
 
-        <div className="flex flex-1 flex-col gap-1.5">
-          <Label htmlFor="bom-line-target">Target</Label>
+        <Field className="flex flex-1 flex-col gap-1.5">
+          <FieldLabel htmlFor="bom-line-target">Target</FieldLabel>
           <Select value={draftTargetId} onValueChange={setDraftTargetId}>
             <SelectTrigger id="bom-line-target" className="w-full">
               <SelectValue placeholder="Choose a target" />
             </SelectTrigger>
             <SelectContent>
-              {draftOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.name}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {draftOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
-        </div>
+        </Field>
 
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Quantity</span>
@@ -221,9 +226,9 @@ export function BomLineEditor({
         </div>
 
         <Button type="button" onClick={handleAdd} disabled={!draftTargetId}>
-          <PlusIcon /> Add line
+          <PlusIcon data-icon="inline-start" /> Add line
         </Button>
-      </div>
+      </FieldGroup>
     </div>
   );
 }

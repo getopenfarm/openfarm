@@ -1,33 +1,36 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowUpToLineIcon,
-  MoreHorizontalIcon,
   PinIcon,
   PinOffIcon,
   Trash2Icon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
   FleetPrinterResponse,
@@ -56,6 +59,7 @@ export function QueueJobActions({
   pending: RemoteAction;
   onPendingChange: (action: RemoteAction) => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const queryClient = useQueryClient();
   const [pinOpen, setPinOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -95,17 +99,11 @@ export function QueueJobActions({
     return null;
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Actions for ${job.partName}`}
-          >
-            <MoreHorizontalIcon />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+      <DataTableRowActions
+        label={job.partName ?? 'job'}
+        triggerRef={triggerRef}
+      >
+        <DropdownMenuGroup>
           {waiting && (
             <>
               {job.assignmentMode === 'Pinned' ? (
@@ -128,14 +126,19 @@ export function QueueJobActions({
                   Move to top
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => setRemoveOpen(true)}
-              >
-                <Trash2Icon />
-                Remove job
-              </DropdownMenuItem>
             </>
+          )}
+        </DropdownMenuGroup>
+        {waiting && <DropdownMenuSeparator />}
+        <DropdownMenuGroup>
+          {waiting && (
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => setRemoveOpen(true)}
+            >
+              <Trash2Icon />
+              Remove job
+            </DropdownMenuItem>
           )}
           <JobRemoteControls
             jobId={jobId}
@@ -144,10 +147,17 @@ export function QueueJobActions({
             pending={pending}
             onPendingChange={onPendingChange}
           />
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </DropdownMenuGroup>
+      </DataTableRowActions>
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent>
+        <DialogContent
+          onCloseAutoFocus={(event) => {
+            if (triggerRef.current) {
+              event.preventDefault();
+              triggerRef.current.focus();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Pin {job.partName} to printer</DialogTitle>
           </DialogHeader>
@@ -156,21 +166,29 @@ export function QueueJobActions({
               <SelectValue placeholder="Choose a printer" />
             </SelectTrigger>
             <SelectContent>
-              {printers
-                .filter((p) => p.id)
-                .map((p) => (
-                  <SelectItem key={p.id} value={p.id ?? ''}>
-                    {p.name}
-                  </SelectItem>
-                ))}
+              <SelectGroup>
+                {printers
+                  .filter((p) => p.id)
+                  .map((p) => (
+                    <SelectItem key={p.id} value={p.id ?? ''}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
-          <Button
-            disabled={!printerId || pin.isPending}
-            onClick={() => pin.mutate({ id: jobId, data: { printerId } })}
-          >
-            {pin.isPending ? 'Pinning…' : 'Pin to printer'}
-          </Button>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button
+              disabled={!printerId || pin.isPending}
+              onClick={() => pin.mutate({ id: jobId, data: { printerId } })}
+            >
+              {pin.isPending && <Spinner data-icon="inline-start" />}
+              {pin.isPending ? 'Pinning…' : 'Pin to printer'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <RemoveJobButton
@@ -178,6 +196,7 @@ export function QueueJobActions({
         open={removeOpen}
         onOpenChange={setRemoveOpen}
         hideTrigger
+        returnFocusRef={triggerRef}
       />
     </>
   );

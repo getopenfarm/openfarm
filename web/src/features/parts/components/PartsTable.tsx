@@ -1,18 +1,54 @@
-import type { ColumnDef } from '@tanstack/react-table';
-import { ImageOffIcon, ListPlusIcon } from 'lucide-react';
-import { useState } from 'react';
-import { DataTable } from '@/components/data-table/DataTable';
+import type {
+  CellContext,
+  ColumnDef,
+  HeaderContext,
+  RowSelectionState,
+} from '@tanstack/react-table';
+import { ImageOffIcon, ListPlusIcon, Trash2Icon } from 'lucide-react';
+import {
+  createContext,
+  type RefObject,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { Link } from 'react-router';
+import {
+  DataTable,
+  type ServerTablePagination,
+  type ServerTableSorting,
+} from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
+import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
+import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
 
 import { PartEstimate } from './PartEstimate';
+import {
+  type PartRemovalNoticeData,
+  PartRemovalToast,
+} from './PartRemovalToast';
 import { QueuePartDialog } from './QueuePartDialog';
+import { RemovePartsDialog } from './RemovePartsDialog';
+import type { RemovablePart } from './useRemoveParts';
 
 interface PartsTableProps {
+  pagination?: ServerTablePagination;
+  sorting?: ServerTableSorting;
   parts: PartSummaryResponse[];
   onRowClick: (part: PartSummaryResponse) => void;
+  selectionKey?: string;
+  fallbackFocusRef?: RefObject<HTMLElement | null>;
+  onPendingChange?: (pending: boolean) => void;
 }
 
 function EstimateCell({ part }: { part: PartSummaryResponse }) {
@@ -46,7 +82,12 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
           )}
         </div>
         <div className="flex flex-col">
-          <span className="font-medium">{row.original.name}</span>
+          <Link
+            to={`/parts/${row.original.id}`}
+            className="font-medium hover:underline"
+          >
+            {row.original.name}
+          </Link>
           <span className="text-xs text-muted-foreground">
             {row.original.fileFormat}
           </span>
@@ -108,49 +149,292 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
   },
 ];
 
-export function PartsTable({ parts, onRowClick }: PartsTableProps) {
-  const [queuePart, setQueuePart] = useState<PartSummaryResponse | null>(null);
-  const tableColumns: ColumnDef<PartSummaryResponse>[] = [
-    ...columns,
-    {
-      id: 'actions',
-      header: 'Actions',
-      enableSorting: false,
-      cell: ({ row }) => {
-        const part = row.original;
-        const incomplete = part.printRequirementsStatus !== 'Complete';
-        return (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!part.id || incomplete}
-            title={
-              incomplete
-                ? 'Complete this part’s print requirements before queueing.'
-                : `Send ${part.name} to the queue`
-            }
-            onClick={(event) => {
-              event.stopPropagation();
-              setQueuePart(part);
-            }}
-          >
-            <ListPlusIcon className="size-4" /> Send to queue
-          </Button>
-        );
-      },
-    },
-  ];
+function PartRowActions({
+  part,
+  disabled,
+  onQueue,
+  onRemove,
+}: {
+  part: PartSummaryResponse;
+  disabled: boolean;
+  onQueue: (trigger: HTMLButtonElement | null) => void;
+  onRemove: (trigger: HTMLButtonElement | null) => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const incomplete = part.printRequirementsStatus !== 'Complete';
   return (
-    <>
-      <DataTable columns={tableColumns} data={parts} onRowClick={onRowClick} />
+    <DataTableRowActions
+      label={part.name ?? 'part'}
+      triggerRef={triggerRef}
+      disabled={disabled || !part.id}
+    >
+      <DropdownMenuGroup>
+        <DropdownMenuItem
+          disabled={incomplete}
+          title={
+            incomplete
+              ? 'Complete this part’s print requirements before queueing.'
+              : undefined
+          }
+          onSelect={() => onQueue(triggerRef.current)}
+        >
+          <ListPlusIcon /> Send to queue
+        </DropdownMenuItem>
+      </DropdownMenuGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup>
+        <DropdownMenuItem
+          variant="destructive"
+          onSelect={() => onRemove(triggerRef.current)}
+        >
+          <Trash2Icon /> Remove
+        </DropdownMenuItem>
+      </DropdownMenuGroup>
+    </DataTableRowActions>
+  );
+}
+
+interface PartsTableActions {
+  pending: boolean;
+  fallbackFocusRef?: RefObject<HTMLElement | null>;
+  selectionHeaderRef: RefObject<HTMLButtonElement | null>;
+  onQueue: (
+    part: PartSummaryResponse,
+    trigger: HTMLButtonElement | null,
+  ) => void;
+  onRemove: (
+    part: PartSummaryResponse,
+    trigger: HTMLButtonElement | null,
+  ) => void;
+  onPendingChange: (pending: boolean) => void;
+}
+const PartsTableContext = createContext<PartsTableActions | null>(null);
+function usePartsTableActions() {
+  const actions = useContext(PartsTableContext);
+  if (!actions)
+    throw new Error('Part table controls require PartsTableContext.');
+  return actions;
+}
+function SelectionHeader({
+  table,
+}: HeaderContext<PartSummaryResponse, unknown>) {
+  const { pending, selectionHeaderRef } = usePartsTableActions();
+  return (
+    <Checkbox
+      ref={selectionHeaderRef}
+      aria-label="Select all parts on this page"
+      disabled={pending}
+      checked={
+        table.getIsAllPageRowsSelected() ||
+        (table.getIsSomePageRowsSelected() && 'indeterminate')
+      }
+      onCheckedChange={(checked) =>
+        table.toggleAllPageRowsSelected(checked === true)
+      }
+    />
+  );
+}
+function SelectionCell({ row }: CellContext<PartSummaryResponse, unknown>) {
+  const { pending } = usePartsTableActions();
+  return (
+    <Checkbox
+      aria-label={`Select ${row.original.name}`}
+      disabled={pending || !row.getCanSelect()}
+      checked={row.getIsSelected()}
+      onCheckedChange={(checked) => row.toggleSelected(checked === true)}
+    />
+  );
+}
+function ActionsCell({ row }: CellContext<PartSummaryResponse, unknown>) {
+  const actions = usePartsTableActions();
+  return (
+    <PartRowActions
+      part={row.original}
+      disabled={actions.pending}
+      onQueue={(trigger) => actions.onQueue(row.original, trigger)}
+      onRemove={(trigger) => actions.onRemove(row.original, trigger)}
+    />
+  );
+}
+
+// Stable cell component identities keep open menus and dialogs mounted during selection/mutations.
+const tableColumns: ColumnDef<PartSummaryResponse>[] = [
+  {
+    id: 'select',
+    enableSorting: false,
+    enableHiding: false,
+    header: SelectionHeader,
+    cell: SelectionCell,
+  },
+  ...columns,
+  {
+    id: 'actions',
+    header: () => <span className="sr-only">Actions</span>,
+    enableSorting: false,
+    enableHiding: false,
+    cell: ActionsCell,
+  },
+];
+
+export function PartsTable({
+  parts,
+  pagination,
+  sorting,
+  onRowClick,
+  selectionKey,
+  fallbackFocusRef,
+  onPendingChange,
+}: PartsTableProps) {
+  const [queuePart, setQueuePart] = useState<PartSummaryResponse | null>(null);
+  const [selection, setSelection] = useState<RowSelectionState>({});
+  const [bulkTargets, setBulkTargets] = useState<RemovablePart[]>([]);
+  const [removalNotice, setRemovalNotice] = useState<PartRemovalNoticeData>();
+  const [removalBulk, setRemovalBulk] = useState(false);
+  const removalTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const interactionPending = !!(
+    pending ||
+    pagination?.pending ||
+    sorting?.pending ||
+    pagination?.disabled ||
+    sorting?.disabled
+  );
+  const queueTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const selectionHeaderRef = useRef<HTMLButtonElement>(null);
+  const bulkTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // A new server page or filter has a separate selection context.
+  useEffect(() => {
+    void selectionKey;
+    setSelection({});
+    setRemovalNotice(undefined);
+  }, [selectionKey]);
+  useEffect(() => {
+    const ids = new Set(parts.map((part) => part.id));
+    setSelection((previous) => {
+      const entries = Object.entries(previous).filter(
+        ([id, selected]) => selected && ids.has(id),
+      );
+      return entries.length === Object.keys(previous).length
+        ? previous
+        : Object.fromEntries(entries);
+    });
+  }, [parts]);
+
+  const selected = parts.filter((part) => part.id && selection[part.id]);
+  function handlePendingChange(value: boolean) {
+    setPending(value);
+    onPendingChange?.(value);
+  }
+  function handleRemoved(ids: string[]) {
+    setSelection((previous) =>
+      Object.fromEntries(
+        Object.entries(previous).filter(([id]) => !ids.includes(id)),
+      ),
+    );
+  }
+  return (
+    <PartsTableContext.Provider
+      value={{
+        pending: interactionPending,
+        fallbackFocusRef,
+        selectionHeaderRef,
+        onQueue: (part, trigger) => {
+          queueTriggerRef.current = trigger;
+          setQueuePart(part);
+        },
+        onRemove: (part, trigger) => {
+          if (!part.id) return;
+          removalTriggerRef.current = trigger;
+          setBulkTargets([{ id: part.id, name: part.name ?? 'this part' }]);
+          setRemovalBulk(false);
+          setBulkOpen(true);
+        },
+        onPendingChange: handlePendingChange,
+      }}
+    >
+      <DataTableSelectionBar
+        selectedCount={selected.length}
+        pending={interactionPending}
+        label="Selected parts actions"
+        onClear={() => {
+          setSelection({});
+          setRemovalNotice(undefined);
+          selectionHeaderRef.current?.focus();
+        }}
+      >
+        <Button
+          ref={bulkTriggerRef}
+          type="button"
+          variant="destructive"
+          size="sm"
+          disabled={interactionPending}
+          onClick={() => {
+            removalTriggerRef.current = bulkTriggerRef.current;
+            setRemovalBulk(true);
+            setBulkTargets(
+              selected.flatMap((part) =>
+                part.id
+                  ? [{ id: part.id, name: part.name ?? 'this part' }]
+                  : [],
+              ),
+            );
+            setBulkOpen(true);
+          }}
+        >
+          <Trash2Icon data-icon="inline-start" /> Remove selected
+        </Button>
+      </DataTableSelectionBar>
+      <PartRemovalToast notice={removalNotice} />
+      <div
+        className="flex flex-col"
+        onClickCapture={(event) => {
+          if (pending) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+      >
+        <DataTable
+          serverSorting={sorting}
+          serverPagination={
+            pagination
+              ? { ...pagination, pending: pending || pagination.pending }
+              : undefined
+          }
+          columns={tableColumns}
+          data={parts}
+          onRowClick={(part) => {
+            if (!interactionPending) onRowClick(part);
+          }}
+          getRowId={(part, index) => part.id ?? `missing-${index}`}
+          rowSelection={selection}
+          onRowSelectionChange={setSelection}
+          enableRowSelection={(row) => Boolean(row.original.id)}
+        />
+      </div>
+      {bulkOpen && (
+        <RemovePartsDialog
+          onNotice={setRemovalNotice}
+          parts={bulkTargets}
+          bulk={removalBulk}
+          open={bulkOpen}
+          onOpenChange={setBulkOpen}
+          onRemoved={handleRemoved}
+          onPendingChange={handlePendingChange}
+          returnFocusRef={removalTriggerRef}
+          fallbackFocusRef={fallbackFocusRef}
+        />
+      )}
       {queuePart && (
         <QueuePartDialog
           key={queuePart.id}
           part={queuePart}
+          returnFocusRef={queueTriggerRef}
           onClose={() => setQueuePart(null)}
         />
       )}
-    </>
+    </PartsTableContext.Provider>
   );
 }

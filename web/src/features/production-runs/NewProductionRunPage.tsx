@@ -10,6 +10,7 @@ import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -19,6 +20,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
@@ -81,6 +83,11 @@ export function NewProductionRunPage() {
             assignmentMode: l.assignmentMode,
             pinnedPrinterId: l.pinnedPrinterId ?? null,
             revisionMode: l.revisionMode,
+            ...(l.quantity === null && {
+              backfillPrinterCap: l.backfillPrinterCap ?? 1,
+              backfillCumulativeUnitCeiling:
+                l.backfillCumulativeUnitCeiling ?? null,
+            }),
           })),
         },
       });
@@ -104,110 +111,113 @@ export function NewProductionRunPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         above={
           <BackLink to="/production-runs" className="mb-1">
             Back to production runs
           </BackLink>
         }
-        title="New production run"
+        title="Add run"
         description="Queue one or more parts/assemblies together as a single run."
       />
 
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-6"
+          className="flex flex-1 flex-col gap-6"
         >
-          <Card>
-            <CardHeader>
-              <CardTitle>Details</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name (optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Unnamed run" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <FieldGroup className="flex-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Details</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Unnamed run" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="dueDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Due date (optional)</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Due date (optional)</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="priority"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Priority (optional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Priority (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes (optional)</FormLabel>
-                    <FormControl>
-                      <Textarea rows={2} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea rows={2} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Lines · {lines.length}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RunLineEditor lines={lines} onChange={setLines} />
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Lines · {lines.length}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RunLineEditor lines={lines} onChange={setLines} />
+              </CardContent>
+            </Card>
 
-          <FormFooter
-            end={
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => navigate('/production-runs')}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? 'Creating…' : 'Create run'}
-                </Button>
-              </>
-            }
-          />
+            <FormFooter
+              end={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/production-runs')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Spinner data-icon="inline-start" />}
+                    {isSaving ? 'Saving…' : 'Save'}
+                  </Button>
+                </>
+              }
+            />
+          </FieldGroup>
         </form>
       </Form>
 

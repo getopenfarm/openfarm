@@ -77,6 +77,7 @@ public sealed class ActivityLogEntry
             eventType,
             actorId,
             actorType,
-            DateTimeOffset.UtcNow) { Details = details };
+            DateTimeOffset.UtcNow)
+        { Details = details };
     }
 }

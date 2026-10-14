@@ -15,7 +15,7 @@ public sealed class DeletePartRequest : IActivityLoggable
     public string EventType => "PartDeleted";
 }
 
-// DELETE /api/v1/parts/{id} — cascades tags/requirements/thumbnails; deletes the stored file (contracts/part-library-api.md).
+// DELETE /api/v1/parts/{id} — cascades catalog children; retains shared file bytes.
 [Permission("parts:delete")]
 public sealed class DeletePartEndpoint(DeletePartHandler handler) : Endpoint<DeletePartRequest>
 {

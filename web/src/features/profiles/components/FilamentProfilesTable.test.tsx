@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { FilamentProfileResponse } from '@/lib/api/generated/endpoints.schemas';
 import { FilamentProfilesTable } from './FilamentProfilesTable';
@@ -43,7 +44,11 @@ const profiles: FilamentProfileResponse[] = [
 
 describe('FilamentProfilesTable', () => {
   it('renders the name and base for each imported filament profile', () => {
-    render(<FilamentProfilesTable profiles={profiles} onRowClick={vi.fn()} />);
+    render(
+      <MemoryRouter>
+        <FilamentProfilesTable profiles={profiles} onRowClick={vi.fn()} />
+      </MemoryRouter>,
+    );
 
     const rows = screen.getAllByRole('row');
     // rows[0] is the header row.
@@ -59,13 +64,15 @@ describe('FilamentProfilesTable', () => {
     const user = userEvent.setup();
     const onRowClick = vi.fn();
     render(
-      <FilamentProfilesTable
-        profiles={[profiles[0]]}
-        onRowClick={onRowClick}
-      />,
+      <MemoryRouter>
+        <FilamentProfilesTable
+          profiles={[profiles[0]]}
+          onRowClick={onRowClick}
+        />
+      </MemoryRouter>,
     );
 
-    await user.click(screen.getByText('Bambu PLA Basic'));
+    await user.click(screen.getByRole('cell', { name: 'Base' }));
 
     expect(onRowClick).toHaveBeenCalledWith('f1');
   });

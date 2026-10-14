@@ -1,17 +1,20 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
+import type { RefObject } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -21,6 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import {
   getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey,
   useOpenFarmApiEndpointsSpoolsRecordSpoolUsageEndpoint,
@@ -38,12 +42,14 @@ interface RecordUsageDialogProps {
   spoolId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  returnFocusRef?: RefObject<HTMLButtonElement | null>;
 }
 
 export function RecordUsageDialog({
   spoolId,
   open,
   onOpenChange,
+  returnFocusRef,
 }: RecordUsageDialogProps) {
   const queryClient = useQueryClient();
 
@@ -87,7 +93,14 @@ export function RecordUsageDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        onCloseAutoFocus={(event) => {
+          if (returnFocusRef?.current?.isConnected) {
+            event.preventDefault();
+            returnFocusRef.current.focus();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Record usage</DialogTitle>
           <DialogDescription>
@@ -99,24 +112,36 @@ export function RecordUsageDialog({
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
-            <FormField
-              control={form.control}
-              name="gramsConsumed"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Grams consumed</FormLabel>
-                  <FormControl>
-                    <Input type="number" min={1} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
-              <Button type="submit" disabled={recordUsageMutation.isPending}>
-                {recordUsageMutation.isPending ? 'Recording…' : 'Record usage'}
-              </Button>
-            </DialogFooter>
+            <FieldGroup className="gap-4">
+              <FormField
+                control={form.control}
+                name="gramsConsumed"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Grams consumed</FormLabel>
+                    <FormControl>
+                      <Input type="number" min={1} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button type="submit" disabled={recordUsageMutation.isPending}>
+                  {recordUsageMutation.isPending && (
+                    <Spinner data-icon="inline-start" />
+                  )}
+                  {recordUsageMutation.isPending
+                    ? 'Recording…'
+                    : 'Record usage'}
+                </Button>
+              </DialogFooter>
+            </FieldGroup>
           </form>
         </Form>
       </DialogContent>

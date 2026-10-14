@@ -12,7 +12,7 @@ export function PrinterReportedStatus({
 }) {
   const alerts = telemetry?.activeAlerts ?? [];
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       <p className="text-sm text-muted-foreground">
         {isReachable ? 'Reported state' : 'Last-known reported state'}:{' '}
         {telemetry?.reportedState
@@ -26,7 +26,7 @@ export function PrinterReportedStatus({
       </p>
       {alerts.length > 0 && (
         <section
-          className="space-y-2 rounded-lg border p-3"
+          className="flex flex-col gap-2 rounded-lg border p-3"
           aria-label={
             isReachable ? 'Active printer alerts' : 'Last-known printer alerts'
           }

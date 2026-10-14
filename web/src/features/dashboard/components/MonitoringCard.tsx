@@ -93,7 +93,7 @@ export function MonitoringCard({
         />
         <FilamentRail printer={printer} />
       </div>
-      <div className="space-y-2 px-3 pt-3 pb-2">
+      <div className="flex flex-col gap-2 px-3 pt-3 pb-2">
         <p
           className={cn(
             'truncate text-xs font-medium',
@@ -152,7 +152,7 @@ export function MonitoringCard({
                 details={
                   <>
                     <p className="font-medium">{printer.name}</p>
-                    <ul className="space-y-1">
+                    <ul className="flex flex-col gap-1">
                       {issues.messages.map((message) => (
                         <li key={message}>{message}</li>
                       ))}

@@ -22,17 +22,15 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
+  CheckPartDeletionRequest,
+  CheckPartDeletionResponse,
   CreatePartRequest,
+  EditPartRequest,
   ListPartsResponse,
   OpenFarmApiEndpointsPartsListPartsEndpointParams,
-  PartFilamentRequirementResponse,
   PartProcessingJobSubmittedResponse,
   PartResponse,
-  PartTagsResponse,
   ReplacePartFileRequest,
-  SetPartUnitsPerPrintRequest,
-  TagPartRequest,
-  UpdatePartFilamentRequirementNarrowingRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -53,6 +51,137 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
+export type openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse200 = {
+  data: CheckPartDeletionResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPartsCheckPartDeletionEndpointResponseSuccess =
+  openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPartsCheckPartDeletionEndpointResponseError = (
+  | openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse401
+  | openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse =
+  | openFarmApiEndpointsPartsCheckPartDeletionEndpointResponseSuccess
+  | openFarmApiEndpointsPartsCheckPartDeletionEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPartsCheckPartDeletionEndpointUrl = () => {
+  return `/api/v1/parts/deletion-check`;
+};
+
+export const openFarmApiEndpointsPartsCheckPartDeletionEndpoint = async (
+  checkPartDeletionRequest: CheckPartDeletionRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse>(
+    getOpenFarmApiEndpointsPartsCheckPartDeletionEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(checkPartDeletionRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPartsCheckPartDeletionEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsCheckPartDeletionEndpoint>
+      >,
+      TError,
+      { data: CheckPartDeletionRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPartsCheckPartDeletionEndpoint>
+    >,
+    TError,
+    { data: CheckPartDeletionRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsPartsCheckPartDeletionEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsCheckPartDeletionEndpoint>
+      >,
+      { data: CheckPartDeletionRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsPartsCheckPartDeletionEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPartsCheckPartDeletionEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPartsCheckPartDeletionEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPartsCheckPartDeletionEndpointMutationBody =
+  CheckPartDeletionRequest;
+export type OpenFarmApiEndpointsPartsCheckPartDeletionEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPartsCheckPartDeletionEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsCheckPartDeletionEndpoint>
+      >,
+      TError,
+      { data: CheckPartDeletionRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPartsCheckPartDeletionEndpoint>
+  >,
+  TError,
+  { data: CheckPartDeletionRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPartsCheckPartDeletionEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsPartsCreatePartEndpointResponse200 = {
   data: PartProcessingJobSubmittedResponse;
   status: 200;
@@ -520,6 +649,125 @@ export const useOpenFarmApiEndpointsPartsDeletePartEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsPartsDeletePartEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPartsEditPartEndpointResponse200 = {
+  data: PartResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPartsEditPartEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPartsEditPartEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPartsEditPartEndpointResponseSuccess =
+  openFarmApiEndpointsPartsEditPartEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPartsEditPartEndpointResponseError = (
+  | openFarmApiEndpointsPartsEditPartEndpointResponse401
+  | openFarmApiEndpointsPartsEditPartEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPartsEditPartEndpointResponse =
+  | openFarmApiEndpointsPartsEditPartEndpointResponseSuccess
+  | openFarmApiEndpointsPartsEditPartEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPartsEditPartEndpointUrl = (id: string) => {
+  return `/api/v1/parts/${id}`;
+};
+
+export const openFarmApiEndpointsPartsEditPartEndpoint = async (
+  id: string,
+  editPartRequest: EditPartRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPartsEditPartEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPartsEditPartEndpointResponse>(
+    getOpenFarmApiEndpointsPartsEditPartEndpointUrl(id),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(editPartRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPartsEditPartEndpointMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsPartsEditPartEndpoint>>,
+    TError,
+    { id: string; data: EditPartRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openFarmApiEndpointsPartsEditPartEndpoint>>,
+  TError,
+  { id: string; data: EditPartRequest },
+  TContext
+> => {
+  const mutationKey = ['openFarmApiEndpointsPartsEditPartEndpoint'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      'mutationKey' in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsPartsEditPartEndpoint>>,
+    { id: string; data: EditPartRequest }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return openFarmApiEndpointsPartsEditPartEndpoint(id, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenFarmApiEndpointsPartsEditPartEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsPartsEditPartEndpoint>>
+  >;
+export type OpenFarmApiEndpointsPartsEditPartEndpointMutationBody =
+  EditPartRequest;
+export type OpenFarmApiEndpointsPartsEditPartEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsPartsEditPartEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsPartsEditPartEndpoint>>,
+      TError,
+      { id: string; data: EditPartRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsPartsEditPartEndpoint>>,
+  TError,
+  { id: string; data: EditPartRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPartsEditPartEndpointMutationOptions(options),
     queryClient,
   );
 };
@@ -1212,556 +1460,3 @@ export const useOpenFarmApiEndpointsPartsReprocessPartEndpoint = <
     queryClient,
   );
 };
-export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse200 = {
-  data: PartResponse;
-  status: 200;
-};
-
-export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse401 = {
-  data: void;
-  status: 401;
-};
-
-export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse403 = {
-  data: void;
-  status: 403;
-};
-
-export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponseSuccess =
-  openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponseError =
-  (
-    | openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse401
-    | openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse403
-  ) & {
-    headers: Headers;
-  };
-
-export type openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse =
-  | openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponseSuccess
-  | openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponseError;
-
-export const getOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointUrl = (
-  id: string,
-) => {
-  return `/api/v1/parts/${id}/units-per-print`;
-};
-
-export const openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint = async (
-  id: string,
-  setPartUnitsPerPrintRequest: SetPartUnitsPerPrintRequest,
-  options?: RequestInit,
-): Promise<openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse> => {
-  return httpClient<openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointResponse>(
-    getOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointUrl(id),
-    {
-      ...options,
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(setPartUnitsPerPrintRequest),
-    },
-  );
-};
-
-export const getOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
-      >,
-      TError,
-      { id: string; data: SetPartUnitsPerPrintRequest },
-      TContext
-    >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
-    >,
-    TError,
-    { id: string; data: SetPartUnitsPerPrintRequest },
-    TContext
-  > => {
-    const mutationKey = [
-      'openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint',
-    ];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        'mutationKey' in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
-      >,
-      { id: string; data: SetPartUnitsPerPrintRequest }
-    > = (props) => {
-      const { id, data } = props ?? {};
-
-      return openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint(id, data);
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type OpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
-    >
-  >;
-export type OpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationBody =
-  SetPartUnitsPerPrintRequest;
-export type OpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationError =
-  void;
-
-export const useOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint = <
-  TError = void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
-      >,
-      TError,
-      { id: string; data: SetPartUnitsPerPrintRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<
-    ReturnType<typeof openFarmApiEndpointsPartsSetPartUnitsPerPrintEndpoint>
-  >,
-  TError,
-  { id: string; data: SetPartUnitsPerPrintRequest },
-  TContext
-> => {
-  return useMutation(
-    getOpenFarmApiEndpointsPartsSetPartUnitsPerPrintEndpointMutationOptions(
-      options,
-    ),
-    queryClient,
-  );
-};
-export type openFarmApiEndpointsPartsTagPartEndpointResponse200 = {
-  data: PartTagsResponse;
-  status: 200;
-};
-
-export type openFarmApiEndpointsPartsTagPartEndpointResponse401 = {
-  data: void;
-  status: 401;
-};
-
-export type openFarmApiEndpointsPartsTagPartEndpointResponse403 = {
-  data: void;
-  status: 403;
-};
-
-export type openFarmApiEndpointsPartsTagPartEndpointResponseSuccess =
-  openFarmApiEndpointsPartsTagPartEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsPartsTagPartEndpointResponseError = (
-  | openFarmApiEndpointsPartsTagPartEndpointResponse401
-  | openFarmApiEndpointsPartsTagPartEndpointResponse403
-) & {
-  headers: Headers;
-};
-
-export type openFarmApiEndpointsPartsTagPartEndpointResponse =
-  | openFarmApiEndpointsPartsTagPartEndpointResponseSuccess
-  | openFarmApiEndpointsPartsTagPartEndpointResponseError;
-
-export const getOpenFarmApiEndpointsPartsTagPartEndpointUrl = (id: string) => {
-  return `/api/v1/parts/${id}/tags`;
-};
-
-export const openFarmApiEndpointsPartsTagPartEndpoint = async (
-  id: string,
-  tagPartRequest: TagPartRequest,
-  options?: RequestInit,
-): Promise<openFarmApiEndpointsPartsTagPartEndpointResponse> => {
-  return httpClient<openFarmApiEndpointsPartsTagPartEndpointResponse>(
-    getOpenFarmApiEndpointsPartsTagPartEndpointUrl(id),
-    {
-      ...options,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(tagPartRequest),
-    },
-  );
-};
-
-export const getOpenFarmApiEndpointsPartsTagPartEndpointMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof openFarmApiEndpointsPartsTagPartEndpoint>>,
-    TError,
-    { id: string; data: TagPartRequest },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof openFarmApiEndpointsPartsTagPartEndpoint>>,
-  TError,
-  { id: string; data: TagPartRequest },
-  TContext
-> => {
-  const mutationKey = ['openFarmApiEndpointsPartsTagPartEndpoint'];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      'mutationKey' in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof openFarmApiEndpointsPartsTagPartEndpoint>>,
-    { id: string; data: TagPartRequest }
-  > = (props) => {
-    const { id, data } = props ?? {};
-
-    return openFarmApiEndpointsPartsTagPartEndpoint(id, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type OpenFarmApiEndpointsPartsTagPartEndpointMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof openFarmApiEndpointsPartsTagPartEndpoint>>
-  >;
-export type OpenFarmApiEndpointsPartsTagPartEndpointMutationBody =
-  TagPartRequest;
-export type OpenFarmApiEndpointsPartsTagPartEndpointMutationError = void;
-
-export const useOpenFarmApiEndpointsPartsTagPartEndpoint = <
-  TError = void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof openFarmApiEndpointsPartsTagPartEndpoint>>,
-      TError,
-      { id: string; data: TagPartRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof openFarmApiEndpointsPartsTagPartEndpoint>>,
-  TError,
-  { id: string; data: TagPartRequest },
-  TContext
-> => {
-  return useMutation(
-    getOpenFarmApiEndpointsPartsTagPartEndpointMutationOptions(options),
-    queryClient,
-  );
-};
-export type openFarmApiEndpointsPartsUntagPartEndpointResponse200 = {
-  data: PartTagsResponse;
-  status: 200;
-};
-
-export type openFarmApiEndpointsPartsUntagPartEndpointResponse401 = {
-  data: void;
-  status: 401;
-};
-
-export type openFarmApiEndpointsPartsUntagPartEndpointResponse403 = {
-  data: void;
-  status: 403;
-};
-
-export type openFarmApiEndpointsPartsUntagPartEndpointResponseSuccess =
-  openFarmApiEndpointsPartsUntagPartEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsPartsUntagPartEndpointResponseError = (
-  | openFarmApiEndpointsPartsUntagPartEndpointResponse401
-  | openFarmApiEndpointsPartsUntagPartEndpointResponse403
-) & {
-  headers: Headers;
-};
-
-export type openFarmApiEndpointsPartsUntagPartEndpointResponse =
-  | openFarmApiEndpointsPartsUntagPartEndpointResponseSuccess
-  | openFarmApiEndpointsPartsUntagPartEndpointResponseError;
-
-export const getOpenFarmApiEndpointsPartsUntagPartEndpointUrl = (
-  id: string,
-  tagId: string,
-) => {
-  return `/api/v1/parts/${id}/tags/${tagId}`;
-};
-
-export const openFarmApiEndpointsPartsUntagPartEndpoint = async (
-  id: string,
-  tagId: string,
-  options?: RequestInit,
-): Promise<openFarmApiEndpointsPartsUntagPartEndpointResponse> => {
-  return httpClient<openFarmApiEndpointsPartsUntagPartEndpointResponse>(
-    getOpenFarmApiEndpointsPartsUntagPartEndpointUrl(id, tagId),
-    {
-      ...options,
-      method: 'DELETE',
-    },
-  );
-};
-
-export const getOpenFarmApiEndpointsPartsUntagPartEndpointMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof openFarmApiEndpointsPartsUntagPartEndpoint>>,
-    TError,
-    { id: string; tagId: string },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof openFarmApiEndpointsPartsUntagPartEndpoint>>,
-  TError,
-  { id: string; tagId: string },
-  TContext
-> => {
-  const mutationKey = ['openFarmApiEndpointsPartsUntagPartEndpoint'];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      'mutationKey' in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof openFarmApiEndpointsPartsUntagPartEndpoint>>,
-    { id: string; tagId: string }
-  > = (props) => {
-    const { id, tagId } = props ?? {};
-
-    return openFarmApiEndpointsPartsUntagPartEndpoint(id, tagId);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type OpenFarmApiEndpointsPartsUntagPartEndpointMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof openFarmApiEndpointsPartsUntagPartEndpoint>>
-  >;
-
-export type OpenFarmApiEndpointsPartsUntagPartEndpointMutationError = void;
-
-export const useOpenFarmApiEndpointsPartsUntagPartEndpoint = <
-  TError = void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof openFarmApiEndpointsPartsUntagPartEndpoint>>,
-      TError,
-      { id: string; tagId: string },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof openFarmApiEndpointsPartsUntagPartEndpoint>>,
-  TError,
-  { id: string; tagId: string },
-  TContext
-> => {
-  return useMutation(
-    getOpenFarmApiEndpointsPartsUntagPartEndpointMutationOptions(options),
-    queryClient,
-  );
-};
-export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse200 =
-  {
-    data: PartFilamentRequirementResponse;
-    status: 200;
-  };
-
-export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse401 =
-  {
-    data: void;
-    status: 401;
-  };
-
-export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse403 =
-  {
-    data: void;
-    status: 403;
-  };
-
-export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponseSuccess =
-  openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponseError =
-  (
-    | openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse401
-    | openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse403
-  ) & {
-    headers: Headers;
-  };
-
-export type openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse =
-  | openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponseSuccess
-  | openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponseError;
-
-export const getOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointUrl =
-  (id: string, requirementId: string) => {
-    return `/api/v1/parts/${id}/filament-requirements/${requirementId}`;
-  };
-
-export const openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint =
-  async (
-    id: string,
-    requirementId: string,
-    updatePartFilamentRequirementNarrowingRequest: UpdatePartFilamentRequirementNarrowingRequest,
-    options?: RequestInit,
-  ): Promise<openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse> => {
-    return httpClient<openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointResponse>(
-      getOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointUrl(
-        id,
-        requirementId,
-      ),
-      {
-        ...options,
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(updatePartFilamentRequirementNarrowingRequest),
-      },
-    );
-  };
-
-export const getOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
-        >
-      >,
-      TError,
-      {
-        id: string;
-        requirementId: string;
-        data: UpdatePartFilamentRequirementNarrowingRequest;
-      },
-      TContext
-    >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
-      >
-    >,
-    TError,
-    {
-      id: string;
-      requirementId: string;
-      data: UpdatePartFilamentRequirementNarrowingRequest;
-    },
-    TContext
-  > => {
-    const mutationKey = [
-      'openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint',
-    ];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        'mutationKey' in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
-        >
-      >,
-      {
-        id: string;
-        requirementId: string;
-        data: UpdatePartFilamentRequirementNarrowingRequest;
-      }
-    > = (props) => {
-      const { id, requirementId, data } = props ?? {};
-
-      return openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint(
-        id,
-        requirementId,
-        data,
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type OpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
-      >
-    >
-  >;
-export type OpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationBody =
-  UpdatePartFilamentRequirementNarrowingRequest;
-export type OpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationError =
-  void;
-
-export const useOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint =
-  <TError = void, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
-          >
-        >,
-        TError,
-        {
-          id: string;
-          requirementId: string;
-          data: UpdatePartFilamentRequirementNarrowingRequest;
-        },
-        TContext
-      >;
-    },
-    queryClient?: QueryClient,
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpoint
-      >
-    >,
-    TError,
-    {
-      id: string;
-      requirementId: string;
-      data: UpdatePartFilamentRequirementNarrowingRequest;
-    },
-    TContext
-  > => {
-    return useMutation(
-      getOpenFarmApiEndpointsPartsUpdatePartFilamentRequirementNarrowingEndpointMutationOptions(
-        options,
-      ),
-      queryClient,
-    );
-  };

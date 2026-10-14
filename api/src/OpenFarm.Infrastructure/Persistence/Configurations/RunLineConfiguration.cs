@@ -32,6 +32,7 @@ public sealed class RunLineConfiguration : IEntityTypeConfiguration<RunLine>
         builder.Property(l => l.TargetKind).IsRequired().HasConversion<string>();
         builder.Property(l => l.TargetId).IsRequired();
         builder.Property(l => l.Quantity);
+        builder.Property(l => l.TargetName);
         builder.Property(l => l.RevisionMode).IsRequired().HasConversion<string>();
         builder.Property(l => l.DefaultAssignmentMode).IsRequired().HasConversion<string>();
         builder.Property(l => l.DefaultPinnedPrinterId);

@@ -14,9 +14,11 @@ public sealed class GetPrintJobFileQueryHandler(IPrintJobRepository jobs, IPartR
 {
     public async Task<JobFileContent> HandleAsync(GetPrintJobFileQuery query, CancellationToken cancellationToken)
     {
+        _ = parts;
         var job = await jobs.GetByIdAsync(query.JobId, cancellationToken) ?? throw new PrintJobNotFoundException(query.JobId);
         var requirement = await requirements.GetByIdAsync(job.PartRequirementId, cancellationToken) ?? throw new PrintJobNotEligibleForRequeueException(job.Id);
-        var part = await parts.GetByIdAsync(requirement.PartId, cancellationToken) ?? throw new PartNotFoundException(requirement.PartId);
+        var part = job.GetProductionPart()
+            ?? throw new ProductionSnapshotUnavailableException(job.Id, job.SnapshotRecoveryReason);
         part.EnsurePrintRequirementsComplete();
         return await resolver.ResolveAsync(part, job, job.DispatchedPrinterId ?? job.PinnedPrinterId ?? Guid.Empty, part.NozzleDiameterMm!.Value, cancellationToken);
     }

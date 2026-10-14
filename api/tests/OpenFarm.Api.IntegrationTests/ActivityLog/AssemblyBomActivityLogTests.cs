@@ -13,7 +13,7 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Api.IntegrationTests.ActivityLog;
 
-/// <summary>FR-015 — assembly creation, a line add/change/remove, a blocked and a successful deletion, and non-printed component creation/edit are all recorded with actor and timestamp. Requires Docker (Testcontainers.PostgreSql) — exercised by CI.</summary>
+/// <summary>FR-015 — assembly creation, a BOM edit, a blocked and a successful deletion, and non-printed component creation/edit are all recorded with actor and timestamp. Requires Docker (Testcontainers.PostgreSql) — exercised by CI.</summary>
 public class AssemblyBomActivityLogTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
     private async Task<HttpClient> AuthenticatedClientAsync()
@@ -53,16 +53,20 @@ public class AssemblyBomActivityLogTests(CustomWebApplicationFactory factory) : 
             new { name = $"Log Assembly {Guid.NewGuid():N}", description = (string?)null, lines = new[] { new { targetKind = "Part", targetId = partOneId, quantity = 1 } } });
         var assembly = await createResponse.Content.ReadFromJsonAsync<AssemblyResponse>();
 
-        var addLineResponse = await client.PostAsJsonAsync(
-            new Uri($"/api/v1/assemblies/{assembly!.Id}/lines", UriKind.Relative),
-            new { targetKind = "Part", targetId = partTwoId, quantity = 2 });
-        var addedLine = await addLineResponse.Content.ReadFromJsonAsync<BomLineResponse>();
-
-        await client.PutAsJsonAsync(
-            new Uri($"/api/v1/assemblies/{assembly.Id}/lines/{addedLine!.Id}", UriKind.Relative), new { quantity = 5 });
-
-        var blockedDeleteResponse = await client.DeleteAsync(new Uri($"/api/v1/assemblies/{assembly.Id}/lines/{addedLine.Id}", UriKind.Relative));
-        blockedDeleteResponse.EnsureSuccessStatusCode();
+        // One BOM edit adds a line, changes a quantity and (by omission) removes nothing else.
+        var editResponse = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/assemblies/{assembly!.Id}", UriKind.Relative),
+            new
+            {
+                name = assembly.Name,
+                description = (string?)null,
+                lines = new object[]
+                {
+                    new { lineId = assembly.Lines.Single().Id, targetKind = "Part", targetId = partOneId, quantity = 5 },
+                    new { targetKind = "Part", targetId = partTwoId, quantity = 2 },
+                },
+            });
+        editResponse.EnsureSuccessStatusCode();
 
         await client.DeleteAsync(new Uri($"/api/v1/assemblies/{assembly.Id}", UriKind.Relative));
 
@@ -78,9 +82,7 @@ public class AssemblyBomActivityLogTests(CustomWebApplicationFactory factory) : 
         var page = await logResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
 
         page!.Items.Should().Contain(e => e.EntityId == assembly.Id.ToString() && e.EventType == "AssemblyCreated");
-        page.Items.Should().Contain(e => e.EntityId == assembly.Id.ToString() && e.EventType == "BomLineAdded");
-        page.Items.Should().Contain(e => e.EntityId == assembly.Id.ToString() && e.EventType == "BomLineQuantityChanged");
-        page.Items.Should().Contain(e => e.EntityId == assembly.Id.ToString() && e.EventType == "BomLineRemoved");
+        page.Items.Should().Contain(e => e.EntityId == assembly.Id.ToString() && e.EventType == "AssemblyEdited");
         page.Items.Should().Contain(e => e.EntityId == assembly.Id.ToString() && e.EventType == "AssemblyDeleted");
         page.Items.Should().Contain(e => e.EntityId == component.Id.ToString() && e.EventType == "NonPrintedComponentCreated");
         page.Items.Should().Contain(e => e.EntityId == component.Id.ToString() && e.EventType == "NonPrintedComponentEdited");

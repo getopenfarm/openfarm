@@ -10,7 +10,7 @@ public interface IAssemblyRepository
 
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken);
+    Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null);
 
     /// <summary>FR-011 — names of every assembly whose BOM has a line targeting <paramref name="targetKind"/>/<paramref name="targetId"/>, for a delete-blocking error message.</summary>
     Task<IReadOnlyList<string>> GetReferencingAssemblyNamesAsync(BomLineTargetKind targetKind, Guid targetId, CancellationToken cancellationToken);
@@ -20,12 +20,13 @@ public interface IAssemblyRepository
     Task SaveChangesAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Persists a <see cref="BomLine"/> just added to an already-tracked <see cref="Assembly"/>
-    /// (<see cref="Assembly.AddLine"/>) by staging it directly on its own <c>DbSet</c>, rather than
+    /// Stages a <see cref="BomLine"/> just added to an already-tracked <see cref="Assembly"/>
+    /// (<see cref="Assembly.ReplaceLines"/>) directly on its own <c>DbSet</c>, rather than
     /// relying on change-tracker fixup discovery through the <see cref="Assembly.Lines"/> navigation —
     /// the multi-tenant shadow column is only populated reliably for entities added this way.
     /// </summary>
-    Task AddLineAsync(BomLine line, CancellationToken cancellationToken);
+    /// <remarks>Does not save — the caller's own SaveChanges commits it.</remarks>
+    void StageLine(BomLine line);
 
     /// <summary>
     /// research.md R3 — opens a DB transaction, takes the per-organization Postgres advisory lock,

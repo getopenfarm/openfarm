@@ -20,7 +20,7 @@ export function PartEstimationSource({
     estimation.buildPlate,
   ].filter(Boolean);
   return (
-    <div className="space-y-1 text-sm">
+    <div className="flex flex-col gap-1 text-sm">
       <p>Estimate basis: {source}</p>
       {profiles.length > 0 && (
         <p className="text-muted-foreground">{profiles.join(' · ')}</p>
