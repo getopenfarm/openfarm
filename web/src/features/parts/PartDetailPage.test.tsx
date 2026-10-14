@@ -285,4 +285,32 @@ describe('PartDetailPage', () => {
     });
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
+
+  it('blocks queueing an incomplete part', async () => {
+    const partId = '44444444-4444-4444-4444-444444444444';
+    const part = {
+      ...partBody(partId, 'Two plates'),
+      printRequirementsStatus: 'Incomplete',
+      plateCount: 2,
+      thumbnails: [
+        { plateIndex: 0, thumbnailBase64: 'AAAA' },
+        { plateIndex: 1, thumbnailBase64: 'BBBB' },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        input.toString().includes('/hubs/farm')
+          ? Promise.reject(new Error('No hub'))
+          : Promise.resolve(jsonResponse(part)),
+      ),
+    );
+
+    renderPage(partId);
+
+    expect(
+      await screen.findByRole('button', { name: 'Send to queue' }),
+    ).toBeDisabled();
+    expect(screen.getByText('Print requirements incomplete')).toBeVisible();
+  });
 });

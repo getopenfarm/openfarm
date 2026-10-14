@@ -38,6 +38,8 @@ interface PartFilamentRequirementsListProps {
     requirementId: string,
     filamentProfileId: string | null,
   ) => void;
+  /** `grid` lays requirements out two-up on wide screens. */
+  layout?: 'list' | 'grid';
 }
 
 const NO_NARROW_VALUE = '__any__';
@@ -58,6 +60,7 @@ export function PartFilamentRequirementsList({
   requirements,
   onNarrow,
   onNarrowToProfile,
+  layout = 'list',
 }: PartFilamentRequirementsListProps) {
   const filamentsQuery = useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint({
     query: { enabled: true },
@@ -74,7 +77,13 @@ export function PartFilamentRequirementsList({
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul
+      className={
+        layout === 'grid'
+          ? 'grid grid-cols-1 gap-3 lg:grid-cols-2'
+          : 'flex flex-col gap-2'
+      }
+    >
       {requirements.map((requirement) => (
         <li
           key={requirement.key}
