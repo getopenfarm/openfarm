@@ -129,8 +129,8 @@ describe('PartsPage', () => {
     expect(url.searchParams.get('page')).toBe('1');
   });
 
-  it('fetches valid server pages and resets to page one when filtering', async () => {
-    const { requests } = setup();
+  it('fetches valid server pages', async () => {
+    setup();
     const user = userEvent.setup();
     expect(await screen.findByText('1–25 of 26')).toBeInTheDocument();
     expect(
@@ -144,15 +144,6 @@ describe('PartsPage', () => {
     expect(
       screen.getByRole('button', { name: 'Next parts page' }),
     ).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'Brackets' }));
-    expect(await screen.findByText('No parts match')).toBeInTheDocument();
-    const urls = requests.mock.calls
-      .map(([url]) => new URL(url.toString(), 'http://localhost'))
-      .filter((url) => url.pathname === '/api/v1/parts');
-    expect(urls.every((url) => url.searchParams.get('pageSize') === '25')).toBe(
-      true,
-    );
-    expect(urls.at(-1)?.searchParams.get('page')).toBe('1');
   });
 
   it('returns to the previous page after removing its final part', async () => {

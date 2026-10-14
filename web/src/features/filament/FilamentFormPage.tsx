@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -148,7 +149,7 @@ function AddFilamentForm() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={
           <BackLink to="/filament" className="mb-1">
@@ -337,7 +338,7 @@ function AddFilamentForm() {
       </Form>
 
       <ConfirmLeaveDialog />
-    </div>
+    </Page>
   );
 }
 
@@ -369,17 +370,17 @@ function FilamentVariantsPage() {
 
   if (filamentsQuery.isLoading || assignmentsQuery.isLoading) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Edit filament" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-64 w-full" />
-      </div>
+      </Page>
     );
   }
 
   if (filamentsQuery.isError || assignmentsQuery.isError) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Edit filament" />
         <ErrorState
           title="Could not load filament"
@@ -388,13 +389,13 @@ function FilamentVariantsPage() {
             assignmentsQuery.refetch();
           }}
         />
-      </div>
+      </Page>
     );
   }
 
   if (!existing) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Edit filament" />
         <EmptyState
           title="Filament not found"
@@ -405,7 +406,7 @@ function FilamentVariantsPage() {
             </Button>
           }
         />
-      </div>
+      </Page>
     );
   }
 
@@ -503,7 +504,7 @@ function EditFilamentForm({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={backLink}
         title="Edit filament"
@@ -595,6 +596,6 @@ function EditFilamentForm({
       </form>
 
       <ConfirmLeaveDialog />
-    </div>
+    </Page>
   );
 }

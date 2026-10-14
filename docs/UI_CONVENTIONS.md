@@ -75,6 +75,10 @@ footer must remain visible.
 
 ## Shared presentation
 
+- Every routed page roots in `Page` (`web/src/components/page/Page.tsx`) with a
+  `PageHeader` first. `Page` owns the header-to-content gap and the bottom
+  clearance for the table selection bar; pass only layout extras like `flex-1`
+  — never hand-roll the root `flex flex-col gap-*`.
 - Use semantic tokens from `web/src/index.css`; add theme-specific values there
   rather than raw status colors or per-page dark-mode overrides.
 - Badge `kind` variants own categorical foreground/background colors. StatusBadge

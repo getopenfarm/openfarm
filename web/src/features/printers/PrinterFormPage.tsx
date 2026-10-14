@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -84,7 +85,7 @@ function AddPrinterPage() {
   const [picked, setPicked] = useState<DiscoveredPrinterResponse>();
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={
           <BackLink to="/printers" className="mb-1">
@@ -132,7 +133,7 @@ function AddPrinterPage() {
           )}
         </>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -507,7 +508,7 @@ function EditPrinterForm() {
 
   if (detailQuery.isLoading || !printer) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader
           above={
             <BackLink to="/printers" className="mb-1">
@@ -529,7 +530,7 @@ function EditPrinterForm() {
             }
           />
         )}
-      </div>
+      </Page>
     );
   }
 
@@ -738,7 +739,7 @@ function EditPrinterFormLoaded({
     : editMutation.isPending;
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={
           <BackLink to="/printers" className="mb-1">
@@ -924,6 +925,6 @@ function EditPrinterFormLoaded({
       </Form>
 
       <ConfirmLeaveDialog />
-    </div>
+    </Page>
   );
 }

@@ -5,6 +5,7 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,7 +47,7 @@ export function ConnectionSecretsPage() {
   const secrets = listQuery.data?.data ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         above={
           <BackLink to="/settings" className="mb-1">
@@ -87,6 +88,6 @@ export function ConnectionSecretsPage() {
       ) : (
         <DataTable pageSize={25} columns={columns} data={secrets} />
       )}
-    </div>
+    </Page>
   );
 }

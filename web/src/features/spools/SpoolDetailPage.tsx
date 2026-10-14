@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -121,7 +122,7 @@ export function SpoolDetailPage() {
 
   if (spoolsQuery.isLoading || spoolsQuery.isError || !spool) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Spool" />
         {spoolsQuery.isLoading ? (
           <Skeleton className="h-64 w-full" />
@@ -141,7 +142,7 @@ export function SpoolDetailPage() {
             }
           />
         )}
-      </div>
+      </Page>
     );
   }
 
@@ -152,7 +153,7 @@ export function SpoolDetailPage() {
   const spoolId = spool.id ?? '';
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={backLink}
         title={spool.label || spool.colorName}
@@ -272,6 +273,6 @@ export function SpoolDetailPage() {
         />
       )}
       <ConfirmLeaveDialog />
-    </div>
+    </Page>
   );
 }

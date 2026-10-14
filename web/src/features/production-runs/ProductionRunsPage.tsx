@@ -10,6 +10,7 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -111,7 +112,7 @@ export function ProductionRunsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         title="Production runs"
         description="Group parts/assemblies into a run and track their combined progress."
@@ -171,6 +172,6 @@ export function ProductionRunsPage() {
           onRowClick={(row) => navigate(`/production-runs/${row.id}`)}
         />
       )}
-    </div>
+    </Page>
   );
 }

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -190,7 +191,7 @@ export function ProfilesImportPage() {
   );
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={
           <BackLink to="/profiles" className="mb-1">
@@ -304,6 +305,6 @@ export function ProfilesImportPage() {
       />
 
       <ConfirmLeaveDialog />
-    </div>
+    </Page>
   );
 }

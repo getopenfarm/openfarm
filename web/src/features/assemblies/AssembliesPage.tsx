@@ -1,8 +1,6 @@
-import type { ColumnDef } from '@tanstack/react-table';
 import { Layers3Icon, PlusIcon } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
-import { DataTable } from '@/components/data-table/DataTable';
-import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
+import { useRef } from 'react';
+import { useNavigate } from 'react-router';
 import {
   serverListQueryOptions,
   useRetainedListData,
@@ -10,55 +8,16 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOpenFarmApiEndpointsAssembliesListAssembliesEndpoint } from '@/lib/api/generated/assemblies/assemblies';
-import type {
-  AssemblySummaryResponse,
-  ListAssembliesResponse,
-} from '@/lib/api/generated/endpoints.schemas';
-
-const columns: ColumnDef<AssemblySummaryResponse>[] = [
-  {
-    id: 'assembly',
-    accessorKey: 'name',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Assembly" />
-    ),
-    cell: ({ row }) => (
-      <div className="flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Layers3Icon className="size-5" />
-        </div>
-        <div className="flex flex-col">
-          <Link
-            to={`/assemblies/${row.original.id}`}
-            className="font-medium hover:underline"
-          >
-            {row.original.name}
-          </Link>
-          {row.original.description && (
-            <span className="text-xs text-muted-foreground">
-              {row.original.description}
-            </span>
-          )}
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: 'lineCount',
-    header: 'Lines',
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">
-        {row.original.lineCount} lines
-      </span>
-    ),
-  },
-];
+import type { ListAssembliesResponse } from '@/lib/api/generated/endpoints.schemas';
+import { AssembliesTable } from './components/AssembliesTable';
 
 export function AssembliesPage() {
+  const addAssemblyRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
   const list = useServerListState('assembly', 'name');
   const { page, pageSize, setPage, setPageSize } = list;
@@ -85,12 +44,15 @@ export function AssembliesPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         title="Assemblies"
         description="Group parts (and other assemblies) into reusable bills of materials."
         action={
-          <Button onClick={() => navigate('/assemblies/new')}>
+          <Button
+            ref={addAssemblyRef}
+            onClick={() => navigate('/assemblies/new')}
+          >
             <PlusIcon data-icon="inline-start" /> Add assembly
           </Button>
         }
@@ -122,13 +84,16 @@ export function AssembliesPage() {
           }
         />
       ) : (
-        <DataTable
-          serverSorting={{
+        <AssembliesTable
+          assemblies={assemblies}
+          selectionKey={JSON.stringify([page, pageSize, list.sorting])}
+          fallbackFocusRef={addAssemblyRef}
+          sorting={{
             ...list.serverSorting,
             disabled: assembliesQuery.isError,
             pending: assembliesQuery.isFetching,
           }}
-          serverPagination={{
+          pagination={{
             page,
             pageSize,
             totalCount: listData?.totalCount ?? assemblies.length,
@@ -141,11 +106,9 @@ export function AssembliesPage() {
             pending:
               assembliesQuery.isFetching || assembliesQuery.isPlaceholderData,
           }}
-          columns={columns}
-          data={assemblies}
           onRowClick={(row) => navigate(`/assemblies/${row.id}`)}
         />
       )}
-    </div>
+    </Page>
   );
 }

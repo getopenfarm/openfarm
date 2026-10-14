@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,10 +75,10 @@ export function ProfileDetailPage() {
 
   if ((isMachine || isFilament) && query.isLoading) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Profile" />
         <Skeleton className="h-96 w-full" />
-      </div>
+      </Page>
     );
   }
 
@@ -89,19 +90,19 @@ export function ProfileDetailPage() {
     )
   ) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Profile" />
         <ErrorState
           title="Could not load profile"
           onRetry={() => query.refetch()}
         />
-      </div>
+      </Page>
     );
   }
 
   if (!detail || !(isMachine || isFilament)) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Profile" />
         <EmptyState
           title="Profile not found"
@@ -112,7 +113,7 @@ export function ProfileDetailPage() {
             </Button>
           }
         />
-      </div>
+      </Page>
     );
   }
 
@@ -198,7 +199,7 @@ function RawDataForm({
     .join(' · ');
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={backLink}
         title={detail.name ?? 'Profile'}
@@ -264,6 +265,6 @@ function RawDataForm({
       </Form>
 
       <ConfirmLeaveDialog />
-    </div>
+    </Page>
   );
 }

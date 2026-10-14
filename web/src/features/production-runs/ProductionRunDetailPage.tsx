@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -88,16 +89,16 @@ export function ProductionRunDetailPage() {
 
   if (runQuery.isLoading) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Production run" />
         <Skeleton className="h-64 w-full" />
-      </div>
+      </Page>
     );
   }
 
   if (!run) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Production run" />
         <EmptyState
           title="Production run not found"
@@ -111,7 +112,7 @@ export function ProductionRunDetailPage() {
             </Button>
           }
         />
-      </div>
+      </Page>
     );
   }
 
@@ -122,7 +123,7 @@ export function ProductionRunDetailPage() {
     (run.lines ?? []).some((l) => l.quantity == null);
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         above={backLink}
         title={title}
@@ -242,6 +243,6 @@ export function ProductionRunDetailPage() {
           setConfirmCancelOpen(false);
         }}
       />
-    </div>
+    </Page>
   );
 }

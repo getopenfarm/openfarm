@@ -1,5 +1,6 @@
 import { KeyRoundIcon, PackageIcon } from 'lucide-react';
 import { Link } from 'react-router';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import {
   Card,
@@ -10,7 +11,7 @@ import {
 
 export function SettingsPage() {
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         title="Settings"
         description="Configure printer access and slicing for this farm."
@@ -49,6 +50,6 @@ export function SettingsPage() {
           </Card>
         </Link>
       </div>
-    </div>
+    </Page>
   );
 }

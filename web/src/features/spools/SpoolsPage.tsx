@@ -1,6 +1,7 @@
 import { Package2Icon, PlusIcon } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,7 +26,7 @@ export function SpoolsPage() {
   ).length;
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         title="Spools"
         description={
@@ -63,6 +64,6 @@ export function SpoolsPage() {
       ) : (
         <SpoolsTable spools={spools} />
       )}
-    </div>
+    </Page>
   );
 }

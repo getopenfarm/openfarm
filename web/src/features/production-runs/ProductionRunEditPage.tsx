@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -136,7 +137,7 @@ export function ProductionRunEditPage() {
 
   if (!run) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Edit production run" />
         {runQuery.isLoading ? (
           <Skeleton className="h-64 w-full" />
@@ -154,7 +155,7 @@ export function ProductionRunEditPage() {
             }
           />
         )}
-      </div>
+      </Page>
     );
   }
 
@@ -179,7 +180,7 @@ export function ProductionRunEditPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={backLink}
         title={`Edit ${run.name ?? run.lines?.[0]?.targetName ?? 'production run'}`}
@@ -276,6 +277,6 @@ export function ProductionRunEditPage() {
       </Form>
 
       <ConfirmLeaveDialog />
-    </div>
+    </Page>
   );
 }

@@ -7,6 +7,7 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { BADGE_KIND_META } from '@/components/status-badge/kinds';
 import { Separator } from '@/components/ui/separator';
@@ -47,7 +48,7 @@ export function ActivityLogPage() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <Page>
       <PageHeader
         title="Activity log"
         description="Every status change, job update, and profile edit — the shared audit trail."
@@ -55,7 +56,7 @@ export function ActivityLogPage() {
 
       <div
         aria-busy={query.isFetching || undefined}
-        className="overflow-hidden rounded-xl ring-1 ring-foreground/10"
+        className="overflow-hidden rounded-md border"
       >
         <span className="sr-only" aria-live="polite">
           {query.isFetching ? 'Loading activity.' : ''}
@@ -151,6 +152,6 @@ export function ActivityLogPage() {
           onPageSizeChange={setPageSize}
         />
       </div>
-    </div>
+    </Page>
   );
 }

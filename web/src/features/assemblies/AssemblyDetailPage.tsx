@@ -10,6 +10,7 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -143,7 +144,7 @@ export function AssemblyDetailPage() {
       (assemblyQuery.error as unknown as { status?: number } | null)?.status !==
         404;
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Assembly" />
         {assemblyQuery.isLoading ? (
           <Skeleton className="h-64 w-full" />
@@ -164,7 +165,7 @@ export function AssemblyDetailPage() {
             }
           />
         )}
-      </div>
+      </Page>
     );
   }
 
@@ -188,7 +189,7 @@ export function AssemblyDetailPage() {
   const pending = editMutation.isPending;
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={backLink}
         title={assembly.name}
@@ -316,6 +317,6 @@ export function AssemblyDetailPage() {
         onConfirm={() => id && deleteMutation.mutate({ id })}
       />
       <ConfirmLeaveDialog />
-    </div>
+    </Page>
   );
 }

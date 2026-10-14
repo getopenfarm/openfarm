@@ -11,6 +11,7 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -95,7 +96,7 @@ export function ProfilesPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         title="Profiles"
         description="Machine and filament profiles imported from slicer bundles"
@@ -216,6 +217,6 @@ export function ProfilesPage() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </Page>
   );
 }

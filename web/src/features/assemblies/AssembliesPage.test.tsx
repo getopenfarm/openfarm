@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
+import { toast } from 'sonner';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AssembliesPage } from './AssembliesPage';
 
@@ -70,5 +72,52 @@ describe('AssembliesPage', () => {
 
     expect(await screen.findByText('Enclosure')).toBeInTheDocument();
     expect(screen.getByText('3 lines')).toBeInTheDocument();
+  });
+
+  it('bulk-removes selected assemblies, retrying ones a parent was blocking', async () => {
+    const success = vi.spyOn(toast, 'success');
+    const error = vi.spyOn(toast, 'error');
+    let childAttempts = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (init?.method !== 'DELETE')
+        return Promise.resolve(
+          jsonResponse({
+            items: [
+              { id: 'child', name: 'Hinge', lineCount: 1 },
+              { id: 'parent', name: 'Enclosure', lineCount: 2 },
+              { id: 'used', name: 'Bracket', lineCount: 1 },
+            ],
+            totalCount: 3,
+          }),
+        );
+      if (url.endsWith('/child') && childAttempts++ === 0)
+        return Promise.resolve(
+          jsonResponse({ detail: 'Used by Enclosure' }, 409),
+        );
+      if (url.endsWith('/used'))
+        return Promise.resolve(jsonResponse({ detail: 'Used by Lid' }, 409));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage();
+    await userEvent.click(
+      await screen.findByRole('checkbox', {
+        name: 'Select all assemblies on this page',
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: /Remove selected/ }),
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Remove 3 assemblies' }),
+    );
+
+    await waitFor(() =>
+      expect(success).toHaveBeenCalledWith('2 assemblies removed.'),
+    );
+    expect(error).toHaveBeenCalledWith('Bracket: Used by Lid');
+    expect(error).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,7 @@
 import { ClipboardListIcon, PlusIcon, WrenchIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ export function MaintenancePage() {
   const dueCount = flags.filter((f) => f.severity === 'due').length;
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         title="Maintenance"
         description={
@@ -101,6 +102,6 @@ export function MaintenancePage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </Page>
   );
 }

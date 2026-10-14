@@ -11,6 +11,7 @@ import {
   DataTableToolbar,
 } from '@/components/data-table/DataTableToolbar';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -188,7 +189,7 @@ export function QueuePage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <Page className="min-h-0 flex-1">
       <PageHeader
         title="Print queue"
         description="Finite and backfill jobs · status updates live."
@@ -516,6 +517,6 @@ export function QueuePage() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </Page>
   );
 }

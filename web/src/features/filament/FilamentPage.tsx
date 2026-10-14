@@ -6,6 +6,7 @@ import {
   DataTableToolbar,
 } from '@/components/data-table/DataTableToolbar';
 import { EmptyState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -45,7 +46,7 @@ export function FilamentPage() {
   }, [filaments]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
         title="Filament"
         description={
@@ -109,6 +110,6 @@ export function FilamentPage() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </Page>
   );
 }

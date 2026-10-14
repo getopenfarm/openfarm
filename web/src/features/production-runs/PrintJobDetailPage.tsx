@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -485,7 +486,7 @@ export function PrintJobDetailPage() {
     !query.isError ||
     (queryError instanceof Response && queryError.status === 404);
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       {query.isLoading ? (
         <>
           <PageHeader above={backLink} title="Print job" />
@@ -599,6 +600,6 @@ export function PrintJobDetailPage() {
           <JobFilamentSummary job={job} />
         </>
       )}
-    </div>
+    </Page>
   );
 }

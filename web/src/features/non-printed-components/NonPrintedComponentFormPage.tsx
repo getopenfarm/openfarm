@@ -9,6 +9,7 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -152,7 +153,7 @@ export function NonPrintedComponentFormPage({
 
   if (mode === 'edit' && !existing) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader above={backLink} title="Edit component" />
         {componentsQuery.isLoading ? (
           <Skeleton className="h-48 w-full" />
@@ -170,7 +171,7 @@ export function NonPrintedComponentFormPage({
             }
           />
         )}
-      </div>
+      </Page>
     );
   }
 
@@ -195,7 +196,7 @@ export function NonPrintedComponentFormPage({
   const isSaving = createMutation.isPending || editMutation.isPending;
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       <PageHeader
         above={backLink}
         title={mode === 'add' ? 'Add component' : 'Edit component'}
@@ -299,6 +300,6 @@ export function NonPrintedComponentFormPage({
         isPending={deleteMutation.isPending}
         onConfirm={() => id && deleteMutation.mutate({ id })}
       />
-    </div>
+    </Page>
   );
 }

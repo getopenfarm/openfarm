@@ -62,6 +62,9 @@ interface DataTableProps<TData, TValue> {
   cellClassName?: string;
 }
 
+// 12px + 16px checkbox + 12px: equal space either side (overrides TableHead/TableCell's checkbox pr-0).
+const selectColumnClassName = 'w-10 px-3 [&:has([role=checkbox])]:pr-3';
+
 export function DataTable<TData, TValue>({
   columns,
   data,
@@ -178,6 +181,11 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
+                    // Utility columns hug their control instead of sharing slack width.
+                    className={cn(
+                      header.id === 'select' && selectColumnClassName,
+                      header.id === 'actions' && 'w-px',
+                    )}
                     aria-sort={
                       header.column.getCanSort() && header.column.getIsSorted()
                         ? header.column.getIsSorted() === 'asc'
@@ -215,7 +223,13 @@ export function DataTable<TData, TValue>({
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className={cellClassName}>
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        cellClassName,
+                        cell.column.id === 'select' && selectColumnClassName,
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

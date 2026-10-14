@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -217,7 +218,7 @@ export function PartDetailPage() {
   );
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <Page className="flex-1">
       {partQuery.isLoading ? (
         <>
           <PageHeader above={backLink} title="Part" />
@@ -462,6 +463,6 @@ export function PartDetailPage() {
           />
         </>
       )}
-    </div>
+    </Page>
   );
 }
