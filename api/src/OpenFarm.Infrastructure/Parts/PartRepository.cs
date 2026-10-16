@@ -97,8 +97,9 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
 
     public void TrackReplacementChildren(Part part)
     {
-        dbContext.PartFilamentRequirements.AddRange(part.FilamentRequirements);
-        dbContext.PartThumbnails.AddRange(part.Thumbnails);
+        // Reused thumbnail instances are already tracked; AddRange would flip them to Added.
+        dbContext.PartFilamentRequirements.AddRange(part.FilamentRequirements.Where(r => dbContext.Entry(r).State == EntityState.Detached));
+        dbContext.PartThumbnails.AddRange(part.Thumbnails.Where(t => dbContext.Entry(t).State == EntityState.Detached));
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)

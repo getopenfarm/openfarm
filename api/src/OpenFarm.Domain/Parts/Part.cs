@@ -311,14 +311,24 @@ public sealed class Part
             _filamentRequirements.Add(PartFilamentRequirement.Create(OrganizationId, Id, spec));
         }
 
-        _thumbnails.Clear();
-        foreach (var thumbnail in thumbnails)
-        {
-            _thumbnails.RemoveAll(t => t.PlateIndex == thumbnail.PlateIndex);
-            _thumbnails.Add(PartThumbnail.Create(OrganizationId, Id, thumbnail.PlateIndex, thumbnail.Bytes));
-        }
+        _thumbnails.RemoveAll(t => thumbnails.All(s => s.PlateIndex != t.PlateIndex));
+        UpsertThumbnails(thumbnails);
 
         UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    // Keyed by (PartId, PlateIndex): reuse the tracked instance rather than replacing it, or EF
+    // sees two instances with one key.
+    private void UpsertThumbnails(IReadOnlyList<ThumbnailSpec> thumbnails)
+    {
+        foreach (var spec in thumbnails)
+        {
+            var existing = _thumbnails.Find(t => t.PlateIndex == spec.PlateIndex);
+            if (existing is null)
+                _thumbnails.Add(PartThumbnail.Create(OrganizationId, Id, spec.PlateIndex, spec.Bytes));
+            else
+                existing.ReplaceBytes(spec.Bytes);
+        }
     }
 
     /// <summary>
@@ -338,11 +348,7 @@ public sealed class Part
         EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
 
-        foreach (var thumbnail in thumbnails)
-        {
-            _thumbnails.RemoveAll(t => t.PlateIndex == thumbnail.PlateIndex);
-            _thumbnails.Add(PartThumbnail.Create(OrganizationId, Id, thumbnail.PlateIndex, thumbnail.Bytes));
-        }
+        UpsertThumbnails(thumbnails);
 
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }

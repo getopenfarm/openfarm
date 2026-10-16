@@ -25,6 +25,16 @@ public sealed class PartThumbnail
 
     public byte[] Bytes { get; private set; }
 
+    internal void ReplaceBytes(byte[] bytes)
+    {
+        if (bytes.Length == 0)
+        {
+            throw new ArgumentException("Thumbnail bytes must not be empty.", nameof(bytes));
+        }
+
+        Bytes = bytes;
+    }
+
     public static PartThumbnail Create(Guid organizationId, Guid partId, int plateIndex, byte[] bytes)
     {
         if (bytes.Length == 0)

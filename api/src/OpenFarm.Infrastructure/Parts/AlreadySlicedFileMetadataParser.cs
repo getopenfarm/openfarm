@@ -100,7 +100,8 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
                     gcodeContent = await entryReader.ReadToEndAsync(cancellationToken);
                 }
 
-                var plateIndex = plateNumber - 1;
+                // Ordinal among sliced plates (not plateNumber - 1) so indices stay dense and match PlateCount.
+                var plateIndex = plateNumbers.IndexOf(plateNumber);
                 var thumbnailEntry = archive.GetEntry($"Metadata/plate_{plateNumber}.png");
                 var parsed = ParsePlate(gcodeContent, thumbnailEntry);
                 var gcodeDetails = DescribeGCode(gcodeContent);

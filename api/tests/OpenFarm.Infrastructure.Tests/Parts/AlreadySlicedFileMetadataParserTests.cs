@@ -127,6 +127,17 @@ public class AlreadySlicedFileMetadataParserTests
     }
 
     [Fact]
+    public async Task OnlyLaterPlateSliced_ThumbnailIndexIsOrdinalAmongSlicedPlates()
+    {
+        using var stream = BuildZip(
+            ("Metadata/plate_3.gcode", "; nozzle_diameter = 0.4\n; filament_type = PLA\nG28"),
+            ("Metadata/plate_3.png", "thumbnail"));
+        var result = await Parser.ParseAsync(stream, PartFileFormat.ThreeMf, CancellationToken.None);
+        result.PlateCount.Should().Be(1);
+        result.Thumbnails.Should().ContainSingle(t => t.PlateIndex == 0);
+    }
+
+    [Fact]
     public async Task UnreadableGCode_StillFails()
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("not a print file"));
