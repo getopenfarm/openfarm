@@ -1,6 +1,7 @@
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { AlertDescription } from '@/features/activity-log/components/ActivityDetails';
 import type { PrinterDetailTelemetryResponse } from '@/lib/api/generated/endpoints.schemas';
+import { formatDateTime } from '@/lib/formatDateTime';
 import { reportedStateLabel } from '../lib/reportedState';
 
 export function PrinterReportedStatus({
@@ -20,7 +21,7 @@ export function PrinterReportedStatus({
           : 'Not yet reported'}
         {telemetry?.stateObservedAtUtc && (
           <span className="ml-2 text-xs">
-            Observed {new Date(telemetry.stateObservedAtUtc).toLocaleString()}
+            Observed {formatDateTime(telemetry.stateObservedAtUtc)}
           </span>
         )}
       </p>

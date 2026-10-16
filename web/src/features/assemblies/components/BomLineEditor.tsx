@@ -1,5 +1,6 @@
 import { PlusIcon, TrashIcon } from 'lucide-react';
 import { useState } from 'react';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -133,7 +134,7 @@ export function BomLineEditor({
   return (
     <div className="flex flex-col gap-3">
       {lines.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No lines yet.</p>
+        <EmptyState size="sm" bordered={false} title="No lines" />
       ) : (
         <div className="flex flex-col gap-2">
           {lines.map((line) => (

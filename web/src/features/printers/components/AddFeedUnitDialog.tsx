@@ -115,13 +115,13 @@ export function AddFeedUnitDialog({
         transferExternalSpool: transferExternal,
       }),
     onSuccess: () => {
-      toast.success('Reloader configured.');
+      toast.success('Reloader saved.');
       refresh();
       onOpenChange(false);
     },
     onError: () =>
       toast.error(
-        'Could not configure the reloader. Refresh and check for an occupied channel or port.',
+        'Could not save reloader. Check for an occupied channel or port.',
       ),
   });
 
@@ -130,8 +130,8 @@ export function AddFeedUnitDialog({
       onSuccess: () => {
         toast.success(
           kind === 'AutomaticFilamentReloader'
-            ? 'Automatic Filament Reloader added.'
-            : 'External Spool revealed.',
+            ? 'Automatic filament reloader added.'
+            : 'External spool added.',
         );
         refresh();
         setName('');
@@ -145,7 +145,7 @@ export function AddFeedUnitDialog({
         });
       },
       onError: () => {
-        toast.error('Could not add that Feed Unit.');
+        toast.error('Could not add feed unit.');
       },
     },
   });
@@ -190,13 +190,11 @@ export function AddFeedUnitDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {unit ? 'Configure Reloader' : 'Add a Feed Unit'}
-          </DialogTitle>
+          <DialogTitle>{unit ? 'Edit reloader' : 'Add feed unit'}</DialogTitle>
           <DialogDescription>
             {unit
-              ? 'Choose the feed path and the channel currently feeding.'
-              : "Declare a reloader or reveal this printer's external spool."}
+              ? 'Choose the feed path and the feeding channel.'
+              : 'Add a reloader or an external spool.'}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -213,10 +211,10 @@ export function AddFeedUnitDialog({
                 <SelectContent>
                   <SelectGroup>
                     <SelectItem value="AutomaticFilamentReloader">
-                      Automatic Filament Reloader
+                      Automatic filament reloader
                     </SelectItem>
                     <SelectItem value="ExternalSpool">
-                      External Spool
+                      External spool
                     </SelectItem>
                   </SelectGroup>
                 </SelectContent>
@@ -284,8 +282,8 @@ export function AddFeedUnitDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Select the physical feeding channel. Continuation from
-                  recorded depletion is estimated and can be corrected.
+                  Select the physical feeding channel. The continuation from
+                  recorded depletion is estimated. You can correct it.
                 </p>
               </Field>
               {external && (
@@ -324,20 +322,20 @@ export function AddFeedUnitDialog({
               )}
               {replaceExternal && externalSpool && !transferExternal && (
                 <p className="text-xs text-muted-foreground">
-                  The external spool will return to inventory with its remaining
-                  weight preserved.
+                  The external spool returns to inventory. Its remaining weight
+                  stays the same.
                 </p>
               )}
               {!external && !topology.isLoading && !topology.isError && (
                 <p className="text-xs text-muted-foreground">
-                  No available external port. This reloader uses an independent
+                  No external port available. The reloader uses an independent
                   feed path.
                 </p>
               )}
               {topology.isError && (
                 <p role="alert">
                   Could not load feed paths.{' '}
-                  <Button variant="ghost" onClick={() => topology.refetch()}>
+                  <Button variant="outline" onClick={() => topology.refetch()}>
                     Retry
                   </Button>
                 </p>
@@ -357,7 +355,13 @@ export function AddFeedUnitDialog({
             disabled={!canSubmit || isSaving}
           >
             {isSaving && <Spinner data-icon="inline-start" />}
-            {isSaving ? 'Saving…' : 'Save'}
+            {unit
+              ? isSaving
+                ? 'Saving…'
+                : 'Save'
+              : isSaving
+                ? 'Adding…'
+                : 'Add feed unit'}
           </Button>
         </DialogFooter>
       </DialogContent>

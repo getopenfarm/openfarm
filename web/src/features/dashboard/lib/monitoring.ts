@@ -1,3 +1,8 @@
+import {
+  getStatusLabel,
+  OFFLINE_META,
+  type PrinterStatus,
+} from '@/components/printer-tile/status';
 import type { BadgeKind } from '@/components/status-badge/kinds';
 import { reportedStateName } from '@/features/printers/lib/reportedState';
 import type {
@@ -15,12 +20,12 @@ export function monitoringStatus(printer: MonitoredPrinter): {
   label: string;
   kind: BadgeKind;
 } {
-  if (!printer.isReachable) return { label: 'Offline', kind: 'zinc' };
+  if (!printer.isReachable) return { label: OFFLINE_META.label, kind: 'zinc' };
   const raw = printer.telemetry?.reportedState?.trim();
   const state = reportedState(printer);
   const label =
     (raw && reportedStateName(raw)) ||
-    (printer.status === 'AwaitingClear' ? 'Awaiting clear' : printer.status) ||
+    (printer.status ? getStatusLabel(printer.status as PrinterStatus) : '') ||
     'Unknown';
   return {
     label,

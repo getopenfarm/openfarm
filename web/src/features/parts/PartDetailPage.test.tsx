@@ -55,6 +55,36 @@ describe('PartDetailPage', () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([
+    [true, 'Plain 3MF'],
+    [false, 'Sliced 3MF'],
+    [undefined, '3MF'],
+  ])(
+    'formats 3MF with slicing classification %s in the file details',
+    async (requiresSlicing, label) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: RequestInfo | URL) => {
+          if (input.toString().includes('/hubs/farm')) {
+            return Promise.reject(new Error('SignalR not available in tests'));
+          }
+          return Promise.resolve(
+            jsonResponse({
+              ...partBody('part-1', 'Bracket'),
+              fileFormat: 'ThreeMf',
+              requiresSlicing,
+            }),
+          );
+        }),
+      );
+      renderPage('part-1');
+      expect(
+        await screen.findByText(label, { exact: true }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/ThreeMf/)).not.toBeInTheDocument();
+    },
+  );
+
   it('shows a working Remove action that navigates back to the parts list', async () => {
     const partId = '11111111-1111-1111-1111-111111111111';
     const user = userEvent.setup();
@@ -184,7 +214,7 @@ describe('PartDetailPage', () => {
         ).not.toBeInTheDocument();
       } else {
         expect(
-          await screen.findByText('Could not load this part'),
+          await screen.findByText('Could not load part'),
         ).toBeInTheDocument();
         recovered = true;
         await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -267,7 +297,7 @@ describe('PartDetailPage', () => {
 
     await user.click(save);
 
-    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(await screen.findByText('Part saved.')).toBeInTheDocument();
     expect(writes()).toHaveLength(1);
     const [url, init] = writes()[0];
     expect(url.toString()).toContain(`/api/v1/parts/${partId}`);
@@ -311,6 +341,8 @@ describe('PartDetailPage', () => {
     expect(
       await screen.findByRole('button', { name: 'Send to queue' }),
     ).toBeDisabled();
-    expect(screen.getByText('Print requirements incomplete')).toBeVisible();
+    expect(
+      await screen.findByText('Print requirements incomplete'),
+    ).toBeVisible();
   });
 });

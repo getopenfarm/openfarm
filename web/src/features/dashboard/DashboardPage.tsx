@@ -75,13 +75,13 @@ export function DashboardPage() {
         </div>
       ) : fleetQuery.isError ? (
         <ErrorState
-          title="Couldn't load your dashboard"
+          description="Could not load dashboard."
           onRetry={() => fleetQuery.refetch()}
         />
       ) : printers.length === 0 ? (
         <EmptyState
           icon={<Printer className="size-8 text-muted-foreground" />}
-          title="Your farm starts here"
+          title="Farm is empty"
           description="Add a printer to monitor its camera and jobs."
           action={
             <Button asChild>

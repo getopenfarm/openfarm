@@ -75,13 +75,13 @@ describe('AssemblyFormPage (add)', () => {
     renderPage();
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Assembly name'), 'Enclosure');
+    await user.type(screen.getByLabelText('Name'), 'Enclosure');
 
     await user.click(await screen.findByRole('combobox', { name: 'Target' }));
     await user.click(await screen.findByRole('option', { name: 'Bracket' }));
     await user.click(screen.getByRole('button', { name: /add line/i }));
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add assembly' }));
 
     await vi.waitFor(() => {
       expect(capturedBody).toEqual({

@@ -10,7 +10,7 @@ interface DataTableSelectionBarProps {
   children: ReactNode;
 }
 
-/** Keep bulk controls visible while scrolling. The page reserves space below its pagination. */
+/** Bulk actions for DataTable's `toolbar` slot; renders nothing visible until rows are selected. */
 export function DataTableSelectionBar({
   selectedCount,
   pending = false,
@@ -29,22 +29,25 @@ export function DataTableSelectionBar({
           data-slot="table-selection-bar"
           aria-label={label}
           aria-describedby={countId}
-          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-30 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg"
+          className="flex min-w-0 flex-1"
         >
-          <span aria-hidden="true" className="px-2 text-sm whitespace-nowrap">
-            {selectedCount} selected
-          </span>
-          <Separator orientation="vertical" />
           <fieldset
             disabled={pending}
-            aria-label="Bulk actions"
-            className="flex flex-wrap items-center justify-center gap-2"
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
           >
+            <span
+              aria-hidden="true"
+              className="text-sm font-medium whitespace-nowrap"
+            >
+              {selectedCount} selected
+            </span>
+            <Separator orientation="vertical" className="h-4" />
             {children}
             <Button
               type="button"
               variant="ghost"
               size="sm"
+              className="ml-auto"
               disabled={pending}
               onClick={onClear}
             >

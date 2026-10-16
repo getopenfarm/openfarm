@@ -106,7 +106,7 @@ export function ProfileDetailPage() {
         <PageHeader above={backLink} title="Profile" />
         <EmptyState
           title="Profile not found"
-          description="It may have been deleted."
+          description="Removed or invalid link."
           action={
             <Button asChild variant="outline">
               <Link to="/profiles">Back to profiles</Link>
@@ -164,7 +164,7 @@ function RawDataForm({
       form.setError('root', {
         message: await extractErrorDetail(
           error,
-          'Could not save this profile — check that the raw data is valid JSON.',
+          'Could not save profile. Check that raw data is valid JSON.',
         ),
       });
       return;
@@ -184,7 +184,7 @@ function RawDataForm({
           ? getOpenFarmApiEndpointsProfilesListMachineProfilesEndpointQueryKey()
           : getOpenFarmApiEndpointsProfilesListFilamentProfilesEndpointQueryKey(),
     });
-    toast.success('Saved.');
+    toast.success('Profile saved.');
   }
 
   const description = [

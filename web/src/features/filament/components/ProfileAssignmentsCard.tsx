@@ -81,7 +81,7 @@ export function ProfileAssignmentsCard({
         <CardTitle>Profile assignments</CardTitle>
         <p className="text-sm text-muted-foreground">
           Assign profiles for each printer model and reported nozzle. Required
-          before production use. Colours inherit the default unless overridden.
+          before production use. Colors inherit the default unless overridden.
           Compatible profiles from the default slicer appear first. Bambu Studio
           presets used in OrcaSlicer are validated before slicing.
         </p>
@@ -164,7 +164,7 @@ export function ProfileAssignmentsCard({
                   className="text-sm text-destructive"
                 >
                   {issue.assignment?.colorHex
-                    ? `${variants.find((v) => v.colorHex === issue.assignment?.colorHex)?.colorName ?? 'Colour'}: `
+                    ? `${variants.find((v) => v.colorHex === issue.assignment?.colorHex)?.colorName ?? 'Color'}: `
                     : 'Default: '}
                   {issue.message}
                 </p>
@@ -183,7 +183,7 @@ export function ProfileAssignmentsCard({
               {variants.length > 0 && (
                 <details>
                   <summary className="cursor-pointer text-sm">
-                    Colour overrides
+                    Color overrides
                   </summary>
                   <div className="mt-3 flex flex-col gap-3">
                     {variants.map((variant) => {

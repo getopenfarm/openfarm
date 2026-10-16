@@ -57,7 +57,7 @@ describe('NonPrintedComponentsPage', () => {
     renderPage();
 
     expect(
-      await screen.findByText('No non-printed components yet'),
+      await screen.findByText('No non-printed components'),
     ).toBeInTheDocument();
   });
 

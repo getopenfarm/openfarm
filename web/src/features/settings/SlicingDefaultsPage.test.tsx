@@ -53,9 +53,7 @@ describe('SlicingDefaultsPage', () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText(/No explicit default is set/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/No explicit default/)).toBeInTheDocument();
     expect(screen.getByText('OrcaSlicer 2.3.0 (Linux)')).toBeInTheDocument();
   });
 
@@ -212,7 +210,7 @@ describe('SlicingDefaultsPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(
       screen.getByText(
-        /Select machine, process, filament, and build plate before saving/,
+        /Set machine, process, filament, and build plate to save/,
       ),
     ).toBeInTheDocument();
   });

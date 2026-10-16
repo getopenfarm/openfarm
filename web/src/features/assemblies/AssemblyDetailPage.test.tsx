@@ -77,7 +77,7 @@ describe('AssemblyDetailPage', () => {
     renderPage();
     const user = userEvent.setup();
 
-    const name = await screen.findByLabelText('Assembly name');
+    const name = await screen.findByLabelText('Name');
     const save = screen.getByRole('button', { name: 'Save' });
     expect(save).toBeDisabled();
     expect(

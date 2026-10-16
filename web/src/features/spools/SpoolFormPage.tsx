@@ -38,7 +38,7 @@ import {
 
 const schema = z
   .object({
-    filamentVariantId: z.string().min(1, 'Choose a filament colour'),
+    filamentVariantId: z.string().min(1, 'Choose a color'),
     label: z.string(),
     spoolWeightGrams: z
       .string()
@@ -50,7 +50,7 @@ const schema = z
       values.remainingWeightGrams === '' ||
       Number(values.remainingWeightGrams) <= Number(values.spoolWeightGrams),
     {
-      message: 'Remaining weight cannot exceed spool weight.',
+      message: 'Remaining weight exceeds spool weight',
       path: ['remainingWeightGrams'],
     },
   );
@@ -122,7 +122,6 @@ export function SpoolFormPage() {
           </BackLink>
         }
         title="Add spool"
-        description="Register a physical spool of filament from the catalog."
       />
 
       <Form {...form}>
@@ -133,7 +132,7 @@ export function SpoolFormPage() {
           <FieldGroup className="flex-1 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Spool details</CardTitle>
+                <CardTitle>Spool</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <FormField
@@ -148,7 +147,7 @@ export function SpoolFormPage() {
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Choose a filament colour" />
+                            <SelectValue placeholder="Choose color" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>

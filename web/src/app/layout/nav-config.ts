@@ -52,7 +52,7 @@ const assemblies: NavItem = {
   icon: ComponentIcon,
 };
 const nonPrintedComponents: NavItem = {
-  title: 'Non-Printed Components',
+  title: 'Non-printed components',
   url: '/non-printed-components',
   icon: PackageIcon,
 };
@@ -67,7 +67,7 @@ const maintenance: NavItem = {
   icon: WrenchIcon,
 };
 const activityLog: NavItem = {
-  title: 'Activity Log',
+  title: 'Activity log',
   url: '/activity-log',
   icon: HistoryIcon,
 };

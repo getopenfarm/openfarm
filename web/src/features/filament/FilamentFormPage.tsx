@@ -51,7 +51,7 @@ import {
   useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint,
 } from '@/lib/api/generated/filaments/filaments';
 import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
-import { CreateVendorDialog } from './components/CreateVendorDialog';
+import { AddVendorDialog } from './components/AddVendorDialog';
 import { ProfileAssignmentsCard } from './components/ProfileAssignmentsCard';
 import { type DisplayedVariant, VariantsCard } from './components/VariantsCard';
 
@@ -59,7 +59,7 @@ const MATERIAL_TYPES = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PC'] as const;
 
 const schema = z.object({
   vendorId: z.string().min(1, 'Vendor is required'),
-  material: z.string().min(1, 'Material name is required'),
+  material: z.string().min(1, 'Name is required'),
   materialType: z.enum(MATERIAL_TYPES),
   profileAssignments: z.array(
     z.object({
@@ -72,7 +72,7 @@ const schema = z.object({
   ),
   variants: z
     .array(z.object({ colorName: z.string(), colorHex: z.string() }))
-    .min(1, 'Add at least one colour variant'),
+    .min(1, 'Add at least one variant'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -157,7 +157,6 @@ function AddFilamentForm() {
           </BackLink>
         }
         title="Add filament"
-        description="Register a new material in the catalog with its colour variants."
       />
 
       <Form {...form}>
@@ -168,7 +167,7 @@ function AddFilamentForm() {
           <FieldGroup className="flex-1 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Details</CardTitle>
+                <CardTitle>Material</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
@@ -178,8 +177,8 @@ function AddFilamentForm() {
                     <FormItem>
                       <div className="flex items-center justify-between">
                         <FormLabel>Vendor</FormLabel>
-                        <CreateVendorDialog
-                          onCreated={(vendor) =>
+                        <AddVendorDialog
+                          onAdded={(vendor) =>
                             vendor.id &&
                             form.setValue('vendorId', vendor.id, {
                               shouldValidate: true,
@@ -219,7 +218,7 @@ function AddFilamentForm() {
                   name="material"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Material name</FormLabel>
+                      <FormLabel>Name</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g. PLA Basic" {...field} />
                       </FormControl>
@@ -232,7 +231,7 @@ function AddFilamentForm() {
                   name="materialType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Material type</FormLabel>
+                      <FormLabel>Type</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -328,7 +327,7 @@ function AddFilamentForm() {
                     {createMutation.isPending && (
                       <Spinner data-icon="inline-start" />
                     )}
-                    {createMutation.isPending ? 'Saving…' : 'Save'}
+                    {createMutation.isPending ? 'Adding…' : 'Add filament'}
                   </Button>
                 </>
               }
@@ -399,7 +398,7 @@ function FilamentVariantsPage() {
         <PageHeader above={backLink} title="Edit filament" />
         <EmptyState
           title="Filament not found"
-          description="It may have been deleted."
+          description="Removed or invalid link."
           action={
             <Button asChild variant="outline">
               <Link to="/filament">Back to filament</Link>
@@ -475,7 +474,7 @@ function EditFilamentForm({
               filamentId,
             ),
         });
-        toast.success('Saved.');
+        toast.success('Filament saved.');
       },
       onError: async (error: unknown) => {
         toast.error(
@@ -518,14 +517,14 @@ function EditFilamentForm({
         <FieldGroup className="flex-1 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Details</CardTitle>
+              <CardTitle>Material</CardTitle>
             </CardHeader>
             <CardContent>
               <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
                 {[
                   ['Vendor', filament.vendorName],
-                  ['Material name', filament.material],
-                  ['Material type', filament.materialType],
+                  ['Name', filament.material],
+                  ['Type', filament.materialType],
                 ].map(([label, value]) => (
                   <div key={label} className="flex flex-col gap-1">
                     <dt className="text-muted-foreground">{label}</dt>

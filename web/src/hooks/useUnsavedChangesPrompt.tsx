@@ -35,7 +35,7 @@ export function useUnsavedChangesPrompt(isDirty: boolean) {
           if (!open) blocker.reset();
         }}
         title="Discard unsaved changes?"
-        description="You have unsaved changes. Leaving this page will discard them."
+        description="Leaving this page discards the changes."
         confirmLabel="Discard changes"
         destructive
         onConfirm={() => blocker.proceed()}

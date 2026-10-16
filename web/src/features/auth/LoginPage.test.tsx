@@ -102,7 +102,7 @@ describe('LoginPage', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText('Invalid username or password.'),
+        screen.getByText('Could not sign in. Check username and password.'),
       ).toBeInTheDocument(),
     );
     expect(getToken()).toBeNull();

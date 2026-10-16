@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { pluralize } from '@/lib/pluralize';
 import type { DeletionEligibility } from './partRemoval';
 import type { PartRemovalOutcome, RemovablePart } from './useRemoveParts';
 
@@ -67,7 +68,7 @@ export function PartRemovalDetails({
               <div>
                 {row.outcome?.httpStatus === 401 ||
                 row.outcome?.httpStatus === 403
-                  ? 'You don’t have permission to remove this part.'
+                  ? 'You do not have permission to remove this part.'
                   : 'Removal could not be confirmed. Try again.'}
               </div>
             )}
@@ -77,8 +78,11 @@ export function PartRemovalDetails({
             {status === 'Eligible' &&
               !!row.eligibility?.legacyJobsLosingRecovery && (
                 <div>
-                  {row.eligibility.legacyJobsLosingRecovery} finished jobs will
-                  permanently lose retry and download.
+                  {pluralize(
+                    row.eligibility.legacyJobsLosingRecovery,
+                    'finished job',
+                  )}{' '}
+                  will permanently lose retry and download.
                 </div>
               )}
           </li>

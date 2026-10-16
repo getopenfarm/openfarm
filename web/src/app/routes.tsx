@@ -62,17 +62,17 @@ export const router = createBrowserRouter([
               {
                 path: 'new',
                 element: <PrinterFormPage mode="add" />,
-                handle: { title: 'Add Printer' },
+                handle: { title: 'Add printer' },
               },
               {
                 path: ':id',
                 element: <PrinterDetailPage />,
-                handle: { title: 'Printer Detail' },
+                handle: { title: 'Printer detail' },
               },
               {
                 path: ':id/edit',
                 element: <PrinterFormPage mode="edit" />,
-                handle: { title: 'Edit Printer' },
+                handle: { title: 'Edit printer' },
               },
             ],
           },
@@ -84,11 +84,11 @@ export const router = createBrowserRouter([
           {
             path: '/jobs/:id',
             element: <PrintJobDetailPage />,
-            handle: { title: 'Print Job' },
+            handle: { title: 'Print job' },
           },
           {
             path: '/production-runs',
-            handle: { title: 'Production Runs' },
+            handle: { title: 'Production runs' },
             children: [
               {
                 index: true,
@@ -97,17 +97,17 @@ export const router = createBrowserRouter([
               {
                 path: 'new',
                 element: <NewProductionRunPage />,
-                handle: { title: 'New Production Run' },
+                handle: { title: 'Add production run' },
               },
               {
                 path: ':id',
                 element: <ProductionRunDetailPage />,
-                handle: { title: 'Production Run' },
+                handle: { title: 'Production run' },
               },
               {
                 path: ':id/edit',
                 element: <ProductionRunEditPage />,
-                handle: { title: 'Edit Production Run' },
+                handle: { title: 'Edit production run' },
               },
             ],
           },
@@ -122,12 +122,12 @@ export const router = createBrowserRouter([
               {
                 path: 'new',
                 element: <FilamentFormPage mode="add" />,
-                handle: { title: 'Add Filament' },
+                handle: { title: 'Add filament' },
               },
               {
                 path: ':id/edit',
                 element: <FilamentFormPage mode="edit" />,
-                handle: { title: 'Edit Filament' },
+                handle: { title: 'Edit filament' },
               },
             ],
           },
@@ -142,7 +142,7 @@ export const router = createBrowserRouter([
               {
                 path: 'new',
                 element: <SpoolFormPage />,
-                handle: { title: 'Add Spool' },
+                handle: { title: 'Add spool' },
               },
               {
                 path: ':id',
@@ -162,7 +162,7 @@ export const router = createBrowserRouter([
               {
                 path: 'new',
                 element: <PartFormPage />,
-                handle: { title: 'Add Part' },
+                handle: { title: 'Add part' },
               },
               {
                 path: ':id',
@@ -182,7 +182,7 @@ export const router = createBrowserRouter([
               {
                 path: 'new',
                 element: <AssemblyFormPage />,
-                handle: { title: 'New Assembly' },
+                handle: { title: 'Add assembly' },
               },
               {
                 path: ':id',
@@ -197,7 +197,7 @@ export const router = createBrowserRouter([
           },
           {
             path: '/non-printed-components',
-            handle: { title: 'Non-Printed Components' },
+            handle: { title: 'Non-printed components' },
             children: [
               {
                 index: true,
@@ -206,12 +206,12 @@ export const router = createBrowserRouter([
               {
                 path: 'new',
                 element: <NonPrintedComponentFormPage mode="add" />,
-                handle: { title: 'Add Non-Printed Component' },
+                handle: { title: 'Add non-printed component' },
               },
               {
                 path: ':id/edit',
                 element: <NonPrintedComponentFormPage mode="edit" />,
-                handle: { title: 'Edit Non-Printed Component' },
+                handle: { title: 'Edit non-printed component' },
               },
             ],
           },
@@ -226,7 +226,7 @@ export const router = createBrowserRouter([
               {
                 path: 'import',
                 element: <ProfilesImportPage />,
-                handle: { title: 'Import Profiles' },
+                handle: { title: 'Import profiles' },
               },
               {
                 path: ':type/:id',
@@ -243,7 +243,7 @@ export const router = createBrowserRouter([
           {
             path: '/activity-log',
             element: <ActivityLogPage />,
-            handle: { title: 'Activity Log' },
+            handle: { title: 'Activity log' },
           },
           {
             path: '/settings',
@@ -252,7 +252,7 @@ export const router = createBrowserRouter([
               { index: true, element: <SettingsPage /> },
               {
                 path: 'connection-secrets',
-                handle: { title: 'Connection Secrets' },
+                handle: { title: 'Connection credentials' },
                 children: [
                   {
                     index: true,
@@ -261,14 +261,14 @@ export const router = createBrowserRouter([
                   {
                     path: 'new',
                     element: <ConnectionSecretFormPage />,
-                    handle: { title: 'Add Connection Secret' },
+                    handle: { title: 'Add credential' },
                   },
                 ],
               },
               {
                 path: 'slicing-defaults',
                 element: <SlicingDefaultsPage />,
-                handle: { title: 'Slicing Defaults' },
+                handle: { title: 'Slicing defaults' },
               },
             ],
           },

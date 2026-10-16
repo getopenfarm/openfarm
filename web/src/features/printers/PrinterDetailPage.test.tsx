@@ -202,12 +202,12 @@ describe('PrinterDetailPage', () => {
         );
       }),
     ).toBe(true);
-    expect(screen.getByText('219.4°C')).toBeInTheDocument();
-    expect(screen.getByText('59.8°C')).toBeInTheDocument();
+    expect(screen.getByText('219.4 °C')).toBeInTheDocument();
+    expect(screen.getByText('59.8 °C')).toBeInTheDocument();
     // Progress appears in both the telemetry strip and the current-job card.
     expect(screen.getAllByText('42%').length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('PLA')).toBeInTheDocument();
-    expect(screen.getAllByText('Feed Units')).toHaveLength(1);
+    expect(screen.getAllByText('Feed units')).toHaveLength(1);
     expect(screen.queryByText('Filament — AMS')).not.toBeInTheDocument();
     expect(screen.getByText('Printer estimate: 62%')).toBeInTheDocument();
     // Only the Printer-scoped activity entry is shown, not the unrelated Job one.
@@ -257,9 +257,7 @@ describe('PrinterDetailPage', () => {
 
     expect(await screen.findByText('Idle Printer')).toBeInTheDocument();
     expect(screen.getByText('No active print')).toBeInTheDocument();
-    expect(
-      await screen.findByText('No Feed Units on this printer'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No feed units')).toBeInTheDocument();
     expect(await screen.findByText('No recent activity')).toBeInTheDocument();
   });
 

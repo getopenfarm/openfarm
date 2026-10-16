@@ -17,7 +17,8 @@ import type {
 } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
 import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
-import { CreateVendorDialog } from './components/CreateVendorDialog';
+import { pluralize } from '@/lib/pluralize';
+import { AddVendorDialog } from './components/AddVendorDialog';
 import { FilamentCatalogTable } from './components/FilamentCatalogTable';
 import { VendorTable } from './components/VendorTable';
 
@@ -51,8 +52,9 @@ export function FilamentPage() {
         title="Filament"
         description={
           <>
-            Catalog · {filaments.length} materials · {variantCount} colour
-            variants · {vendorCount} vendors
+            Catalog · {pluralize(filaments.length, 'material')} ·{' '}
+            {pluralize(variantCount, 'color variant')} ·{' '}
+            {pluralize(vendorCount, 'vendor')}
           </>
         }
         action={
@@ -68,7 +70,7 @@ export function FilamentPage() {
             activeTab === 'vendors' &&
             !vendorsQuery.isLoading &&
             vendors.length > 0 ? (
-              <CreateVendorDialog />
+              <AddVendorDialog />
             ) : undefined
           }
         >
@@ -83,8 +85,8 @@ export function FilamentPage() {
           ) : filaments.length === 0 ? (
             <EmptyState
               icon={<PackageIcon className="size-8 text-muted-foreground" />}
-              title="No filaments yet"
-              description="Add a filament to start your catalog."
+              title="No filaments"
+              description="Add a filament to start a catalog."
               action={
                 <Button onClick={() => navigate('/filament/new')}>
                   Add filament
@@ -101,9 +103,9 @@ export function FilamentPage() {
           ) : vendors.length === 0 ? (
             <EmptyState
               icon={<StoreIcon className="size-8 text-muted-foreground" />}
-              title="No vendors yet"
+              title="No vendors"
               description="Add a vendor to attribute filaments to a manufacturer."
-              action={<CreateVendorDialog />}
+              action={<AddVendorDialog />}
             />
           ) : (
             <VendorTable vendors={vendors} />

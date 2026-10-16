@@ -41,11 +41,9 @@ import { BuildableUnitsPanel } from './components/BuildableUnitsPanel';
 import { ExplosionResultView } from './components/ExplosionResultView';
 
 const schema = z.object({
-  name: z.string().min(1, 'Give this assembly a name first.'),
+  name: z.string().min(1, 'Name required'),
   description: z.string().optional(),
-  lines: z
-    .array(z.custom<EditableLine>())
-    .min(1, 'An assembly needs at least one line.'),
+  lines: z.array(z.custom<EditableLine>()).min(1, 'Add at least one line.'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -105,11 +103,11 @@ export function AssemblyDetailPage() {
             queryKey:
               getOpenFarmApiEndpointsAssembliesGetAssemblyEndpointQueryKey(id),
           });
-        toast.success('Saved.');
+        toast.success('Assembly saved.');
       },
       onError: async (error) => {
         toast.error(
-          await extractErrorDetail(error, 'Could not save this assembly.'),
+          await extractErrorDetail(error, 'Could not save assembly.'),
         );
       },
     },
@@ -119,14 +117,14 @@ export function AssemblyDetailPage() {
     useOpenFarmApiEndpointsAssembliesDeleteAssemblyEndpoint({
       mutation: {
         onSuccess: () => {
-          toast.success('Assembly deleted.');
+          toast.success('Assembly removed.');
           invalidateList();
           markClean();
           navigate('/assemblies');
         },
         onError: async (error) => {
           toast.error(
-            await extractErrorDetail(error, 'Could not delete this assembly.'),
+            await extractErrorDetail(error, 'Could not remove assembly.'),
           );
         },
       },
@@ -150,14 +148,14 @@ export function AssemblyDetailPage() {
           <Skeleton className="h-64 w-full" />
         ) : loadFailed ? (
           <ErrorState
-            title="Could not load this assembly"
-            description="Please try again."
+            title="Could not load assembly"
+            description="Try again."
             onRetry={() => assemblyQuery.refetch()}
           />
         ) : (
           <EmptyState
             title="Assembly not found"
-            description="It may have been removed, or the link is out of date."
+            description="Removed or invalid link."
             action={
               <Button variant="outline" onClick={() => navigate('/assemblies')}>
                 Back to assemblies
@@ -199,7 +197,7 @@ export function AssemblyDetailPage() {
             variant="destructive"
             onClick={() => setConfirmDeleteOpen(true)}
           >
-            <TrashIcon data-icon="inline-start" /> Delete
+            <TrashIcon data-icon="inline-start" /> Remove
           </Button>
         }
       />
@@ -220,7 +218,7 @@ export function AssemblyDetailPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Assembly name</FormLabel>
+                    <FormLabel>Name</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -309,9 +307,9 @@ export function AssemblyDetailPage() {
       <ConfirmDialog
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
-        title="Delete this assembly?"
-        description="This cannot be undone. Deletion is blocked if another assembly still references it."
-        confirmLabel="Delete"
+        title="Remove assembly?"
+        description="This cannot be undone. Removal is blocked while another assembly references it."
+        confirmLabel="Remove"
         destructive
         isPending={deleteMutation.isPending}
         onConfirm={() => id && deleteMutation.mutate({ id })}

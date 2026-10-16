@@ -55,7 +55,7 @@ describe('AssembliesPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('No assemblies yet')).toBeInTheDocument();
+    expect(await screen.findByText('No assemblies')).toBeInTheDocument();
   });
 
   it('renders assemblies fetched from the real API', async () => {
@@ -108,10 +108,10 @@ describe('AssembliesPage', () => {
       }),
     );
     await userEvent.click(
-      screen.getByRole('button', { name: /Remove selected/ }),
+      screen.getByRole('button', { name: /^Remove selected$/ }),
     );
     await userEvent.click(
-      await screen.findByRole('button', { name: 'Remove 3 assemblies' }),
+      await screen.findByRole('button', { name: 'Remove' }),
     );
 
     await waitFor(() =>

@@ -115,9 +115,7 @@ export function usePartFileProcessing({
         setJobId(data.jobId ?? null);
       },
       onError: async (error) => {
-        toast.error(
-          await extractErrorDetail(error, 'Could not process this file.'),
-        );
+        toast.error(await extractErrorDetail(error, 'Could not process file.'));
         setFile(null);
       },
     },
@@ -130,9 +128,7 @@ export function usePartFileProcessing({
         setJobId(data.jobId ?? null);
       },
       onError: async (error) => {
-        toast.error(
-          await extractErrorDetail(error, 'Could not process this file.'),
-        );
+        toast.error(await extractErrorDetail(error, 'Could not process file.'));
         setFile(null);
       },
     },
@@ -146,7 +142,7 @@ export function usePartFileProcessing({
         ),
       onError: async (error) =>
         toast.error(
-          await extractErrorDetail(error, 'Could not reprocess this part.'),
+          await extractErrorDetail(error, 'Could not reprocess part.'),
         ),
     },
   });
@@ -180,9 +176,7 @@ export function usePartFileProcessing({
           onConfirmed?.();
         },
         onError: async (error) => {
-          toast.error(
-            await extractErrorDetail(error, 'Could not save the part.'),
-          );
+          toast.error(await extractErrorDetail(error, 'Could not save part.'));
         },
       },
     });

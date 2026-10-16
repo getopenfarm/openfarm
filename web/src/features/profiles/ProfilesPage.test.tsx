@@ -77,12 +77,8 @@ describe('ProfilesPage', () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText('No machine profiles yet'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Import a slicer bundle to populate this catalog.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No machine profiles')).toBeInTheDocument();
+    expect(screen.getByText('Import a slicer bundle.')).toBeInTheDocument();
   });
 
   it('renders imported profiles in the catalog tables', async () => {

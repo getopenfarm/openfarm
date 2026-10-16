@@ -72,7 +72,7 @@ describe('ConnectionSecretFormPage', () => {
     renderRoute();
 
     await user.type(screen.getByLabelText('Printer serial number'), 'AC12345');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add credential' }));
 
     expect(
       await screen.findByText('Access code is required'),
@@ -104,7 +104,7 @@ describe('ConnectionSecretFormPage', () => {
 
     await user.type(screen.getByLabelText('Printer serial number'), 'AC12345');
     await user.type(screen.getByLabelText('Access code'), 'real-secret');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add credential' }));
 
     expect(
       await screen.findByText('Connection secrets list page'),

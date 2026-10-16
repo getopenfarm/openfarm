@@ -89,7 +89,7 @@ export function QueueJobRow({
         invalidateQueue();
       },
       onError: async (error) => {
-        toast.error(await extractErrorDetail(error, 'Could not pin this job.'));
+        toast.error(await extractErrorDetail(error, 'Could not pin job.'));
       },
     },
   });
@@ -101,9 +101,7 @@ export function QueueJobRow({
         invalidateQueue();
       },
       onError: async (error) => {
-        toast.error(
-          await extractErrorDetail(error, 'Could not unpin this job.'),
-        );
+        toast.error(await extractErrorDetail(error, 'Could not unpin job.'));
       },
     },
   });

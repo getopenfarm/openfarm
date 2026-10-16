@@ -169,7 +169,7 @@ describe('PartFormPage', () => {
     pushJobStatus(queryClient, 'ReadyForReview');
 
     const submitButton = await screen.findByRole('button', {
-      name: 'Save',
+      name: 'Add part',
     });
     await waitFor(() => expect(submitButton).not.toBeDisabled());
     await user.click(submitButton);

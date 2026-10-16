@@ -1,6 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import { ListPlusIcon, TriangleAlertIcon } from 'lucide-react';
+import {
+  ChevronDownIcon,
+  InfoIcon,
+  ListPlusIcon,
+  TriangleAlertIcon,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
@@ -24,7 +29,11 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
@@ -37,9 +46,9 @@ import {
   useOpenFarmApiEndpointsPartsGetPartEndpoint,
 } from '@/lib/api/generated/parts/parts';
 import { formatMinutes } from '@/lib/formatMinutes';
+import { formatFileSize, formatGrams, formatMm } from '@/lib/formatUnits';
 import { AddOrReplacePartDialog } from './components/AddOrReplacePartDialog';
 import { PartEstimate } from './components/PartEstimate';
-import { PartEstimationSource } from './components/PartEstimationSource';
 import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
@@ -51,30 +60,26 @@ import {
 import { PartThumbnailGallery } from './components/PartThumbnailGallery';
 import { QueuePartDialog } from './components/QueuePartDialog';
 import { RemovePartButton } from './components/RemovePartButton';
+import { formatPartFileType } from './formatPartFileType';
 import { usePartsHub } from './hooks/usePartsHub';
 
 const compactHeader = 'border-b px-[18px] py-3.5';
 const compactTitle = 'text-sm font-semibold';
-
-function formatBytes(bytes: number): string {
-  const mb = bytes / 1_048_576;
-  return mb >= 1
-    ? `${mb.toFixed(1)} MB`
-    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
 
 function PartFileFacts({ part }: { part: PartResponse }) {
   const facts: [string, string][] = [
     ['File', part.originalFileName ?? '—'],
     [
       'Size',
-      part.fileSizeBytes != null ? formatBytes(part.fileSizeBytes) : '—',
+      part.fileSizeBytes != null ? formatFileSize(part.fileSizeBytes) : '—',
     ],
-    ['Format', part.fileFormat ?? '—'],
+    ['Format', formatPartFileType(part)],
     ['Plates', String(part.plateCount ?? '—')],
     [
       'Nozzle',
-      part.nozzleDiameterMm != null ? `${part.nozzleDiameterMm} mm` : 'Unknown',
+      part.nozzleDiameterMm != null
+        ? formatMm(part.nozzleDiameterMm)
+        : 'Unknown',
     ],
   ];
   if (part.slicer?.engine) {
@@ -83,8 +88,27 @@ function PartFileFacts({ part }: { part: PartResponse }) {
       `${part.slicer.engine} ${part.slicer.version ?? ''}`,
     ]);
   }
+  const estimation = part.estimation;
+  if (estimation) {
+    facts.push([
+      'Estimated from',
+      estimation.source === 'DefaultProfiles'
+        ? 'Default estimation profiles'
+        : estimation.source === 'EmbeddedProject'
+          ? 'Embedded project settings'
+          : 'Embedded sliced metadata',
+    ]);
+    const profiles = [
+      estimation.machineModel,
+      estimation.machineProfileName,
+      estimation.processProfileName,
+      ...(estimation.filamentProfileNames ?? []),
+      estimation.buildPlate,
+    ].filter(Boolean);
+    if (profiles.length > 0) facts.push(['Profiles', profiles.join(', ')]);
+  }
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm md:grid-cols-[auto_1fr_auto_1fr]">
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
       {facts.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="text-muted-foreground">{label}</dt>
@@ -93,7 +117,52 @@ function PartFileFacts({ part }: { part: PartResponse }) {
           </dd>
         </div>
       ))}
+      <dt className="text-muted-foreground">Processing</dt>
+      <dd className="min-w-0">
+        <PartProcessingNotes part={part} />
+      </dd>
     </dl>
+  );
+}
+
+function PartProcessingNotes({ part }: { part: PartResponse }) {
+  const incomplete = part.printRequirementsStatus !== 'Complete';
+  const warnings = part.processingWarnings ?? [];
+  const mayVary =
+    part.estimation != null &&
+    part.estimation.source !== 'EmbeddedSlicedMetadata';
+  if (!incomplete && warnings.length === 0 && !mayVary) return 'No issues';
+
+  if (incomplete || warnings.length > 0) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <TriangleAlertIcon className="size-3.5 text-kind-amber" />
+        {incomplete
+          ? 'Incomplete'
+          : `${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}`}
+      </span>
+    );
+  }
+  return (
+    <Popover>
+      <PopoverTrigger className="inline-flex items-center gap-1.5 rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+        <InfoIcon className="size-3.5 text-muted-foreground" />
+        Estimate may vary
+        <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="flex w-72 flex-col gap-3 text-sm"
+      >
+        {mayVary && (
+          <p className="flex gap-2 text-muted-foreground">
+            <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
+            Production slicing uses the assigned printer’s settings and may
+            produce different estimates.
+          </p>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -178,7 +247,7 @@ export function PartDetailPage() {
           queryKey: getOpenFarmApiEndpointsPartsListPartsEndpointQueryKey(),
         });
         queryClient.invalidateQueries({ queryKey: ['/api/v1/tags'] });
-        toast.success('Saved.');
+        toast.success('Part saved.');
       },
       onError: async (error) =>
         toast.error(await extractErrorDetail(error, 'Could not save part.')),
@@ -252,14 +321,13 @@ export function PartDetailPage() {
     }) ?? [];
 
   const incomplete = part?.printRequirementsStatus !== 'Complete';
-  const warnings = part?.processingWarnings ?? [];
   const minutes = part?.estimatedPrintTimeMinutes;
   const grams = part?.estimatedFilamentWeightGrams;
   const perUnit =
     unitsPerPrint > 1 && (minutes != null || grams != null)
       ? `About ${[
           minutes != null && formatMinutes(minutes / unitsPerPrint),
-          grams != null && `${Math.round((grams / unitsPerPrint) * 10) / 10} g`,
+          grams != null && formatGrams(grams / unitsPerPrint),
         ]
           .filter(Boolean)
           .join(' and ')} per unit.`
@@ -273,7 +341,7 @@ export function PartDetailPage() {
   const notFound = (
     <EmptyState
       title="Part not found"
-      description="It may have been removed, or the link is out of date."
+      description="Removed or invalid link."
       action={
         <Button variant="outline" onClick={() => navigate('/parts')}>
           Back to parts
@@ -296,7 +364,7 @@ export function PartDetailPage() {
             notFound
           ) : (
             <ErrorState
-              title="Could not load this part"
+              title="Could not load part"
               onRetry={() => partQuery.refetch()}
             />
           )}
@@ -318,18 +386,6 @@ export function PartDetailPage() {
                 ) : (
                   <StatusBadge kind="green" label="Ready to print" />
                 )}
-              </span>
-            }
-            description={
-              <span className="font-mono">
-                {part.fileFormat} ·{' '}
-                {part.nozzleDiameterMm != null
-                  ? `${part.nozzleDiameterMm} mm nozzle`
-                  : 'Unknown nozzle'}
-                {part.requiresSlicing ? ' · requires slicing' : ' · pre-sliced'}
-                {(part.plateCount ?? 0) > 1
-                  ? ` · ${part.plateCount} plates`
-                  : ''}
               </span>
             }
             action={
@@ -367,7 +423,7 @@ export function PartDetailPage() {
           />
 
           <PartRemovalToast notice={removalNotice} />
-          {(incomplete || warnings.length > 0) && (
+          {(incomplete || (part?.processingWarnings ?? []).length > 0) && (
             <Alert role="status">
               <TriangleAlertIcon className="text-kind-amber" />
               <AlertTitle>
@@ -382,13 +438,11 @@ export function PartDetailPage() {
                     complete metadata before production.
                   </p>
                 )}
-                {warnings.length > 0 && (
-                  <ul className="list-disc pl-4">
-                    {warnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                )}
+                <ul className="list-disc pl-4">
+                  {(part?.processingWarnings ?? []).map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
               </AlertDescription>
             </Alert>
           )}
@@ -402,107 +456,91 @@ export function PartDetailPage() {
                   <CardHeader className={compactHeader}>
                     <CardTitle className={compactTitle}>Part</CardTitle>
                   </CardHeader>
-                  <CardContent className="flex flex-col gap-4 px-[18px] py-4">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Name</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="tags"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Tags</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Brackets, Enclosure (comma separated)"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  <CardContent className="grid grid-cols-1 gap-4 px-[18px] py-4 sm:grid-cols-[auto_1fr]">
+                    <PartThumbnailGallery
+                      thumbnails={part.thumbnails}
+                      plateCount={part.plateCount}
+                      tileSize="10rem"
+                      className="sm:max-w-[20.5rem]"
+                    />
+                    <div className="flex min-w-0 flex-col gap-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Name</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="tags"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Tags</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g. brackets, enclosure"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-[1fr_auto]">
+                        <PartEstimate
+                          size="lg"
+                          status={part.estimateStatus}
+                          minutes={part.estimatedPrintTimeMinutes}
+                          grams={part.estimatedFilamentWeightGrams}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="unitsPerPrint"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Units per print</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  className="w-28"
+                                  {...field}
+                                  value={
+                                    Number.isNaN(field.value) ? '' : field.value
+                                  }
+                                  onChange={(event) =>
+                                    field.onChange(event.target.valueAsNumber)
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      {(part.estimateUnavailableReason ?? perUnit) && (
+                        <p className="-mt-2 text-sm text-muted-foreground">
+                          {part.estimateUnavailableReason ?? perUnit}
+                        </p>
+                      )}
                     </div>
-                    <Separator />
-                    <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-[1fr_auto]">
-                      <PartEstimate
-                        size="lg"
-                        status={part.estimateStatus}
-                        minutes={part.estimatedPrintTimeMinutes}
-                        grams={part.estimatedFilamentWeightGrams}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="unitsPerPrint"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Units per print</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                className="w-28"
-                                {...field}
-                                value={
-                                  Number.isNaN(field.value) ? '' : field.value
-                                }
-                                onChange={(event) =>
-                                  field.onChange(event.target.valueAsNumber)
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <p className="-mt-2 text-sm text-muted-foreground">
-                      {part.estimateUnavailableReason ??
-                        perUnit ??
-                        'Units per print sets how many whole plates future jobs need.'}
-                    </p>
-                    {part.estimation && (
-                      <details className="text-sm">
-                        <summary className="w-fit cursor-pointer text-muted-foreground select-none hover:text-foreground">
-                          How this was estimated
-                        </summary>
-                        <div className="pt-2">
-                          <PartEstimationSource estimation={part.estimation} />
-                        </div>
-                      </details>
-                    )}
-                    <Separator />
-                    <PartFileFacts part={part} />
                   </CardContent>
                 </Card>
 
                 <Card className="gap-0 py-0 lg:self-start">
                   <CardHeader className={compactHeader}>
-                    <CardTitle className={compactTitle}>
-                      Preview
-                      {(part.plateCount ?? 0) > 1 && (
-                        <span className="ml-1.5 font-normal text-muted-foreground">
-                          {part.plateCount} plates
-                        </span>
-                      )}
-                    </CardTitle>
+                    <CardTitle className={compactTitle}>File details</CardTitle>
                   </CardHeader>
                   <CardContent className="px-[18px] py-4">
-                    <PartThumbnailGallery
-                      thumbnails={part.thumbnails}
-                      plateCount={part.plateCount}
-                      tileSize="10rem"
-                    />
+                    <PartFileFacts part={part} />
                   </CardContent>
                 </Card>
               </div>

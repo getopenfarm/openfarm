@@ -65,7 +65,7 @@ export function NewProductionRunPage() {
 
   async function onSubmit(values: FormValues) {
     if (lines.length === 0) {
-      toast.error('Add at least one line first.');
+      toast.error('Add at least one line.');
       return;
     }
 
@@ -93,7 +93,7 @@ export function NewProductionRunPage() {
         },
       });
 
-      toast.success('Production run created.');
+      toast.success('Production run added.');
       queryClient.invalidateQueries({
         queryKey:
           getOpenFarmApiEndpointsProductionRunsListProductionRunsEndpointQueryKey(),
@@ -103,7 +103,7 @@ export function NewProductionRunPage() {
     } catch (error) {
       const detail = await extractErrorDetail(
         error,
-        'Could not create this production run.',
+        'Could not create production run.',
       );
       toast.error(detail);
     } finally {
@@ -119,7 +119,7 @@ export function NewProductionRunPage() {
             Back to production runs
           </BackLink>
         }
-        title="Add run"
+        title="Add production run"
         description="Queue one or more parts/assemblies together as a single run."
       />
 
@@ -213,7 +213,7 @@ export function NewProductionRunPage() {
                   </Button>
                   <Button type="submit" disabled={isSaving}>
                     {isSaving && <Spinner data-icon="inline-start" />}
-                    {isSaving ? 'Saving…' : 'Save'}
+                    {isSaving ? 'Adding…' : 'Add production run'}
                   </Button>
                 </>
               }

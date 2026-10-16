@@ -107,7 +107,7 @@ describe('PrintersPage', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/No printers registered yet/),
+        screen.getByText(/Add one to see live status/),
       ).toBeInTheDocument(),
     );
   });
@@ -125,11 +125,11 @@ describe('PrintersPage', () => {
     renderPage();
 
     expect(
-      await screen.findByText(/Couldn't load printers/),
+      await screen.findByText(/Could not load printers/),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(
-      screen.queryByText(/No printers registered yet/),
+      screen.queryByText(/Add one to see live status/),
     ).not.toBeInTheDocument();
   });
 
@@ -197,7 +197,7 @@ describe('PrintersPage', () => {
 
     expect(await screen.findByText('Finished Printer')).toBeInTheDocument();
     expect(screen.getByRole('table')).toBeInTheDocument();
-    expect(screen.getByText('Awaiting Clear')).toBeInTheDocument();
+    expect(screen.getAllByText('Awaiting clear')[0]).toBeInTheDocument();
     expect(
       screen.queryByRole('button', {
         name: /grid view|table view|mark ready|^clear$|actions for/i,

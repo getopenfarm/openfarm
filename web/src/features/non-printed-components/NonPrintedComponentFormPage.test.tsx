@@ -72,7 +72,7 @@ describe('NonPrintedComponentFormPage', () => {
     await user.type(screen.getByLabelText('Name'), 'M3x8 screw');
     await user.type(screen.getByLabelText('Unit'), 'each');
     await user.type(screen.getByLabelText('Unit cost (optional)'), '0.02');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add component' }));
 
     await vi.waitFor(() => {
       expect(capturedBody).toEqual({

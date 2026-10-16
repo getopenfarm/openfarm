@@ -38,10 +38,7 @@ export function ShortfallBanner({ runId, requirement }: ShortfallBannerProps) {
           ),
       });
     } catch (error) {
-      const detail = await extractErrorDetail(
-        error,
-        'Could not requeue this job.',
-      );
+      const detail = await extractErrorDetail(error, 'Could not requeue job.');
       toast.error(detail);
     }
   }

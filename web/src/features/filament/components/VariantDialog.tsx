@@ -65,9 +65,7 @@ export function VariantDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add variant</DialogTitle>
-          <DialogDescription>
-            A colour variant of this filament.
-          </DialogDescription>
+          <DialogDescription>Color of this filament.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <FieldGroup className="gap-4">
@@ -87,7 +85,7 @@ export function VariantDialog({
             </Field>
 
             <FieldSet>
-              <FieldLegend variant="label">Colour</FieldLegend>
+              <FieldLegend variant="label">Color</FieldLegend>
               <div className="flex flex-wrap gap-2">
                 {NAMED_COLOR_SWATCHES.map((option) => (
                   <button

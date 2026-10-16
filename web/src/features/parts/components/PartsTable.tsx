@@ -31,6 +31,8 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
+import { formatMm } from '@/lib/formatUnits';
+import { formatPartFileType } from '../formatPartFileType';
 
 import { PartEstimate } from './PartEstimate';
 import {
@@ -65,6 +67,7 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
   {
     id: 'part',
     accessorKey: 'name',
+    meta: { label: 'Part' },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Part" />
     ),
@@ -88,11 +91,16 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
           >
             {row.original.name}
           </Link>
-          <span className="text-xs text-muted-foreground">
-            {row.original.fileFormat}
-          </span>
         </div>
       </div>
+    ),
+  },
+  {
+    id: 'fileType',
+    header: 'File type',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Badge variant="secondary">{formatPartFileType(row.original)}</Badge>
     ),
   },
   {
@@ -124,7 +132,7 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
     cell: ({ row }) => (
       <span className="font-mono text-sm">
         {row.original.nozzleDiameterMm != null
-          ? `${row.original.nozzleDiameterMm} mm`
+          ? formatMm(row.original.nozzleDiameterMm)
           : 'Unknown'}
       </span>
     ),
@@ -354,38 +362,6 @@ export function PartsTable({
         onPendingChange: handlePendingChange,
       }}
     >
-      <DataTableSelectionBar
-        selectedCount={selected.length}
-        pending={interactionPending}
-        label="Selected parts actions"
-        onClear={() => {
-          setSelection({});
-          setRemovalNotice(undefined);
-          selectionHeaderRef.current?.focus();
-        }}
-      >
-        <Button
-          ref={bulkTriggerRef}
-          type="button"
-          variant="destructive"
-          size="sm"
-          disabled={interactionPending}
-          onClick={() => {
-            removalTriggerRef.current = bulkTriggerRef.current;
-            setRemovalBulk(true);
-            setBulkTargets(
-              selected.flatMap((part) =>
-                part.id
-                  ? [{ id: part.id, name: part.name ?? 'this part' }]
-                  : [],
-              ),
-            );
-            setBulkOpen(true);
-          }}
-        >
-          <Trash2Icon data-icon="inline-start" /> Remove selected
-        </Button>
-      </DataTableSelectionBar>
       <PartRemovalToast notice={removalNotice} />
       <div
         className="flex flex-col"
@@ -412,6 +388,40 @@ export function PartsTable({
           rowSelection={selection}
           onRowSelectionChange={setSelection}
           enableRowSelection={(row) => Boolean(row.original.id)}
+          toolbar={
+            <DataTableSelectionBar
+              selectedCount={selected.length}
+              pending={interactionPending}
+              label="Parts actions"
+              onClear={() => {
+                setSelection({});
+                setRemovalNotice(undefined);
+                selectionHeaderRef.current?.focus();
+              }}
+            >
+              <Button
+                ref={bulkTriggerRef}
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={interactionPending}
+                onClick={() => {
+                  removalTriggerRef.current = bulkTriggerRef.current;
+                  setRemovalBulk(true);
+                  setBulkTargets(
+                    selected.flatMap((part) =>
+                      part.id
+                        ? [{ id: part.id, name: part.name ?? 'this part' }]
+                        : [],
+                    ),
+                  );
+                  setBulkOpen(true);
+                }}
+              >
+                <Trash2Icon data-icon="inline-start" /> Remove selected
+              </Button>
+            </DataTableSelectionBar>
+          }
         />
       </div>
       {bulkOpen && (

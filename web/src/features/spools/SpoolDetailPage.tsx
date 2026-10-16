@@ -35,6 +35,7 @@ import {
   useOpenFarmApiEndpointsSpoolsEditSpoolEndpoint,
   useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint,
 } from '@/lib/api/generated/spools/spools';
+import { formatGrams } from '@/lib/formatUnits';
 import { LoadSpoolDialog } from './components/LoadSpoolDialog';
 import { RecordUsageDialog } from './components/RecordUsageDialog';
 import { STATE_BADGE } from './components/SpoolsTable';
@@ -46,8 +47,8 @@ function spoolSchema(capacity: number) {
     remainingWeightGrams: z
       .string()
       .trim()
-      .min(1, 'Enter the remaining weight.')
-      .refine((value) => Number(value) >= 0, 'Must be 0 or more.')
+      .min(1, 'Enter the remaining weight')
+      .refine((value) => Number(value) >= 0, 'Must be 0 or more')
       .refine(
         (value) => Number(value) <= capacity,
         `Cannot exceed the spool capacity (${capacity} g).`,
@@ -96,7 +97,7 @@ export function SpoolDetailPage() {
         queryClient.invalidateQueries({
           queryKey: getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey(),
         });
-        toast.success('Saved.');
+        toast.success('Spool saved.');
       },
       onError: async (error) =>
         toast.error(await extractErrorDetail(error, 'Could not save spool.')),
@@ -128,13 +129,13 @@ export function SpoolDetailPage() {
           <Skeleton className="h-64 w-full" />
         ) : spoolsQuery.isError ? (
           <ErrorState
-            title="Could not load this spool"
+            title="Could not load spool"
             onRetry={() => spoolsQuery.refetch()}
           />
         ) : (
           <EmptyState
             title="Spool not found"
-            description="It may have been removed, or the link is out of date."
+            description="Removed or invalid link."
             action={
               <Button variant="outline" onClick={() => navigate('/spools')}>
                 Back to spools
@@ -160,7 +161,7 @@ export function SpoolDetailPage() {
         description={
           <span className="flex flex-wrap items-center gap-2">
             {spool.vendorName} · {spool.material} · {spool.colorName} ·{' '}
-            {spool.spoolWeightGrams} g capacity
+            {formatGrams(spool.spoolWeightGrams ?? 0)} capacity
             <StatusBadge kind={state.kind} label={state.label} />
             {spool.feedSlotLabel && (
               <span className="font-mono text-xs">{spool.feedSlotLabel}</span>
@@ -178,7 +179,7 @@ export function SpoolDetailPage() {
                 Record usage
               </Button>
               <Button variant="outline" onClick={() => setDialog('unload')}>
-                Remove from slot
+                Unload
               </Button>
             </div>
           ) : null
@@ -193,7 +194,7 @@ export function SpoolDetailPage() {
           <div className="flex flex-1 flex-col gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Details</CardTitle>
+                <CardTitle>Spool</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <FormField

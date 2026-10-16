@@ -40,7 +40,7 @@ describe('PrintersTable', () => {
       'href',
       '/printers/ready',
     );
-    await userEvent.click(screen.getByText('Awaiting Clear'));
+    await userEvent.click(screen.getByText('Awaiting clear'));
     expect(onOpen).toHaveBeenCalledWith('ready');
   });
 });

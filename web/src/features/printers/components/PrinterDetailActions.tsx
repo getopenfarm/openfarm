@@ -14,8 +14,8 @@ interface PrinterDetailActionsProps {
   onRemove: () => void;
 }
 
-function notImplemented(action: string) {
-  toast(`${action} isn't implemented yet.`);
+function notImplemented() {
+  toast('Not implemented.');
 }
 
 /** Only "Mark ready", "Edit" (→ /printers/:id/edit), and "Remove" are backed by real mutations
@@ -46,7 +46,7 @@ export function PrinterDetailActions({
   if (!isReachable) {
     return (
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => notImplemented('Reconnect')}>
+        <Button variant="outline" onClick={() => notImplemented()}>
           Reconnect
         </Button>
         <Button variant="outline" onClick={onEdit}>
@@ -68,7 +68,7 @@ export function PrinterDetailActions({
           )}
           {isMarkReadyPending ? 'Marking ready…' : 'Mark ready'}
         </Button>
-        <Button variant="ghost" onClick={() => notImplemented('View job')}>
+        <Button variant="ghost" onClick={() => notImplemented()}>
           View job
         </Button>
         {removeButton}
@@ -79,10 +79,10 @@ export function PrinterDetailActions({
   if (status === 'Printing') {
     return (
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => notImplemented('Pause')}>
+        <Button variant="outline" onClick={() => notImplemented()}>
           Pause
         </Button>
-        <Button variant="ghost" onClick={() => notImplemented('Stop')}>
+        <Button variant="ghost" onClick={() => notImplemented()}>
           Stop
         </Button>
         {removeButton}
@@ -92,7 +92,7 @@ export function PrinterDetailActions({
 
   return (
     <div className="flex gap-2">
-      <Button variant="outline" onClick={() => notImplemented('Assign job')}>
+      <Button variant="outline" onClick={() => notImplemented()}>
         Assign job
       </Button>
       <Button variant="outline" onClick={onEdit}>

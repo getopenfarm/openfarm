@@ -349,7 +349,7 @@ describe('QueuePage', () => {
     );
     renderPage();
     expect(
-      await screen.findByText("Couldn't load finite jobs"),
+      await screen.findByText('Could not load finite jobs'),
     ).toBeInTheDocument();
     expect(screen.getByText('Healthy backfill')).toBeInTheDocument();
     fail = false;

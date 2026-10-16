@@ -169,7 +169,7 @@ it('preserves a saved catalog choice and can explicitly clear it on a queued job
   await user.click(screen.getByRole('button', { name: 'Edit filament' }));
   await user.click(screen.getAllByRole('combobox')[0]);
   await user.click(
-    screen.getByRole('option', { name: 'Use file material and colour' }),
+    screen.getByRole('option', { name: 'Use file material and color' }),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => {

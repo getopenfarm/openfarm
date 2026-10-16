@@ -38,7 +38,7 @@ export function MaintenancePage() {
           </>
         }
         action={
-          <Button onClick={() => toast('Not yet implemented')}>
+          <Button onClick={() => toast('Not implemented.')}>
             <PlusIcon data-icon="inline-start" />
             Add task
           </Button>
@@ -62,7 +62,8 @@ export function MaintenancePage() {
             <EmptyState
               size="sm"
               icon={<WrenchIcon className="size-8 text-muted-foreground" />}
-              description="No printers registered yet. Add one on the Printers page to see maintenance flags here."
+              title="No printers"
+              description="Add a printer to see maintenance flags."
             />
           ) : (
             <div className="grid grid-cols-1 gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] sm:grid-cols-2 xl:grid-cols-3">
@@ -88,10 +89,10 @@ export function MaintenancePage() {
               icon={
                 <ClipboardListIcon className="size-8 text-muted-foreground" />
               }
-              title="No task templates yet"
-              description="Task templates define what maintenance to track and when."
+              title="No task templates"
+              description="Define what maintenance to track and when."
               action={
-                <Button onClick={() => toast('Not yet implemented')}>
+                <Button onClick={() => toast('Not implemented.')}>
                   <PlusIcon data-icon="inline-start" />
                   Add task
                 </Button>

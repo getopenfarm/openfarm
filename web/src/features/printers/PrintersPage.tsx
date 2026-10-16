@@ -74,7 +74,6 @@ export function PrintersPage() {
     <Page>
       <PageHeader
         title="Printers"
-        description="Fleet status updates live — no refresh needed."
         action={
           <Button onClick={() => navigate('/printers/new')}>
             <PlusIcon data-icon="inline-start" /> Add printer
@@ -87,14 +86,14 @@ export function PrintersPage() {
       ) : fleetQuery.isError ? (
         <ErrorState
           icon={<TriangleAlertIcon className="size-8 text-destructive" />}
-          description="Couldn't load printers."
+          description="Could not load printers."
           onRetry={() => fleetQuery.refetch()}
         />
       ) : printers.length === 0 ? (
         <EmptyState
           icon={<PrinterIcon className="size-8 text-muted-foreground" />}
-          title="No printers yet"
-          description="No printers registered yet. Add one to see its live status here."
+          title="No printers"
+          description="Add one to see live status."
           action={
             <Button onClick={() => navigate('/printers/new')}>
               <PlusIcon data-icon="inline-start" /> Add printer
@@ -114,7 +113,7 @@ export function PrintersPage() {
           {filteredPrinters.length === 0 ? (
             <EmptyState
               title="No printers match"
-              description="Try a different search or status filter."
+              description="Change the search or filter."
             />
           ) : (
             <PrintersTable

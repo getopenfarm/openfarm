@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { formatFileSize } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import { PartProcessingReviewSection } from './PartProcessingReviewSection';
 import {
@@ -106,7 +107,7 @@ export function AddOrReplacePartDialog({
             </DialogTitle>
             <DialogDescription>
               Attach an STL, 3MF, or G-code file — material and nozzle diameter
-              resolve automatically from the file and your fleet, no selection
+              resolve automatically from the file and the fleet, no selection
               needed. Save enables as soon as those are ready; the
               print-time/weight estimate may still be resolving in the
               background.
@@ -225,7 +226,7 @@ export function AddOrReplacePartDialog({
             <>
               <p className="text-sm text-muted-foreground">
                 <span className="font-medium text-foreground">{file.name}</span>{' '}
-                — {(file.size / 1024).toFixed(0)} KB
+                — {formatFileSize(file.size)}
               </p>
 
               <PartProcessingReviewSection

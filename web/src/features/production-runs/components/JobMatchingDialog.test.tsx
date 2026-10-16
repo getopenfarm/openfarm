@@ -76,7 +76,7 @@ describe('JobMatchingDialog', () => {
     expect(screen.getByText('Required: 0.4 mm')).toBeInTheDocument();
     expect(screen.getByText('Actual: 0.6 mm')).toBeInTheDocument();
     expect(
-      screen.getByText(/Catalog colour #27272a replaces file colour #000000/),
+      screen.getByText(/Catalog color #27272a replaces file color #000000/),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Review configuration' }),

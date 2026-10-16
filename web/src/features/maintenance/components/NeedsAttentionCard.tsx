@@ -45,7 +45,7 @@ export function NeedsAttentionCard({ flag }: NeedsAttentionCardProps) {
         <Button
           variant="outline"
           className="w-full"
-          onClick={() => toast('Not yet implemented')}
+          onClick={() => toast('Not implemented.')}
         >
           Log maintenance
         </Button>

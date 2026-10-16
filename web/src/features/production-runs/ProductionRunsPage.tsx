@@ -125,8 +125,8 @@ export function ProductionRunsPage() {
 
       {runsQuery.isError && listData ? (
         <ErrorState
-          title="Could not refresh this list"
-          description="Previous results are shown. Please try again."
+          title="Could not refresh list"
+          description="Showing previous results."
           onRetry={() => runsQuery.refetch()}
         />
       ) : null}
@@ -140,8 +140,8 @@ export function ProductionRunsPage() {
       ) : runs.length === 0 && page === 1 ? (
         <EmptyState
           icon={<ClipboardListIcon className="size-8 text-muted-foreground" />}
-          title="No production runs yet"
-          description="Create one to queue parts/assemblies for printing."
+          title="No production runs"
+          description="Add one to queue parts or assemblies for printing."
           action={
             <Button onClick={() => navigate('/production-runs/new')}>
               <PlusIcon data-icon="inline-start" /> Add run

@@ -10,6 +10,7 @@ import {
   type SortingState,
   type TableOptions,
   useReactTable,
+  type VisibilityState,
 } from '@tanstack/react-table';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
@@ -25,6 +26,7 @@ import {
 import { cn } from '@/lib/utils';
 import { DataTableInteractionContext } from './DataTableInteractionContext';
 import { DataTablePagination } from './DataTablePagination';
+import { DataTableViewOptions } from './DataTableViewOptions';
 
 export interface ServerTablePagination {
   page: number;
@@ -60,6 +62,8 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   /** Extra classes applied to every body cell — used to tune row density. */
   cellClassName?: string;
+  /** Left side of a toolbar row above the header; the row always ends with a Columns menu. Pass `null` for a Columns-only row. */
+  toolbar?: ReactNode;
 }
 
 // 12px + 16px checkbox + 12px: equal space either side (overrides TableHead/TableCell's checkbox pr-0).
@@ -79,8 +83,10 @@ export function DataTable<TData, TValue>({
   rowSelection,
   onRowSelectionChange,
   enableRowSelection = false,
+  toolbar,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const serverPage = serverPagination?.page;
   const serverPageSize = serverPagination?.pageSize;
@@ -105,6 +111,7 @@ export function DataTable<TData, TValue>({
     columns,
     state: {
       sorting: serverSorting?.sorting ?? sorting,
+      columnVisibility,
       ...(rowSelection ? { rowSelection } : {}),
       ...(serverPagination
         ? {
@@ -116,6 +123,7 @@ export function DataTable<TData, TValue>({
         : {}),
     },
     getRowId,
+    onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange,
     enableRowSelection,
     onSortingChange: serverSorting?.onSortingChange ?? setSorting,
@@ -172,8 +180,17 @@ export function DataTable<TData, TValue>({
         className={cn('overflow-hidden rounded-md border', className)}
       >
         <span className="sr-only" aria-live="polite">
-          {pending || serverSorting?.pending ? 'Loading rows.' : ''}
+          {pending || serverSorting?.pending ? 'Loading…' : ''}
         </span>
+        {toolbar !== undefined && (
+          <div
+            data-slot="table-toolbar-row"
+            className="flex min-h-12 flex-wrap items-center gap-2 border-b px-3 py-2"
+          >
+            {toolbar}
+            <DataTableViewOptions table={table} />
+          </div>
+        )}
         <Table>
           <TableHeader className="bg-muted/40">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -241,10 +258,10 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={table.getVisibleLeafColumns().length}
                   className="h-32 text-center text-sm text-muted-foreground"
                 >
-                  {emptyState ?? 'No results.'}
+                  {emptyState ?? 'No results'}
                 </TableCell>
               </TableRow>
             )}

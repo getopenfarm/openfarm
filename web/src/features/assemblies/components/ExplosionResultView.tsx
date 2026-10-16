@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -63,7 +64,7 @@ export function ExplosionResultView({ assemblyId }: ExplosionResultViewProps) {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">No printed parts.</p>
+              <EmptyState size="sm" bordered={false} title="No printed parts" />
             )}
           </div>
 
@@ -84,9 +85,11 @@ export function ExplosionResultView({ assemblyId }: ExplosionResultViewProps) {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No non-printed components.
-              </p>
+              <EmptyState
+                size="sm"
+                bordered={false}
+                title="No non-printed components"
+              />
             )}
           </div>
         </div>

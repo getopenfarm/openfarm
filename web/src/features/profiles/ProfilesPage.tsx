@@ -99,7 +99,7 @@ export function ProfilesPage() {
     <Page>
       <PageHeader
         title="Profiles"
-        description="Machine and filament profiles imported from slicer bundles"
+        description="Imported from slicer bundles."
         action={
           <Button onClick={() => navigate('/profiles/import')}>
             <UploadIcon data-icon="inline-start" />
@@ -131,8 +131,8 @@ export function ProfilesPage() {
           ) : machineProfiles.length === 0 && machinePage === 1 ? (
             <EmptyState
               icon={<SettingsIcon className="size-8 text-muted-foreground" />}
-              title="No machine profiles yet"
-              description="Import a slicer bundle to populate this catalog."
+              title="No machine profiles"
+              description="Import a slicer bundle."
               action={
                 <Button onClick={() => navigate('/profiles/import')}>
                   Import profiles
@@ -182,8 +182,8 @@ export function ProfilesPage() {
           ) : filamentProfiles.length === 0 && filamentPage === 1 ? (
             <EmptyState
               icon={<SwatchBookIcon className="size-8 text-muted-foreground" />}
-              title="No filament profiles yet"
-              description="Import a slicer bundle to populate this catalog."
+              title="No filament profiles"
+              description="Import a slicer bundle."
               action={
                 <Button onClick={() => navigate('/profiles/import')}>
                   Import profiles

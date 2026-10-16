@@ -59,7 +59,7 @@ export function JobRemoteControls({
       await pauseMutation.mutateAsync({ id: jobId });
     } catch (error) {
       setPendingAction(null);
-      toast.error(await extractErrorDetail(error, 'Could not pause this job.'));
+      toast.error(await extractErrorDetail(error, 'Could not pause job.'));
     }
   }
 
@@ -69,9 +69,7 @@ export function JobRemoteControls({
       await resumeMutation.mutateAsync({ id: jobId });
     } catch (error) {
       setPendingAction(null);
-      toast.error(
-        await extractErrorDetail(error, 'Could not resume this job.'),
-      );
+      toast.error(await extractErrorDetail(error, 'Could not resume job.'));
     }
   }
 
@@ -81,9 +79,7 @@ export function JobRemoteControls({
       await cancelMutation.mutateAsync({ id: jobId });
     } catch (error) {
       setPendingAction(null);
-      toast.error(
-        await extractErrorDetail(error, 'Could not cancel this job.'),
-      );
+      toast.error(await extractErrorDetail(error, 'Could not cancel job.'));
     }
   }
 
@@ -155,7 +151,7 @@ export function JobRemoteControls({
         type="button"
         size="icon"
         variant="ghost"
-        aria-label="Cancel"
+        aria-label="Cancel job"
         onClick={handleCancel}
       >
         <XIcon data-icon="inline-start" className="" />

@@ -93,7 +93,7 @@ describe('Profile assignments card', () => {
     expect(screen.getByText('X1C · 0.6 mm')).toBeInTheDocument();
     expect(screen.getByText(/2 printers/)).toBeInTheDocument();
     expect(screen.getByText(/Printer awaiting telemetry/)).toBeInTheDocument();
-    await user.click(screen.getAllByText('Colour overrides')[0]);
+    await user.click(screen.getAllByText('Color overrides')[0]);
     expect(screen.getAllByText('Black · Inherited')).toHaveLength(2);
     await user.selectOptions(
       screen.getByLabelText('Black profile for P1S · 0.4 mm'),

@@ -51,7 +51,7 @@ export function BuildableUnitsPanel({ assemblyId }: BuildableUnitsPanelProps) {
   if (printedParts.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        This assembly has no printed parts — buildable units doesn't apply.
+        No printed parts. Buildable units not applicable.
       </p>
     );
   }

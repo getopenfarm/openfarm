@@ -285,7 +285,6 @@ export function ProfilePickerCombobox({
         <Command shouldFilter={false}>
           <CommandInput
             autoFocus
-            aria-label={searchPlaceholder}
             placeholder={searchPlaceholder}
             value={search}
             onValueChange={setSearch}
@@ -309,7 +308,7 @@ export function ProfilePickerCombobox({
               </p>
             ) : query.isError ? (
               <div role="alert" className="flex flex-col gap-2 p-2">
-                <p>Couldn't load profiles.</p>
+                <p>Could not load profiles.</p>
                 <Button
                   type="button"
                   variant="outline"

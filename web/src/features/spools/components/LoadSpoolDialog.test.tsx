@@ -86,7 +86,7 @@ describe('LoadSpoolDialog', () => {
     vi.unstubAllGlobals();
   });
 
-  it('loads a spool onto the chosen printer/Feed Slot, offering only free slots', async () => {
+  it('loads a spool onto the chosen printer/Feed slot, offering only free slots', async () => {
     const user = userEvent.setup();
     let putBody: unknown;
     renderDialog((_url, body) => {
@@ -97,7 +97,7 @@ describe('LoadSpoolDialog', () => {
     await user.click(await screen.findByRole('option', { name: 'X1C-01' }));
 
     await user.click(
-      await screen.findByRole('combobox', { name: 'Feed Slot' }),
+      await screen.findByRole('combobox', { name: 'Feed slot' }),
     );
     expect(
       await screen.findByRole('option', { name: 'AMS 1 · Slot 1' }),

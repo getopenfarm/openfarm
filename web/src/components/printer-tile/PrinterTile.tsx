@@ -5,6 +5,7 @@ import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { printerStatusToBadge } from '@/features/printers/lib/printerStatusBadge';
+import { formatCelsius } from '@/lib/formatUnits';
 import type { DensityMode } from '@/lib/preferences/types';
 import { cn } from '@/lib/utils';
 import type { PrinterStatus } from './status';
@@ -32,7 +33,7 @@ function formatEta(etaMinutes: number | null): string {
 }
 
 function formatTemp(value: number | null | undefined): string {
-  return value == null ? '—' : `${value}°C`;
+  return value == null ? '—' : formatCelsius(value);
 }
 
 export const PrinterTile = memo(function PrinterTile({
@@ -59,7 +60,6 @@ export const PrinterTile = memo(function PrinterTile({
         type="button"
         className="relative z-20 shrink-0 cursor-pointer rounded-full transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         aria-label={`Mark ${name} ready`}
-        title="Mark printer ready"
         onClick={onMarkReady}
       >
         <StatusBadge kind={badge.kind} label={badge.label} />

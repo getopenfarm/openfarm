@@ -63,9 +63,9 @@ describe('SpoolsTable actions', () => {
     expect(
       screen.getByRole('menuitem', { name: 'Record usage' }),
     ).toBeEnabled();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Unload' }));
     expect(screen.getByRole('dialog')).toHaveTextContent(
-      'Remove spool from Feed Slot',
+      'Unload spool from feed slot',
     );
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(loadedTrigger).toHaveFocus());

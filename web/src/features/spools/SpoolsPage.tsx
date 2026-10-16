@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ListSpoolsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
+import { pluralize } from '@/lib/pluralize';
 import { SpoolsTable } from './components/SpoolsTable';
 
 const LOW_REMAINING_FRACTION = 0.25;
@@ -31,7 +32,7 @@ export function SpoolsPage() {
         title="Spools"
         description={
           <>
-            Physical inventory · {spools.length} spools ·{' '}
+            Physical inventory · {pluralize(spools.length, 'spool')} ·{' '}
             <span className="text-kind-green font-medium">
               {inUseCount} in use
             </span>{' '}
@@ -55,8 +56,8 @@ export function SpoolsPage() {
       ) : spools.length === 0 ? (
         <EmptyState
           icon={<Package2Icon className="size-8 text-muted-foreground" />}
-          title="No spools yet"
-          description="Add one to track it here."
+          title="No spools"
+          description="Add a spool to track inventory."
           action={
             <Button onClick={() => navigate('/spools/new')}>Add spool</Button>
           }

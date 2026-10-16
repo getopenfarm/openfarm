@@ -81,7 +81,7 @@ describe('ProfileDetailPage', () => {
     await user.paste('{"nozzle_temperature":["230"]}');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(await screen.findByText('Profile saved.')).toBeInTheDocument();
     expect(puts).toEqual([
       {
         url: expect.stringMatching(/\/profiles\/filament\/fp1\/raw-data$/),

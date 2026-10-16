@@ -125,10 +125,10 @@ describe('FeedUnitsCard', () => {
 
     expect(await screen.findByText('Bambu Lab PLA Basic')).toBeInTheDocument();
     expect(screen.getByText('Black')).toBeInTheDocument();
-    expect(screen.getByText('Tracked: 400 g')).toBeInTheDocument();
+    expect(screen.getByText('Recorded: 400 g')).toBeInTheDocument();
   });
 
-  it('shows unknown detection for a Feed Slot with no telemetry', async () => {
+  it('shows unknown detection for a Feed slot with no telemetry', async () => {
     renderCard();
 
     expect(await screen.findAllByText('No registered spool')).not.toHaveLength(
@@ -156,7 +156,7 @@ describe('FeedUnitsCard', () => {
       ],
     });
     await screen.findByText('Bambu Lab PLA Basic');
-    const row = screen.getByText('Tracked: 400 g').closest('li');
+    const row = screen.getByText('Recorded: 400 g').closest('li');
     if (!row) throw new Error('Expected a registered spool row');
     expect(within(row).getByText('Printer estimate: 0%')).toBeInTheDocument();
     expect(
@@ -251,7 +251,7 @@ describe('FeedUnitsCard', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText('Registered spool')).toBeInTheDocument();
-    expect(screen.getByText('Tracked: 0 g')).toBeInTheDocument();
+    expect(screen.getByText('Recorded: 0 g')).toBeInTheDocument();
     expect(screen.getByText('Inactive slot')).toBeInTheDocument();
   });
 
@@ -274,15 +274,13 @@ describe('FeedUnitsCard', () => {
         <FeedUnitsCard printerId="printer-1" isReachable />
       </QueryClientProvider>,
     );
-    expect(screen.getByRole('status')).toHaveTextContent('Loading Feed Units');
+    expect(screen.getByRole('status')).toHaveTextContent('Loading feed units');
     finish(new Response('{}', { status: 500 }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not load Feed Units',
+      'Could not load feed units',
     );
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
-    expect(
-      screen.queryByText('No Feed Units on this printer'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('No feed units')).not.toBeInTheDocument();
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: 'Retry' }));
@@ -292,21 +290,19 @@ describe('FeedUnitsCard', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
-    expect(
-      await screen.findByText('No Feed Units on this printer'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No feed units')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('has an Add a Feed Unit action', async () => {
+  it('has an Add feed unit action', async () => {
     renderCard();
 
     expect(
-      await screen.findByRole('button', { name: 'Add a Feed Unit' }),
+      await screen.findByRole('button', { name: 'Add feed unit' }),
     ).toBeInTheDocument();
   });
 
-  it('offers Remove only for the Automatic Filament Reloader, not the connector-derived MMU', async () => {
+  it('offers Remove only for the Automatic filament reloader, not the connector-derived MMU', async () => {
     renderCard();
 
     await screen.findByText('AMS 1');
@@ -314,7 +310,7 @@ describe('FeedUnitsCard', () => {
     expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
   });
 
-  it('removes a Feed Unit', async () => {
+  it('removes a Feed unit', async () => {
     const user = userEvent.setup();
     let deletedUrl: string | undefined;
     renderCard((url) => {
@@ -335,13 +331,13 @@ describe('FeedUnitsCard', () => {
         {
           id: 'external-1',
           kind: 'ExternalSpool',
-          displayLabel: 'External Spool',
+          displayLabel: 'External spool',
           supersededByFeedUnitId,
           feedSlots: [],
         },
       ]);
 
-      await screen.findByText('External Spool');
+      await screen.findByText('External spool');
       expect(
         screen.queryByRole('button', { name: 'Remove' }),
       ).not.toBeInTheDocument();
@@ -353,7 +349,7 @@ describe('FeedUnitsCard', () => {
       {
         id: 'external-1',
         kind: 'ExternalSpool',
-        displayLabel: 'External Spool',
+        displayLabel: 'External spool',
         supersededByFeedUnitId: null,
         feedSlots: [],
       },
@@ -365,7 +361,7 @@ describe('FeedUnitsCard', () => {
       },
     ]);
 
-    const label = await screen.findByText('External Spool');
+    const label = await screen.findByText('External spool');
     const header = label.parentElement;
     if (!header) throw new Error('Expected a feed unit header');
     expect(
@@ -386,7 +382,7 @@ describe('FeedUnitsCard', () => {
         {
           id: 'external-1',
           kind: 'ExternalSpool',
-          displayLabel: 'External Spool',
+          displayLabel: 'External spool',
           supersededByFeedUnitId: 'reloader-1',
           feedSlots: [],
         },

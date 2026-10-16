@@ -113,13 +113,13 @@ describe('PartsPage', () => {
     await screen.findByText('1–25 of 26');
     await user.click(screen.getByRole('checkbox', { name: 'Select Part 1' }));
     expect(
-      screen.getByRole('region', { name: 'Selected parts actions' }),
+      screen.getByRole('region', { name: 'Parts actions' }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('combobox', { name: 'Rows per page' }));
     await user.click(screen.getByRole('option', { name: '10' }));
     expect(await screen.findByText('1–10 of 26')).toBeInTheDocument();
     expect(
-      screen.queryByRole('region', { name: 'Selected parts actions' }),
+      screen.queryByRole('region', { name: 'Parts actions' }),
     ).not.toBeInTheDocument();
     const url = new URL(
       requests.mock.calls.at(-1)?.[0].toString() ?? '',
@@ -180,14 +180,14 @@ describe('PartsPage', () => {
       screen.getByRole('checkbox', { name: 'Select Part 1' }),
     );
     expect(
-      screen.getByRole('region', { name: 'Selected parts actions' }),
+      screen.getByRole('region', { name: 'Parts actions' }),
     ).toHaveTextContent('1 selected');
     await userEvent.click(
       screen.getByRole('button', { name: 'Next parts page' }),
     );
     await screen.findByRole('link', { name: 'Part 26' });
     expect(
-      screen.queryByRole('region', { name: 'Selected parts actions' }),
+      screen.queryByRole('region', { name: 'Parts actions' }),
     ).not.toBeInTheDocument();
     await userEvent.click(
       screen.getByRole('checkbox', { name: 'Select all parts on this page' }),
@@ -205,14 +205,14 @@ describe('PartsPage', () => {
     );
     expect(await screen.findByText('1–25 of 25')).toBeInTheDocument();
     expect(
-      screen.queryByRole('region', { name: 'Selected parts actions' }),
+      screen.queryByRole('region', { name: 'Parts actions' }),
     ).not.toBeInTheDocument();
   });
 
   it('shows a load error with Retry instead of an empty library', async () => {
     const { recover } = setup({ fail: true });
     expect(await screen.findByText('Could not load parts')).toBeInTheDocument();
-    expect(screen.queryByText('No parts yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No parts')).not.toBeInTheDocument();
     recover();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(
@@ -222,7 +222,7 @@ describe('PartsPage', () => {
 
   it('shows the genuine empty library state', async () => {
     setup({ count: 0 });
-    expect(await screen.findByText('No parts yet')).toBeInTheDocument();
+    expect(await screen.findByText('No parts')).toBeInTheDocument();
     expect(
       screen.queryByRole('navigation', { name: 'Parts pagination' }),
     ).not.toBeInTheDocument();
@@ -240,7 +240,7 @@ it('clears page-local selection on sort and preserves header focus while loading
   await user.keyboard('{Enter}');
   await waitFor(() => expect(header).toBeDisabled());
   expect(
-    screen.queryByRole('region', { name: 'Selected parts actions' }),
+    screen.queryByRole('region', { name: 'Parts actions' }),
   ).not.toBeInTheDocument();
   expect(
     screen.getByRole('checkbox', { name: 'Select Part 1' }),
@@ -266,7 +266,7 @@ it('keeps previous rows after a failed sort and retries the same requested order
   failRequests();
   const header = screen.getByRole('button', { name: 'Part' });
   await user.click(header);
-  await screen.findByText('Could not refresh this list');
+  await screen.findByText('Could not refresh list');
   expect(screen.getByText('Part 1')).toBeInTheDocument();
   expect(header).toBeDisabled();
   expect(

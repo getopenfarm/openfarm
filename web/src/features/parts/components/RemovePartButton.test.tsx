@@ -157,9 +157,7 @@ describe('RemovePartButton eligibility pipeline', () => {
       failed ? json({ detail: 'Offline' }, 503) : preview(),
     );
     await open();
-    expect(await findNoticeToast()).toHaveTextContent(
-      'Couldn’t check this part.',
-    );
+    expect(await findNoticeToast()).toHaveTextContent('Could not check part.');
     expect(noticeToast()).toHaveAttribute('data-type', 'error');
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     failed = false;

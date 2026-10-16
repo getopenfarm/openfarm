@@ -60,8 +60,8 @@ export function AssembliesPage() {
 
       {assembliesQuery.isError && listData ? (
         <ErrorState
-          title="Could not refresh this list"
-          description="Previous results are shown. Please try again."
+          title="Could not refresh list"
+          description="Showing previous results."
           onRetry={() => assembliesQuery.refetch()}
         />
       ) : null}
@@ -75,8 +75,8 @@ export function AssembliesPage() {
       ) : assemblies.length === 0 && page === 1 ? (
         <EmptyState
           icon={<Layers3Icon className="size-8 text-muted-foreground" />}
-          title="No assemblies yet"
-          description="Create one to group parts into a bill of materials."
+          title="No assemblies"
+          description="Add one to group parts into a bill of materials."
           action={
             <Button onClick={() => navigate('/assemblies/new')}>
               <PlusIcon data-icon="inline-start" /> Add assembly

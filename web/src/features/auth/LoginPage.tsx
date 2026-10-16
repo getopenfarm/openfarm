@@ -45,14 +45,14 @@ export function LoginPage() {
       onSuccess: (response) => {
         const token = response.data.token;
         if (!token) {
-          toast.error('Login succeeded but no token was returned.');
+          toast.error('Could not sign in. No token returned.');
           return;
         }
         auth.login(token);
         navigate('/', { replace: true });
       },
       onError: () => {
-        toast.error('Invalid username or password.');
+        toast.error('Could not sign in. Check username and password.');
       },
     },
   });
@@ -66,9 +66,7 @@ export function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Sign in to OpenFarm</CardTitle>
-          <CardDescription>
-            Enter your operator credentials to continue.
-          </CardDescription>
+          <CardDescription>Enter operator credentials.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>

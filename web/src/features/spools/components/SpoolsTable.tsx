@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
+import { formatGrams } from '@/lib/formatUnits';
 import { LoadSpoolDialog } from './LoadSpoolDialog';
 import { RecordUsageDialog } from './RecordUsageDialog';
 import { UnloadSpoolDialog } from './UnloadSpoolDialog';
@@ -49,6 +50,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
       {
         id: 'spool',
         accessorKey: 'colorName',
+        meta: { label: 'Spool' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Spool" />
         ),
@@ -74,6 +76,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
       },
       {
         accessorKey: 'vendorName',
+        meta: { label: 'Vendor' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Vendor" />
         ),
@@ -82,6 +85,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
         id: 'remaining',
         accessorFn: (spool) =>
           (spool.remainingWeightGrams ?? 0) / (spool.spoolWeightGrams || 1),
+        meta: { label: 'Remaining' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Remaining" />
         ),
@@ -99,7 +103,8 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
                 )}
               />
               <span className="text-xs text-muted-foreground">
-                {spool.remainingWeightGrams} / {spool.spoolWeightGrams} g
+                {formatGrams(spool.remainingWeightGrams ?? 0)} /{' '}
+                {formatGrams(spool.spoolWeightGrams ?? 0)}
                 {spool.hasUsageOverrun ? ' · overrun' : ''}
               </span>
             </div>
@@ -108,6 +113,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
       },
       {
         accessorKey: 'state',
+        meta: { label: 'State' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="State" />
         ),
@@ -121,6 +127,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
       },
       {
         accessorKey: 'feedSlotLabel',
+        meta: { label: 'Location' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Location" />
         ),
@@ -165,7 +172,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
                         setDialog({ mode: 'unload', spoolId: id })
                       }
                     >
-                      Remove
+                      Unload
                     </DropdownMenuItem>
                   </>
                 )}
@@ -184,6 +191,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
         pageSize={25}
         columns={columns}
         data={spools}
+        toolbar={null}
         onRowClick={(spool) => navigate(`/spools/${spool.id}`)}
       />
       {dialog?.mode === 'load' ? (

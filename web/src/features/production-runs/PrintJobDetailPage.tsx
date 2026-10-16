@@ -50,6 +50,7 @@ import {
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
 import { getToken } from '@/lib/auth/tokenStorage';
+import { formatGrams } from '@/lib/formatUnits';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
 import { JobRemoteControls } from './components/JobRemoteControls';
 import { RemoveJobButton } from './components/RemoveJobButton';
@@ -129,7 +130,7 @@ function JobFilamentForm({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries();
-        toast.success(editable ? 'Saved.' : 'Usage recorded.');
+        toast.success(editable ? 'Job filament saved.' : 'Usage recorded.');
         onDone();
       },
       onError: () => toast.error('Could not save job filament.'),
@@ -419,7 +420,7 @@ function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
               {terminal && (
                 <span className="text-muted-foreground">
                   {line.gramsConsumed != null
-                    ? `${line.gramsConsumed} g`
+                    ? formatGrams(line.gramsConsumed)
                     : 'Not recorded'}
                 </span>
               )}
@@ -462,7 +463,7 @@ export function PrintJobDetailPage() {
     );
     if (!response.ok) {
       toast.error(
-        'Could not retrieve the job file. Assign a printer before slicing.',
+        'Could not retrieve job file. Assign a printer before slicing.',
       );
       return;
     }
@@ -498,7 +499,7 @@ export function PrintJobDetailPage() {
           {isNotFound ? (
             <EmptyState
               title="Print job not found"
-              description="It may have been removed, or the link is out of date."
+              description="Removed or invalid link."
               action={
                 <Button variant="outline" onClick={() => navigate('/jobs')}>
                   Back to print queue
@@ -507,7 +508,7 @@ export function PrintJobDetailPage() {
             />
           ) : (
             <ErrorState
-              title="Could not load this print job"
+              title="Could not load print job"
               onRetry={() => query.refetch()}
             />
           )}

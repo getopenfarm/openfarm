@@ -3,6 +3,7 @@ import { VideoOffIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint } from '@/lib/api/generated/printers/printers';
+import { formatDateTime } from '@/lib/formatDateTime';
 import { cn } from '@/lib/utils';
 import {
   type CameraFrameQueryData,
@@ -165,11 +166,11 @@ export function CameraSurface({
       {displayed && supported ? (
         <Badge
           variant="secondary"
-          title={`Last frame received ${new Date(displayed.receivedAtUtc).toLocaleString()} · ${live ? 'Live' : label}`}
+          title={`Last frame received ${formatDateTime(displayed.receivedAtUtc)} · ${live ? 'Live' : label}`}
           aria-label={
             live
               ? 'Live camera'
-              : `Last camera frame ${formatCameraAge(now - displayed.receivedAtUtc)}. ${label}. Received ${new Date(displayed.receivedAtUtc).toLocaleString()}`
+              : `Last camera frame ${formatCameraAge(now - displayed.receivedAtUtc)}. ${label}. Received ${formatDateTime(displayed.receivedAtUtc)}`
           }
           className={cn(
             'absolute top-3 left-3 shadow-sm',

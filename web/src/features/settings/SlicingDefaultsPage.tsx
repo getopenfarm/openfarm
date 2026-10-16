@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { PackageIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
@@ -37,6 +37,8 @@ import {
   useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint,
   useOpenFarmApiEndpointsSettingsUpdateSlicingDefaultsEndpoint,
 } from '@/lib/api/generated/settings/settings';
+
+const FORM_ID = 'slicing-defaults-form';
 
 function selectionKey(
   slicer: Pick<AvailableSlicerResponse, 'engine' | 'version'>,
@@ -86,7 +88,7 @@ export function SlicingDefaultsPage() {
     useOpenFarmApiEndpointsSettingsUpdateSlicingDefaultsEndpoint({
       mutation: {
         onSuccess: () => {
-          toast.success('Slicing defaults updated.');
+          toast.success('Slicing defaults saved.');
           query.refetch();
           queryClient.invalidateQueries({
             predicate: ({ queryKey }) =>
@@ -98,7 +100,7 @@ export function SlicingDefaultsPage() {
         },
         onError: async (error: unknown) => {
           let message =
-            'Failed to update slicing defaults. Check profile compatibility with the selected engine and machine.';
+            'Could not save slicing defaults. Check profile compatibility with the engine and machine.';
           if (error instanceof Response) {
             const problem = await error
               .clone()
@@ -111,7 +113,8 @@ export function SlicingDefaultsPage() {
       },
     });
 
-  function handleSave() {
+  function handleSave(event: FormEvent) {
+    event.preventDefault();
     const [engine, version] = selection.split('::');
     if (!engine || !version) {
       return;
@@ -138,21 +141,21 @@ export function SlicingDefaultsPage() {
           </BackLink>
         }
         title="Slicing defaults"
-        description="Choose the default slicer and profiles for library estimates. STL and geometry-only 3MF use these profiles; project 3MF uses its embedded settings."
+        description="Defaults for estimates. Project 3MF uses its embedded settings."
       />
 
       {query.isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : query.isError ? (
         <ErrorState
-          description="Couldn't load the bundled slicer catalog."
+          description="Could not load slicers."
           onRetry={() => query.refetch()}
         />
       ) : available.length === 0 ? (
         <EmptyState
           icon={<PackageIcon className="size-8 text-muted-foreground" />}
           title="No slicer available"
-          description="No slicer engine/version is bundled with this install yet. Provision one via tools/provision-slicers."
+          description="No slicer is bundled with this install."
         />
       ) : (
         <div className="flex flex-1 flex-col gap-6">
@@ -178,7 +181,7 @@ export function SlicingDefaultsPage() {
                       id="slicing-default-select"
                       className="w-full"
                     >
-                      <SelectValue placeholder="Choose a slicer version" />
+                      <SelectValue placeholder="Slicer version" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -196,22 +199,20 @@ export function SlicingDefaultsPage() {
                   </Select>
                   {effectiveDefault && !effectiveDefault.isExplicit && (
                     <p className="text-muted-foreground text-xs">
-                      No explicit default is set — auto-selected the newest
-                      available version.
+                      No explicit default. Using the newest version.
                     </p>
                   )}
                 </Field>
                 <FieldSet className="rounded-md border p-4">
                   <FieldLegend>Default estimation profiles</FieldLegend>
                   <p className="text-sm text-muted-foreground">
-                    Optional. Select all four settings to estimate STL and
-                    geometry-only 3MF without registering a printer. The
-                    filament choice is for estimation and does not restrict
+                    Optional. Set all four to estimate STL and geometry-only 3MF
+                    without a printer. The filament choice does not restrict
                     production material.
                   </p>
                   {!profiles && (
                     <p className="text-sm text-muted-foreground">
-                      No estimation defaults configured.
+                      No estimation defaults.
                     </p>
                   )}
                   <Field>
@@ -283,7 +284,7 @@ export function SlicingDefaultsPage() {
                       }}
                     >
                       <SelectTrigger id="estimation-plate">
-                        <SelectValue placeholder="Select a build plate" />
+                        <SelectValue placeholder="Build plate" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
@@ -318,13 +319,12 @@ export function SlicingDefaultsPage() {
                   )}
                   {incompleteProfiles && (
                     <p className="text-sm text-muted-foreground">
-                      Select machine, process, filament, and build plate before
-                      saving.
+                      Set machine, process, filament, and build plate to save.
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground">
-                    Changes apply to new estimates and explicit Reprocess. Saved
-                    parts are not automatically recalculated.
+                    Changes apply to new estimates and Reprocess. Saved parts
+                    are not recalculated.
                   </p>
                 </FieldSet>
               </FieldGroup>
@@ -341,8 +341,8 @@ export function SlicingDefaultsPage() {
                   Cancel
                 </Button>
                 <Button
-                  type="button"
-                  onClick={handleSave}
+                  type="submit"
+                  form={FORM_ID}
                   disabled={
                     updateMutation.isPending || !selection || incompleteProfiles
                   }
@@ -355,6 +355,8 @@ export function SlicingDefaultsPage() {
               </>
             }
           />
+          {/* Empty form: a form ancestor makes Radix Select render a native select. */}
+          <form id={FORM_ID} onSubmit={handleSave} />
         </div>
       )}
     </Page>

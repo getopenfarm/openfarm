@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import type { MatchingCheck } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint } from '@/lib/api/generated/print-jobs/print-jobs';
+import { formatDateTime } from '@/lib/formatDateTime';
 import { cn } from '@/lib/utils';
 
 function CheckRow({
@@ -117,7 +118,7 @@ export function JobMatchingDialog({
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
             {diagnostics?.evaluatedAtUtc
-              ? `Checked ${new Date(diagnostics.evaluatedAtUtc).toLocaleString()}`
+              ? `Checked ${formatDateTime(diagnostics.evaluatedAtUtc)}`
               : 'Current matching checks'}
           </p>
           <Button
@@ -170,14 +171,14 @@ export function JobMatchingDialog({
                       {requirement.materialType ?? 'Any material'} ·{' '}
                       {requirement.selectedVariantId
                         ? (requirement.selectedVariantName ??
-                          'Selected variant unavailable')
-                        : (requirement.detectedColorHex ?? 'Any colour')}
+                          'Variant unavailable')
+                        : (requirement.detectedColorHex ?? 'Any color')}
                     </p>
                     {requirement.selectedVariantId && (
                       <p className="text-xs text-muted-foreground">
-                        Catalog colour{' '}
+                        Catalog color{' '}
                         {requirement.selectedColorHex ?? 'unavailable'} replaces
-                        file colour{' '}
+                        file color{' '}
                         {requirement.detectedColorHex ?? 'unspecified'}.
                       </p>
                     )}

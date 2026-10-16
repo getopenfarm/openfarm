@@ -1,5 +1,6 @@
 import { AlertTriangleIcon, LoaderIcon } from 'lucide-react';
 import type { PartProcessingJobPreviewResponse } from '@/lib/api/generated/endpoints.schemas';
+import { formatMm } from '@/lib/formatUnits';
 import { PartEstimate } from './PartEstimate';
 import { PartEstimationSource } from './PartEstimationSource';
 import {
@@ -79,7 +80,7 @@ export function PartProcessingReviewSection({
           <p className="text-muted-foreground">Nozzle diameter</p>
           <p className="font-medium">
             {preview.nozzleDiameterMm != null
-              ? `${preview.nozzleDiameterMm} mm`
+              ? formatMm(preview.nozzleDiameterMm)
               : 'Unknown'}
           </p>
         </div>

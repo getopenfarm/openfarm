@@ -32,7 +32,7 @@ import {
 import { BomLineEditor, type EditableLine } from './components/BomLineEditor';
 
 const schema = z.object({
-  name: z.string().min(1, 'Give this assembly a name first.'),
+  name: z.string().min(1, 'Name required'),
   description: z.string().optional(),
 });
 
@@ -67,7 +67,7 @@ export function AssemblyFormPage() {
     setIsSaving(true);
     try {
       if (lines.length === 0) {
-        toast.error('Add at least one line first.');
+        toast.error('Add at least one line.');
         return;
       }
       const created = await createMutation.mutateAsync({
@@ -81,7 +81,7 @@ export function AssemblyFormPage() {
           })),
         },
       });
-      toast.success('Assembly created.');
+      toast.success('Assembly added.');
       queryClient.invalidateQueries({
         queryKey:
           getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey(),
@@ -91,7 +91,7 @@ export function AssemblyFormPage() {
     } catch (error) {
       const detail = await extractErrorDetail(
         error,
-        'Could not save this assembly.',
+        'Could not save assembly.',
       );
       toast.error(detail);
     } finally {
@@ -123,7 +123,7 @@ export function AssemblyFormPage() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Assembly name</FormLabel>
+                      <FormLabel>Name</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -169,7 +169,7 @@ export function AssemblyFormPage() {
                   </Button>
                   <Button type="submit" disabled={isSaving}>
                     {isSaving && <Spinner data-icon="inline-start" />}
-                    {isSaving ? 'Saving…' : 'Save'}
+                    {isSaving ? 'Adding…' : 'Add assembly'}
                   </Button>
                 </>
               }

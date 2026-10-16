@@ -86,6 +86,51 @@ describe('PartsTable queue action', () => {
     vi.restoreAllMocks();
   });
 
+  it('shows file-type chips and lets the keyboard hide their column', async () => {
+    const user = userEvent.setup();
+    const { onRowClick } = setup({
+      parts: [
+        { ...part, fileFormat: 'ThreeMf', requiresSlicing: true },
+        {
+          ...part,
+          id: 'part-2',
+          fileFormat: 'ThreeMf',
+          requiresSlicing: false,
+        },
+        { ...part, id: 'part-3', fileFormat: 'ThreeMf' },
+        { ...part, id: 'part-4', fileFormat: 'STL' },
+        { ...part, id: 'part-5' },
+        { ...part, id: 'part-6', fileFormat: undefined },
+      ],
+    });
+    for (const label of [
+      'Plain 3MF',
+      'Sliced 3MF',
+      '3MF',
+      'STL',
+      'G-code',
+      '—',
+    ]) {
+      expect(screen.getByText(label)).toHaveAttribute('data-slot', 'badge');
+    }
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers[2]).toHaveTextContent('File type');
+    expect(within(headers[2]).queryByRole('button')).not.toBeInTheDocument();
+
+    screen.getByRole('button', { name: 'Columns' }).focus();
+    await user.keyboard('{Enter}');
+    const option = screen.getByRole('menuitemcheckbox', { name: 'File type' });
+    expect(option).toHaveAttribute('aria-checked', 'true');
+    await user.keyboard('{Home}{ArrowDown}');
+    expect(option).toHaveFocus();
+    await user.keyboard('{Enter}{Escape}');
+    expect(
+      screen.queryByRole('columnheader', { name: 'File type' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Plain 3MF')).not.toBeInTheDocument();
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it('queues the selected part with a chosen quantity and refreshes queue/run lists', async () => {
     const user = userEvent.setup();
     const success = vi.spyOn(toast, 'success');

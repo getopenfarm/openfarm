@@ -78,7 +78,7 @@ describe('ActivityLogPage', () => {
     renderPage();
 
     expect(
-      await screen.findByText(/Couldn't load the activity log/),
+      await screen.findByText(/Could not load activity log/),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });

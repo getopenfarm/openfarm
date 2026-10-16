@@ -116,14 +116,11 @@ export function ProductionRunEditPage() {
                   id,
                 ),
             });
-          toast.success('Saved.');
+          toast.success('Production run saved.');
         },
         onError: async (error) => {
           toast.error(
-            await extractErrorDetail(
-              error,
-              'Could not save the backfill limits.',
-            ),
+            await extractErrorDetail(error, 'Could not save backfill limits.'),
           );
         },
       },
@@ -144,7 +141,7 @@ export function ProductionRunEditPage() {
         ) : (
           <EmptyState
             title="Production run not found"
-            description="It may have been removed, or the link is out of date."
+            description="Removed or invalid link."
             action={
               <Button
                 variant="outline"

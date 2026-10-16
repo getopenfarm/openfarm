@@ -99,7 +99,7 @@ function renderRoute(initialPath: string) {
 }
 
 async function openManualEntry() {
-  fireEvent.click(await screen.findByRole('radio', { name: 'Enter manually' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add by IP' }));
 }
 
 const DISCOVERED = [
@@ -130,7 +130,7 @@ describe('PrinterFormPage add mode — discovery', () => {
     vi.unstubAllGlobals();
   });
 
-  it('prefills the form from a discovered printer, then verifies and adds it', async () => {
+  it('asks only for the access code, verifies, adds, and returns to the scan list', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
@@ -157,33 +157,89 @@ describe('PrinterFormPage add mode — discovery', () => {
     );
 
     expect(screen.getByLabelText('Name')).toHaveValue('P1S-Bay3');
-    expect(screen.getByLabelText('IP address')).toHaveValue('192.168.1.42');
-    expect(screen.getByLabelText('Serial number')).toHaveValue(
-      '01P00A123456789',
-    );
-    expect(screen.getByLabelText('Serial number')).toHaveAttribute('readonly');
-    await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Model' })).toHaveTextContent(
-        'P1S',
-      ),
-    );
+    expect(screen.queryByLabelText('IP address')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Serial number')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText(/01P00A123456789/)).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('LAN access code'), '12345678');
-    await user.tab();
-    const submitButton = screen.getByRole('button', { name: 'Save' });
-    await waitFor(() => expect(submitButton).not.toBeDisabled());
-    await user.click(submitButton);
+    await user.type(screen.getByLabelText('Access code'), '12345678');
+    await user.click(screen.getByRole('button', { name: 'Add printer' }));
 
-    expect(await screen.findByText('Printers list page')).toBeInTheDocument();
+    expect(await screen.findByText('Printer added.')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Select P1S-Bay3' }),
+    ).toBeInTheDocument();
     const registerCall = fetchMock.mock.calls.find(
       ([input, init]) =>
         String(input).endsWith('/api/v1/printers') && init?.method === 'POST',
     );
     expect(JSON.parse(String(registerCall?.[1]?.body))).toMatchObject({
       serialNumber: '01P00A123456789',
+      ipAddress: '192.168.1.42',
       modelCode: 'P1S',
       accessCode: '12345678',
     });
+  });
+
+  it('does not add the printer when the connection check fails', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/printers/discovered')) {
+        return Promise.resolve(jsonResponse(DISCOVERED));
+      }
+      if (url.includes('/printers/catalog')) {
+        return Promise.resolve(jsonResponse(CATALOG_RESPONSE));
+      }
+      if (url.includes('verify-connection')) {
+        return Promise.resolve(jsonResponse({ title: 'Unreachable' }, 422));
+      }
+      if (init?.method === 'POST') {
+        return Promise.resolve(jsonResponse({ id: 'new-id' }, 201));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderRoute('/printers/new');
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Select P1S-Bay3' }),
+    );
+    await user.type(screen.getByLabelText('Access code'), 'wrong');
+    await user.click(screen.getByRole('button', { name: 'Add printer' }));
+
+    expect(await screen.findByText(/Connection failed/)).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          String(input).endsWith('/api/v1/printers') && init?.method === 'POST',
+      ),
+    ).toBe(false);
+  });
+
+  it('shows model pickers when discovery reports an unknown model', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.includes('/printers/catalog')) {
+          return Promise.resolve(jsonResponse(CATALOG_RESPONSE));
+        }
+        return Promise.resolve(
+          jsonResponse([{ ...DISCOVERED[0], modelCode: null, rawModel: 'N9' }]),
+        );
+      }),
+    );
+
+    renderRoute('/printers/new');
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Select P1S-Bay3' }),
+    );
+    expect(screen.getByRole('combobox', { name: 'Model' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('IP address')).not.toBeInTheDocument();
   });
 
   it('marks already-registered printers instead of offering Select', async () => {
@@ -194,7 +250,7 @@ describe('PrinterFormPage add mode — discovery', () => {
 
     renderRoute('/printers/new');
 
-    expect(await screen.findByText('Already added')).toBeInTheDocument();
+    expect(await screen.findByText('Added')).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Select X1C-01' }),
     ).not.toBeInTheDocument();
@@ -216,13 +272,9 @@ describe('PrinterFormPage add mode — discovery', () => {
 
     renderRoute('/printers/new');
 
-    expect(
-      await screen.findByText('No printers found yet'),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Enter manually' }));
-    expect(await screen.findByLabelText('Serial number')).not.toHaveAttribute(
-      'readonly',
-    );
+    expect(await screen.findByText('No printers found')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add by IP' }));
+    expect(await screen.findByLabelText('Serial number')).toBeInTheDocument();
   });
 });
 
@@ -281,9 +333,9 @@ describe('PrinterFormPage add mode', () => {
     await openManualEntry();
 
     expect(
-      await screen.findByText(/Couldn't load the printer catalog/),
+      await screen.findByText(/Could not load printer catalog/),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add printer' })).toBeDisabled();
   });
 
   it('adds a printer once verification succeeds and navigates to /printers', async () => {
@@ -313,16 +365,8 @@ describe('PrinterFormPage add mode', () => {
     await user.type(screen.getByLabelText('Name'), 'New Printer');
     await user.type(screen.getByLabelText('IP address'), '10.0.0.99');
     await user.type(screen.getByLabelText('Serial number'), 'SN-NEW-1');
-    await user.type(screen.getByLabelText('LAN access code'), '12345678');
-    await user.tab();
-
-    await waitFor(() =>
-      expect(screen.getByText('Connection verified.')).toBeInTheDocument(),
-    );
-
-    const submitButton = screen.getByRole('button', { name: 'Save' });
-    await waitFor(() => expect(submitButton).not.toBeDisabled());
-    await user.click(submitButton);
+    await user.type(screen.getByLabelText('Access code'), '12345678');
+    await user.click(screen.getByRole('button', { name: 'Add printer' }));
 
     expect(await screen.findByText('Printers list page')).toBeInTheDocument();
   });
@@ -436,7 +480,7 @@ describe('PrinterFormPage edit mode', () => {
     await user.clear(ipInput);
     await user.type(ipInput, '10.0.0.51');
     fireEvent.blur(ipInput);
-    const accessCodeInput = screen.getByLabelText('LAN access code');
+    const accessCodeInput = screen.getByLabelText('Access code');
     await user.type(accessCodeInput, '12345678');
     fireEvent.blur(accessCodeInput);
 

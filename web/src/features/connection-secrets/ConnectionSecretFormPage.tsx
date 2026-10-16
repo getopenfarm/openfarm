@@ -78,7 +78,7 @@ export function ConnectionSecretFormPage() {
           </BackLink>
         }
         title="Add credential"
-        description="The access code is encrypted at rest and never shown again after creation."
+        description="Access code is encrypted and not shown again."
       />
 
       <Form {...form}>
@@ -135,7 +135,7 @@ export function ConnectionSecretFormPage() {
                     {createMutation.isPending && (
                       <Spinner data-icon="inline-start" />
                     )}
-                    {createMutation.isPending ? 'Saving…' : 'Save'}
+                    {createMutation.isPending ? 'Adding…' : 'Add credential'}
                   </Button>
                 </>
               }

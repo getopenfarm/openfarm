@@ -53,9 +53,7 @@ describe('ProductionRunsPage', () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText('No production runs yet'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No production runs')).toBeInTheDocument();
   });
 
   it('renders production runs fetched from the real API', async () => {

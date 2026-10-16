@@ -38,11 +38,11 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-interface CreateVendorDialogProps {
-  onCreated?: (vendor: VendorResponse) => void;
+interface AddVendorDialogProps {
+  onAdded?: (vendor: VendorResponse) => void;
 }
 
-export function CreateVendorDialog({ onCreated }: CreateVendorDialogProps) {
+export function AddVendorDialog({ onAdded }: AddVendorDialogProps) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -60,7 +60,7 @@ export function CreateVendorDialog({ onCreated }: CreateVendorDialogProps) {
         queryClient.invalidateQueries({
           queryKey: getOpenFarmApiEndpointsVendorsListVendorsEndpointQueryKey(),
         });
-        onCreated?.(response.data as VendorResponse);
+        onAdded?.(response.data as VendorResponse);
       },
       onError: () => {
         toast.error('Could not add vendor.');
@@ -81,7 +81,7 @@ export function CreateVendorDialog({ onCreated }: CreateVendorDialogProps) {
         <DialogHeader>
           <DialogTitle>Add vendor</DialogTitle>
           <DialogDescription>
-            Filament manufacturers and brands you stock materials from.
+            Manufacturer or brand of filament.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -121,7 +121,7 @@ export function CreateVendorDialog({ onCreated }: CreateVendorDialogProps) {
                   {createMutation.isPending && (
                     <Spinner data-icon="inline-start" />
                   )}
-                  {createMutation.isPending ? 'Saving…' : 'Save'}
+                  {createMutation.isPending ? 'Adding…' : 'Add vendor'}
                 </Button>
               </DialogFooter>
             </FieldGroup>

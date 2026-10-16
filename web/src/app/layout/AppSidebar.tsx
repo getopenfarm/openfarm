@@ -73,7 +73,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <NavLink
             item={{
-              title: 'Activity Log',
+              title: 'Activity log',
               url: '/activity-log',
               icon: HistoryIcon,
             }}

@@ -97,7 +97,7 @@ export function LoadSpoolDialog({
         });
       },
       onError: () => {
-        toast.error('Could not load spool onto that Feed Slot.');
+        toast.error('Could not load spool.');
       },
     },
   });
@@ -120,7 +120,7 @@ export function LoadSpoolDialog({
         <DialogHeader>
           <DialogTitle>Load spool</DialogTitle>
           <DialogDescription>
-            Choose the printer and Feed Slot this spool is being loaded onto.
+            Choose a printer and a Feed slot.
           </DialogDescription>
         </DialogHeader>
         <FieldGroup className="flex flex-col gap-4">
@@ -148,7 +148,7 @@ export function LoadSpoolDialog({
             </Select>
           </Field>
           <Field data-disabled={!printerId} className="flex flex-col gap-1.5">
-            <FieldLabel htmlFor="load-feed-slot">Feed Slot</FieldLabel>
+            <FieldLabel htmlFor="load-feed-slot">Feed slot</FieldLabel>
             <Select
               value={feedSlotId}
               onValueChange={setFeedSlotId}
@@ -157,7 +157,7 @@ export function LoadSpoolDialog({
               <SelectTrigger id="load-feed-slot" className="w-full">
                 <SelectValue
                   placeholder={
-                    printerId ? 'Choose a Feed Slot' : 'Choose a printer first'
+                    printerId ? 'Choose a Feed slot' : 'Choose a printer first'
                   }
                 />
               </SelectTrigger>
@@ -165,7 +165,7 @@ export function LoadSpoolDialog({
                 <SelectGroup>
                   {slotOptions.length === 0 ? (
                     <p className="px-3 py-2 text-sm text-muted-foreground">
-                      No available Feed Slots on this printer.
+                      No available Feed slots on this printer.
                     </p>
                   ) : (
                     slotOptions.map((option) => (

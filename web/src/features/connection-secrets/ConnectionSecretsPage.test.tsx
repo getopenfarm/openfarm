@@ -96,7 +96,7 @@ describe('ConnectionSecretsPage', () => {
     renderPage();
 
     expect(
-      await screen.findByText(/Couldn't load connection credentials/),
+      await screen.findByText(/Could not load connection credentials/),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });

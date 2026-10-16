@@ -87,7 +87,7 @@ describe('SpoolFormPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows a required-field error when submitted without a filament colour', async () => {
+  it('shows a required-field error when submitted without a color', async () => {
     const user = userEvent.setup();
     stubFetch();
 
@@ -96,7 +96,7 @@ describe('SpoolFormPage', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(
-      await screen.findByText('Choose a filament colour', {
+      await screen.findByText('Choose a color', {
         selector: '[role=alert]',
       }),
     ).toBeInTheDocument();

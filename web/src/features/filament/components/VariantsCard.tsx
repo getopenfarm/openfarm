@@ -44,7 +44,7 @@ export function VariantsCard({
       <CardContent className="flex flex-col gap-2">
         {variants.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            No variants yet
+            No variants
           </p>
         ) : (
           variants.map((variant, index) => (

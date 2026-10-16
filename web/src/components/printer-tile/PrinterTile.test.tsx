@@ -32,7 +32,7 @@ describe('PrinterTile', () => {
 
     expect(screen.getByText('benchy.3mf')).toBeInTheDocument();
     expect(screen.getByText(/Heating bed/)).toBeInTheDocument();
-    expect(screen.getByText('220°C / 60°C')).toBeInTheDocument();
+    expect(screen.getByText('220 °C / 60 °C')).toBeInTheDocument();
     expect(screen.getByText('ETA 1h 12m')).toBeInTheDocument();
     // Progress % appears both on the thumbnail and next to the bar.
     expect(screen.getAllByText('62%').length).toBeGreaterThan(0);

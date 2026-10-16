@@ -235,13 +235,11 @@ describe('FilamentFormPage', () => {
     renderAddPage();
 
     await screen.findByRole('combobox', { name: 'Vendor' });
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add filament' }));
 
     expect(await screen.findByText('Vendor is required')).toBeInTheDocument();
-    expect(screen.getByText('Material name is required')).toBeInTheDocument();
-    expect(
-      screen.getByText('Add at least one colour variant'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Name is required')).toBeInTheDocument();
+    expect(screen.getByText('Add at least one variant')).toBeInTheDocument();
   });
 
   it('adds a new filament with a variant, shows a toast, and navigates to /filament', async () => {
@@ -256,14 +254,17 @@ describe('FilamentFormPage', () => {
     await user.click(await screen.findByRole('combobox', { name: 'Vendor' }));
     await user.click(await screen.findByRole('option', { name: 'Prusament' }));
 
-    await user.type(screen.getByLabelText('Material name'), 'PETG');
+    await user.type(screen.getByLabelText('Name'), 'PETG');
 
     await user.click(screen.getByRole('button', { name: /add variant/i }));
-    await user.type(screen.getByLabelText('Name'), 'Galaxy Black');
+    await user.type(
+      within(screen.getByRole('dialog')).getByLabelText('Name'),
+      'Galaxy Black',
+    );
     await user.click(screen.getByRole('button', { name: 'Black' }));
     await user.click(screen.getByRole('button', { name: 'Add variant' }));
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add filament' }));
 
     await waitFor(() => {
       expect(createBody).toMatchObject({
@@ -288,7 +289,7 @@ describe('FilamentFormPage', () => {
 
     await user.click(await screen.findByRole('combobox', { name: 'Vendor' }));
     await user.click(await screen.findByRole('option', { name: 'Prusament' }));
-    await user.type(screen.getByLabelText('Material name'), 'PETG Basic');
+    await user.type(screen.getByLabelText('Name'), 'PETG Basic');
 
     await user.click(
       screen.getByRole('button', { name: 'Default profile for P1S · 0.4 mm' }),
@@ -299,11 +300,14 @@ describe('FilamentFormPage', () => {
     await user.click(screen.getByRole('option', { name: /Generic PETG/ }));
 
     await user.click(screen.getByRole('button', { name: /add variant/i }));
-    await user.type(screen.getByLabelText('Name'), 'Galaxy Black');
+    await user.type(
+      within(screen.getByRole('dialog')).getByLabelText('Name'),
+      'Galaxy Black',
+    );
     await user.click(screen.getByRole('button', { name: 'Black' }));
     await user.click(screen.getByRole('button', { name: 'Add variant' }));
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add filament' }));
 
     await waitFor(() => {
       expect(createBody).toMatchObject({
@@ -323,7 +327,7 @@ describe('FilamentFormPage', () => {
     const user = userEvent.setup();
     renderAddPage();
 
-    await user.type(await screen.findByLabelText('Material name'), 'PETG');
+    await user.type(await screen.findByLabelText('Name'), 'PETG');
 
     await user.click(screen.getByRole('link', { name: 'Nav away' }));
 
@@ -401,7 +405,7 @@ describe('FilamentFormPage', () => {
         ],
       },
     });
-    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(await screen.findByText('Filament saved.')).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
     );

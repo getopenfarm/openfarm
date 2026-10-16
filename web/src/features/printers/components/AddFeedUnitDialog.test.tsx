@@ -44,7 +44,7 @@ describe('AddFeedUnitDialog', () => {
     vi.unstubAllGlobals();
   });
 
-  it('adds an Automatic Filament Reloader with a name and slot count', async () => {
+  it('adds an Automatic filament reloader with a name and slot count', async () => {
     const user = userEvent.setup();
     let postedBody: unknown;
     renderDialog((body) => {
@@ -52,7 +52,7 @@ describe('AddFeedUnitDialog', () => {
     });
 
     await user.type(screen.getByLabelText('Name'), 'Splicer');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add feed unit' }));
 
     await waitFor(() =>
       expect(postedBody).toEqual({
@@ -107,7 +107,7 @@ describe('AddFeedUnitDialog', () => {
       screen.getByLabelText('Move external spool to the feeding channel'),
     ).toBeChecked();
     await user.type(screen.getByLabelText('Name'), 'Reloader');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add feed unit' }));
     await waitFor(() =>
       expect(posted).toMatchObject({
         replacesFeedUnitId: 'external',
@@ -172,7 +172,7 @@ describe('AddFeedUnitDialog', () => {
     );
   });
 
-  it('reveals an External Spool with no extra fields', async () => {
+  it('reveals an External spool with no extra fields', async () => {
     const user = userEvent.setup();
     let postedBody: unknown;
     renderDialog((body) => {
@@ -180,8 +180,8 @@ describe('AddFeedUnitDialog', () => {
     });
 
     await user.click(screen.getByRole('combobox', { name: 'Kind' }));
-    await user.click(screen.getByRole('option', { name: 'External Spool' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('option', { name: 'External spool' }));
+    await user.click(screen.getByRole('button', { name: 'Add feed unit' }));
 
     await waitFor(() => expect(postedBody).toEqual({ kind: 'ExternalSpool' }));
   });

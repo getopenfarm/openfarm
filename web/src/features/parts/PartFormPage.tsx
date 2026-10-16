@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
+import { formatFileSize } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import { PartProcessingReviewSection } from './components/PartProcessingReviewSection';
 import {
@@ -126,7 +127,7 @@ export function PartFormPage() {
           </BackLink>
         }
         title="Add part"
-        description="Upload an STL, 3MF, or G-code file, review its metadata, and choose your production filament. You can save a valid file while estimates are still resolving."
+        description="Upload a file. Review metadata. Choose production filament."
       />
 
       <Form {...form}>
@@ -224,7 +225,7 @@ export function PartFormPage() {
                       <span className="font-medium text-foreground">
                         {file.name}
                       </span>{' '}
-                      — {(file.size / 1024).toFixed(0)} KB
+                      — {formatFileSize(file.size)}
                     </p>
 
                     <FormField
@@ -252,7 +253,7 @@ export function PartFormPage() {
                           <FormLabel>Tags</FormLabel>
                           <FormControl>
                             <Input
-                              placeholder="Brackets, Enclosure (comma separated)"
+                              placeholder="e.g. brackets, enclosure"
                               {...field}
                             />
                           </FormControl>
@@ -288,7 +289,7 @@ export function PartFormPage() {
                     disabled={!canConfirm || isConfirmPending}
                   >
                     {isConfirmPending && <Spinner data-icon="inline-start" />}
-                    {isConfirmPending ? 'Saving…' : 'Save'}
+                    {isConfirmPending ? 'Adding…' : 'Add part'}
                   </Button>
                 </>
               }

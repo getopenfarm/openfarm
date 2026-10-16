@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOpenFarmApiEndpointsConnectionSecretsListConnectionSecretsEndpoint } from '@/lib/api/generated/connection-secrets/connection-secrets';
 import type { ConnectionSecretResponse } from '@/lib/api/generated/endpoints.schemas';
+import { formatDateTime } from '@/lib/formatDateTime';
 
 const columns: ColumnDef<ConnectionSecretResponse>[] = [
   {
@@ -34,7 +35,7 @@ const columns: ColumnDef<ConnectionSecretResponse>[] = [
     ),
     cell: ({ row }) =>
       row.original.createdAtUtc
-        ? new Date(row.original.createdAtUtc).toLocaleString()
+        ? formatDateTime(row.original.createdAtUtc)
         : '',
   },
 ];
@@ -55,7 +56,7 @@ export function ConnectionSecretsPage() {
           </BackLink>
         }
         title="Connection credentials"
-        description="Encrypted LAN access codes used to connect directly to printers."
+        description="Encrypted LAN access codes."
         action={
           <Button onClick={() => navigate('/settings/connection-secrets/new')}>
             <PlusIcon data-icon="inline-start" />
@@ -68,14 +69,14 @@ export function ConnectionSecretsPage() {
         <Skeleton className="h-64 w-full" />
       ) : listQuery.isError ? (
         <ErrorState
-          description="Couldn't load connection credentials."
+          description="Could not load connection credentials."
           onRetry={() => listQuery.refetch()}
         />
       ) : secrets.length === 0 ? (
         <EmptyState
           icon={<KeyIcon className="size-8 text-muted-foreground" />}
-          title="No credentials yet"
-          description="Register a printer's LAN access code to connect to it directly."
+          title="No credentials"
+          description="Add a LAN access code for a printer."
           action={
             <Button
               onClick={() => navigate('/settings/connection-secrets/new')}

@@ -92,7 +92,7 @@ export function NonPrintedComponentFormPage({
       {
         mutation: {
           onSuccess: () => {
-            toast.success('Component deleted.');
+            toast.success('Component removed.');
             queryClient.invalidateQueries({
               queryKey:
                 getOpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpointQueryKey(),
@@ -101,10 +101,7 @@ export function NonPrintedComponentFormPage({
           },
           onError: async (error) => {
             toast.error(
-              await extractErrorDetail(
-                error,
-                'Could not delete this component.',
-              ),
+              await extractErrorDetail(error, 'Could not remove component.'),
             );
           },
         },
@@ -116,7 +113,7 @@ export function NonPrintedComponentFormPage({
       {
         mutation: {
           onSuccess: () => {
-            toast.success('Component created.');
+            toast.success('Component added.');
             queryClient.invalidateQueries({
               queryKey:
                 getOpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpointQueryKey(),
@@ -124,7 +121,7 @@ export function NonPrintedComponentFormPage({
             markClean();
             navigate('/non-printed-components');
           },
-          onError: () => toast.error('Could not create this component.'),
+          onError: () => toast.error('Could not add component.'),
         },
       },
     );
@@ -133,7 +130,7 @@ export function NonPrintedComponentFormPage({
     useOpenFarmApiEndpointsNonPrintedComponentsEditNonPrintedComponentEndpoint({
       mutation: {
         onSuccess: () => {
-          toast.success('Component updated.');
+          toast.success('Component saved.');
           queryClient.invalidateQueries({
             queryKey:
               getOpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpointQueryKey(),
@@ -141,7 +138,7 @@ export function NonPrintedComponentFormPage({
           markClean();
           navigate('/non-printed-components');
         },
-        onError: () => toast.error('Could not update this component.'),
+        onError: () => toast.error('Could not save component.'),
       },
     });
 
@@ -160,7 +157,7 @@ export function NonPrintedComponentFormPage({
         ) : (
           <EmptyState
             title="Component not found"
-            description="It may have been removed, or the link is out of date."
+            description="Removed or invalid link."
             action={
               <Button
                 variant="outline"
@@ -200,7 +197,7 @@ export function NonPrintedComponentFormPage({
       <PageHeader
         above={backLink}
         title={mode === 'add' ? 'Add component' : 'Edit component'}
-        description="Screws, inserts, packaging, and other reusable BOM components that aren't printed."
+        description="Screws, inserts, packaging, and other reusable BOM components that are not printed."
         action={
           mode === 'edit' ? (
             <Button
@@ -208,7 +205,7 @@ export function NonPrintedComponentFormPage({
               type="button"
               onClick={() => setConfirmDeleteOpen(true)}
             >
-              Delete
+              Remove
             </Button>
           ) : undefined
         }
@@ -279,7 +276,13 @@ export function NonPrintedComponentFormPage({
                   </Button>
                   <Button type="submit" disabled={isSaving}>
                     {isSaving && <Spinner data-icon="inline-start" />}
-                    {isSaving ? 'Saving…' : 'Save'}
+                    {mode === 'add'
+                      ? isSaving
+                        ? 'Adding…'
+                        : 'Add component'
+                      : isSaving
+                        ? 'Saving…'
+                        : 'Save'}
                   </Button>
                 </>
               }
@@ -293,9 +296,9 @@ export function NonPrintedComponentFormPage({
       <ConfirmDialog
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
-        title="Delete this component?"
-        description="This cannot be undone. Deletion is blocked if a BOM line still references it."
-        confirmLabel="Delete"
+        title="Remove component?"
+        description="This cannot be undone. Removal is blocked while a BOM line references it."
+        confirmLabel="Remove"
         destructive
         isPending={deleteMutation.isPending}
         onConfirm={() => id && deleteMutation.mutate({ id })}

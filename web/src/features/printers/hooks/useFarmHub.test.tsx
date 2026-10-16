@@ -58,7 +58,7 @@ describe('Printer activity live updates', () => {
   });
 });
 
-describe('Feed Units live updates', () => {
+describe('Feed units live updates', () => {
   beforeEach(() => hub.handlers.clear());
   it('refreshes only the affected topology on first event and position changes while updating live contents', () => {
     const client = new QueryClient();

@@ -74,7 +74,7 @@ export async function removalError(error: unknown) {
     reason:
       typeof problem.detail === 'string'
         ? problem.detail
-        : 'Could not complete the request. Check again before retrying.',
+        : 'Could not complete request. Check again before retrying.',
     status,
     code: problem.code,
     blockers: Array.isArray(problem.blockers)

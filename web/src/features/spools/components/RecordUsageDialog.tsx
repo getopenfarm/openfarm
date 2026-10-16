@@ -66,8 +66,8 @@ export function RecordUsageDialog({
           if (body?.autoContinuation?.occurred) {
             toast.success(
               body.autoContinuation.materialMismatch
-                ? 'Usage recorded. Auto-continued onto a different material — check the new spool.'
-                : 'Usage recorded. Auto-continued onto the next spool.',
+                ? 'Usage recorded. Switched to a different material. Check the new spool.'
+                : 'Usage recorded. Switched to the next spool.',
             );
           } else {
             toast.success('Usage recorded.');
@@ -104,7 +104,7 @@ export function RecordUsageDialog({
         <DialogHeader>
           <DialogTitle>Record usage</DialogTitle>
           <DialogDescription>
-            Log filament consumed from this spool since it was last updated.
+            Record filament used since the last update.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>

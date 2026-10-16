@@ -56,6 +56,7 @@ const columns: ColumnDef<AssemblySummaryResponse>[] = [
   {
     id: 'assembly',
     accessorKey: 'name',
+    meta: { label: 'Assembly' },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Assembly" />
     ),
@@ -270,7 +271,7 @@ export function AssembliesTable({
         const error = failures.get(target.id);
         if (error === undefined) continue;
         toast.error(
-          `${target.name}: ${await extractErrorDetail(error, 'Could not remove this assembly.')}`,
+          `${target.name}: ${await extractErrorDetail(error, 'Could not remove assembly.')}`,
         );
       }
       await queryClient.invalidateQueries({
@@ -295,30 +296,6 @@ export function AssembliesTable({
         },
       }}
     >
-      <DataTableSelectionBar
-        selectedCount={selected.length}
-        pending={interactionPending}
-        label="Selected assemblies actions"
-        onClear={() => {
-          setSelection({});
-          selectionHeaderRef.current?.focus();
-        }}
-      >
-        <Button
-          ref={bulkTriggerRef}
-          type="button"
-          variant="destructive"
-          size="sm"
-          disabled={interactionPending}
-          onClick={() => {
-            removalTriggerRef.current = bulkTriggerRef.current;
-            setBulk(true);
-            setTargets(selected.flatMap(toRemovable));
-          }}
-        >
-          <Trash2Icon data-icon="inline-start" /> Remove selected
-        </Button>
-      </DataTableSelectionBar>
       <DataTable
         serverSorting={sorting}
         serverPagination={
@@ -335,6 +312,32 @@ export function AssembliesTable({
         rowSelection={selection}
         onRowSelectionChange={setSelection}
         enableRowSelection={(row) => Boolean(row.original.id)}
+        toolbar={
+          <DataTableSelectionBar
+            selectedCount={selected.length}
+            pending={interactionPending}
+            label="Assemblies actions"
+            onClear={() => {
+              setSelection({});
+              selectionHeaderRef.current?.focus();
+            }}
+          >
+            <Button
+              ref={bulkTriggerRef}
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={interactionPending}
+              onClick={() => {
+                removalTriggerRef.current = bulkTriggerRef.current;
+                setBulk(true);
+                setTargets(selected.flatMap(toRemovable));
+              }}
+            >
+              <Trash2Icon data-icon="inline-start" /> Remove selected
+            </Button>
+          </DataTableSelectionBar>
+        }
       />
       <ConfirmDialog
         open={targets.length > 0}
@@ -343,13 +346,11 @@ export function AssembliesTable({
         }}
         returnFocusRef={removalTriggerRef}
         fallbackFocusRef={fallbackFocusRef}
-        title={bulk ? 'Remove selected assemblies?' : 'Remove assembly?'}
-        description={`Permanently remove ${targets.length === 1 ? targets[0]?.name : `${targets.length} assemblies`}? This cannot be undone.`}
-        confirmLabel={
-          pending
-            ? 'Removing…'
-            : `Remove ${targets.length === 1 ? 'assembly' : `${targets.length} assemblies`}`
+        title={
+          bulk ? `Remove ${targets.length} assemblies?` : 'Remove assembly?'
         }
+        description={`Permanently remove ${targets.length === 1 ? targets[0]?.name : `${targets.length} assemblies`}? This cannot be undone.`}
+        confirmLabel={pending ? 'Removing…' : 'Remove'}
         destructive
         isPending={pending}
         closeOnConfirm={false}

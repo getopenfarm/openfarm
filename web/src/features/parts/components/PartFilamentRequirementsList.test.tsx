@@ -74,7 +74,6 @@ describe('PartFilamentRequirementsList (US4 narrowing control)', () => {
     expect(
       screen.queryByRole('button', { name: 'Match by generic type only' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText('File colour: #ffffff')).toBeInTheDocument();
   });
 
   it('shows the persisted catalog variant and filters incompatible materials', async () => {
@@ -133,7 +132,7 @@ describe('PartFilamentRequirementsList (US4 narrowing control)', () => {
       screen.queryByRole('option', { name: /PLA Basic/ }),
     ).not.toBeInTheDocument();
     await user.click(
-      screen.getByRole('option', { name: 'Use file material and colour' }),
+      screen.getByRole('option', { name: 'Use file material and color' }),
     );
     expect(onNarrow).toHaveBeenCalledWith('req-1', null);
   });
@@ -190,6 +189,6 @@ describe('PartFilamentRequirementsList (US4 narrowing control)', () => {
       vi.fn(),
     );
 
-    expect(screen.getByText('Narrowed profile deleted')).toBeInTheDocument();
+    expect(screen.getByText('Narrowed profile removed')).toBeInTheDocument();
   });
 });

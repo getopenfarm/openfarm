@@ -78,9 +78,7 @@ describe('SpoolDetailPage', () => {
     expect(
       screen.getByRole('button', { name: 'Record usage' }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Remove from slot' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unload' })).toBeInTheDocument();
     const save = screen.getByRole('button', { name: 'Save' });
     expect(save).toBeDisabled();
 
@@ -97,7 +95,7 @@ describe('SpoolDetailPage', () => {
     await user.type(weight, '650');
     await user.click(save);
 
-    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(await screen.findByText('Spool saved.')).toBeInTheDocument();
     const puts = fetchMock.mock.calls.filter(
       ([, init]) => (init as RequestInit | undefined)?.method === 'PUT',
     );

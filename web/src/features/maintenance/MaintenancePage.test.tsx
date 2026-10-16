@@ -83,7 +83,7 @@ describe('MaintenancePage', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/No printers registered yet/),
+        screen.getByText(/Add a printer to see maintenance flags/),
       ).toBeInTheDocument(),
     );
     // Task templates section is unaffected by an empty fleet.

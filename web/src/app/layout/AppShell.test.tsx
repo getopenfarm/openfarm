@@ -43,7 +43,7 @@ function renderShell(initialPath = '/') {
           {
             path: '/activity-log',
             element: <div>Activity log content</div>,
-            handle: { title: 'Activity Log' },
+            handle: { title: 'Activity log' },
           },
         ],
       },
@@ -84,7 +84,7 @@ describe('AppShell', () => {
       screen.getByRole('link', { name: 'Maintenance' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: 'Activity Log' }),
+      screen.getByRole('link', { name: 'Activity log' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
 
@@ -97,7 +97,7 @@ describe('AppShell', () => {
     renderShell('/activity-log');
 
     expect(
-      screen.getByText('Activity Log', {
+      screen.getByText('Activity log', {
         selector: '[data-slot="breadcrumb-page"]',
       }),
     ).toBeInTheDocument();

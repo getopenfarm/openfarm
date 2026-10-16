@@ -83,7 +83,7 @@ export function ProfilesImportPage() {
         },
         onError: () => {
           toast.error(
-            'Could not read this file as an OrcaSlicer or Bambu Studio profile bundle.',
+            'Could not read file. Use an OrcaSlicer or Bambu Studio bundle.',
           );
           setFile(null);
         },
@@ -106,7 +106,7 @@ export function ProfilesImportPage() {
           markClean();
           navigate('/profiles');
         },
-        onError: () => toast.error('Could not import the selected profiles.'),
+        onError: () => toast.error('Could not import profiles.'),
       },
     });
 
@@ -199,7 +199,7 @@ export function ProfilesImportPage() {
           </BackLink>
         }
         title="Import profiles"
-        description="Upload an OrcaSlicer or Bambu Studio profile bundle, then choose which presets to keep. Nothing is saved until you confirm."
+        description="Upload an OrcaSlicer or Bambu Studio bundle. Nothing is saved until you confirm."
       />
 
       <Card>
@@ -253,7 +253,7 @@ export function ProfilesImportPage() {
                 <PackageOpenIcon className="size-8 text-muted-foreground" />
               }
               title="Nothing to import"
-              description="Nothing importable was found in this bundle."
+              description="No profiles in this bundle."
               action={
                 <Button
                   variant="outline"

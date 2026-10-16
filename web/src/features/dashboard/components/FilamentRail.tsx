@@ -7,6 +7,8 @@ import type {
 } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint } from '@/lib/api/generated/printers/printers';
 import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
+import { formatGrams } from '@/lib/formatUnits';
+import { pluralize } from '@/lib/pluralize';
 import { cn } from '@/lib/utils';
 import { filamentIndicator } from '../lib/filamentIndicator';
 import { buildFilamentRail, type FilamentMeter } from '../lib/filamentMeters';
@@ -14,7 +16,7 @@ import type { MonitoredPrinter } from '../lib/monitoring';
 import { DashboardHint } from './DashboardHint';
 
 function meterDescription(meter: FilamentMeter) {
-  return `${meter.location}: ${meter.grams != null ? `${Math.round(meter.grams)} g recorded` : meter.source === 'empty' ? 'Empty' : meter.source === 'printer' ? `${meter.level}% printer estimate` : 'Remaining quantity unknown'}`;
+  return `${meter.location}: ${meter.grams != null ? `${formatGrams(Math.round(meter.grams))} recorded` : meter.source === 'empty' ? 'Empty' : meter.source === 'printer' ? `${meter.level}% printer estimate` : 'Remaining quantity unknown'}`;
 }
 function Meter({
   meter,
@@ -40,8 +42,10 @@ function Meter({
           <p>{meter.material}</p>
           {meter.grams != null && (
             <p>
-              {Math.round(meter.grams)} g recorded
-              {meter.capacity != null ? ` / ${meter.capacity} g capacity` : ''}
+              {formatGrams(Math.round(meter.grams))} recorded
+              {meter.capacity != null
+                ? ` / ${formatGrams(meter.capacity)} capacity`
+                : ''}
             </p>
           )}
           <p className="text-muted-foreground">
@@ -62,8 +66,7 @@ function Meter({
             <p>Active feed</p>
           ) : meter.selected ? (
             <p>
-              Selected feeding channel ·{' '}
-              {meter.estimated ? 'Estimated' : 'Operator selected'}
+              Feeding · {meter.estimated ? 'Estimated' : 'Operator selected'}
             </p>
           ) : meter.standby ? (
             <p>Standby</p>
@@ -179,7 +182,7 @@ export function FilamentRail({ printer }: { printer: MonitoredPrinter }) {
                       {[
                         ...rail.additionalUnits,
                         rail.additionalChannels
-                          ? `${rail.additionalChannels} additional channels`
+                          ? `${pluralize(rail.additionalChannels, 'additional channel')}`
                           : '',
                       ]
                         .filter(Boolean)

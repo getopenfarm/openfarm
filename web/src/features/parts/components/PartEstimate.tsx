@@ -1,5 +1,6 @@
 import { LoaderIcon } from 'lucide-react';
 import { formatMinutes } from '@/lib/formatMinutes';
+import { formatGrams } from '@/lib/formatUnits';
 
 interface PartEstimateProps {
   status?: string;
@@ -35,7 +36,7 @@ export function PartEstimate({
         <div>
           <dt className="text-xs text-muted-foreground">Filament</dt>
           <dd className="font-heading text-2xl font-semibold tabular-nums">
-            {grams != null ? `${grams} g` : '—'}
+            {grams != null ? formatGrams(grams) : '—'}
           </dd>
         </div>
       </dl>
@@ -43,8 +44,8 @@ export function PartEstimate({
   }
   return (
     <span className="font-mono text-sm">
-      {minutes != null ? `${minutes} min` : 'Time unavailable'} ·{' '}
-      {grams != null ? `${grams} g` : 'Weight unavailable'}
+      {minutes != null ? formatMinutes(minutes) : 'Time unavailable'} ·{' '}
+      {grams != null ? formatGrams(grams) : 'Weight unavailable'}
     </span>
   );
 }

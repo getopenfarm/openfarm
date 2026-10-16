@@ -51,7 +51,7 @@ export function ActivityLogPage() {
     <Page>
       <PageHeader
         title="Activity log"
-        description="Every status change, job update, and profile edit — the shared audit trail."
+        description="Status changes, job updates, profile edits."
       />
 
       <div
@@ -59,11 +59,11 @@ export function ActivityLogPage() {
         className="overflow-hidden rounded-md border"
       >
         <span className="sr-only" aria-live="polite">
-          {query.isFetching ? 'Loading activity.' : ''}
+          {query.isFetching ? 'Loading…' : ''}
         </span>
         {query.isError && successData ? (
           <ErrorState
-            description="Couldn't refresh the activity log."
+            description="Could not refresh activity log."
             onRetry={() => query.refetch()}
             bordered={false}
           />
@@ -85,15 +85,14 @@ export function ActivityLogPage() {
           </div>
         ) : query.isError && !successData ? (
           <ErrorState
-            description="Couldn't load the activity log."
+            description="Could not load activity log."
             onRetry={() => query.refetch()}
             bordered={false}
           />
         ) : items.length === 0 ? (
           <EmptyState
             icon={<HistoryIcon className="size-8 text-muted-foreground" />}
-            title="No activity yet"
-            description="Status changes, job updates, and profile edits will show up here."
+            title="No activity"
             bordered={false}
           />
         ) : (
@@ -127,7 +126,7 @@ export function ActivityLogPage() {
                     </p>
                     <ActivityDetails details={entry.details} />
                     <p className="truncate text-xs text-muted-foreground">
-                      {entry.actorDisplayName ?? 'System'} · {relativeTime}
+                      {entry.actorDisplayName ?? 'System'}
                     </p>
                   </div>
                   <span className="shrink-0 font-mono text-xs text-muted-foreground">

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ListPartsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPartsListPartsEndpoint } from '@/lib/api/generated/parts/parts';
+import { pluralize } from '@/lib/pluralize';
 import { PartsTable } from './components/PartsTable';
 import { usePartsHub } from './hooks/usePartsHub';
 
@@ -53,7 +54,9 @@ export function PartsPage() {
       <PageHeader
         title="Part library"
         description={
-          listData ? `${listData.totalCount ?? parts.length} parts` : undefined
+          listData
+            ? pluralize(listData.totalCount ?? parts.length, 'part')
+            : undefined
         }
         action={
           <Button ref={addPartRef} onClick={() => navigate('/parts/new')}>
@@ -64,8 +67,8 @@ export function PartsPage() {
 
       {partsQuery.isError && listData ? (
         <ErrorState
-          title="Could not refresh this list"
-          description="Previous results are shown. Please try again."
+          title="Could not refresh list"
+          description="Showing previous results."
           onRetry={() => partsQuery.refetch()}
         />
       ) : null}
@@ -74,15 +77,15 @@ export function PartsPage() {
       ) : partsQuery.isError && !listData ? (
         <ErrorState
           title="Could not load parts"
-          description="Please try again."
+          description="Try again."
           onRetry={() => partsQuery.refetch()}
         />
       ) : page > pageCount && !partsQuery.isPlaceholderData ? (
         <Skeleton className="h-64 w-full" />
       ) : parts.length === 0 ? (
         <EmptyState
-          title="No parts yet"
-          description="Add an STL, 3MF, or G-code file to start your catalog."
+          title="No parts"
+          description="Add an STL, 3MF, or G-code file to start a catalog."
           action={
             <Button
               disabled={removalPending}

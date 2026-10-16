@@ -44,9 +44,7 @@ export function RemoveJobButton({
         });
       },
       onError: async (error) => {
-        toast.error(
-          await extractErrorDetail(error, 'Could not remove this job.'),
-        );
+        toast.error(await extractErrorDetail(error, 'Could not remove job.'));
       },
     },
   });
@@ -74,7 +72,7 @@ export function RemoveJobButton({
         open={open}
         onOpenChange={setOpen}
         title="Remove this job?"
-        description="This job will be cancelled and removed from the print queue. It will remain available under Cancelled and in its production-run history."
+        description="Cancel the job and remove it from the queue. The job stays under Cancelled and in the production-run history."
         confirmLabel="Remove job"
         destructive
         isPending={mutation.isPending}

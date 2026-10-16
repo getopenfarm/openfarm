@@ -1,4 +1,5 @@
 import type { PrinterDetailTelemetryResponse } from '@/lib/api/generated/endpoints.schemas';
+import { formatCelsius } from '@/lib/formatUnits';
 import { CameraSurface, cameraSupported } from './CameraSurface';
 
 export interface CameraViewProps {
@@ -9,7 +10,7 @@ export interface CameraViewProps {
 }
 
 function formatTemp(value: number | null | undefined): string {
-  return value == null ? '—' : `${value}°C`;
+  return value == null ? '—' : formatCelsius(value);
 }
 
 export function CameraView({

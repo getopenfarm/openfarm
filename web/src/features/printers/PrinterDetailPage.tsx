@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
@@ -17,6 +18,7 @@ import {
   useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint,
   useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint,
 } from '@/lib/api/generated/printers/printers';
+import { formatMm } from '@/lib/formatUnits';
 import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
@@ -70,7 +72,7 @@ export function PrinterDetailPage() {
       (queryError instanceof Response && queryError.status === 404));
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       {markReadyMutation.confirmationDialog}
 
       {detailQuery.isLoading ? (
@@ -84,7 +86,7 @@ export function PrinterDetailPage() {
           {isNotFound ? (
             <EmptyState
               title="Printer not found"
-              description="It may have been removed, or the link is out of date."
+              description="Removed or invalid link."
               action={
                 <Button variant="outline" onClick={() => navigate('/printers')}>
                   Back to fleet
@@ -93,7 +95,7 @@ export function PrinterDetailPage() {
             />
           ) : (
             <ErrorState
-              title="Could not load this printer"
+              description="Could not load printer."
               onRetry={() => detailQuery.refetch()}
             />
           )}
@@ -162,11 +164,11 @@ export function PrinterDetailPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2 px-[18px] py-3.5">
                   <p className="text-sm">
-                    Reported nozzle:{' '}
+                    Nozzle:{' '}
                     <span className="text-muted-foreground">
                       {printer.telemetry?.nozzleDiameterMm
-                        ? `${printer.telemetry.nozzleDiameterMm} mm${printer.telemetry.nozzleConfirmed ? '' : ' · awaiting confirmation'}`
-                        : 'Waiting for printer telemetry'}
+                        ? `${formatMm(printer.telemetry.nozzleDiameterMm)}${printer.telemetry.nozzleConfirmed ? ' (reported)' : ' (awaiting confirmation)'}`
+                        : 'Awaiting telemetry'}
                     </span>
                   </p>
                   {printer.machineProfileIssue && (
@@ -194,8 +196,8 @@ export function PrinterDetailPage() {
                   </p>
                   {!printer.machineProfileId && (
                     <p className="text-xs text-muted-foreground">
-                      Select a machine profile matching the reported nozzle in
-                      settings before using this printer for production.
+                      Select a machine profile that matches the reported nozzle.
+                      Do this before production.
                     </p>
                   )}
                 </CardContent>
@@ -207,7 +209,7 @@ export function PrinterDetailPage() {
             open={confirmRemoveOpen}
             onOpenChange={setConfirmRemoveOpen}
             title="Remove printer?"
-            description={`Remove ${printer.name}? This can't be undone. Removal isn't blocked by its current print status.`}
+            description={`Remove ${printer.name}? This cannot be undone.`}
             confirmLabel="Remove"
             destructive
             isPending={removeMutation.isPending}
@@ -215,6 +217,6 @@ export function PrinterDetailPage() {
           />
         </>
       )}
-    </div>
+    </Page>
   );
 }

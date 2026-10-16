@@ -41,7 +41,7 @@ export function UnloadSpoolDialog({
         });
       },
       onError: () => {
-        toast.error('Could not unload that spool.');
+        toast.error('Could not unload spool.');
       },
     },
   });
@@ -76,10 +76,9 @@ export function UnloadSpoolDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Remove spool from Feed Slot</DialogTitle>
+          <DialogTitle>Unload spool from feed slot</DialogTitle>
           <DialogDescription>
-            Take this spool off its Feed Slot — return it to storage to reuse
-            later, or mark it finished if it's empty.
+            Return the spool to storage, or mark it finished if it is empty.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

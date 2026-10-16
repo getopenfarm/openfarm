@@ -18,7 +18,7 @@ export const STATUS_META: Record<PrinterStatus, StatusMeta> = {
     dotClass: 'bg-status-printing',
   },
   AwaitingClear: {
-    label: 'Awaiting Clear',
+    label: 'Awaiting clear',
     textClass: 'text-status-attention',
     dotClass: 'bg-status-attention',
   },
@@ -31,3 +31,7 @@ export const OFFLINE_META = {
   textClass: 'text-status-offline',
   dotClass: 'bg-status-offline',
 };
+
+/** Single source of printer status labels (sentence case). */
+export const getStatusLabel = (status: PrinterStatus): string =>
+  STATUS_META[status].label;

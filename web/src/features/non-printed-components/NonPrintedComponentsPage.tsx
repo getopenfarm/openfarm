@@ -87,7 +87,7 @@ export function NonPrintedComponentsPage() {
     <Page>
       <PageHeader
         title="Non-printed components"
-        description="Screws, inserts, packaging, and other reusable BOM components that aren't printed."
+        description="Screws, inserts, packaging, and other reusable BOM components that are not printed."
         action={
           <Button onClick={() => navigate('/non-printed-components/new')}>
             <PlusIcon data-icon="inline-start" /> Add component
@@ -97,8 +97,8 @@ export function NonPrintedComponentsPage() {
 
       {componentsQuery.isError && listData ? (
         <ErrorState
-          title="Could not refresh this list"
-          description="Previous results are shown. Please try again."
+          title="Could not refresh list"
+          description="Showing previous results."
           onRetry={() => componentsQuery.refetch()}
         />
       ) : null}
@@ -112,8 +112,8 @@ export function NonPrintedComponentsPage() {
       ) : components.length === 0 && page === 1 ? (
         <EmptyState
           icon={<PackageIcon className="size-8 text-muted-foreground" />}
-          title="No non-printed components yet"
-          description="Create one to reference it from a BOM line."
+          title="No non-printed components"
+          description="Add one to reference it from a BOM line."
           action={
             <Button onClick={() => navigate('/non-printed-components/new')}>
               <PlusIcon data-icon="inline-start" /> Add component

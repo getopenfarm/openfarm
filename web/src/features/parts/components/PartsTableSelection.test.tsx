@@ -201,7 +201,7 @@ describe('Part Library selection and bulk removal', () => {
     ).toBeInTheDocument();
     expect(
       within(screen.getByRole('alertdialog')).getByText(
-        'These parts won’t be removed:',
+        'These parts will not be removed:',
       ),
     ).toBeInTheDocument();
     expect(deletes).not.toHaveBeenCalled();
@@ -294,11 +294,11 @@ describe('Part Library selection and bulk removal', () => {
   it('shows one floating action region for any selection and restores checkbox focus when cleared', async () => {
     setup();
     expect(
-      screen.queryByRole('region', { name: 'Selected parts actions' }),
+      screen.queryByRole('region', { name: 'Parts actions' }),
     ).not.toBeInTheDocument();
     const checkbox = screen.getByRole('checkbox', { name: 'Select Bracket' });
     await userEvent.click(checkbox);
-    const bar = screen.getByRole('region', { name: 'Selected parts actions' });
+    const bar = screen.getByRole('region', { name: 'Parts actions' });
     expect(bar).toHaveTextContent('1 selected');
     expect(
       within(bar).getByRole('button', { name: 'Remove selected' }),
@@ -309,13 +309,13 @@ describe('Part Library selection and bulk removal', () => {
     );
     expect(bar).toHaveTextContent('2 selected');
     expect(
-      screen.getAllByRole('region', { name: 'Selected parts actions' }),
+      screen.getAllByRole('region', { name: 'Parts actions' }),
     ).toHaveLength(1);
     await userEvent.click(
       within(bar).getByRole('button', { name: 'Clear selection' }),
     );
     expect(
-      screen.queryByRole('region', { name: 'Selected parts actions' }),
+      screen.queryByRole('region', { name: 'Parts actions' }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole('checkbox', { name: 'Select all parts on this page' }),

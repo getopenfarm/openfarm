@@ -86,7 +86,7 @@ function invalidatePrinterQueries(
 }
 
 /** Matches both the printer-scoped feed-units list (/api/v1/printers/{id}/feed-units) and the
- * global spools list (/api/v1/spools) — spool state and Feed Unit topology are shown together
+ * global spools list (/api/v1/spools) — spool state and Feed unit topology are shown together
  * on FeedUnitsCard/SpoolsTable, so either changing invalidates both. */
 function invalidateFilamentTrackingQueries(
   queryClient: ReturnType<typeof useQueryClient>,

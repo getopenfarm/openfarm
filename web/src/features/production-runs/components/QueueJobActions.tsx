@@ -77,7 +77,7 @@ export function QueueJobActions({
         invalidate();
       },
       onError: async (error) =>
-        toast.error(await extractErrorDetail(error, 'Could not pin this job.')),
+        toast.error(await extractErrorDetail(error, 'Could not pin job.')),
     },
   });
   const unpin = useOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint({
@@ -87,9 +87,7 @@ export function QueueJobActions({
         invalidate();
       },
       onError: async (error) =>
-        toast.error(
-          await extractErrorDetail(error, 'Could not unpin this job.'),
-        ),
+        toast.error(await extractErrorDetail(error, 'Could not unpin job.')),
     },
   });
   const jobId = job.jobId;

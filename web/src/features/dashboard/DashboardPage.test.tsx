@@ -288,10 +288,10 @@ describe('Fixed compact dashboard', () => {
   });
   it('shows real empty and failed-load states separately', async () => {
     const { unmount } = setup([]);
-    await screen.findByText('Your farm starts here');
+    await screen.findByText('Farm is empty');
     unmount();
     setup([], {}, { fleetStatus: 500 });
-    await screen.findByText("Couldn't load your dashboard");
+    await screen.findByText('Could not load dashboard.');
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 });

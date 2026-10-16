@@ -1,5 +1,6 @@
 import { DataTableSearch } from '@/components/data-table/DataTableSearch';
 import { DataTableToolbar } from '@/components/data-table/DataTableToolbar';
+import { getStatusLabel, OFFLINE_META } from '@/components/printer-tile/status';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 export type PrinterStatusFilter =
@@ -21,11 +22,11 @@ export interface PrinterFilterCounts {
 
 const FILTERS: Array<{ value: PrinterStatusFilter; label: string }> = [
   { value: 'all', label: 'All' },
-  { value: 'printing', label: 'Printing' },
-  { value: 'idle', label: 'Idle' },
-  { value: 'awaiting', label: 'Awaiting' },
+  { value: 'printing', label: getStatusLabel('Printing') },
+  { value: 'idle', label: getStatusLabel('Idle') },
+  { value: 'awaiting', label: getStatusLabel('AwaitingClear') },
   { value: 'maintenance', label: 'Maintenance' },
-  { value: 'offline', label: 'Offline' },
+  { value: 'offline', label: OFFLINE_META.label },
 ];
 
 interface PrinterFilterBarProps {

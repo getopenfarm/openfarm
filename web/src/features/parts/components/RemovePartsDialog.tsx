@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
+import { pluralize } from '@/lib/pluralize';
 import {
   PartRemovalDetails,
   type PartRemovalNoticeData,
@@ -108,7 +109,7 @@ export function RemovePartsDialog({
           current.current.onNotice({
             title: checked.some((row) => row.eligibility?.status === 'Blocked')
               ? bulk
-                ? 'Cannot remove selected parts'
+                ? 'Cannot remove parts'
                 : 'Cannot remove part'
               : 'Already removed',
             rows: checked,
@@ -124,8 +125,8 @@ export function RemovePartsDialog({
         if (!request.signal.aborted) {
           updatePending(false);
           current.current.onNotice({
-            title: 'Unable to remove parts',
-            message: 'Couldn’t check this part. Try again.',
+            title: 'Could not remove parts',
+            message: 'Could not check part. Try again.',
             rows: targets.current,
           });
           current.current.onOpenChange(false);
@@ -189,7 +190,9 @@ export function RemovePartsDialog({
       } else {
         current.current.onNotice(undefined);
         toast.success(
-          bulk ? `${removedCount} parts removed.` : 'Part removed.',
+          bulk
+            ? `${pluralize(removedCount, 'part')} removed.`
+            : 'Part removed.',
         );
       }
       current.current.onOpenChange(false);
@@ -219,12 +222,11 @@ export function RemovePartsDialog({
       onConfirm={() => {
         void execute();
       }}
-      cancelLabel="Cancel"
     >
       <PartRemovalDetails rows={eligible} busy={busy} />
       {retained.length > 0 && (
         <div className="flex flex-col gap-3">
-          <p>These parts won’t be removed:</p>
+          <p>These parts will not be removed:</p>
           <PartRemovalDetails rows={retained} busy={busy} />
         </div>
       )}

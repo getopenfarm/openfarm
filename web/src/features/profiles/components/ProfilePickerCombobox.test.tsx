@@ -237,7 +237,7 @@ describe('ProfilePickerCombobox keyboard and failure behavior', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Select a profile…' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      "Couldn't load profiles.",
+      'Could not load profiles.',
     );
     expect(screen.queryByText('No profiles found.')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry' }));

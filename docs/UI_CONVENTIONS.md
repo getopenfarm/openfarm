@@ -13,12 +13,12 @@ protection when changing these flows.
 
 - **Header**: every page uses `PageHeader`. Sub-pages put `BackLink` in its
   `above` slot. Page actions go in `action`, top right; Edit is outline with
-  `PencilIcon`, and Delete/Remove/Cancel run comes last as
-  `variant="destructive"`, keeping the domain verb (Remove for
-  printers/parts/jobs, Delete for assemblies and components).
+  `PencilIcon`, and Remove/Cancel run comes last as
+  `variant="destructive"`. Remove is the only removal verb (Delete only for
+  irreversible file/credential destruction).
 - **Whole-page edit** uses `FormFooter` (page root, `form`, and `FieldGroup`
   take `flex-1`): outline Cancel, then primary `Save`. No footer on pages with
-  nothing to save, and never Delete/Remove in it.
+  nothing to save, and never Remove in it.
 - **Library and material records** (parts, filament, assemblies, components,
   spools, profiles) edit in place on their page: one react-hook-form draft, one
   `FormFooter` Save (disabled until dirty), `useUnsavedChangesPrompt`. No
@@ -179,3 +179,16 @@ expose `aria-sort` on the active column header. Previous results may remain
 visible during loading or a failed request, but conflicting controls must stay
 disabled; failures show Retry for the requested page and order. Recover to the
 last valid page only from a successful settled response, never placeholder data.
+
+## Copy conventions
+
+- **Verbs**: Add (create a record), Remove (soft-removal; Delete only for
+  irreversible file/credential destruction), Unload (spool from slot).
+- **Failures**: "Could not X." Never "X failed", "Failed to X", "Couldn't".
+- **Success toasts**: "<Entity> <past participle>." naming the entity, such as
+  "Part saved." and "Printer added." Pending, button and toast share one verb.
+- **Style**: sentence case everywhere, American spelling (color), no
+  contractions, no "Please", ellipsis is `…`.
+- **Helpers** in `web/src/lib`: `pluralize`, `formatUnits` (grams, mm, °C,
+  file size), `formatDateTime`, `formatMinutes`, `formatRelativeTime`. Do not
+  format counts, units or dates inline.

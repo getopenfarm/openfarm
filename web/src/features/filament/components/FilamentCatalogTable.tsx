@@ -25,6 +25,7 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
     {
       id: 'filament',
       accessorFn: (row) => `${row.vendorName} · ${row.material}`,
+      meta: { label: 'Filament' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Filament" />
       ),
@@ -40,6 +41,7 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
     {
       id: 'type',
       accessorFn: (row) => row.materialType,
+      meta: { label: 'Type' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Type" />
       ),
@@ -48,8 +50,8 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
       ),
     },
     {
-      id: 'colours',
-      header: 'Colours',
+      id: 'colors',
+      header: 'Colors',
       cell: ({ row }) => {
         const variants = row.original.variants ?? [];
         const visible = variants.slice(0, MAX_VISIBLE_SWATCHES);
@@ -65,13 +67,6 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
           </div>
         );
       },
-    },
-    {
-      id: 'variantCount',
-      header: 'Variants',
-      cell: ({ row }) => (
-        <span className="text-sm">{row.original.variants?.length ?? 0}</span>
-      ),
     },
     {
       id: 'actions',
@@ -99,6 +94,7 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
       pageSize={25}
       columns={columns}
       data={filaments}
+      toolbar={null}
       onRowClick={(row) => navigate(`/filament/${row.id}/edit`)}
     />
   );

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +20,7 @@ import {
   getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey,
   useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint,
 } from '@/lib/api/generated/printers/printers';
+import { formatGrams } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import { feedSlotView, normalizeFilamentColor } from '../lib/feedSlotView';
 import { selectReloaderChannel } from '../lib/reloaderApi';
@@ -71,10 +73,7 @@ function FeedSlotRow({
       queryClient.invalidateQueries({
         queryKey: [`/api/v1/printers/${unitPrinterId}/feed-units`],
       }),
-    onError: () =>
-      toast.error(
-        'Could not change the feeding channel. Refresh and try again.',
-      ),
+    onError: () => toast.error('Could not set feeding channel.'),
   });
   const isReloader = unit.kind === 'AutomaticFilamentReloader';
   const feeding = isReloader && slot.id === unit.feedingSlotId;
@@ -177,7 +176,7 @@ function FeedSlotRow({
       </div>
       <div className="flex flex-col items-end gap-1 text-right font-mono text-[11px] text-muted-foreground">
         {spool?.remainingWeightGrams != null && (
-          <span>Tracked: {spool.remainingWeightGrams} g</span>
+          <span>Recorded: {formatGrams(spool.remainingWeightGrams)}</span>
         )}
         {view.remainPercent != null && (
           <span
@@ -221,7 +220,7 @@ function FeedUnitGroup({
       mutation: {
         onSuccess: () => {
           toast.success(
-            'Feed Unit removed. Loaded spools returned to inventory.',
+            'Feed unit removed. Loaded spools returned to inventory.',
           );
           queryClient.invalidateQueries({
             predicate: (query) =>
@@ -236,7 +235,7 @@ function FeedUnitGroup({
           });
         },
         onError: () => {
-          toast.error('Could not remove that Feed Unit.');
+          toast.error('Could not remove feed unit.');
         },
       },
     },
@@ -256,7 +255,7 @@ function FeedUnitGroup({
               className="h-6 px-2 text-xs"
               onClick={() => setConfigureOpen(true)}
             >
-              Configure
+              Edit reloader
             </Button>
           )}
           {unit.id &&
@@ -277,7 +276,7 @@ function FeedUnitGroup({
       </div>
       {unit.kind === 'AutomaticFilamentReloader' && !unit.feedingSlotId && (
         <p className="px-[18px] pb-2 text-xs text-muted-foreground">
-          Select the feeding channel · Operator attention needed
+          Feeding channel not set
         </p>
       )}
       <ul>
@@ -323,13 +322,12 @@ export function FeedUnitsCard({
   return (
     <Card className="gap-0 py-0">
       <CardHeader className="flex items-center justify-between border-b px-[18px] py-3.5">
-        <CardTitle className="text-sm font-semibold">Feed Units</CardTitle>
+        <CardTitle className="text-sm font-semibold">Feed units</CardTitle>
         <Button
           variant="outline"
           size="icon"
           className="size-7"
-          aria-label="Add a Feed Unit"
-          title="Add a Feed Unit"
+          aria-label="Add feed unit"
           onClick={() => setAddOpen(true)}
         >
           <Plus data-icon="inline-start" className="" aria-hidden="true" />
@@ -342,28 +340,25 @@ export function FeedUnitsCard({
           </p>
         )}
         {feedUnitsQuery.isError && (
-          <div role="alert" className="px-[18px] py-3 text-sm">
-            Could not load Feed Units.{' '}
-            <Button
-              variant="ghost"
+          <div role="alert">
+            <ErrorState
               size="sm"
-              onClick={() => feedUnitsQuery.refetch()}
-            >
-              Retry
-            </Button>
+              bordered={false}
+              description="Could not load feed units."
+              onRetry={() => feedUnitsQuery.refetch()}
+            />
           </div>
         )}
         {feedUnitsQuery.isLoading ? (
-          <p
-            role="status"
-            className="px-[18px] py-7 text-sm text-muted-foreground"
-          >
-            Loading Feed Units…
-          </p>
+          <div role="status">
+            <EmptyState
+              size="sm"
+              bordered={false}
+              description="Loading feed units…"
+            />
+          </div>
         ) : !feedUnitsQuery.data ? null : feedUnits.length === 0 ? (
-          <p className="px-[18px] py-7 text-center text-sm text-muted-foreground">
-            No Feed Units on this printer
-          </p>
+          <EmptyState size="sm" bordered={false} title="No feed units" />
         ) : (
           <div className="flex flex-col">
             {feedUnits.map((unit) => (

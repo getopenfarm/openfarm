@@ -55,13 +55,11 @@ export function ProductionRunDetailPage() {
     useOpenFarmApiEndpointsProductionRunsCloseProductionRunEndpoint({
       mutation: {
         onSuccess: () => {
-          toast.success('Run closed.');
+          toast.success('Production run closed.');
           invalidateRunQueries();
         },
         onError: async (error) => {
-          toast.error(
-            await extractErrorDetail(error, 'Could not close this run.'),
-          );
+          toast.error(await extractErrorDetail(error, 'Could not close run.'));
         },
       },
     });
@@ -74,9 +72,7 @@ export function ProductionRunDetailPage() {
           invalidateRunQueries();
         },
         onError: async (error) => {
-          toast.error(
-            await extractErrorDetail(error, 'Could not cancel this run.'),
-          );
+          toast.error(await extractErrorDetail(error, 'Could not cancel run.'));
         },
       },
     });
@@ -102,7 +98,7 @@ export function ProductionRunDetailPage() {
         <PageHeader above={backLink} title="Production run" />
         <EmptyState
           title="Production run not found"
-          description="It may have been removed, or the link is out of date."
+          description="Removed or invalid link."
           action={
             <Button
               variant="outline"
@@ -233,7 +229,7 @@ export function ProductionRunDetailPage() {
         open={confirmCancelOpen}
         onOpenChange={setConfirmCancelOpen}
         title="Cancel this production run?"
-        description="Every queued, undispatched job on this run will be cancelled. A job already printing is left alone and still records its outcome."
+        description="Cancel every queued job not yet sent to a printer. A job already printing is not stopped and still records its outcome."
         confirmLabel="Cancel run"
         cancelLabel="Keep run"
         destructive

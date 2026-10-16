@@ -90,7 +90,7 @@ export function QueuePartDialog({
         <DialogHeader>
           <DialogTitle>Send part to queue</DialogTitle>
           <DialogDescription>
-            Queue {part.name} from the Part Library.
+            Queue {part.name} from the part library.
           </DialogDescription>
         </DialogHeader>
         {query.isFetching ? (
@@ -99,7 +99,7 @@ export function QueuePartDialog({
           <>
             <p role="alert">
               {query.isError || !detail
-                ? 'Could not load this part. Try again.'
+                ? 'Could not load part. Try again.'
                 : 'Complete this part’s print requirements before queueing.'}
             </p>
             <DialogFooter>
@@ -174,7 +174,7 @@ function QueuePartForm({
       form.setError('root.server', {
         message: await extractErrorDetail(
           error,
-          'Could not send this part to the queue.',
+          'Could not send part to queue.',
         ),
       });
     }

@@ -53,7 +53,6 @@ export function MonitoringCard({
         <Link
           to={`/printers/${printer.id}`}
           className="min-w-0 truncate text-sm font-medium hover:underline"
-          title={printer.name}
         >
           {printer.name ?? 'Unnamed printer'}
         </Link>
@@ -62,18 +61,17 @@ export function MonitoringCard({
             type="button"
             className="max-w-[55%] cursor-pointer overflow-hidden rounded-full transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-wait disabled:opacity-50"
             aria-label={`Mark ${printer.name} ready`}
-            title="Mark printer ready"
             disabled={readyPending}
             onClick={onMarkReady}
           >
             <StatusBadge
               kind={badge.kind}
-              label={readyPending ? 'Saving…' : badge.label}
+              label={readyPending ? 'Marking ready…' : badge.label}
               className="max-w-full overflow-hidden"
             />
           </button>
         ) : (
-          <span className="max-w-[55%] overflow-hidden" title={badge.label}>
+          <span className="max-w-[55%] overflow-hidden">
             <StatusBadge
               kind={badge.kind}
               label={badge.label}

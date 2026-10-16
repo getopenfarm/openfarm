@@ -11,11 +11,18 @@ import { FormFooter } from '@/components/form-footer/FormFooter';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -32,7 +39,6 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import type {
@@ -42,6 +48,7 @@ import type {
   PrinterDetailResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
+  getOpenFarmApiEndpointsPrintersGetDiscoveredPrintersEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
   useOpenFarmApiEndpointsPrintersEditPrinterEndpoint,
@@ -78,11 +85,11 @@ const addSchema = z.object({
 
 type AddFormValues = z.infer<typeof addSchema>;
 
-// Discovery-first: pick a printer announcing itself on the LAN, then confirm it in the regular
-// form (only the access code left to type). Manual entry stays one click away.
+// Discovery-first: the scan list is the page. A discovered printer only needs a name and its access
+// code; manual entry is the fallback for printers discovery can't see (another subnet, LAN mode off).
 function AddPrinterPage() {
-  const [source, setSource] = useState<'discover' | 'manual'>('discover');
-  const [picked, setPicked] = useState<DiscoveredPrinterResponse>();
+  const navigate = useNavigate();
+  const [step, setStep] = useState<DiscoveredPrinterResponse | 'manual'>();
 
   return (
     <Page className="flex-1">
@@ -93,43 +100,31 @@ function AddPrinterPage() {
           </BackLink>
         }
         title="Add printer"
-        description="Connecting directly over LAN disconnects this printer from Bambu Cloud and the official app while OpenFarm is connected."
       />
 
-      {picked ? (
+      {step === undefined ? (
+        <DiscoverPrinters
+          onSelect={setStep}
+          onManual={() => setStep('manual')}
+        />
+      ) : (
         <>
           <Button
             variant="link"
             className="self-start px-0"
-            onClick={() => setPicked(undefined)}
+            onClick={() => setStep(undefined)}
           >
-            ← Back to discovered printers
+            ← Back
           </Button>
-          <AddPrinterForm key={picked.serialNumber} prefill={picked} />
-        </>
-      ) : (
-        <>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            className="self-start"
-            value={source}
-            onValueChange={(next) => {
-              if (next === 'discover' || next === 'manual') setSource(next);
-            }}
-          >
-            <ToggleGroupItem value="discover">
-              Discover on network
-            </ToggleGroupItem>
-            <ToggleGroupItem value="manual">Enter manually</ToggleGroupItem>
-          </ToggleGroup>
-          {source === 'discover' ? (
-            <DiscoverPrinters
-              onSelect={setPicked}
-              onManual={() => setSource('manual')}
-            />
+          {step === 'manual' ? (
+            <AddPrinterForm onAdded={() => navigate('/printers')} />
           ) : (
-            <AddPrinterForm />
+            // Back to the scan list so the next printer is one click away.
+            <AddPrinterForm
+              key={step.serialNumber}
+              prefill={step}
+              onAdded={() => setStep(undefined)}
+            />
           )}
         </>
       )}
@@ -137,9 +132,13 @@ function AddPrinterPage() {
   );
 }
 
-function AddPrinterForm({ prefill }: { prefill?: DiscoveredPrinterResponse }) {
+interface AddPrinterFormProps {
+  prefill?: DiscoveredPrinterResponse;
+  onAdded: () => void;
+}
+
+function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
   const navigate = useNavigate();
-  const [verified, setVerified] = useState(false);
   const queryClient = useQueryClient();
 
   const catalogQuery =
@@ -204,13 +203,17 @@ function AddPrinterForm({ prefill }: { prefill?: DiscoveredPrinterResponse }) {
   const modelsForBrand =
     catalog?.brands?.find((b) => b.brand === selectedBrand)?.models ?? [];
 
+  // Discovery already knows brand/model, unless the printer reported a model the catalog can't map.
+  const showModelPickers =
+    !prefill?.modelCode ||
+    !catalog?.brands?.some(
+      (b) =>
+        b.brand === prefill.brand &&
+        b.models?.includes(prefill.modelCode ?? ''),
+    );
+
   const verifyMutation =
-    useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint({
-      mutation: {
-        onSuccess: () => setVerified(true),
-        onError: () => setVerified(false),
-      },
-    });
+    useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint();
 
   const registerMutation =
     useOpenFarmApiEndpointsPrintersRegisterPrinterEndpoint({
@@ -221,8 +224,12 @@ function AddPrinterForm({ prefill }: { prefill?: DiscoveredPrinterResponse }) {
             queryKey:
               getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
           });
+          queryClient.invalidateQueries({
+            queryKey:
+              getOpenFarmApiEndpointsPrintersGetDiscoveredPrintersEndpointQueryKey(),
+          });
           markClean();
-          navigate('/printers');
+          onAdded();
         },
         onError: () => {
           toast.error('Could not add printer.');
@@ -230,42 +237,30 @@ function AddPrinterForm({ prefill }: { prefill?: DiscoveredPrinterResponse }) {
       },
     });
 
-  // FR-001a: verify-before-add — re-checked on every connection-field blur; submit stays
-  // disabled until a fresh verify succeeds. Any subsequent edit invalidates the prior result.
-  function handleConnectionFieldBlur() {
-    const { brand, modelCode, ipAddress, serialNumber, accessCode } =
-      form.getValues();
-    setVerified(false);
-    if (!ipAddress || !serialNumber || !accessCode) {
-      return;
-    }
-    verifyMutation.mutate({
-      data: { brand, modelCode, ipAddress, serialNumber, accessCode },
-    });
-  }
-
-  // Brand/Model determine which connector a printer routes to, so switching either invalidates
-  // any prior verify result exactly like a connection-field edit does.
   function handleBrandChange(newBrand: string) {
     // Radix's hidden form control can emit an empty value while options mount.
     if (!newBrand) return;
     form.setValue('brand', newBrand);
     const models = catalog?.brands?.find((b) => b.brand === newBrand)?.models;
     form.setValue('modelCode', models?.[0] ?? '');
-    handleConnectionFieldBlur();
   }
 
-  function handleModelChange(newModelCode: string) {
-    if (!newModelCode) return;
-    form.setValue('modelCode', newModelCode);
-    handleConnectionFieldBlur();
-  }
-
-  function onSubmit(values: AddFormValues) {
+  // FR-001a: verify-before-add — Add runs the connection check first and only registers once it
+  // passes, so there's no separate "verified" state for the operator to chase.
+  async function onSubmit(values: AddFormValues) {
+    const { brand, modelCode, ipAddress, serialNumber, accessCode } = values;
+    try {
+      await verifyMutation.mutateAsync({
+        data: { brand, modelCode, ipAddress, serialNumber, accessCode },
+      });
+    } catch {
+      return;
+    }
     registerMutation.mutate({ data: values });
   }
 
   const catalogUnavailable = catalogQuery.isError;
+  const adding = verifyMutation.isPending || registerMutation.isPending;
 
   return (
     <>
@@ -277,7 +272,16 @@ function AddPrinterForm({ prefill }: { prefill?: DiscoveredPrinterResponse }) {
           <FieldGroup className="flex-1 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Connection details</CardTitle>
+                <CardTitle>
+                  {prefill
+                    ? `${prefill.brand} ${prefill.modelCode ?? prefill.rawModel}`
+                    : 'Connection'}
+                </CardTitle>
+                {prefill && (
+                  <CardDescription>
+                    {prefill.ipAddress} · {prefill.serialNumber}
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
@@ -293,165 +297,158 @@ function AddPrinterForm({ prefill }: { prefill?: DiscoveredPrinterResponse }) {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="brand"
-                  render={({ field }) => (
-                    <FormItem
-                      data-disabled={
-                        catalogQuery.isLoading || catalogUnavailable
-                      }
-                    >
-                      <FormLabel>Brand</FormLabel>
-                      <Select
-                        name={field.name}
-                        value={field.value}
-                        onValueChange={handleBrandChange}
-                        disabled={catalogQuery.isLoading || catalogUnavailable}
-                      >
-                        <FormControl>
-                          <SelectTrigger
-                            ref={field.ref}
-                            onBlur={field.onBlur}
-                            className="w-full"
+                {showModelPickers && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="brand"
+                      render={({ field }) => (
+                        <FormItem
+                          data-disabled={
+                            catalogQuery.isLoading || catalogUnavailable
+                          }
+                        >
+                          <FormLabel>Brand</FormLabel>
+                          <Select
+                            name={field.name}
+                            value={field.value}
+                            onValueChange={handleBrandChange}
+                            disabled={
+                              catalogQuery.isLoading || catalogUnavailable
+                            }
                           >
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectGroup>
-                            {(catalog?.brands ?? []).map((b) => (
-                              <SelectItem key={b.brand} value={b.brand ?? ''}>
-                                {b.brand}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="modelCode"
-                  render={({ field }) => (
-                    <FormItem
-                      data-disabled={
-                        catalogQuery.isLoading || catalogUnavailable
-                      }
-                    >
-                      <FormLabel>Model</FormLabel>
-                      <Select
-                        name={field.name}
-                        value={field.value}
-                        onValueChange={handleModelChange}
-                        disabled={catalogQuery.isLoading || catalogUnavailable}
-                      >
-                        <FormControl>
-                          <SelectTrigger
-                            ref={field.ref}
-                            onBlur={field.onBlur}
-                            className="w-full"
+                            <FormControl>
+                              <SelectTrigger
+                                ref={field.ref}
+                                onBlur={field.onBlur}
+                                className="w-full"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectGroup>
+                                {(catalog?.brands ?? []).map((b) => (
+                                  <SelectItem
+                                    key={b.brand}
+                                    value={b.brand ?? ''}
+                                  >
+                                    {b.brand}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="modelCode"
+                      render={({ field }) => (
+                        <FormItem
+                          data-disabled={
+                            catalogQuery.isLoading || catalogUnavailable
+                          }
+                        >
+                          <FormLabel>Model</FormLabel>
+                          <Select
+                            name={field.name}
+                            value={field.value}
+                            onValueChange={(next) => {
+                              if (next) field.onChange(next);
+                            }}
+                            disabled={
+                              catalogQuery.isLoading || catalogUnavailable
+                            }
                           >
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectGroup>
-                            {modelsForBrand.map((model) => (
-                              <SelectItem key={model} value={model}>
-                                {model}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="ipAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>IP address</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          onBlur={() => {
-                            field.onBlur();
-                            handleConnectionFieldBlur();
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="serialNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Serial number</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          readOnly={!!prefill}
-                          onBlur={() => {
-                            field.onBlur();
-                            handleConnectionFieldBlur();
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                            <FormControl>
+                              <SelectTrigger
+                                ref={field.ref}
+                                onBlur={field.onBlur}
+                                className="w-full"
+                              >
+                                <SelectValue placeholder="Model" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectGroup>
+                                {modelsForBrand.map((model) => (
+                                  <SelectItem key={model} value={model}>
+                                    {model}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+                {!prefill && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="ipAddress"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>IP address</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="serialNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Serial number</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
                 <FormField
                   control={form.control}
                   name="accessCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>LAN access code</FormLabel>
+                      <FormLabel>Access code</FormLabel>
                       <FormControl>
-                        <Input
-                          type="password"
-                          {...field}
-                          onBlur={() => {
-                            field.onBlur();
-                            handleConnectionFieldBlur();
-                          }}
-                        />
+                        <Input type="password" {...field} />
                       </FormControl>
+                      <FormDescription>
+                        Printer screen → Settings → Network.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 {catalogUnavailable && (
                   <p className="text-sm text-destructive sm:col-span-2">
-                    Couldn't load the printer catalog. Try again before adding a
-                    printer.
+                    Could not load printer catalog.
                   </p>
                 )}
-                {verifyMutation.isPending && (
-                  <p className="text-sm text-muted-foreground sm:col-span-2">
-                    Verifying connection…
-                  </p>
-                )}
-                {verifyMutation.isError && !verifyMutation.isPending && (
+                {verifyMutation.isError && !adding && (
                   <p className="text-sm text-destructive sm:col-span-2">
-                    Could not verify this printer's connection. Check the IP
-                    address and LAN access code.
+                    {prefill
+                      ? 'Connection failed. Check access code.'
+                      : 'Connection failed. Check IP, serial, access code.'}
                   </p>
                 )}
-                {verified && !verifyMutation.isPending && (
-                  <p className="text-sm text-status-complete sm:col-span-2">
-                    Connection verified.
-                  </p>
-                )}
+                <p className="text-sm text-muted-foreground sm:col-span-2">
+                  LAN mode disconnects Bambu Cloud and Bambu Handy.
+                </p>
               </CardContent>
             </Card>
 
@@ -465,18 +462,9 @@ function AddPrinterForm({ prefill }: { prefill?: DiscoveredPrinterResponse }) {
                   >
                     Cancel
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={
-                      !verified ||
-                      registerMutation.isPending ||
-                      catalogUnavailable
-                    }
-                  >
-                    {registerMutation.isPending && (
-                      <Spinner data-icon="inline-start" />
-                    )}
-                    {registerMutation.isPending ? 'Saving…' : 'Save'}
+                  <Button type="submit" disabled={adding || catalogUnavailable}>
+                    {adding && <Spinner data-icon="inline-start" />}
+                    {adding ? 'Adding…' : 'Add printer'}
                   </Button>
                 </>
               }
@@ -522,7 +510,7 @@ function EditPrinterForm() {
         ) : (
           <EmptyState
             title="Printer not found"
-            description="It may have been removed, or the link is out of date."
+            description="Removed or invalid link."
             action={
               <Button variant="outline" onClick={() => navigate('/printers')}>
                 Back to fleet
@@ -652,7 +640,7 @@ function EditPrinterFormLoaded({
   const editMutation = useOpenFarmApiEndpointsPrintersEditPrinterEndpoint({
     mutation: {
       onSuccess: () => {
-        toast.success('Printer updated.');
+        toast.success('Printer saved.');
         queryClient.invalidateQueries({
           queryKey: getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
         });
@@ -671,7 +659,7 @@ function EditPrinterFormLoaded({
         navigate('/printers');
       },
       onError: () => {
-        toast.error('Could not update printer.');
+        toast.error('Could not save printer.');
       },
     },
   });
@@ -747,7 +735,7 @@ function EditPrinterFormLoaded({
           </BackLink>
         }
         title={`Edit ${printerName}`}
-        description={`${brand} ${modelCode} — connection changes stay gated on verification; renaming alone saves immediately.`}
+        description={`${brand} ${modelCode} · ${serialNumber}`}
       />
 
       <Form {...form}>
@@ -795,11 +783,11 @@ function EditPrinterFormLoaded({
                   name="accessCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>LAN access code</FormLabel>
+                      <FormLabel>Access code</FormLabel>
                       <FormControl>
                         <Input
                           type="password"
-                          placeholder="Leave blank to keep the current connection"
+                          placeholder="Blank = keep current"
                           {...field}
                           onBlur={() => {
                             field.onBlur();
@@ -820,8 +808,7 @@ function EditPrinterFormLoaded({
                   verifyMutation.isError &&
                   !verifyMutation.isPending && (
                     <p className="text-sm text-destructive">
-                      Could not verify this printer's connection. Check the IP
-                      address and LAN access code.
+                      Connection failed. Check IP, access code.
                     </p>
                   )}
                 {connectionChanged && verified && !verifyMutation.isPending && (
@@ -833,8 +820,8 @@ function EditPrinterFormLoaded({
                   <span className="text-sm font-medium">Machine profile</span>
                   <p className="text-xs text-muted-foreground">
                     {nozzleConfirmed
-                      ? `Printer-reported nozzle: ${nozzleDiameterMm} mm`
-                      : 'Waiting for nozzle information from the current connection.'}
+                      ? `Nozzle: ${nozzleDiameterMm} mm (reported)`
+                      : 'Waiting for nozzle data…'}
                   </p>
                   {selectedMachineProfileId === machineProfileId &&
                     machineProfileIssue && (
@@ -846,7 +833,7 @@ function EditPrinterFormLoaded({
                     kind="machine"
                     printerId={printerId}
                     disabled={!nozzleConfirmed}
-                    disabledPlaceholder="Waiting for printer nozzle information"
+                    disabledPlaceholder="Waiting for nozzle data…"
                     value={selectedMachineProfileId}
                     onChange={handleMachineProfileChange}
                     selectedLabel={selectedMachineProfileName}

@@ -12,10 +12,7 @@ import {
 export function SettingsPage() {
   return (
     <Page>
-      <PageHeader
-        title="Settings"
-        description="Configure printer access and slicing for this farm."
-      />
+      <PageHeader title="Settings" description="Printer access and slicing." />
       <div className="flex flex-col gap-4">
         <Link to="/settings/connection-secrets" className="block">
           <Card className="transition-colors hover:ring-primary/30">
@@ -41,7 +38,7 @@ export function SettingsPage() {
                 aria-hidden="true"
               />
               <div>
-                <CardTitle>Slicing Defaults</CardTitle>
+                <CardTitle>Slicing defaults</CardTitle>
                 <CardDescription>
                   Choose the default bundled slicer engine and version.
                 </CardDescription>

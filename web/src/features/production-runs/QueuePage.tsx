@@ -118,9 +118,7 @@ export function QueuePage() {
             getOpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryKey(),
         }),
       onError: async (error) =>
-        toast.error(
-          await extractErrorDetail(error, 'Could not reorder this job.'),
-        ),
+        toast.error(await extractErrorDetail(error, 'Could not reorder job.')),
     },
   });
 
@@ -332,7 +330,7 @@ export function QueuePage() {
                             <ErrorState
                               bordered={false}
                               size="sm"
-                              title={`Couldn't load ${LABELS[group].toLowerCase()}`}
+                              title={`Could not load ${LABELS[group].toLowerCase()}`}
                               onRetry={() => query.refetch()}
                             />
                           ) : (
@@ -341,7 +339,7 @@ export function QueuePage() {
                               size="sm"
                               title={
                                 search
-                                  ? 'No jobs match your search'
+                                  ? 'No jobs match search'
                                   : `No ${status.toLowerCase()} ${LABELS[group].toLowerCase()}`
                               }
                               description="Try another status or queue a production run."

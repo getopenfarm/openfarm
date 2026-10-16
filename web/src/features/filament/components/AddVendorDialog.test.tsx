@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CreateVendorDialog } from './CreateVendorDialog';
+import { AddVendorDialog } from './AddVendorDialog';
 
 function stubFetch(onPost: (body: unknown) => void) {
   vi.stubGlobal(
@@ -28,39 +28,39 @@ function stubFetch(onPost: (body: unknown) => void) {
 }
 
 function renderDialog(
-  onCreated?: (vendor: { id?: string; name?: string }) => void,
+  onAdded?: (vendor: { id?: string; name?: string }) => void,
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <CreateVendorDialog onCreated={onCreated} />
+      <AddVendorDialog onAdded={onAdded} />
     </QueryClientProvider>,
   );
 }
 
-describe('CreateVendorDialog', () => {
+describe('AddVendorDialog', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('creates a vendor and reports it back via onCreated', async () => {
+  it('adds a vendor and reports it back via onAdded', async () => {
     const user = userEvent.setup();
     let postedBody: unknown;
-    const onCreated = vi.fn();
+    const onAdded = vi.fn();
     stubFetch((body) => {
       postedBody = body;
     });
-    renderDialog(onCreated);
+    renderDialog(onAdded);
 
     await user.click(screen.getByRole('button', { name: 'Add vendor' }));
     await user.type(screen.getByLabelText('Name'), 'New Vendor Co');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Add vendor' }));
 
     await waitFor(() => expect(postedBody).toEqual({ name: 'New Vendor Co' }));
     await waitFor(() =>
-      expect(onCreated).toHaveBeenCalledWith(
+      expect(onAdded).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'v-new', name: 'New Vendor Co' }),
       ),
     );
