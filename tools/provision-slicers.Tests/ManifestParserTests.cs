@@ -10,14 +10,14 @@ public class ManifestParserTests
     {
         const string json = """
             {
-              "schemaVersion": 3,
+              "schemaVersion": 4,
               "slicers": [
                 { "engine": "OrcaSlicer", "builds": {
-                    "Linux": { "version": "2.2.0", "assetUrl": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Linux.AppImage" },
-                    "Windows": { "version": "2.3.1", "assetUrl": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Windows.zip" }
+                    "Linux": [ { "version": "2.2.0", "assetUrl": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Linux.AppImage" } ],
+                    "Windows": [ { "version": "2.3.1", "assetUrl": "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Windows.zip", "notes": "win pin" } ]
                   } },
                 { "engine": "SuperSlicer", "builds": {
-                    "Linux": { "version": "2.5.59.13", "assetUrl": "https://github.com/supermerill/SuperSlicer/releases/download/2.5.59.13/SuperSlicer.AppImage" }
+                    "Linux": [ { "version": "2.5.59.13", "assetUrl": "https://github.com/supermerill/SuperSlicer/releases/download/2.5.59.13/SuperSlicer.AppImage" } ]
                   }, "notes": "pinned" }
               ]
             }
@@ -26,27 +26,29 @@ public class ManifestParserTests
         var result = ManifestParser.Parse(json);
 
         result.Success.Should().BeTrue();
-        result.Manifest!.SchemaVersion.Should().Be(3);
+        result.Manifest!.SchemaVersion.Should().Be(4);
         result.Manifest.Slicers.Should().HaveCount(2);
         result.Manifest.Slicers[0].Engine.Should().Be(Engine.OrcaSlicer);
-        result.Manifest.Slicers[0].Builds.Should().BeEquivalentTo(new Dictionary<Platform, PlatformBuild>
-        {
-            [Platform.Linux] = new PlatformBuild("2.2.0", "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Linux.AppImage"),
-            [Platform.Windows] = new PlatformBuild("2.3.1", "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Windows.zip"),
-        });
+        result.Manifest.Slicers[0].Builds[Platform.Linux].Should().Equal(
+            new PlatformBuild("2.2.0", "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.2.0/OrcaSlicer_Linux.AppImage"));
+        result.Manifest.Slicers[0].Builds[Platform.Windows].Should().Equal(
+            new PlatformBuild("2.3.1", "https://github.com/SoftFever/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Windows.zip", "win pin"));
         result.Manifest.Slicers[1].Notes.Should().Be("pinned");
     }
 
     [Fact]
-    public void Parse_DifferentVersionsPerPlatform_KeepsEachPlatformsOwnVersion()
+    public void Parse_DifferentVersionSetsPerPlatform_KeepsEachPlatformsOwnList()
     {
         const string json = """
             {
-              "schemaVersion": 3,
+              "schemaVersion": 4,
               "slicers": [
                 { "engine": "OrcaSlicer", "builds": {
-                    "MacOs": { "version": "2.3.1", "assetUrl": "https://example.test/mac-2.3.1.dmg" },
-                    "Linux": { "version": "2.3.2", "assetUrl": "https://example.test/linux-2.3.2.AppImage" }
+                    "MacOs": [ { "version": "2.3.1", "assetUrl": "https://example.test/mac-2.3.1.dmg" } ],
+                    "Linux": [
+                      { "version": "2.4.2", "assetUrl": "https://example.test/linux-2.4.2.AppImage" },
+                      { "version": "2.3.1", "assetUrl": "https://example.test/linux-2.3.1.AppImage" }
+                    ]
                   } }
               ]
             }
@@ -55,8 +57,64 @@ public class ManifestParserTests
         var result = ManifestParser.Parse(json);
 
         result.Success.Should().BeTrue();
-        result.Manifest!.Slicers[0].Builds[Platform.MacOs].Version.Should().Be("2.3.1");
-        result.Manifest.Slicers[0].Builds[Platform.Linux].Version.Should().Be("2.3.2");
+        result.Manifest!.Slicers[0].Builds[Platform.MacOs].Select(b => b.Version).Should().Equal("2.3.1");
+        result.Manifest.Slicers[0].Builds[Platform.Linux].Select(b => b.Version).Should().Equal("2.4.2", "2.3.1");
+    }
+
+    [Fact]
+    public void Parse_DuplicateVersionWithinPlatform_ReportsError()
+    {
+        const string json = """
+            {
+              "slicers": [
+                { "engine": "OrcaSlicer", "builds": { "Linux": [
+                    { "version": "2.3.1", "assetUrl": "https://example.test/a.AppImage" },
+                    { "version": "2.3.1", "assetUrl": "https://example.test/b.AppImage" }
+                  ] } }
+              ]
+            }
+            """;
+
+        var result = ManifestParser.Parse(json);
+
+        result.Success.Should().BeFalse();
+        result.Errors.Should().ContainSingle(e => e.Contains("builds['Linux'][1].version") && e.Contains("more than once"));
+    }
+
+    [Fact]
+    public void Parse_EngineDeclaredTwice_ReportsError()
+    {
+        const string json = """
+            {
+              "slicers": [
+                { "engine": "OrcaSlicer", "builds": { "Linux": [ { "version": "2.4.2", "assetUrl": "https://example.test/a.AppImage" } ] } },
+                { "engine": "OrcaSlicer", "builds": { "Linux": [ { "version": "2.3.1", "assetUrl": "https://example.test/b.AppImage" } ] } }
+              ]
+            }
+            """;
+
+        var result = ManifestParser.Parse(json);
+
+        result.Success.Should().BeFalse();
+        result.Errors.Should().ContainSingle(e => e.Contains("slicers[1].engine") && e.Contains("already declared"));
+    }
+
+    [Fact]
+    public void Parse_SchemaVersion3_ReportsUnsupported()
+    {
+        const string json = """
+            {
+              "schemaVersion": 3,
+              "slicers": [
+                { "engine": "OrcaSlicer", "builds": { "Linux": { "version": "2.2.0", "assetUrl": "https://example.test/x.AppImage" } } }
+              ]
+            }
+            """;
+
+        var result = ManifestParser.Parse(json);
+
+        result.Success.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("Unsupported schemaVersion 3"));
     }
 
     [Fact]
@@ -83,7 +141,7 @@ public class ManifestParserTests
         const string json = """
             {
               "slicers": [
-                { "engine": "Cura", "builds": { "Linux": { "version": "5.0.0", "assetUrl": "https://example.test/cura.AppImage" } } }
+                { "engine": "Cura", "builds": { "Linux": [ { "version": "5.0.0", "assetUrl": "https://example.test/cura.AppImage" } ] } }
               ]
             }
             """;
@@ -112,12 +170,29 @@ public class ManifestParserTests
     }
 
     [Fact]
+    public void Parse_EmptyPlatformBuildList_ReportsError()
+    {
+        const string json = """
+            {
+              "slicers": [
+                { "engine": "OrcaSlicer", "builds": { "Linux": [] } }
+              ]
+            }
+            """;
+
+        var result = ManifestParser.Parse(json);
+
+        result.Success.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("non-empty array"));
+    }
+
+    [Fact]
     public void Parse_UnknownPlatformKeyInBuilds_ReportsError()
     {
         const string json = """
             {
               "slicers": [
-                { "engine": "OrcaSlicer", "builds": { "FreeBsd": { "version": "2.2.0", "assetUrl": "https://example.test/x" } } }
+                { "engine": "OrcaSlicer", "builds": { "FreeBsd": [ { "version": "2.2.0", "assetUrl": "https://example.test/x" } ] } }
               ]
             }
             """;
@@ -134,7 +209,7 @@ public class ManifestParserTests
         const string json = """
             {
               "slicers": [
-                { "engine": "OrcaSlicer", "builds": { "Linux": { "version": "2.2.0", "assetUrl": "not-a-url" } } }
+                { "engine": "OrcaSlicer", "builds": { "Linux": [ { "version": "2.2.0", "assetUrl": "not-a-url" } ] } }
               ]
             }
             """;
@@ -151,7 +226,7 @@ public class ManifestParserTests
         const string json = """
             {
               "slicers": [
-                { "engine": "OrcaSlicer", "builds": { "Linux": { "assetUrl": "https://example.test/x.AppImage" } } }
+                { "engine": "OrcaSlicer", "builds": { "Linux": [ { "assetUrl": "https://example.test/x.AppImage" } ] } }
               ]
             }
             """;

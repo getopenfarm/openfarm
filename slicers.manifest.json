@@ -1,39 +1,62 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "slicers": [
     {
       "engine": "OrcaSlicer",
       "builds": {
-        "Linux": {
-          "version": "2.4.2",
-          "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage"
-        },
-        "Windows": {
-          "version": "2.3.1",
-          "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Windows_V2.3.1_portable.zip"
-        },
-        "MacOs": {
-          "version": "2.3.1",
-          "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Mac_universal_V2.3.1.dmg"
-        }
+        "Linux": [
+          {
+            "version": "2.4.2",
+            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage",
+            "notes": "Ubuntu 24.04 x86-64 AppImage. Linux slicing compatibility not yet verified."
+          },
+          {
+            "version": "2.3.2",
+            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.2.AppImage",
+            "notes": "Linux slicing compatibility not yet verified (this release segfaults on macOS — see entry notes)."
+          },
+          {
+            "version": "2.3.1",
+            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.1.AppImage"
+          }
+        ],
+        "Windows": [
+          {
+            "version": "2.3.1",
+            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Windows_V2.3.1_portable.zip"
+          }
+        ],
+        "MacOs": [
+          {
+            "version": "2.3.1",
+            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Mac_universal_V2.3.1.dmg",
+            "notes": "Newest working macOS build — 2.3.2 through 2.4.2 segfault here (see entry notes)."
+          }
+        ]
       },
-      "notes": "Linux is pinned to 2.4.2 using the Ubuntu 24.04 x86-64 AppImage. Windows and macOS remain pinned to 2.3.1: versions 2.3.2 through 2.4.2 were observed to segfault (SIGSEGV, exit 139) on macOS in Print::apply() -> update_values_to_printer_extruders_for_multiple_filaments when machine and process settings are loaded together via --load-settings, reproduced with unmodified shipped presets. The crash is in shared slicing-core code; Linux 2.4.2 slicing compatibility has not yet been verified. The upstream repository is OrcaSlicer/OrcaSlicer (previously SoftFever/OrcaSlicer)."
+      "notes": "Versions 2.3.2 through 2.4.2 were observed to segfault (SIGSEGV, exit 139) on macOS in Print::apply() -> update_values_to_printer_extruders_for_multiple_filaments when machine and process settings are loaded together via --load-settings, reproduced with unmodified shipped presets, so macOS (and Windows) stay on 2.3.1. The crash is in shared slicing-core code. The upstream repository is OrcaSlicer/OrcaSlicer (previously SoftFever/OrcaSlicer)."
     },
     {
       "engine": "BambuStudio",
       "builds": {
-        "Linux": {
-          "version": "2.7.1",
-          "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/BambuStudio_ubuntu-24.04-v02.07.01.57-20260601192128.AppImage"
-        },
-        "Windows": {
-          "version": "2.7.1",
-          "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_win-v02.07.01.57-20260601165745.zip"
-        },
-        "MacOs": {
-          "version": "2.7.1",
-          "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_mac-v02.07.01.57-20260601165745.dmg"
-        }
+        "Linux": [
+          {
+            "version": "2.7.1",
+            "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/BambuStudio_ubuntu-24.04-v02.07.01.57-20260601192128.AppImage"
+          }
+        ],
+        "Windows": [
+          {
+            "version": "2.7.1",
+            "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_win-v02.07.01.57-20260601165745.zip"
+          }
+        ],
+        "MacOs": [
+          {
+            "version": "2.7.1",
+            "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_mac-v02.07.01.57-20260601165745.dmg"
+          }
+        ]
       },
       "notes": "\"version\" is the maintainer-chosen display string (FR-005), not the literal upstream release tag — Bambu Studio's actual tag/asset-embedded string for this build is \"02.07.01.57\"; \"2.7.1\" is how Bambu markets it and is what users will see. The download URLs below are explicit literals and don't depend on this field matching the tag. Note: Bambu Studio 2.7.1's macOS CLI was independently confirmed during the OrcaSlicer 2.3.2 investigation to crash the same way (same shared PrusaSlicer-derived codebase) on the equivalent machine+process combination — not yet re-pinned to an older version because no working Bambu Studio version has been bisected yet; treat it as similarly suspect."
     }

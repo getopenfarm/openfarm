@@ -1,32 +1,3 @@
 {
-  "entries": [
-    {
-      "engine": "OrcaSlicer",
-      "version": "2.4.2",
-      "platform": "Linux",
-      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage",
-      "sha256": "d12fb8c8eac1aecd2dfb6377acd48f994f8fa439ed5292fa532dd82880f029fd"
-    },
-    {
-      "engine": "OrcaSlicer",
-      "version": "2.3.1",
-      "platform": "MacOs",
-      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Mac_universal_V2.3.1.dmg",
-      "sha256": "c249b58647bb85b55b0dd6560010974e9791458bb850c464c5a69f0499edb371"
-    },
-    {
-      "engine": "BambuStudio",
-      "version": "2.7.1",
-      "platform": "Linux",
-      "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/BambuStudio_ubuntu-24.04-v02.07.01.57-20260601192128.AppImage",
-      "sha256": "85b053853f1a238775cd7ae2d4d19544e35260592428d2276ca27dcbd5f8eb53"
-    },
-    {
-      "engine": "BambuStudio",
-      "version": "2.7.1",
-      "platform": "MacOs",
-      "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/Bambu_Studio_mac-v02.07.01.57-20260601165745.dmg",
-      "sha256": "ef7d2b4b693fae95fef6caee40787d86ca90081251882a55c367b85c6dfc00a9"
-    }
-  ]
+  "entries": []
 }

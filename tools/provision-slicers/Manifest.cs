@@ -17,20 +17,20 @@ public enum Platform
 }
 
 /// <summary>
-/// One platform's pinned <c>(version, download URL)</c> for an engine (contracts/slicer-manifest.schema.json).
-/// Platforms are independent — different platforms commonly need different versions pinned, e.g.
-/// because a given release regressed on only one platform.
+/// One pinned <c>(version, download URL)</c> build of an engine for a platform
+/// (contracts/slicer-manifest.schema.json), with an optional note explaining that particular pin.
 /// </summary>
-public sealed record PlatformBuild(string Version, string AssetUrl);
+public sealed record PlatformBuild(string Version, string AssetUrl, string? Notes = null);
 
 /// <summary>
-/// One maintainer-declared desired engine entry, with a per-platform pinned version + exact download
-/// URL for each platform it should be fetched for (contracts/slicer-manifest.schema.json). The tool
+/// One maintainer-declared engine, grouped engine → platform → versions (schemaVersion 4): each
+/// platform carries its own list of pinned builds, because platforms commonly need different version
+/// sets (e.g. a release that regressed only on macOS is left out of that platform's list). The tool
 /// never derives/guesses an asset URL from a naming pattern — each engine's release asset naming can
 /// and does change between versions, so the manifest is the sole source of truth for where to download
 /// from; a maintainer copies the real link from the engine's GitHub releases page.
 /// </summary>
-public sealed record SlicerManifestEntry(Engine Engine, IReadOnlyDictionary<Platform, PlatformBuild> Builds, string? Notes);
+public sealed record SlicerManifestEntry(Engine Engine, IReadOnlyDictionary<Platform, IReadOnlyList<PlatformBuild>> Builds, string? Notes);
 
 /// <summary>The full parsed manifest — the desired bundle state (research.md §8).</summary>
 public sealed record SlicerManifest(int SchemaVersion, IReadOnlyList<SlicerManifestEntry> Slicers);
