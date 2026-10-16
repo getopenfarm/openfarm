@@ -340,9 +340,7 @@ describe('FilamentFormPage', () => {
   it('shows existing filament details and variants in edit mode', async () => {
     renderEditPage('f-1');
 
-    expect(
-      await screen.findByText(/Prusament · PLA/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Prusament · PLA/)).toBeInTheDocument();
     expect(screen.getByText('Variants (1)')).toBeInTheDocument();
     expect(screen.getByText('Galaxy Black')).toBeInTheDocument();
   });

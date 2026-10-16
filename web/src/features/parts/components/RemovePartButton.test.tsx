@@ -40,11 +40,14 @@ function noticeToast() {
   );
 }
 async function findNoticeToast() {
-  return waitFor(() => {
-    const node = noticeToast();
-    if (!node) throw new Error('Waiting for removal toast');
-    return node;
-  });
+  return waitFor(
+    () => {
+      const node = noticeToast();
+      if (!node) throw new Error('Waiting for removal toast');
+      return node;
+    },
+    { timeout: 3000 },
+  );
 }
 
 function setup(
@@ -88,8 +91,13 @@ async function confirm() {
     await screen.findByRole('button', { name: 'Remove part' }),
   );
 }
-afterEach(() => {
+afterEach(async () => {
   toast.dismiss();
+  // Sonner dismisses via rAF + setTimeout; let them settle so they cannot
+  // leak into the next test's Toaster.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -120,9 +128,9 @@ describe('RemovePartButton eligibility pipeline', () => {
     expect(
       await screen.findByText('Cannot remove Bracket'),
     ).toBeInTheDocument();
-    expect(noticeToast()).toHaveAttribute('data-type', 'warning');
+    expect(await findNoticeToast()).toHaveAttribute('data-type', 'warning');
     expect(
-      noticeToast()?.querySelector('[data-description]'),
+      (await findNoticeToast()).querySelector('[data-description]'),
     ).not.toHaveTextContent('Bracket');
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(
@@ -158,7 +166,7 @@ describe('RemovePartButton eligibility pipeline', () => {
     );
     await open();
     expect(await findNoticeToast()).toHaveTextContent('Could not check part.');
-    expect(noticeToast()).toHaveAttribute('data-type', 'error');
+    expect(await findNoticeToast()).toHaveAttribute('data-type', 'error');
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     failed = false;
     expect(
