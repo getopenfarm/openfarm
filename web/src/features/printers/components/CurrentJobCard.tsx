@@ -1,3 +1,4 @@
+import { EmptyState } from '@/components/empty-state/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import type { PrinterDetailTelemetryResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -61,9 +62,7 @@ export function CurrentJobCard({ telemetry }: CurrentJobCardProps) {
             </div>
           </div>
         ) : (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No active print
-          </p>
+          <EmptyState size="sm" bordered={false} title="No active print" />
         )}
       </CardContent>
     </Card>
