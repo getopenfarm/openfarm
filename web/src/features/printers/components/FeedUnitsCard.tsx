@@ -23,7 +23,7 @@ import {
 import { formatGrams } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import { feedSlotView, normalizeFilamentColor } from '../lib/feedSlotView';
-import { selectReloaderChannel } from '../lib/reloaderApi';
+import { selectReloaderSlot } from '../lib/reloaderApi';
 import { AddFeedUnitDialog } from './AddFeedUnitDialog';
 
 export interface FeedUnitsCardProps {
@@ -68,7 +68,7 @@ function FeedSlotRow({
   );
   const queryClient = useQueryClient();
   const slotMutation = useMutation({
-    mutationFn: () => selectReloaderChannel(unit.id ?? '', slot.id ?? ''),
+    mutationFn: () => selectReloaderSlot(unit.id ?? '', slot.id ?? ''),
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: [`/api/v1/printers/${unitPrinterId}/feed-units`],

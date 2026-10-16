@@ -26,10 +26,10 @@ public sealed class ConfigureReloaderCommandHandler(IFeedUnitRepository units,
     }
 }
 
-public sealed class SelectReloaderChannelCommandHandler(IFeedUnitRepository units, IFilamentTrackingEventPublisher events)
-    : ICommandHandler<SelectReloaderChannelCommand, FeedUnit>
+public sealed class SelectReloaderSlotCommandHandler(IFeedUnitRepository units, IFilamentTrackingEventPublisher events)
+    : ICommandHandler<SelectReloaderSlotCommand, FeedUnit>
 {
-    public async Task<FeedUnit> HandleAsync(SelectReloaderChannelCommand command, CancellationToken cancellationToken)
+    public async Task<FeedUnit> HandleAsync(SelectReloaderSlotCommand command, CancellationToken cancellationToken)
     {
         var printerId = await units.GetPrinterIdAsync(command.FeedUnitId, cancellationToken)
             ?? throw new FeedUnitNotFoundException(command.FeedUnitId);

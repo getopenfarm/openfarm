@@ -35,7 +35,7 @@ public sealed class ConfigureReloaderEndpoint(
     }
 }
 
-public sealed class SelectReloaderChannelRequest : IActivityLoggable
+public sealed class SelectReloaderSlotRequest : IActivityLoggable
 {
     public Guid Id { get; set; }
     public Guid? FeedingSlotId { get; set; }
@@ -44,16 +44,16 @@ public sealed class SelectReloaderChannelRequest : IActivityLoggable
 }
 
 [Permission("feed-units:configure")]
-public sealed class SelectReloaderChannelEndpoint(
-    OpenFarm.Application.Common.ICommandHandler<SelectReloaderChannelCommand, FeedUnit> handler)
-    : Endpoint<SelectReloaderChannelRequest>
+public sealed class SelectReloaderSlotEndpoint(
+    OpenFarm.Application.Common.ICommandHandler<SelectReloaderSlotCommand, FeedUnit> handler)
+    : Endpoint<SelectReloaderSlotRequest>
 {
     public override void Configure()
     {
-        Put("/api/v1/feed-units/{id}/feeding-channel");
+        Put("/api/v1/feed-units/{id}/feeding-slot");
         Policies("Permission");
     }
-    public override async Task HandleAsync(SelectReloaderChannelRequest req, CancellationToken ct)
+    public override async Task HandleAsync(SelectReloaderSlotRequest req, CancellationToken ct)
     {
         req.Id = Route<Guid>("id");
         await handler.HandleAsync(new(req.Id, req.FeedingSlotId), ct);

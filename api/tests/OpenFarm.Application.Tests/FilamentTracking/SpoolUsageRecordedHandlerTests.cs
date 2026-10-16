@@ -153,7 +153,7 @@ public class SpoolUsageRecordedHandlerTests
     }
 
     [Fact]
-    public async Task Reloader_StandbyDepletion_DoesNotChangeFeedingChannel()
+    public async Task Reloader_StandbyDepletion_DoesNotChangeFeedingSlot()
     {
         var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
         CreateUsingSpool(Guid.NewGuid(), slots[0]);
@@ -165,7 +165,7 @@ public class SpoolUsageRecordedHandlerTests
     }
 
     [Fact]
-    public async Task Reloader_ChannelTwoDepletion_ContinuesBackToChannelOne()
+    public async Task Reloader_SlotTwoDepletion_ContinuesBackToSlotOne()
     {
         var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
         unit.SelectFeedingSlot(slots[1].Id);
@@ -251,7 +251,7 @@ public class SpoolUsageRecordedHandlerTests
     }
 
     [Fact]
-    public async Task UnloadFeedingChannel_ClearsSelectionWithoutAssumingSwitch()
+    public async Task UnloadFeedingSlot_ClearsSelectionWithoutAssumingSwitch()
     {
         var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
         var spool = CreateUsingSpool(Guid.NewGuid(), slots[0]);

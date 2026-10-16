@@ -68,7 +68,7 @@ public sealed class AddFeedUnitCommandHandler(
 
         var startingSlot = command.StartingSlotPosition is { } startingPosition
             ? unit.FeedSlots.FirstOrDefault(s => s.SlotPosition == startingPosition)
-                ?? throw new InvalidReloaderConfigurationException("Invalid starting channel.")
+                ?? throw new InvalidReloaderConfigurationException("Invalid starting slot.")
             : null;
         await configuration.ApplyAsync(unit, existingUnits, replacesFeedUnitId, startingSlot?.Id,
             command.TransferExternalSpool, cancellationToken);

@@ -60,7 +60,7 @@ public sealed class FeedUnit
     {
         EnsureConfigurable();
         if (slotId is not null && !_feedSlots.Any(s => s.Id == slotId && s.DeactivatedAtUtc is null))
-            throw new InvalidReloaderConfigurationException("The feeding channel must be an active slot of this reloader.");
+            throw new InvalidReloaderConfigurationException("The feeding slot must be an active slot of this reloader.");
         FeedingSlotId = slotId;
         FeedingSelectionSource = slotId is null ? null : estimated ? "Estimated" : "Operator";
     }

@@ -15,7 +15,7 @@ Remove atomically returns registered spools to `InStorage`, preserves remaining 
 - `GET /api/v1/printers/{printerId}/feed-units`: optional `includeHidden` and `includeArchived` query flags, both false by default. Configuration requests hidden ports without including archived units.
 - `POST /api/v1/printers/{printerId}/feed-units`: existing reloader fields plus optional `startingSlotPosition` (zero-based) and `transferExternalSpool` (default true). The UI always supplies the starting slot; older clients omitting it create an unset selection. Slot count is 1–100.
 - `PUT /api/v1/feed-units/{id}/configuration`: `{ replacesFeedUnitId, feedingSlotId, transferExternalSpool }`. Null replacement means an independent path; null selection means unknown. This is a full configuration update.
-- `PUT /api/v1/feed-units/{id}/feeding-channel`: `{ feedingSlotId }`, nullable to clear selection. Records operator selection without moving inventory.
+- `PUT /api/v1/feed-units/{id}/feeding-slot`: `{ feedingSlotId }`, nullable to clear selection. Records operator selection without moving inventory.
 - Feed-unit responses add `archivedAtUtc`, `feedingSlotId`, and `feedingSelectionSource`. Creation responses return selection state.
 - Printer detail and `PrinterTelemetryUpdated` add `externalSpoolTray`. Live readings update the detail cache; only changes in external-port presence or AMS topology trigger topology refetches.
 - New mutations use `feed-units:configure` permission and activity logging; `FeedUnitsChanged` invalidates feed-unit and spool caches after persistence.

@@ -6,7 +6,7 @@ namespace OpenFarm.Domain.Tests.FilamentTracking;
 public class ProductionFeedPathTests
 {
     [Fact]
-    public void ReloaderUsesSelectedChannelAndSupersedesItsExternalPort()
+    public void ReloaderUsesSelectedSlotAndSupersedesItsExternalPort()
     {
         var org = Guid.NewGuid(); var printer = Guid.NewGuid();
         var port = FeedUnit.CreateConnectorDerived(org, printer, FeedUnitKindCatalog.ExternalSpool, 0);

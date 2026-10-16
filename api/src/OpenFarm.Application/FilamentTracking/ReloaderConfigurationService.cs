@@ -15,12 +15,12 @@ public sealed class ReloaderConfigurationService(ISpoolRepository spools)
             && u.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader && u.ReplacesFeedUnitId == target.Id))
             throw new InvalidReloaderConfigurationException("This external port already has an active replacement.");
         if (feedingSlotId is not null && !unit.FeedSlots.Any(s => s.Id == feedingSlotId && s.DeactivatedAtUtc is null))
-            throw new InvalidReloaderConfigurationException("Select an active channel of this reloader.");
+            throw new InvalidReloaderConfigurationException("Select an active slot of this reloader.");
         var externalSpool = target is null ? null : (await spools.FindLoadedInFeedUnitAsync(target.Id, ct)).SingleOrDefault();
         if (externalSpool is not null && transferExternalSpool)
         {
             if (feedingSlotId is null)
-                throw new InvalidReloaderConfigurationException("Select a starting channel to transfer the external spool.");
+                throw new InvalidReloaderConfigurationException("Select a starting slot to transfer the external spool.");
             if (await spools.FindUsingFeedSlotAsync(feedingSlotId.Value, ct) is not null)
                 throw new FeedSlotOccupiedException(feedingSlotId.Value);
         }
@@ -37,4 +37,4 @@ public sealed class ReloaderConfigurationService(ISpoolRepository spools)
 
 public sealed record ConfigureReloaderCommand(Guid FeedUnitId, Guid? ReplacesFeedUnitId,
     Guid? FeedingSlotId, bool TransferExternalSpool = true);
-public sealed record SelectReloaderChannelCommand(Guid FeedUnitId, Guid? FeedingSlotId);
+public sealed record SelectReloaderSlotCommand(Guid FeedUnitId, Guid? FeedingSlotId);

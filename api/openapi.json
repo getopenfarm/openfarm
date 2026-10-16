@@ -3829,12 +3829,12 @@
         ]
       }
     },
-    "/api/v1/feed-units/{id}/feeding-channel": {
+    "/api/v1/feed-units/{id}/feeding-slot": {
       "put": {
         "tags": [
           "Feed-Units"
         ],
-        "operationId": "OpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint",
+        "operationId": "OpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint",
         "parameters": [
           {
             "name": "id",
@@ -3847,12 +3847,12 @@
           }
         ],
         "requestBody": {
-          "x-name": "SelectReloaderChannelRequest",
+          "x-name": "SelectReloaderSlotRequest",
           "description": "",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SelectReloaderChannelRequest"
+                "$ref": "#/components/schemas/SelectReloaderSlotRequest"
               }
             }
           },
@@ -8143,7 +8143,7 @@
           }
         }
       },
-      "SelectReloaderChannelRequest": {
+      "SelectReloaderSlotRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {

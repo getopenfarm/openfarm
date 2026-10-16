@@ -305,7 +305,7 @@ builder.Services.AddScoped<AddFeedUnitHandlerType, AddFeedUnitCommandHandler>();
 builder.Services.AddScoped<RemoveFeedUnitHandlerType, RemoveFeedUnitCommandHandler>();
 builder.Services.AddScoped<ReloaderConfigurationService>();
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<ConfigureReloaderCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>, ConfigureReloaderCommandHandler>();
-builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SelectReloaderChannelCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>, SelectReloaderChannelCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SelectReloaderSlotCommand, OpenFarm.Domain.FilamentTracking.FeedUnit>, SelectReloaderSlotCommandHandler>();
 
 builder.Services.Configure<PartFileStorageOptions>(builder.Configuration.GetSection(PartFileStorageOptions.SectionName));
 builder.Services.Configure<SlicerOptions>(builder.Configuration.GetSection(SlicerOptions.SectionName));

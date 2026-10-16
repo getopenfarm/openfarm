@@ -15,7 +15,7 @@ import { useMutation } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
   ConfigureReloaderRequest,
-  SelectReloaderChannelRequest,
+  SelectReloaderSlotRequest,
 } from '../endpoints.schemas';
 
 export type openFarmApiEndpointsFeedUnitsConfigureReloaderEndpointResponse204 =
@@ -164,86 +164,84 @@ export const useOpenFarmApiEndpointsFeedUnitsConfigureReloaderEndpoint = <
     queryClient,
   );
 };
-export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse204 =
+export type openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse204 =
   {
     data: void;
     status: 204;
   };
 
-export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse401 =
+export type openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse401 =
   {
     data: void;
     status: 401;
   };
 
-export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse403 =
+export type openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse403 =
   {
     data: void;
     status: 403;
   };
 
-export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponseSuccess =
-  openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse204 & {
+export type openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponseSuccess =
+  openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse204 & {
     headers: Headers;
   };
-export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponseError =
+export type openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponseError =
   (
-    | openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse401
-    | openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse403
+    | openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse401
+    | openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse403
   ) & {
     headers: Headers;
   };
 
-export type openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse =
-  | openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponseSuccess
-  | openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponseError;
+export type openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse =
+  | openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponseSuccess
+  | openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponseError;
 
-export const getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointUrl =
-  (id: string) => {
-    return `/api/v1/feed-units/${id}/feeding-channel`;
-  };
+export const getOpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/feed-units/${id}/feeding-slot`;
+};
 
-export const openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint =
-  async (
-    id: string,
-    selectReloaderChannelRequest: SelectReloaderChannelRequest,
-    options?: RequestInit,
-  ): Promise<openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse> => {
-    return httpClient<openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointResponse>(
-      getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointUrl(id),
-      {
-        ...options,
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(selectReloaderChannelRequest),
-      },
-    );
-  };
+export const openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint = async (
+  id: string,
+  selectReloaderSlotRequest: SelectReloaderSlotRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointResponse>(
+    getOpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointUrl(id),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(selectReloaderSlotRequest),
+    },
+  );
+};
 
-export const getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationOptions =
+export const getOpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointMutationOptions =
   <TError = void, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+          typeof openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint
         >
       >,
       TError,
-      { id: string; data: SelectReloaderChannelRequest },
+      { id: string; data: SelectReloaderSlotRequest },
       TContext
     >;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
-      >
+      ReturnType<typeof openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint>
     >,
     TError,
-    { id: string; data: SelectReloaderChannelRequest },
+    { id: string; data: SelectReloaderSlotRequest },
     TContext
   > => {
     const mutationKey = [
-      'openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint',
+      'openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint',
     ];
     const { mutation: mutationOptions } = options
       ? options.mutation &&
@@ -256,36 +254,31 @@ export const getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutati
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+          typeof openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint
         >
       >,
-      { id: string; data: SelectReloaderChannelRequest }
+      { id: string; data: SelectReloaderSlotRequest }
     > = (props) => {
       const { id, data } = props ?? {};
 
-      return openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint(
-        id,
-        data,
-      );
+      return openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint(id, data);
     };
 
     return { mutationFn, ...mutationOptions };
   };
 
-export type OpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationResult =
+export type OpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
-      >
+      ReturnType<typeof openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint>
     >
   >;
-export type OpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationBody =
-  SelectReloaderChannelRequest;
-export type OpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationError =
+export type OpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointMutationBody =
+  SelectReloaderSlotRequest;
+export type OpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointMutationError =
   void;
 
-export const useOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint = <
+export const useOpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint = <
   TError = void,
   TContext = unknown,
 >(
@@ -293,27 +286,25 @@ export const useOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint = <
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
+          typeof openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint
         >
       >,
       TError,
-      { id: string; data: SelectReloaderChannelRequest },
+      { id: string; data: SelectReloaderSlotRequest },
       TContext
     >;
   },
   queryClient?: QueryClient,
 ): UseMutationResult<
   Awaited<
-    ReturnType<
-      typeof openFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpoint
-    >
+    ReturnType<typeof openFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpoint>
   >,
   TError,
-  { id: string; data: SelectReloaderChannelRequest },
+  { id: string; data: SelectReloaderSlotRequest },
   TContext
 > => {
   return useMutation(
-    getOpenFarmApiEndpointsFeedUnitsSelectReloaderChannelEndpointMutationOptions(
+    getOpenFarmApiEndpointsFeedUnitsSelectReloaderSlotEndpointMutationOptions(
       options,
     ),
     queryClient,

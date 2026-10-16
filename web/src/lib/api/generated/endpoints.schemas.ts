@@ -1409,7 +1409,7 @@ export interface ConfigureReloaderRequest {
   transferExternalSpool?: boolean;
 }
 
-export interface SelectReloaderChannelRequest {
+export interface SelectReloaderSlotRequest {
   /** @nullable */
   feedingSlotId?: string | null;
 }

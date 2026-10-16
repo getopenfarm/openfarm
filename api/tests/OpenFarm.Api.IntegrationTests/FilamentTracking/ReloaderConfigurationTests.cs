@@ -47,7 +47,7 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
     }
 
     [Fact]
-    public async Task Replacement_TransfersRegisteredExternalSpool_AndRoutesDetectionToOneChannel()
+    public async Task Replacement_TransfersRegisteredExternalSpool_AndRoutesDetectionToOneSlot()
     {
         var (client, printerId, external) = await SetupAsync();
         var spoolId = await RegisterSpoolAsync(client, await CreateFilamentVariantAsync(client));
@@ -90,7 +90,7 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
     }
 
     [Fact]
-    public async Task Removal_ReleasesPort_AndRejectsStaleChannelMutations()
+    public async Task Removal_ReleasesPort_AndRejectsStaleSlotMutations()
     {
         var (client, printerId, external) = await SetupAsync();
         var reloader = await AddAsync(client, printerId, external.Id);
@@ -99,7 +99,7 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
         all!.FeedUnits.Single(u => u.Id == external.Id).SupersededByFeedUnitId.Should().NotBe(reloader.Id);
         var next = await AddAsync(client, printerId, external.Id);
         next.Id.Should().NotBe(reloader.Id);
-        var selection = await client.PutAsJsonAsync(new Uri($"/api/v1/feed-units/{reloader.Id}/feeding-channel", UriKind.Relative), new { feedingSlotId = reloader.FeedSlots[0].Id });
+        var selection = await client.PutAsJsonAsync(new Uri($"/api/v1/feed-units/{reloader.Id}/feeding-slot", UriKind.Relative), new { feedingSlotId = reloader.FeedSlots[0].Id });
         selection.StatusCode.Should().Be((HttpStatusCode)422);
         var spoolId = await RegisterSpoolAsync(client, await CreateFilamentVariantAsync(client));
         var load = await client.PutAsJsonAsync(new Uri($"/api/v1/spools/{spoolId}/load", UriKind.Relative), new { feedSlotId = reloader.FeedSlots[0].Id });
@@ -130,7 +130,7 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
         responses.Count(r => r.StatusCode == (HttpStatusCode)422 || r.StatusCode == HttpStatusCode.Conflict).Should().Be(1);
     }
     [Fact]
-    public async Task ProductionMaterials_UseOnlySelectedReloaderChannel()
+    public async Task ProductionMaterials_UseOnlySelectedReloaderSlot()
     {
         var (client, printerId, _) = await SetupAsync();
         var reloader = await AddAsync(client, printerId);
@@ -147,7 +147,7 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
             materials.Should().HaveCount(1);
             materials[0].ColorHex.Should().Be("#111111");
         }
-        (await client.PutAsJsonAsync(new Uri($"/api/v1/feed-units/{reloader.Id}/feeding-channel", UriKind.Relative), new { feedingSlotId = reloader.FeedSlots[1].Id })).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync(new Uri($"/api/v1/feed-units/{reloader.Id}/feeding-slot", UriKind.Relative), new { feedingSlotId = reloader.FeedSlots[1].Id })).EnsureSuccessStatusCode();
         await factory.EnsureTenantInfoResolvedAsync();
         using (var scope = factory.CreateTenantScope())
         {
