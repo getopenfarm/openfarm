@@ -13,8 +13,6 @@ public sealed class EditNonPrintedComponentRequest : IActivityLoggable
 
     public string Name { get; set; } = string.Empty;
 
-    public string Unit { get; set; } = string.Empty;
-
     public decimal? UnitCost { get; set; }
 
     public string EntityType => "NonPrintedComponent";
@@ -27,7 +25,6 @@ public sealed class EditNonPrintedComponentRequestValidator : AbstractValidator<
     public EditNonPrintedComponentRequestValidator()
     {
         RuleFor(x => x.Name).NotEmpty();
-        RuleFor(x => x.Unit).NotEmpty();
     }
 }
 
@@ -45,7 +42,7 @@ public sealed class EditNonPrintedComponentEndpoint(EditNonPrintedComponentHandl
     public override async Task HandleAsync(EditNonPrintedComponentRequest req, CancellationToken ct)
     {
         req.Id = Route<Guid>("id");
-        var component = await handler.HandleAsync(new EditNonPrintedComponentCommand(req.Id, req.Name, req.Unit, req.UnitCost), ct);
+        var component = await handler.HandleAsync(new EditNonPrintedComponentCommand(req.Id, req.Name, req.UnitCost), ct);
 
         Response = NonPrintedComponentResponse.FromDomain(component);
     }

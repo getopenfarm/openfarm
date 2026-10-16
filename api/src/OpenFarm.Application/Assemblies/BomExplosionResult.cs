@@ -11,4 +11,4 @@ public sealed record BomExplosionResult(
 
 public sealed record ExplodedPartQuantity(Guid PartId, string PartName, decimal Quantity);
 
-public sealed record ExplodedNonPrintedComponentQuantity(Guid NonPrintedComponentId, string Name, string Unit, decimal Quantity);
+public sealed record ExplodedNonPrintedComponentQuantity(Guid NonPrintedComponentId, string Name, decimal Quantity);

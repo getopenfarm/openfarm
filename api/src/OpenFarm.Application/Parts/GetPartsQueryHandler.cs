@@ -19,7 +19,7 @@ public sealed class GetPartsQueryHandler(IPartRepository partRepository) : IQuer
                 .Distinct()
                 .ToList();
 
-            var catalogThumbnail = part.Thumbnails.FirstOrDefault(t => t.PlateIndex == 0);
+            var catalogThumbnail = part.Thumbnails.OrderBy(t => t.PlateIndex).FirstOrDefault();
 
             return new PartSummary(
                 part.Id,
@@ -33,7 +33,7 @@ public sealed class GetPartsQueryHandler(IPartRepository partRepository) : IQuer
                 catalogThumbnail is null ? null : Convert.ToBase64String(catalogThumbnail.Bytes),
                 materialTypes,
                 part.Tags.Select(t => t.Name).ToList(),
-                part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation);
+                part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation, part.UnitsPerPrint);
         }).ToList();
 
         return new PartsPage(summaries, totalCount);

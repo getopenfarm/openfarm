@@ -1,25 +1,33 @@
-import { PlusIcon, TrashIcon } from 'lucide-react';
-import { useState } from 'react';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import {
+  BoxesIcon,
+  ChevronRightIcon,
+  ImageOffIcon,
+  MinusIcon,
+  NutIcon,
+  PlusIcon,
+  XIcon,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useOpenFarmApiEndpointsAssembliesListAssembliesEndpoint } from '@/lib/api/generated/assemblies/assemblies';
-import type {
-  ListAssembliesResponse,
-  ListNonPrintedComponentsResponse,
-  ListPartsResponse,
-} from '@/lib/api/generated/endpoints.schemas';
-import { useOpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpoint } from '@/lib/api/generated/non-printed-components/non-printed-components';
-import { useOpenFarmApiEndpointsPartsListPartsEndpoint } from '@/lib/api/generated/parts/parts';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useOpenFarmApiEndpointsAssembliesGetAssemblyEndpoint } from '@/lib/api/generated/assemblies/assemblies';
+import { cn } from '@/lib/utils';
+import { type BomCatalog, useBomCatalog } from './useBomCatalog';
 
 export type BomLineTargetKind = 'Part' | 'Assembly' | 'NonPrintedComponent';
 
@@ -34,20 +42,52 @@ export interface EditableLine {
   quantity: number;
 }
 
-const TARGET_KIND_LABELS: Record<BomLineTargetKind, string> = {
+const KIND_LABELS: Record<BomLineTargetKind, string> = {
   Part: 'Part',
   Assembly: 'Assembly',
-  NonPrintedComponent: 'Non-printed component',
+  NonPrintedComponent: 'Component',
 };
 
-function wholeNumberQuantityFor(kind: BomLineTargetKind) {
-  return kind !== 'NonPrintedComponent';
+function LineThumb({
+  kind,
+  thumbnail,
+  className,
+}: {
+  kind: BomLineTargetKind;
+  thumbnail?: string | null;
+  className?: string;
+}) {
+  const Icon =
+    kind === 'Assembly'
+      ? BoxesIcon
+      : kind === 'NonPrintedComponent'
+        ? NutIcon
+        : ImageOffIcon;
+  return (
+    <div
+      className={cn(
+        'flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground',
+        kind === 'Assembly' && 'bg-primary/10 text-primary',
+        className,
+      )}
+    >
+      {thumbnail ? (
+        <img
+          src={`data:image/png;base64,${thumbnail}`}
+          alt=""
+          className="size-full object-contain"
+        />
+      ) : (
+        <Icon className="size-4" />
+      )}
+    </div>
+  );
 }
 
 interface BomLineEditorProps {
   lines: EditableLine[];
   onChange: (lines: EditableLine[]) => void;
-  /** Excludes this assembly from the Assembly-target picker (edit mode — a self-reference is always rejected server-side, but hiding it is better UX). */
+  /** Excludes this assembly from the picker (edit mode — a self-reference is always rejected server-side, but hiding it is better UX). */
   excludeAssemblyId?: string;
 }
 
@@ -56,180 +96,370 @@ export function BomLineEditor({
   onChange,
   excludeAssemblyId,
 }: BomLineEditorProps) {
-  const [draftKind, setDraftKind] = useState<BomLineTargetKind>('Part');
-  const [draftTargetId, setDraftTargetId] = useState('');
-  const [draftQuantity, setDraftQuantity] = useState('1');
+  const catalog = useBomCatalog(excludeAssemblyId);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const partsQuery = useOpenFarmApiEndpointsPartsListPartsEndpoint({
-    page: 1,
-    pageSize: 500,
-  });
-  const parts =
-    (partsQuery.data?.data as ListPartsResponse | undefined)?.parts ?? [];
-
-  const assembliesQuery =
-    useOpenFarmApiEndpointsAssembliesListAssembliesEndpoint({
-      page: 1,
-      pageSize: 500,
-    });
-  const assemblies = (
-    (assembliesQuery.data?.data as ListAssembliesResponse | undefined)?.items ??
-    []
-  ).filter((a) => a.id !== excludeAssemblyId);
-
-  const componentsQuery =
-    useOpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpoint(
-      { page: 1, pageSize: 500 },
+  function handlePick(kind: BomLineTargetKind, id: string, name: string) {
+    const existing = lines.find(
+      (l) => l.targetKind === kind && l.targetId === id,
     );
-  const components =
-    (componentsQuery.data?.data as ListNonPrintedComponentsResponse | undefined)
-      ?.items ?? [];
-
-  const draftOptions =
-    draftKind === 'Part'
-      ? parts.map((p) => ({ id: p.id ?? '', name: p.name ?? '' }))
-      : draftKind === 'Assembly'
-        ? assemblies.map((a) => ({ id: a.id ?? '', name: a.name ?? '' }))
-        : components.map((c) => ({ id: c.id ?? '', name: c.name ?? '' }));
-
-  function resetDraft() {
-    setDraftTargetId('');
-    setDraftQuantity('1');
-  }
-
-  function handleAdd() {
-    const quantity = Number(draftQuantity);
-    if (!draftTargetId || Number.isNaN(quantity) || quantity <= 0) return;
-    if (
-      lines.some(
-        (l) => l.targetKind === draftKind && l.targetId === draftTargetId,
-      )
-    ) {
+    if (existing) {
+      const quantity = existing.quantity + 1;
+      onChange(
+        lines.map((l) => (l.key === existing.key ? { ...l, quantity } : l)),
+      );
+      toast(`${name} already listed. Qty now ${quantity}.`);
       return;
     }
-
-    const option = draftOptions.find((o) => o.id === draftTargetId);
     onChange([
       ...lines,
       {
         key: `new-${crypto.randomUUID()}`,
-        targetKind: draftKind,
-        targetId: draftTargetId,
-        targetName: option?.name ?? '',
-        quantity,
+        targetKind: kind,
+        targetId: id,
+        targetName: name,
+        quantity: 1,
       },
     ]);
-    resetDraft();
   }
 
-  function handleQuantityChange(key: string, value: string) {
-    const quantity = Number(value);
+  function setQuantity(key: string, quantity: number) {
     onChange(lines.map((l) => (l.key === key ? { ...l, quantity } : l)));
   }
 
-  function handleRemove(key: string) {
-    onChange(lines.filter((l) => l.key !== key));
+  function toggle(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <section
+      aria-labelledby="bom-structure-heading"
+      className="rounded-lg border bg-card"
+    >
+      <div className="flex items-center gap-3 border-b px-4 py-3">
+        <h3 id="bom-structure-heading" className="font-medium">
+          Structure
+        </h3>
+        <span className="text-sm text-muted-foreground tabular-nums">
+          {lines.length} {lines.length === 1 ? 'line' : 'lines'}
+        </span>
+        <AddLinePicker catalog={catalog} onPick={handlePick} />
+      </div>
+
       {lines.length === 0 ? (
-        <EmptyState size="sm" bordered={false} title="No lines" />
+        <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
+          <p className="font-medium">No lines</p>
+          <p className="text-sm text-muted-foreground">
+            Add parts, sub-assemblies, or components. Press{' '}
+            <kbd className="rounded border bg-muted px-1 text-xs">/</kbd> to
+            search.
+          </p>
+        </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {lines.map((line) => (
-            <div
-              key={line.key}
-              className="flex items-center gap-2 rounded-md border p-2"
-            >
-              <span className="w-40 shrink-0 text-xs text-muted-foreground">
-                {TARGET_KIND_LABELS[line.targetKind]}
-              </span>
-              <span className="flex-1 truncate text-sm font-medium">
-                {line.targetName || line.targetId}
-              </span>
-              <Input
-                type="number"
-                min={wholeNumberQuantityFor(line.targetKind) ? 1 : 0.001}
-                step={wholeNumberQuantityFor(line.targetKind) ? 1 : 'any'}
-                value={line.quantity}
-                onChange={(e) => handleQuantityChange(line.key, e.target.value)}
-                className="w-24"
-                aria-label={`Quantity for ${line.targetName}`}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemove(line.key)}
-                aria-label={`Remove ${line.targetName}`}
-              >
-                <TrashIcon data-icon="inline-start" className="" />
-              </Button>
-            </div>
-          ))}
-        </div>
+        <ul className="divide-y">
+          {lines.map((line) => {
+            const isAssembly = line.targetKind === 'Assembly';
+            const isOpen = expanded.has(line.key);
+            const name = line.targetName || line.targetId;
+            return (
+              <li key={line.key}>
+                <div className="flex items-center gap-3 px-2 py-2 sm:px-3">
+                  {isAssembly ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-expanded={isOpen}
+                      aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${name}`}
+                      onClick={() => toggle(line.key)}
+                    >
+                      <ChevronRightIcon
+                        className={cn(
+                          'transition-transform motion-reduce:transition-none',
+                          isOpen && 'rotate-90',
+                        )}
+                      />
+                    </Button>
+                  ) : (
+                    <span className="size-7 shrink-0" />
+                  )}
+                  <LineThumb
+                    kind={line.targetKind}
+                    thumbnail={catalog.thumbnailFor(line.targetId)}
+                  />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span
+                      title={name}
+                      className="line-clamp-2 text-sm font-medium break-words"
+                    >
+                      {name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {KIND_LABELS[line.targetKind]}
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Decrease ${name}`}
+                      disabled={line.quantity <= 1}
+                      onClick={() => setQuantity(line.key, line.quantity - 1)}
+                    >
+                      <MinusIcon />
+                    </Button>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={line.quantity}
+                      onChange={(e) =>
+                        setQuantity(line.key, Number(e.target.value))
+                      }
+                      className="h-8 w-16 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      aria-label={`Quantity for ${name}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Increase ${name}`}
+                      onClick={() => setQuantity(line.key, line.quantity + 1)}
+                    >
+                      <PlusIcon />
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() =>
+                      onChange(lines.filter((l) => l.key !== line.key))
+                    }
+                    aria-label={`Remove ${name}`}
+                  >
+                    <XIcon />
+                  </Button>
+                </div>
+                {isAssembly && isOpen && (
+                  <SubAssemblyLines
+                    assemblyId={line.targetId}
+                    catalog={catalog}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
+    </section>
+  );
+}
 
-      <FieldGroup className="flex items-end gap-2 border-t pt-3">
-        <Field className="flex flex-col gap-1.5">
-          <FieldLabel htmlFor="bom-line-target-kind">Target kind</FieldLabel>
-          <Select
-            value={draftKind}
-            onValueChange={(value) => {
-              setDraftKind(value as BomLineTargetKind);
-              resetDraft();
-            }}
-          >
-            <SelectTrigger id="bom-line-target-kind" className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="Part">Part</SelectItem>
-                <SelectItem value="Assembly">Assembly</SelectItem>
-                <SelectItem value="NonPrintedComponent">
-                  Non-printed component
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
+/** Read-only children of a sub-assembly, indented on a connector rail. Recurses — the server rejects cycles. */
+function SubAssemblyLines({
+  assemblyId,
+  catalog,
+}: {
+  assemblyId: string;
+  catalog: BomCatalog;
+}) {
+  const query =
+    useOpenFarmApiEndpointsAssembliesGetAssemblyEndpoint(assemblyId);
+  const children = query.data?.data?.lines ?? [];
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-        <Field className="flex flex-1 flex-col gap-1.5">
-          <FieldLabel htmlFor="bom-line-target">Target</FieldLabel>
-          <Select value={draftTargetId} onValueChange={setDraftTargetId}>
-            <SelectTrigger id="bom-line-target" className="w-full">
-              <SelectValue placeholder="Choose a target" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {draftOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
+  return (
+    <ul className="mb-2 ml-[1.625rem] border-l-2 border-primary/20 pl-3 sm:ml-[1.875rem]">
+      {query.isLoading ? (
+        <li className="py-2">
+          <Skeleton className="h-8 w-48" />
+        </li>
+      ) : (
+        children.map((child) => {
+          const id = child.id ?? '';
+          const kind = (child.targetKind ?? 'Part') as BomLineTargetKind;
+          const isOpen = expanded.has(id);
+          return (
+            <li key={id}>
+              <div className="flex items-center gap-2 py-1.5">
+                {kind === 'Assembly' ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-expanded={isOpen}
+                    aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${child.targetName}`}
+                    onClick={() =>
+                      setExpanded((prev) => {
+                        const next = new Set(prev);
+                        if (!next.delete(id)) next.add(id);
+                        return next;
+                      })
+                    }
+                  >
+                    <ChevronRightIcon
+                      className={cn(
+                        'transition-transform motion-reduce:transition-none',
+                        isOpen && 'rotate-90',
+                      )}
+                    />
+                  </Button>
+                ) : (
+                  <span className="size-6 shrink-0" />
+                )}
+                <LineThumb
+                  kind={kind}
+                  thumbnail={catalog.thumbnailFor(child.targetId ?? '')}
+                  className="size-8"
+                />
+                <span
+                  title={child.targetName ?? undefined}
+                  className="line-clamp-2 min-w-0 flex-1 text-sm break-words"
+                >
+                  {child.targetName}
+                </span>
+                <span className="pr-3 text-sm text-muted-foreground tabular-nums">
+                  ×{child.quantity}
+                </span>
+              </div>
+              {kind === 'Assembly' && isOpen && child.targetId && (
+                <SubAssemblyLines
+                  assemblyId={child.targetId}
+                  catalog={catalog}
+                />
+              )}
+            </li>
+          );
+        })
+      )}
+    </ul>
+  );
+}
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">Quantity</span>
-          <Input
-            type="number"
-            min={wholeNumberQuantityFor(draftKind) ? 1 : 0.001}
-            step={wholeNumberQuantityFor(draftKind) ? 1 : 'any'}
-            value={draftQuantity}
-            onChange={(e) => setDraftQuantity(e.target.value)}
-            className="w-24"
-          />
-        </div>
+function isTypingTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  );
+}
 
-        <Button type="button" onClick={handleAdd} disabled={!draftTargetId}>
+function AddLinePicker({
+  catalog,
+  onPick,
+}: {
+  catalog: BomCatalog;
+  onPick: (kind: BomLineTargetKind, id: string, name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const modK = e.key === 'k' && (e.metaKey || e.ctrlKey);
+      const slash = e.key === '/' && !isTypingTarget(e.target);
+      if (modK || slash) {
+        e.preventDefault();
+        setOpen(true);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const groups: {
+    kind: BomLineTargetKind;
+    heading: string;
+    items: {
+      id: string;
+      name: string;
+      thumbnail?: string | null;
+    }[];
+  }[] = [
+    {
+      kind: 'Part',
+      heading: 'Parts',
+      items: catalog.parts.map((p) => ({
+        id: p.id ?? '',
+        name: p.name ?? '',
+        thumbnail: p.thumbnailBase64,
+      })),
+    },
+    {
+      kind: 'Assembly',
+      heading: 'Assemblies',
+      items: catalog.assemblies.map((a) => ({
+        id: a.id ?? '',
+        name: a.name ?? '',
+      })),
+    },
+    {
+      kind: 'NonPrintedComponent',
+      heading: 'Components',
+      items: catalog.components.map((c) => ({
+        id: c.id ?? '',
+        name: c.name ?? '',
+      })),
+    },
+  ];
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" size="sm" className="ml-auto">
           <PlusIcon data-icon="inline-start" /> Add line
+          <kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1 text-xs sm:inline">
+            /
+          </kbd>
         </Button>
-      </FieldGroup>
-    </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0" align="end">
+        <Command>
+          <CommandInput
+            autoFocus
+            placeholder="Search parts, assemblies, components"
+          />
+          <CommandList>
+            <CommandEmpty>No matches.</CommandEmpty>
+            {groups.map(
+              (group) =>
+                group.items.length > 0 && (
+                  <CommandGroup key={group.kind} heading={group.heading}>
+                    {group.items.map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${group.kind}:${item.id}`}
+                        keywords={[item.name]}
+                        onSelect={() => {
+                          onPick(group.kind, item.id, item.name);
+                          setOpen(false);
+                        }}
+                      >
+                        <LineThumb
+                          kind={group.kind}
+                          thumbnail={item.thumbnail}
+                          className="size-7"
+                        />
+                        <span
+                          title={item.name}
+                          className="line-clamp-2 flex-1 break-words"
+                        >
+                          {item.name}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ),
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

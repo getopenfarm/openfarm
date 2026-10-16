@@ -11,7 +11,7 @@ public sealed class EditNonPrintedComponentCommandHandler(INonPrintedComponentRe
         var component = await repository.GetByIdAsync(command.NonPrintedComponentId, cancellationToken)
             ?? throw new NonPrintedComponentNotFoundException(command.NonPrintedComponentId);
 
-        component.Edit(command.Name, command.Unit, command.UnitCost);
+        component.Edit(command.Name, command.UnitCost);
         await repository.SaveChangesAsync(cancellationToken);
 
         return component;

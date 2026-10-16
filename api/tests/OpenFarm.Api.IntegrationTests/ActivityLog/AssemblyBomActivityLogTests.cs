@@ -72,11 +72,11 @@ public class AssemblyBomActivityLogTests(CustomWebApplicationFactory factory) : 
 
         var componentResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/non-printed-components", UriKind.Relative),
-            new { name = $"Log Screw {Guid.NewGuid():N}", unit = "each", unitCost = (decimal?)null });
+            new { name = $"Log Screw {Guid.NewGuid():N}", unitCost = (decimal?)null });
         var component = await componentResponse.Content.ReadFromJsonAsync<NonPrintedComponentResponse>();
         await client.PutAsJsonAsync(
             new Uri($"/api/v1/non-printed-components/{component!.Id}", UriKind.Relative),
-            new { name = "Log Screw Edited", unit = "each", unitCost = (decimal?)null });
+            new { name = "Log Screw Edited", unitCost = (decimal?)null });
 
         var logResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=200", UriKind.Relative));
         var page = await logResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();

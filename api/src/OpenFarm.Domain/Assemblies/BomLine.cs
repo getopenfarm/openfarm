@@ -86,19 +86,9 @@ public sealed class BomLine
         Quantity = quantity;
     }
 
-    /// <summary>FR-004a/FR-004b: whole number ≥ 1 for Part/Assembly targets; fractional &gt; 0 allowed for NonPrintedComponent.</summary>
+    /// <summary>FR-004a/FR-004b: every line is a whole-number count ≥ 1 — non-printed components are unitless pieces.</summary>
     internal static void ValidateQuantity(BomLineTargetKind targetKind, decimal quantity)
     {
-        if (targetKind == BomLineTargetKind.NonPrintedComponent)
-        {
-            if (quantity <= 0)
-            {
-                throw new InvalidBomLineQuantityException(targetKind, quantity);
-            }
-
-            return;
-        }
-
         if (quantity < 1 || quantity != Math.Truncate(quantity))
         {
             throw new InvalidBomLineQuantityException(targetKind, quantity);

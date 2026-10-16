@@ -52,43 +52,30 @@ function renderEditor(
 describe('BomLineEditor', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('offers Part, Assembly, and NonPrintedComponent as target kinds', async () => {
-    stubFetch({
-      '/api/v1/parts': { parts: [], totalCount: 0 },
-      '/api/v1/assemblies': { items: [], totalCount: 0 },
-      '/api/v1/non-printed-components': { items: [], totalCount: 0 },
-    });
-
-    const onChange = vi.fn();
-    renderEditor([], onChange);
-
-    const user = userEvent.setup();
-    await user.click(
-      await screen.findByRole('combobox', { name: 'Target kind' }),
-    );
-
-    expect(
-      await screen.findByText('Non-printed component'),
-    ).toBeInTheDocument();
-  });
-
-  it('adds a line for the chosen target and calls onChange', async () => {
+  it('searches all three kinds in one picker and adds the pick', async () => {
     stubFetch({
       '/api/v1/parts': {
         parts: [{ id: 'p1', name: 'Bracket' }],
         totalCount: 1,
       },
-      '/api/v1/assemblies': { items: [], totalCount: 0 },
-      '/api/v1/non-printed-components': { items: [], totalCount: 0 },
+      '/api/v1/assemblies': { items: [{ id: 'a2', name: 'Hinge' }] },
+      '/api/v1/non-printed-components': {
+        items: [{ id: 'c1', name: 'M3 screw' }],
+      },
     });
 
     const onChange = vi.fn();
     renderEditor([], onChange);
 
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('combobox', { name: 'Target' }));
-    await user.click(await screen.findByRole('option', { name: 'Bracket' }));
     await user.click(screen.getByRole('button', { name: /add line/i }));
+    expect(
+      await screen.findByRole('option', { name: /M3 screw/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Hinge' })).toBeInTheDocument();
+
+    await user.type(screen.getByRole('combobox'), 'brack');
+    await user.click(screen.getByRole('option', { name: 'Bracket' }));
 
     expect(onChange).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -97,6 +84,39 @@ describe('BomLineEditor', () => {
         targetName: 'Bracket',
         quantity: 1,
       }),
+    ]);
+  });
+
+  it('bumps the quantity when an already-listed target is picked again', async () => {
+    stubFetch({
+      '/api/v1/parts': {
+        parts: [{ id: 'p1', name: 'Bracket' }],
+        totalCount: 1,
+      },
+      '/api/v1/assemblies': { items: [] },
+      '/api/v1/non-printed-components': { items: [] },
+    });
+
+    const onChange = vi.fn();
+    renderEditor(
+      [
+        {
+          key: 'line-1',
+          targetKind: 'Part',
+          targetId: 'p1',
+          targetName: 'Bracket',
+          quantity: 2,
+        },
+      ],
+      onChange,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /add line/i }));
+    await user.click(await screen.findByRole('option', { name: 'Bracket' }));
+
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ key: 'line-1', quantity: 3 }),
     ]);
   });
 
@@ -122,5 +142,33 @@ describe('BomLineEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Remove Bracket' }));
 
     expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it('counts components in whole pieces', async () => {
+    stubFetch({
+      '/api/v1/parts': { parts: [], totalCount: 0 },
+      '/api/v1/assemblies': { items: [] },
+      '/api/v1/non-printed-components': {
+        items: [{ id: 'c2', name: 'M3 screw' }],
+      },
+    });
+
+    renderEditor(
+      [
+        {
+          key: 'l2',
+          targetKind: 'NonPrintedComponent',
+          targetId: 'c2',
+          targetName: 'M3 screw',
+          quantity: 4,
+        },
+      ],
+      vi.fn(),
+    );
+
+    expect(await screen.findByText('Component')).toBeInTheDocument();
+    const screw = screen.getByLabelText('Quantity for M3 screw');
+    expect(screw).toHaveAttribute('step', '1');
+    expect(screw).toHaveAttribute('min', '1');
   });
 });

@@ -153,6 +153,9 @@ whole number `>= 1` (FR-009e).
 **Response 404** — no such assembly.
 
 ### `POST /api/v1/assemblies/{id}/buildable-units`
+
+**Removed (2026-10-16).** Buildable units and its endpoint were removed: hand-typed good quantities aren't real stock, so the number belongs alongside a stock ledger, not the BOM editor. The text below is kept as history.
+
 `[Permission("assemblies:view")]` — `POST`, not `GET`, because the request body carries the caller-
 supplied good-quantity map (FR-010e — this phase never stores or sources these itself; Phase 8 will be
 the first real caller). Still a pure read/computation — nothing persisted.

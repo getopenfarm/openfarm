@@ -7,6 +7,5 @@ public sealed class EditNonPrintedComponentCommandValidator : AbstractValidator<
     public EditNonPrintedComponentCommandValidator()
     {
         RuleFor(x => x.Name).NotEmpty();
-        RuleFor(x => x.Unit).NotEmpty();
     }
 }

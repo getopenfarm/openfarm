@@ -142,7 +142,7 @@ public sealed class AssemblyGraphQueryService(OpenFarmDbContext dbContext) : IAs
             .Select(kvp =>
             {
                 components.TryGetValue(kvp.Key, out var component);
-                return new ExplodedNonPrintedComponentQuantity(kvp.Key, component?.Name ?? string.Empty, component?.Unit ?? string.Empty, kvp.Value);
+                return new ExplodedNonPrintedComponentQuantity(kvp.Key, component?.Name ?? string.Empty, kvp.Value);
             })
             .ToList();
     }

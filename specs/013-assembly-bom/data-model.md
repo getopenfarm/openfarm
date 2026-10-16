@@ -70,11 +70,10 @@ public sealed class BomLine
 ```
 
 - **Quantity validation (FR-004a/FR-004b)**, enforced in `BomLine.Create`/`UpdateQuantity`:
-  - `TargetKind` is `Part` or `Assembly` → `Quantity` must be a whole number `>= 1`
-    (`Quantity == Math.Truncate(Quantity)`).
-  - `TargetKind` is `NonPrintedComponent` → `Quantity` must be `> 0`; fractional values allowed.
-  - Stored as `numeric` (not `int`) specifically to admit the second case — see
-    `BomLineConfiguration` below.
+  - Every `TargetKind` → `Quantity` must be a whole number `>= 1`
+    (`Quantity == Math.Truncate(Quantity)`). Non-printed components are unitless pieces.
+  - Stored as `numeric` (not `int`) — a leftover from when non-printed components carried a unit and
+    allowed fractional quantities; harmless, so left as is.
 - **Exactly-one-target invariant (FR-003)** is enforced in the private constructor (throws
   `ArgumentException` if the constructor is ever reached with zero or more than one target set — a
   programming-error guard, since `BomLineSpec` itself is a closed discriminated shape that can't
@@ -94,22 +93,21 @@ public sealed class NonPrintedComponent
     public Guid Id { get; }
     public Guid OrganizationId { get; }
     public string Name { get; private set; }
-    public string Unit { get; private set; }
     public decimal? UnitCost { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
-    public static NonPrintedComponent Create(Guid organizationId, string name, string unit, decimal? unitCost);
-    public void Edit(string name, string unit, decimal? unitCost);
+    public static NonPrintedComponent Create(Guid organizationId, string name, decimal? unitCost);
+    public void Edit(string name, decimal? unitCost);
 }
 ```
 
 - **No stock/on-hand/reorder fields of any kind** (FR-005a) — this is the entire reason the entity is
-  simple: there is nothing here to model beyond identity, display unit, and an optional cost.
+  simple: there is nothing here to model beyond identity and an optional cost per piece.
 - `UnitCost` is genuinely optional (FR-005c) — `null` is a fully valid, permanently supported state, not
   an "incomplete" one; nothing anywhere gates on it being present.
-- `Unit` is a free-text short label (spec Assumptions — "each", "ml", "m", "pack"), validated only for
-  non-empty; nothing in the system parses or interprets it.
+- Unitless: BOM lines count it in whole pieces (`RemoveNonPrintedComponentUnit` dropped the former
+  free-text `Unit` column and rounded fractional line quantities up).
 
 ## Persistence (`OpenFarm.Infrastructure.Persistence`)
 
@@ -129,7 +127,6 @@ NonPrintedComponents
   Id                uuid PK
   OrganizationId    uuid NOT NULL
   Name              text NOT NULL
-  Unit              text NOT NULL
   UnitCost          numeric NULL
   CreatedAtUtc       timestamptz NOT NULL
   UpdatedAtUtc       timestamptz NOT NULL
@@ -180,7 +177,7 @@ public sealed record BomExplosionResult(
     IReadOnlyList<ExplodedNonPrintedComponentQuantity> NonPrintedComponents);
 
 public sealed record ExplodedPartQuantity(Guid PartId, string PartName, decimal Quantity);
-public sealed record ExplodedNonPrintedComponentQuantity(Guid NonPrintedComponentId, string Name, string Unit, decimal Quantity);
+public sealed record ExplodedNonPrintedComponentQuantity(Guid NonPrintedComponentId, string Name, decimal Quantity);
 ```
 
 Never persisted (FR-009) — recomputed on every call by `AssemblyGraphQueryService.ExplodeAsync`
@@ -188,6 +185,8 @@ Never persisted (FR-009) — recomputed on every call by `AssemblyGraphQueryServ
 merged into one list a caller could misread.
 
 ### `BuildableUnitsResult` (spec Key Entities — FR-010's output)
+
+**Removed (2026-10-16).** Buildable units and its endpoint were removed: hand-typed good quantities aren't real stock, so the number belongs alongside a stock ledger, not the BOM editor. The text below is kept as history.
 
 ```csharp
 public sealed record BuildableUnitsResult

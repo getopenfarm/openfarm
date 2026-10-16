@@ -10,7 +10,7 @@ public sealed class ListNonPrintedComponentsQueryHandler(INonPrintedComponentRep
         var (components, totalCount) = await repository.ListAsync(query.Page, query.PageSize, cancellationToken, query.Sorting);
 
         var summaries = components
-            .Select(c => new NonPrintedComponentSummary(c.Id, c.Name, c.Unit, c.UnitCost))
+            .Select(c => new NonPrintedComponentSummary(c.Id, c.Name, c.UnitCost))
             .ToList();
 
         return new NonPrintedComponentsPage(summaries, totalCount);

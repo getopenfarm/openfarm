@@ -64,7 +64,7 @@ describe('NonPrintedComponentsPage', () => {
   it('renders components fetched from the real API', async () => {
     stubFetch({
       '/api/v1/non-printed-components': {
-        items: [{ id: 'c1', name: 'M3x8 screw', unit: 'each', unitCost: 0.02 }],
+        items: [{ id: 'c1', name: 'M3x8 screw', unitCost: 0.02 }],
         totalCount: 1,
       },
     });
@@ -72,7 +72,6 @@ describe('NonPrintedComponentsPage', () => {
     renderPage();
 
     expect(await screen.findByText('M3x8 screw')).toBeInTheDocument();
-    expect(screen.getByText('each')).toBeInTheDocument();
     expect(screen.getByText('0.02')).toBeInTheDocument();
   });
 });

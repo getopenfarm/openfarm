@@ -22,7 +22,7 @@ public class RunCreationExplosionSnapshotTests(ProductionTestFactory factory) : 
         {
             var assemblies = scope.ServiceProvider.GetRequiredService<IAssemblyRepository>();
             var components = scope.ServiceProvider.GetRequiredService<INonPrintedComponentRepository>();
-            var screw = NonPrintedComponent.Create(Organization.WellKnownId, "Screw", "each", 1);
+            var screw = NonPrintedComponent.Create(Organization.WellKnownId, "Screw", 1);
             await components.AddAsync(screw, default);
             var nested = Assembly.Create(Organization.WellKnownId, "Nested", null, [new BomLineSpec(BomLineTargetKind.Part, part.Id, null, null, 2)]);
             await assemblies.AddAsync(nested, default);

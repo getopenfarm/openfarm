@@ -9,15 +9,12 @@ public sealed class NonPrintedComponentResponse
 
     public string Name { get; set; } = string.Empty;
 
-    public string Unit { get; set; } = string.Empty;
-
     public decimal? UnitCost { get; set; }
 
     public static NonPrintedComponentResponse FromDomain(NonPrintedComponent component) => new()
     {
         Id = component.Id,
         Name = component.Name,
-        Unit = component.Unit,
         UnitCost = component.UnitCost,
     };
 
@@ -25,7 +22,6 @@ public sealed class NonPrintedComponentResponse
     {
         Id = summary.Id,
         Name = summary.Name,
-        Unit = summary.Unit,
         UnitCost = summary.UnitCost,
     };
 }

@@ -103,7 +103,7 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
             foreach (var name in new[] { "Zulu", "alpha", "ALPHA", "Bravo" })
             {
                 var part = Part(name, [tag]);
-                var component = NonPrintedComponent.Create(Organization.WellKnownId, name, "each", 1);
+                var component = NonPrintedComponent.Create(Organization.WellKnownId, name, 1);
                 var assembly = Assembly.Create(Organization.WellKnownId, name, null,
                     [new(BomLineTargetKind.NonPrintedComponent, null, null, component.Id, 1)]);
                 db.AddRange(part, component, assembly);
@@ -140,7 +140,7 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var part = Part("Legacy bracket");
-            var component = NonPrintedComponent.Create(Organization.WellKnownId, "Insert", "each", null);
+            var component = NonPrintedComponent.Create(Organization.WellKnownId, "Insert", null);
             var assembly = Assembly.Create(Organization.WellKnownId, "Legacy assembly", null,
                 [new(BomLineTargetKind.NonPrintedComponent, null, null, component.Id, 1)]);
             db.AddRange(part, component, assembly);

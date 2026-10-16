@@ -295,10 +295,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Unit")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<decimal?>("UnitCost")
                         .HasColumnType("numeric");
 

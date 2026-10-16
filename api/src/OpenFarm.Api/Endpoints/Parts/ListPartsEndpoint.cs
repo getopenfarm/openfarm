@@ -31,6 +31,7 @@ public sealed class PartSummaryResponse
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
+    public int UnitsPerPrint { get; set; } = 1;
     public string? ThumbnailBase64 { get; set; }
     public List<string> MaterialTypes { get; set; } = [];
     public List<string> Tags { get; set; } = [];
@@ -76,6 +77,7 @@ public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> ha
                 EstimateStatus = p.EstimateStatus,
                 EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
                 EstimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,
+                UnitsPerPrint = p.UnitsPerPrint,
                 ThumbnailBase64 = p.ThumbnailBase64,
                 MaterialTypes = p.MaterialTypes.ToList(),
                 Tags = p.Tags.ToList(),

@@ -3,6 +3,9 @@ const trim = (n: number, digits = 1) => String(Number(n.toFixed(digits)));
 /** 250 -> "250 g"; keeps up to 1 decimal, trims trailing ".0". */
 export const formatGrams = (n: number) => `${trim(n)} g`;
 
+/** 0.125 -> "0.13"; no currency symbol — the app has no currency setting. */
+export const formatCost = (n: number) => n.toFixed(2);
+
 /** 0.4 -> "0.4 mm"; keeps up to 2 decimals. */
 export const formatMm = (n: number) => `${trim(n, 2)} mm`;
 

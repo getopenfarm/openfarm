@@ -9,7 +9,7 @@ public sealed class CreateNonPrintedComponentCommandHandler(INonPrintedComponent
 {
     public async Task<NonPrintedComponent> HandleAsync(CreateNonPrintedComponentCommand command, CancellationToken cancellationToken)
     {
-        var component = NonPrintedComponent.Create(Organization.WellKnownId, command.Name, command.Unit, command.UnitCost);
+        var component = NonPrintedComponent.Create(Organization.WellKnownId, command.Name, command.UnitCost);
         await repository.AddAsync(component, cancellationToken);
 
         return component;

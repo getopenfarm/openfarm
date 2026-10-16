@@ -10,6 +10,29 @@ public class AssemblyReplaceLinesTests
 
     private static BomLineSpec SubAssembly(Guid id, decimal quantity = 1) => new(BomLineTargetKind.Assembly, null, id, null, quantity);
 
+    private static BomLineSpec Component(Guid id, decimal quantity = 1) => new(BomLineTargetKind.NonPrintedComponent, null, null, id, quantity);
+
+    [Theory]
+    [InlineData(1.5)]
+    [InlineData(0.25)]
+    [InlineData(0)]
+    public void Create_NonWholeComponentQuantity_Throws(decimal quantity)
+    {
+        var act = () => Assembly.Create(Guid.NewGuid(), "A", null, [Component(Guid.NewGuid(), quantity)]);
+
+        act.Should().Throw<InvalidBomLineQuantityException>();
+    }
+
+    [Fact]
+    public void ReplaceLines_FractionalQuantityOnKeptComponentLine_Throws()
+    {
+        var target = Guid.NewGuid();
+        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Component(target, 4)]);
+
+        assembly.Invoking(a => a.ReplaceLines([new BomLineEdit(assembly.Lines[0].Id, Component(target, 4.5m))]))
+            .Should().Throw<InvalidBomLineQuantityException>();
+    }
+
     [Fact]
     public void ReplaceLines_UpdatesKeptLines_RemovesMissing_AndReturnsOnlyAdded()
     {

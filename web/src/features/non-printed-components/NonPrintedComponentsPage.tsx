@@ -42,15 +42,8 @@ const columns: ColumnDef<NonPrintedComponentResponse>[] = [
     ),
   },
   {
-    id: 'unit',
-    header: 'Unit',
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.original.unit}</span>
-    ),
-  },
-  {
     id: 'unitCost',
-    header: 'Unit cost',
+    header: 'Cost per piece',
     cell: ({ row }) => (
       <span className="font-mono text-sm">
         {row.original.unitCost != null ? row.original.unitCost.toFixed(2) : '—'}

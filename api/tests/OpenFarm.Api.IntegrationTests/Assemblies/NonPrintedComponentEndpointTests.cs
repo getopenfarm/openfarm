@@ -13,7 +13,7 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Api.IntegrationTests.Assemblies;
 
-// Test-after — create/edit/list round trip, empty name/unit rejected, delete-while-referenced blocked
+// Test-after — create/edit/list round trip, empty name rejected, delete-while-referenced blocked
 // then unblocked once the referencing line is removed (contracts/assembly-bom-api.md).
 public class NonPrintedComponentEndpointTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
@@ -35,7 +35,7 @@ public class NonPrintedComponentEndpointTests(CustomWebApplicationFactory factor
 
         var createResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/non-printed-components", UriKind.Relative),
-            new { name = $"Screw {Guid.NewGuid():N}", unit = "each", unitCost = 0.02m });
+            new { name = $"Screw {Guid.NewGuid():N}", unitCost = 0.02m });
         createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
         var created = await createResponse.Content.ReadFromJsonAsync<NonPrintedComponentResponse>();
 
@@ -45,7 +45,7 @@ public class NonPrintedComponentEndpointTests(CustomWebApplicationFactory factor
 
         var editResponse = await client.PutAsJsonAsync(
             new Uri($"/api/v1/non-printed-components/{created!.Id}", UriKind.Relative),
-            new { name = "Renamed Screw", unit = "pack", unitCost = (decimal?)null });
+            new { name = "Renamed Screw", unitCost = (decimal?)null });
         editResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var edited = await editResponse.Content.ReadFromJsonAsync<NonPrintedComponentResponse>();
         edited!.Name.Should().Be("Renamed Screw");
@@ -56,12 +56,12 @@ public class NonPrintedComponentEndpointTests(CustomWebApplicationFactory factor
     }
 
     [Fact]
-    public async Task Create_EmptyNameOrUnit_Returns400()
+    public async Task Create_EmptyName_Returns400()
     {
         var client = await AuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/non-printed-components", UriKind.Relative), new { name = "", unit = "each", unitCost = (decimal?)null });
+            new Uri("/api/v1/non-printed-components", UriKind.Relative), new { name = "", unitCost = (decimal?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -88,7 +88,7 @@ public class NonPrintedComponentEndpointTests(CustomWebApplicationFactory factor
 
         var componentResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/non-printed-components", UriKind.Relative),
-            new { name = $"Referenced Screw {Guid.NewGuid():N}", unit = "each", unitCost = (decimal?)null });
+            new { name = $"Referenced Screw {Guid.NewGuid():N}", unitCost = (decimal?)null });
         var component = await componentResponse.Content.ReadFromJsonAsync<NonPrintedComponentResponse>();
 
         var assemblyResponse = await client.PostAsJsonAsync(
@@ -100,7 +100,7 @@ public class NonPrintedComponentEndpointTests(CustomWebApplicationFactory factor
                 lines = new object[]
                 {
                     new { targetKind = "Part", targetId = partId, quantity = 1 },
-                    new { targetKind = "NonPrintedComponent", targetId = component!.Id, quantity = 4.5 },
+                    new { targetKind = "NonPrintedComponent", targetId = component!.Id, quantity = 4 },
                 },
             });
         var assembly = await assemblyResponse.Content.ReadFromJsonAsync<AssemblyResponse>();

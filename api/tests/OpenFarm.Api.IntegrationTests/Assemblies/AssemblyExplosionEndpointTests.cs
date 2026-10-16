@@ -51,7 +51,7 @@ public class AssemblyExplosionEndpointTests(CustomWebApplicationFactory factory)
         using var scope = factory.CreateTenantScope();
         var repository = scope.ServiceProvider.GetRequiredService<INonPrintedComponentRepository>();
 
-        var component = NonPrintedComponent.Create(Organization.WellKnownId, name, "each", 0.02m);
+        var component = NonPrintedComponent.Create(Organization.WellKnownId, name, 0.02m);
         await repository.AddAsync(component, CancellationToken.None);
         return component.Id;
     }

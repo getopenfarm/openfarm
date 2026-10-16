@@ -77,9 +77,8 @@ describe('AssemblyFormPage (add)', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Name'), 'Enclosure');
 
-    await user.click(await screen.findByRole('combobox', { name: 'Target' }));
-    await user.click(await screen.findByRole('option', { name: 'Bracket' }));
     await user.click(screen.getByRole('button', { name: /add line/i }));
+    await user.click(await screen.findByRole('option', { name: 'Bracket' }));
 
     await user.click(screen.getByRole('button', { name: 'Add assembly' }));
 

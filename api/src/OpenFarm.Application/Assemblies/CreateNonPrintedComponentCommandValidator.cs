@@ -7,6 +7,5 @@ public sealed class CreateNonPrintedComponentCommandValidator : AbstractValidato
     public CreateNonPrintedComponentCommandValidator()
     {
         RuleFor(x => x.Name).NotEmpty();
-        RuleFor(x => x.Unit).NotEmpty();
     }
 }

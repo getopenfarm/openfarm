@@ -16,6 +16,7 @@ public sealed record PartSummary(
     IReadOnlyList<string> Tags,
     string PrintRequirementsStatus = "Complete",
     IReadOnlyList<string>? ProcessingWarnings = null,
-    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null);
+    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null,
+    int UnitsPerPrint = 1);
 
 public sealed record PartsPage(IReadOnlyList<PartSummary> Parts, int TotalCount);

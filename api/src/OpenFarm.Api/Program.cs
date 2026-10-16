@@ -408,7 +408,6 @@ builder.Services.AddScoped<DeleteNonPrintedComponentHandlerType, DeleteNonPrinte
 builder.Services.AddScoped<IQueryHandler<GetAssembliesQuery, AssembliesPage>, GetAssembliesQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetAssemblyQuery, AssemblyDetail?>, GetAssemblyQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ExplodeAssemblyQuery, BomExplosionResult>, ExplodeAssemblyQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<CalculateBuildableUnitsQuery, BuildableUnitsResult>, CalculateBuildableUnitsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ListNonPrintedComponentsQuery, NonPrintedComponentsPage>, ListNonPrintedComponentsQueryHandler>();
 
 builder.Services.AddScoped<ProductionRunDisplayLabelResolver>();

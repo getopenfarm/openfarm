@@ -11,8 +11,6 @@ public sealed class CreateNonPrintedComponentRequest : IActivityLoggable
 {
     public string Name { get; set; } = string.Empty;
 
-    public string Unit { get; set; } = string.Empty;
-
     public decimal? UnitCost { get; set; }
 
     public string EntityType => "NonPrintedComponent";
@@ -25,7 +23,6 @@ public sealed class CreateNonPrintedComponentRequestValidator : AbstractValidato
     public CreateNonPrintedComponentRequestValidator()
     {
         RuleFor(x => x.Name).NotEmpty();
-        RuleFor(x => x.Unit).NotEmpty();
     }
 }
 
@@ -42,7 +39,7 @@ public sealed class CreateNonPrintedComponentEndpoint(CreateNonPrintedComponentH
 
     public override async Task HandleAsync(CreateNonPrintedComponentRequest req, CancellationToken ct)
     {
-        var component = await handler.HandleAsync(new CreateNonPrintedComponentCommand(req.Name, req.Unit, req.UnitCost), ct);
+        var component = await handler.HandleAsync(new CreateNonPrintedComponentCommand(req.Name, req.UnitCost), ct);
 
         Response = NonPrintedComponentResponse.FromDomain(component);
         HttpContext.Response.StatusCode = StatusCodes.Status201Created;

@@ -15,7 +15,6 @@ public sealed class NonPrintedComponentConfiguration : IEntityTypeConfiguration<
 
         builder.Property(c => c.OrganizationId).IsRequired();
         builder.Property(c => c.Name).IsRequired();
-        builder.Property(c => c.Unit).IsRequired();
         builder.Property(c => c.UnitCost);
         builder.Property(c => c.CreatedAtUtc).IsRequired();
         builder.Property(c => c.UpdatedAtUtc).IsRequired();

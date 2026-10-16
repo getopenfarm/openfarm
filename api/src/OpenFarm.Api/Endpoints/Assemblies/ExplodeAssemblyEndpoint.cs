@@ -27,8 +27,6 @@ public sealed class ExplodedNonPrintedComponentResponse
 
     public string Name { get; set; } = string.Empty;
 
-    public string Unit { get; set; } = string.Empty;
-
     public decimal Quantity { get; set; }
 }
 
@@ -62,7 +60,7 @@ public sealed class ExplodeAssemblyEndpoint(IQueryHandler<ExplodeAssemblyQuery, 
                 .Select(p => new ExplodedPartResponse { PartId = p.PartId, PartName = p.PartName, Quantity = p.Quantity })
                 .ToList(),
             NonPrintedComponents = result.NonPrintedComponents
-                .Select(c => new ExplodedNonPrintedComponentResponse { NonPrintedComponentId = c.NonPrintedComponentId, Name = c.Name, Unit = c.Unit, Quantity = c.Quantity })
+                .Select(c => new ExplodedNonPrintedComponentResponse { NonPrintedComponentId = c.NonPrintedComponentId, Name = c.Name, Quantity = c.Quantity })
                 .ToList(),
         };
     }

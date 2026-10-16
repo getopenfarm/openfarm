@@ -38,7 +38,6 @@ import {
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  unit: z.string().min(1, 'Unit is required'),
   unitCost: z.string().optional(),
 });
 
@@ -67,7 +66,7 @@ export function NonPrintedComponentFormPage({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', unit: '', unitCost: '' },
+    defaultValues: { name: '', unitCost: '' },
   });
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only re-seeds when the fetched component's identity changes, not on every render.
@@ -75,7 +74,6 @@ export function NonPrintedComponentFormPage({
     if (mode === 'edit' && existing) {
       form.reset({
         name: existing.name ?? '',
-        unit: existing.unit ?? '',
         unitCost: existing.unitCost != null ? String(existing.unitCost) : '',
       });
     }
@@ -180,12 +178,12 @@ export function NonPrintedComponentFormPage({
 
     if (mode === 'add') {
       createMutation.mutate({
-        data: { name: values.name.trim(), unit: values.unit.trim(), unitCost },
+        data: { name: values.name.trim(), unitCost },
       });
     } else if (id) {
       editMutation.mutate({
         id,
-        data: { name: values.name.trim(), unit: values.unit.trim(), unitCost },
+        data: { name: values.name.trim(), unitCost },
       });
     }
   }
@@ -237,23 +235,10 @@ export function NonPrintedComponentFormPage({
                 />
                 <FormField
                   control={form.control}
-                  name="unit"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Unit</FormLabel>
-                      <FormControl>
-                        <Input placeholder="each" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name="unitCost"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Unit cost (optional)</FormLabel>
+                      <FormLabel>Cost per piece (optional)</FormLabel>
                       <FormControl>
                         <Input type="number" step="any" min={0} {...field} />
                       </FormControl>

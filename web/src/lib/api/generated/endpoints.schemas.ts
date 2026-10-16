@@ -1159,6 +1159,7 @@ export interface PartSummaryResponse {
   estimatedPrintTimeMinutes?: number | null;
   /** @nullable */
   estimatedFilamentWeightGrams?: number | null;
+  unitsPerPrint?: number;
   /** @nullable */
   thumbnailBase64?: string | null;
   materialTypes?: string[];
@@ -1251,14 +1252,12 @@ export interface PartProcessingJobResponse {
 export interface NonPrintedComponentResponse {
   id?: string;
   name?: string;
-  unit?: string;
   /** @nullable */
   unitCost?: number | null;
 }
 
 export interface CreateNonPrintedComponentRequest {
   name?: string;
-  unit?: string;
   /** @nullable */
   unitCost?: number | null;
 }
@@ -1269,7 +1268,6 @@ export interface DeleteNonPrintedComponentRequest {
 
 export interface EditNonPrintedComponentRequest {
   name?: string;
-  unit?: string;
   /** @nullable */
   unitCost?: number | null;
 }
@@ -1473,22 +1471,6 @@ export interface WhoAmIResult {
   organizationId?: string;
 }
 
-export interface BuildableUnitsResponse {
-  isApplicable?: boolean;
-  /** @nullable */
-  value?: number | null;
-  /** @nullable */
-  notApplicableReason?: string | null;
-}
-
-export type CalculateBuildableUnitsRequestGoodQuantities = {
-  [key: string]: number;
-};
-
-export interface CalculateBuildableUnitsRequest {
-  goodQuantities?: CalculateBuildableUnitsRequestGoodQuantities;
-}
-
 export interface BomLineResponse {
   id?: string;
   targetKind?: string;
@@ -1549,7 +1531,6 @@ export interface ExplodedPartResponse {
 export interface ExplodedNonPrintedComponentResponse {
   nonPrintedComponentId?: string;
   name?: string;
-  unit?: string;
   quantity?: number;
 }
 

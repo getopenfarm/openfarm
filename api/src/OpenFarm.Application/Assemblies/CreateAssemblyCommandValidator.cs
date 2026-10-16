@@ -13,20 +13,13 @@ public sealed class CreateAssemblyCommandValidator : AbstractValidator<CreateAss
     }
 }
 
-/// <summary>FR-004a/FR-004b: whole number ≥ 1 for Part/Assembly targets; fractional &gt; 0 allowed for NonPrintedComponent.</summary>
+/// <summary>FR-004a/FR-004b: whole number ≥ 1 for every target kind.</summary>
 public sealed class AssemblyLineInputValidator : AbstractValidator<AssemblyLineInput>
 {
     public AssemblyLineInputValidator()
     {
-        RuleFor(x => x.Quantity).GreaterThan(0);
-
-        RuleFor(x => x)
-            .Must(HaveAValidQuantityForItsTargetKind)
-            .WithMessage("Quantity must be a whole number of at least 1 for Part/Assembly targets.");
+        RuleFor(x => x.Quantity)
+            .Must(q => q >= 1 && q == Math.Truncate(q))
+            .WithMessage("Quantity must be a whole number of at least 1.");
     }
-
-    private static bool HaveAValidQuantityForItsTargetKind(AssemblyLineInput line) =>
-        line.TargetKind == BomLineTargetKind.NonPrintedComponent
-            ? line.Quantity > 0
-            : line.Quantity >= 1 && line.Quantity == Math.Truncate(line.Quantity);
 }

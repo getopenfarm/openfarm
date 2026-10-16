@@ -44,7 +44,7 @@ function renderPage() {
 describe('NonPrintedComponentFormPage', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('submits name/unit/unitCost on create', async () => {
+  it('submits name/unitCost on create', async () => {
     let capturedBody: unknown;
     vi.stubGlobal(
       'fetch',
@@ -56,10 +56,7 @@ describe('NonPrintedComponentFormPage', () => {
         ) {
           capturedBody = JSON.parse(init.body as string);
           return Promise.resolve(
-            jsonResponse(
-              { id: 'c1', name: 'M3x8 screw', unit: 'each', unitCost: 0.02 },
-              201,
-            ),
+            jsonResponse({ id: 'c1', name: 'M3x8 screw', unitCost: 0.02 }, 201),
           );
         }
         return Promise.reject(new Error(`Unexpected fetch: ${url}`));
@@ -70,14 +67,12 @@ describe('NonPrintedComponentFormPage', () => {
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Name'), 'M3x8 screw');
-    await user.type(screen.getByLabelText('Unit'), 'each');
-    await user.type(screen.getByLabelText('Unit cost (optional)'), '0.02');
+    await user.type(screen.getByLabelText('Cost per piece (optional)'), '0.02');
     await user.click(screen.getByRole('button', { name: 'Add component' }));
 
     await vi.waitFor(() => {
       expect(capturedBody).toEqual({
         name: 'M3x8 screw',
-        unit: 'each',
         unitCost: 0.02,
       });
     });
