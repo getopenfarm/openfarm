@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOpenFarmApiEndpointsAssembliesListAssembliesEndpoint } from '@/lib/api/generated/assemblies/assemblies';
 import type { ListAssembliesResponse } from '@/lib/api/generated/endpoints.schemas';
+import { pluralize } from '@/lib/pluralize';
 import { AssembliesTable } from './components/AssembliesTable';
 
 export function AssembliesPage() {
@@ -47,7 +48,15 @@ export function AssembliesPage() {
     <Page>
       <PageHeader
         title="Assemblies"
-        description="Group parts (and other assemblies) into reusable bills of materials."
+        description={
+          listData
+            ? pluralize(
+                listData.totalCount ?? assemblies.length,
+                'assembly',
+                'assemblies',
+              )
+            : undefined
+        }
         action={
           <Button
             ref={addAssemblyRef}

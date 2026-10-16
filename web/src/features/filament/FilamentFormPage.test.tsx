@@ -341,7 +341,7 @@ describe('FilamentFormPage', () => {
     renderEditPage('f-1');
 
     expect(
-      await screen.findByText(/Prusament · PLA · PLA/),
+      await screen.findByText(/Prusament · PLA/),
     ).toBeInTheDocument();
     expect(screen.getByText('Variants (1)')).toBeInTheDocument();
     expect(screen.getByText('Galaxy Black')).toBeInTheDocument();

@@ -370,7 +370,7 @@ function FilamentVariantsPage() {
   if (filamentsQuery.isLoading || assignmentsQuery.isLoading) {
     return (
       <Page>
-        <PageHeader above={backLink} title="Edit filament" />
+        <PageHeader above={backLink} title="Filament" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-64 w-full" />
       </Page>
@@ -380,7 +380,7 @@ function FilamentVariantsPage() {
   if (filamentsQuery.isError || assignmentsQuery.isError) {
     return (
       <Page>
-        <PageHeader above={backLink} title="Edit filament" />
+        <PageHeader above={backLink} title="Filament" />
         <ErrorState
           title="Could not load filament"
           onRetry={() => {
@@ -395,7 +395,7 @@ function FilamentVariantsPage() {
   if (!existing) {
     return (
       <Page>
-        <PageHeader above={backLink} title="Edit filament" />
+        <PageHeader above={backLink} title="Filament" />
         <EmptyState
           title="Filament not found"
           description="Removed or invalid link."
@@ -506,8 +506,8 @@ function EditFilamentForm({
     <Page className="flex-1">
       <PageHeader
         above={backLink}
-        title="Edit filament"
-        description={`${filament.vendorName} · ${filament.material} · ${filament.materialType}`}
+        title={filament.material}
+        description={`${filament.vendorName} · ${filament.materialType}`}
       />
 
       <form

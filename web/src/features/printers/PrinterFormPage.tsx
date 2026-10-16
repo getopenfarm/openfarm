@@ -18,7 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { FieldGroup } from '@/components/ui/field';
+import { FieldGroup, FieldLabel, FieldTitle } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -817,7 +817,7 @@ function EditPrinterFormLoaded({
                   </p>
                 )}
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium">Machine profile</span>
+                  <FieldTitle>Machine profile</FieldTitle>
                   <p className="text-xs text-muted-foreground">
                     {nozzleConfirmed
                       ? `Nozzle: ${nozzleDiameterMm} mm (reported)`
@@ -841,7 +841,7 @@ function EditPrinterFormLoaded({
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium">Process profile</span>
+                  <FieldTitle>Process profile</FieldTitle>
                   <ProfilePickerCombobox
                     kind="process"
                     value={selectedProcessProfileId}
@@ -856,7 +856,7 @@ function EditPrinterFormLoaded({
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium">Build plate</span>
+                  <FieldLabel htmlFor="build-plate">Build plate</FieldLabel>
                   <Select
                     value={selectedBuildPlateType ?? NO_BUILD_PLATE_VALUE}
                     onValueChange={(value) =>
@@ -865,7 +865,7 @@ function EditPrinterFormLoaded({
                       )
                     }
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger id="build-plate" className="w-full">
                       <SelectValue placeholder="Not selected" />
                     </SelectTrigger>
                     <SelectContent>
