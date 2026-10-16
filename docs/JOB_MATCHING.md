@@ -10,7 +10,7 @@ Selecting a different material from a known file requirement is rejected.
 Production still needs an available printer, confirmed nozzle telemetry, an active
 loaded spool, and compatible machine and filament profile assignments. Files that
 need slicing also require process and build-plate settings. Reloaders contribute
-only their selected feeding channel; standby and archived channels do not qualify.
+only their selected feeding slot; standby and archived slots do not qualify.
 
 Snapshot jobs store their filament choices when created. Follow-latest jobs resolve
 the current part's choices while queued and freeze them for dispatch. Explicit
