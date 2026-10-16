@@ -54,7 +54,7 @@ export function AddFeedUnitDialog({
   const [slotCount, setSlotCount] = useState('2');
   const queryClient = useQueryClient();
   const [replaceExternal, setReplaceExternal] = useState(true);
-  const [startingChannel, setStartingChannel] = useState('0');
+  const [startingSlot, setStartingSlot] = useState('0');
   const [transferExternal, setTransferExternal] = useState(true);
   const topology = useQuery({
     queryKey: [
@@ -85,7 +85,7 @@ export function AddFeedUnitDialog({
     setName(unit?.displayLabel ?? '');
     setSlotCount(String(unit?.feedSlots?.length ?? 2));
     setReplaceExternal(unit ? Boolean(unit.replacesFeedUnitId) : true);
-    setStartingChannel(
+    setStartingSlot(
       String(
         unit?.feedSlots?.find((slot) => slot.id === unit.feedingSlotId)
           ?.slotPosition ?? 0,
@@ -110,7 +110,7 @@ export function AddFeedUnitDialog({
           replaceExternal && external?.id ? external.id : null,
         feedingSlotId:
           unit?.feedSlots?.find(
-            (slot) => slot.slotPosition === Number(startingChannel),
+            (slot) => slot.slotPosition === Number(startingSlot),
           )?.id ?? null,
         transferExternalSpool: transferExternal,
       }),
@@ -121,7 +121,7 @@ export function AddFeedUnitDialog({
     },
     onError: () =>
       toast.error(
-        'Could not save reloader. Check for an occupied channel or port.',
+        'Could not save reloader. Check for an occupied slot or port.',
       ),
   });
 
@@ -156,8 +156,8 @@ export function AddFeedUnitDialog({
       Number.isInteger(Number(slotCount)) &&
       Number(slotCount) >= 1 &&
       Number(slotCount) <= 100 &&
-      Number(startingChannel) >= 0 &&
-      Number(startingChannel) < Number(slotCount) &&
+      Number(startingSlot) >= 0 &&
+      Number(startingSlot) < Number(slotCount) &&
       !topology.isLoading &&
       !topology.isError);
 
@@ -174,7 +174,7 @@ export function AddFeedUnitDialog({
               kind,
               name: name.trim(),
               slotCount: Number(slotCount),
-              startingSlotPosition: Number(startingChannel),
+              startingSlotPosition: Number(startingSlot),
               replacesFeedUnitId: replaceExternal
                 ? (external?.id ?? null)
                 : null,
@@ -193,7 +193,7 @@ export function AddFeedUnitDialog({
           <DialogTitle>{unit ? 'Edit reloader' : 'Add feed unit'}</DialogTitle>
           <DialogDescription>
             {unit
-              ? 'Choose the feed path and the feeding channel.'
+              ? 'Choose the feed path and the feeding slot.'
               : 'Add a reloader or an external spool.'}
           </DialogDescription>
         </DialogHeader>
@@ -253,14 +253,11 @@ export function AddFeedUnitDialog({
                 />
               </Field>
               <Field className="flex flex-col gap-1.5">
-                <FieldLabel htmlFor="reloader-start-channel">
-                  Feeding channel
+                <FieldLabel htmlFor="reloader-start-slot">
+                  Feeding slot
                 </FieldLabel>
-                <Select
-                  value={startingChannel}
-                  onValueChange={setStartingChannel}
-                >
-                  <SelectTrigger id="reloader-start-channel">
+                <Select value={startingSlot} onValueChange={setStartingSlot}>
+                  <SelectTrigger id="reloader-start-slot">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -275,14 +272,14 @@ export function AddFeedUnitDialog({
                         (_, position) => position,
                       ).map((position) => (
                         <SelectItem key={position} value={String(position)}>
-                          Channel {position + 1}
+                          Slot {position + 1}
                         </SelectItem>
                       ))}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Select the physical feeding channel. The continuation from
+                  Select the physical feeding slot. The continuation from
                   recorded depletion is estimated. You can correct it.
                 </p>
               </Field>
@@ -316,7 +313,7 @@ export function AddFeedUnitDialog({
                     }
                   />
                   <FieldLabel htmlFor="transfer-external">
-                    Move external spool to the feeding channel
+                    Move external spool to the feeding slot
                   </FieldLabel>
                 </Field>
               )}

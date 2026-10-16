@@ -104,7 +104,7 @@ describe('AddFeedUnitDialog', () => {
       await screen.findByLabelText('Feeds through external spool port'),
     ).toBeChecked();
     expect(
-      screen.getByLabelText('Move external spool to the feeding channel'),
+      screen.getByLabelText('Move external spool to the feeding slot'),
     ).toBeChecked();
     await user.type(screen.getByLabelText('Name'), 'Reloader');
     await user.click(screen.getByRole('button', { name: 'Add feed unit' }));
@@ -161,8 +161,8 @@ describe('AddFeedUnitDialog', () => {
       </QueryClientProvider>,
     );
     await screen.findByLabelText('Feeds through external spool port');
-    await user.click(screen.getByRole('combobox', { name: 'Feeding channel' }));
-    await user.click(screen.getByRole('option', { name: 'Channel 2' }));
+    await user.click(screen.getByRole('combobox', { name: 'Feeding slot' }));
+    await user.click(screen.getByRole('option', { name: 'Slot 2' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(submitted).toMatchObject({

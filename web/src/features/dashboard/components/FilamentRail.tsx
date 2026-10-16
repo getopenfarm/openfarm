@@ -176,13 +176,13 @@ export function FilamentRail({ printer }: { printer: MonitoredPrinter }) {
               equipmentDetails={
                 <>
                   {(rail.additionalUnits.length > 0 ||
-                    rail.additionalChannels > 0) && (
+                    rail.additionalSlots > 0) && (
                     <p className="text-muted-foreground">
                       Also installed:{' '}
                       {[
                         ...rail.additionalUnits,
-                        rail.additionalChannels
-                          ? `${pluralize(rail.additionalChannels, 'additional channel')}`
+                        rail.additionalSlots
+                          ? `${pluralize(rail.additionalSlots, 'additional slot')}`
                           : '',
                       ]
                         .filter(Boolean)

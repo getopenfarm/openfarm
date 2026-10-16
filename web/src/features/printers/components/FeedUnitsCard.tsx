@@ -67,13 +67,13 @@ function FeedSlotRow({
     externalPortReplacedByReloader,
   );
   const queryClient = useQueryClient();
-  const channelMutation = useMutation({
+  const slotMutation = useMutation({
     mutationFn: () => selectReloaderChannel(unit.id ?? '', slot.id ?? ''),
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: [`/api/v1/printers/${unitPrinterId}/feed-units`],
       }),
-    onError: () => toast.error('Could not set feeding channel.'),
+    onError: () => toast.error('Could not set feeding slot.'),
   });
   const isReloader = unit.kind === 'AutomaticFilamentReloader';
   const feeding = isReloader && slot.id === unit.feedingSlotId;
@@ -103,7 +103,7 @@ function FeedSlotRow({
     >
       <span className="w-12 shrink-0 font-mono text-[11px] text-muted-foreground">
         {slot.slotPosition != null
-          ? `${isReloader ? 'Ch.' : 'Slot'} ${slot.slotPosition + 1}`
+          ? `Slot ${slot.slotPosition + 1}`
           : slot.displayLabel}
       </span>
       <Swatch
@@ -158,11 +158,11 @@ function FeedSlotRow({
           <Button
             size="sm"
             variant="ghost"
-            disabled={channelMutation.isPending}
-            onClick={() => channelMutation.mutate()}
+            disabled={slotMutation.isPending}
+            onClick={() => slotMutation.mutate()}
           >
-            {channelMutation.isPending && <Spinner data-icon="inline-start" />}
-            Set feeding channel
+            {slotMutation.isPending && <Spinner data-icon="inline-start" />}
+            Set feeding slot
           </Button>
         )}
         {inactive && (
@@ -276,7 +276,7 @@ function FeedUnitGroup({
       </div>
       {unit.kind === 'AutomaticFilamentReloader' && !unit.feedingSlotId && (
         <p className="px-[18px] pb-2 text-xs text-muted-foreground">
-          Feeding channel not set
+          Feeding slot not set
         </p>
       )}
       <ul>

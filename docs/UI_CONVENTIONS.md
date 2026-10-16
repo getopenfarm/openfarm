@@ -184,6 +184,9 @@ last valid page only from a successful settled response, never placeholder data.
 
 - **Verbs**: Add (create a record), Remove (soft-removal; Delete only for
   irreversible file/credential destruction), Unload (spool from slot).
+- **Feed path terms**: Feed unit (AMS, reloader, external spool) contains
+  Slots. Say "slot", never "channel" or "Ch." (matches `FeedSlot`).
+  Reloader: "Add reloader".
 - **Failures**: "Could not X." Never "X failed", "Failed to X", "Couldn't".
 - **Success toasts**: "<Entity> <past participle>." naming the entity, such as
   "Part saved." and "Printer added." Pending, button and toast share one verb.

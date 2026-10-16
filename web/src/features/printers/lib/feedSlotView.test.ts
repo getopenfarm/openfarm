@@ -129,7 +129,7 @@ describe('reloader telemetry projection', () => {
     colorHex: '00FF00',
     remainPercent: 0,
   };
-  it('projects port telemetry only onto the selected channel', () => {
+  it('projects port telemetry only onto the selected slot', () => {
     expect(feedSlotView(unit, { id: 'ch2' }, [], true, external)).toMatchObject(
       { material: 'PLA', active: true, remainPercent: 0 },
     );
@@ -137,7 +137,7 @@ describe('reloader telemetry projection', () => {
       { material: null, active: false },
     );
   });
-  it('keeps the selected channel separate from offline activity', () => {
+  it('keeps the selected slot separate from offline activity', () => {
     expect(
       feedSlotView(unit, { id: 'ch2' }, [], false, external),
     ).toMatchObject({ material: 'PLA', active: false });

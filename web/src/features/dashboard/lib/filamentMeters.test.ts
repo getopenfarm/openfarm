@@ -49,7 +49,7 @@ describe('Compact filament rail model', () => {
     expect(rail.meters[0]).toMatchObject({ source: 'recorded', grams: 328 });
     expect(rail.meters[0].level).toBeCloseTo(65.6);
   });
-  it('uses two reloader meters and projects external telemetry only onto the selected channel', () => {
+  it('uses two reloader meters and projects external telemetry only onto the selected slot', () => {
     const rail = buildFilamentRail(
       {
         ...online,
@@ -78,7 +78,7 @@ describe('Compact filament rail model', () => {
     });
     expect(rail.additionalUnits).toEqual([]);
   });
-  it('chooses the selected and next loaded channel for reloaders with more than two channels', () => {
+  it('chooses the selected and next loaded slot for reloaders with more than two slots', () => {
     const rail = buildFilamentRail(
       online,
       [
@@ -104,7 +104,7 @@ describe('Compact filament rail model', () => {
       [],
     );
     expect(rail.meters.map((meter) => meter.key)).toEqual(['a', 'c']);
-    expect(rail.additionalChannels).toBe(2);
+    expect(rail.additionalSlots).toBe(2);
   });
   it('shows the active AMS in a four-slot layout and identifies other equipment', () => {
     const rail = buildFilamentRail(

@@ -33,7 +33,7 @@ export interface FilamentRail {
   label: string;
   meters: FilamentMeter[];
   additionalUnits: string[];
-  additionalChannels: number;
+  additionalSlots: number;
 }
 
 /** Feed equipment is identified by topology, never material/color or array position. */
@@ -169,7 +169,7 @@ export function buildFilamentRail(
               slot.id ??
               `${unit.id ?? `${kind}:${unit.unitIndex}`}:${slot.slotPosition ?? index}`,
             position: slot.slotPosition ?? index,
-            location: `${label} · ${slot.displayLabel || `${kind === 'reloader' ? 'Channel' : 'Slot'} ${(slot.slotPosition ?? index) + 1}`}`,
+            location: `${label} · ${slot.displayLabel || `Slot ${(slot.slotPosition ?? index) + 1}`}`,
             material: current
               ? [filament?.material, variant?.colorName]
                   .filter(Boolean)
@@ -225,7 +225,7 @@ export function buildFilamentRail(
       label: 'Filament',
       meters: [],
       additionalUnits: [],
-      additionalChannels: 0,
+      additionalSlots: 0,
     };
   let meters = chosen.meters;
   const limit = chosen.kind === 'ams' ? 4 : chosen.kind === 'reloader' ? 2 : 1;
@@ -253,6 +253,6 @@ export function buildFilamentRail(
     additionalUnits: groups
       .filter((group) => group !== chosen)
       .map((group) => group.label),
-    additionalChannels: chosen.meters.length - meters.length,
+    additionalSlots: chosen.meters.length - meters.length,
   };
 }
