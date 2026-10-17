@@ -5,6 +5,11 @@
     "title": "OpenFarm.Api",
     "version": "1.0.0"
   },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8899"
+    }
+  ],
   "paths": {
     "/api/v1/vendors": {
       "post": {
@@ -1570,19 +1575,6 @@
             }
           }
         ],
-        "requestBody": {
-          "x-name": "CompletePrintJobRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompletePrintJobRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
         "responses": {
           "200": {
             "description": "Success",
@@ -1625,19 +1617,6 @@
             }
           }
         ],
-        "requestBody": {
-          "x-name": "FailPrintJobRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FailPrintJobRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
         "responses": {
           "200": {
             "description": "Success",
@@ -2208,61 +2187,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SetPrintJobFilamentRequirementsRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PrintJobResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/print-jobs/{id}/filament-consumption": {
-      "post": {
-        "tags": [
-          "Print-Jobs"
-        ],
-        "operationId": "OpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            }
-          }
-        ],
-        "requestBody": {
-          "x-name": "RecordPrintJobFilamentConsumptionRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecordPrintJobFilamentConsumptionRequest"
               }
             }
           },
@@ -6074,50 +5998,11 @@
       },
       "CompletePrintJobRequest": {
         "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "filamentConsumption": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FilamentConsumptionLineRequest"
-            }
-          }
-        }
-      },
-      "FilamentConsumptionLineRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "materialType": {
-            "type": "string",
-            "nullable": true
-          },
-          "detectedColorHex": {
-            "type": "string",
-            "nullable": true
-          },
-          "spoolId": {
-            "type": "string",
-            "format": "guid",
-            "nullable": true
-          },
-          "gramsConsumed": {
-            "type": "number",
-            "format": "decimal"
-          }
-        }
+        "additionalProperties": false
       },
       "FailPrintJobRequest": {
         "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "filamentConsumption": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FilamentConsumptionLineRequest"
-            }
-          }
-        }
+        "additionalProperties": false
       },
       "JobMatchingDiagnostics": {
         "type": "object",
@@ -6434,18 +6319,6 @@
             "type": "string",
             "format": "guid",
             "nullable": true
-          }
-        }
-      },
-      "RecordPrintJobFilamentConsumptionRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "filamentConsumption": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FilamentConsumptionLineRequest"
-            }
           }
         }
       },
@@ -7836,6 +7709,16 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "vendorId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "material": {
+            "type": "string"
+          },
+          "materialType": {
+            "type": "string"
+          },
           "newVariants": {
             "type": "array",
             "items": {

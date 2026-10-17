@@ -111,7 +111,9 @@ public static class BambuMqttMessageParser
             var amsUnits = ParseAmsUnits(print);
             var externalSpoolTray = ParseExternalSpool(print);
 
-            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, amsUnits, externalSpoolTray, ParseNozzleDiameter(print), NozzleReported: HasNozzleReport(print));
+            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, amsUnits, externalSpoolTray, ParseNozzleDiameter(print), NozzleReported: HasNozzleReport(print),
+                CurrentLayer: TryGetInt(print, "layer_num"), TotalLayers: TryGetInt(print, "total_layer_num"),
+                ActiveTrayId: ParseActiveTrayId(print));
         }
         catch (JsonException)
         {
@@ -223,6 +225,14 @@ public static class BambuMqttMessageParser
 
         return units;
     }
+
+    /// <summary><c>print.ams.tray_now</c> is a string: 254 = external spool is the active feed, 255 = nothing loaded, else <c>ams_id * 4 + slot</c>.</summary>
+    private static int? ParseActiveTrayId(JsonElement print) =>
+        print.TryGetProperty("ams", out var ams) && ams.ValueKind == JsonValueKind.Object
+            && ams.TryGetProperty("tray_now", out var trayNow) && trayNow.ValueKind == JsonValueKind.String
+            && int.TryParse(trayNow.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+                ? id
+                : null;
 
     /// <summary>Reads <c>print.vt_tray</c> — the external/single spool holder, reported the same way regardless of an AMS being attached (FR-020, research.md §6). Mirrors <see cref="ParseTray"/>.</summary>
     private static AmsTray? ParseExternalSpool(JsonElement print) =>

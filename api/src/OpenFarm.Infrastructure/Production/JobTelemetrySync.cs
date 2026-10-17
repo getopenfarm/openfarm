@@ -33,6 +33,10 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
                 if (job.Status == PrintJobStatus.Queued)
                 {
                     job.MarkStarted();
+                    // The printer still holds the previous print's progress; a job that fails before reporting
+                    // any layer must not inherit it.
+                    if (await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, cancellationToken) is { } starting)
+                        starting.ResetPrintProgress();
                     await SaveAndPublishAsync(jobRepository, job, cancellationToken);
                 }
                 else if (job.Status == PrintJobStatus.Paused)
@@ -57,6 +61,7 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
                 {
                     if (job.CancelRequestedAtUtc is not null) job.MarkCancelled();
                     else job.MarkCompleted();
+                    await DeductFilamentAsync(job, printerId, cancellationToken);
                     await SaveAndPublishAsync(jobRepository, job, cancellationToken);
 
                     var completionService = services.GetRequiredService<ProductionRunCompletionService>();
@@ -77,6 +82,7 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
                         job.MarkFailed(reason: "The printer reported a failed print.");
                     }
 
+                    await DeductFilamentAsync(job, printerId, cancellationToken);
                     await SaveAndPublishAsync(jobRepository, job, cancellationToken);
                 }
 
@@ -93,6 +99,17 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
     /// </summary>
     internal static PrintJobStatus ResolveTerminalStatus(bool cancelRequested) =>
         cancelRequested ? PrintJobStatus.Cancelled : PrintJobStatus.Failed;
+
+    /// <summary>
+    /// Runs before the printer's own progress is overwritten by this event (HandleEventAsync records telemetry after
+    /// this sync), so it reads the last progress observed while printing.
+    /// </summary>
+    private async Task DeductFilamentAsync(PrintJob job, Guid printerId, CancellationToken cancellationToken)
+    {
+        var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, cancellationToken);
+        var progress = new JobProgress(job.Status, printer?.CurrentLayer, printer?.TotalLayers, printer?.PrintProgressPercent);
+        await services.GetRequiredService<JobFilamentAutoDeduction>().ApplyAsync(job, progress, cancellationToken);
+    }
 
     private async Task SaveAndPublishAsync(IPrintJobRepository jobRepository, PrintJob job, CancellationToken cancellationToken)
     {

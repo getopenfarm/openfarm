@@ -23,6 +23,9 @@ public sealed class JobFilamentConsumptionConfiguration : IEntityTypeConfigurati
         builder.Property(c => c.NarrowFilamentProfileId);
         builder.Ignore(c => c.Requirement);
         builder.Property(c => c.GramsConsumed).HasColumnType("numeric");
+        builder.Property(c => c.EstimatedGrams).HasColumnType("numeric");
+        builder.Property(c => c.UsageCurve).HasConversion(
+            curve => curve == null ? null : curve.ToJson(), json => FilamentUsageCurve.FromJson(json));
 
         builder.HasOne<Spool>().WithMany().HasForeignKey(c => c.SpoolId).OnDelete(DeleteBehavior.SetNull);
 

@@ -35,6 +35,12 @@ public sealed class JobFilamentConsumption
 
     public decimal? GramsConsumed { get; private set; }
 
+    /// <summary>The slicer's own full-job estimate for this line, read from the dispatched file; null when it couldn't be read.</summary>
+    public decimal? EstimatedGrams { get; private set; }
+
+    /// <summary>Null when the file's G-code couldn't be read; a partial print then deducts by an even spread.</summary>
+    public FilamentUsageCurve? UsageCurve { get; private set; }
+
     internal static JobFilamentConsumption Create(Guid organizationId, Guid printJobId, string? materialType, string? detectedColorHex) =>
         new(Guid.NewGuid(), organizationId, printJobId, materialType, detectedColorHex);
 
@@ -44,6 +50,13 @@ public sealed class JobFilamentConsumption
             NarrowFilamentVariantId = requirement.NarrowFilamentVariantId,
             NarrowFilamentProfileId = requirement.NarrowFilamentProfileId
         };
+
+    internal void BindUsage(Guid? spoolId, decimal? estimatedGrams, FilamentUsageCurve? usageCurve)
+    {
+        SpoolId = spoolId;
+        EstimatedGrams = estimatedGrams;
+        UsageCurve = usageCurve;
+    }
 
     internal void Record(Guid? spoolId, decimal gramsConsumed)
     {

@@ -1097,6 +1097,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
+                    b.Property<int?>("ActiveTrayId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("AmsUnits")
                         .IsRequired()
                         .HasColumnType("jsonb");
@@ -1116,6 +1119,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("CurrentJobName")
                         .HasColumnType("text");
+
+                    b.Property<int?>("CurrentLayer")
+                        .HasColumnType("integer");
 
                     b.Property<string>("CurrentStageLabel")
                         .HasColumnType("text");
@@ -1186,6 +1192,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("TotalLayers")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MachineProfileId");
@@ -1208,6 +1217,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("DetectedColorHex")
                         .HasColumnType("text");
+
+                    b.Property<decimal?>("EstimatedGrams")
+                        .HasColumnType("numeric");
 
                     b.Property<decimal?>("GramsConsumed")
                         .HasColumnType("numeric");
@@ -1232,6 +1244,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("TenantId")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UsageCurve")
                         .HasColumnType("text");
 
                     b.HasKey("Id");

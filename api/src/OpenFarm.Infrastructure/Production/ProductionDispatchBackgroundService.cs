@@ -386,6 +386,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         }
 
         // Slicing can take minutes: confirm fresh persisted inventory and nozzle state immediately before sending.
+        IReadOnlyList<OpenFarm.Application.Profiles.ProductionFilamentSelection> loadedSelections;
         try
         {
             using var freshScope = CreateTenantScope();
@@ -408,11 +409,44 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 job.RevertDispatch();
                 return;
             }
+
+            // The spools loaded right now are the ones this job draws from; deduction on the terminal transition uses them.
+            loadedSelections = await freshScope.ServiceProvider.GetRequiredService<ProductionProfileReadiness>()
+                .ResolveAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             job.RevertDispatch();
             LogFileResolutionFailed(_logger, job.Id, ex);
+            return;
+        }
+
+        var fileUsage = JobFilamentUsageReader.Read(fileContent.Bytes);
+        var lineUsage = JobFilamentUsageMatcher.Match(
+            job.FilamentConsumption.Select(c => (c.MaterialType, c.DetectedColorHex)).ToList(), fileUsage.Usages);
+        job.BindFilamentUsage(loadedSelections.Select((s, i) => ((Guid?)s.SpoolId, lineUsage[i].Grams,
+            FilamentUsageCurve.Create(lineUsage[i].Tools.Where(fileUsage.Curves.ContainsKey).Select(t => fileUsage.Curves[t])))).ToList());
+
+        // Tell the printer which tray each filament of the file comes from; without it a Bambu prints from the external spool.
+        var placementResolver = services.GetRequiredService<FeedPlacementResolver>();
+        var mappedLines = new List<MappedLine>();
+        for (var i = 0; i < loadedSelections.Count; i++)
+        {
+            if (await placementResolver.ResolveAsync(loadedSelections[i].SpoolId, cancellationToken) is not { } placement)
+            {
+                job.RevertDispatch();
+                LogFeedMappingUnavailable(_logger, job.Id);
+                return;
+            }
+
+            mappedLines.Add(new MappedLine(lineUsage[i].Tools, placement));
+        }
+
+        var feedMapping = PrintFeedMappingBuilder.Build(mappedLines, fileUsage.FilamentCount);
+        if (feedMapping is null)
+        {
+            job.RevertDispatch();
+            LogFeedMappingUnavailable(_logger, job.Id);
             return;
         }
 
@@ -425,7 +459,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             var connector = connectorFactory.CreateConnector(details);
             using var stream = new MemoryStream(fileContent.Bytes);
-            await connector.StartJobAsync(details, stream, fileContent.FileName, cancellationToken);
+            await connector.StartJobAsync(details, stream, fileContent.FileName, feedMapping, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -489,6 +523,9 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {PrinterId} has no connection secret — skipping dispatch attempt.")]
     private static partial void LogNoConnectionSecret(ILogger logger, Guid printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Job {JobId} not sent: its filaments could not be mapped to the printer's feed (unknown spool slot, unreadable file, or AMS mixed with reloader) — reverted to Queued/Unassigned.")]
+    private static partial void LogFeedMappingUnavailable(ILogger logger, Guid jobId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Resolving job {JobId}'s sliceable output failed.")]
     private static partial void LogFileResolutionFailed(ILogger logger, Guid jobId, Exception exception);

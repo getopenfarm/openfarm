@@ -56,7 +56,7 @@ public class BambuLanProtocolTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         try
         {
-            await connector.StartJobAsync(mqtt.Details, file, "new part.gcode", cts.Token);
+            await connector.StartJobAsync(mqtt.Details, file, "new part.gcode", null, cts.Token);
         }
         catch (Exception ex)
         {
@@ -268,7 +268,7 @@ public class BambuLanProtocolTests
         using var file = new MemoryStream(fileBytes);
         const string jobName = "part \"quoted\" \\ folder\n雪.gcode";
 
-        await connector.StartJobAsync(harness.Details, file, jobName, CancellationToken.None);
+        await connector.StartJobAsync(harness.Details, file, jobName, null, CancellationToken.None);
 
         uploadCompleted.Should().BeTrue();
         using (var archive = new ZipArchive(new MemoryStream(uploadedBytes!)))
@@ -320,12 +320,58 @@ public class BambuLanProtocolTests
         var project = BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode");
         using var file = new MemoryStream(project);
 
-        await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", default);
+        await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", null, default);
 
         uploadedBytes.Should().Equal(project, "an existing project must retain settings, thumbnails and checksums");
         uploadPath.Should().StartWith("/cache/");
         using var request = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
         request.RootElement.GetProperty("print").GetProperty("url").GetString().Should().Be(prefix + uploadPath);
+    }
+
+    private static async Task<JsonElement> StartWithMappingAsync(FilamentFeedMapping? mapping, string model = "P1S")
+    {
+        await using var harness = new BambuMqttHarness();
+        var connector = harness.CreateConnector(harness.Options with { UploadFileAsync = (_, _, _, _) => Task.FromResult(FtpStatus.Success) });
+        using var file = new MemoryStream(BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode"));
+
+        await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", mapping, default);
+
+        using var request = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
+        return request.RootElement.GetProperty("print").Clone();
+    }
+
+    [Fact]
+    public async Task StartJob_WithAmsMapping_UsesAmsAndSendsBothMappingArrays()
+    {
+        // Black on AMS 0 slot 2, white on AMS 0 slot 0; a third project filament is unused.
+        var mapping = new FilamentFeedMapping(true, [2, 0, -1], [new(0, 2), new(0, 0), new(255, 255)]);
+
+        var print = await StartWithMappingAsync(mapping);
+
+        print.GetProperty("use_ams").GetBoolean().Should().BeTrue();
+        print.GetProperty("ams_mapping").EnumerateArray().Select(e => e.GetInt32()).Should().Equal(2, 0, -1);
+        print.GetProperty("ams_mapping2").EnumerateArray().Select(e => (e.GetProperty("ams_id").GetInt32(), e.GetProperty("slot_id").GetInt32()))
+            .Should().Equal((0, 2), (0, 0), (255, 255));
+    }
+
+    [Fact]
+    public async Task StartJob_ExternalOnlyMapping_DoesNotUseAmsButIsSpelledOut()
+    {
+        var print = await StartWithMappingAsync(new FilamentFeedMapping(false, [-1], [new(255, 0)]));
+
+        print.GetProperty("use_ams").GetBoolean().Should().BeFalse();
+        print.GetProperty("ams_mapping").EnumerateArray().Select(e => e.GetInt32()).Should().Equal(-1);
+        print.GetProperty("ams_mapping2")[0].GetProperty("ams_id").GetInt32().Should().Be(255);
+    }
+
+    [Fact]
+    public async Task StartJob_WithoutMapping_SendsNoMappingFields()
+    {
+        var print = await StartWithMappingAsync(null);
+
+        print.GetProperty("use_ams").GetBoolean().Should().BeFalse();
+        print.TryGetProperty("ams_mapping", out _).Should().BeFalse();
+        print.TryGetProperty("ams_mapping2", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -340,7 +386,7 @@ public class BambuLanProtocolTests
         using var file = new MemoryStream();
         using (var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true)) archive.CreateEntry("3D/3dmodel.model");
         file.Position = 0;
-        var start = () => connector.StartJobAsync(harness.Details, file, "unsliced.3mf", default);
+        var start = () => connector.StartJobAsync(harness.Details, file, "unsliced.3mf", null, default);
 
         await start.Should().ThrowAsync<IOException>().WithMessage("*Metadata/plate_1.gcode*");
         uploadCalled.Should().BeFalse();
@@ -359,7 +405,7 @@ public class BambuLanProtocolTests
         });
         using var file = new MemoryStream([1, 2, 3]);
 
-        var start = () => connector.StartJobAsync(TestDetails, file, "part", CancellationToken.None);
+        var start = () => connector.StartJobAsync(TestDetails, file, "part", null, CancellationToken.None);
 
         await start.Should().ThrowAsync<IOException>();
     }
@@ -374,7 +420,7 @@ public class BambuLanProtocolTests
         });
         using var file = new MemoryStream([1, 2, 3]);
 
-        var start = () => connector.StartJobAsync(TestDetails, file, "part", CancellationToken.None);
+        var start = () => connector.StartJobAsync(TestDetails, file, "part", null, CancellationToken.None);
         await start.Should().ThrowAsync<IOException>().WithMessage("Upload connection failed");
     }
 
@@ -394,7 +440,7 @@ public class BambuLanProtocolTests
         });
         using var file = new MemoryStream([1, 2, 3]);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var start = connector.StartJobAsync(TestDetails, file, "part", cts.Token);
+        var start = connector.StartJobAsync(TestDetails, file, "part", null, cts.Token);
         await uploading.Task.WaitAsync(TimeSpan.FromSeconds(3));
 
         await cts.CancelAsync();

@@ -89,6 +89,13 @@ public sealed class Printer
 
     public int? PrintProgressPercent { get; private set; }
 
+    /// <summary>The printer's own <c>tray_now</c>: 254 = external spool is the active feed, 255 = nothing loaded, else an AMS tray id.</summary>
+    public int? ActiveTrayId { get; private set; }
+
+    public int? CurrentLayer { get; private set; }
+
+    public int? TotalLayers { get; private set; }
+
     public string? CurrentStageLabel { get; private set; }
 
     public int? RemainingTimeMinutes { get; private set; }
@@ -207,16 +214,30 @@ public sealed class Printer
         int? remainingTimeMinutes,
         string? currentJobName,
         IReadOnlyList<AmsUnit> amsUnits,
-        AmsTray? externalSpoolTray = null)
+        AmsTray? externalSpoolTray = null,
+        int? currentLayer = null,
+        int? totalLayers = null,
+        int? activeTrayId = null)
     {
         NozzleTempC = nozzleTempC ?? NozzleTempC;
         BedTempC = bedTempC ?? BedTempC;
         PrintProgressPercent = printProgressPercent ?? PrintProgressPercent;
+        CurrentLayer = currentLayer ?? CurrentLayer;
+        ActiveTrayId = activeTrayId ?? ActiveTrayId;
+        TotalLayers = totalLayers ?? TotalLayers;
         CurrentStageLabel = currentStageLabel ?? CurrentStageLabel;
         RemainingTimeMinutes = remainingTimeMinutes ?? RemainingTimeMinutes;
         CurrentJobName = currentJobName ?? CurrentJobName;
         AmsUnits = amsUnits.Count > 0 ? amsUnits : AmsUnits;
         ExternalSpoolTray = externalSpoolTray ?? ExternalSpoolTray;
+    }
+
+    /// <summary>Clears the last print's progress when a new job starts, so a stale value is never read as the new job's.</summary>
+    public void ResetPrintProgress()
+    {
+        PrintProgressPercent = null;
+        CurrentLayer = null;
+        TotalLayers = null;
     }
 
     /// <summary>

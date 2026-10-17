@@ -167,9 +167,9 @@ public sealed class RepresentativeFilamentResolverTests
         var unused = Filament.Create(f.Printer.OrganizationId, Guid.NewGuid(), "Other PLA", "PLA");
         var variant = unused.AddVariant("Black", "#000000");
         await f.Filaments.AddAsync(unused, default);
-        var unit = FeedUnit.CreateConnectorDerived(f.Printer.OrganizationId, f.Printer.Id, FeedUnitKindCatalog.ExternalSpool, 0);
-        var slot = unit.AddFeedSlot(0);
-        await f.Units.AddAsync(unit, default);
+        // The second spool goes in another slot of the same AMS: with an AMS attached the external spool is not a usable feed.
+        var unit = (await f.Units.GetByPrinterIdAsync(f.Printer.Id, default)).Single(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit);
+        var slot = unit.AddFeedSlot(unit.FeedSlots.Count);
         var unassignedSpool = Spool.Create(f.Printer.OrganizationId, variant.Id, null, 1000, 1000);
         var expectedSpoolId = assignedSpool.Id;
         var missingVariantId = variant.Id;

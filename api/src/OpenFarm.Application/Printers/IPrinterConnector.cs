@@ -19,7 +19,10 @@ public sealed record PrinterTelemetrySnapshot(
     bool NozzleReported = false,
     string? ReportedState = null,
     DateTimeOffset? StateObservedAtUtc = null,
-    IReadOnlyList<PrinterAlert>? ActiveAlerts = null);
+    IReadOnlyList<PrinterAlert>? ActiveAlerts = null,
+    int? CurrentLayer = null,
+    int? TotalLayers = null,
+    int? ActiveTrayId = null);
 
 /// <summary>
 /// One inbound message from a printer's live connection, already parsed into domain-shaped data —
@@ -66,7 +69,8 @@ public interface IPrinterConnector
     /// through <see cref="ConnectAsync"/> and resolved by <c>IJobTelemetrySync</c>, does that
     /// (research.md R12).
     /// </summary>
-    Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken);
+    /// <param name="feedMapping">Which feed each of the file's filaments uses; null keeps the printer's default (the external spool).</param>
+    Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken);
 
     /// <summary>
     /// Requests the printer pause its current print. A request, not a status change — see

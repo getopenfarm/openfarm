@@ -48,7 +48,7 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             .OrderByDescending(j => j.EndedAtUtc).FirstOrDefaultAsync(cancellationToken);
 
     public Task<PrintJob?> GetActiveJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) =>
-        dbContext.PrintJobs
+        dbContext.PrintJobs.Include(j => j.FilamentConsumption)
             .Where(j => j.DispatchedPrinterId == printerId && !TerminalStatuses.Contains(j.Status))
             .FirstOrDefaultAsync(cancellationToken);
 

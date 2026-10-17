@@ -8,17 +8,16 @@ namespace OpenFarm.Application.Production;
 
 /// <summary>
 /// FR-012/FR-013/FR-014a: the manual-brand completion path — transitions the job and moves its
-/// printer to <see cref="PrinterStatus.AwaitingClear"/> in the same save. Also the sole way to attach
-/// the filament-consumption body to an already-<c>Completed</c> live-integrated job (research.md R7 —
-/// <c>IJobTelemetrySync</c> owns that transition itself, this only supplies the breakdown afterward).
+/// printer to <see cref="PrinterStatus.AwaitingClear"/> in the same save and deducting the job's full
+/// filament estimate. A live-integrated job is completed and deducted by <c>IJobTelemetrySync</c> instead.
 /// Any other status 409s.
 /// </summary>
 public sealed class CompletePrintJobCommandHandler(
     IPrintJobRepository jobRepository,
     IPrinterRepository printerRepository,
-    ISpoolRepository spoolRepository,
+    JobFilamentAutoDeduction filamentDeduction,
     IProductionEventPublisher publisher,
-    ProductionRunCompletionService completionService, IAutoContinuationResolver continuation) : ICommandHandler<CompletePrintJobCommand, PrintJob>
+    ProductionRunCompletionService completionService) : ICommandHandler<CompletePrintJobCommand, PrintJob>
 {
     public async Task<PrintJob> HandleAsync(CompletePrintJobCommand command, CancellationToken cancellationToken)
     {
@@ -40,12 +39,12 @@ public sealed class CompletePrintJobCommandHandler(
             }
             job.MarkCompleted();
         }
-        else if (job.Status != PrintJobStatus.Completed)
+        else
         {
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }
 
-        await PrintJobFilamentConsumptionRecorder.RecordAsync(job, command.FilamentConsumption, spoolRepository, cancellationToken, jobRepository, continuation);
+        await filamentDeduction.ApplyAsync(job, new JobProgress(job.Status), cancellationToken);
         await jobRepository.SaveChangesAsync(cancellationToken);
         await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
 

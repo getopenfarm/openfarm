@@ -303,7 +303,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                     if (pendingTelemetry is { } pending)
                         printer.RecordTelemetry(pending.NozzleTempC, pending.BedTempC, pending.PrintProgressPercent,
                             pending.CurrentStageLabel, pending.RemainingTimeMinutes, pending.CurrentJobName,
-                            pending.AmsUnits, pending.ExternalSpoolTray);
+                            pending.AmsUnits, pending.ExternalSpoolTray, pending.CurrentLayer, pending.TotalLayers, pending.ActiveTrayId);
 
                     lastFlushUtc = await HandleEventAsync(printer, connectorEvent, services, _logger,
                         lastFlushUtc, _flushInterval, connectionToken);
@@ -311,7 +311,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                     // operator-controlled state. This preserves delta merging during throttling.
                     pendingTelemetry = new(printer.NozzleTempC, printer.BedTempC, printer.PrintProgressPercent,
                         printer.CurrentStageLabel, printer.RemainingTimeMinutes, printer.CurrentJobName,
-                        printer.AmsUnits, printer.ExternalSpoolTray);
+                        printer.AmsUnits, printer.ExternalSpoolTray, CurrentLayer: printer.CurrentLayer, TotalLayers: printer.TotalLayers, ActiveTrayId: printer.ActiveTrayId);
                 }
                 finally { gate.Release(); }
             }
@@ -373,10 +373,12 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         TimeSpan flushInterval,
         CancellationToken cancellationToken)
     {
-        if (connectorEvent.ConnectionStarted || connectorEvent.ConnectionEnded)
+        // A transport drop alone doesn't mean offline: brief Wi-Fi blips reconnect within seconds.
+        // Reachability is left to the silence sweep (_unreachableThreshold since LastMessageUtc).
+        if (connectorEvent.ConnectionEnded) return lastFlushUtc;
+        if (connectorEvent.ConnectionStarted)
         {
-            if (connectorEvent.ConnectionEnded) printer.MarkUnreachable();
-            else printer.BeginConnection();
+            printer.BeginConnection();
             await services.GetRequiredService<IPrinterRepository>().SaveChangesAsync(cancellationToken);
             var connectionPublisher = services.GetRequiredService<IPrinterEventPublisher>();
             await connectionPublisher.PrinterStatusChangedAsync(printer.OrganizationId, printer.Id, printer.Status, printer.IsReachable, cancellationToken);
@@ -425,7 +427,10 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 telemetry.RemainingTimeMinutes,
                 telemetry.CurrentJobName,
                 telemetry.AmsUnits,
-                telemetry.ExternalSpoolTray);
+                telemetry.ExternalSpoolTray,
+                telemetry.CurrentLayer,
+                telemetry.TotalLayers,
+                telemetry.ActiveTrayId);
         }
 
         var mustFlushNow = reportedStateChanged || alertsChanged || statusChanged || !wasReachable || previousNozzle != printer.ReportedNozzleDiameterMm || previouslyConfirmed != printer.NozzleConfirmed;

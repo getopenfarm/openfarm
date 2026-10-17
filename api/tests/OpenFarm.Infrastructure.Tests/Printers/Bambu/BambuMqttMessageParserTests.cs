@@ -12,6 +12,22 @@ namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
 public class BambuMqttMessageParserTests
 {
     [Theory]
+    [InlineData("254", 254)]
+    [InlineData("255", 255)]
+    [InlineData("5", 5)]
+    [InlineData("", null)]
+    public void TrayNowIsTheActiveTrayId(string trayNow, int? expected)
+    {
+        var json = trayNow.Length == 0 ? "{\"print\":{\"ams\":{}}}" : $"{{\"print\":{{\"ams\":{{\"tray_now\":\"{trayNow}\"}}}}}}";
+
+        BambuMqttMessageParser.TryParseTelemetry(json)!.ActiveTrayId.Should().Be(expected);
+    }
+
+    [Fact]
+    public void TrayNowAbsentFromAnAmslessDelta_IsNotReported() =>
+        BambuMqttMessageParser.TryParseTelemetry("{\"print\":{\"mc_percent\":10}}")!.ActiveTrayId.Should().BeNull();
+
+    [Theory]
     [InlineData("[{\"diameter\":\"0.4\"}]", "0.4")]
     [InlineData("[{\"diameter\":0.4},{\"diameter\":0.6}]", null)]
     [InlineData("[{\"diameter\":0.4},{}]", null)]

@@ -645,22 +645,12 @@ export interface CancelPrintJobRequest {
   [key: string]: unknown;
 }
 
-export interface FilamentConsumptionLineRequest {
-  /** @nullable */
-  materialType?: string | null;
-  /** @nullable */
-  detectedColorHex?: string | null;
-  /** @nullable */
-  spoolId?: string | null;
-  gramsConsumed?: number;
-}
-
 export interface CompletePrintJobRequest {
-  filamentConsumption?: FilamentConsumptionLineRequest[];
+  [key: string]: unknown;
 }
 
 export interface FailPrintJobRequest {
-  filamentConsumption?: FilamentConsumptionLineRequest[];
+  [key: string]: unknown;
 }
 
 export interface MatchingFilamentRequirement {
@@ -796,10 +786,6 @@ export interface JobFilamentRequirementRequest {
 
 export interface SetPrintJobFilamentRequirementsRequest {
   requirements?: JobFilamentRequirementRequest[];
-}
-
-export interface RecordPrintJobFilamentConsumptionRequest {
-  filamentConsumption?: FilamentConsumptionLineRequest[];
 }
 
 export interface PrinterSummaryResponse {
@@ -1320,6 +1306,9 @@ export interface CreateFilamentRequest {
 }
 
 export interface EditFilamentRequest {
+  vendorId?: string;
+  material?: string;
+  materialType?: string;
   newVariants?: CreateFilamentVariantRequest[];
   profileAssignments?: FilamentProfileAssignmentInput[];
 }

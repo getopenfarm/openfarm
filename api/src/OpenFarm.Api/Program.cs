@@ -352,6 +352,7 @@ builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
 builder.Services.AddScoped<ResolveSlicerSelection>();
 builder.Services.AddScoped<RepresentativeFilamentResolver>();
 builder.Services.AddScoped<ProfileCompatibility>();
+builder.Services.AddScoped<FeedPlacementResolver>();
 builder.Services.AddScoped<ProductionProfileReadiness>();
 builder.Services.AddScoped<ProductionJobRequirements>();
 builder.Services.AddScoped<ProductionSnapshotFactory>();
@@ -414,7 +415,7 @@ builder.Services.AddScoped<ProductionRunDisplayLabelResolver>();
 builder.Services.AddScoped<ProductionRunCompletionService>();
 builder.Services.AddScoped<ProductionDispatchRequestService>();
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SetPrintJobFilamentRequirementsCommand, OpenFarm.Domain.Production.PrintJob>, SetPrintJobFilamentRequirementsCommandHandler>();
-builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<RecordPrintJobFilamentConsumptionCommand, OpenFarm.Domain.Production.PrintJob>, RecordPrintJobFilamentConsumptionCommandHandler>();
+builder.Services.AddScoped<JobFilamentAutoDeduction>();
 builder.Services.AddScoped<OpenFarm.Application.Printers.ResolvePrinterConnectionDetails>();
 builder.Services.AddScoped<ProductionRemoteControlResolver>();
 

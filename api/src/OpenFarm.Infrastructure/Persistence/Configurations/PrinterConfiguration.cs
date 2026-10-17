@@ -46,6 +46,9 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.Property(p => p.NozzleTempC);
         builder.Property(p => p.BedTempC);
         builder.Property(p => p.PrintProgressPercent);
+        builder.Property(p => p.ActiveTrayId);
+        builder.Property(p => p.CurrentLayer);
+        builder.Property(p => p.TotalLayers);
         builder.Property(p => p.CurrentStageLabel);
         builder.Property(p => p.RemainingTimeMinutes);
         builder.Property(p => p.CurrentJobName);

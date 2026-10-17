@@ -1,11 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -113,35 +107,16 @@ it('saves per-job requirements from the Edit filament dialog', async () => {
   );
 });
 
-it('can split usage across spools for each required material', async () => {
-  const requests = setup('Failed');
+it('shows consumption read-only once the job is terminal', async () => {
+  setup('Failed');
   expect(await screen.findByText('Filament consumed')).toBeInTheDocument();
+  expect(screen.getAllByText('Not deducted')).toHaveLength(2);
   expect(
     screen.queryByRole('button', { name: 'Edit filament' }),
   ).not.toBeInTheDocument();
-  fireEvent.click(await screen.findByRole('button', { name: 'Record usage' }));
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Add spool for PETG' }),
-  );
-  const materials = screen.getAllByLabelText('Material') as HTMLInputElement[];
-  expect(materials[2].value).toBe('PETG');
-  const grams = screen.getAllByLabelText('Grams consumed');
-  fireEvent.change(grams[1], { target: { value: '12.5' } });
-  fireEvent.change(grams[2], { target: { value: '3' } });
-  fireEvent.click(
-    within(screen.getByRole('dialog')).getByRole('button', {
-      name: 'Record usage',
-    }),
-  );
-  await waitFor(() =>
-    expect(requests).toHaveBeenCalledWith(
-      expect.stringContaining('/filament-consumption'),
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('12.5'),
-      }),
-    ),
-  );
+  expect(
+    screen.queryByRole('button', { name: 'Record usage' }),
+  ).not.toBeInTheDocument();
 });
 
 it('preserves a saved catalog choice and can explicitly clear it on a queued job', async () => {

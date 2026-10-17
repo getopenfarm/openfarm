@@ -31,4 +31,5 @@ public sealed record PrinterModel(
     CameraTransport CameraTransport,
     int FilamentInletCount = 1,
     string? VendorMachineModelName = null,
-    IReadOnlySet<BuildPlateType>? CompatiblePlateTypes = null);
+    IReadOnlySet<BuildPlateType>? CompatiblePlateTypes = null,
+    bool SendsExplicitExternalMapping = true);

@@ -13,7 +13,8 @@ namespace OpenFarm.Application.Production;
 
 public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver resolver, IPrinterRepository printers,
     ResolveSlicingProfileSelection profileSelection, ProfileCompatibility compatibility, IOrganizationRepository organizations,
-    ResolveSlicerSelection slicerSelection, IPartFileStorage storage, IPartFileClassifier classifier, IProfileEngineValidator engineValidator)
+    ResolveSlicerSelection slicerSelection, IPartFileStorage storage, IPartFileClassifier classifier, IProfileEngineValidator engineValidator,
+    FeedPlacementResolver placements)
 {
     public async Task<IReadOnlyList<ProductionFilamentSelection>> ResolveAsync(Guid printerId, Part part,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, string? revisionHash = null)
@@ -36,6 +37,11 @@ public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver re
                 requirement.NarrowFilamentVariantId is null ? requirement.DetectedColorHex : null,
                 requirement.NarrowFilamentVariantId, requirement.NarrowFilamentProfileId, ct));
         if (selections.Count == 0) throw new SlicingProfileUnconfiguredException("No production filament requirements are available.");
+        var feeds = new List<FeedPlacement>();
+        foreach (var selection in selections)
+            if (await placements.ResolveAsync(selection.SpoolId, ct) is { } placement) feeds.Add(placement);
+        if (PrintFeedMappingBuilder.MixesAmsWithExternal(feeds))
+            throw new SlicingProfileUnconfiguredException("One job can't draw from the AMS and the reloader at once. Load all colours in the AMS, or all in the reloader.");
         if (requiresSlicing && selections.Select(s => s.Profile.Id).Distinct().Count() > 1)
             throw new SlicingProfileUnconfiguredException("Production slicing with multiple filament profiles is not supported. Use a pre-sliced file.");
         if (requiresSlicing) await ResolveSettingsAsync(printerId, part, selections[0], ct);

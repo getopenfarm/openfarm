@@ -15,6 +15,12 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
         => new((await ResolveLoadedAsync(printerId ?? throw new SlicingProfileUnconfiguredException("An assigned printer is required."),
             materialType, null, null, null, cancellationToken)).Profile, FilamentMatchSource.FleetLoaded);
 
+    /// <summary>An AMS printer feeds from one path at a time; say which, so a spool on the other one isn't a mystery.</summary>
+    private static string FeedPathHint(IReadOnlyList<FeedUnit> units, bool externalIsActive) =>
+        !ProductionFeedPath.HasAms(units) ? ""
+        : externalIsActive ? " The external spool is the active feed, so AMS spools are not used until it is unloaded."
+        : " With an AMS attached, the external spool is used only while it is loaded into the extruder.";
+
     public async Task<ProductionFilamentSelection> ResolveLoadedAsync(Guid printerId, string? materialType, string? colorHex,
         Guid? narrowedVariantId, Guid? narrowedProfileId, CancellationToken ct)
     {
@@ -27,10 +33,15 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
         }
         catch (SlicingProfileUnconfiguredException ex)
         { throw new SlicingProfileUnconfiguredException($"{ex.Message} Configure in /printers/{printer.Id}/edit."); }
-        var activeSlotIds = ProductionFeedPath.ActiveSlotIds(await feedUnits.GetByPrinterIdAsync(printerId, ct));
+        var units = await feedUnits.GetByPrinterIdAsync(printerId, ct);
+        var externalIsActive = printer.ActiveTrayId == ProductionFeedPath.ExternalTrayId;
+        var activeSlotIds = ProductionFeedPath.ActiveSlotIds(units, externalIsActive);
         var loaded = await spools.ListAsync(SpoolState.Using, null, ct);
         SlicingProfileUnconfiguredException? issue = null;
-        foreach (var spool in loaded.OrderBy(s => s.Id))
+        // Deterministic: AMS slots by unit and slot, then the reloader / external path, so the same filament loaded twice always resolves to the same tray.
+        var feedOrder = units.SelectMany(u => u.FeedSlots.Select(s => (s.Id, Key: (Rank: u.Kind == FeedUnitKindCatalog.MultiMaterialUnit ? 0 : 1, u.UnitIndex, s.SlotPosition))))
+            .ToDictionary(x => x.Id, x => x.Key);
+        foreach (var spool in loaded.OrderBy(s => s.FeedSlotId is { } id && feedOrder.TryGetValue(id, out var key) ? key : (2, 0, 0)).ThenBy(s => s.Id))
         {
             if (spool.FeedSlotId is not { } slotId) continue;
             if (!activeSlotIds.Contains(slotId)) continue;
@@ -54,7 +65,7 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
             catch (SlicingProfileUnconfiguredException ex) { issue ??= new SlicingProfileUnconfiguredException($"{ex.Message} Configure in /filament/{filament.Id}/edit."); }
         }
         if (issue is not null) throw issue;
-        throw new SlicingProfileUnconfiguredException($"Register and load a tracked spool for '{materialType ?? "the required material"}'{(colorHex is null ? "" : $" ({colorHex})")} on printer '{printer.Name}'.");
+        throw new SlicingProfileUnconfiguredException($"Register and load a tracked spool for '{materialType ?? "the required material"}'{(colorHex is null ? "" : $" ({colorHex})")} on printer '{printer.Name}'.{FeedPathHint(units, externalIsActive)}");
     }
 }
 

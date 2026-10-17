@@ -2,12 +2,14 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using FluentFTP;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Formatter;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Printers.Bambu;
@@ -141,8 +143,9 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             await SubscribeAndRequestAsync(client, details.SerialNumber, connectionToken);
         };
 
-        client.DisconnectedAsync += _ =>
+        client.DisconnectedAsync += e =>
         {
+            if (e.ClientWasConnected) LogDisconnected(_logger, details.SerialNumber, e.Reason, e.Exception);
             channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionEnded: true));
             return Task.CompletedTask;
         };
@@ -173,7 +176,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     /// real, open verification question for physical hardware (research.md R5's own documented risk),
     /// not settled here.
     /// </summary>
-    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken)
+    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
     {
         using var buffered = new MemoryStream();
         await fileContent.CopyToAsync(buffered, cancellationToken);
@@ -193,6 +196,9 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             throw new IOException($"Printer file upload did not succeed ({uploadStatus}).");
         }
 
+        // The external spool needs no tray ids; whether the printer wants it spelled out is a per-model setting.
+        var sendMapping = feedMapping is not null
+            && (feedMapping.UseAms || !PrinterModelCatalog.TryResolve("Bambu", details.ModelCode, out var model) || model!.SendsExplicitExternalMapping);
         var payload = JsonSerializer.Serialize(new
         {
             print = new
@@ -215,9 +221,11 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 flow_cali = false,
                 vibration_cali = false,
                 layer_inspect = false,
-                use_ams = false,
+                use_ams = feedMapping?.UseAms ?? false,
+                ams_mapping = sendMapping ? feedMapping!.Trays : null,
+                ams_mapping2 = sendMapping ? feedMapping!.Targets.Select(t => new { ams_id = t.AmsId, slot_id = t.SlotId }) : null,
             },
-        });
+        }, new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull });
         await PublishCommandAsync(details, payload, cancellationToken);
     }
 
@@ -349,7 +357,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         new MqttClientOptionsBuilder()
             .WithTcpServer(details.IpAddress, options?.MqttPort ?? 8883)
             .WithCredentials(MqttUsername, details.AccessCode)
-            .WithKeepAlivePeriod(TimeSpan.FromSeconds(5))
+            // Lenient so brief Wi-Fi blips don't drop the session; TelemetryTimeout catches dead ones.
+            .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
             .WithTimeout(options?.ConnectTimeout ?? TimeSpan.FromSeconds(10))
             .WithCleanSession()
             // MQTTnet defaults to MQTT 5, but Bambu's LAN broker only speaks v3.1.1 (research.md §1;
@@ -375,6 +384,9 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
     [LoggerMessage(Level = LogLevel.Information, Message = "MQTT connected to printer {SerialNumber}.")]
     private static partial void LogConnected(ILogger logger, string serialNumber);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "MQTT disconnected from printer {SerialNumber} ({Reason}).")]
+    private static partial void LogDisconnected(ILogger logger, string serialNumber, MqttClientDisconnectReason reason, Exception? exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "MQTT reconnect attempt to printer {SerialNumber} failed.")]
     private static partial void LogReconnectFailed(ILogger logger, string serialNumber, Exception exception);

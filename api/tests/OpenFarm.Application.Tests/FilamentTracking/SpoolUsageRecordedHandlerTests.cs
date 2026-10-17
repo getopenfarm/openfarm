@@ -268,10 +268,11 @@ public class SpoolUsageRecordedHandlerTests
         var first = CreateUsingSpool(Guid.NewGuid(), slots[0]);
         var second = CreateUsingSpool(first.FilamentVariantId, slots[1]);
         var job = OpenFarm.Application.Tests.Production.Fakes.ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
-        var requirement = job.FilamentConsumption[0];
-        var lines = new[] { new OpenFarm.Application.Production.FilamentConsumptionLineInput(requirement.MaterialType, requirement.DetectedColorHex, first.Id, 1000) };
-        await OpenFarm.Application.Production.PrintJobFilamentConsumptionRecorder.RecordAsync(job, lines, _spoolRepository, CancellationToken.None, continuation: CreateHandler());
-        await OpenFarm.Application.Production.PrintJobFilamentConsumptionRecorder.RecordAsync(job, lines, _spoolRepository, CancellationToken.None, continuation: CreateHandler());
+        job.BindFilamentUsage([(first.Id, 1000m, null)]);
+        var deduction = new OpenFarm.Application.Production.JobFilamentAutoDeduction(
+            _spoolRepository, new OpenFarm.Application.Tests.Production.Fakes.InMemorySpoolUsageRecordRepository(), CreateHandler(), _activityLogWriter);
+        await deduction.ApplyAsync(job, new OpenFarm.Application.Production.JobProgress(OpenFarm.Domain.Production.PrintJobStatus.Completed), CancellationToken.None);
+        await deduction.ApplyAsync(job, new OpenFarm.Application.Production.JobProgress(OpenFarm.Domain.Production.PrintJobStatus.Completed), CancellationToken.None);
         first.State.Should().Be(SpoolState.Finished);
         unit.FeedingSlotId.Should().Be(slots[1].Id);
         second.RemainingWeightGrams.Should().Be(1000);

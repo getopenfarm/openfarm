@@ -11,8 +11,6 @@ public sealed class FailPrintJobRequest : IActivityLoggable
 {
     public Guid Id { get; set; }
 
-    public List<FilamentConsumptionLineRequest> FilamentConsumption { get; set; } = [];
-
     public string EntityType => "PrintJob";
 
     public string EventType => "PrintJobFailed";
@@ -32,11 +30,7 @@ public sealed class FailPrintJobEndpoint(FailPrintJobHandler handler, IQueryHand
     public override async Task HandleAsync(FailPrintJobRequest req, CancellationToken ct)
     {
         req.Id = Route<Guid>("id");
-        var lines = req.FilamentConsumption
-            .Select(l => new FilamentConsumptionLineInput(l.MaterialType, l.DetectedColorHex, l.SpoolId, l.GramsConsumed))
-            .ToList();
-
-        var job = await handler.HandleAsync(new FailPrintJobCommand(req.Id, lines), ct);
+        var job = await handler.HandleAsync(new FailPrintJobCommand(req.Id), ct);
 
         var detail = await getDetail.HandleAsync(new GetPrintJobQuery(job.Id), ct);
         Response = PrintJobResponse.FromDetail(detail!);

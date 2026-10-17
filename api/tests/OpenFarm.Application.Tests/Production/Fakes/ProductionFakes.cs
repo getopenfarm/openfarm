@@ -1,3 +1,4 @@
+using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
@@ -5,6 +6,7 @@ using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
+using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
@@ -283,7 +285,7 @@ public sealed class RecordingPrinterConnector : IPrinterConnector
         yield break;
     }
 
-    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken)
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
     {
         StartedJobNames.Add(jobName);
         return Task.CompletedTask;
@@ -345,4 +347,26 @@ public sealed class NoopContinuationResolver : IAutoContinuationResolver
 {
     public Task<AutoContinuationResult> ResolveAsync(Spool depletedSpool, CancellationToken cancellationToken) =>
         Task.FromResult(AutoContinuationResult.None);
+}
+
+public sealed class InMemorySpoolUsageRecordRepository : ISpoolUsageRecordRepository
+{
+    public List<SpoolUsageRecord> Records { get; } = [];
+
+    public Task AddAsync(SpoolUsageRecord record, CancellationToken cancellationToken)
+    {
+        Records.Add(record);
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class RecordingActivityLogWriter : IActivityLogWriter
+{
+    public List<ActivityLogEntry> Entries { get; } = [];
+
+    public Task WriteAsync(ActivityLogEntry entry, CancellationToken cancellationToken)
+    {
+        Entries.Add(entry);
+        return Task.CompletedTask;
+    }
 }

@@ -6,12 +6,15 @@ using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-/// <summary>Mirrors <see cref="CompletePrintJobCommandHandler"/>'s shape (FR-012/FR-013a/FR-014a) for the Failed outcome instead.</summary>
+/// <summary>
+/// Mirrors <see cref="CompletePrintJobCommandHandler"/>'s shape (FR-012/FR-013a/FR-014a) for the Failed outcome instead.
+/// A manual-brand printer reports no progress, so nothing is deducted; the operator adjusts through manual spool usage.
+/// </summary>
 public sealed class FailPrintJobCommandHandler(
     IPrintJobRepository jobRepository,
     IPrinterRepository printerRepository,
-    ISpoolRepository spoolRepository,
-    IProductionEventPublisher publisher, IAutoContinuationResolver continuation) : ICommandHandler<FailPrintJobCommand, PrintJob>
+    JobFilamentAutoDeduction filamentDeduction,
+    IProductionEventPublisher publisher) : ICommandHandler<FailPrintJobCommand, PrintJob>
 {
     public async Task<PrintJob> HandleAsync(FailPrintJobCommand command, CancellationToken cancellationToken)
     {
@@ -31,12 +34,12 @@ public sealed class FailPrintJobCommandHandler(
             }
             job.MarkFailed(reason: null);
         }
-        else if (job.Status != PrintJobStatus.Failed)
+        else
         {
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }
 
-        await PrintJobFilamentConsumptionRecorder.RecordAsync(job, command.FilamentConsumption, spoolRepository, cancellationToken, jobRepository, continuation);
+        await filamentDeduction.ApplyAsync(job, new JobProgress(job.Status), cancellationToken);
         await jobRepository.SaveChangesAsync(cancellationToken);
         await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
 

@@ -64,7 +64,7 @@ public sealed class RecoveryConnector : IPrinterConnector
         }
     }
     public Task<bool> VerifyAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) => Task.FromResult(true);
-    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) => throw new NotSupportedException();

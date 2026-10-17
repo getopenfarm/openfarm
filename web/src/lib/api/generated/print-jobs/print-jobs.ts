@@ -22,15 +22,12 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
-  CompletePrintJobRequest,
-  FailPrintJobRequest,
   JobMatchingDiagnostics,
   ListQueueJobsResponse,
   OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
   PinPrintJobRequest,
   PrintJobResponse,
   ProblemDetails,
-  RecordPrintJobFilamentConsumptionRequest,
   ReorderPrintJobRequest,
   ReorderPrintJobResponse,
   SetPrintJobFilamentRequirementsRequest,
@@ -223,7 +220,6 @@ export const getOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpointUrl = (
 
 export const openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint = async (
   id: string,
-  completePrintJobRequest: CompletePrintJobRequest,
   options?: RequestInit,
 ): Promise<openFarmApiEndpointsPrintJobsCompletePrintJobEndpointResponse> => {
   return httpClient<openFarmApiEndpointsPrintJobsCompletePrintJobEndpointResponse>(
@@ -231,8 +227,6 @@ export const openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint = async (
     {
       ...options,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(completePrintJobRequest),
     },
   );
 };
@@ -244,7 +238,7 @@ export const getOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpointMutationOpt
         ReturnType<typeof openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint>
       >,
       TError,
-      { id: string; data: CompletePrintJobRequest },
+      { id: string },
       TContext
     >;
   }): UseMutationOptions<
@@ -252,7 +246,7 @@ export const getOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpointMutationOpt
       ReturnType<typeof openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint>
     >,
     TError,
-    { id: string; data: CompletePrintJobRequest },
+    { id: string },
     TContext
   > => {
     const mutationKey = [
@@ -270,11 +264,11 @@ export const getOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpointMutationOpt
       Awaited<
         ReturnType<typeof openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint>
       >,
-      { id: string; data: CompletePrintJobRequest }
+      { id: string }
     > = (props) => {
-      const { id, data } = props ?? {};
+      const { id } = props ?? {};
 
-      return openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint(id, data);
+      return openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint(id);
     };
 
     return { mutationFn, ...mutationOptions };
@@ -286,8 +280,7 @@ export type OpenFarmApiEndpointsPrintJobsCompletePrintJobEndpointMutationResult 
       ReturnType<typeof openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint>
     >
   >;
-export type OpenFarmApiEndpointsPrintJobsCompletePrintJobEndpointMutationBody =
-  CompletePrintJobRequest;
+
 export type OpenFarmApiEndpointsPrintJobsCompletePrintJobEndpointMutationError =
   void;
 
@@ -301,7 +294,7 @@ export const useOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpoint = <
         ReturnType<typeof openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint>
       >,
       TError,
-      { id: string; data: CompletePrintJobRequest },
+      { id: string },
       TContext
     >;
   },
@@ -311,7 +304,7 @@ export const useOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpoint = <
     ReturnType<typeof openFarmApiEndpointsPrintJobsCompletePrintJobEndpoint>
   >,
   TError,
-  { id: string; data: CompletePrintJobRequest },
+  { id: string },
   TContext
 > => {
   return useMutation(
@@ -359,7 +352,6 @@ export const getOpenFarmApiEndpointsPrintJobsFailPrintJobEndpointUrl = (
 
 export const openFarmApiEndpointsPrintJobsFailPrintJobEndpoint = async (
   id: string,
-  failPrintJobRequest: FailPrintJobRequest,
   options?: RequestInit,
 ): Promise<openFarmApiEndpointsPrintJobsFailPrintJobEndpointResponse> => {
   return httpClient<openFarmApiEndpointsPrintJobsFailPrintJobEndpointResponse>(
@@ -367,8 +359,6 @@ export const openFarmApiEndpointsPrintJobsFailPrintJobEndpoint = async (
     {
       ...options,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(failPrintJobRequest),
     },
   );
 };
@@ -380,7 +370,7 @@ export const getOpenFarmApiEndpointsPrintJobsFailPrintJobEndpointMutationOptions
         ReturnType<typeof openFarmApiEndpointsPrintJobsFailPrintJobEndpoint>
       >,
       TError,
-      { id: string; data: FailPrintJobRequest },
+      { id: string },
       TContext
     >;
   }): UseMutationOptions<
@@ -388,7 +378,7 @@ export const getOpenFarmApiEndpointsPrintJobsFailPrintJobEndpointMutationOptions
       ReturnType<typeof openFarmApiEndpointsPrintJobsFailPrintJobEndpoint>
     >,
     TError,
-    { id: string; data: FailPrintJobRequest },
+    { id: string },
     TContext
   > => {
     const mutationKey = ['openFarmApiEndpointsPrintJobsFailPrintJobEndpoint'];
@@ -404,11 +394,11 @@ export const getOpenFarmApiEndpointsPrintJobsFailPrintJobEndpointMutationOptions
       Awaited<
         ReturnType<typeof openFarmApiEndpointsPrintJobsFailPrintJobEndpoint>
       >,
-      { id: string; data: FailPrintJobRequest }
+      { id: string }
     > = (props) => {
-      const { id, data } = props ?? {};
+      const { id } = props ?? {};
 
-      return openFarmApiEndpointsPrintJobsFailPrintJobEndpoint(id, data);
+      return openFarmApiEndpointsPrintJobsFailPrintJobEndpoint(id);
     };
 
     return { mutationFn, ...mutationOptions };
@@ -420,8 +410,7 @@ export type OpenFarmApiEndpointsPrintJobsFailPrintJobEndpointMutationResult =
       ReturnType<typeof openFarmApiEndpointsPrintJobsFailPrintJobEndpoint>
     >
   >;
-export type OpenFarmApiEndpointsPrintJobsFailPrintJobEndpointMutationBody =
-  FailPrintJobRequest;
+
 export type OpenFarmApiEndpointsPrintJobsFailPrintJobEndpointMutationError =
   void;
 
@@ -435,7 +424,7 @@ export const useOpenFarmApiEndpointsPrintJobsFailPrintJobEndpoint = <
         ReturnType<typeof openFarmApiEndpointsPrintJobsFailPrintJobEndpoint>
       >,
       TError,
-      { id: string; data: FailPrintJobRequest },
+      { id: string },
       TContext
     >;
   },
@@ -443,7 +432,7 @@ export const useOpenFarmApiEndpointsPrintJobsFailPrintJobEndpoint = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof openFarmApiEndpointsPrintJobsFailPrintJobEndpoint>>,
   TError,
-  { id: string; data: FailPrintJobRequest },
+  { id: string },
   TContext
 > => {
   return useMutation(
@@ -2566,161 +2555,6 @@ export const useOpenFarmApiEndpointsPrintJobsSetPrintJobFilamentRequirementsEndp
   > => {
     return useMutation(
       getOpenFarmApiEndpointsPrintJobsSetPrintJobFilamentRequirementsEndpointMutationOptions(
-        options,
-      ),
-      queryClient,
-    );
-  };
-export type openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse200 =
-  {
-    data: PrintJobResponse;
-    status: 200;
-  };
-
-export type openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse401 =
-  {
-    data: void;
-    status: 401;
-  };
-
-export type openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse403 =
-  {
-    data: void;
-    status: 403;
-  };
-
-export type openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponseSuccess =
-  openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse200 & {
-    headers: Headers;
-  };
-export type openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponseError =
-  (
-    | openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse401
-    | openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse403
-  ) & {
-    headers: Headers;
-  };
-
-export type openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse =
-  | openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponseSuccess
-  | openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponseError;
-
-export const getOpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointUrl =
-  (id: string) => {
-    return `/api/v1/print-jobs/${id}/filament-consumption`;
-  };
-
-export const openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint =
-  async (
-    id: string,
-    recordPrintJobFilamentConsumptionRequest: RecordPrintJobFilamentConsumptionRequest,
-    options?: RequestInit,
-  ): Promise<openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse> => {
-    return httpClient<openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointResponse>(
-      getOpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointUrl(
-        id,
-      ),
-      {
-        ...options,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(recordPrintJobFilamentConsumptionRequest),
-      },
-    );
-  };
-
-export const getOpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointMutationOptions =
-  <TError = void, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint
-        >
-      >,
-      TError,
-      { id: string; data: RecordPrintJobFilamentConsumptionRequest },
-      TContext
-    >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint
-      >
-    >,
-    TError,
-    { id: string; data: RecordPrintJobFilamentConsumptionRequest },
-    TContext
-  > => {
-    const mutationKey = [
-      'openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint',
-    ];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        'mutationKey' in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint
-        >
-      >,
-      { id: string; data: RecordPrintJobFilamentConsumptionRequest }
-    > = (props) => {
-      const { id, data } = props ?? {};
-
-      return openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint(
-        id,
-        data,
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type OpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint
-      >
-    >
-  >;
-export type OpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointMutationBody =
-  RecordPrintJobFilamentConsumptionRequest;
-export type OpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointMutationError =
-  void;
-
-export const useOpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint =
-  <TError = void, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint
-          >
-        >,
-        TError,
-        { id: string; data: RecordPrintJobFilamentConsumptionRequest },
-        TContext
-      >;
-    },
-    queryClient?: QueryClient,
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof openFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpoint
-      >
-    >,
-    TError,
-    { id: string; data: RecordPrintJobFilamentConsumptionRequest },
-    TContext
-  > => {
-    return useMutation(
-      getOpenFarmApiEndpointsPrintJobsRecordPrintJobFilamentConsumptionEndpointMutationOptions(
         options,
       ),
       queryClient,

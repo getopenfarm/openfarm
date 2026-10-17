@@ -39,7 +39,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
     {
         var units = await dbContext.FeedUnits.Include(u => u.FeedSlots)
             .Where(u => u.PrinterId == printer.Id).ToListAsync(cancellationToken);
-        var feedSlotIds = ProductionFeedPath.ActiveSlotIds(units).ToList();
+        var feedSlotIds = ProductionFeedPath.ActiveSlotIds(units, printer.ActiveTrayId == ProductionFeedPath.ExternalTrayId).ToList();
         return await (from spool in dbContext.Spools
                       where spool.State == SpoolState.Using && spool.FeedSlotId != null && feedSlotIds.Contains(spool.FeedSlotId.Value)
                       join variant in dbContext.FilamentVariants on spool.FilamentVariantId equals variant.Id

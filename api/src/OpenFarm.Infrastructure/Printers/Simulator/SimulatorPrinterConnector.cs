@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Infrastructure.Printers.Simulator;
@@ -80,7 +81,7 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
     /// <inheritdoc />
     /// <remarks>No real file transfer — begins a fake Printing → Finish sequence identical to
     /// <see cref="StartSimulatedJob"/>, through the interface real dispatch code calls (research.md R5).</remarks>
-    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, CancellationToken cancellationToken)
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
     {
         var state = GetOrCreateState(details.SerialNumber);
         state.Status = PrinterStatus.Printing;
@@ -216,7 +217,7 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
                 state.RemainingTimeMinutes,
                 state.CurrentJobName,
                 state.AmsUnits,
-                state.ExternalSpoolTray, NozzleDiameterMm: 0.4m));
+                state.ExternalSpoolTray, NozzleDiameterMm: 0.4m, ActiveTrayId: ProductionFeedPath.ExternalTrayId));
 
     private static string StatusToGcodeState(PrinterStatus status) => status switch
     {

@@ -280,6 +280,16 @@ public sealed class PrintJob
         RequeuedAsJobId = replacementJobId;
     }
 
+    /// <summary>
+    /// Freezes, at dispatch, which spool each line will draw from, the slicer's full-job grams for it and how they spread over the layers
+    /// (aligned with <see cref="FilamentConsumption"/> order). Consumption is derived from these on the terminal transition.
+    /// </summary>
+    public void BindFilamentUsage(IReadOnlyList<(Guid? SpoolId, decimal? EstimatedGrams, FilamentUsageCurve? Curve)> usage)
+    {
+        if (usage.Count != _filamentConsumption.Count) throw new FilamentConsumptionSumMismatchException(null, null);
+        for (var i = 0; i < usage.Count; i++) _filamentConsumption[i].BindUsage(usage[i].SpoolId, usage[i].EstimatedGrams, usage[i].Curve);
+    }
+
     /// <summary>FR-013/FR-013a, callable on any terminal transition.</summary>
     public void RecordFilamentConsumption(Guid consumptionLineId, Guid? spoolId, decimal gramsConsumed)
     {
