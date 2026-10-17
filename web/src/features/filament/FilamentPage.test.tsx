@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -42,6 +41,7 @@ const FILAMENTS: FilamentResponse[] = [
 const VENDORS: VendorResponse[] = [
   { id: 'v-bambu', name: 'Bambu Lab' },
   { id: 'v-polymaker', name: 'Polymaker' },
+  { id: 'v-sunlu', name: 'Sunlu' },
 ];
 
 function stubFetch() {
@@ -126,13 +126,10 @@ describe('FilamentPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows vendors on the Vendors tab', async () => {
-    const user = userEvent.setup();
+  it('counts vendors from the vendor list, not just vendors with filaments', async () => {
     renderPage();
 
-    await user.click(screen.getByRole('tab', { name: 'Vendors' }));
-
-    expect(await screen.findByText('Bambu Lab')).toBeInTheDocument();
-    expect(screen.getByText('Polymaker')).toBeInTheDocument();
+    expect(await screen.findByText(/3 vendors/)).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 });

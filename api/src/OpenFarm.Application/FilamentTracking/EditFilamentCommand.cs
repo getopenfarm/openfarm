@@ -7,15 +7,19 @@ namespace OpenFarm.Application.FilamentTracking;
 
 public sealed record EditFilamentCommand(
     Guid FilamentId,
+    Guid VendorId,
+    string Material,
+    string MaterialType,
     IReadOnlyList<CreateFilamentVariantInput> NewVariants,
     IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments);
 
 /// <summary>
-/// PUT /api/v1/filaments/{id} — adds colour variants and replaces profile assignments in one save.
+/// PUT /api/v1/filaments/{id} — updates vendor/material/type, adds colour variants and replaces profile
+/// assignments in one save.
 /// Assignments resolve their colour by hex against the filament's variants including the ones added
 /// here, exactly as <see cref="CreateFilamentCommandHandler"/> does.
 /// </summary>
-public sealed class EditFilamentCommandHandler(IFilamentRepository filaments,
+public sealed class EditFilamentCommandHandler(IFilamentRepository filaments, IVendorRepository vendors,
     FilamentProfileAssignmentService assignments, IPrinterRepository printers, IProductionDispatcher dispatcher)
     : ICommandHandler<EditFilamentCommand, Filament>
 {
@@ -23,6 +27,11 @@ public sealed class EditFilamentCommandHandler(IFilamentRepository filaments,
     {
         var filament = await filaments.GetByIdAsync(command.FilamentId, cancellationToken)
             ?? throw new FilamentNotFoundException(command.FilamentId);
+        var vendor = await vendors.GetByIdAsync(command.VendorId, cancellationToken)
+            ?? throw new VendorNotFoundException(command.VendorId);
+
+        // Before ReplaceAsync: assignments are validated against the (possibly new) material type.
+        filament.UpdateDetails(vendor.Id, command.Material, command.MaterialType);
 
         foreach (var variant in command.NewVariants)
         {

@@ -133,6 +133,14 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
           ),
         );
       }
+      if (method === 'POST' && url.endsWith('/api/v1/vendors')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 'v-new', name: 'Sunlu' }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
       if (method === 'POST' && url.endsWith('/api/v1/filaments')) {
         return Promise.resolve(
           new Response(JSON.stringify({ id: 'f-new' }), {
@@ -278,6 +286,45 @@ describe('FilamentFormPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('creates a typed new vendor on save, then the filament with its id', async () => {
+    const user = userEvent.setup();
+    const writes: { url: string; body: unknown }[] = [];
+    renderAddPage((url, init) => {
+      if (init?.method === 'POST') {
+        writes.push({ url, body: JSON.parse(init.body as string) });
+      }
+    });
+
+    await user.type(
+      await screen.findByRole('combobox', { name: 'Vendor' }),
+      'Sunlu',
+    );
+    await user.click(
+      await screen.findByRole('option', { name: /Add "Sunlu"/ }),
+    );
+    expect(screen.getByText('New')).toBeInTheDocument();
+    expect(writes).toEqual([]);
+
+    await user.type(screen.getByLabelText('Name'), 'PLA+');
+    await user.click(screen.getByRole('button', { name: /add variant/i }));
+    await user.type(
+      within(screen.getByRole('dialog')).getByLabelText('Name'),
+      'Black',
+    );
+    await user.click(screen.getByRole('button', { name: 'Add variant' }));
+    await user.click(screen.getByRole('button', { name: 'Add filament' }));
+
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[0]).toMatchObject({
+      url: expect.stringMatching(/\/api\/v1\/vendors$/),
+      body: { name: 'Sunlu' },
+    });
+    expect(writes[1]).toMatchObject({
+      url: expect.stringMatching(/\/api\/v1\/filaments$/),
+      body: { vendorId: 'v-new', material: 'PLA+' },
+    });
+  });
+
   it('lists System-origin profiles matching the selected material type and links one', async () => {
     const user = userEvent.setup();
     let createBody: unknown;
@@ -390,6 +437,9 @@ describe('FilamentFormPage', () => {
       method: 'PUT',
       url: expect.stringMatching(/\/api\/v1\/filaments\/f-1$/),
       body: {
+        vendorId: 'v-1',
+        material: 'PLA',
+        materialType: 'PLA',
         newVariants: [{ colorName: 'Red', colorHex: '#ef4444' }],
         profileAssignments: [
           SAVED_ASSIGNMENT,
@@ -410,5 +460,34 @@ describe('FilamentFormPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Remove Red' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('edits name and type in place; a type change clears profile assignments', async () => {
+    const user = userEvent.setup();
+    const writes: { method: string; body: unknown }[] = [];
+    renderEditPage('f-1', (_url, init) => {
+      const method = init?.method?.toUpperCase() ?? 'GET';
+      if (method !== 'GET') {
+        writes.push({ method, body: JSON.parse(init?.body as string) });
+      }
+    });
+
+    const name = await screen.findByLabelText('Name');
+    await user.clear(name);
+    await user.type(name, 'PLA Matte');
+    await user.click(screen.getByRole('combobox', { name: 'Type' }));
+    await user.click(await screen.findByRole('option', { name: 'PETG' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      method: 'PUT',
+      body: {
+        vendorId: 'v-1',
+        material: 'PLA Matte',
+        materialType: 'PETG',
+        profileAssignments: [],
+      },
+    });
   });
 });

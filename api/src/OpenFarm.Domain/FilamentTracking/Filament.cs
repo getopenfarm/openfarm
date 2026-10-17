@@ -25,11 +25,11 @@ public sealed class Filament
 
     public Guid OrganizationId { get; }
 
-    public Guid VendorId { get; }
+    public Guid VendorId { get; private set; }
 
-    public string Material { get; }
+    public string Material { get; private set; }
 
-    public string MaterialType { get; }
+    public string MaterialType { get; private set; }
 
     public IReadOnlyList<FilamentProfileAssignment> ProfileAssignments => _profileAssignments;
 
@@ -66,6 +66,20 @@ public sealed class Filament
 
     public static Filament Create(Guid organizationId, Guid vendorId, string material, string materialType)
     {
+        GuardDetails(material, materialType);
+        return new Filament(Guid.NewGuid(), organizationId, vendorId, material, materialType, DateTimeOffset.UtcNow);
+    }
+
+    public void UpdateDetails(Guid vendorId, string material, string materialType)
+    {
+        GuardDetails(material, materialType);
+        VendorId = vendorId;
+        Material = material;
+        MaterialType = materialType;
+    }
+
+    private static void GuardDetails(string material, string materialType)
+    {
         if (string.IsNullOrWhiteSpace(material))
         {
             throw new ArgumentException("Material is required.", nameof(material));
@@ -75,8 +89,6 @@ public sealed class Filament
         {
             throw new ArgumentException("Material type is required.", nameof(materialType));
         }
-
-        return new Filament(Guid.NewGuid(), organizationId, vendorId, material, materialType, DateTimeOffset.UtcNow);
     }
 
     public FilamentVariant AddVariant(string colorName, string colorHex)

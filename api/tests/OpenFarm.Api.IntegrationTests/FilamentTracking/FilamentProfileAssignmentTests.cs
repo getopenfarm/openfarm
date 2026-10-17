@@ -78,6 +78,9 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
         var editRoute = $"/api/v1/filaments/{filament.Id}";
         var saved = await client.PutAsJsonAsync(editRoute, new EditFilamentRequest
         {
+            VendorId = filament.VendorId,
+            Material = filament.Material,
+            MaterialType = filament.MaterialType,
             ProfileAssignments = [new("Bambu", "P1S", 0.4m, firstId), new("Bambu", "P1S", 0.4m, secondId, "#000000")],
         });
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
@@ -87,7 +90,7 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
             var row = await scope.ServiceProvider.GetRequiredService<IFilamentRepository>().GetByIdAsync(filament.Id, default);
             originalId = row!.ProfileAssignments.Single(a => a.FilamentVariantId is null).Id;
         }
-        saved = await client.PutAsJsonAsync(editRoute, new EditFilamentRequest { ProfileAssignments = [new("Bambu", "P1S", 0.4m, secondId)] });
+        saved = await client.PutAsJsonAsync(editRoute, new EditFilamentRequest { VendorId = filament.VendorId, Material = filament.Material, MaterialType = filament.MaterialType, ProfileAssignments = [new("Bambu", "P1S", 0.4m, secondId)] });
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
         using (var scope = Factory.CreateTenantScope())
         {
@@ -96,7 +99,7 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
             row.ResolveProfileId("Bambu", "P1S", 0.4m, filament.Variants[0].Id).Should().Be(secondId);
         }
         var rejected = await client.PutAsJsonAsync(editRoute, new EditFilamentRequest
-        { ProfileAssignments = [new("Bambu", "P1S", 0.4m, firstId), new("Bambu", "P1S", 0.6m, secondId)] });
+        { VendorId = filament.VendorId, Material = filament.Material, MaterialType = filament.MaterialType, ProfileAssignments = [new("Bambu", "P1S", 0.4m, firstId), new("Bambu", "P1S", 0.6m, secondId)] });
         rejected.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var retained = (await client.GetFromJsonAsync<FilamentProfileAssignmentsResponse>(route))!;
         retained.Assignments.Should().ContainSingle().Which.FilamentProfileId.Should().Be(secondId);
@@ -143,8 +146,14 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
             db.Parts.Add(part);
             await db.SaveChangesAsync();
         }
-        var save = await client.PutAsJsonAsync($"/api/v1/filaments/{filamentId}",
-            new EditFilamentRequest { ProfileAssignments = [new("System", "Simulation", 0.4m, profileId)] });
+        var filament = (await client.GetFromJsonAsync<ListFilamentsResponse>("/api/v1/filaments"))!.Filaments.Single(f => f.Id == filamentId);
+        var save = await client.PutAsJsonAsync($"/api/v1/filaments/{filamentId}", new EditFilamentRequest
+        {
+            VendorId = filament.VendorId,
+            Material = filament.Material,
+            MaterialType = filament.MaterialType,
+            ProfileAssignments = [new("System", "Simulation", 0.4m, profileId)],
+        });
         save.StatusCode.Should().Be(HttpStatusCode.OK, await save.Content.ReadAsStringAsync());
         using (var scope = Factory.CreateTenantScope())
         {

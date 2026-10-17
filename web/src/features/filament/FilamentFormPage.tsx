@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { useForm } from 'react-hook-form';
+import { type UseFormReturn, useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -40,7 +40,7 @@ import type {
   FilamentProfileAssignmentsResponse,
   FilamentResponse,
   ListFilamentsResponse,
-  ListVendorsResponse,
+  VendorResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsFilamentsGetFilamentProfileAssignmentsEndpointQueryKey,
@@ -50,15 +50,21 @@ import {
   useOpenFarmApiEndpointsFilamentsGetFilamentProfileAssignmentsEndpoint,
   useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint,
 } from '@/lib/api/generated/filaments/filaments';
-import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
-import { AddVendorDialog } from './components/AddVendorDialog';
+import {
+  getOpenFarmApiEndpointsVendorsListVendorsEndpointQueryKey,
+  useOpenFarmApiEndpointsVendorsCreateVendorEndpoint,
+} from '@/lib/api/generated/vendors/vendors';
 import { ProfileAssignmentsCard } from './components/ProfileAssignmentsCard';
-import { type DisplayedVariant, VariantsCard } from './components/VariantsCard';
+import { VariantsCard } from './components/VariantsCard';
+import { VendorCombobox } from './components/VendorCombobox';
 
 const MATERIAL_TYPES = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PC'] as const;
 
 const schema = z.object({
-  vendorId: z.string().min(1, 'Vendor is required'),
+  // Nested so its refine runs even when sibling fields fail.
+  vendor: z
+    .object({ vendorId: z.string(), newVendorName: z.string().optional() })
+    .refine((v) => v.vendorId || v.newVendorName, 'Vendor is required'),
   material: z.string().min(1, 'Name is required'),
   materialType: z.enum(MATERIAL_TYPES),
   profileAssignments: z.array(
@@ -71,11 +77,154 @@ const schema = z.object({
     }),
   ),
   variants: z
-    .array(z.object({ colorName: z.string(), colorHex: z.string() }))
+    .array(
+      z.object({
+        id: z.string().optional(),
+        colorName: z.string(),
+        colorHex: z.string(),
+      }),
+    )
     .min(1, 'Add at least one variant'),
 });
 
 type FormValues = z.infer<typeof schema>;
+
+function toAssignmentValues(
+  assignments: FilamentProfileAssignmentInput[],
+): FormValues['profileAssignments'] {
+  return assignments.map((a) => ({
+    brand: a.brand ?? '',
+    modelCode: a.modelCode ?? '',
+    nozzleDiameterMm: a.nozzleDiameterMm ?? 0,
+    filamentProfileId: a.filamentProfileId ?? '',
+    colorHex: a.colorHex,
+  }));
+}
+
+function toEditValues(
+  filament: FilamentResponse,
+  assignments: FilamentProfileAssignmentInput[],
+): FormValues {
+  return {
+    vendor: { vendorId: filament.vendorId ?? '' },
+    material: filament.material ?? '',
+    materialType:
+      MATERIAL_TYPES.find((type) => type === filament.materialType) ??
+      MATERIAL_TYPES[0],
+    profileAssignments: toAssignmentValues(assignments),
+    variants: (filament.variants ?? []).map((variant) => ({
+      id: variant.id,
+      colorName: variant.colorName ?? '',
+      colorHex: variant.colorHex ?? '',
+    })),
+  };
+}
+
+/** Creates the typed new vendor (if any) right before the filament save; returns its id. */
+function useResolveVendorId() {
+  const queryClient = useQueryClient();
+  const createVendor = useOpenFarmApiEndpointsVendorsCreateVendorEndpoint();
+
+  async function resolve(vendor: FormValues['vendor']): Promise<string | null> {
+    if (!vendor.newVendorName) return vendor.vendorId;
+    try {
+      const response = await createVendor.mutateAsync({
+        data: { name: vendor.newVendorName },
+      });
+      await queryClient.invalidateQueries({
+        queryKey: getOpenFarmApiEndpointsVendorsListVendorsEndpointQueryKey(),
+      });
+      return (response.data as VendorResponse).id ?? null;
+    } catch (error) {
+      toast.error(await extractErrorDetail(error, 'Could not add vendor.'));
+      return null;
+    }
+  }
+
+  return { resolve, isPending: createVendor.isPending };
+}
+
+/** Vendor / Name / Type — shared by add and edit. A type change drops profile assignments,
+ * which the server validates against the material type. */
+function MaterialFields({ form }: { form: UseFormReturn<FormValues> }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Material</CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <FormField
+          control={form.control}
+          name="vendor"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Vendor</FormLabel>
+              <FormControl>
+                <VendorCombobox
+                  value={field.value}
+                  onChange={(next) =>
+                    form.setValue('vendor', next, {
+                      shouldDirty: true,
+                      shouldValidate: form.formState.isSubmitted,
+                    })
+                  }
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="material"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g. PLA Basic" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="materialType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Type</FormLabel>
+              <Select
+                value={field.value}
+                onValueChange={(value) => {
+                  field.onChange(value);
+                  form.setValue('profileAssignments', [], {
+                    shouldDirty: true,
+                  });
+                }}
+              >
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectGroup>
+                    {MATERIAL_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </CardContent>
+    </Card>
+  );
+}
 
 interface FilamentFormPageProps {
   mode: 'add' | 'edit';
@@ -92,14 +241,10 @@ function AddFilamentForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const vendorsQuery = useOpenFarmApiEndpointsVendorsListVendorsEndpoint();
-  const vendors =
-    (vendorsQuery.data?.data as ListVendorsResponse | undefined)?.vendors ?? [];
-
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      vendorId: '',
+      vendor: { vendorId: '' },
       material: '',
       materialType: MATERIAL_TYPES[0],
       profileAssignments: [],
@@ -111,6 +256,7 @@ function AddFilamentForm() {
     form.formState.isDirty,
   );
 
+  const vendorResolver = useResolveVendorId();
   const createMutation = useOpenFarmApiEndpointsFilamentsCreateFilamentEndpoint(
     {
       mutation: {
@@ -130,13 +276,16 @@ function AddFilamentForm() {
     },
   );
 
+  const isPending = vendorResolver.isPending || createMutation.isPending;
   const materialType = form.watch('materialType');
   const variants = form.watch('variants');
 
-  function onSubmit(values: FormValues) {
+  async function onSubmit(values: FormValues) {
+    const vendorId = await vendorResolver.resolve(values.vendor);
+    if (!vendorId) return;
     createMutation.mutate({
       data: {
-        vendorId: values.vendorId,
+        vendorId,
         material: values.material.trim(),
         materialType: values.materialType,
         profileAssignments: values.profileAssignments,
@@ -165,98 +314,7 @@ function AddFilamentForm() {
           className="flex flex-1 flex-col gap-6"
         >
           <FieldGroup className="flex-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Material</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="vendorId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel>Vendor</FormLabel>
-                        <AddVendorDialog
-                          onAdded={(vendor) =>
-                            vendor.id &&
-                            form.setValue('vendorId', vendor.id, {
-                              shouldValidate: true,
-                              shouldDirty: true,
-                            })
-                          }
-                        />
-                      </div>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Choose a vendor" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectGroup>
-                            {vendors.map((vendor) => (
-                              <SelectItem
-                                key={vendor.id}
-                                value={vendor.id ?? ''}
-                              >
-                                {vendor.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="material"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. PLA Basic" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="materialType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectGroup>
-                            {MATERIAL_TYPES.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
+            <MaterialFields form={form} />
 
             <FormField
               control={form.control}
@@ -299,17 +357,9 @@ function AddFilamentForm() {
               variants={variants}
               assignments={form.watch('profileAssignments')}
               onChange={(value) =>
-                form.setValue(
-                  'profileAssignments',
-                  value.map((a) => ({
-                    brand: a.brand ?? '',
-                    modelCode: a.modelCode ?? '',
-                    nozzleDiameterMm: a.nozzleDiameterMm ?? 0,
-                    filamentProfileId: a.filamentProfileId ?? '',
-                    colorHex: a.colorHex,
-                  })),
-                  { shouldDirty: true },
-                )
+                form.setValue('profileAssignments', toAssignmentValues(value), {
+                  shouldDirty: true,
+                })
               }
             />
 
@@ -323,11 +373,9 @@ function AddFilamentForm() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={createMutation.isPending}>
-                    {createMutation.isPending && (
-                      <Spinner data-icon="inline-start" />
-                    )}
-                    {createMutation.isPending ? 'Adding…' : 'Add filament'}
+                  <Button type="submit" disabled={isPending}>
+                    {isPending && <Spinner data-icon="inline-start" />}
+                    {isPending ? 'Adding…' : 'Add filament'}
                   </Button>
                 </>
               }
@@ -339,11 +387,6 @@ function AddFilamentForm() {
       <ConfirmLeaveDialog />
     </Page>
   );
-}
-
-interface EditDraft {
-  variants: DisplayedVariant[];
-  profileAssignments: FilamentProfileAssignmentInput[];
 }
 
 function FilamentVariantsPage() {
@@ -434,23 +477,19 @@ function EditFilamentForm({
   const queryClient = useQueryClient();
   const filamentId = filament.id ?? '';
 
-  const form = useForm<EditDraft>({
-    defaultValues: {
-      variants: filament.variants ?? [],
-      profileAssignments: assignments,
-    },
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: toEditValues(filament, assignments),
   });
   const { isDirty } = form.formState;
   const { ConfirmLeaveDialog } = useUnsavedChangesPrompt(isDirty);
 
+  const vendorResolver = useResolveVendorId();
   const editMutation = useOpenFarmApiEndpointsFilamentsEditFilamentEndpoint({
     mutation: {
       onSuccess: (response) => {
         const saved = response.data as FilamentResponse;
-        form.reset({
-          variants: saved.variants ?? [],
-          profileAssignments: saved.profileAssignments ?? [],
-        });
+        form.reset(toEditValues(saved, saved.profileAssignments ?? []));
         queryClient.setQueryData(
           getOpenFarmApiEndpointsFilamentsListFilamentsEndpointQueryKey(),
           (old: { data: ListFilamentsResponse } | undefined) =>
@@ -484,12 +523,19 @@ function EditFilamentForm({
     },
   });
 
+  const isPending = vendorResolver.isPending || editMutation.isPending;
+  const materialType = form.watch('materialType');
   const variants = form.watch('variants');
 
-  function onSubmit(values: EditDraft) {
+  async function onSubmit(values: FormValues) {
+    const vendorId = await vendorResolver.resolve(values.vendor);
+    if (!vendorId) return;
     editMutation.mutate({
       id: filamentId,
       data: {
+        vendorId,
+        material: values.material.trim(),
+        materialType: values.materialType,
         newVariants: values.variants
           .filter((variant) => !variant.id)
           .map((variant) => ({
@@ -510,89 +556,70 @@ function EditFilamentForm({
         description={`${filament.vendorName} · ${filament.materialType}`}
       />
 
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-1 flex-col gap-6"
-      >
-        <FieldGroup className="flex-1 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Material</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
-                {[
-                  ['Vendor', filament.vendorName],
-                  ['Name', filament.material],
-                  ['Type', filament.materialType],
-                ].map(([label, value]) => (
-                  <div key={label} className="flex flex-col gap-1">
-                    <dt className="text-muted-foreground">{label}</dt>
-                    <dd className="font-medium">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-1 flex-col gap-6"
+        >
+          <FieldGroup className="flex-1 gap-6">
+            <MaterialFields form={form} />
 
-          <VariantsCard
-            variants={variants}
-            onAdd={(variant) =>
-              form.setValue('variants', [...variants, variant], {
-                shouldDirty: true,
-              })
-            }
-            onRemove={(index) => {
-              const removedColor = variants[index]?.colorHex;
-              form.setValue(
-                'profileAssignments',
-                form
-                  .getValues('profileAssignments')
-                  .filter((a) => a.colorHex !== removedColor),
-                { shouldDirty: true },
-              );
-              form.setValue(
-                'variants',
-                variants.filter((_, i) => i !== index),
-                { shouldDirty: true },
-              );
-            }}
-          />
+            <VariantsCard
+              variants={variants}
+              onAdd={(variant) =>
+                form.setValue('variants', [...variants, variant], {
+                  shouldDirty: true,
+                })
+              }
+              onRemove={(index) => {
+                const removedColor = variants[index]?.colorHex;
+                form.setValue(
+                  'profileAssignments',
+                  form
+                    .getValues('profileAssignments')
+                    .filter((a) => a.colorHex !== removedColor),
+                  { shouldDirty: true },
+                );
+                form.setValue(
+                  'variants',
+                  variants.filter((_, i) => i !== index),
+                  { shouldDirty: true },
+                );
+              }}
+            />
 
-          <ProfileAssignmentsCard
-            materialType={filament.materialType ?? ''}
-            variants={variants}
-            assignments={form.watch('profileAssignments')}
-            issues={issues}
-            onChange={(value) =>
-              form.setValue('profileAssignments', value, { shouldDirty: true })
-            }
-          />
+            <ProfileAssignmentsCard
+              materialType={materialType}
+              variants={variants}
+              assignments={form.watch('profileAssignments')}
+              issues={issues}
+              onChange={(value) =>
+                form.setValue('profileAssignments', toAssignmentValues(value), {
+                  shouldDirty: true,
+                })
+              }
+            />
 
-          <FormFooter
-            end={
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate('/filament')}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={!isDirty || editMutation.isPending}
-                >
-                  {editMutation.isPending && (
-                    <Spinner data-icon="inline-start" />
-                  )}
-                  {editMutation.isPending ? 'Saving…' : 'Save'}
-                </Button>
-              </>
-            }
-          />
-        </FieldGroup>
-      </form>
+            <FormFooter
+              end={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/filament')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={!isDirty || isPending}>
+                    {isPending && <Spinner data-icon="inline-start" />}
+                    {isPending ? 'Saving…' : 'Save'}
+                  </Button>
+                </>
+              }
+            />
+          </FieldGroup>
+        </form>
+      </Form>
 
       <ConfirmLeaveDialog />
     </Page>

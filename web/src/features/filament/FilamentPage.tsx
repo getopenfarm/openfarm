@@ -1,16 +1,11 @@
-import { PackageIcon, PlusIcon, StoreIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { PackageIcon, PlusIcon } from 'lucide-react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import {
-  DataTableTabsList,
-  DataTableToolbar,
-} from '@/components/data-table/DataTableToolbar';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import type {
   ListFilamentsResponse,
   ListVendorsResponse,
@@ -18,13 +13,10 @@ import type {
 import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
 import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
 import { pluralize } from '@/lib/pluralize';
-import { AddVendorDialog } from './components/AddVendorDialog';
 import { FilamentCatalogTable } from './components/FilamentCatalogTable';
-import { VendorTable } from './components/VendorTable';
 
 export function FilamentPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('catalog');
   const filamentsQuery =
     useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
   const filaments =
@@ -35,16 +27,14 @@ export function FilamentPage() {
   const vendors =
     (vendorsQuery.data?.data as ListVendorsResponse | undefined)?.vendors ?? [];
 
-  const { vendorCount, variantCount } = useMemo(() => {
-    const vendorNames = new Set(
-      filaments.map((filament) => filament.vendorName),
-    );
-    const variants = filaments.reduce(
-      (total, filament) => total + (filament.variants?.length ?? 0),
-      0,
-    );
-    return { vendorCount: vendorNames.size, variantCount: variants };
-  }, [filaments]);
+  const variantCount = useMemo(
+    () =>
+      filaments.reduce(
+        (total, filament) => total + (filament.variants?.length ?? 0),
+        0,
+      ),
+    [filaments],
+  );
 
   return (
     <Page>
@@ -54,7 +44,7 @@ export function FilamentPage() {
           <>
             Catalog · {pluralize(filaments.length, 'material')} ·{' '}
             {pluralize(variantCount, 'color variant')} ·{' '}
-            {pluralize(vendorCount, 'vendor')}
+            {pluralize(vendors.length, 'vendor')}
           </>
         }
         action={
@@ -64,54 +54,22 @@ export function FilamentPage() {
           </Button>
         }
       />
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
-        <DataTableToolbar
-          actions={
-            activeTab === 'vendors' &&
-            !vendorsQuery.isLoading &&
-            vendors.length > 0 ? (
-              <AddVendorDialog />
-            ) : undefined
+      {filamentsQuery.isLoading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : filaments.length === 0 ? (
+        <EmptyState
+          icon={<PackageIcon className="size-8 text-muted-foreground" />}
+          title="No filaments"
+          description="Add a filament to start a catalog."
+          action={
+            <Button onClick={() => navigate('/filament/new')}>
+              Add filament
+            </Button>
           }
-        >
-          <DataTableTabsList aria-label="Filament views">
-            <TabsTrigger value="catalog">Catalog</TabsTrigger>
-            <TabsTrigger value="vendors">Vendors</TabsTrigger>
-          </DataTableTabsList>
-        </DataTableToolbar>
-        <TabsContent value="catalog" className="flex flex-col gap-3">
-          {filamentsQuery.isLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : filaments.length === 0 ? (
-            <EmptyState
-              icon={<PackageIcon className="size-8 text-muted-foreground" />}
-              title="No filaments"
-              description="Add a filament to start a catalog."
-              action={
-                <Button onClick={() => navigate('/filament/new')}>
-                  Add filament
-                </Button>
-              }
-            />
-          ) : (
-            <FilamentCatalogTable filaments={filaments} />
-          )}
-        </TabsContent>
-        <TabsContent value="vendors" className="flex flex-col gap-3">
-          {vendorsQuery.isLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : vendors.length === 0 ? (
-            <EmptyState
-              icon={<StoreIcon className="size-8 text-muted-foreground" />}
-              title="No vendors"
-              description="Add a vendor to attribute filaments to a manufacturer."
-              action={<AddVendorDialog />}
-            />
-          ) : (
-            <VendorTable vendors={vendors} />
-          )}
-        </TabsContent>
-      </Tabs>
+        />
+      ) : (
+        <FilamentCatalogTable filaments={filaments} />
+      )}
     </Page>
   );
 }

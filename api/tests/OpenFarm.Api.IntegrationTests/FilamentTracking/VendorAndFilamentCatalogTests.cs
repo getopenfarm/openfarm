@@ -91,7 +91,7 @@ public class VendorAndFilamentCatalogTests(CustomWebApplicationFactory factory) 
 
         var response = await client.PutAsJsonAsync(
             new Uri($"/api/v1/filaments/{Guid.NewGuid()}", UriKind.Relative),
-            new EditFilamentRequest { NewVariants = [new() { ColorName = "White", ColorHex = "#f4f4f5" }] });
+            new EditFilamentRequest { VendorId = Guid.NewGuid(), Material = "PLA Basic", MaterialType = "PLA", NewVariants = [new() { ColorName = "White", ColorHex = "#f4f4f5" }] });
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -114,7 +114,7 @@ public class VendorAndFilamentCatalogTests(CustomWebApplicationFactory factory) 
 
         var duplicateVariantResponse = await client.PutAsJsonAsync(
             new Uri($"/api/v1/filaments/{filament!.Id}", UriKind.Relative),
-            new EditFilamentRequest { NewVariants = [new() { ColorName = "Black", ColorHex = "#000000" }] });
+            new EditFilamentRequest { VendorId = vendor.Id, Material = filament.Material, MaterialType = filament.MaterialType, NewVariants = [new() { ColorName = "Black", ColorHex = "#000000" }] });
 
         duplicateVariantResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }

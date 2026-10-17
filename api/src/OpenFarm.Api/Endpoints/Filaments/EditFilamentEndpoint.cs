@@ -11,6 +11,12 @@ public sealed class EditFilamentRequest : IActivityLoggable
 {
     public Guid Id { get; set; }
 
+    public Guid VendorId { get; set; }
+
+    public string Material { get; set; } = string.Empty;
+
+    public string MaterialType { get; set; } = string.Empty;
+
     public IReadOnlyList<CreateFilamentVariantRequest> NewVariants { get; set; } = [];
 
     public IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments { get; set; } = [];
@@ -24,6 +30,9 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
 {
     public EditFilamentRequestValidator()
     {
+        RuleFor(x => x.VendorId).NotEmpty();
+        RuleFor(x => x.Material).NotEmpty();
+        RuleFor(x => x.MaterialType).NotEmpty();
         RuleFor(x => x.NewVariants).NotNull();
         RuleFor(x => x.ProfileAssignments).NotNull();
         RuleForEach(x => x.NewVariants).ChildRules(variant =>
@@ -34,7 +43,7 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
     }
 }
 
-/// <summary>PUT /api/v1/filaments/{id} — adds colour variants and replaces profile assignments in one all-or-nothing save. Vendor/material/type and existing variants stay immutable.</summary>
+/// <summary>PUT /api/v1/filaments/{id} — updates vendor/material/type, adds colour variants and replaces profile assignments in one all-or-nothing save. Existing variants stay immutable.</summary>
 [Permission("filaments:assign-profiles")]
 public sealed class EditFilamentEndpoint(EditFilamentHandler handler, IVendorRepository vendorRepository)
     : Endpoint<EditFilamentRequest, FilamentResponse>
@@ -50,6 +59,9 @@ public sealed class EditFilamentEndpoint(EditFilamentHandler handler, IVendorRep
         req.Id = Route<Guid>("id");
         var command = new EditFilamentCommand(
             req.Id,
+            req.VendorId,
+            req.Material,
+            req.MaterialType,
             req.NewVariants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex)).ToList(),
             req.ProfileAssignments);
 

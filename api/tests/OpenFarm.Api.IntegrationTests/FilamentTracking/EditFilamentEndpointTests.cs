@@ -12,7 +12,7 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Api.IntegrationTests.FilamentTracking;
 
-// Test-after: PUT /api/v1/filaments/{id} — new variants + profile assignments in one save.
+// Test-after: PUT /api/v1/filaments/{id} — details, new variants + profile assignments in one save.
 public class EditFilamentEndpointTests(ProductionTestFactory factory) : ProductionTestContext(factory), IClassFixture<ProductionTestFactory>
 {
     private async Task<Guid> FilamentProfileAsync()
@@ -40,6 +40,12 @@ public class EditFilamentEndpointTests(ProductionTestFactory factory) : Producti
         return (await created.Content.ReadFromJsonAsync<FilamentResponse>())!;
     }
 
+    private static async Task<Guid> VendorAsync(HttpClient client)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/vendors", new CreateVendorRequest { Name = Guid.NewGuid().ToString() });
+        return (await response.Content.ReadFromJsonAsync<VendorResponse>())!.Id;
+    }
+
     private static async Task<FilamentResponse> ReloadAsync(HttpClient client, Guid id) =>
         (await client.GetFromJsonAsync<ListFilamentsResponse>("/api/v1/filaments"))!.Filaments.Single(f => f.Id == id);
 
@@ -52,6 +58,9 @@ public class EditFilamentEndpointTests(ProductionTestFactory factory) : Producti
 
         var response = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
         {
+            VendorId = filament.VendorId,
+            Material = filament.Material,
+            MaterialType = filament.MaterialType,
             NewVariants = [new() { ColorName = "Red", ColorHex = "#ff0000" }],
             ProfileAssignments = [new FilamentProfileAssignmentInput("Bambu", "P1S", 0.4m, profileId, "#FF0000")],
         });
@@ -75,6 +84,9 @@ public class EditFilamentEndpointTests(ProductionTestFactory factory) : Producti
 
         var response = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
         {
+            VendorId = filament.VendorId,
+            Material = filament.Material,
+            MaterialType = filament.MaterialType,
             NewVariants = [new() { ColorName = "", ColorHex = "#ff0000" }],
         });
 
@@ -89,6 +101,9 @@ public class EditFilamentEndpointTests(ProductionTestFactory factory) : Producti
 
         var response = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
         {
+            VendorId = filament.VendorId,
+            Material = filament.Material,
+            MaterialType = filament.MaterialType,
             NewVariants = [new() { ColorName = "Blue", ColorHex = "#0000ff" }, new() { ColorName = "Blue", ColorHex = "#0000fe" }],
         });
 
@@ -104,6 +119,9 @@ public class EditFilamentEndpointTests(ProductionTestFactory factory) : Producti
 
         var response = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
         {
+            VendorId = filament.VendorId,
+            Material = filament.Material,
+            MaterialType = filament.MaterialType,
             NewVariants = [new() { ColorName = "Green", ColorHex = "#00ff00" }],
             ProfileAssignments = [new FilamentProfileAssignmentInput("Bambu", "P1S", 0.4m, Guid.NewGuid())],
         });
@@ -112,5 +130,63 @@ public class EditFilamentEndpointTests(ProductionTestFactory factory) : Producti
         var reloaded = await ReloadAsync(client, filament.Id);
         reloaded.Variants.Should().ContainSingle();
         reloaded.ProfileAssignments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Edit_UpdatesVendorMaterialAndType()
+    {
+        var client = await ClientAsync();
+        var filament = await FilamentAsync(client);
+        var vendorId = await VendorAsync(client);
+
+        var response = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
+        {
+            VendorId = vendorId,
+            Material = "PETG HF",
+            MaterialType = "PETG",
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var reloaded = await ReloadAsync(client, filament.Id);
+        reloaded.VendorId.Should().Be(vendorId);
+        reloaded.Material.Should().Be("PETG HF");
+        reloaded.MaterialType.Should().Be("PETG");
+        reloaded.Variants.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Edit_UnknownVendor_Returns404()
+    {
+        var client = await ClientAsync();
+        var filament = await FilamentAsync(client);
+
+        var response = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
+        {
+            VendorId = Guid.NewGuid(),
+            Material = filament.Material,
+            MaterialType = filament.MaterialType,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await ReloadAsync(client, filament.Id)).VendorId.Should().Be(filament.VendorId);
+    }
+
+    [Fact]
+    public async Task Edit_TypeChangeWithIncompatibleAssignment_IsRejectedAndPersistsNothing()
+    {
+        var client = await ClientAsync();
+        var filament = await FilamentAsync(client);
+        var plaProfileId = await FilamentProfileAsync();
+
+        var response = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
+        {
+            VendorId = filament.VendorId,
+            Material = filament.Material,
+            MaterialType = "PETG",
+            ProfileAssignments = [new FilamentProfileAssignmentInput("Bambu", "P1S", 0.4m, plaProfileId)],
+        });
+
+        response.IsSuccessStatusCode.Should().BeFalse();
+        (await ReloadAsync(client, filament.Id)).MaterialType.Should().Be("PLA");
     }
 }
