@@ -1,27 +1,51 @@
 using System.Globalization;
 
+using OpenFarm.Domain.Production;
+
 namespace OpenFarm.Infrastructure.Production;
+
+/// <summary>What a G-code file extrudes: per tool, plus the layer/percent stretches the per-mark totals refer to.</summary>
+internal sealed record GCodeExtrusion(IReadOnlyList<ProgressMark> Marks, IReadOnlyDictionary<int, ToolExtrusion> Tools)
+{
+    public static readonly GCodeExtrusion Empty = new([], new Dictionary<int, ToolExtrusion>());
+}
 
 /// <summary>
 /// Reads how much filament each tool extrudes in each layer of a sliced G-code file (Bambu Studio / OrcaSlicer dialect).
 /// Layers come from <c>; layer num/total_layer_count: N/T</c> — the same N the printer reports as <c>layer_num</c> —
 /// or, for other profiles, <c>;LAYER_CHANGE</c>. Extrusion is the net E travel (so a retract and its un-retract cancel)
 /// of linear (<c>G0/G1</c>) and arc (<c>G2/G3</c>) moves, attributed to the tool selected by <c>T&lt;n&gt;</c>; filament flushed at a colour change therefore counts to the new colour.
-/// Anything before the first layer (start-up purge) is ignored.
+/// Everything before the first layer (start-up purge, load line) is the tool's <see cref="ToolExtrusion.PrimeMm"/>.
+/// A <see cref="ProgressMark"/> is taken each time the layer or the <c>M73 P&lt;percent&gt;</c> progress changes, so a stop
+/// reported as layer + percent can be placed inside a layer.
 /// </summary>
 internal static class GCodeFilamentCurveReader
 {
     private const string BambuLayerMarker = "; layer num/total_layer_count:";
 
     /// <summary>Per tool: cumulative net filament (mm) at the end of each layer, index 0 being layer 1. Tools that never extruded are omitted.</summary>
-    public static IReadOnlyDictionary<int, double[]> Read(TextReader reader)
+    public static GCodeExtrusion Read(TextReader reader)
     {
         var perLayer = new Dictionary<int, List<double>>();
+        var prime = new Dictionary<int, double>();
+        var running = new Dictionary<int, double>();
+        var marks = new List<ProgressMark>();
+        var markTotals = new List<Dictionary<int, double>>();
+        var percent = -1;
+
         var layer = 0;
         var tool = 0;
         var relative = false;
         var lastE = 0.0;
         var bambuMarkers = false;
+
+        void Mark()
+        {
+            var mark = new ProgressMark(layer, percent);
+            if (layer < 1 || marks.Count > 0 && marks[^1] == mark) return;
+            marks.Add(mark);
+            markTotals.Add(new Dictionary<int, double>(running));
+        }
 
         while (reader.ReadLine() is { } raw)
         {
@@ -38,9 +62,15 @@ internal static class GCodeFilamentCurveReader
                     {
                         layer = n;
                         bambuMarkers = true;
+                        Mark();
                     }
                 }
-                else if (!bambuMarkers && line.StartsWith(";LAYER_CHANGE", StringComparison.Ordinal)) layer++;
+                else if (!bambuMarkers && line.StartsWith(";LAYER_CHANGE", StringComparison.Ordinal))
+                {
+                    layer++;
+                    Mark();
+                }
+
                 continue;
             }
 
@@ -52,6 +82,10 @@ internal static class GCodeFilamentCurveReader
             {
                 // The first print filament is selected by the AMS switch in the start G-code, with no T<n> of its own.
                 case 'M' when layer == 0 && TryGetAmsSwitch(code, out var initial): tool = initial; break;
+                case 'M' when code.StartsWith("M73 P", StringComparison.Ordinal) && TryGetPercent(code, out var p):
+                    percent = p;
+                    Mark();
+                    break;
                 case 'M' when IsWord(code, "M83"): relative = true; break;
                 case 'M' when IsWord(code, "M82"): relative = false; break;
                 case 'T' when int.TryParse(code[1..], NumberStyles.None, CultureInfo.InvariantCulture, out var t):
@@ -62,15 +96,31 @@ internal static class GCodeFilamentCurveReader
                 case 'G' when (IsWord(code, "G1") || IsWord(code, "G0") || IsWord(code, "G2") || IsWord(code, "G3")) && TryGetE(code, out var e):
                     var delta = relative ? e : e - lastE;
                     if (!relative) lastE = e;
-                    if (layer >= 1) Add(perLayer, tool, layer, delta);
+                    if (layer >= 1)
+                    {
+                        Add(perLayer, tool, layer, delta);
+                        running[tool] = running.GetValueOrDefault(tool) + delta;
+                    }
+                    else prime[tool] = prime.GetValueOrDefault(tool) + delta;
                     break;
             }
         }
 
-        return perLayer
+        var tools = perLayer
             .Select(kv => (kv.Key, Cumulative: Cumulate(kv.Value, layer)))
             .Where(t => t.Cumulative[^1] > 0)
-            .ToDictionary(t => t.Key, t => t.Cumulative);
+            .ToDictionary(t => t.Key, t => new ToolExtrusion(
+                Math.Max(0, prime.GetValueOrDefault(t.Key)), t.Cumulative, MarkTotals(markTotals, t.Key)));
+        return new(marks, tools);
+    }
+
+    /// <summary>The tool's running total at each mark; never decreasing, like the per-layer totals.</summary>
+    private static double[] MarkTotals(List<Dictionary<int, double>> markTotals, int tool)
+    {
+        var result = new double[markTotals.Count];
+        var highest = 0.0;
+        for (var i = 0; i < result.Length; i++) result[i] = highest = Math.Max(highest, markTotals[i].GetValueOrDefault(tool));
+        return result;
     }
 
     private static void Add(Dictionary<int, List<double>> perLayer, int tool, int layer, double delta)
@@ -105,6 +155,15 @@ internal static class GCodeFilamentCurveReader
         while (end < rest.Length && char.IsAsciiDigit(rest[end])) end++;
         return end > 0 && end < rest.Length && rest[end] == 'A'
             && int.TryParse(rest[..end], NumberStyles.None, CultureInfo.InvariantCulture, out filament) && filament < 255;
+    }
+
+    /// <summary><c>M73 P&lt;percent&gt; R&lt;minutes&gt;</c> — the progress the printer reports as <c>mc_percent</c>.</summary>
+    private static bool TryGetPercent(ReadOnlySpan<char> code, out int percent)
+    {
+        var rest = code["M73 P".Length..];
+        var end = 0;
+        while (end < rest.Length && char.IsAsciiDigit(rest[end])) end++;
+        return int.TryParse(rest[..end], NumberStyles.None, CultureInfo.InvariantCulture, out percent);
     }
 
     private static bool IsWord(ReadOnlySpan<char> code, string word) =>

@@ -29,7 +29,7 @@ public sealed class JobFilamentAutoDeduction(
     /// </summary>
     public static decimal? Fraction(JobFilamentConsumption line, JobProgress progress) =>
         progress.Outcome == PrintJobStatus.Completed ? 1m
-        : line.UsageCurve is { } curve && progress.CurrentLayer is { } layer ? (decimal)curve.ShareAt(layer)
+        : line.UsageCurve is { } curve && progress.CurrentLayer is { } layer ? (decimal)curve.ShareAt(layer, progress.Percent)
         : progress.CurrentLayer is { } evenLayer && progress.TotalLayers is > 0 ? Math.Clamp((decimal)evenLayer / progress.TotalLayers.Value, 0m, 1m)
         : progress.Percent is { } percent ? Math.Clamp(percent / 100m, 0m, 1m)
         : null;

@@ -12,16 +12,23 @@ public static class JobFilamentUsageMatcher
     /// <summary>
     /// One entry per line (null grams when the file says nothing about it). A usage goes to the first line with the same
     /// material and colour; a line whose colour was overridden away from the file's still gets the whole file's usage
-    /// when it is the job's only line, since there is then no other line it could belong to.
+    /// when it is the job's only line, since there is then no other line it could belong to. When overridden colours leave
+    /// usages unmatched on a multi-line job whose line count equals the file's number of distinct material/colour pairs, the
+    /// lines are the file's pairs in file order (how the lines were made), so match by position instead.
     /// </summary>
     public static IReadOnlyList<LineUsage> Match(
         IReadOnlyList<(string? MaterialType, string? ColorHex)> lines, IReadOnlyList<FilamentUsage> usages)
     {
         var grams = new decimal?[lines.Count];
         var tools = lines.Select(_ => new List<int>()).ToArray();
+        var pairs = usages.OrderBy(u => u.ToolIndex)
+            .Select(u => (u.MaterialType?.ToUpperInvariant(), u.ColorHex?.ToUpperInvariant())).Distinct().ToList();
+        var positional = lines.Count > 1 && pairs.Count == lines.Count && usages.Any(u => FindIndex(lines, u) < 0);
         foreach (var usage in usages)
         {
-            var index = FindIndex(lines, usage);
+            var index = positional
+                ? pairs.IndexOf((usage.MaterialType?.ToUpperInvariant(), usage.ColorHex?.ToUpperInvariant()))
+                : FindIndex(lines, usage);
             if (index < 0) continue;
             grams[index] = (grams[index] ?? 0) + usage.Grams;
             tools[index].Add(usage.ToolIndex);

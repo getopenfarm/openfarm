@@ -425,7 +425,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var lineUsage = JobFilamentUsageMatcher.Match(
             job.FilamentConsumption.Select(c => (c.MaterialType, c.DetectedColorHex)).ToList(), fileUsage.Usages);
         job.BindFilamentUsage(loadedSelections.Select((s, i) => ((Guid?)s.SpoolId, lineUsage[i].Grams,
-            FilamentUsageCurve.Create(lineUsage[i].Tools.Where(fileUsage.Curves.ContainsKey).Select(t => fileUsage.Curves[t])))).ToList());
+            FilamentUsageCurve.FromExtrusion(fileUsage.Extrusion.Marks,
+                lineUsage[i].Tools.Where(fileUsage.Extrusion.Tools.ContainsKey).Select(t => fileUsage.Extrusion.Tools[t])))).ToList());
 
         // Tell the printer which tray each filament of the file comes from; without it a Bambu prints from the external spool.
         var placementResolver = services.GetRequiredService<FeedPlacementResolver>();

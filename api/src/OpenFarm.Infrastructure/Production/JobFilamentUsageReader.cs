@@ -7,10 +7,13 @@ using OpenFarm.Infrastructure.Parts;
 
 namespace OpenFarm.Infrastructure.Production;
 
-/// <summary>What the dispatched file says about filament: per-tool grams, and per-tool cumulative extrusion by layer (mm).</summary>
-internal sealed record JobFilamentUsageReport(IReadOnlyList<FilamentUsage> Usages, IReadOnlyDictionary<int, double[]> Curves, int FilamentCount = 0)
+/// <summary>
+/// What the dispatched file says about filament: per-tool grams (the slicer's, plus the purge it leaves out) and per-tool
+/// extrusion by layer (mm).
+/// </summary>
+internal sealed record JobFilamentUsageReport(IReadOnlyList<FilamentUsage> Usages, GCodeExtrusion Extrusion, int FilamentCount = 0)
 {
-    public static readonly JobFilamentUsageReport Empty = new([], new Dictionary<int, double[]>());
+    public static readonly JobFilamentUsageReport Empty = new([], GCodeExtrusion.Empty);
 }
 
 /// <summary>
@@ -38,11 +41,13 @@ internal static class JobFilamentUsageReader
                     usages = ReadFooter(footerReader.ReadToEnd());
                 }
 
-                return new(usages, gcode is null ? JobFilamentUsageReport.Empty.Curves : ReadCurves(gcode.Open), ProjectFilamentCount(archive));
+                var extrusion = gcode is null ? GCodeExtrusion.Empty : ReadExtrusion(gcode.Open);
+                return new(WithPurge(usages, extrusion), extrusion, ProjectFilamentCount(archive));
             }
 
             var footer = Encoding.UTF8.GetString(file);
-            return new(ReadFooter(footer), ReadCurves(() => new MemoryStream(file)),
+            var rawExtrusion = ReadExtrusion(() => new MemoryStream(file));
+            return new(WithPurge(ReadFooter(footer), rawExtrusion), rawExtrusion,
                 GCodeMetadataHelper.ParseFilamentSlots(GCodeMetadataHelper.ParseComments(footer)).Count);
         }
         catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException)
@@ -59,11 +64,20 @@ internal static class JobFilamentUsageReader
         return ProjectSettingsMetadata.Read(reader.ReadToEnd()).Slots.Count;
     }
 
-    private static IReadOnlyDictionary<int, double[]> ReadCurves(Func<Stream> open)
+    private static GCodeExtrusion ReadExtrusion(Func<Stream> open)
     {
         using var reader = new StreamReader(open());
         return GCodeFilamentCurveReader.Read(reader);
     }
+
+    /// <summary>
+    /// The slicer's grams leave out the purge its machine start G-code extrudes before layer 1, but that filament leaves
+    /// the spool too. Price it at the slicer's own grams per mm, which carries the file's density, diameter and flow ratio.
+    /// </summary>
+    private static List<FilamentUsage> WithPurge(IReadOnlyList<FilamentUsage> usages, GCodeExtrusion extrusion) =>
+        usages.Select(u => extrusion.Tools.TryGetValue(u.ToolIndex, out var tool) && tool.CumulativeMm[^1] > 0
+            ? u with { Grams = u.Grams + u.Grams * (decimal)(tool.PrimeMm / tool.CumulativeMm[^1]) }
+            : u).ToList();
 
     /// <summary>A slice_info filament <c>id</c> is 1-based; the tool the G-code selects with <c>T&lt;n&gt;</c> is id - 1.</summary>
     private static List<FilamentUsage> ReadSliceInfo(ZipArchiveEntry entry)

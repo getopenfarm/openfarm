@@ -33,6 +33,18 @@ public class JobFilamentUsageMatcherTests
     }
 
     [Fact]
+    public void Match_OverriddenColoursOnAMultiLineJob_MatchByFileOrder()
+    {
+        var lines = new (string?, string?)[] { ("PETG", "#111111"), ("PETG", "#EEEEEE") };
+
+        var result = JobFilamentUsageMatcher.Match(lines,
+            [new FilamentUsage("PETG", "#000000", 19m, 0), new FilamentUsage("PETG", "#FFFFFF", 32m, 1)]);
+
+        result.Select(l => l.Grams).Should().Equal(19m, 32m);
+        result.Select(l => l.Tools).Should().BeEquivalentTo(new[] { new[] { 0 }, new[] { 1 } }, o => o.WithStrictOrdering());
+    }
+
+    [Fact]
     public void Match_SingleLineWithOverriddenColour_GetsWholeFileUsage()
     {
         var result = JobFilamentUsageMatcher.Match([("PLA", "#123456")], [new FilamentUsage("PLA", "#FF0000", 7m, 3)]);
