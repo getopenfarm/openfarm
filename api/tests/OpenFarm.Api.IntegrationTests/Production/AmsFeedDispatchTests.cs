@@ -83,7 +83,7 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         await db.SaveChangesAsync();
     }
 
-    private IReadOnlyList<FilamentFeedMapping?> SentTo(Printer printer) =>
+    private List<FilamentFeedMapping?> SentTo(Printer printer) =>
         Recorder.Started.Where(s => s.SerialNumber == printer.SerialNumber).Select(s => s.Mapping).ToList();
 
     private async Task<FilamentFeedMapping?> DispatchedMappingAsync(Printer printer, Func<Task<Guid>> setup)

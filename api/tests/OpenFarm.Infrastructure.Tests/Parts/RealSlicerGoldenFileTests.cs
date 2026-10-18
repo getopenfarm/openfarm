@@ -94,9 +94,9 @@ public class RealSlicerGoldenFileTests
 
     private static async Task RunCaseAsync(string caseName, SlicerEngine engine, string version)
     {
-        RealSlicerBundleLocator.GetManifestPinnedVersion(engine).Should().Be(version,
-            "the test case's requested version must match slicers.manifest.json's pin, or this test " +
-            "may silently exercise a different, possibly crash-prone, slicer build");
+        RealSlicerBundleLocator.GetManifestPinnedVersions(engine).Should().Contain(version,
+            "the test case's requested version must be pinned in slicers.manifest.json for this platform, " +
+            "or this test may silently exercise a different, possibly crash-prone, slicer build");
 
         var caseDir = Path.Combine(FixturesRoot, caseName);
         var manifest = GoldenCaseManifest.Load(caseDir);

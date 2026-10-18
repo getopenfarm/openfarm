@@ -39,12 +39,13 @@ internal static class RealSlicerBundleLocator
 
     /// <summary>
     /// Guardrail against the OrcaSlicer/BambuStudio SIGSEGV regression documented in
-    /// slicers.manifest.json: a golden-file test case's requested version must match what's actually
-    /// pinned there, or it may be silently exercising a different, crash-prone build. A mismatch is a
-    /// stale/misconfigured test case, so it is asserted as a hard failure by the caller, not treated
-    /// as an availability gap.
+    /// slicers.manifest.json: a golden-file test case's requested version must be one of the versions
+    /// pinned there for this host platform (schemaVersion 4 lists several per platform, and leaves
+    /// out a release that regressed on that platform), or it may be silently exercising a different,
+    /// crash-prone build. A mismatch is a stale/misconfigured test case, so it is asserted as a hard
+    /// failure by the caller, not treated as an availability gap.
     /// </summary>
-    public static string GetManifestPinnedVersion(SlicerEngine engine)
+    public static IReadOnlyList<string> GetManifestPinnedVersions(SlicerEngine engine)
     {
         var manifestPath = FindManifestPath()
             ?? throw new InvalidOperationException("Could not locate slicers.manifest.json to verify the pinned slicer version.");
@@ -59,8 +60,15 @@ internal static class RealSlicerBundleLocator
                 continue;
             }
 
-            return entry.GetProperty("builds").GetProperty(platformKey).GetProperty("version").GetString()
-                ?? throw new InvalidOperationException($"slicers.manifest.json has no version for {engine} on {platformKey}.");
+            if (!entry.GetProperty("builds").TryGetProperty(platformKey, out var builds))
+            {
+                throw new InvalidOperationException($"slicers.manifest.json has no builds for {engine} on {platformKey}.");
+            }
+
+            return builds.EnumerateArray()
+                .Select(build => build.GetProperty("version").GetString()
+                    ?? throw new InvalidOperationException($"slicers.manifest.json has a build without a version for {engine} on {platformKey}."))
+                .ToList();
         }
 
         throw new InvalidOperationException($"slicers.manifest.json has no entry for {engine}.");

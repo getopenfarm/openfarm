@@ -5,6 +5,8 @@ namespace OpenFarm.Application.Tests.Production;
 
 public class JobFilamentUsageMatcherTests
 {
+    private static readonly int[][] ToolZeroThenOne = [[0], [1]];
+
     private static IEnumerable<decimal?> Grams(IReadOnlyList<(string?, string?)> lines, params FilamentUsage[] usages) =>
         JobFilamentUsageMatcher.Match(lines, usages).Select(l => l.Grams);
 
@@ -17,7 +19,7 @@ public class JobFilamentUsageMatcherTests
             [new FilamentUsage("PLA", "#ffffff", 4.5m, 1), new FilamentUsage("PLA", "#FF0000", 12m, 0)]);
 
         result.Select(l => l.Grams).Should().Equal(12m, 4.5m);
-        result.Select(l => l.Tools).Should().BeEquivalentTo(new[] { new[] { 0 }, new[] { 1 } }, o => o.WithStrictOrdering());
+        result.Select(l => l.Tools).Should().BeEquivalentTo(ToolZeroThenOne, o => o.WithStrictOrdering());
     }
 
     [Fact]
@@ -41,7 +43,7 @@ public class JobFilamentUsageMatcherTests
             [new FilamentUsage("PETG", "#000000", 19m, 0), new FilamentUsage("PETG", "#FFFFFF", 32m, 1)]);
 
         result.Select(l => l.Grams).Should().Equal(19m, 32m);
-        result.Select(l => l.Tools).Should().BeEquivalentTo(new[] { new[] { 0 }, new[] { 1 } }, o => o.WithStrictOrdering());
+        result.Select(l => l.Tools).Should().BeEquivalentTo(ToolZeroThenOne, o => o.WithStrictOrdering());
     }
 
     [Fact]
