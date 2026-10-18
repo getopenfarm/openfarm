@@ -215,6 +215,32 @@
               "format": "guid",
               "nullable": true
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
           }
         ],
         "responses": {
@@ -4468,6 +4494,10 @@
             "items": {
               "$ref": "#/components/schemas/SpoolResponse"
             }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -7911,6 +7941,10 @@
             "format": "guid"
           },
           "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "spoolWeightGrams": {
             "type": "number",
             "format": "decimal"
           }

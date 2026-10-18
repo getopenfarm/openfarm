@@ -66,7 +66,7 @@ public sealed class GetFeedUnitsQueryHandler(
     private static FeedSlotDetail BuildSlotDetail(FeedUnit unit, FeedSlot slot, Printer printer, Dictionary<Guid, Spool> spoolBySlotId, IReadOnlyList<FeedUnit> allUnits)
     {
         var currentSpool = spoolBySlotId.TryGetValue(slot.Id, out var spool)
-            ? new CurrentSpoolSummary(spool.Id, spool.FilamentVariantId, spool.RemainingWeightGrams)
+            ? new CurrentSpoolSummary(spool.Id, spool.FilamentVariantId, spool.RemainingWeightGrams, spool.SpoolWeightGrams)
             : null;
 
         var replacedPort = unit.Kind == FeedUnitKindCatalog.ExternalSpool && allUnits.Any(u =>

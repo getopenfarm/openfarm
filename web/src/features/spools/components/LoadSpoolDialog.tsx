@@ -1,7 +1,5 @@
-import { useQueryClient } from '@tanstack/react-query';
 import type { RefObject } from 'react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -31,10 +29,7 @@ import {
   useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint,
   useOpenFarmApiEndpointsPrintersListFleetEndpoint,
 } from '@/lib/api/generated/printers/printers';
-import {
-  getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey,
-  useOpenFarmApiEndpointsSpoolsLoadSpoolEndpoint,
-} from '@/lib/api/generated/spools/spools';
+import { useLoadSpool } from '../hooks/useLoadSpool';
 
 function flattenAvailableSlots(feedUnits: FeedUnitResponse[]) {
   return feedUnits.flatMap((unit) =>
@@ -62,7 +57,6 @@ export function LoadSpoolDialog({
 }: LoadSpoolDialogProps) {
   const [printerId, setPrinterId] = useState('');
   const [feedSlotId, setFeedSlotId] = useState('');
-  const queryClient = useQueryClient();
 
   const fleetQuery = useOpenFarmApiEndpointsPrintersListFleetEndpoint();
   const printers =
@@ -78,28 +72,10 @@ export function LoadSpoolDialog({
       ?.feedUnits ?? [];
   const slotOptions = flattenAvailableSlots(feedUnits);
 
-  const loadMutation = useOpenFarmApiEndpointsSpoolsLoadSpoolEndpoint({
-    mutation: {
-      onSuccess: (response) => {
-        const body = response.data;
-        if (body?.rfidMismatchWarning) {
-          toast.warning(
-            'Spool loaded, but the detected filament does not match this spool.',
-          );
-        } else {
-          toast.success('Spool loaded.');
-        }
-        setPrinterId('');
-        setFeedSlotId('');
-        onOpenChange(false);
-        queryClient.invalidateQueries({
-          queryKey: getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey(),
-        });
-      },
-      onError: () => {
-        toast.error('Could not load spool.');
-      },
-    },
+  const loadMutation = useLoadSpool(printerId, () => {
+    setPrinterId('');
+    setFeedSlotId('');
+    onOpenChange(false);
   });
 
   function handleSubmit() {

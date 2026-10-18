@@ -204,7 +204,7 @@ describe('Fixed compact dashboard', () => {
       confirmRunCompletion: true,
     });
   });
-  it('shows bars instead of persistent filament values and reveals recorded weight on click', async () => {
+  it('shows bars instead of persistent filament values and reveals recorded weight on hover', async () => {
     setup(
       [printing],
       { p1: { externalSpoolTray: { active: true, remainPercent: 20 } } },
@@ -232,7 +232,7 @@ describe('Fixed compact dashboard', () => {
     });
     expect(Number(meter.getAttribute('value'))).toBeCloseTo(65.6);
     expect(screen.queryByText(/328 g recorded/)).not.toBeInTheDocument();
-    fireEvent.click(
+    fireEvent.pointerEnter(
       screen.getByRole('button', {
         name: /External spool · Slot 1: 328 g recorded/,
       }),
@@ -243,6 +243,85 @@ describe('Fixed compact dashboard', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent(
       'Printer estimate: 20%',
     );
+  });
+  describe('filament rail popover', () => {
+    const ams: FeedUnitResponse = {
+      id: 'ams',
+      kind: 'MultiMaterialUnit',
+      unitIndex: 0,
+      displayLabel: 'AMS 1',
+      feedSlots: [
+        {
+          id: 'slot-1',
+          slotPosition: 0,
+          displayLabel: 'Slot 1',
+          currentSpool: { id: 's1', remainingWeightGrams: 300 },
+        },
+        { id: 'slot-2', slotPosition: 1, displayLabel: 'Slot 2' },
+      ],
+    };
+    const spools = [
+      { id: 's1', remainingWeightGrams: 300, spoolWeightGrams: 500 },
+    ];
+    async function bars() {
+      const [one, two, three] = await Promise.all([
+        screen.findByRole('button', { name: /AMS 1 · Slot 1:/ }),
+        screen.findByRole('button', { name: /AMS 1 · Slot 2:/ }),
+        screen.findByRole('button', { name: /AMS 1 · Slot 3:/ }),
+      ]);
+      return { one, two, three };
+    }
+
+    it('shows one popover that follows hover while nothing is pinned', async () => {
+      setup([printing], {}, { feeds: [ams], spools });
+      const { one, two } = await bars();
+      fireEvent.pointerEnter(two);
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+      expect(screen.getByRole('dialog')).toHaveTextContent('AMS 1 · Slot 2');
+      fireEvent.pointerEnter(one);
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+      expect(screen.getByRole('dialog')).toHaveTextContent('AMS 1 · Slot 1');
+    });
+
+    it('hints at managing on hover and opens the slot dialog on click', async () => {
+      setup([printing], {}, { feeds: [ams], spools });
+      const { two } = await bars();
+      fireEvent.pointerEnter(two);
+      expect(screen.getByRole('dialog')).toHaveTextContent(
+        'Click to manage slot.',
+      );
+      fireEvent.click(two);
+      expect(
+        await screen.findByText('Empty. Choose a spool to load.'),
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+      expect(screen.getByRole('dialog')).toHaveTextContent('AMS 1 · Slot 2');
+    });
+
+    it('opens the slot dialog for a loaded slot with its unload actions', async () => {
+      setup([printing], {}, { feeds: [ams], spools });
+      const { one } = await bars();
+      fireEvent.click(one);
+      expect(
+        await screen.findByRole('button', { name: 'Return to storage' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Mark finished' }),
+      ).toBeInTheDocument();
+    });
+
+    it('only shows the readout for a slot that exists only in telemetry', async () => {
+      setup([printing], {}, { feeds: [ams], spools });
+      const { three } = await bars();
+      fireEvent.click(three);
+      expect(screen.getByRole('dialog')).toHaveTextContent('AMS 1 · Slot 3');
+      expect(screen.getByRole('dialog')).not.toHaveTextContent(
+        'Click to manage slot.',
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Cancel' }),
+      ).not.toBeInTheDocument();
+    });
   });
   it('keeps unknown and empty quantities distinct and shows the active AMS without persistent equipment labels', async () => {
     setup([printing], {

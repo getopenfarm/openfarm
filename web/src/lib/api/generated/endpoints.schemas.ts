@@ -53,6 +53,7 @@ export interface EditSpoolRequest {
 
 export interface ListSpoolsResponse {
   spools?: SpoolResponse[];
+  totalCount?: number;
 }
 
 export interface ListSpoolsRequest {
@@ -1343,6 +1344,7 @@ export interface CurrentSpoolResponse {
   id?: string;
   filamentVariantId?: string;
   remainingWeightGrams?: number;
+  spoolWeightGrams?: number;
 }
 
 export interface FeedSlotResponse {
@@ -1601,6 +1603,18 @@ export type OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams = {
    * @nullable
    */
   vendorId?: string | null;
+  /**
+   * @nullable
+   */
+  search?: string | null;
+  /**
+   * @nullable
+   */
+  page?: number | null;
+  /**
+   * @nullable
+   */
+  pageSize?: number | null;
 };
 
 export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {

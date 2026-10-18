@@ -12,6 +12,8 @@ import type { MonitoredPrinter } from './monitoring';
 
 export interface FilamentMeter {
   key: string;
+  /** Persisted Feed slot id; absent for slots synthesized from telemetry. */
+  slotId?: string;
   position: number;
   location: string;
   material: string;
@@ -168,6 +170,7 @@ export function buildFilamentRail(
             key:
               slot.id ??
               `${unit.id ?? `${kind}:${unit.unitIndex}`}:${slot.slotPosition ?? index}`,
+            slotId: slot.id,
             position: slot.slotPosition ?? index,
             location: `${label} · ${slot.displayLabel || `Slot ${(slot.slotPosition ?? index) + 1}`}`,
             material: current

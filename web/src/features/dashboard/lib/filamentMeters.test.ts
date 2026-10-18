@@ -256,6 +256,21 @@ describe('Compact filament rail model', () => {
     expect(rail.kind).toBe('external');
     expect(rail.additionalUnits).toEqual(['AMS 1']);
   });
+  it('exposes the Feed slot id only for persisted slots, not telemetry-synthesized ones', () => {
+    const ams: FeedUnitResponse = {
+      id: 'ams',
+      kind: 'MultiMaterialUnit',
+      unitIndex: 0,
+      feedSlots: [{ id: 'persisted', slotPosition: 0 }],
+    };
+    const rail = buildFilamentRail(online, [ams], [], []);
+    expect(rail.meters.map((meter) => meter.slotId)).toEqual([
+      'persisted',
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
   it('leaves invalid printer percentages unknown and does not duplicate replaced-port telemetry', () => {
     const rail = buildFilamentRail(
       { ...online, externalSpoolTray: { active: true, remainPercent: -1 } },

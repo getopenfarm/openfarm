@@ -6,18 +6,25 @@ namespace OpenFarm.Application.FilamentTracking;
 /// <summary>Computed read-time-only fields (data-model.md's "Derived display fields") shared by <see cref="GetSpoolsQueryHandler"/>, <see cref="GetFeedUnitsQueryHandler"/>, and <see cref="LoadSpoolOntoFeedSlotCommandHandler"/>.</summary>
 internal static class FeedUnitDisplay
 {
-    public static string UnitLabel(FeedUnit unit, string printerBrand) => unit.Kind switch
+    public static string UnitLabel(FeedUnit unit, string printerBrand) =>
+        UnitLabel(unit.Kind, unit.UnitIndex, unit.Name, printerBrand);
+
+    /// <summary>Column-level overload, so read queries can label a slot from projected columns without loading the entities.</summary>
+    public static string UnitLabel(string kind, int unitIndex, string? name, string printerBrand) => kind switch
     {
-        FeedUnitKindCatalog.MultiMaterialUnit => $"{FeedUnitKindCatalog.ResolveMultiMaterialUnitTerm(printerBrand)} {unit.UnitIndex + 1}",
+        FeedUnitKindCatalog.MultiMaterialUnit => $"{FeedUnitKindCatalog.ResolveMultiMaterialUnitTerm(printerBrand)} {unitIndex + 1}",
         FeedUnitKindCatalog.ExternalSpool => "External Spool",
-        FeedUnitKindCatalog.AutomaticFilamentReloader => unit.Name ?? "Automatic Filament Reloader",
-        _ => unit.Kind,
+        FeedUnitKindCatalog.AutomaticFilamentReloader => name ?? "Automatic Filament Reloader",
+        _ => kind,
     };
 
     public static string SlotLabel(FeedUnit unit, FeedSlot slot, string printerBrand) =>
-        unit.Kind == FeedUnitKindCatalog.ExternalSpool
-            ? UnitLabel(unit, printerBrand)
-            : $"{UnitLabel(unit, printerBrand)} · Slot {slot.SlotPosition + 1}";
+        SlotLabel(unit.Kind, unit.UnitIndex, unit.Name, slot.SlotPosition, printerBrand);
+
+    public static string SlotLabel(string kind, int unitIndex, string? name, int slotPosition, string printerBrand) =>
+        kind == FeedUnitKindCatalog.ExternalSpool
+            ? UnitLabel(kind, unitIndex, name, printerBrand)
+            : $"{UnitLabel(kind, unitIndex, name, printerBrand)} · Slot {slotPosition + 1}";
 
     /// <summary>FR-021, gated purely on live per-slot data presence — no <c>Kind</c> restriction (research.md §8).</summary>
     public static AmsTray? ResolveDetectedTray(FeedUnit unit, FeedSlot slot, Printer printer) => unit.Kind switch

@@ -286,6 +286,7 @@ builder.Services.AddScoped<IVendorRepository, VendorRepository>();
 builder.Services.AddScoped<IFilamentRepository, FilamentRepository>();
 builder.Services.AddScoped<IFeedUnitRepository, FeedUnitRepository>();
 builder.Services.AddScoped<ISpoolRepository, SpoolRepository>();
+builder.Services.AddScoped<ISpoolReadModel, SpoolRepository>();
 builder.Services.AddScoped<IFeedSlotTelemetrySync, FeedSlotTelemetrySyncHandler>();
 builder.Services.AddScoped<IFilamentTrackingEventPublisher, FarmHubFilamentTrackingEventPublisher>();
 
@@ -296,6 +297,7 @@ builder.Services.AddScoped<IQueryHandler<GetFilamentsQuery, IReadOnlyList<Filame
 builder.Services.AddScoped<IQueryHandler<GetFeedUnitsQuery, IReadOnlyList<FeedUnitDetail>>, GetFeedUnitsQueryHandler>();
 builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>>, GetSpoolsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, SpoolSummaryPage>, GetSpoolsPageQueryHandler>();
 builder.Services.AddScoped<LoadSpoolHandlerType, LoadSpoolOntoFeedSlotCommandHandler>();
 builder.Services.AddScoped<UnloadSpoolHandlerType, UnloadSpoolCommandHandler>();
 builder.Services.AddScoped<ISpoolUsageRecordRepository, SpoolUsageRecordRepository>();

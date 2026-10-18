@@ -2,7 +2,7 @@ namespace OpenFarm.Application.FilamentTracking;
 
 public sealed record GetFeedUnitsQuery(Guid PrinterId, bool IncludeHidden = false, bool IncludeArchived = false);
 
-public sealed record CurrentSpoolSummary(Guid Id, Guid FilamentVariantId, decimal RemainingWeightGrams);
+public sealed record CurrentSpoolSummary(Guid Id, Guid FilamentVariantId, decimal RemainingWeightGrams, decimal SpoolWeightGrams);
 
 public sealed record FeedSlotDetail(
     Guid Id,

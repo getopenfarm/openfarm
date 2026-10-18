@@ -8,8 +8,7 @@ internal static class SpoolResponseLookup
 {
     public static async Task<SpoolResponse> ResolveAsync(IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>> spoolsQuery, Guid spoolId, CancellationToken cancellationToken)
     {
-        var spools = await spoolsQuery.HandleAsync(new GetSpoolsQuery(null, null, null, null), cancellationToken);
-        var summary = spools.First(s => s.Id == spoolId);
-        return SpoolResponse.FromSummary(summary);
+        var spools = await spoolsQuery.HandleAsync(new GetSpoolsQuery(null, null, null, null, SpoolId: spoolId), cancellationToken);
+        return SpoolResponse.FromSummary(spools[0]);
     }
 }

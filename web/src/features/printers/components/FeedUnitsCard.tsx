@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
+import { ManageSlotDialog } from '@/features/spools/components/ManageSlotDialog';
 import type {
   AmsTrayResponse,
   AmsUnitResponse,
@@ -67,6 +68,7 @@ function FeedSlotRow({
     externalPortReplacedByReloader,
   );
   const queryClient = useQueryClient();
+  const [manageOpen, setManageOpen] = useState(false);
   const slotMutation = useMutation({
     mutationFn: () => selectReloaderSlot(unit.id ?? '', slot.id ?? ''),
     onSuccess: () =>
@@ -164,6 +166,24 @@ function FeedSlotRow({
             {slotMutation.isPending && <Spinner data-icon="inline-start" />}
             Set feeding slot
           </Button>
+        )}
+        {!inactive && slot.id && (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setManageOpen(true)}
+            >
+              {spool ? 'Change spool' : 'Load spool'}
+            </Button>
+            <ManageSlotDialog
+              printerId={unitPrinterId}
+              feedSlotId={slot.id}
+              slotLabel={`${unit.displayLabel} · ${slot.displayLabel}`}
+              open={manageOpen}
+              onOpenChange={setManageOpen}
+            />
+          </>
         )}
         {inactive && (
           <p className="text-[11.5px] text-muted-foreground">Inactive slot</p>

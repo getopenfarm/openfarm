@@ -4,6 +4,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from '@/components/ui/input-group';
+import { cn } from '@/lib/utils';
 
 interface DataTableSearchProps {
   value: string;
@@ -11,6 +12,7 @@ interface DataTableSearchProps {
   label: string;
   placeholder: string;
   disabled?: boolean;
+  className?: string;
 }
 
 export function DataTableSearch({
@@ -19,9 +21,10 @@ export function DataTableSearch({
   label,
   placeholder,
   disabled,
+  className,
 }: DataTableSearchProps) {
   return (
-    <InputGroup className="w-full shrink-0 sm:w-64">
+    <InputGroup className={cn('w-full shrink-0 sm:w-64', className)}>
       <InputGroupInput
         aria-label={label}
         placeholder={placeholder}

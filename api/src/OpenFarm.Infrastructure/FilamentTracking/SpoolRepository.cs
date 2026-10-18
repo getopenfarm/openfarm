@@ -5,7 +5,7 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.FilamentTracking;
 
-public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolRepository
+public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolRepository, ISpoolReadModel
 {
     public async Task AddAsync(Spool spool, CancellationToken cancellationToken)
     {
@@ -32,6 +32,129 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
 
         return await query.OrderBy(spool => spool.CreatedAtUtc).ToListAsync(cancellationToken);
     }
+
+    private const int DefaultPageSize = 25;
+    private const int MaxPageSize = 100;
+    private const int MaxSearchTerms = 8;
+    private const int MaxSearchTermLength = 64;
+
+    public async Task<SpoolRowPage> ListRowsAsync(GetSpoolsQuery query, CancellationToken cancellationToken)
+    {
+        // Inner joins to the catalog (an orphaned spool has no row to show); left joins for vendor and
+        // the loaded slot, which may legitimately be absent. Tenant query filters apply to every set.
+        var rows =
+            from spool in dbContext.Spools.AsNoTracking()
+            join variant in dbContext.FilamentVariants on spool.FilamentVariantId equals variant.Id
+            join filament in dbContext.Filaments on variant.FilamentId equals filament.Id
+            join vendor in dbContext.Vendors on filament.VendorId equals vendor.Id into vendors
+            from vendor in vendors.DefaultIfEmpty()
+            join slot in dbContext.FeedSlots on spool.FeedSlotId equals (Guid?)slot.Id into slots
+            from slot in slots.DefaultIfEmpty()
+            join unit in dbContext.FeedUnits on slot.FeedUnitId equals (Guid?)unit.Id into units
+            from unit in units.DefaultIfEmpty()
+            join printer in dbContext.Printers on unit.PrinterId equals (Guid?)printer.Id into printers
+            from printer in printers.DefaultIfEmpty()
+            select new { spool, variant, filament, vendor, slot, unit, printer };
+
+        if (query.SpoolId is { } spoolId)
+        {
+            rows = rows.Where(x => x.spool.Id == spoolId);
+        }
+
+        if (query.State is { } state)
+        {
+            rows = rows.Where(x => x.spool.State == state);
+        }
+
+        if (query.FilamentVariantId is { } variantId)
+        {
+            rows = rows.Where(x => x.spool.FilamentVariantId == variantId);
+        }
+
+        if (query.FilamentId is { } filamentId)
+        {
+            rows = rows.Where(x => x.filament.Id == filamentId);
+        }
+
+        if (query.VendorId is { } vendorId)
+        {
+            rows = rows.Where(x => x.filament.VendorId == vendorId);
+        }
+
+        foreach (var term in SearchTerms(query.Search))
+        {
+            var pattern = $"%{term}%";
+            rows = rows.Where(x =>
+                EF.Functions.ILike(x.spool.Label ?? "", pattern, "\\")
+                || EF.Functions.ILike(x.vendor.Name ?? "", pattern, "\\")
+                || EF.Functions.ILike(x.filament.Material, pattern, "\\")
+                || EF.Functions.ILike(x.filament.MaterialType, pattern, "\\")
+                || EF.Functions.ILike(x.variant.ColorName, pattern, "\\"));
+        }
+
+        var paged = query.Page is not null || query.PageSize is not null;
+        var pageSize = Math.Clamp(query.PageSize ?? DefaultPageSize, 1, MaxPageSize);
+        var total = paged ? await rows.CountAsync(cancellationToken) : 0;
+
+        var ordered = rows
+            .OrderBy(x => x.spool.CreatedAtUtc)
+            .ThenBy(x => x.spool.Id);
+        var window = paged ? ordered.Skip((Math.Max(query.Page ?? 1, 1) - 1) * pageSize).Take(pageSize) : ordered;
+
+        var projected = await window
+            .Select(x => new
+            {
+                x.spool.Id,
+                x.spool.Label,
+                x.spool.FilamentVariantId,
+                x.variant.ColorName,
+                x.variant.ColorHex,
+                x.filament.Material,
+                VendorName = x.vendor.Name ?? string.Empty,
+                x.spool.SpoolWeightGrams,
+                x.spool.RemainingWeightGrams,
+                x.spool.State,
+                x.spool.FeedSlotId,
+                x.spool.HasUsageOverrun,
+                UnitKind = x.unit.Kind,
+                UnitIndex = (int?)x.unit.UnitIndex,
+                UnitName = x.unit.Name,
+                SlotPosition = (int?)x.slot.SlotPosition,
+                PrinterBrand = x.printer.Brand,
+            })
+            .ToListAsync(cancellationToken);
+
+        var spoolRows = projected
+            .Select(r => new SpoolRow(
+                r.Id,
+                r.Label,
+                r.FilamentVariantId,
+                r.ColorName,
+                r.ColorHex,
+                r.Material,
+                r.VendorName,
+                r.SpoolWeightGrams,
+                r.RemainingWeightGrams,
+                r.State,
+                r.FeedSlotId,
+                r.HasUsageOverrun,
+                r is { UnitKind: not null, UnitIndex: { } unitIndex, SlotPosition: { } slotPosition }
+                    ? new SpoolSlotPlacement(r.UnitKind, unitIndex, r.UnitName, slotPosition, r.PrinterBrand ?? string.Empty)
+                    : null))
+            .ToList();
+
+        return new SpoolRowPage(spoolRows, paged ? total : spoolRows.Count);
+    }
+
+    /// <summary>Trimmed, bounded, LIKE-escaped terms; a bounded term count keeps a pasted paragraph from becoming a huge predicate.</summary>
+    private static IEnumerable<string> SearchTerms(string? search) =>
+        (search ?? string.Empty)
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Take(MaxSearchTerms)
+            .Select(term => (term.Length > MaxSearchTermLength ? term[..MaxSearchTermLength] : term)
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("%", "\\%", StringComparison.Ordinal)
+                .Replace("_", "\\_", StringComparison.Ordinal));
 
     public async Task<IReadOnlyList<Spool>> FindLoadedInFeedUnitAsync(Guid feedUnitId, CancellationToken cancellationToken)
     {

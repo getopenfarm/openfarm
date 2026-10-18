@@ -1,5 +1,5 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type {
   FilamentProfileDetailResponse,
   FilamentProfileResponse,
@@ -70,15 +71,6 @@ export interface ProfilePickerComboboxProps {
   nozzleDiameterMm?: number;
   /** filament only. */
   materialType?: string | null;
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(handle);
-  }, [value, delayMs]);
-  return debounced;
 }
 
 function toPickerItem(

@@ -618,6 +618,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FilamentVariantId");
 
+                    b.HasIndex("OrganizationId", "State", "CreatedAtUtc");
+
                     b.ToTable("Spools", (string)null);
 
                     b.HasAnnotation("Finbuckle:MultiTenant", true);

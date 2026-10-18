@@ -10,11 +10,14 @@ public sealed class CurrentSpoolResponse
 
     public decimal RemainingWeightGrams { get; set; }
 
+    public decimal SpoolWeightGrams { get; set; }
+
     public static CurrentSpoolResponse FromSummary(CurrentSpoolSummary summary) => new()
     {
         Id = summary.Id,
         FilamentVariantId = summary.FilamentVariantId,
         RemainingWeightGrams = summary.RemainingWeightGrams,
+        SpoolWeightGrams = summary.SpoolWeightGrams,
     };
 }
 

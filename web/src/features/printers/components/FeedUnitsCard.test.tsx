@@ -294,6 +294,24 @@ describe('FeedUnitsCard', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('offers Load spool on empty slots and Change spool on loaded ones', async () => {
+    renderCard();
+
+    await screen.findByText('AMS 1');
+    // First "Slot 1" is the occupied AMS slot; the reloader's slot 1 is empty.
+    const [occupied] = screen.getAllByRole('listitem', { name: 'Slot 1' });
+    expect(
+      within(occupied).getByRole('button', { name: 'Change spool' }),
+    ).toBeInTheDocument();
+    expect(
+      within(occupied).queryByRole('button', { name: 'Load spool' }),
+    ).not.toBeInTheDocument();
+    // AMS slot 2 and the reloader slot are empty.
+    expect(screen.getAllByRole('button', { name: 'Load spool' })).toHaveLength(
+      2,
+    );
+  });
+
   it('has an Add feed unit action', async () => {
     renderCard();
 

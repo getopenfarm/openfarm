@@ -52,6 +52,9 @@ public sealed class SpoolConfiguration : IEntityTypeConfiguration<Spool>
             .IsUnique()
             .HasFilter("\"State\" = 'Using'");
 
+        // The inventory list: tenant filter + state filter, in creation order (GetSpoolsQuery).
+        builder.HasIndex(s => new { s.OrganizationId, s.State, s.CreatedAtUtc });
+
         // Postgres system column; the Npgsql provider auto-maps a "xmin"-named uint row-version
         // property to it (research.md/data-model.md's optimistic-concurrency requirement).
         builder.Property<uint>("xmin")
