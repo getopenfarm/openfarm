@@ -10,23 +10,20 @@ namespace OpenFarm.Application.Printers;
 /// </summary>
 public interface IPrinterEventPublisher
 {
-    Task PrinterActivityChangedAsync(Guid organizationId, Guid printerId, CancellationToken cancellationToken) => Task.CompletedTask;
+    Task PrinterActivityChangedAsync(Guid printerId, CancellationToken cancellationToken) => Task.CompletedTask;
 
     Task PrinterStatusChangedAsync(
-        Guid organizationId,
         Guid printerId,
         PrinterStatus status,
         bool isReachable,
         CancellationToken cancellationToken);
 
     Task PrinterTelemetryUpdatedAsync(
-        Guid organizationId,
         Guid printerId,
         PrinterTelemetrySnapshot telemetry,
         CancellationToken cancellationToken);
 
     Task CameraFrameReceivedAsync(
-        Guid organizationId,
         Guid printerId,
         string frameJpegBase64,
         CancellationToken cancellationToken);

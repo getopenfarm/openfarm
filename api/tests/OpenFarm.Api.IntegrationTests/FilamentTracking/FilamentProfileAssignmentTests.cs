@@ -9,7 +9,6 @@ using OpenFarm.Api.IntegrationTests.Production;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Production;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Domain.Parts;
@@ -23,20 +22,20 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
     public async Task FleetGroupsReportedHardwareAndRetainsOfflineNozzlesWithoutUsingProfiles()
     {
         var client = await ClientAsync();
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             foreach (var diameter in new[] { 0.4m, 0.4m, 0.6m })
             {
-                var printer = Printer.Create(Organization.WellKnownId, "P1S", "Bambu", "P1S", "127.0.0.1", Guid.NewGuid().ToString());
+                var printer = Printer.Create("P1S", "Bambu", "P1S", "127.0.0.1", Guid.NewGuid().ToString());
                 printer.ObserveNozzle(diameter, DateTimeOffset.UtcNow);
                 printer.MarkUnreachable();
                 db.Printers.Add(printer);
             }
-            var different = Printer.Create(Organization.WellKnownId, "X1C", "Bambu", "X1C", "127.0.0.1", Guid.NewGuid().ToString());
+            var different = Printer.Create("X1C", "Bambu", "X1C", "127.0.0.1", Guid.NewGuid().ToString());
             different.ObserveNozzle(0.6m, DateTimeOffset.UtcNow);
             db.Printers.Add(different);
-            db.Printers.Add(Printer.Create(Organization.WellKnownId, "Unknown nozzle", "Bambu", "A1", "127.0.0.1", Guid.NewGuid().ToString()));
+            db.Printers.Add(Printer.Create("Unknown nozzle", "Bambu", "A1", "127.0.0.1", Guid.NewGuid().ToString()));
             await db.SaveChangesAsync();
         }
         var fleet = await client.GetFromJsonAsync<FilamentAssignmentFleet>("/api/v1/filaments/profile-assignment-fleet");
@@ -51,12 +50,12 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
     {
         var client = await ClientAsync();
         Guid firstId, secondId;
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            var first = FilamentProfile.Create(Organization.WellKnownId, "PLA 0.4", ProfileSourceFormat.OrcaSlicer, null,
+            var first = FilamentProfile.Create("PLA 0.4", ProfileSourceFormat.OrcaSlicer, null,
                 """{"filament_type":["PLA"],"nozzle_diameter":["0.4"]}""");
-            var second = FilamentProfile.Create(Organization.WellKnownId, "Black PLA 0.4", ProfileSourceFormat.OrcaSlicer, null,
+            var second = FilamentProfile.Create("Black PLA 0.4", ProfileSourceFormat.OrcaSlicer, null,
                 """{"filament_type":["PLA"],"nozzle_diameter":["0.4"]}""");
             db.FilamentProfiles.AddRange(first, second);
             await db.SaveChangesAsync();
@@ -85,14 +84,14 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
         });
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
         Guid originalId;
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var row = await scope.ServiceProvider.GetRequiredService<IFilamentRepository>().GetByIdAsync(filament.Id, default);
             originalId = row!.ProfileAssignments.Single(a => a.FilamentVariantId is null).Id;
         }
         saved = await client.PutAsJsonAsync(editRoute, new EditFilamentRequest { VendorId = filament.VendorId, Material = filament.Material, MaterialType = filament.MaterialType, ProfileAssignments = [new("Bambu", "P1S", 0.4m, secondId)] });
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var row = await scope.ServiceProvider.GetRequiredService<IFilamentRepository>().GetByIdAsync(filament.Id, default);
             row!.ProfileAssignments.Should().ContainSingle().Which.Id.Should().Be(originalId);
@@ -104,7 +103,7 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
         var retained = (await client.GetFromJsonAsync<FilamentProfileAssignmentsResponse>(route))!;
         retained.Assignments.Should().ContainSingle().Which.FilamentProfileId.Should().Be(secondId);
         retained.Issues.Should().BeEmpty();
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             (await db.FilamentProfiles.SingleAsync(p => p.Id == secondId)).MarkStale();
@@ -121,17 +120,17 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
         var stored = await PartAsync(fileName: "profile-validation.stl");
         Part part;
         Guid filamentId, profileId;
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var trackedPrinter = await db.Printers.SingleAsync(p => p.Id == printer.Id);
-            var process = ProcessProfile.CreateSystemProfile(Organization.WellKnownId, Guid.NewGuid().ToString(),
+            var process = ProcessProfile.CreateSystemProfile(Guid.NewGuid().ToString(),
                 ProfileSourceFormat.OrcaSlicer, null, "{}", "test", Guid.NewGuid().ToString(), true,
                 [(await db.MachineProfiles.SingleAsync(p => p.Id == trackedPrinter.MachineProfileId)).Name]);
             db.ProcessProfiles.Add(process);
             trackedPrinter.LinkProcessProfile(process.Id);
             trackedPrinter.SelectBuildPlate(BuildPlateType.HighTemp);
-            var profile = FilamentProfile.Create(Organization.WellKnownId, "Imported Bambu PLA", ProfileSourceFormat.BambuStudio, null,
+            var profile = FilamentProfile.Create("Imported Bambu PLA", ProfileSourceFormat.BambuStudio, null,
                 """{"filament_type":["PLA"],"hot_plate_temp":["55"]}""");
             db.FilamentProfiles.Add(profile);
             // Identify the filament on this exact printer's loaded tracked spool.
@@ -139,7 +138,7 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
             var variantId = (await db.Spools.SingleAsync(s => s.FeedSlotId != null && slots.Contains(s.FeedSlotId.Value))).FilamentVariantId;
             filamentId = await db.Filaments.Where(f => f.Variants.Any(v => v.Id == variantId)).Select(f => f.Id).SingleAsync();
             profileId = profile.Id;
-            part = Part.Create(Organization.WellKnownId, Guid.NewGuid().ToString(), PartFileFormat.Stl, true,
+            part = Part.Create(Guid.NewGuid().ToString(), PartFileFormat.Stl, true,
                 stored.OriginalFileName, stored.StoragePath, stored.FileSizeBytes, 0.4m, null, null,
                 EstimateStatus.Available, 1, 1, 1, 1, stored.RevisionHash,
                 [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
@@ -155,7 +154,7 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
             ProfileAssignments = [new("System", "Simulation", 0.4m, profileId)],
         });
         save.StatusCode.Should().Be(HttpStatusCode.OK, await save.Content.ReadAsStringAsync());
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var issue = await scope.ServiceProvider.GetRequiredService<ProductionProfileReadiness>()
                 .GetIssueAsync(printer.Id, part, [("PLA", null)], default);
@@ -177,7 +176,7 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
         var run = await RunAsync(client, part.Id, pinned: printer.Id);
         var job = (await JobsAsync(run.Id)).Single();
         (await client.GetAsync($"/api/v1/print-jobs/{job.Id}/file")).StatusCode.Should().Be(HttpStatusCode.OK);
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var content = await scope.ServiceProvider.GetRequiredService<IJobFileResolver>().ResolveAsync(part, job, printer.Id, 0.4m, default);
             content.Bytes.Should().NotBeEmpty();
@@ -186,7 +185,7 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
             filament.ReplaceProfileAssignments([]);
             await db.SaveChangesAsync();
         }
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var act = () => scope.ServiceProvider.GetRequiredService<IJobFileResolver>().ResolveAsync(part, job, printer.Id, 0.4m, default);
             await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*Assign a profile*");
@@ -194,13 +193,13 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
         (await client.GetAsync($"/api/v1/print-jobs/{job.Id}/file")).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var queue = await client.GetFromJsonAsync<OpenFarm.Api.Endpoints.PrintJobs.ListQueueJobsResponse>("/api/v1/print-jobs");
         queue!.Items.Should().Contain(j => j.JobId == job.Id && j.IsBlocked && j.BlockingReason!.Contains("/filament/", StringComparison.Ordinal));
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             (await db.Printers.SingleAsync(p => p.Id == printer.Id)).BeginConnection();
             await db.SaveChangesAsync();
         }
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var act = () => scope.ServiceProvider.GetRequiredService<IJobFileResolver>().ResolveAsync(part, job, printer.Id, 0.4m, default);
             await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*current telemetry*");

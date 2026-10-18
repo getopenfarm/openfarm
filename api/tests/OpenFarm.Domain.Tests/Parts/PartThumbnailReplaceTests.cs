@@ -33,7 +33,7 @@ public class PartThumbnailReplaceTests
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails);
 
     private static Part NewPart(IReadOnlyList<ThumbnailSpec> thumbnails) =>
-        Part.Create(Guid.NewGuid(), "Part", PartFileFormat.GCode, false, "a.gcode", "/tmp/a.gcode", 100, 0.4m, null, null,
+        Part.Create("Part", PartFileFormat.GCode, false, "a.gcode", "/tmp/a.gcode", 100, 0.4m, null, null,
             EstimateStatus.Unavailable, null, null, 1, 1, new string('a', 64),
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails, []);
 }

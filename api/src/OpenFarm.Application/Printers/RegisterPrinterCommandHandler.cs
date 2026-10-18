@@ -1,7 +1,6 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Domain.ConnectionSecrets;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Application.Printers;
@@ -30,7 +29,6 @@ public sealed class RegisterPrinterCommandHandler(
         }
 
         var printer = Printer.Create(
-            Organization.WellKnownId,
             command.Name,
             command.Brand,
             command.ModelCode,
@@ -40,7 +38,7 @@ public sealed class RegisterPrinterCommandHandler(
         await printerRepository.AddAsync(printer, cancellationToken);
 
         var encryptedAccessCode = secretProtector.Protect(command.AccessCode);
-        var secret = ConnectionSecret.Create(Organization.WellKnownId, command.SerialNumber, encryptedAccessCode);
+        var secret = ConnectionSecret.Create(command.SerialNumber, encryptedAccessCode);
         await connectionSecretRepository.AddAsync(secret, cancellationToken);
 
         connectionManager.StartConnection(printer.Id, CancellationToken.None);

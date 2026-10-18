@@ -5,3 +5,9 @@
 **/dist
 web/build
 .slicers
+specs
+docs
+.specify
+.claude
+api/src/OpenFarm.Api/keys
+api/src/OpenFarm.Api/data

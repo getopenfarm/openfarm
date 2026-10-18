@@ -6,7 +6,7 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.Parts;
 
-/// <summary>The same tenant-filtered policy serves advisory previews and locked deletion.</summary>
+/// <summary>The same policy serves advisory previews and locked deletion.</summary>
 public sealed class PartDeletionEligibilityReader(OpenFarmDbContext db) : IPartDeletionEligibilityReader
 {
     public async Task<IReadOnlyList<PartDeletionEligibility>> CheckAsync(IReadOnlyList<Guid> partIds, CancellationToken cancellationToken)

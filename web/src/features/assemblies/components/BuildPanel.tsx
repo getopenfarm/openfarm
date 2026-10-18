@@ -17,7 +17,7 @@ const plural = (n: number, one: string, many: string) =>
   `${n} ${n === 1 ? one : many}`;
 
 /**
- * Live build totals for the draft BOM — totals only; the structure tree is the per-line view.
+ * Live build totals for the draft BOM, filament split by colour (purge included); the structure tree is the per-line view.
  * Direct lines roll up locally; each distinct sub-assembly is exploded server-side at quantity 1
  * (cached per id) and scaled by its line qty.
  * ponytail: a sub-assembly whose saved tree contains this assembly inflates the preview up to the
@@ -86,10 +86,36 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
           </span>
         </div>
 
-        <dl className="flex flex-col gap-1.5 text-sm">
-          <Row label="Filament" value={formatGrams(print.grams)} />
-          <Row label="Hardware cost" value={formatCost(cost.total)} />
-        </dl>
+        <div className="flex flex-col gap-1.5 text-sm">
+          <dl>
+            <Row label="Filament" value={formatGrams(print.grams)} />
+          </dl>
+          {print.colors.some((c) => c.colorHex) && (
+            <ul aria-label="Filament by colour" className="flex flex-col gap-1">
+              {print.colors.map((c) => (
+                <li
+                  key={`${c.materialType}|${c.colorHex}`}
+                  className="flex items-center justify-between gap-3 pl-3 text-muted-foreground"
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="size-3 shrink-0 rounded-full border"
+                      style={{ backgroundColor: c.colorHex ?? undefined }}
+                      aria-hidden
+                    />
+                    {c.colorHex
+                      ? `${c.materialType ?? 'Any'} ${c.colorHex}`
+                      : 'Unknown colour'}
+                  </span>
+                  <span className="tabular-nums">{formatGrams(c.grams)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <dl>
+            <Row label="Hardware cost" value={formatCost(cost.total)} />
+          </dl>
+        </div>
       </div>
 
       {notes.length > 0 && (

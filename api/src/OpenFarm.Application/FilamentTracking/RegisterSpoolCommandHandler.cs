@@ -1,6 +1,5 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Application.FilamentTracking;
 
@@ -14,7 +13,6 @@ public sealed class RegisterSpoolCommandHandler(
             ?? throw new FilamentVariantNotFoundException(command.FilamentVariantId);
 
         var spool = Spool.Create(
-            Organization.WellKnownId,
             variant.Id,
             command.Label,
             command.SpoolWeightGrams,

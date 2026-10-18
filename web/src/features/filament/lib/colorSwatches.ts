@@ -5,7 +5,7 @@ export interface NamedColorSwatch {
 
 export const NAMED_COLOR_SWATCHES: NamedColorSwatch[] = [
   { name: 'Black', hex: '#27272a' },
-  { name: 'White', hex: '#e7e7ea' },
+  { name: 'White', hex: '#ffffff' },
   { name: 'Red', hex: '#ef4444' },
   { name: 'Blue', hex: '#3b82f6' },
   { name: 'Green', hex: '#22c55e' },

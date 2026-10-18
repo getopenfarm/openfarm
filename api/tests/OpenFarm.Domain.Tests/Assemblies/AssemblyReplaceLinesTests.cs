@@ -18,7 +18,7 @@ public class AssemblyReplaceLinesTests
     [InlineData(0)]
     public void Create_NonWholeComponentQuantity_Throws(decimal quantity)
     {
-        var act = () => Assembly.Create(Guid.NewGuid(), "A", null, [Component(Guid.NewGuid(), quantity)]);
+        var act = () => Assembly.Create("A", null, [Component(Guid.NewGuid(), quantity)]);
 
         act.Should().Throw<InvalidBomLineQuantityException>();
     }
@@ -27,7 +27,7 @@ public class AssemblyReplaceLinesTests
     public void ReplaceLines_FractionalQuantityOnKeptComponentLine_Throws()
     {
         var target = Guid.NewGuid();
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Component(target, 4)]);
+        var assembly = Assembly.Create("A", null, [Component(target, 4)]);
 
         assembly.Invoking(a => a.ReplaceLines([new BomLineEdit(assembly.Lines[0].Id, Component(target, 4.5m))]))
             .Should().Throw<InvalidBomLineQuantityException>();
@@ -37,7 +37,7 @@ public class AssemblyReplaceLinesTests
     public void ReplaceLines_UpdatesKeptLines_RemovesMissing_AndReturnsOnlyAdded()
     {
         var keptPart = Guid.NewGuid();
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Part(keptPart), Part(Guid.NewGuid())]);
+        var assembly = Assembly.Create("A", null, [Part(keptPart), Part(Guid.NewGuid())]);
         var kept = assembly.Lines[0];
         var newSub = Guid.NewGuid();
 
@@ -52,7 +52,7 @@ public class AssemblyReplaceLinesTests
     [Fact]
     public void ReplaceLines_CanSwapEveryExistingLineForNewOnes()
     {
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Part(Guid.NewGuid())]);
+        var assembly = Assembly.Create("A", null, [Part(Guid.NewGuid())]);
         var replacement = Guid.NewGuid();
 
         var added = assembly.ReplaceLines([new BomLineEdit(null, Part(replacement, 3))]);
@@ -65,7 +65,7 @@ public class AssemblyReplaceLinesTests
     public void ReplaceLines_RemoveAndReAddSameTarget_IsNotADuplicate()
     {
         var target = Guid.NewGuid();
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Part(target)]);
+        var assembly = Assembly.Create("A", null, [Part(target)]);
 
         assembly.Invoking(a => a.ReplaceLines([new BomLineEdit(null, Part(target, 2))])).Should().NotThrow();
     }
@@ -73,7 +73,7 @@ public class AssemblyReplaceLinesTests
     [Fact]
     public void ReplaceLines_Empty_Throws()
     {
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Part(Guid.NewGuid())]);
+        var assembly = Assembly.Create("A", null, [Part(Guid.NewGuid())]);
 
         assembly.Invoking(a => a.ReplaceLines([])).Should().Throw<AssemblyMustHaveAtLeastOneLineException>();
         assembly.Lines.Should().HaveCount(1);
@@ -82,7 +82,7 @@ public class AssemblyReplaceLinesTests
     [Fact]
     public void ReplaceLines_UnknownLineId_ThrowsWithoutMutating()
     {
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Part(Guid.NewGuid()), Part(Guid.NewGuid())]);
+        var assembly = Assembly.Create("A", null, [Part(Guid.NewGuid()), Part(Guid.NewGuid())]);
 
         assembly.Invoking(a => a.ReplaceLines([new BomLineEdit(Guid.NewGuid(), Part(Guid.NewGuid()))]))
             .Should().Throw<BomLineNotFoundException>();
@@ -93,7 +93,7 @@ public class AssemblyReplaceLinesTests
     public void ReplaceLines_DuplicateTargetAmongNewLines_ThrowsWithoutMutating()
     {
         var original = Guid.NewGuid();
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Part(original)]);
+        var assembly = Assembly.Create("A", null, [Part(original)]);
         var dup = Guid.NewGuid();
 
         assembly.Invoking(a => a.ReplaceLines([new BomLineEdit(null, Part(dup)), new BomLineEdit(null, Part(dup, 2))]))
@@ -105,7 +105,7 @@ public class AssemblyReplaceLinesTests
     public void ReplaceLines_InvalidQuantityOnKeptLine_ThrowsWithoutMutating()
     {
         var target = Guid.NewGuid();
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Part(target, 2)]);
+        var assembly = Assembly.Create("A", null, [Part(target, 2)]);
         var line = assembly.Lines[0];
 
         assembly.Invoking(a => a.ReplaceLines([new BomLineEdit(line.Id, Part(target, 1.5m))]))
@@ -116,7 +116,7 @@ public class AssemblyReplaceLinesTests
     [Fact]
     public void ReplaceLines_ChangingAKeptLinesTarget_Throws()
     {
-        var assembly = Assembly.Create(Guid.NewGuid(), "A", null, [Part(Guid.NewGuid())]);
+        var assembly = Assembly.Create("A", null, [Part(Guid.NewGuid())]);
 
         assembly.Invoking(a => a.ReplaceLines([new BomLineEdit(assembly.Lines[0].Id, Part(Guid.NewGuid()))]))
             .Should().Throw<ArgumentException>();

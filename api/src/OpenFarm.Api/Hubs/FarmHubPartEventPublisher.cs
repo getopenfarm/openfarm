@@ -6,8 +6,8 @@ namespace OpenFarm.Api.Hubs;
 
 public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext) : IPartEventPublisher
 {
-    public Task PartProcessingJobStatusChangedAsync(Guid organizationId, PartProcessingJob job, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync(
+    public Task PartProcessingJobStatusChangedAsync(PartProcessingJob job, CancellationToken cancellationToken) =>
+        Group.SendAsync(
             "PartProcessingJobStatusChanged",
             new
             {
@@ -19,17 +19,17 @@ public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext) :
             },
             cancellationToken);
 
-    public Task PartUpsertedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync("PartUpserted", new { partId }, cancellationToken);
+    public Task PartUpsertedAsync(Guid partId, CancellationToken cancellationToken) =>
+        Group.SendAsync("PartUpserted", new { partId }, cancellationToken);
 
-    public Task PartEstimateResolvedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync("PartEstimateResolved", new { partId }, cancellationToken);
+    public Task PartEstimateResolvedAsync(Guid partId, CancellationToken cancellationToken) =>
+        Group.SendAsync("PartEstimateResolved", new { partId }, cancellationToken);
 
-    public Task PartEstimateUnavailableAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync("PartEstimateUnavailable", new { partId }, cancellationToken);
+    public Task PartEstimateUnavailableAsync(Guid partId, CancellationToken cancellationToken) =>
+        Group.SendAsync("PartEstimateUnavailable", new { partId }, cancellationToken);
 
-    public Task PartDeletedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync("PartDeleted", new { partId }, cancellationToken);
+    public Task PartDeletedAsync(Guid partId, CancellationToken cancellationToken) =>
+        Group.SendAsync("PartDeleted", new { partId }, cancellationToken);
 
     private static object BuildPreview(PartProcessingJob job) => new
     {
@@ -52,6 +52,5 @@ public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext) :
         }),
     };
 
-    private IClientProxy Group(Guid organizationId) =>
-        hubContext.Clients.Group(FarmHub.GroupName(organizationId.ToString()));
+    private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);
 }

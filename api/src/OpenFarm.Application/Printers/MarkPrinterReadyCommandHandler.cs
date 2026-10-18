@@ -30,7 +30,6 @@ public sealed class MarkPrinterReadyCommandHandler(
         await printerRepository.SaveChangesAsync(cancellationToken);
 
         await printerEventPublisher.PrinterStatusChangedAsync(
-            printer.OrganizationId,
             printer.Id,
             printer.Status,
             printer.IsReachable,

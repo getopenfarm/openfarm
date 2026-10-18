@@ -66,14 +66,14 @@ describe('AddOrReplacePartDialog (replace mode)', () => {
     expect(screen.queryByLabelText('Tags')).not.toBeInTheDocument();
   });
 
-  it('defaults the slicer picker to the organization default', async () => {
+  it('defaults the slicer picker to the farm default', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(slicingDefaults));
     vi.stubGlobal('fetch', fetchMock);
 
     renderDialog();
 
     expect(
-      await screen.findByText('Organization default (OrcaSlicer 2.2.0)'),
+      await screen.findByText('Farm default (OrcaSlicer 2.2.0)'),
     ).toBeInTheDocument();
   });
 
@@ -111,7 +111,7 @@ describe('AddOrReplacePartDialog (replace mode)', () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await screen.findByText('Organization default (OrcaSlicer 2.2.0)');
+    await screen.findByText('Farm default (OrcaSlicer 2.2.0)');
 
     await user.click(screen.getByRole('combobox'));
     await user.click(

@@ -13,7 +13,7 @@ public class AutoFilamentDeductionTests(ProductionTestFactory factory) : Product
     /// <summary>What dispatch does: freezes the loaded spool and the slicer's grams onto the job's line.</summary>
     private async Task<Guid> BindLoadedSpoolAsync(Guid jobId, Guid printerId, decimal grams, FilamentUsageCurve? curve = null)
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var slotIds = await db.FeedUnits.Where(u => u.PrinterId == printerId).SelectMany(u => u.FeedSlots).Select(s => s.Id).ToListAsync();
         var spool = await db.Spools.SingleAsync(s => s.FeedSlotId != null && slotIds.Contains(s.FeedSlotId.Value));
@@ -25,7 +25,7 @@ public class AutoFilamentDeductionTests(ProductionTestFactory factory) : Product
 
     private async Task SetProgressAsync(Guid printerId, int? percent, int? layer, int? totalLayers)
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         (await db.Printers.SingleAsync(p => p.Id == printerId)).RecordTelemetry(null, null, percent, null, null, null, [], null, layer, totalLayers);
         await db.SaveChangesAsync();
@@ -33,7 +33,7 @@ public class AutoFilamentDeductionTests(ProductionTestFactory factory) : Product
 
     private async Task<(decimal Remaining, List<SpoolUsageRecord> Records)> SpoolAsync(Guid spoolId)
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         return ((await db.Spools.SingleAsync(s => s.Id == spoolId)).RemainingWeightGrams,
             await db.SpoolUsageRecords.Where(r => r.SpoolId == spoolId).ToListAsync());

@@ -41,7 +41,7 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
     public async Task<SpoolRowPage> ListRowsAsync(GetSpoolsQuery query, CancellationToken cancellationToken)
     {
         // Inner joins to the catalog (an orphaned spool has no row to show); left joins for vendor and
-        // the loaded slot, which may legitimately be absent. Tenant query filters apply to every set.
+        // the loaded slot, which may legitimately be absent.
         var rows =
             from spool in dbContext.Spools.AsNoTracking()
             join variant in dbContext.FilamentVariants on spool.FilamentVariantId equals variant.Id

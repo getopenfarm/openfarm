@@ -10,10 +10,9 @@ public sealed class Assembly
 {
     private readonly List<BomLine> _lines = [];
 
-    private Assembly(Guid id, Guid organizationId, string name, string? description, DateTimeOffset createdAtUtc)
+    private Assembly(Guid id, string name, string? description, DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         Name = name;
         Description = description;
         CreatedAtUtc = createdAtUtc;
@@ -21,8 +20,6 @@ public sealed class Assembly
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public string Name { get; private set; }
 
@@ -34,8 +31,8 @@ public sealed class Assembly
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
-    /// <summary>FR-002: requires at least one line. Cycle/depth validation is the caller's job (AssemblyGraph, data-model.md) — this factory has no access to the org-wide edge graph.</summary>
-    public static Assembly Create(Guid organizationId, string name, string? description, IReadOnlyList<BomLineSpec> lines)
+    /// <summary>FR-002: requires at least one line. Cycle/depth validation is the caller's job (AssemblyGraph, data-model.md) — this factory has no access to the full edge graph.</summary>
+    public static Assembly Create(string name, string? description, IReadOnlyList<BomLineSpec> lines)
     {
         ValidateName(name);
 
@@ -44,11 +41,11 @@ public sealed class Assembly
             throw new AssemblyMustHaveAtLeastOneLineException();
         }
 
-        var assembly = new Assembly(Guid.NewGuid(), organizationId, name, description, DateTimeOffset.UtcNow);
+        var assembly = new Assembly(Guid.NewGuid(), name, description, DateTimeOffset.UtcNow);
 
         foreach (var spec in lines)
         {
-            var line = BomLine.Create(organizationId, assembly.Id, spec);
+            var line = BomLine.Create(assembly.Id, spec);
             EnsureNoDuplicateTarget(assembly._lines, line);
             assembly._lines.Add(line);
         }
@@ -99,7 +96,7 @@ public sealed class Assembly
             }
             else
             {
-                var line = BomLine.Create(OrganizationId, Id, edit.Spec);
+                var line = BomLine.Create(Id, edit.Spec);
                 EnsureNoDuplicateTarget(finalLines, line);
                 finalLines.Add(line);
                 added.Add(line);

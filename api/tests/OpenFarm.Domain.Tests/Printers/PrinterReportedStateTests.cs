@@ -60,5 +60,5 @@ public class PrinterReportedStateTests
         printer.ActiveAlerts.Should().BeEmpty();
     }
 
-    private static Printer Create() => Printer.Create(Guid.NewGuid(), "Printer", "Bambu", "P1S", "10.0.0.1", "SN");
+    private static Printer Create() => Printer.Create("Printer", "Bambu", "P1S", "10.0.0.1", "SN");
 }

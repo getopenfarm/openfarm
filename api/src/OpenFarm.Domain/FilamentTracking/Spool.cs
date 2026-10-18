@@ -4,7 +4,6 @@ public sealed class Spool
 {
     private Spool(
         Guid id,
-        Guid organizationId,
         Guid filamentVariantId,
         string? label,
         decimal spoolWeightGrams,
@@ -12,7 +11,6 @@ public sealed class Spool
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         FilamentVariantId = filamentVariantId;
         Label = label;
         SpoolWeightGrams = spoolWeightGrams;
@@ -24,8 +22,6 @@ public sealed class Spool
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid FilamentVariantId { get; }
 
@@ -43,7 +39,7 @@ public sealed class Spool
 
     public DateTimeOffset CreatedAtUtc { get; }
 
-    public static Spool Create(Guid organizationId, Guid filamentVariantId, string? label, decimal spoolWeightGrams, decimal remainingWeightGrams)
+    public static Spool Create(Guid filamentVariantId, string? label, decimal spoolWeightGrams, decimal remainingWeightGrams)
     {
         if (spoolWeightGrams <= 0)
         {
@@ -60,7 +56,7 @@ public sealed class Spool
             throw new ArgumentException("Remaining weight cannot exceed spool weight.", nameof(remainingWeightGrams));
         }
 
-        return new Spool(Guid.NewGuid(), organizationId, filamentVariantId, label, spoolWeightGrams, remainingWeightGrams, DateTimeOffset.UtcNow);
+        return new Spool(Guid.NewGuid(), filamentVariantId, label, spoolWeightGrams, remainingWeightGrams, DateTimeOffset.UtcNow);
     }
 
     public void LoadOntoFeedSlot(Guid feedSlotId)

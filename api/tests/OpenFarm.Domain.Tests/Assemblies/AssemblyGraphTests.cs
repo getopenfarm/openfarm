@@ -5,7 +5,7 @@ namespace OpenFarm.Domain.Tests.Assemblies;
 
 /// <summary>
 /// TDD target (research.md R2) — a pure, in-memory cycle/depth validation algorithm over the
-/// organization's Assembly-to-Assembly edge list. No EF/DB dependency (constitution Principle II).
+/// Assembly-to-Assembly edge list. No EF/DB dependency (constitution Principle II).
 /// </summary>
 public class AssemblyGraphTests
 {

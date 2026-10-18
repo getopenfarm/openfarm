@@ -16,8 +16,11 @@ function renderShell(initialPath = '/') {
     if (url.includes('/hubs/farm')) {
       return Promise.reject(new Error('SignalR not available in tests'));
     }
+    const body = url.includes('/auth/whoami')
+      ? { username: 'admin', email: 'admin@openfarm.local' }
+      : { printers: [] };
     return Promise.resolve(
-      new Response(JSON.stringify({ printers: [] }), {
+      new Response(JSON.stringify(body), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -107,9 +110,25 @@ describe('AppShell', () => {
     const user = userEvent.setup();
     renderShell();
 
-    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(await screen.findByRole('button', { name: /admin/ }));
+    expect(screen.getAllByText('admin@openfarm.local').length).toBeGreaterThan(
+      0,
+    );
     await user.click(screen.getByRole('menuitem', { name: 'Log out' }));
 
     expect(await screen.findByText('Login screen')).toBeInTheDocument();
+  });
+
+  it('collapses and expands the sidebar from the bottom button', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    const sidebar = () =>
+      document.querySelector('[data-slot="sidebar"][data-state]');
+
+    expect(sidebar()).toHaveAttribute('data-state', 'expanded');
+    await user.click(screen.getByRole('button', { name: 'Collapse' }));
+    expect(sidebar()).toHaveAttribute('data-state', 'collapsed');
+    await user.click(screen.getByRole('button', { name: 'Collapse' }));
+    expect(sidebar()).toHaveAttribute('data-state', 'expanded');
   });
 });

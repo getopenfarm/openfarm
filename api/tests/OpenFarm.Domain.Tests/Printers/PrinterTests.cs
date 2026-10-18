@@ -5,10 +5,7 @@ namespace OpenFarm.Domain.Tests.Printers;
 
 public class PrinterTests
 {
-    private static readonly Guid OrganizationId = Guid.NewGuid();
-
     private static Printer CreateValidPrinter() => Printer.Create(
-        OrganizationId,
         name: "Printer 1",
         brand: "Bambu",
         modelCode: "P1S",
@@ -23,7 +20,6 @@ public class PrinterTests
         var printer = CreateValidPrinter();
 
         printer.Id.Should().NotBeEmpty();
-        printer.OrganizationId.Should().Be(OrganizationId);
         printer.Name.Should().Be("Printer 1");
         printer.Brand.Should().Be("Bambu");
         printer.ModelCode.Should().Be("P1S");
@@ -42,7 +38,7 @@ public class PrinterTests
     [InlineData(null)]
     public void Create_WithEmptyName_Throws(string? name)
     {
-        var act = () => Printer.Create(OrganizationId, name!, "Bambu", "P1S", "192.168.1.50", "SN1");
+        var act = () => Printer.Create(name!, "Bambu", "P1S", "192.168.1.50", "SN1");
 
         act.Should().Throw<ArgumentException>();
     }
@@ -53,7 +49,7 @@ public class PrinterTests
     [InlineData(null)]
     public void Create_WithEmptyIpAddress_Throws(string? ipAddress)
     {
-        var act = () => Printer.Create(OrganizationId, "Printer 1", "Bambu", "P1S", ipAddress!, "SN1");
+        var act = () => Printer.Create("Printer 1", "Bambu", "P1S", ipAddress!, "SN1");
 
         act.Should().Throw<ArgumentException>();
     }
@@ -64,7 +60,7 @@ public class PrinterTests
     [InlineData(null)]
     public void Create_WithEmptySerialNumber_Throws(string? serialNumber)
     {
-        var act = () => Printer.Create(OrganizationId, "Printer 1", "Bambu", "P1S", "192.168.1.50", serialNumber!);
+        var act = () => Printer.Create("Printer 1", "Bambu", "P1S", "192.168.1.50", serialNumber!);
 
         act.Should().Throw<ArgumentException>();
     }
@@ -72,7 +68,7 @@ public class PrinterTests
     [Fact]
     public void Create_WithUnknownModel_ThrowsUnknownPrinterModelException()
     {
-        var act = () => Printer.Create(OrganizationId, "Printer 1", "Bambu", "NotAModel", "192.168.1.50", "SN1");
+        var act = () => Printer.Create("Printer 1", "Bambu", "NotAModel", "192.168.1.50", "SN1");
 
         act.Should().Throw<UnknownPrinterModelException>();
     }
@@ -209,6 +205,102 @@ public class PrinterTests
         printer.CurrentStageLabel.Should().Be("Printing");
         printer.RemainingTimeMinutes.Should().Be(60);
         printer.CurrentJobName.Should().Be("benchy.3mf");
+    }
+
+    private static AmsTray Tray(int slot) => new(slot, false, "PLA", "#FFFFFF", null, 50, false);
+
+    private static AmsUnit Unit(int index, int trays = 4) => new(index, Enumerable.Range(0, trays).Select(Tray).ToList());
+
+    private static AmsTray External() => new(0, false, "PLA", "#FFFFFF", null, null, false);
+
+    private static string[] ActiveTrays(Printer printer) =>
+        printer.AmsUnits.SelectMany(u => u.Trays.Where(t => t.Active).Select(t => $"{u.UnitIndex}:{t.SlotIndex}")).ToArray();
+
+    [Theory]
+    [InlineData(0, "0:0")]
+    [InlineData(6, "1:2")]
+    [InlineData(128, "128:0")]
+    public void RecordTelemetry_MarksTheTrayTrayNowAddresses(int trayNow, string expected)
+    {
+        var printer = CreateValidPrinter();
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0), Unit(1), Unit(128, 1)], External(), activeTrayId: trayNow);
+
+        ActiveTrays(printer).Should().Equal(expected);
+        printer.ExternalSpoolTray!.Active.Should().BeFalse();
+    }
+
+    [Fact]
+    public void RecordTelemetry_AppliesTrayNowArrivingAloneToTheStoredUnits()
+    {
+        var printer = CreateValidPrinter();
+        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0), Unit(1)], External());
+        ActiveTrays(printer).Should().BeEmpty();
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [], activeTrayId: 5);
+        ActiveTrays(printer).Should().Equal("1:1");
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [], activeTrayId: 2);
+        ActiveTrays(printer).Should().Equal("0:2");
+    }
+
+    [Fact]
+    public void RecordTelemetry_AppliesTheStoredTrayNowToAnAmsArrivingLater()
+    {
+        var printer = CreateValidPrinter();
+        printer.RecordTelemetry(null, null, null, null, null, null, [], activeTrayId: 1);
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0)]);
+
+        ActiveTrays(printer).Should().Equal("0:1");
+    }
+
+    [Fact]
+    public void RecordTelemetry_ExternalSpoolIsTheActiveFeedWhenTrayNowIsExternal()
+    {
+        var printer = CreateValidPrinter();
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0)], External(), activeTrayId: 254);
+
+        printer.ExternalSpoolTray!.Active.Should().BeTrue();
+        ActiveTrays(printer).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RecordTelemetry_NothingLoadedMarksNoTrayOnAnAmsPrinter()
+    {
+        var printer = CreateValidPrinter();
+        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0)], External(), activeTrayId: 254);
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [], activeTrayId: 255);
+
+        printer.ExternalSpoolTray!.Active.Should().BeFalse();
+        ActiveTrays(printer).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(254)]
+    [InlineData(255)]
+    public void RecordTelemetry_ExternalSpoolIsAlwaysActiveWithoutAnAms(int? trayNow)
+    {
+        var printer = CreateValidPrinter();
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [], External(), activeTrayId: trayNow);
+
+        printer.ExternalSpoolTray!.Active.Should().BeTrue();
+    }
+
+    [Fact]
+    public void RecordTelemetry_LeavesFlagsAloneWhenAnAmsPrinterHasNotReportedTrayNow()
+    {
+        var printer = CreateValidPrinter();
+        var reported = new AmsUnit(0, [Tray(0) with { Active = true }, Tray(1)]);
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [reported], External() with { Active = true });
+
+        ActiveTrays(printer).Should().Equal("0:0");
+        printer.ExternalSpoolTray!.Active.Should().BeTrue();
     }
 
     [Fact]

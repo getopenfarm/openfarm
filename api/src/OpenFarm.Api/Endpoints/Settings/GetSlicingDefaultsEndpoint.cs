@@ -2,7 +2,7 @@ using FastEndpoints;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
-using OpenFarm.Domain.Organizations;
+using OpenFarm.Domain.Settings;
 
 namespace OpenFarm.Api.Endpoints.Settings;
 
@@ -22,8 +22,8 @@ public sealed class AvailableSlicerResponse
 
 public sealed class SlicingDefaultsResponse
 {
-    // Reflected by ActivityLogPostProcessor's default single-entity path (UpdateSlicingDefaultsEndpoint) — the well-known singleton Organization this setting always belongs to.
-    public Guid Id { get; set; } = Organization.WellKnownId;
+    // Reflected by ActivityLogPostProcessor's default single-entity path (UpdateSlicingDefaultsEndpoint) — the singleton FarmSettings row this setting always belongs to.
+    public Guid Id { get; set; } = FarmSettings.SingletonId;
 
     /// <summary>The effective default; <c>null</c> only when <see cref="Available"/> is empty (FR-011).</summary>
     public EffectiveSlicerDefaultResponse? Default { get; set; }

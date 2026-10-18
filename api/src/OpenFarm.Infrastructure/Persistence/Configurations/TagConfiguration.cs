@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Parts;
@@ -13,13 +12,10 @@ public sealed class TagConfiguration : IEntityTypeConfiguration<Tag>
 
         builder.HasKey(t => t.Id);
 
-        builder.Property(t => t.OrganizationId).IsRequired();
         builder.Property(t => t.Name).IsRequired();
 
         builder.Property(t => t.CreatedAtUtc).IsRequired();
 
-        builder.HasIndex(t => new { t.OrganizationId, t.Name }).IsUnique();
-
-        builder.IsMultiTenant();
+        builder.HasIndex(t => t.Name).IsUnique();
     }
 }

@@ -8,26 +8,28 @@ namespace OpenFarm.Api.Hubs;
 public sealed class FarmHubProductionEventPublisher(IHubContext<FarmHub> hubContext) : IProductionEventPublisher
 {
     public Task ProductionRunStatusChangedAsync(
-        Guid organizationId, Guid productionRunId, ProductionRunStatus status, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync(
+        Guid productionRunId, ProductionRunStatus status, CancellationToken cancellationToken) =>
+        Group.SendAsync(
             "ProductionRunStatusChanged",
             new { productionRunId, status = status.ToString() },
             cancellationToken);
 
     public Task PrintJobStatusChangedAsync(
-        Guid organizationId, Guid printJobId, PrintJobStatus status, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync(
+        Guid printJobId, PrintJobStatus status, CancellationToken cancellationToken) =>
+        Group.SendAsync(
             "PrintJobStatusChanged",
             new { printJobId, status = status.ToString() },
             cancellationToken);
 
     public Task PrintJobDispatchedAsync(
-        Guid organizationId, Guid printJobId, Guid printerId, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync(
+        Guid printJobId, Guid printerId, CancellationToken cancellationToken) =>
+        Group.SendAsync(
             "PrintJobDispatched",
             new { printJobId, printerId },
             cancellationToken);
 
-    private IClientProxy Group(Guid organizationId) =>
-        hubContext.Clients.Group(FarmHub.GroupName(organizationId.ToString()));
+    public Task NotificationsChangedAsync(CancellationToken cancellationToken) =>
+        Group.SendAsync("NotificationsChanged", cancellationToken);
+
+    private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);
 }

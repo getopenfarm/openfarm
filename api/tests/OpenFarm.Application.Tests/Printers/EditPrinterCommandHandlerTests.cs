@@ -133,7 +133,7 @@ public class EditPrinterCommandHandlerTests
         var repository = new InMemoryPrinterRepository(printer);
         var processRepo = new FakeProcessProfileRepository();
         var process = ProcessProfile.CreateSystemProfile(
-            printer.OrganizationId, "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", true, null);
+            "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", true, null);
         await processRepo.AddAsync(process, CancellationToken.None);
         var handler = CreateHandler(repository, processRepo: processRepo);
 
@@ -151,13 +151,13 @@ public class EditPrinterCommandHandlerTests
         var repository = new InMemoryPrinterRepository(printer);
         var machineRepo = new FakeMachineProfileRepository();
         var machine = MachineProfile.CreateSystemProfile(
-            printer.OrganizationId, "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""",
+            "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""",
             "Bambulab", "GM010", true, "Bambu Lab P1S", null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var processRepo = new FakeProcessProfileRepository();
         var process = ProcessProfile.CreateSystemProfile(
-            printer.OrganizationId, "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
             "Bambulab", "GP004", true, ["Bambu Lab X1 Carbon 0.4 nozzle"]);
         await processRepo.AddAsync(process, CancellationToken.None);
 
@@ -191,13 +191,13 @@ public class EditPrinterCommandHandlerTests
         var repository = new InMemoryPrinterRepository(printer);
         var machineRepo = new FakeMachineProfileRepository();
         var machine = MachineProfile.CreateSystemProfile(
-            printer.OrganizationId, "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""",
+            "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""",
             "Bambulab", "GM001", true, "Bambu Lab P1S", null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var processRepo = new FakeProcessProfileRepository();
         var process = ProcessProfile.CreateSystemProfile(
-            printer.OrganizationId, "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
             "Bambulab", "GP004", true, ["Bambu Lab P1S 0.4 nozzle"]);
         await processRepo.AddAsync(process, CancellationToken.None);
 
@@ -220,7 +220,7 @@ public class EditPrinterCommandHandlerTests
         var printer = CreatePrinter();
         var machineRepo = new FakeMachineProfileRepository();
         var machine = MachineProfile.CreateSystemProfile(
-            printer.OrganizationId, "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
             "Bambulab", "GM001", true, "Bambu Lab X1 Carbon", null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
@@ -240,7 +240,7 @@ public class EditPrinterCommandHandlerTests
         var printer = CreatePrinter();
         var machineRepo = new FakeMachineProfileRepository();
         var machine = MachineProfile.CreateSystemProfile(
-            printer.OrganizationId, "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
             "Bambulab", "GM001", true, "Bambu Lab X1 Carbon", null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
         printer.LinkMachineProfile(machine.Id);
@@ -371,7 +371,7 @@ public class EditPrinterCommandHandlerTests
 
     private static Printer CreatePrinter()
     {
-        var printer = Printer.Create(Guid.NewGuid(), "Printer 1", "Bambu", "P1S", "10.0.0.5", "SN-0001");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.5", "SN-0001");
         printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
         return printer;
     }

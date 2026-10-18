@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -91,8 +90,8 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
             .IsRequired();
 
         // Serial number is the natural key ConnectionSecret is looked up by (data-model.md) — must
-        // stay unique per organization.
-        builder.HasIndex(p => new { p.OrganizationId, p.SerialNumber })
+        // stay unique.
+        builder.HasIndex(p => p.SerialNumber)
             .IsUnique();
 
         // Enforced FK, unlike PartFilamentRequirement's narrow overrides — FR-005a's nozzle-diameter
@@ -109,7 +108,5 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
             .WithMany()
             .HasForeignKey(p => p.ProcessProfileId)
             .OnDelete(DeleteBehavior.SetNull);
-
-        builder.IsMultiTenant();
     }
 }

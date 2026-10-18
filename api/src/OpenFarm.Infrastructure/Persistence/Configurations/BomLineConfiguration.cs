@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Assemblies;
@@ -36,8 +35,6 @@ public sealed class BomLineConfiguration : IEntityTypeConfiguration<BomLine>
         });
 
         builder.HasKey(l => l.Id);
-
-        builder.Property(l => l.OrganizationId).IsRequired();
         builder.Property(l => l.AssemblyId).IsRequired();
         builder.Property(l => l.TargetKind).IsRequired().HasConversion<string>();
         builder.Property(l => l.TargetPartId);
@@ -52,7 +49,5 @@ public sealed class BomLineConfiguration : IEntityTypeConfiguration<BomLine>
         builder.HasIndex(l => new { l.AssemblyId, l.TargetPartId }).IsUnique().HasFilter("\"TargetPartId\" IS NOT NULL");
         builder.HasIndex(l => new { l.AssemblyId, l.TargetAssemblyId }).IsUnique().HasFilter("\"TargetAssemblyId\" IS NOT NULL");
         builder.HasIndex(l => new { l.AssemblyId, l.TargetNonPrintedComponentId }).IsUnique().HasFilter("\"TargetNonPrintedComponentId\" IS NOT NULL");
-
-        builder.IsMultiTenant();
     }
 }

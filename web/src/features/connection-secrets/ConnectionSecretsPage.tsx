@@ -1,7 +1,6 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { KeyIcon, PlusIcon } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { BackLink } from '@/components/back-link/BackLink';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
@@ -50,11 +49,7 @@ export function ConnectionSecretsPage() {
   return (
     <Page>
       <PageHeader
-        above={
-          <BackLink to="/settings" className="mb-1">
-            Back to settings
-          </BackLink>
-        }
+        size="section"
         title="Connection credentials"
         description="Encrypted LAN access codes."
         action={

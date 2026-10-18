@@ -26,8 +26,8 @@ public sealed class UpdateSlicingDefaultsRequest : IActivityLoggable
 
     // No natural "Id" on this request/response pair — ActivityLogPostProcessor's default path
     // reflects for an "Id" property on Response first, so SlicingDefaultsResponse.Id below (the
-    // well-known Organization id) is what actually makes this loggable, not a request-side property.
-    public string EntityType => "Organization";
+    // singleton FarmSettings id) is what actually makes this loggable, not a request-side property.
+    public string EntityType => "FarmSettings";
 
     public string EventType => "SlicingDefaultsUpdated";
 }

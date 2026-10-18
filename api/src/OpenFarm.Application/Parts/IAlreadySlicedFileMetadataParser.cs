@@ -17,7 +17,8 @@ public sealed record SlicedFileMetadata(
     int PlateCount,
     IReadOnlyList<DetectedFilamentSlot> DetectedFilamentSlots,
     IReadOnlyList<ThumbnailSpec> Thumbnails,
-    bool MaterialMetadataComplete = true, EstimationDetails? Estimation = null, IReadOnlyList<string>? Warnings = null);
+    bool MaterialMetadataComplete = true, EstimationDetails? Estimation = null, IReadOnlyList<string>? Warnings = null,
+    IReadOnlyList<FilamentGrams>? FilamentGrams = null);
 
 /// <summary>
 /// Parses an already-sliced file's own embedded metadata (G-code header comments, or a

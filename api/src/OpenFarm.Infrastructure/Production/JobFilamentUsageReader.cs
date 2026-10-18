@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using OpenFarm.Application.Production;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.Parts;
 
 namespace OpenFarm.Infrastructure.Production;
@@ -21,29 +23,55 @@ internal sealed record JobFilamentUsageReport(IReadOnlyList<FilamentUsage> Usage
 /// to the printer — plate 1, the plate <c>BambuPrintFile</c> dispatches. Anything unreadable yields less (no grams, or
 /// no curve) rather than an error, so dispatch is never blocked: the job then deducts by an even spread, or is skipped and logged.
 /// </summary>
-internal static class JobFilamentUsageReader
+internal static partial class JobFilamentUsageReader
 {
     private const string SliceInfo = "Metadata/slice_info.config";
+
+    [GeneratedRegex(@"(?:^|/)Metadata/plate_(\d+)\.gcode$", RegexOptions.IgnoreCase)]
+    private static partial Regex PlateGCodeEntry();
+
+    /// <summary>Plate numbers that have sliced G-code in a 3mf, in ascending order; empty for anything else.</summary>
+    public static IReadOnlyList<int> PlatesWithGCode(byte[] file)
+    {
+        if (file.Length < 2 || file[0] != 'P' || file[1] != 'K') return [];
+        try
+        {
+            using var archive = new ZipArchive(new MemoryStream(file), ZipArchiveMode.Read);
+            return archive.Entries
+                .Select(e => PlateGCodeEntry().Match(e.FullName))
+                .Where(m => m.Success)
+                .Select(m => int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture))
+                .Distinct().Order().ToList();
+        }
+        catch (InvalidDataException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Which plate a file read back from a printer was printed from. A file exported for one plate keeps that plate's number
+    /// (<c>Metadata/plate_4.gcode</c>) and the printer's <c>gcode_file</c> does not always name it, so the file is asked:
+    /// a plate the printer names wins if the file has it, else the only plate with G-code. Null when the file holds several
+    /// plates and the printed one cannot be told, so no one plate's filament is guessed.
+    /// </summary>
+    public static int? ChoosePlate(byte[] file, int? namedPlate)
+    {
+        var plates = PlatesWithGCode(file);
+        if (plates.Count == 0) return namedPlate ?? 1;
+        if (namedPlate is { } named && plates.Contains(named)) return named;
+        return plates.Count == 1 ? plates[0] : null;
+    }
 
     /// <summary>Dispatch always sends plate 1; an external print names its own plate.</summary>
     public static JobFilamentUsageReport Read(byte[] file, int plate = 1)
     {
-        var plateGCode = $"Metadata/plate_{plate}.gcode";
         try
         {
             if (file.Length >= 2 && file[0] == 'P' && file[1] == 'K')
             {
                 using var archive = new ZipArchive(new MemoryStream(file), ZipArchiveMode.Read);
-                var gcode = SlicedPlateMetadata.Find(archive, plateGCode);
-                var usages = SlicedPlateMetadata.Find(archive, SliceInfo) is { } entry ? ReadSliceInfo(entry, plate) : [];
-                if (usages.Count == 0 && gcode is not null)
-                {
-                    using var footerReader = new StreamReader(gcode.Open());
-                    usages = ReadFooter(footerReader.ReadToEnd());
-                }
-
-                var extrusion = gcode is null ? GCodeExtrusion.Empty : ReadExtrusion(gcode.Open);
-                return new(WithPurge(usages, extrusion), extrusion, ProjectFilamentCount(archive));
+                return Read(archive, plate);
             }
 
             var footer = Encoding.UTF8.GetString(file);
@@ -55,6 +83,49 @@ internal static class JobFilamentUsageReader
         {
             return JobFilamentUsageReport.Empty;
         }
+    }
+
+    /// <summary><see cref="Read(byte[], int)"/> for a 3mf that is already open.</summary>
+    public static JobFilamentUsageReport Read(ZipArchive archive, int plate)
+    {
+        var gcode = SlicedPlateMetadata.Find(archive, $"Metadata/plate_{plate}.gcode");
+        var usages = SlicedPlateMetadata.Find(archive, SliceInfo) is { } entry ? ReadSliceInfo(entry, plate) : [];
+        if (usages.Count == 0 && gcode is not null)
+        {
+            using var footerReader = new StreamReader(gcode.Open());
+            usages = ReadFooter(footerReader.ReadToEnd());
+        }
+
+        var extrusion = gcode is null ? GCodeExtrusion.Empty : ReadExtrusion(gcode.Open);
+        return new(WithPurge(usages, extrusion), extrusion, ProjectFilamentCount(archive));
+    }
+
+    /// <summary>
+    /// Per-filament grams of every sliced plate, purge included, summed by (material, colour): what one print of the
+    /// whole file (one plate set) draws from the spools. Empty when the file says nothing about filament usage.
+    /// </summary>
+    public static List<FilamentGrams> ReadAllPlates(byte[] file)
+    {
+        IEnumerable<JobFilamentUsageReport> reports;
+        if (file.Length >= 2 && file[0] == 'P' && file[1] == 'K')
+        {
+            try
+            {
+                using var archive = new ZipArchive(new MemoryStream(file), ZipArchiveMode.Read);
+                reports = PlatesWithGCode(file).Select(plate => Read(archive, plate)).ToList();
+            }
+            catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException) { return []; }
+        }
+        else reports = [Read(file)];
+
+        return Sum(reports);
+    }
+
+    /// <summary>Sums per-plate reports by (material, colour).</summary>
+    public static List<FilamentGrams> Sum(IEnumerable<JobFilamentUsageReport> reports)
+    {
+        return reports.SelectMany(r => r.Usages).GroupBy(u => (u.MaterialType?.ToUpperInvariant(), u.ColorHex?.ToUpperInvariant()))
+            .Select(g => new FilamentGrams(g.First().MaterialType, g.First().ColorHex, g.Sum(u => u.Grams))).ToList();
     }
 
     /// <summary>How many filaments the project defines (used or not): the length the printer's mapping array must have.</summary>

@@ -10,11 +10,10 @@ public sealed class ProductionRun
     private readonly List<RunLine> _lines = [];
 
     private ProductionRun(
-        Guid id, Guid organizationId, string? name, DateOnly? dueDate, string? priority, string? notes,
+        Guid id, string? name, DateOnly? dueDate, string? priority, string? notes,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         Name = name;
         DueDate = dueDate;
         Priority = priority;
@@ -25,8 +24,6 @@ public sealed class ProductionRun
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     /// <summary>Null is a fully valid, fully usable run (FR-001a) — display-only labeling differs, nothing else.</summary>
     public string? Name { get; private set; }
@@ -46,17 +43,17 @@ public sealed class ProductionRun
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     public static ProductionRun Create(
-        Guid organizationId, string? name, DateOnly? dueDate, string? priority, string? notes, IReadOnlyList<RunLineSpec> lines)
+        string? name, DateOnly? dueDate, string? priority, string? notes, IReadOnlyList<RunLineSpec> lines)
     {
         if (lines.Count == 0)
         {
             throw new ProductionRunMustHaveAtLeastOneLineException();
         }
 
-        var run = new ProductionRun(Guid.NewGuid(), organizationId, name, dueDate, priority, notes, DateTimeOffset.UtcNow);
+        var run = new ProductionRun(Guid.NewGuid(), name, dueDate, priority, notes, DateTimeOffset.UtcNow);
         foreach (var spec in lines)
         {
-            run._lines.Add(RunLine.Create(organizationId, run.Id, spec));
+            run._lines.Add(RunLine.Create(run.Id, spec));
         }
 
         return run;

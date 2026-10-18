@@ -14,6 +14,29 @@ export function normalizeFilamentColor(
     : undefined;
 }
 
+function rgb(hex: string): number[] {
+  return [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+}
+
+/** RFID and catalog hexes rarely match exactly, so only clearly different colors count. */
+export function colorsDiffer(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  const [x, y] = [rgb(a), rgb(b)];
+  return Math.hypot(...x.map((v, i) => v - y[i])) > 64;
+}
+
+/** Printer sub-brands already name the type ("PLA Basic"), so never print both. */
+export function detectedName(
+  material?: string | null,
+  subBrand?: string | null,
+): string {
+  if (!material) return subBrand ?? '';
+  if (!subBrand) return material;
+  return subBrand.toLowerCase().includes(material.toLowerCase())
+    ? subBrand
+    : `${material} ${subBrand}`;
+}
+
 /** Match hardware positions, never display labels or response array order. */
 export function feedSlotView(
   unit: FeedUnitResponse,

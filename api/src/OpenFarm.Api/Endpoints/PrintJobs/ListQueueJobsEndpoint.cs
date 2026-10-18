@@ -40,7 +40,7 @@ public sealed class ListQueueJobsResponse
     public IReadOnlyDictionary<string, int> StatusCounts { get; set; } = new Dictionary<string, int>();
 }
 
-/// <summary>GET /api/v1/print-jobs?view=queue|backfill — the flat, QueuePosition-ordered "dispatch order" lens (FR-008).</summary>
+/// <summary>GET /api/v1/print-jobs?view=queue|backfill|external — the flat, QueuePosition-ordered "dispatch order" lens (FR-008); "external" lists prints the printer started itself, newest first.</summary>
 [Permission("print-jobs:view")]
 public sealed class ListQueueJobsEndpoint(IQueryHandler<GetQueueJobsQuery, QueueJobsPage> handler)
     : Endpoint<ListQueueJobsRequest, ListQueueJobsResponse>
@@ -56,8 +56,9 @@ public sealed class ListQueueJobsEndpoint(IQueryHandler<GetQueueJobsQuery, Queue
         var page = Math.Max(req.Page, 1);
         var pageSize = req.PageSize is < 1 or > 1000 ? 100 : req.PageSize;
         var backfillOnly = string.Equals(req.View, "backfill", StringComparison.OrdinalIgnoreCase);
+        var externalOnly = string.Equals(req.View, "external", StringComparison.OrdinalIgnoreCase);
 
-        var result = await handler.HandleAsync(new GetQueueJobsQuery(page, pageSize, backfillOnly, req.Status, req.Search), ct);
+        var result = await handler.HandleAsync(new GetQueueJobsQuery(page, pageSize, backfillOnly, req.Status, req.Search, externalOnly), ct);
 
         Response = new ListQueueJobsResponse
         {

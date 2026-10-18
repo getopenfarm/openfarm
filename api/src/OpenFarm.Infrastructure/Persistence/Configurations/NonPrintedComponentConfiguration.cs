@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Assemblies;
@@ -12,15 +11,11 @@ public sealed class NonPrintedComponentConfiguration : IEntityTypeConfiguration<
         builder.ToTable("NonPrintedComponents");
 
         builder.HasKey(c => c.Id);
-
-        builder.Property(c => c.OrganizationId).IsRequired();
         builder.Property(c => c.Name).IsRequired();
         builder.Property(c => c.UnitCost);
         builder.Property(c => c.CreatedAtUtc).IsRequired();
         builder.Property(c => c.UpdatedAtUtc).IsRequired();
 
         builder.Property<uint>("xmin").IsRowVersion();
-
-        builder.IsMultiTenant();
     }
 }

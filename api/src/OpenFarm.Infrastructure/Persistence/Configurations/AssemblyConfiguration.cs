@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Assemblies;
@@ -12,8 +11,6 @@ public sealed class AssemblyConfiguration : IEntityTypeConfiguration<Assembly>
         builder.ToTable("Assemblies");
 
         builder.HasKey(a => a.Id);
-
-        builder.Property(a => a.OrganizationId).IsRequired();
         builder.Property(a => a.Name).IsRequired();
         builder.Property(a => a.Description);
         builder.Property(a => a.CreatedAtUtc).IsRequired();
@@ -28,7 +25,5 @@ public sealed class AssemblyConfiguration : IEntityTypeConfiguration<Assembly>
         // Postgres system column; the Npgsql provider auto-maps a "xmin"-named uint row-version
         // property to it (data-model.md's optimistic-concurrency requirement, mirrors PartConfiguration).
         builder.Property<uint>("xmin").IsRowVersion();
-
-        builder.IsMultiTenant();
     }
 }

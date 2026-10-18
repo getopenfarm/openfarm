@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.ActivityLog;
@@ -38,11 +37,10 @@ public sealed class ActivityLogEntryConfiguration : IEntityTypeConfiguration<Act
         builder.Property(a => a.TimestampUtc)
             .IsRequired();
 
-        builder.HasIndex(a => new { a.OrganizationId, a.TimestampUtc });
+        builder.HasIndex(a => a.TimestampUtc);
 
         builder.HasIndex(a => new { a.EntityType, a.EntityId });
 
         // Append-only: no update or delete operation is ever mapped for this entity.
-        builder.IsMultiTenant();
     }
 }

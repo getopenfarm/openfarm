@@ -23,7 +23,7 @@ public interface IPrintJobRepository
     Task<IReadOnlyList<PrintJob>> ListDispatchInFlightAsync(CancellationToken cancellationToken);
 
     /// <summary>research.md R3 — new/requeued jobs are pre-spaced past the current top of a queue scope; null if the scope has no jobs yet.</summary>
-    Task<double?> GetMaxQueuePositionAsync(Guid organizationId, CancellationToken cancellationToken);
+    Task<double?> GetMaxQueuePositionAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// The flat, `QueuePosition`-ordered "dispatch order" lens (FR-008) — <paramref name="backfillOnly"/>
@@ -39,7 +39,7 @@ public interface IPrintJobRepository
     /// <summary>The smallest QueuePosition among Queued jobs, or null if none — reorder's "move to very top" case (research.md R3).</summary>
     Task<double?> GetMinQueuedPositionAsync(CancellationToken cancellationToken);
 
-    void TrackNewFilamentConsumption(IReadOnlyList<JobFilamentConsumption> lines) { }
+    void TrackNewFilamentConsumption(IReadOnlyList<PrintFilament> lines) { }
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

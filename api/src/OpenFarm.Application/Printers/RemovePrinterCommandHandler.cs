@@ -15,7 +15,7 @@ public sealed class RemovePrinterCommandHandler(
         // FR-002/clarification: removal is never blocked by current print status.
         connectionManager.StopConnection(printer.Id);
         await printerRepository.RemoveAsync(printer, cancellationToken);
-        await snapshots.DeleteAsync(printer.OrganizationId, printer.Id, cancellationToken);
+        await snapshots.DeleteAsync(printer.Id, cancellationToken);
 
         return true;
     }

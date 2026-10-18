@@ -194,3 +194,63 @@ it('disables download while a legacy snapshot remains unresolved', async () => {
   ).toBeDisabled();
   expect(screen.getByText('Job snapshot needs recovery')).toBeInTheDocument();
 });
+
+it('shows a printer-started print without the job-only controls', async () => {
+  const external = {
+    id: 'job-1',
+    source: 'External',
+    name: 'benchy.gcode.3mf',
+    status: 'Completed',
+    snapshotState: 'Ready',
+    dispatchedPrinterId: 'printer-1',
+    startedAtUtc: '2026-10-18T07:00:00Z',
+    endedAtUtc: '2026-10-18T08:00:00Z',
+    actualDurationMinutes: 60,
+    filamentConsumption: [
+      {
+        materialType: 'PLA',
+        detectedColorHex: '000000',
+        estimatedGrams: 20,
+        gramsConsumed: 20,
+      },
+    ],
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const body = input.toString().includes('/printers')
+        ? { printers: [{ id: 'printer-1', name: 'Bambu A1', brand: 'Bambu' }] }
+        : external;
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={['/jobs/job-1']}>
+        <Routes>
+          <Route path="/jobs/:id" element={<PrintJobDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText('benchy.gcode.3mf')).toBeInTheDocument();
+  expect(
+    screen.getByText('Started on the printer, not from OpenFarm'),
+  ).toBeInTheDocument();
+  expect(await screen.findByRole('link', { name: 'Bambu A1' })).toHaveAttribute(
+    'href',
+    '/printers/printer-1',
+  );
+  expect(screen.getByText('60 min')).toBeInTheDocument();
+  expect(screen.getByText('20 g')).toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Download print file' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Job diagnosis' }),
+  ).not.toBeInTheDocument();
+});

@@ -43,6 +43,58 @@ used everything through L-1 plus half of L.
 
 On the Orca Benchy fixture the curve total is within 1% of the slicer's `filament used [mm]`.
 
+## Prints started on the printer
+
+A print started at the printer (Studio, Handy, touchscreen, SD card) is an `ExternalPrint`. It shares the `Prints` table
+(`Source = External`) and the `PrintFilaments` lines with `PrintJob`, so it deducts through the same `JobFilamentAutoDeduction`
+and shows on the Jobs page in its own "Printer-started prints" section (`GET /api/v1/print-jobs?view=external`).
+
+- **Start:** `ExternalPrintSync` sees a RUNNING/PAUSE printer with no active `PrintJob`, reads the printed file back from the
+  printer, and freezes per-tool grams and curve on the lines. Trays reported active are recorded as they appear.
+  The read runs in the background, once per print, so the printer keeps reporting while it downloads (a P1S serves about
+  150 KiB/s, so a 2 MB file takes 15 to 30 s); the print appears on the first telemetry event after the file arrives. A failure
+  logs one warning with its duration and reason.
+- **Which plate:** a file printed from one plate of a multi-plate project keeps that plate's number (`Metadata/plate_4.gcode`),
+  and `gcode_file` does not always name it. The plate comes from the file: the one the printer names if the file has it, else
+  the only plate with G-code, else (several plates, none named) the print is not tracked and a warning says so. Dispatch
+  still always sends plate 1.
+- **Finding the file:** each candidate path is downloaded directly and a 550 means "not there". `FileExists` is avoided: it
+  lists the folder and throws if any unrelated file has a name FluentFTP treats as path traversal (e.g. `....`).
+- **Transitions:** `JobTelemetrySync` drives pause, resume, finish and fail for both kinds. Only an OpenFarm job can move
+  Queued → Printing or be Cancelled; a stop at the printer arrives as FAILED.
+- **Which spool is on a tray:** an AMS tray is the spool on that unit and slot. Tray 254 (the external path) is the spool in the
+  external slot, unless an active Automatic Filament Reloader is declared to replace the external port: then it is the spool in
+  that reloader's feeding slot, and with no feeding slot chosen it is unknown (the replaced external slot is not used). A tray
+  first seen with no known spool takes one when it becomes known; a known spool is never replaced.
+- **Spool binding:** one tool takes the first tray seen. Several tools are paired when the print ends (`ToolTrayMatcher`): each
+  tool's material and colour from the file against the AMS trays the printer last reported, so it works for a print joined
+  mid-print and whatever order the trays were used in. The AMS reports a colour a little off the slicer's, so the nearest tray
+  of the same material wins if it is close and clearly closer than the next; a tie falls to a tray seen active, else the line
+  stays unbound. Unbound lines skip deduction and log `ExternalPrintFilamentDeductionSkipped` (recover with `Assign spool`).
+- **Not in the queue:** `dbContext.PrintJobs` is the `PrintJob` subtype, so dispatch, backfill ordering, run completion and
+  requeue never see an external print.
+- Deleting a printer keeps its external prints with `PrinterId = null`.
+
+## Lines that were not deducted (bell)
+
+When a closed print leaves a filament line unrecorded, automatic deduction stores why on the line (`SkippedReason`) and the
+header bell lists the print under "Action required" (`GET /api/v1/notifications`, refreshed by the `NotificationsChanged`
+hub event). Dispatched jobs and prints started on the printer are treated the same.
+
+| Reason | Meaning | Action |
+|---|---|---|
+| `NoSpool` | No spool bound to the line | Assign spool |
+| `SpoolNotLoaded` | The bound spool is not in state `Using` | Assign spool (another loaded spool) |
+| `NoEstimate` | The slicer's grams could not be read | Dismiss; record usage on the spool by hand |
+| `NoProgress` | A stopped print with no layer, percent or curve | Dismiss; record usage on the spool by hand |
+
+- **Assign spool** (`POST /api/v1/prints/{id}/filament-lines/{lineId}/spool`) binds a loaded spool and re-runs the same
+  delta-based deduction from the progress stored on the print when it closed (`StopLayer`, `StopTotalLayers`, `StopPercent`),
+  so the result matches an automatic one. Only a loaded (`Using`) spool is accepted.
+- **Dismiss** (`POST /api/v1/notifications/{printId}/dismiss`) sets `FilamentFollowUpDismissedAtUtc`; the spool is untouched.
+- The reasons a spool cannot fix take priority when several apply, so an operator is never offered a spool choice that cannot work.
+- Prints that closed before the reason was stored do not appear.
+
 ## Known limits
 - Spool binding follows the feed mapping in `docs/BAMBU_LAN_PRINTING.md`: on an AMS printer only the AMS or only the external
   spool is a usable feed at a time, so a spool on the other one is never bound.

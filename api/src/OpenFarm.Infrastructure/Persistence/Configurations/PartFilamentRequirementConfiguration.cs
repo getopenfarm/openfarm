@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Parts;
@@ -13,7 +12,6 @@ public sealed class PartFilamentRequirementConfiguration : IEntityTypeConfigurat
 
         builder.HasKey(r => r.Id);
 
-        builder.Property(r => r.OrganizationId).IsRequired();
         builder.Property(r => r.PartId).IsRequired();
 
         builder.Property(r => r.MaterialType);
@@ -25,6 +23,8 @@ public sealed class PartFilamentRequirementConfiguration : IEntityTypeConfigurat
         builder.Property(r => r.NarrowFilamentVariantId);
         builder.Property(r => r.NarrowFilamentProfileId);
 
+        builder.Property(r => r.EstimatedGrams);
+
         builder.Property(r => r.CreatedAtUtc).IsRequired();
 
         // Deduplication is guaranteed by FilamentRequirementGrouper before any row is written, not a
@@ -32,7 +32,5 @@ public sealed class PartFilamentRequirementConfiguration : IEntityTypeConfigurat
         // can't usefully express "no duplicate pairs" once MaterialType itself can be null
         // (data-model.md).
         builder.HasIndex(r => new { r.PartId, r.MaterialType, r.DetectedColorHex });
-
-        builder.IsMultiTenant();
     }
 }

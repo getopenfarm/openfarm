@@ -67,7 +67,7 @@ public sealed class FilamentProfileAssignmentService(IFilamentProfileRepository 
             if (input.ColorHex is not null)
                 variantId = filament.Variants.FirstOrDefault(v => string.Equals(v.ColorHex, input.ColorHex, StringComparison.OrdinalIgnoreCase))?.Id
                     ?? throw new SlicingProfileUnconfiguredException("A colour override must refer to a colour of this filament.");
-            rows.Add(FilamentProfileAssignment.Create(filament.OrganizationId, filament.Id, brand, model.ModelCode,
+            rows.Add(FilamentProfileAssignment.Create(filament.Id, brand, model.ModelCode,
                 input.NozzleDiameterMm, profile.Id, variantId));
         }
         if (rows.Select(a => (a.Brand, a.ModelCode, a.NozzleDiameterMm, a.FilamentVariantId)).Distinct().Count() != rows.Count)

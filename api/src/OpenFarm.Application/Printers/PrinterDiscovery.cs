@@ -13,7 +13,7 @@ public sealed record DiscoveredPrinter(
     DateTimeOffset LastSeenAt);
 
 /// <summary>
-/// LAN printer discovery. Not tenant-scoped — it reports whatever the host can hear; a future
+/// LAN printer discovery. It reports whatever the host can hear; a future
 /// local-agent relay (Phase 23) can replace the direct-LAN implementation behind this contract.
 /// </summary>
 public interface IPrinterDiscovery

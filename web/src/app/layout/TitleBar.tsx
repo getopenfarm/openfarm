@@ -1,6 +1,5 @@
 import { Fragment } from 'react';
 import { Link } from 'react-router';
-import { ThemeToggle } from '@/components/theme-toggle';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,6 +10,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { NotificationsBell } from '@/features/notifications/components/NotificationsBell';
 import { FarmPulse } from './FarmPulse';
 import { useBreadcrumb } from './useBreadcrumb';
 
@@ -19,8 +19,8 @@ export function TitleBar() {
 
   return (
     <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
-      <SidebarTrigger />
-      <Separator orientation="vertical" />
+      <SidebarTrigger className="md:hidden" />
+      <Separator orientation="vertical" className="md:hidden" />
       <Breadcrumb className="min-w-0 flex-1">
         <BreadcrumbList className="flex-nowrap overflow-hidden">
           {trail.map((entry, index) => {
@@ -55,7 +55,7 @@ export function TitleBar() {
       <div className="ml-auto flex shrink-0 items-center gap-3">
         <FarmPulse />
         <Separator orientation="vertical" />
-        <ThemeToggle />
+        <NotificationsBell />
       </div>
     </header>
   );

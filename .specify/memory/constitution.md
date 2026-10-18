@@ -1,5 +1,24 @@
 <!--
 Sync Impact Report
+- Version change: 1.1.0 → 2.0.0
+- Rationale: MAJOR bump. OpenFarm is now a real single-tenant, self-hosted app; the multi-tenancy
+  groundwork (Finbuckle, `organization_id` on every table, tenant-scoped hub groups, `org` JWT claim)
+  was removed. Principle IV's multi-tenant/SaaS requirement and the tenant-isolation security rule are
+  backward-incompatible removals.
+- Modified principles:
+  - IV. Build for Expansion, Not Speculation — dropped the hosted multi-tenant SaaS and
+    `organization_id`/swappable-resolver requirements; kept the swappable-contract and YAGNI guidance
+- Added principles: none
+- Added sections: none
+- Removed sections: "Security & Multi-Tenancy Isolation" renamed to "Security"; the Finbuckle
+  tenant-isolation rule was removed, the secrets/activity-log/auth rules are unchanged
+- Templates requiring updates:
+  - .specify/templates/plan-template.md — ✅ no change needed
+  - .specify/templates/spec-template.md — ✅ no change needed
+  - .specify/templates/tasks-template.md — ✅ no change needed
+- Follow-up TODOs: none
+
+Prior report (1.1.0, retained for history):
 - Version change: 1.0.0 → 1.1.0
 - Rationale: MINOR bump. Principle V gains a new, materially-expanded guardrail block ("Durable
   Recovery of In-Flight Background Work") distilled from a real production bug: a part upload stuck
@@ -40,7 +59,7 @@ runs under `strict: true`. `dotnet format --verify-no-changes` and Biome (`lint`
 in CI as merge gates, not left as local-only convention.
 
 Rationale: this layering is what lets the direct-LAN Bambu connector be replaced later by a relay-agent
-transport (Phase 24 of the feature plan) without rewriting `Application` or `Domain` — the boundary only
+transport (Phase 23 of the feature plan) without rewriting `Application` or `Domain` — the boundary only
 pays off if nothing on the business-logic side of it ever depends on what's across it.
 
 ### II. Test Discipline Where It Pays, Not Uniformly
@@ -74,16 +93,13 @@ to render rather than one per endpoint.
 
 ### IV. Build for Expansion, Not Speculation
 
-Every feature MUST work unmodified for both a self-hosted single-organization install and a future
-hosted multi-tenant SaaS. `organization_id` is present on every tenant-scoped table from day one, but the
-resolution mechanism (a static single-tenant resolver today vs. Finbuckle's dynamic claim-based
-resolution later) MUST be swappable without a schema migration. External integrations sit behind a
-swappable contract (`IPrinterConnector` and equivalents) so a second implementation — a new printer
-brand, a relay agent for hosted SaaS — never requires changes to `Application` or `Domain`.
-Permission-based RBAC means adding a new role is a seed-data change, not a code change. This principle
-cuts both ways: extraction of shared structure (e.g. pulling `printer_profiles` out of the `Printer`
-entity) is deferred until a second real instance creates actual duplication — designed extension points
-are required, preemptive abstraction is not.
+OpenFarm is a single-tenant, self-hosted app: one farm per install, no tenant or organization
+dimension anywhere in the data model. External integrations sit behind a swappable contract
+(`IPrinterConnector` and equivalents) so a second implementation — a new printer brand, a relay agent —
+never requires changes to `Application` or `Domain`. Permission-based RBAC means adding a new role is a
+seed-data change, not a code change. This principle cuts both ways: extraction of shared structure
+(e.g. pulling `printer_profiles` out of the `Printer` entity) is deferred until a second real instance
+creates actual duplication — designed extension points are required, preemptive abstraction is not.
 
 ### V. Performance and Real-Time Responsiveness by Construction
 
@@ -133,11 +149,8 @@ does. Enqueue paths MUST either surface the drop (so the caller fails the comman
 terminal) or block until capacity is available — never discard the item and leave the persisted row
 behind. Reconciliation is the safety net of last resort, not a licence to lose work between restarts.
 
-## Security & Multi-Tenancy Isolation
+## Security
 
-- Tenant isolation is enforced exclusively through Finbuckle's EF Core global query filter. Hand-rolled
-  per-query tenant `WHERE` clauses are prohibited — this is precisely the bug class (a subtle
-  cross-tenant data leak) that Finbuckle exists to prevent, and bespoke logic reopens it.
 - Connection secrets — real printer LAN access codes — are encrypted at rest via ASP.NET Core's
   `IDataProtector` from the first commit that stores them. There is no "demo fixture" exemption; these
   rows always hold a working credential to a physical device.
@@ -179,4 +192,4 @@ checked against these principles during review. Any deliberate deviation MUST be
 description, mirroring the `Complexity Tracking` table already present in `plan-template.md` for
 feature-plan-level violations.
 
-**Version**: 1.1.0 | **Ratified**: 2026-07-12 | **Last Amended**: 2026-07-20
+**Version**: 2.0.0 | **Ratified**: 2026-07-12 | **Last Amended**: 2026-10-18

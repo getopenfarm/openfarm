@@ -1,7 +1,7 @@
 namespace OpenFarm.Domain.Assemblies;
 
 /// <summary>
-/// Pure, in-memory cycle/depth validation over an organization's flat Assembly-to-Assembly edge list
+/// Pure, in-memory cycle/depth validation over the flat Assembly-to-Assembly edge list
 /// (research.md R2) — no EF/DB dependency, exhaustively unit-testable. Deliberately not a second
 /// recursive CTE alongside <c>AssemblyGraphQueryService.ExplodeAsync</c>'s (research.md R1): this
 /// never touches a Part/NonPrintedComponent row, only the much smaller edge subgraph.

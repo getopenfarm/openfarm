@@ -26,7 +26,7 @@ public class JobTelemetrySyncTests(ProductionTestFactory factory) : ProductionTe
         startedAt.Should().NotBeNull();
         if (stopRequested)
         {
-            using var scope = Factory.CreateTenantScope();
+            using var scope = Factory.Services.CreateScope();
             var repo = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
             (await repo.GetByIdAsync(jobId, default))!.RequestCancel();
             await repo.SaveChangesAsync(default);

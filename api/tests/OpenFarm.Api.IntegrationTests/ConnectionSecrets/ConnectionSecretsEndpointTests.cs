@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Api.Endpoints.ConnectionSecrets;
 using OpenFarm.Application.Auth;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Api.IntegrationTests.ConnectionSecrets;
@@ -47,12 +46,10 @@ public class ConnectionSecretsEndpointTests(CustomWebApplicationFactory factory)
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var stored = await dbContext.ConnectionSecrets
-            .IgnoreQueryFilters()
             .AsNoTracking()
             .SingleAsync(s => s.Id == body.Id);
 
         stored.EncryptedAccessCode.Should().NotBe("real-secret-value");
-        stored.OrganizationId.Should().Be(Organization.WellKnownId);
     }
 
     [Fact]
@@ -79,7 +76,7 @@ public class ConnectionSecretsEndpointTests(CustomWebApplicationFactory factory)
 
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var countBefore = await dbContext.ActivityLogEntries.IgnoreQueryFilters().CountAsync();
+        var countBefore = await dbContext.ActivityLogEntries.CountAsync();
 
         var response = await client.PostAsJsonAsync(
             new Uri("/api/v1/connection-secrets", UriKind.Relative),
@@ -87,7 +84,7 @@ public class ConnectionSecretsEndpointTests(CustomWebApplicationFactory factory)
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        var countAfter = await dbContext.ActivityLogEntries.IgnoreQueryFilters().CountAsync();
+        var countAfter = await dbContext.ActivityLogEntries.CountAsync();
         countAfter.Should().Be(countBefore);
     }
 

@@ -4,7 +4,6 @@ public sealed class ProcessProfile
 {
     private ProcessProfile(
         Guid id,
-        Guid organizationId,
         string name,
         ProfileSourceFormat sourceFormat,
         string? baseProfileName,
@@ -17,7 +16,6 @@ public sealed class ProcessProfile
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         Name = name;
         SourceFormat = sourceFormat;
         BaseProfileName = baseProfileName;
@@ -33,12 +31,11 @@ public sealed class ProcessProfile
     }
 
     // Every property below carries a private setter, including ones this entity never mutates
-    // after construction (Id, OrganizationId, Name, SourceFormat, BaseProfileName, CreatedAtUtc) —
+    // after construction (Id, Name, SourceFormat, BaseProfileName, CreatedAtUtc) —
     // EF Core's constructor-binding materialization needs a settable backing member for every
     // constructor-bound property; a pure get-only auto-property has none. External code still can't
     // mutate them (no method exposes a setter), so this doesn't weaken the entity's own invariants.
     public Guid Id { get; private set; }
-    public Guid OrganizationId { get; private set; }
     public string Name { get; private set; }
     public ProfileSourceFormat SourceFormat { get; private set; }
     public string? BaseProfileName { get; private set; }
@@ -66,7 +63,6 @@ public sealed class ProcessProfile
 
     /// <summary>Ingestion-only factory (research.md §0/§1) — process profiles are never created by any other path after 009 (FR-011).</summary>
     public static ProcessProfile CreateSystemProfile(
-        Guid organizationId,
         string name,
         ProfileSourceFormat sourceFormat,
         string? baseProfileName,
@@ -93,7 +89,6 @@ public sealed class ProcessProfile
 
         return new ProcessProfile(
             Guid.NewGuid(),
-            organizationId,
             name,
             sourceFormat,
             string.IsNullOrWhiteSpace(baseProfileName) ? null : baseProfileName,

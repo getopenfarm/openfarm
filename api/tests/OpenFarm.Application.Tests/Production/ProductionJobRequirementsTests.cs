@@ -10,12 +10,11 @@ public class ProductionJobRequirementsTests
     [Fact]
     public void SnapshotKeepsVariantWhileFollowLatestUsesTheCurrentPartSelection()
     {
-        var organization = Guid.NewGuid();
         var originalVariant = Guid.NewGuid();
-        var part = Part.Create(organization, "Part", PartFileFormat.GCode, false, "part.gcode", "/part.gcode",
+        var part = Part.Create("Part", PartFileFormat.GCode, false, "part.gcode", "/part.gcode",
             10, 0.4m, null, null, EstimateStatus.Available, 10, 10, 1, 1, new string('a', 64),
             [new("PETG", "#000000", null, originalVariant, null)], [], []);
-        var job = PrintJob.Create(organization, Guid.NewGuid(), 1024, 1, AssignmentMode.Unassigned, null,
+        var job = PrintJob.Create("Test part", Guid.NewGuid(), 1024, 1, AssignmentMode.Unassigned, null,
             part.RevisionHash, part.RevisionNumber, ProductionJobRequirements.FromPart(part));
         var replacement = Guid.NewGuid();
         part.NarrowFilamentRequirement(part.FilamentRequirements.Single().Id, replacement, null);
@@ -30,11 +29,10 @@ public class ProductionJobRequirementsTests
     [Fact]
     public void LegacySnapshotDoesNotInferTodaysPartSelection()
     {
-        var organization = Guid.NewGuid();
-        var part = Part.Create(organization, "Part", PartFileFormat.GCode, false, "part.gcode", "/part.gcode",
+        var part = Part.Create("Part", PartFileFormat.GCode, false, "part.gcode", "/part.gcode",
             10, 0.4m, null, null, EstimateStatus.Available, 10, 10, 1, 1, new string('a', 64),
             [new("PETG", "#000000", null, Guid.NewGuid(), null)], [], []);
-        var job = PrintJob.Create(organization, Guid.NewGuid(), 1024, 1, AssignmentMode.Unassigned, null,
+        var job = PrintJob.Create("Test part", Guid.NewGuid(), 1024, 1, AssignmentMode.Unassigned, null,
             part.RevisionHash, part.RevisionNumber, [new("PETG", "#000000")]);
         ProductionJobRequirements.Resolve(job, part, RevisionMode.Snapshot).Single().NarrowFilamentVariantId.Should().BeNull();
         job.Dispatch(Guid.NewGuid());

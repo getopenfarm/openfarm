@@ -34,53 +34,67 @@ public sealed class JobFilamentAutoDeduction(
         : progress.Percent is { } percent ? Math.Clamp(percent / 100m, 0m, 1m)
         : null;
 
-    public Task ApplyAsync(PrintJob job, JobProgress progress, CancellationToken cancellationToken) =>
-        DeductAsync(job.OrganizationId, job.Id, "PrintJob", "PrintJobFilamentDeductionSkipped", job.FilamentConsumption, progress,
-            job.RecordFilamentConsumption, cancellationToken);
-
-    /// <summary>The same deduction for a print the printer started itself; only <see cref="PrintJobStatus.Completed"/>/<see cref="PrintJobStatus.Failed"/> outcomes occur.</summary>
-    public Task ApplyAsync(ExternalPrint print, JobProgress progress, CancellationToken cancellationToken) =>
-        DeductAsync(print.OrganizationId, print.Id, "ExternalPrint", "ExternalPrintFilamentDeductionSkipped", print.Filaments, progress,
-            print.RecordFilamentConsumption, cancellationToken);
+    /// <summary>
+    /// Deducts for a dispatched job or a print the printer started itself; log names keep the two kinds apart. A re-run by the
+    /// operator passes <paramref name="logSkipped"/> false so it does not log the same skip again.
+    /// </summary>
+    public Task ApplyAsync(Print print, JobProgress progress, CancellationToken cancellationToken, bool logSkipped = true) =>
+        print.Source == PrintSource.External
+            ? DeductAsync(print, "ExternalPrint", "ExternalPrintFilamentDeductionSkipped", progress, logSkipped, cancellationToken)
+            : DeductAsync(print, "PrintJob", "PrintJobFilamentDeductionSkipped", progress, logSkipped, cancellationToken);
 
     private async Task DeductAsync(
-        Guid organizationId, Guid ownerId, string entityType, string skippedEvent, IEnumerable<IFilamentUsageLine> lines,
-        JobProgress progress, Action<Guid, Guid?, decimal> record, CancellationToken cancellationToken)
+        Print print, string entityType, string skippedEvent, JobProgress progress, bool logSkipped, CancellationToken cancellationToken)
     {
+        var ownerId = print.Id;
         var skipped = false;
         var depleted = new List<Spool>();
-        foreach (var line in lines)
+        foreach (var line in print.Filaments)
         {
-            if (Fraction(line, progress) is not { } fraction || line.SpoolId is not { } spoolId || line.EstimatedGrams is not { } estimate)
+            // Reasons a spool choice cannot fix come first, so the operator is only offered an action that can work.
+            var fraction = Fraction(line, progress);
+            var reason = line.EstimatedGrams is null ? FilamentSkipReason.NoEstimate
+                : fraction is null ? FilamentSkipReason.NoProgress
+                : line.SpoolId is null ? FilamentSkipReason.NoSpool
+                : (FilamentSkipReason?)null;
+            if (reason is { } missing)
             {
+                print.MarkFilamentSkipped(line.Id, missing);
                 skipped = true;
                 continue;
             }
 
-            var target = decimal.Round(estimate * fraction, 2);
+            var spoolId = line.SpoolId!.Value;
+            var target = decimal.Round(line.EstimatedGrams!.Value * fraction!.Value, 2);
             var delta = target - (line.GramsConsumed ?? 0);
-            if (delta <= 0) continue;
+            if (delta <= 0)
+            {
+                // A line the operator just bound that really used nothing is settled, not skipped.
+                if (line.SkippedReason is not null) print.RecordFilamentConsumption(line.Id, spoolId, target);
+                continue;
+            }
 
             var spool = await spoolRepository.GetByIdAsync(spoolId, cancellationToken);
             if (spool is null || spool.State != SpoolState.Using)
             {
+                print.MarkFilamentSkipped(line.Id, FilamentSkipReason.SpoolNotLoaded);
                 skipped = true;
                 continue;
             }
 
             spool.RecordUsage(delta);
-            record(line.Id, spoolId, target);
+            print.RecordFilamentConsumption(line.Id, spoolId, target);
             await usageRecordRepository.AddAsync(
-                SpoolUsageRecord.Create(organizationId, spoolId, delta, ownerId, SpoolUsageSource.Job), cancellationToken);
+                SpoolUsageRecord.Create(spoolId, delta, ownerId, SpoolUsageSource.Job), cancellationToken);
             if (spool.RemainingWeightGrams == 0) depleted.Add(spool);
         }
 
         foreach (var spool in depleted) await continuation.ResolveAsync(spool, cancellationToken);
 
-        if (skipped)
+        if (skipped && logSkipped)
         {
             await activityLogWriter.WriteAsync(ActivityLogEntry.Create(
-                organizationId, entityType, ownerId.ToString(), skippedEvent, null, ActorType.System), cancellationToken);
+                entityType, ownerId.ToString(), skippedEvent, null, ActorType.System), cancellationToken);
         }
     }
 }

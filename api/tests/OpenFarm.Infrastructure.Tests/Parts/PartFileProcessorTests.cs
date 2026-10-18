@@ -14,7 +14,7 @@ public class PartFileProcessorTests
         var slicedParser = new FakeAlreadySlicedFileMetadataParser(new SlicedFileMetadata(
             0.4m, 47, 18.4m, 1, [new DetectedFilamentSlot("PETG", "#000000", null)], []));
         var processor = new PartFileProcessor(slicedParser, new FakeUnslicedProjectMaterialResolver(null), new FakeSlicerEngine());
-        var job = PartProcessingJob.CreateAdd(Guid.NewGuid(), PartFileFormat.GCode, "a.gcode", "path", 10, requiresSlicing: false, null, null, null, null, null);
+        var job = PartProcessingJob.CreateAdd(PartFileFormat.GCode, "a.gcode", "path", 10, requiresSlicing: false, null, null, null, null, null);
 
         var result = await processor.ResolveMaterialAsync(job, new MemoryStream(), CancellationToken.None);
 
@@ -30,7 +30,7 @@ public class PartFileProcessorTests
         var processor = new PartFileProcessor(
             new FakeAlreadySlicedFileMetadataParser(null), new FakeUnslicedProjectMaterialResolver(null), new FakeSlicerEngine());
         var job = PartProcessingJob.CreateAdd(
-            Guid.NewGuid(), PartFileFormat.Stl, "a.stl", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", null);
+            PartFileFormat.Stl, "a.stl", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", null);
 
         var result = await processor.ResolveMaterialAsync(job, new MemoryStream(), CancellationToken.None);
 
@@ -49,7 +49,7 @@ public class PartFileProcessorTests
             new FakeUnslicedProjectMaterialResolver(new UnslicedProjectMaterial("PETG", 2, HasEmbeddedSettings: true, NozzleDiameterMm: 0.6m)),
             new FakeSlicerEngine());
         var job = PartProcessingJob.CreateAdd(
-            Guid.NewGuid(), PartFileFormat.ThreeMf, "a.3mf", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "PETG", null);
+            PartFileFormat.ThreeMf, "a.3mf", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "PETG", null);
 
         var result = await processor.ResolveMaterialAsync(job, new MemoryStream(), CancellationToken.None);
 
@@ -64,7 +64,7 @@ public class PartFileProcessorTests
         var processor = new PartFileProcessor(
             new FakeAlreadySlicedFileMetadataParser(null), new FakeUnslicedProjectMaterialResolver(null), new FakeSlicerEngine());
         var job = PartProcessingJob.CreateAdd(
-            Guid.NewGuid(), PartFileFormat.Stl, "a.stl", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", null);
+            PartFileFormat.Stl, "a.stl", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", null);
 
         job.SetEstimationConfiguration(System.Text.Json.JsonSerializer.Serialize(new EstimationConfiguration(true, 0.4m, "PLA", null)));
         var result = await processor.ResolveEstimateAsync(job, new MemoryStream(), CancellationToken.None);

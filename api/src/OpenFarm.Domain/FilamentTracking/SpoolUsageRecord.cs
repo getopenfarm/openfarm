@@ -11,7 +11,6 @@ public sealed class SpoolUsageRecord
 {
     private SpoolUsageRecord(
         Guid id,
-        Guid organizationId,
         Guid spoolId,
         decimal gramsConsumed,
         DateTimeOffset recordedAtUtc,
@@ -19,7 +18,6 @@ public sealed class SpoolUsageRecord
         SpoolUsageSource source)
     {
         Id = id;
-        OrganizationId = organizationId;
         SpoolId = spoolId;
         GramsConsumed = gramsConsumed;
         RecordedAtUtc = recordedAtUtc;
@@ -28,8 +26,6 @@ public sealed class SpoolUsageRecord
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid SpoolId { get; }
 
@@ -41,13 +37,13 @@ public sealed class SpoolUsageRecord
 
     public SpoolUsageSource Source { get; }
 
-    public static SpoolUsageRecord Create(Guid organizationId, Guid spoolId, decimal gramsConsumed, Guid? jobId, SpoolUsageSource source)
+    public static SpoolUsageRecord Create(Guid spoolId, decimal gramsConsumed, Guid? jobId, SpoolUsageSource source)
     {
         if (gramsConsumed <= 0)
         {
             throw new ArgumentException("Grams consumed must be positive.", nameof(gramsConsumed));
         }
 
-        return new SpoolUsageRecord(Guid.NewGuid(), organizationId, spoolId, gramsConsumed, DateTimeOffset.UtcNow, jobId, source);
+        return new SpoolUsageRecord(Guid.NewGuid(), spoolId, gramsConsumed, DateTimeOffset.UtcNow, jobId, source);
     }
 }

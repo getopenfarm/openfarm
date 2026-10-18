@@ -28,11 +28,11 @@ public sealed class CancelPrintJobCommandHandler(
         {
             job.MarkCancelled();
             await jobRepository.SaveChangesAsync(cancellationToken);
-            await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
+            await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
             return job;
         }
 
-        if (job.Status is not (PrintJobStatus.Queued or PrintJobStatus.Printing or PrintJobStatus.Paused) || job.DispatchedPrinterId is not { } printerId)
+        if (job.Status is not (PrintJobStatus.Queued or PrintJobStatus.Printing or PrintJobStatus.Paused) || job.PrinterId is not { } printerId)
         {
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }
@@ -45,7 +45,7 @@ public sealed class CancelPrintJobCommandHandler(
             job.MarkCancelled();
             printer.ObserveStatus("FAILED");
             await jobRepository.SaveChangesAsync(cancellationToken);
-            await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
+            await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
             return job;
         }
 

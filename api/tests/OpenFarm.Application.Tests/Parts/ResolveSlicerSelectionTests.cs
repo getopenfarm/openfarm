@@ -15,7 +15,7 @@ public class ResolveSlicerSelectionTests
         var orca220 = Available(SlicerEngine.OrcaSlicer, "2.2.0");
         var sut = CreateSut(orca220);
 
-        var result = sut.Resolve(SlicerEngine.OrcaSlicer, "2.2.0", organizationDefault: null);
+        var result = sut.Resolve(SlicerEngine.OrcaSlicer, "2.2.0", farmDefault: null);
 
         result.Should().Be(new SlicerRef(SlicerEngine.OrcaSlicer, "2.2.0"));
     }
@@ -25,7 +25,7 @@ public class ResolveSlicerSelectionTests
     {
         var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.2.0"));
 
-        var act = () => sut.Resolve(SlicerEngine.SuperSlicer, "9.9.9", organizationDefault: null);
+        var act = () => sut.Resolve(SlicerEngine.SuperSlicer, "9.9.9", farmDefault: null);
 
         act.Should().Throw<SlicerUnavailableException>();
     }
@@ -37,13 +37,13 @@ public class ResolveSlicerSelectionTests
             Available(SlicerEngine.OrcaSlicer, "2.2.0"),
             Available(SlicerEngine.OrcaSlicer, "2.3.0"));
 
-        var result = sut.Resolve(SlicerEngine.OrcaSlicer, overrideVersion: null, organizationDefault: null);
+        var result = sut.Resolve(SlicerEngine.OrcaSlicer, overrideVersion: null, farmDefault: null);
 
         result.Should().Be(new SlicerRef(SlicerEngine.OrcaSlicer, "2.3.0"));
     }
 
     [Fact]
-    public void Resolve_NoOverride_UsesEffectiveOrganizationDefault()
+    public void Resolve_NoOverride_UsesEffectiveFarmDefault()
     {
         var sut = CreateSut(
             Available(SlicerEngine.OrcaSlicer, "2.2.0"),
@@ -59,7 +59,7 @@ public class ResolveSlicerSelectionTests
     {
         var sut = CreateSut();
 
-        var act = () => sut.Resolve(null, null, organizationDefault: null);
+        var act = () => sut.Resolve(null, null, farmDefault: null);
 
         act.Should().Throw<SlicerUnavailableException>().WithMessage("*no slicer*");
     }
@@ -83,7 +83,7 @@ public class ResolveSlicerSelectionTests
             Available(SlicerEngine.OrcaSlicer, "2.3.0"),
             Available(SlicerEngine.SuperSlicer, "2.5.59.13"));
 
-        var result = sut.ResolveEffectiveDefault(organizationDefault: null);
+        var result = sut.ResolveEffectiveDefault(farmDefault: null);
 
         result.Default.Should().Be(new SlicerRef(SlicerEngine.OrcaSlicer, "2.3.0"));
         result.IsExplicit.Should().BeFalse();
@@ -94,7 +94,7 @@ public class ResolveSlicerSelectionTests
     {
         var sut = CreateSut(Available(SlicerEngine.SuperSlicer, "2.5.59.13"));
 
-        var result = sut.ResolveEffectiveDefault(organizationDefault: null);
+        var result = sut.ResolveEffectiveDefault(farmDefault: null);
 
         result.Default.Should().Be(new SlicerRef(SlicerEngine.SuperSlicer, "2.5.59.13"));
         result.IsExplicit.Should().BeFalse();
@@ -105,7 +105,7 @@ public class ResolveSlicerSelectionTests
     {
         var sut = CreateSut();
 
-        var result = sut.ResolveEffectiveDefault(organizationDefault: null);
+        var result = sut.ResolveEffectiveDefault(farmDefault: null);
 
         result.Default.Should().BeNull();
         result.IsExplicit.Should().BeFalse();

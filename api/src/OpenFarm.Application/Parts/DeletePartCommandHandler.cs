@@ -22,7 +22,7 @@ public sealed partial class DeletePartCommandHandler(
         // production revisions. Retain bytes until reference-aware garbage collection exists.
         try
         {
-            await eventPublisher.PartDeletedAsync(part.OrganizationId, part.Id, cancellationToken);
+            await eventPublisher.PartDeletedAsync(part.Id, cancellationToken);
         }
         catch (Exception ex)
         {

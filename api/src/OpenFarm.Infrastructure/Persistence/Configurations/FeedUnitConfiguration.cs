@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.FilamentTracking;
@@ -12,9 +11,6 @@ public sealed class FeedUnitConfiguration : IEntityTypeConfiguration<FeedUnit>
         builder.ToTable("FeedUnits");
 
         builder.HasKey(u => u.Id);
-
-        builder.Property(u => u.OrganizationId)
-            .IsRequired();
 
         builder.Property(u => u.PrinterId)
             .IsRequired();
@@ -57,7 +53,5 @@ public sealed class FeedUnitConfiguration : IEntityTypeConfiguration<FeedUnit>
 
         builder.HasIndex(u => new { u.PrinterId, u.Kind, u.UnitIndex })
             .IsUnique();
-
-        builder.IsMultiTenant();
     }
 }

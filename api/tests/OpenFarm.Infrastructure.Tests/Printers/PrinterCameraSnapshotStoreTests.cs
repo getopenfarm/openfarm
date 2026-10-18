@@ -18,37 +18,36 @@ public sealed class PrinterCameraSnapshotStoreTests : IDisposable
     [Fact]
     public async Task LatestFrameAndTimestampSurviveNewStoreInstance()
     {
-        var org = Guid.NewGuid(); var printer = Guid.NewGuid();
+        var printer = Guid.NewGuid();
         var first = Frame(60); var latest = Frame();
         var store = Store();
-        await store.SaveAsync(org, printer, first, default);
-        await store.SaveAsync(org, printer, latest, default);
-        Assert.Equal(latest, await Store().GetAsync(org, printer, default));
+        await store.SaveAsync(printer, first, default);
+        await store.SaveAsync(printer, latest, default);
+        Assert.Equal(latest, await Store().GetAsync(printer, default));
         Assert.Single(Directory.GetFiles(_root, "*", SearchOption.AllDirectories));
-        Assert.Null(await store.GetAsync(Guid.NewGuid(), printer, default));
-        Assert.Null(await store.GetAsync(org, Guid.NewGuid(), default));
+        Assert.Null(await store.GetAsync(Guid.NewGuid(), default));
     }
 
     [Fact]
     public async Task InvalidFramesDoNotReplacePreviousSnapshot()
     {
-        var org = Guid.NewGuid(); var printer = Guid.NewGuid(); var good = Frame();
+        var printer = Guid.NewGuid(); var good = Frame();
         var store = Store();
-        await store.SaveAsync(org, printer, good, default);
-        await store.SaveAsync(org, printer, new("not base64", DateTimeOffset.UtcNow), default);
-        await store.SaveAsync(org, printer, new(Convert.ToBase64String([1, 2, 3]), DateTimeOffset.UtcNow), default);
-        Assert.Equal(good, await store.GetAsync(org, printer, default));
+        await store.SaveAsync(printer, good, default);
+        await store.SaveAsync(printer, new("not base64", DateTimeOffset.UtcNow), default);
+        await store.SaveAsync(printer, new(Convert.ToBase64String([1, 2, 3]), DateTimeOffset.UtcNow), default);
+        Assert.Equal(good, await store.GetAsync(printer, default));
     }
 
     [Fact]
     public async Task DeletionPreventsLateWritesAndSurvivesRestart()
     {
-        var org = Guid.NewGuid(); var printer = Guid.NewGuid(); var store = Store();
-        var writes = Enumerable.Range(0, 10).Select(_ => store.SaveAsync(org, printer, Frame(), default)).ToArray();
-        await store.DeleteAsync(org, printer, default);
+        var printer = Guid.NewGuid(); var store = Store();
+        var writes = Enumerable.Range(0, 10).Select(_ => store.SaveAsync(printer, Frame(), default)).ToArray();
+        await store.DeleteAsync(printer, default);
         await Task.WhenAll(writes);
-        await store.SaveAsync(org, printer, Frame(), default);
-        Assert.Null(await Store().GetAsync(org, printer, default));
+        await store.SaveAsync(printer, Frame(), default);
+        Assert.Null(await Store().GetAsync(printer, default));
     }
 
     [Fact]
@@ -57,13 +56,13 @@ public sealed class PrinterCameraSnapshotStoreTests : IDisposable
         Directory.CreateDirectory(_root);
         var blocker = Path.Combine(_root, "file");
         await File.WriteAllTextAsync(blocker, "block directory creation");
-        var org = Guid.NewGuid(); var printer = Guid.NewGuid();
-        await Store(blocker).SaveAsync(org, printer, Frame(), default);
-        Assert.Null(await Store(blocker).GetAsync(org, printer, default));
+        var printer = Guid.NewGuid();
+        await Store(blocker).SaveAsync(printer, Frame(), default);
+        Assert.Null(await Store(blocker).GetAsync(printer, default));
         var store = Store();
-        await store.SaveAsync(org, printer, Frame(), default);
+        await store.SaveAsync(printer, Frame(), default);
         await File.WriteAllTextAsync(Directory.GetFiles(_root, "*.json", SearchOption.AllDirectories).Single(), "{broken");
-        Assert.Null(await store.GetAsync(org, printer, default));
+        Assert.Null(await store.GetAsync(printer, default));
     }
 
     public void Dispose()

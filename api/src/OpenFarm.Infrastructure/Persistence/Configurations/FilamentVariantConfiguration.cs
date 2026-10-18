@@ -4,8 +4,7 @@ using OpenFarm.Domain.FilamentTracking;
 
 namespace OpenFarm.Infrastructure.Persistence.Configurations;
 
-// No OrganizationId column — reached exclusively through its parent Filament (data-model.md's EF
-// Core configuration notes), so no IsMultiTenant() call here.
+// Reached exclusively through its parent Filament (data-model.md's EF Core configuration notes).
 public sealed class FilamentVariantConfiguration : IEntityTypeConfiguration<FilamentVariant>
 {
     public void Configure(EntityTypeBuilder<FilamentVariant> builder)

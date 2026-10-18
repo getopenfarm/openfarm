@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.FilamentTracking;
@@ -12,9 +11,6 @@ public sealed class SpoolUsageRecordConfiguration : IEntityTypeConfiguration<Spo
         builder.ToTable("SpoolUsageRecords");
 
         builder.HasKey(r => r.Id);
-
-        builder.Property(r => r.OrganizationId)
-            .IsRequired();
 
         builder.Property(r => r.GramsConsumed)
             .IsRequired();
@@ -32,7 +28,5 @@ public sealed class SpoolUsageRecordConfiguration : IEntityTypeConfiguration<Spo
             .WithMany()
             .HasForeignKey(r => r.SpoolId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.IsMultiTenant();
     }
 }

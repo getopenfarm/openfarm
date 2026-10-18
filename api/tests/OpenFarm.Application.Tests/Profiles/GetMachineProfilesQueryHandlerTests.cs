@@ -18,9 +18,9 @@ public class GetMachineProfilesQueryHandlerTests
     public async Task HandleAsync_LegacyBrowseCall_ExcludesSystemRows()
     {
         var machineRepo = new FakeMachineProfileRepository();
-        var userRow = MachineProfile.Create(Guid.NewGuid(), "My Tuned X1C", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        var userRow = MachineProfile.Create("My Tuned X1C", ProfileSourceFormat.OrcaSlicer, null, "{}");
         var systemRow = MachineProfile.CreateSystemProfile(
-            Guid.NewGuid(), "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.BambuStudio, null, "{}",
+            "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.BambuStudio, null, "{}",
             "Bambulab", "GM001", isSelectable: true, vendorMachineModelName: null, includedTemplateNames: null);
         await machineRepo.AddAsync(userRow, CancellationToken.None);
         await machineRepo.AddAsync(systemRow, CancellationToken.None);
@@ -39,7 +39,7 @@ public class GetMachineProfilesQueryHandlerTests
     {
         var machineRepo = new FakeMachineProfileRepository();
         var systemRow = MachineProfile.CreateSystemProfile(
-            Guid.NewGuid(), "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.BambuStudio, null, "{}",
+            "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.BambuStudio, null, "{}",
             "Bambulab", "GM001", isSelectable: true, vendorMachineModelName: null, includedTemplateNames: null);
         await machineRepo.AddAsync(systemRow, CancellationToken.None);
 

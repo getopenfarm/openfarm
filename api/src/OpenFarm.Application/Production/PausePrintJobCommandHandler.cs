@@ -23,7 +23,7 @@ public sealed class PausePrintJobCommandHandler(
         {
             job.MarkPaused();
             await jobRepository.SaveChangesAsync(cancellationToken);
-            await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
+            await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
             return job;
         }
 

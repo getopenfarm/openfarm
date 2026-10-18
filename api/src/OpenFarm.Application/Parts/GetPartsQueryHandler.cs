@@ -33,7 +33,8 @@ public sealed class GetPartsQueryHandler(IPartRepository partRepository) : IQuer
                 catalogThumbnail is null ? null : Convert.ToBase64String(catalogThumbnail.Bytes),
                 materialTypes,
                 part.Tags.Select(t => t.Name).ToList(),
-                part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation, part.UnitsPerPrint);
+                part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation, part.UnitsPerPrint,
+                part.FilamentRequirements.Select(r => new PartColorGrams(r.MaterialType, r.DetectedColorHex, r.EstimatedGrams)).ToList());
         }).ToList();
 
         return new PartsPage(summaries, totalCount);

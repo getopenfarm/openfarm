@@ -55,7 +55,7 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         // FK inserts take key-share locks, so no new requirement can appear between this
         // locked dependency check, detachment and deletion. Creation locks in the same order.
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM \"Parts\" WHERE \"Id\" = {part.Id} AND \"OrganizationId\" = {part.OrganizationId} FOR UPDATE", cancellationToken);
+            $"SELECT 1 FROM \"Parts\" WHERE \"Id\" = {part.Id} FOR UPDATE", cancellationToken);
         var eligibility = (await new PartDeletionEligibilityReader(dbContext).CheckAsync([part.Id], cancellationToken))[0];
         if (eligibility.Status == "Absent") throw new PartNotFoundException(part.Id);
         if (eligibility.Status == "Blocked") throw new PartDeletionBlockedException(eligibility);

@@ -1,13 +1,10 @@
-using Finbuckle.MultiTenant.Abstractions;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.ActivityLog;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
-using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Parts;
 
 namespace OpenFarm.Infrastructure.Tests.Parts;
@@ -29,16 +26,13 @@ namespace OpenFarm.Infrastructure.Tests.Parts;
 /// </summary>
 public class PartProcessingBackgroundServiceTests
 {
-    private static readonly Guid OrgId = Organization.WellKnownId;
-
     // -- Widened exception handling on the processing path --------------------------------------
 
     [Fact]
     public async Task StorageReadThrowsDuringMilestone1_MarksJobFailed_WithoutEverReachingReadyForReview()
     {
-        var organizationId = Guid.NewGuid();
         var job = PartProcessingJob.CreateAdd(
-            organizationId, PartFileFormat.Stl, "model.stl", "orgs/x/job.stl", 1024,
+            PartFileFormat.Stl, "model.stl", "job.stl", 1024,
             requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", requestedByUserId: null);
         var storage = new SequencedPartFileStorage(() => throw new UnauthorizedAccessException("permission denied"));
         var processor = new FixedPartFileProcessor();
@@ -51,7 +45,7 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            service.Enqueue(new PartProcessingWorkItem(organizationId, job.Id));
+            service.Enqueue(new PartProcessingWorkItem(job.Id));
 
             await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(2));
 
@@ -67,9 +61,8 @@ public class PartProcessingBackgroundServiceTests
     [Fact]
     public async Task StorageReadThrowsDuringMilestone2_KeepsReviewReadyWithUnavailableEstimate()
     {
-        var organizationId = Guid.NewGuid();
         var job = PartProcessingJob.CreateAdd(
-            organizationId, PartFileFormat.Stl, "model.stl", "orgs/x/job.stl", 1024,
+            PartFileFormat.Stl, "model.stl", "job.stl", 1024,
             requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "Generic PLA", requestedByUserId: null);
         // First OpenReadAsync call (milestone 1) succeeds; second (milestone 2's estimate
         // continuation, since ImmediateEstimate is null below) throws a raw, unwrapped IOException —
@@ -91,7 +84,7 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            service.Enqueue(new PartProcessingWorkItem(organizationId, job.Id));
+            service.Enqueue(new PartProcessingWorkItem(job.Id));
 
             await WaitUntilAsync(() => job.PreviewEstimateStatus == EstimateStatus.Unavailable, TimeSpan.FromSeconds(2));
 
@@ -259,7 +252,7 @@ public class PartProcessingBackgroundServiceTests
             // as AddPartCommandHandler does inside the already-running process.
             var job = ProcessingJob();
             jobs.Add(job);
-            service.Enqueue(new PartProcessingWorkItem(OrgId, job.Id));
+            service.Enqueue(new PartProcessingWorkItem(job.Id));
 
             await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(2));
 
@@ -301,8 +294,8 @@ public class PartProcessingBackgroundServiceTests
 
             jobs.Add(poison);
             jobs.Add(healthy);
-            service.Enqueue(new PartProcessingWorkItem(OrgId, poison.Id));
-            service.Enqueue(new PartProcessingWorkItem(OrgId, healthy.Id));
+            service.Enqueue(new PartProcessingWorkItem(poison.Id));
+            service.Enqueue(new PartProcessingWorkItem(healthy.Id));
 
             // A single worker (maxConcurrency: 1) processes both items sequentially, so this test needs
             // more headroom than the other single-item waits in this file, especially under CI
@@ -340,7 +333,7 @@ public class PartProcessingBackgroundServiceTests
 
             var job = ProcessingJob();
             jobs.Add(job);
-            service.Enqueue(new PartProcessingWorkItem(OrgId, job.Id));
+            service.Enqueue(new PartProcessingWorkItem(job.Id));
 
             await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(2));
 
@@ -375,7 +368,7 @@ public class PartProcessingBackgroundServiceTests
             await WaitForReconciliationToSettleAsync();
             var job = ProcessingJob();
             jobs.Add(job);
-            service.Enqueue(new PartProcessingWorkItem(OrgId, job.Id));
+            service.Enqueue(new PartProcessingWorkItem(job.Id));
             await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(2));
             part.Reprocess(0.4m, null, null, EstimateStatus.Resolving, null, null, 1,
                 [new FilamentRequirementSpec("PLA", null, null, null, null)], []);
@@ -385,7 +378,7 @@ public class PartProcessingBackgroundServiceTests
             else processor.Completion.SetResult(new PartEstimateResolution(99, 9m, []));
             var marker = ProcessingJob();
             jobs.Add(marker);
-            service.Enqueue(new PartProcessingWorkItem(OrgId, marker.Id));
+            service.Enqueue(new PartProcessingWorkItem(marker.Id));
             await WaitUntilAsync(() => marker.PreviewEstimateStatus != EstimateStatus.Resolving
                 && marker.Status == PartProcessingJobStatus.ReadyForReview, TimeSpan.FromSeconds(2));
             if (newerProcessing)
@@ -413,18 +406,18 @@ public class PartProcessingBackgroundServiceTests
     }
 
     private static PartProcessingJob ProcessingJob() =>
-        PartProcessingJob.CreateAdd(OrgId, PartFileFormat.ThreeMf, "widget.3mf", storagePath: "path", fileSizeBytes: 10,
+        PartProcessingJob.CreateAdd(PartFileFormat.ThreeMf, "widget.3mf", storagePath: "path", fileSizeBytes: 10,
             requiresSlicing: true, SlicerEngine.OrcaSlicer, slicerVersionUsed: "2.2.0", targetNozzleDiameterMm: 0.4m, targetMaterialType: null, requestedByUserId: null);
 
     private static Part ResolvingPart() =>
-        Part.Create(OrgId, "Resolving part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
+        Part.Create("Resolving part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
             fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null, EstimateStatus.Resolving,
             estimatedPrintTimeMinutes: null, estimatedFilamentWeightGrams: null, plateCount: 1,
             unitsPerPrint: 1, revisionHash: $"{Guid.NewGuid():N}",
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
 
     private static Part AvailablePart() =>
-        Part.Create(OrgId, "Available part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
+        Part.Create("Available part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
             fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null, EstimateStatus.Available,
             estimatedPrintTimeMinutes: 42, estimatedFilamentWeightGrams: 12.5m, plateCount: 1,
             unitsPerPrint: 1, revisionHash: $"{Guid.NewGuid():N}",
@@ -474,7 +467,6 @@ public class PartProcessingBackgroundServiceTests
         services.AddSingleton(publisher);
         services.AddSingleton<IActivityLogWriter>(writer);
 
-        AddTenantContext(services, job.OrganizationId);
         return services.BuildServiceProvider();
     }
 
@@ -496,23 +488,11 @@ public class PartProcessingBackgroundServiceTests
         services.AddSingleton(publisher);
         services.AddSingleton(activityLog);
 
-        AddTenantContext(services, OrgId);
-
         var provider = services.BuildServiceProvider();
         return new PartProcessingBackgroundService(
             provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<PartProcessingBackgroundService>.Instance,
             maxConcurrency);
-    }
-
-    // CreateTenantScope resolves these per scope (Finbuckle's HTTP-middleware resolution never runs
-    // for a scope the background service creates itself) — mirrors PrinterConnectionBackgroundServiceTests.
-    private static void AddTenantContext(ServiceCollection services, Guid organizationId)
-    {
-        var tenantInfo = new AppTenantInfo { Id = organizationId.ToString(), Identifier = OrganizationTenantStore.StaticIdentifier };
-        services.AddSingleton<IMultiTenantStore<AppTenantInfo>>(new StubTenantStore(tenantInfo));
-        services.AddSingleton<AsyncLocalMultiTenantContextAccessor<AppTenantInfo>>();
-        services.AddSingleton<IMultiTenantContextSetter>(sp => sp.GetRequiredService<AsyncLocalMultiTenantContextAccessor<AppTenantInfo>>());
     }
 
     // -- Test doubles --------------------------------------------------------------------------
@@ -592,7 +572,7 @@ public class PartProcessingBackgroundServiceTests
     {
         private int _callCount = -1;
 
-        public Task<string> SaveAsync(Guid organizationId, string contentHash, string originalFileName, Stream content, CancellationToken cancellationToken) =>
+        public Task<string> SaveAsync(string contentHash, string originalFileName, Stream content, CancellationToken cancellationToken) =>
             Task.FromResult("irrelevant");
 
         public Task<Stream> OpenReadAsync(string storagePath, CancellationToken cancellationToken)
@@ -606,7 +586,7 @@ public class PartProcessingBackgroundServiceTests
 
     private sealed class StubPartFileStorage : IPartFileStorage
     {
-        public Task<string> SaveAsync(Guid organizationId, string contentHash, string originalFileName, Stream content, CancellationToken cancellationToken) =>
+        public Task<string> SaveAsync(string contentHash, string originalFileName, Stream content, CancellationToken cancellationToken) =>
             Task.FromResult("path");
 
         public Task<Stream> OpenReadAsync(string storagePath, CancellationToken cancellationToken) =>
@@ -654,7 +634,7 @@ public class PartProcessingBackgroundServiceTests
 
         public List<Guid> EstimateUnavailable { get; } = [];
 
-        public Task PartProcessingJobStatusChangedAsync(Guid organizationId, PartProcessingJob job, CancellationToken cancellationToken)
+        public Task PartProcessingJobStatusChangedAsync(PartProcessingJob job, CancellationToken cancellationToken)
         {
             StatusChanges.Add(job);
             StatusSnapshots.Add(job.Status);
@@ -662,22 +642,22 @@ public class PartProcessingBackgroundServiceTests
             return Task.CompletedTask;
         }
 
-        public Task PartUpsertedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PartUpsertedAsync(Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public List<Guid> EstimateResolved { get; } = [];
-        public Task PartEstimateResolvedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken)
+        public Task PartEstimateResolvedAsync(Guid partId, CancellationToken cancellationToken)
         {
             EstimateResolved.Add(partId);
             return Task.CompletedTask;
         }
 
-        public Task PartEstimateUnavailableAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken)
+        public Task PartEstimateUnavailableAsync(Guid partId, CancellationToken cancellationToken)
         {
             EstimateUnavailable.Add(partId);
             return Task.CompletedTask;
         }
 
-        public Task PartDeletedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PartDeletedAsync(Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class RecordingActivityLogWriter : IActivityLogWriter
@@ -689,22 +669,5 @@ public class PartProcessingBackgroundServiceTests
             Entries.Add(entry);
             return Task.CompletedTask;
         }
-    }
-
-    private sealed class StubTenantStore(AppTenantInfo tenantInfo) : IMultiTenantStore<AppTenantInfo>
-    {
-        public Task<AppTenantInfo?> GetAsync(string id) => Task.FromResult<AppTenantInfo?>(tenantInfo);
-
-        public Task<AppTenantInfo?> GetByIdentifierAsync(string identifier) => Task.FromResult<AppTenantInfo?>(tenantInfo);
-
-        public Task<IEnumerable<AppTenantInfo>> GetAllAsync() => Task.FromResult<IEnumerable<AppTenantInfo>>([tenantInfo]);
-
-        public Task<IEnumerable<AppTenantInfo>> GetAllAsync(int take, int skip) => Task.FromResult<IEnumerable<AppTenantInfo>>([tenantInfo]);
-
-        public Task<bool> AddAsync(AppTenantInfo tenantInfoToAdd) => Task.FromResult(true);
-
-        public Task<bool> UpdateAsync(AppTenantInfo tenantInfoToUpdate) => Task.FromResult(true);
-
-        public Task<bool> RemoveAsync(string identifier) => Task.FromResult(true);
     }
 }

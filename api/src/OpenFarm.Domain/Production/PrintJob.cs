@@ -9,26 +9,21 @@ namespace OpenFarm.Domain.Production;
 /// reported state; for a manual-brand printer it's the matching Application command handler,
 /// trusting the operator's own report directly.
 /// </summary>
-public sealed class PrintJob
+public sealed class PrintJob : Print
 {
-    private readonly List<JobFilamentConsumption> _filamentConsumption = [];
-
     private PrintJob(
-        Guid id, Guid organizationId, Guid partRequirementId, double queuePosition, int plateQuantity,
+        Guid id, string name, Guid partRequirementId, double queuePosition, int plateQuantity,
         AssignmentMode assignmentMode, Guid? pinnedPrinterId, string fileRevisionHash, int fileRevisionNumber,
         DateTimeOffset createdAtUtc)
+        : base(id, name, PrintSource.Dispatched, PrintJobStatus.Queued, createdAtUtc)
     {
-        Id = id;
-        OrganizationId = organizationId;
         PartRequirementId = partRequirementId;
         QueuePosition = queuePosition;
         PlateQuantity = plateQuantity;
         AssignmentMode = assignmentMode;
         PinnedPrinterId = pinnedPrinterId;
-        Status = PrintJobStatus.Queued;
         FileRevisionHash = fileRevisionHash;
         FileRevisionNumber = fileRevisionNumber;
-        CreatedAtUtc = createdAtUtc;
     }
 
     public string? ProductionSnapshotJson { get; private set; }
@@ -91,10 +86,6 @@ public sealed class PrintJob
         if (SnapshotUnavailableAtUtc is null) SnapshotRecoveryReason = reason;
     }
 
-    public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
-
     public Guid PartRequirementId { get; }
 
     /// <summary>Fractional index (research.md R3) — a reorder touches only the moved job's own row.</summary>
@@ -108,11 +99,6 @@ public sealed class PrintJob
     /// <summary>Set iff <see cref="AssignmentMode"/> == <see cref="Production.AssignmentMode.Pinned"/> (FR-007c).</summary>
     public Guid? PinnedPrinterId { get; private set; }
 
-    /// <summary>Set by the dispatcher once actually sent (either assignment mode).</summary>
-    public Guid? DispatchedPrinterId { get; private set; }
-
-    public PrintJobStatus Status { get; private set; }
-
     /// <summary>FR-009c — copied from Part at queue (Snapshot) or dispatch (Follow-latest) time.</summary>
     public string FileRevisionHash { get; private set; }
 
@@ -120,24 +106,13 @@ public sealed class PrintJob
 
     public DateTimeOffset? DispatchedAtUtc { get; private set; }
 
-    public DateTimeOffset? StartedAtUtc { get; private set; }
-
-    public DateTimeOffset? EndedAtUtc { get; private set; }
-
-    /// <summary>FR-015, derived from Started/EndedAtUtc on close.</summary>
-    public int? ActualDurationMinutes { get; private set; }
-
     /// <summary>FR-024a/c — set when a stop is requested through OpenFarm; distinguishes Cancelled from Failed.</summary>
     public DateTimeOffset? CancelRequestedAtUtc { get; private set; }
 
     /// <summary>FR-025a — set once a replacement job has been created for this one.</summary>
     public Guid? RequeuedAsJobId { get; private set; }
 
-    public IReadOnlyList<JobFilamentConsumption> FilamentConsumption => _filamentConsumption;
-
     public bool HasFilamentRequirementOverride { get; private set; }
-
-    public DateTimeOffset CreatedAtUtc { get; }
 
     /// <summary>
     /// A standalone aggregate root, not a <see cref="ProductionRun"/>/<see cref="PartRequirement"/>
@@ -146,7 +121,7 @@ public sealed class PrintJob
     /// concern, not something a synchronous Domain factory on some other aggregate could reach into).
     /// </summary>
     public static PrintJob Create(
-        Guid organizationId, Guid partRequirementId, double queuePosition, int plateQuantity,
+        string name, Guid partRequirementId, double queuePosition, int plateQuantity,
         AssignmentMode assignmentMode, Guid? pinnedPrinterId, string fileRevisionHash, int fileRevisionNumber,
         IReadOnlyList<JobFilamentRequirementSpec> filamentRequirements)
     {
@@ -158,13 +133,12 @@ public sealed class PrintJob
         var effectivePinnedPrinterId = assignmentMode == AssignmentMode.Pinned ? pinnedPrinterId : null;
 
         var job = new PrintJob(
-            Guid.NewGuid(), organizationId, partRequirementId, queuePosition, plateQuantity, assignmentMode,
+            Guid.NewGuid(), name, partRequirementId, queuePosition, plateQuantity, assignmentMode,
             effectivePinnedPrinterId, fileRevisionHash, fileRevisionNumber, DateTimeOffset.UtcNow);
 
-        foreach (var requirement in filamentRequirements)
+        for (var i = 0; i < filamentRequirements.Count; i++)
         {
-            job._filamentConsumption.Add(
-                JobFilamentConsumption.Create(organizationId, job.Id, requirement));
+            job.AddFilament(PrintFilament.Create(job.Id, i, filamentRequirements[i]));
         }
 
         return job;
@@ -202,7 +176,7 @@ public sealed class PrintJob
     public void Dispatch(Guid printerId)
     {
         EnsureNotYetDispatched();
-        DispatchedPrinterId = printerId;
+        PrinterId = printerId;
         DispatchedAtUtc = DateTimeOffset.UtcNow;
     }
 
@@ -210,7 +184,7 @@ public sealed class PrintJob
     public void Dispatch(Guid printerId, string fileRevisionHash, int fileRevisionNumber)
     {
         EnsureNotYetDispatched();
-        DispatchedPrinterId = printerId;
+        PrinterId = printerId;
         DispatchedAtUtc = DateTimeOffset.UtcNow;
         FileRevisionHash = fileRevisionHash;
         FileRevisionNumber = fileRevisionNumber;
@@ -224,50 +198,12 @@ public sealed class PrintJob
     /// </summary>
     public void RevertDispatch()
     {
-        DispatchedPrinterId = null;
+        PrinterId = null;
         DispatchedAtUtc = null;
     }
 
     /// <summary>FR-024a — sets only CancelRequestedAtUtc; never a status transition itself. Idempotent.</summary>
     public void RequestCancel() => CancelRequestedAtUtc ??= DateTimeOffset.UtcNow;
-
-    public void MarkStarted()
-    {
-        PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Printing);
-        Status = PrintJobStatus.Printing;
-        StartedAtUtc ??= DateTimeOffset.UtcNow;
-    }
-
-    public void MarkPaused()
-    {
-        PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Paused);
-        Status = PrintJobStatus.Paused;
-    }
-
-    public void MarkResumed()
-    {
-        PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Printing);
-        Status = PrintJobStatus.Printing;
-    }
-
-    public void MarkFailed(string? reason)
-    {
-        PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Failed);
-        Close(PrintJobStatus.Failed);
-    }
-
-    public void MarkCompleted()
-    {
-        PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Completed);
-        Close(PrintJobStatus.Completed);
-    }
-
-    /// <summary>See FR-024c for how this is chosen over MarkFailed.</summary>
-    public void MarkCancelled()
-    {
-        PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Cancelled);
-        Close(PrintJobStatus.Cancelled);
-    }
 
     /// <summary>FR-025a — one-time set, throws if already set.</summary>
     public void MarkRequeuedAs(Guid replacementJobId)
@@ -280,49 +216,21 @@ public sealed class PrintJob
         RequeuedAsJobId = replacementJobId;
     }
 
-    /// <summary>
-    /// Freezes, at dispatch, which spool each line will draw from, the slicer's full-job grams for it and how they spread over the layers
-    /// (aligned with <see cref="FilamentConsumption"/> order). Consumption is derived from these on the terminal transition.
-    /// </summary>
-    public void BindFilamentUsage(IReadOnlyList<(Guid? SpoolId, decimal? EstimatedGrams, FilamentUsageCurve? Curve)> usage)
-    {
-        if (usage.Count != _filamentConsumption.Count) throw new FilamentConsumptionSumMismatchException(null, null);
-        for (var i = 0; i < usage.Count; i++) _filamentConsumption[i].BindUsage(usage[i].SpoolId, usage[i].EstimatedGrams, usage[i].Curve);
-    }
-
-    /// <summary>FR-013/FR-013a, callable on any terminal transition.</summary>
-    public void RecordFilamentConsumption(Guid consumptionLineId, Guid? spoolId, decimal gramsConsumed)
-    {
-        var line = _filamentConsumption.FirstOrDefault(l => l.Id == consumptionLineId)
-            ?? throw new FilamentConsumptionSumMismatchException(null, null);
-        line.Record(spoolId, gramsConsumed);
-    }
-
     public void SetFilamentRequirements(IReadOnlyList<JobFilamentRequirementSpec> requirements, bool isOverride = true)
     {
         EnsureQueued();
         if (requirements.Count == 0) throw new FilamentConsumptionSumMismatchException(null, null);
         HasFilamentRequirementOverride = isOverride;
-        _filamentConsumption.Clear();
-        foreach (var requirement in requirements)
-            _filamentConsumption.Add(JobFilamentConsumption.Create(OrganizationId, Id, requirement));
+        ClearFilaments();
+        for (var i = 0; i < requirements.Count; i++)
+            AddFilament(PrintFilament.Create(Id, i, requirements[i]));
     }
 
-    public JobFilamentConsumption AddConsumptionLine(string? materialType, string? colorHex)
+    public PrintFilament AddConsumptionLine(string? materialType, string? colorHex)
     {
-        var line = JobFilamentConsumption.Create(OrganizationId, Id, materialType, colorHex);
-        _filamentConsumption.Add(line);
+        var line = PrintFilament.Create(Id, Filaments.Count, materialType, colorHex);
+        AddFilament(line);
         return line;
-    }
-
-    private void Close(PrintJobStatus terminalStatus)
-    {
-        Status = terminalStatus;
-        EndedAtUtc = DateTimeOffset.UtcNow;
-        if (StartedAtUtc is not null)
-        {
-            ActualDurationMinutes = (int)Math.Round((EndedAtUtc.Value - StartedAtUtc.Value).TotalMinutes);
-        }
     }
 
     private void EnsureQueued()

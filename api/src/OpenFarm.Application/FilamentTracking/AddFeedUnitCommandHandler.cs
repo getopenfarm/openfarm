@@ -16,7 +16,7 @@ public sealed class AddFeedUnitCommandHandler(
 {
     public async Task<FeedUnit> HandleAsync(AddFeedUnitCommand command, CancellationToken cancellationToken)
     {
-        var printer = await printerRepository.GetByIdAsync(command.PrinterId, cancellationToken)
+        _ = await printerRepository.GetByIdAsync(command.PrinterId, cancellationToken)
             ?? throw new PrinterNotFoundException(command.PrinterId);
 
         var result = await feedUnitRepository.ExecuteAtomicallyAsync(async () =>
@@ -24,20 +24,19 @@ public sealed class AddFeedUnitCommandHandler(
             var existingUnits = await feedUnitRepository.GetByPrinterIdAsync(command.PrinterId, cancellationToken);
 
             var created = command.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader
-                ? await AddAutomaticFilamentReloaderAsync(command, printer.OrganizationId, existingUnits, cancellationToken)
+                ? await AddAutomaticFilamentReloaderAsync(command, existingUnits, cancellationToken)
                 : await RevealExternalSpoolAsync(command.PrinterId, existingUnits, cancellationToken);
 
             return created;
         }, cancellationToken, command.PrinterId);
 
-        await eventPublisher.FeedUnitsChangedAsync(printer.OrganizationId, command.PrinterId, cancellationToken);
+        await eventPublisher.FeedUnitsChangedAsync(command.PrinterId, cancellationToken);
 
         return result;
     }
 
     private async Task<FeedUnit> AddAutomaticFilamentReloaderAsync(
         AddFeedUnitCommand command,
-        Guid organizationId,
         IReadOnlyList<FeedUnit> existingUnits,
         CancellationToken cancellationToken)
     {
@@ -60,7 +59,7 @@ public sealed class AddFeedUnitCommandHandler(
             .DefaultIfEmpty(-1)
             .Max() + 1;
 
-        var unit = FeedUnit.CreateAutomaticFilamentReloader(organizationId, command.PrinterId, nextUnitIndex, command.Name!, replacesFeedUnitId);
+        var unit = FeedUnit.CreateAutomaticFilamentReloader(command.PrinterId, nextUnitIndex, command.Name!, replacesFeedUnitId);
         for (var position = 0; position < command.SlotCount!.Value; position++)
         {
             unit.AddFeedSlot(position);

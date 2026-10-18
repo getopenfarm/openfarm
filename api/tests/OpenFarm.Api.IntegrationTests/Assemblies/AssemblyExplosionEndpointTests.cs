@@ -10,7 +10,6 @@ using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Assemblies;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Api.IntegrationTests.Assemblies;
@@ -33,12 +32,11 @@ public class AssemblyExplosionEndpointTests(CustomWebApplicationFactory factory)
 
     private async Task<Guid> SeedPartAsync(string name)
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var partRepository = scope.ServiceProvider.GetRequiredService<IPartRepository>();
 
         var part = Part.Create(
-            Organization.WellKnownId, name, PartFileFormat.Stl, true, "part.stl", $"/tmp/{Guid.NewGuid():N}.stl", 1024, 0.4m,
+            name, PartFileFormat.Stl, true, "part.stl", $"/tmp/{Guid.NewGuid():N}.stl", 1024, 0.4m,
             null, null, EstimateStatus.Available, 60, 20, 1, 1, $"{Guid.NewGuid():N}", [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
 
         await partRepository.AddAsync(part, CancellationToken.None);
@@ -47,11 +45,10 @@ public class AssemblyExplosionEndpointTests(CustomWebApplicationFactory factory)
 
     private async Task<Guid> SeedNonPrintedComponentAsync(string name)
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<INonPrintedComponentRepository>();
 
-        var component = NonPrintedComponent.Create(Organization.WellKnownId, name, 0.02m);
+        var component = NonPrintedComponent.Create(name, 0.02m);
         await repository.AddAsync(component, CancellationToken.None);
         return component.Id;
     }
@@ -173,8 +170,7 @@ public class AssemblyExplosionEndpointTests(CustomWebApplicationFactory factory)
     {
         // SC-007: 500 total BOM lines spread across the full 10 levels of nesting, under 1 second.
         // 50 lines per level x 10 levels: each level's assembly has 49 Part lines + 1 line to the next level.
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var partRepository = scope.ServiceProvider.GetRequiredService<IPartRepository>();
         var assemblyRepository = scope.ServiceProvider.GetRequiredService<IAssemblyRepository>();
 
@@ -182,7 +178,7 @@ public class AssemblyExplosionEndpointTests(CustomWebApplicationFactory factory)
         for (var i = 0; i < 49; i++)
         {
             var part = Part.Create(
-                Organization.WellKnownId, $"Perf Part {i} {Guid.NewGuid():N}", PartFileFormat.Stl, true, "p.stl", $"/tmp/{Guid.NewGuid():N}.stl",
+                $"Perf Part {i} {Guid.NewGuid():N}", PartFileFormat.Stl, true, "p.stl", $"/tmp/{Guid.NewGuid():N}.stl",
                 1024, 0.4m, null, null, EstimateStatus.Available, 60, 20, 1, 1, $"{Guid.NewGuid():N}", [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
             await partRepository.AddAsync(part, CancellationToken.None);
             parts.Add(part.Id);
@@ -197,7 +193,7 @@ public class AssemblyExplosionEndpointTests(CustomWebApplicationFactory factory)
                 lines.Add(new BomLineSpec(BomLineTargetKind.Assembly, null, previousLevel.Id, null, 1));
             }
 
-            var assembly = Assembly.Create(Organization.WellKnownId, $"Perf Level {level} {Guid.NewGuid():N}", null, lines);
+            var assembly = Assembly.Create($"Perf Level {level} {Guid.NewGuid():N}", null, lines);
             await assemblyRepository.AddAsync(assembly, CancellationToken.None);
             previousLevel = assembly;
         }

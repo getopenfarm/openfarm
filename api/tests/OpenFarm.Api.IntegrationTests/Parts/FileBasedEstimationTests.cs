@@ -16,7 +16,6 @@ using OpenFarm.Application.Printers;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Domain.Printers;
-using OpenFarm.Domain.Organizations;
 using static OpenFarm.Api.IntegrationTests.FilamentTracking.FilamentTrackingTestHelpers;
 
 namespace OpenFarm.Api.IntegrationTests.Parts;
@@ -70,10 +69,9 @@ public sealed class FileBasedEstimationTests(EstimationTestFactory factory) : IC
         (await client.PutAsJsonAsync("/api/v1/settings/slicing-defaults", new { engine = "OrcaSlicer", version = "2.2.0" })).EnsureSuccessStatusCode();
         var defaults = await client.GetFromJsonAsync<SlicingDefaultsResponse>("/api/v1/settings/slicing-defaults");
         defaults!.EstimationProfiles!.MachineProfileId.Should().Be(profiles.MachineProfileId);
-        await factory.EnsureTenantInfoResolvedAsync();
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
-            var printer = Printer.Create(Organization.WellKnownId, "Different fleet machine", "Bambu", "P1S", "10.0.0.88", "OTHER-ESTIMATE");
+            var printer = Printer.Create("Different fleet machine", "Bambu", "P1S", "10.0.0.88", "OTHER-ESTIMATE");
             await scope.ServiceProvider.GetRequiredService<IPrinterRepository>().AddAsync(printer, CancellationToken.None);
         }
         var geometry = await UploadAsync(client, ThreeMf(null), "geometry.3mf");
@@ -170,14 +168,13 @@ public sealed class FileBasedEstimationTests(EstimationTestFactory factory) : IC
     private sealed record Selection(Guid MachineProfileId, Guid ProcessProfileId, Guid FilamentProfileId, string BuildPlateType);
     private async Task<Selection> SeedProfilesAsync()
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var name = $"Estimation machine {Guid.NewGuid():N}";
-        var machine = MachineProfile.CreateSystemProfile(Organization.WellKnownId, name, ProfileSourceFormat.OrcaSlicer, null,
+        var machine = MachineProfile.CreateSystemProfile(name, ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"machine","nozzle_diameter":["0.6"],"printer_model":"Bambu Lab P1S"}""", "Test", Guid.NewGuid().ToString(), true, "Bambu Lab P1S", null);
-        var process = ProcessProfile.CreateSystemProfile(Organization.WellKnownId, $"Estimate process {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+        var process = ProcessProfile.CreateSystemProfile($"Estimate process {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"process","layer_height":"0.3"}""", "Test", Guid.NewGuid().ToString(), true, [name]);
-        var filament = FilamentProfile.CreateSystemProfile(Organization.WellKnownId, $"Estimate PETG {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+        var filament = FilamentProfile.CreateSystemProfile($"Estimate PETG {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"filament","filament_type":["PETG"],"textured_plate_temp":["70"]}""", "Test", Guid.NewGuid().ToString(), true, [name], "PETG", null);
         await scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>().AddAsync(machine, CancellationToken.None);
         await scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>().AddAsync(process, CancellationToken.None);

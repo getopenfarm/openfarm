@@ -52,7 +52,7 @@ public class ProductionSnapshotTests
     public async Task UnresolvedLegacyJob_CannotBeRequeuedFromLatestPart()
     {
         var part = ProductionTestFixtures.CreatePart();
-        var requirement = PartRequirement.Create(part.OrganizationId, Guid.NewGuid(), part.Id, 5);
+        var requirement = PartRequirement.Create(Guid.NewGuid(), part.Id, 5);
         var job = ProductionTestFixtures.CreateQueuedJob(requirement.Id);
         job.MarkCancelled();
         var handler = new RequeuePrintJobCommandHandler(new InMemoryPrintJobRepository(job),
@@ -65,8 +65,8 @@ public class ProductionSnapshotTests
     public void UnlimitedInputs_FollowLibraryUntilDispatchedThenUseSnapshot()
     {
         var part = ProductionTestFixtures.CreatePart();
-        var requirement = PartRequirement.Create(part.OrganizationId, Guid.NewGuid(), part.Id, null);
-        var job = PrintJob.Create(part.OrganizationId, requirement.Id, 1024, 1, AssignmentMode.Unassigned,
+        var requirement = PartRequirement.Create(Guid.NewGuid(), part.Id, null);
+        var job = PrintJob.Create("Test part", requirement.Id, 1024, 1, AssignmentMode.Unassigned,
             null, part.RevisionHash, part.RevisionNumber, ProductionJobRequirements.FromPart(part));
         job.CaptureProductionSnapshot(part);
         part.SetUnitsPerPrint(7);
@@ -80,7 +80,7 @@ public class ProductionSnapshotTests
     [InlineData(null, RevisionMode.Snapshot)]
     public void Quantity_RejectsConflictingRevisionModes(int? quantity, RevisionMode mode)
     {
-        var act = () => ProductionRun.Create(Guid.NewGuid(), null, null, null, null,
+        var act = () => ProductionRun.Create(null, null, null, null,
             [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), quantity, mode, AssignmentMode.Unassigned, null, 1, null)]);
         act.Should().Throw<InvalidRevisionModeException>();
     }
@@ -89,10 +89,10 @@ public class ProductionSnapshotTests
     [InlineData(PartFileFormat.ThreeMf)]
     public void UnslicedSnapshot_RetainsResolvedSlicerAndSourceMetadata(PartFileFormat format)
     {
-        var part = Part.Create(Guid.NewGuid(), "Unsliced", format, true, "source.3mf", "retained-source",
+        var part = Part.Create("Unsliced", format, true, "source.3mf", "retained-source",
             100, 0.4m, null, null, EstimateStatus.Unavailable, null, null, 1, 2, new string('a', 64),
             [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
-        var job = PrintJob.Create(part.OrganizationId, Guid.NewGuid(), 1024, 2, AssignmentMode.Unassigned,
+        var job = PrintJob.Create("Test part", Guid.NewGuid(), 1024, 2, AssignmentMode.Unassigned,
             null, part.RevisionHash, part.RevisionNumber, ProductionJobRequirements.FromPart(part));
         job.CaptureProductionSnapshot(part, new SlicerRef(SlicerEngine.OrcaSlicer, "2.2.0"));
         part.ReplaceFile(PartFileFormat.GCode, false, "replacement.gcode", "replacement-path", 20,
@@ -113,7 +113,7 @@ public class ProductionSnapshotTests
     public void RemovingLegacySource_IsPermanentAndCannotBeReplacedByAValidSnapshot()
     {
         var part = ProductionTestFixtures.CreatePart();
-        var job = PrintJob.Create(part.OrganizationId, Guid.NewGuid(), 1024, part.UnitsPerPrint,
+        var job = PrintJob.Create("Test part", Guid.NewGuid(), 1024, part.UnitsPerPrint,
             AssignmentMode.Unassigned, null, part.RevisionHash, part.RevisionNumber, ProductionJobRequirements.FromPart(part));
         job.MarkCancelled();
         var removedAt = DateTimeOffset.UtcNow;
@@ -133,7 +133,7 @@ public class ProductionSnapshotTests
     public void SourceRemoval_DoesNotDisableVerifiedSnapshotsAndRejectsUnfinishedLegacyJobs()
     {
         var part = ProductionTestFixtures.CreatePart();
-        var legacy = PrintJob.Create(part.OrganizationId, Guid.NewGuid(), 1024, part.UnitsPerPrint,
+        var legacy = PrintJob.Create("Test part", Guid.NewGuid(), 1024, part.UnitsPerPrint,
             AssignmentMode.Unassigned, null, part.RevisionHash, part.RevisionNumber, ProductionJobRequirements.FromPart(part));
         var remove = () => legacy.MarkSnapshotUnavailable(DateTimeOffset.UtcNow);
         remove.Should().Throw<InvalidOperationException>();

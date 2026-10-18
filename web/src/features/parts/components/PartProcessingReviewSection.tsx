@@ -1,7 +1,7 @@
 import { AlertTriangleIcon, LoaderIcon } from 'lucide-react';
 import type { PartProcessingJobPreviewResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatMm } from '@/lib/formatUnits';
-import { PartEstimate } from './PartEstimate';
+import { filamentGrams, PartEstimate } from './PartEstimate';
 import { PartEstimationSource } from './PartEstimationSource';
 import {
   type DisplayFilamentRequirement,
@@ -55,6 +55,7 @@ export function PartProcessingReviewSection({
     preview.filamentRequirements ?? []
   ).map((requirement) => ({
     key: requirement.requirementIndex ?? 0,
+    estimatedGrams: requirement.estimatedGrams,
     materialType: requirement.materialType,
     detectedColorHex: requirement.detectedColorHex,
     detectedSubBrand: requirement.detectedSubBrand,
@@ -90,7 +91,10 @@ export function PartProcessingReviewSection({
           <PartEstimate
             status={estimateStatus}
             minutes={preview.estimatedPrintTimeMinutes}
-            grams={preview.estimatedFilamentWeightGrams}
+            grams={filamentGrams(
+              requirements,
+              preview.estimatedFilamentWeightGrams,
+            )}
           />
         </div>
       </div>

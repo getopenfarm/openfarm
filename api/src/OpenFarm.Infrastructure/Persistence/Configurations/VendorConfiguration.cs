@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.FilamentTracking;
@@ -13,18 +12,13 @@ public sealed class VendorConfiguration : IEntityTypeConfiguration<Vendor>
 
         builder.HasKey(v => v.Id);
 
-        builder.Property(v => v.OrganizationId)
-            .IsRequired();
-
         builder.Property(v => v.Name)
             .IsRequired();
 
         builder.Property(v => v.CreatedAtUtc)
             .IsRequired();
 
-        builder.HasIndex(v => new { v.OrganizationId, v.Name })
+        builder.HasIndex(v => v.Name)
             .IsUnique();
-
-        builder.IsMultiTenant();
     }
 }

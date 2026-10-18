@@ -1,7 +1,7 @@
 namespace OpenFarm.Domain.Parts;
 
 /// <summary>
-/// A validated selection identity — the org default, a per-part override, or a resolved slice
+/// A validated selection identity — the farm default, a per-part override, or a resolved slice
 /// target (data-model.md "SlicerRef"). <see cref="Version"/> is the exact upstream string, stored
 /// and shown verbatim (FR-005). This type alone carries no availability guarantee — only
 /// <c>ResolveSlicerSelection</c> checks a <see cref="SlicerRef"/> against the catalog.

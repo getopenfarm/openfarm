@@ -5,7 +5,6 @@ using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Application.Auth;
 using System.Text.Json;
 using FluentAssertions;
-using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.IntegrationTests.Production;
@@ -13,11 +12,9 @@ using OpenFarm.Application.Common;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Assemblies;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 using OpenFarm.Domain.Profiles;
-using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Persistence;
 using Assembly = OpenFarm.Domain.Assemblies.Assembly;
 
@@ -38,12 +35,11 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
             Tokens.Add(Factory, result);
         }
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", result.Token);
-        await Factory.EnsureTenantInfoResolvedAsync();
         return client;
     }
 
     private static Part Part(string name, IReadOnlyList<Tag>? tags = null) => OpenFarm.Domain.Parts.Part.Create(
-        Organization.WellKnownId, name, PartFileFormat.GCode, false, "part.gcode", "unused.gcode", 10,
+        name, PartFileFormat.GCode, false, "part.gcode", "unused.gcode", 10,
         0.4m, null, null, EstimateStatus.Available, 60, 20, 1, 1, Guid.NewGuid().ToString("N"),
         [new FilamentRequirementSpec("PLA", null, null, null, null)], [], tags ?? []);
 
@@ -94,17 +90,17 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
         var partIds = new List<Guid>();
         var assemblyIds = new List<Guid>();
         var componentIds = new List<Guid>();
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            var tag = Tag.Create(Organization.WellKnownId, tagName);
+            var tag = Tag.Create(tagName);
             db.Tags.Add(tag);
             var timestamp = DateTimeOffset.UtcNow;
             foreach (var name in new[] { "Zulu", "alpha", "ALPHA", "Bravo" })
             {
                 var part = Part(name, [tag]);
-                var component = NonPrintedComponent.Create(Organization.WellKnownId, name, 1);
-                var assembly = Assembly.Create(Organization.WellKnownId, name, null,
+                var component = NonPrintedComponent.Create(name, 1);
+                var assembly = Assembly.Create(name, null,
                     [new(BomLineTargetKind.NonPrintedComponent, null, null, component.Id, 1)]);
                 db.AddRange(part, component, assembly);
                 // Identical timestamps ensure the default ordering also needs its ID tie-breaker.
@@ -136,25 +132,25 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
     {
         using var client = await ClientAsync();
         var expected = new Dictionary<Guid, string>();
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var part = Part("Legacy bracket");
-            var component = NonPrintedComponent.Create(Organization.WellKnownId, "Insert", null);
-            var assembly = Assembly.Create(Organization.WellKnownId, "Legacy assembly", null,
+            var component = NonPrintedComponent.Create("Insert", null);
+            var assembly = Assembly.Create("Legacy assembly", null,
                 [new(BomLineTargetKind.NonPrintedComponent, null, null, component.Id, 1)]);
             db.AddRange(part, component, assembly);
-            var named = ProductionRun.Create(Organization.WellKnownId, "Zulu named", null, null, null, [Line(part.Id)]);
-            var finite = ProductionRun.Create(Organization.WellKnownId, null, null, null, null, [Line(part.Id, 20)]);
+            var named = ProductionRun.Create("Zulu named", null, null, null, [Line(part.Id)]);
+            var finite = ProductionRun.Create(null, null, null, null, [Line(part.Id, 20)]);
             finite.Lines[0].CaptureTargetName("alpha captured");
-            var unlimited = ProductionRun.Create(Organization.WellKnownId, null, null, null, null, [Line(part.Id, null)]);
-            var missing = ProductionRun.Create(Organization.WellKnownId, null, null, null, null, [Line(Guid.NewGuid(), 2)]);
-            var missingAssembly = ProductionRun.Create(Organization.WellKnownId, null, null, null, null, [Line(Guid.NewGuid(), null, RunLineTargetKind.Assembly)]);
-            var assemblyRun = ProductionRun.Create(Organization.WellKnownId, null, null, null, null, [Line(assembly.Id, 3, RunLineTargetKind.Assembly)]);
-            var multiple = ProductionRun.Create(Organization.WellKnownId, null, null, null, null, [Line(part.Id), Line(assembly.Id, null, RunLineTargetKind.Assembly)]);
+            var unlimited = ProductionRun.Create(null, null, null, null, [Line(part.Id, null)]);
+            var missing = ProductionRun.Create(null, null, null, null, [Line(Guid.NewGuid(), 2)]);
+            var missingAssembly = ProductionRun.Create(null, null, null, null, [Line(Guid.NewGuid(), null, RunLineTargetKind.Assembly)]);
+            var assemblyRun = ProductionRun.Create(null, null, null, null, [Line(assembly.Id, 3, RunLineTargetKind.Assembly)]);
+            var multiple = ProductionRun.Create(null, null, null, null, [Line(part.Id), Line(assembly.Id, null, RunLineTargetKind.Assembly)]);
             multiple.Lines[0].CaptureTargetName("First captured");
             multiple.Lines[1].CaptureTargetName("Second captured");
-            var empty = ProductionRun.Create(Organization.WellKnownId, null, null, null, null, [Line(part.Id)]);
+            var empty = ProductionRun.Create(null, null, null, null, [Line(part.Id)]);
             db.AddRange(named, finite, unlimited, missing, missingAssembly, assemblyRun, multiple, empty);
             await db.SaveChangesAsync();
             // Old persisted data can contain an empty run even though new domain creation rejects it.
@@ -179,13 +175,13 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
     {
         using var client = await ClientAsync();
         var prefix = $"Sort-{Guid.NewGuid():N}-";
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             foreach (var name in new[] { "Zulu", "alpha", "ALPHA", "Bravo" })
             {
-                db.MachineProfiles.Add(MachineProfile.Create(Organization.WellKnownId, prefix + name, ProfileSourceFormat.OrcaSlicer, null, "{}"));
-                db.FilamentProfiles.Add(FilamentProfile.Create(Organization.WellKnownId, prefix + name, ProfileSourceFormat.OrcaSlicer, null, "{}"));
+                db.MachineProfiles.Add(MachineProfile.Create(prefix + name, ProfileSourceFormat.OrcaSlicer, null, "{}"));
+                db.FilamentProfiles.Add(FilamentProfile.Create(prefix + name, ProfileSourceFormat.OrcaSlicer, null, "{}"));
             }
             await db.SaveChangesAsync();
         }
@@ -213,51 +209,18 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
     }
 
     [Fact]
-    public async Task RunProjection_DoesNotReadAnotherTenantsRunsOrLegacyTargetNames()
-    {
-        using var client = await ClientAsync();
-        Guid foreignPart;
-        using (var scope = Factory.CreateTenantScope())
-        {
-            var part = Part("Secret foreign name");
-            foreignPart = part.Id;
-            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            db.Parts.Add(part);
-            await db.SaveChangesAsync();
-        }
-        using (var scope = Factory.CreateTenantScope())
-        {
-            var tenant = Guid.NewGuid();
-            scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
-                new MultiTenantContext<AppTenantInfo>(new AppTenantInfo { Id = tenant.ToString(), Identifier = tenant.ToString(), Name = "Other" });
-            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            var run = ProductionRun.Create(tenant, null, null, null, null, [Line(foreignPart)]);
-            var boundary = ProductionRun.Create(tenant, "T boundary", null, null, null, [Line(Guid.NewGuid())]);
-            db.AddRange(run, boundary);
-            await db.SaveChangesAsync();
-            var page = await scope.ServiceProvider.GetRequiredService<IProductionRunRepository>()
-                .ListAsync(1, 25, default, new ListSort("displayLabel", false));
-            page.TotalCount.Should().Be(2);
-            // A leaked foreign name would sort before T, whereas Unknown must sort after it.
-            page.Runs.Select(r => r.Id).Should().Equal(boundary.Id, run.Id);
-            var label = await scope.ServiceProvider.GetRequiredService<ProductionRunDisplayLabelResolver>().ResolveAsync(page.Runs[1], default);
-            label.Should().Be("Unknown part ×1");
-        }
-    }
-
-    [Fact]
     public async Task ActivityLog_UsesStableTimestampOrderingAcrossPages()
     {
         using var client = await ClientAsync();
         var entity = $"Sort-{Guid.NewGuid():N}";
         var ids = new List<Guid>();
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var timestamp = DateTimeOffset.UtcNow;
             for (var i = 0; i < 4; i++)
             {
-                var entry = ActivityLogEntry.Create(Organization.WellKnownId, entity, i.ToString(System.Globalization.CultureInfo.InvariantCulture), "Created", null, ActorType.System);
+                var entry = ActivityLogEntry.Create(entity, i.ToString(System.Globalization.CultureInfo.InvariantCulture), "Created", null, ActorType.System);
                 db.ActivityLogEntries.Add(entry);
                 db.Entry(entry).Property(e => e.TimestampUtc).CurrentValue = timestamp;
                 ids.Add(entry.Id);

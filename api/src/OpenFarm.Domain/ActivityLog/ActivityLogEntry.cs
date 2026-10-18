@@ -4,7 +4,6 @@ public sealed class ActivityLogEntry
 {
     private ActivityLogEntry(
         Guid id,
-        Guid organizationId,
         string entityType,
         string entityId,
         string eventType,
@@ -13,7 +12,6 @@ public sealed class ActivityLogEntry
         DateTimeOffset timestampUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         EntityType = entityType;
         EntityId = entityId;
         EventType = eventType;
@@ -25,8 +23,6 @@ public sealed class ActivityLogEntry
     public ActivityLogDetails? Details { get; private set; }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public string EntityType { get; }
 
@@ -41,7 +37,6 @@ public sealed class ActivityLogEntry
     public DateTimeOffset TimestampUtc { get; }
 
     public static ActivityLogEntry Create(
-        Guid organizationId,
         string entityType,
         string entityId,
         string eventType,
@@ -71,7 +66,6 @@ public sealed class ActivityLogEntry
 
         return new ActivityLogEntry(
             Guid.NewGuid(),
-            organizationId,
             entityType,
             entityId,
             eventType,

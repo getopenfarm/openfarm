@@ -1,8 +1,10 @@
 # Web UI conventions
 
 OpenFarm uses shadcn Radix Nova, Tailwind v4, Lucide icons, and semantic CSS
-variables. Keep the existing branding and compact operational dashboard when
-making UI changes.
+variables. The look follows the akaun app: neutral zinc surfaces (grey
+hover and selected tints), blue primary, Geist for body and headings. Change colors only through the tokens in
+`web/src/index.css`, and keep the compact operational dashboard when making UI
+changes.
 
 ## Create and edit flows
 

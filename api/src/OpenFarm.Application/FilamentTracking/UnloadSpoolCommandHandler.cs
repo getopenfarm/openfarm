@@ -31,7 +31,7 @@ public sealed class UnloadSpoolCommandHandler(ISpoolRepository spoolRepository, 
         await spoolRepository.SaveChangesAsync(cancellationToken);
 
         if (unit is not null)
-            await events.FeedUnitsChangedAsync(unit.OrganizationId, unit.PrinterId, cancellationToken);
+            await events.FeedUnitsChangedAsync(unit.PrinterId, cancellationToken);
         return spool;
     }
 }

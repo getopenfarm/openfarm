@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.FilamentTracking;
@@ -13,9 +12,6 @@ public sealed class FeedSlotConfiguration : IEntityTypeConfiguration<FeedSlot>
 
         builder.HasKey(s => s.Id);
 
-        builder.Property(s => s.OrganizationId)
-            .IsRequired();
-
         builder.Property(s => s.SlotPosition)
             .IsRequired();
 
@@ -24,7 +20,5 @@ public sealed class FeedSlotConfiguration : IEntityTypeConfiguration<FeedSlot>
 
         builder.HasIndex(s => new { s.FeedUnitId, s.SlotPosition })
             .IsUnique();
-
-        builder.IsMultiTenant();
     }
 }

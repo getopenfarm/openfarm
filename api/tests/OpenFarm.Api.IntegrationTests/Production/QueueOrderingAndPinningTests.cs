@@ -4,7 +4,6 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.PrintJobs;
 using OpenFarm.Application.Production;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Production;
 
@@ -23,9 +22,9 @@ public class QueueOrderingAndPinningTests(ProductionTestFactory factory) : Produ
         if (backfill)
         {
             // Unlimited runs create jobs lazily; seed one waiting for dispatch/retry.
-            using var scope = Factory.CreateTenantScope();
+            using var scope = Factory.Services.CreateScope();
             var repository = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
-            var job = PrintJob.Create(Organization.WellKnownId, run.Lines[0].Requirements[0].Id,
+            var job = PrintJob.Create("Test part", run.Lines[0].Requirements[0].Id,
                 1024, 1, AssignmentMode.Unassigned, null, part.RevisionHash, part.RevisionNumber, []);
             await repository.AddAsync(job, default);
             await repository.SaveChangesAsync(default);
@@ -53,7 +52,7 @@ public class QueueOrderingAndPinningTests(ProductionTestFactory factory) : Produ
         var client = await ClientAsync();
         var part = await PartAsync();
         var run = await RunAsync(client, part.Id, backfill ? null : 6);
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var repository = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
             var jobs = (await repository.ListByProductionRunIdAsync(run.Id, default)).ToList();
@@ -61,7 +60,7 @@ public class QueueOrderingAndPinningTests(ProductionTestFactory factory) : Produ
             {
                 for (var i = 0; i < 6; i++)
                 {
-                    var job = PrintJob.Create(Organization.WellKnownId, run.Lines[0].Requirements[0].Id,
+                    var job = PrintJob.Create("Test part", run.Lines[0].Requirements[0].Id,
                         1024 * (i + 1), 1, AssignmentMode.Unassigned, null, part.RevisionHash, part.RevisionNumber, []);
                     await repository.AddAsync(job, default);
                     jobs.Add(job);
@@ -113,7 +112,7 @@ public class QueueOrderingAndPinningTests(ProductionTestFactory factory) : Produ
         var jobs = await JobsAsync(run.Id);
         var response = await client.PostAsJsonAsync($"/api/v1/print-jobs/{jobs[1].Id}/reorder", new { afterJobId = (Guid?)null });
         response.EnsureSuccessStatusCode();
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var candidates = await scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>().GetUnassignedCandidatesAsync(default);
             candidates[0].JobId.Should().Be(jobs[1].Id);

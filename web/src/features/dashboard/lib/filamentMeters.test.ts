@@ -49,6 +49,17 @@ describe('Compact filament rail model', () => {
     expect(rail.meters[0]).toMatchObject({ source: 'recorded', grams: 328 });
     expect(rail.meters[0].level).toBeCloseTo(65.6);
   });
+  it('marks the lone external spool as the active feed when the printer reports it active', () => {
+    const rail = buildFilamentRail(
+      { ...online, externalSpoolTray: { active: true } },
+      [external],
+      spools,
+      [],
+    );
+    expect(rail.kind).toBe('external');
+    expect(rail.meters).toHaveLength(1);
+    expect(rail.meters[0].active).toBe(true);
+  });
   it('uses two reloader meters and projects external telemetry only onto the selected slot', () => {
     const rail = buildFilamentRail(
       {

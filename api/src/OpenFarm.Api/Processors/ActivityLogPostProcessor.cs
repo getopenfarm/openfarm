@@ -28,12 +28,6 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
             return;
         }
 
-        var organizationId = ExtractOrganizationId(httpContext.User);
-        if (organizationId is null)
-        {
-            return;
-        }
-
         var (actorId, actorType) = ExtractActor(httpContext.User);
         var writer = httpContext.RequestServices.GetRequiredService<IActivityLogWriter>();
 
@@ -42,7 +36,7 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
             foreach (var entityId in hasEntityIds.EntityIds)
             {
                 var bulkEntry = ActivityLogEntry.Create(
-                    organizationId.Value, loggable.EntityType, entityId, loggable.EventType, actorId, actorType);
+                    loggable.EntityType, entityId, loggable.EventType, actorId, actorType);
                 await writer.WriteAsync(bulkEntry, ct);
                 await NotifyPrinterActivityAsync(httpContext, bulkEntry, ct);
             }
@@ -57,7 +51,6 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
         }
 
         var entry = ActivityLogEntry.Create(
-            organizationId.Value,
             loggable.EntityType,
             singleEntityId,
             loggable.EventType,
@@ -71,17 +64,11 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
     private static Task NotifyPrinterActivityAsync(HttpContext context, ActivityLogEntry entry, CancellationToken ct) =>
         entry.EntityType == "Printer" && Guid.TryParse(entry.EntityId, out var printerId)
             ? context.RequestServices.GetRequiredService<IPrinterEventPublisher>()
-                .PrinterActivityChangedAsync(entry.OrganizationId, printerId, ct)
+                .PrinterActivityChangedAsync(printerId, ct)
             : Task.CompletedTask;
 
     private static string? ExtractEntityId(object? response) =>
         response?.GetType().GetProperty("Id")?.GetValue(response)?.ToString();
-
-    private static Guid? ExtractOrganizationId(ClaimsPrincipal user)
-    {
-        var claim = user.FindFirst("org")?.Value;
-        return Guid.TryParse(claim, out var organizationId) ? organizationId : null;
-    }
 
     private static (Guid? ActorId, ActorType ActorType) ExtractActor(ClaimsPrincipal user)
     {

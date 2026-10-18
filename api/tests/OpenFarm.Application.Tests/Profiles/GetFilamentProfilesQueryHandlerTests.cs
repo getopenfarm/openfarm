@@ -18,9 +18,9 @@ public class GetFilamentProfilesQueryHandlerTests
     public async Task HandleAsync_LegacyBrowseCall_ExcludesSystemRows()
     {
         var filamentRepo = new FakeFilamentProfileRepository();
-        var userRow = FilamentProfile.Create(Guid.NewGuid(), "My Tuned PLA", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        var userRow = FilamentProfile.Create("My Tuned PLA", ProfileSourceFormat.OrcaSlicer, null, "{}");
         var systemRow = FilamentProfile.CreateSystemProfile(
-            Guid.NewGuid(), "Bambu PLA Basic @BBL X1C", ProfileSourceFormat.BambuStudio, null, "{}",
+            "Bambu PLA Basic @BBL X1C", ProfileSourceFormat.BambuStudio, null, "{}",
             "Bambulab", "GFA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentRepo.AddAsync(userRow, CancellationToken.None);
         await filamentRepo.AddAsync(systemRow, CancellationToken.None);
@@ -39,7 +39,7 @@ public class GetFilamentProfilesQueryHandlerTests
     {
         var filamentRepo = new FakeFilamentProfileRepository();
         var systemRow = FilamentProfile.CreateSystemProfile(
-            Guid.NewGuid(), "Bambu PLA Basic @BBL X1C", ProfileSourceFormat.BambuStudio, null, "{}",
+            "Bambu PLA Basic @BBL X1C", ProfileSourceFormat.BambuStudio, null, "{}",
             "Bambulab", "GFA00", isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentRepo.AddAsync(systemRow, CancellationToken.None);
 

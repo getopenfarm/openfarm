@@ -8,10 +8,9 @@ namespace OpenFarm.Domain.Assemblies;
 /// </summary>
 public sealed class NonPrintedComponent
 {
-    private NonPrintedComponent(Guid id, Guid organizationId, string name, decimal? unitCost, DateTimeOffset createdAtUtc)
+    private NonPrintedComponent(Guid id, string name, decimal? unitCost, DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         Name = name;
         UnitCost = unitCost;
         CreatedAtUtc = createdAtUtc;
@@ -19,8 +18,6 @@ public sealed class NonPrintedComponent
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public string Name { get; private set; }
 
@@ -30,10 +27,10 @@ public sealed class NonPrintedComponent
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
-    public static NonPrintedComponent Create(Guid organizationId, string name, decimal? unitCost)
+    public static NonPrintedComponent Create(string name, decimal? unitCost)
     {
         Validate(name);
-        return new NonPrintedComponent(Guid.NewGuid(), organizationId, name, unitCost, DateTimeOffset.UtcNow);
+        return new NonPrintedComponent(Guid.NewGuid(), name, unitCost, DateTimeOffset.UtcNow);
     }
 
     public void Edit(string name, decimal? unitCost)

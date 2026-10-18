@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
@@ -35,6 +35,7 @@ import {
 } from '@/lib/api/generated/print-jobs/print-jobs';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { getToken } from '@/lib/auth/tokenStorage';
+import { formatDateTime } from '@/lib/formatDateTime';
 import { formatGrams } from '@/lib/formatUnits';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
 import { JobRemoteControls } from './components/JobRemoteControls';
@@ -256,16 +257,74 @@ function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
                   </span>
                 )}
               </span>
-              {terminal && (
+              {terminal ? (
                 <span className="text-muted-foreground">
                   {line.gramsConsumed != null
                     ? formatGrams(line.gramsConsumed)
                     : 'Not deducted'}
                 </span>
+              ) : (
+                line.estimatedGrams != null && (
+                  <span className="text-muted-foreground">
+                    Est. {formatGrams(line.estimatedGrams)}
+                  </span>
+                )
               )}
             </div>
           ))
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Printer and times of a print the printer started itself — it has no run, part or queue slot to show. */
+function ExternalPrintSummary({
+  job,
+  printerName,
+}: {
+  job: PrintJobResponse;
+  printerName?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Print</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+          <dt className="text-muted-foreground">Printer</dt>
+          <dd>
+            {job.dispatchedPrinterId ? (
+              <Link
+                className="hover:underline"
+                to={`/printers/${job.dispatchedPrinterId}`}
+              >
+                {printerName ?? 'Unknown printer'}
+              </Link>
+            ) : (
+              'Printer removed'
+            )}
+          </dd>
+          {job.startedAtUtc && (
+            <>
+              <dt className="text-muted-foreground">Started</dt>
+              <dd>{formatDateTime(job.startedAtUtc)}</dd>
+            </>
+          )}
+          {job.endedAtUtc && (
+            <>
+              <dt className="text-muted-foreground">Ended</dt>
+              <dd>{formatDateTime(job.endedAtUtc)}</dd>
+            </>
+          )}
+          {job.actualDurationMinutes != null && (
+            <>
+              <dt className="text-muted-foreground">Duration</dt>
+              <dd>{job.actualDurationMinutes} min</dd>
+            </>
+          )}
+        </dl>
       </CardContent>
     </Card>
   );
@@ -282,7 +341,9 @@ export function PrintJobDetailPage() {
     useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data?.printers ??
     [];
   const printer = fleet.find((p) => p.id === job?.dispatchedPrinterId);
-  const manual = printer && !['Bambu', 'System'].includes(printer.brand ?? '');
+  const external = job?.source === 'External';
+  const manual =
+    !external && printer && !['Bambu', 'System'].includes(printer.brand ?? '');
   const options = {
     mutation: {
       onSuccess: () => queryClient.invalidateQueries(),
@@ -358,61 +419,71 @@ export function PrintJobDetailPage() {
             above={backLink}
             title={
               <span className="flex flex-wrap items-center gap-3">
-                Print job · {job.plateQuantity} units
+                {external ? job.name : `Print job · ${job.plateQuantity} units`}
                 <Badge>{job.status}</Badge>
               </span>
             }
-            description={`File revision ${job.fileRevisionNumber} · ${job.fileRevisionHash}`}
+            description={
+              external
+                ? 'Started on the printer, not from OpenFarm'
+                : `File revision ${job.fileRevisionNumber} · ${job.fileRevisionHash}`
+            }
             action={
-              <div className="flex flex-wrap items-center gap-2">
-                {manual &&
-                  job.status === 'Queued' &&
-                  job.dispatchedPrinterId && (
-                    <Button onClick={() => started.mutate({ id })}>
-                      Mark started
-                    </Button>
-                  )}
-                {manual &&
-                  ['Printing', 'Paused'].includes(job.status ?? '') && (
-                    <>
-                      <Button onClick={() => complete.mutate({ id })}>
-                        Mark completed
+              external ? undefined : (
+                <div className="flex flex-wrap items-center gap-2">
+                  {manual &&
+                    job.status === 'Queued' &&
+                    job.dispatchedPrinterId && (
+                      <Button onClick={() => started.mutate({ id })}>
+                        Mark started
                       </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => fail.mutate({ id })}
-                      >
-                        Mark failed
-                      </Button>
-                    </>
+                    )}
+                  {manual &&
+                    ['Printing', 'Paused'].includes(job.status ?? '') && (
+                      <>
+                        <Button onClick={() => complete.mutate({ id })}>
+                          Mark completed
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => fail.mutate({ id })}
+                        >
+                          Mark failed
+                        </Button>
+                      </>
+                    )}
+                  {job.status === 'Queued' && !job.dispatchedAtUtc && (
+                    <JobFilamentDialog job={job} />
                   )}
-                {job.status === 'Queued' && !job.dispatchedAtUtc && (
-                  <JobFilamentDialog job={job} />
-                )}
-                <JobMatchingDialog
-                  jobId={id}
-                  trigger={<Button variant="outline">Job diagnosis</Button>}
-                />
-                <Button
-                  variant="outline"
-                  onClick={download}
-                  disabled={job.snapshotState !== 'Ready'}
-                  aria-describedby={
-                    job.snapshotState !== 'Ready'
-                      ? 'job-source-warning'
-                      : undefined
-                  }
-                >
-                  Download print file
-                </Button>
-                {job.status === 'Queued' && !job.dispatchedAtUtc && (
-                  <RemoveJobButton jobId={id} />
-                )}
-              </div>
+                  <JobMatchingDialog
+                    jobId={id}
+                    trigger={<Button variant="outline">Job diagnosis</Button>}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={download}
+                    disabled={job.snapshotState !== 'Ready'}
+                    aria-describedby={
+                      job.snapshotState !== 'Ready'
+                        ? 'job-source-warning'
+                        : undefined
+                    }
+                  >
+                    Download print file
+                  </Button>
+                  {job.status === 'Queued' && !job.dispatchedAtUtc && (
+                    <RemoveJobButton jobId={id} />
+                  )}
+                </div>
+              )
             }
           />
-          <JobRemoteControls jobId={id} status={job.status ?? ''} />
-          {job.snapshotState !== 'Ready' && (
+          {external ? (
+            <ExternalPrintSummary job={job} printerName={printer?.name} />
+          ) : (
+            <JobRemoteControls jobId={id} status={job.status ?? ''} />
+          )}
+          {!external && job.snapshotState !== 'Ready' && (
             <Alert id="job-source-warning">
               <AlertTitle>
                 {job.snapshotState === 'Unavailable'

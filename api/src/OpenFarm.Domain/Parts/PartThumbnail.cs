@@ -9,15 +9,12 @@ public sealed record ThumbnailSpec(int PlateIndex, byte[] Bytes);
 /// </summary>
 public sealed class PartThumbnail
 {
-    private PartThumbnail(Guid organizationId, Guid partId, int plateIndex, byte[] bytes)
+    private PartThumbnail(Guid partId, int plateIndex, byte[] bytes)
     {
-        OrganizationId = organizationId;
         PartId = partId;
         PlateIndex = plateIndex;
         Bytes = bytes;
     }
-
-    public Guid OrganizationId { get; private set; }
 
     public Guid PartId { get; private set; }
 
@@ -35,7 +32,7 @@ public sealed class PartThumbnail
         Bytes = bytes;
     }
 
-    public static PartThumbnail Create(Guid organizationId, Guid partId, int plateIndex, byte[] bytes)
+    public static PartThumbnail Create(Guid partId, int plateIndex, byte[] bytes)
     {
         if (bytes.Length == 0)
         {
@@ -47,6 +44,6 @@ public sealed class PartThumbnail
             throw new ArgumentOutOfRangeException(nameof(plateIndex), "Plate index cannot be negative.");
         }
 
-        return new PartThumbnail(organizationId, partId, plateIndex, bytes);
+        return new PartThumbnail(partId, plateIndex, bytes);
     }
 }

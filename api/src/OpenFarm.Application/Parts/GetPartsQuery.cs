@@ -17,6 +17,10 @@ public sealed record PartSummary(
     string PrintRequirementsStatus = "Complete",
     IReadOnlyList<string>? ProcessingWarnings = null,
     string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null,
-    int UnitsPerPrint = 1);
+    int UnitsPerPrint = 1,
+    IReadOnlyList<PartColorGrams>? FilamentByColor = null);
+
+/// <summary>One requirement's grams for the Build panel's by-colour totals (per plate set, purge included; null when unknown).</summary>
+public sealed record PartColorGrams(string? MaterialType, string? ColorHex, decimal? Grams);
 
 public sealed record PartsPage(IReadOnlyList<PartSummary> Parts, int TotalCount);

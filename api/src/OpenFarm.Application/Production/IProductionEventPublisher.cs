@@ -10,10 +10,13 @@ namespace OpenFarm.Application.Production;
 /// </summary>
 public interface IProductionEventPublisher
 {
-    Task ProductionRunStatusChangedAsync(Guid organizationId, Guid productionRunId, ProductionRunStatus status, CancellationToken cancellationToken);
+    Task ProductionRunStatusChangedAsync(Guid productionRunId, ProductionRunStatus status, CancellationToken cancellationToken);
 
-    Task PrintJobStatusChangedAsync(Guid organizationId, Guid printJobId, PrintJobStatus status, CancellationToken cancellationToken);
+    Task PrintJobStatusChangedAsync(Guid printJobId, PrintJobStatus status, CancellationToken cancellationToken);
 
     /// <summary>Dispatch assignment (ActorType.System) — fired the moment the dispatcher sends a job to a printer, distinct from the status change itself.</summary>
-    Task PrintJobDispatchedAsync(Guid organizationId, Guid printJobId, Guid printerId, CancellationToken cancellationToken);
+    Task PrintJobDispatchedAsync(Guid printJobId, Guid printerId, CancellationToken cancellationToken);
+
+    /// <summary>The action-required list may have changed; clients re-read it. A default no-op keeps existing implementations compiling.</summary>
+    Task NotificationsChangedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

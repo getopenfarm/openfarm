@@ -4,7 +4,7 @@ namespace OpenFarm.Domain.Production;
 
 /// <summary>Immutable catalog inputs; printer profiles and inventory remain live dispatch inputs.</summary>
 public sealed record ProductionPartSnapshot(
-    Guid PartId, Guid OrganizationId, string Name, PartFileFormat FileFormat, bool RequiresSlicing,
+    Guid PartId, string Name, PartFileFormat FileFormat, bool RequiresSlicing,
     string OriginalFileName, string StoragePath, long FileSizeBytes, decimal? NozzleDiameterMm,
     bool MaterialMetadataComplete, SlicerEngine? SlicerEngine, string? SlicerVersion,
     EstimateStatus EstimateStatus, int? EstimatedPrintTimeMinutes, decimal? EstimatedFilamentWeightGrams,
@@ -12,7 +12,7 @@ public sealed record ProductionPartSnapshot(
     IReadOnlyList<FilamentRequirementSpec> FilamentRequirements)
 {
     public static ProductionPartSnapshot Capture(Part part, SlicerRef? slicer = null) => new(
-        part.Id, part.OrganizationId, part.Name, part.FileFormat, part.RequiresSlicing,
+        part.Id, part.Name, part.FileFormat, part.RequiresSlicing,
         part.OriginalFileName, part.StoragePath, part.FileSizeBytes, part.NozzleDiameterMm,
         part.MaterialMetadataComplete, slicer?.Engine ?? part.SlicerEngineOverride,
         slicer?.Version ?? part.SlicerVersionUsed, part.EstimateStatus, part.EstimatedPrintTimeMinutes,

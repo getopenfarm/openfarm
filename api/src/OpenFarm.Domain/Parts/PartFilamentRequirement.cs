@@ -10,7 +10,8 @@ public sealed record FilamentRequirementSpec(
     string? DetectedColorHex,
     string? DetectedSubBrand,
     Guid? NarrowFilamentVariantId,
-    Guid? NarrowFilamentProfileId);
+    Guid? NarrowFilamentProfileId,
+    decimal? EstimatedGrams = null);
 
 /// <summary>
 /// One of a <see cref="Part"/>'s one-or-more material needs — one row per distinct
@@ -22,29 +23,27 @@ public sealed class PartFilamentRequirement
 {
     private PartFilamentRequirement(
         Guid id,
-        Guid organizationId,
         Guid partId,
         string? materialType,
         string? detectedColorHex,
         string? detectedSubBrand,
         Guid? narrowFilamentVariantId,
         Guid? narrowFilamentProfileId,
+        decimal? estimatedGrams,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         PartId = partId;
         MaterialType = materialType;
         DetectedColorHex = detectedColorHex;
         DetectedSubBrand = detectedSubBrand;
         NarrowFilamentVariantId = narrowFilamentVariantId;
         NarrowFilamentProfileId = narrowFilamentProfileId;
+        EstimatedGrams = estimatedGrams;
         CreatedAtUtc = createdAtUtc;
     }
 
     public Guid Id { get; private set; }
-
-    public Guid OrganizationId { get; private set; }
 
     public Guid PartId { get; private set; }
 
@@ -58,19 +57,24 @@ public sealed class PartFilamentRequirement
 
     public Guid? NarrowFilamentProfileId { get; private set; }
 
+    /// <summary>This colour's estimated grams per plate set, start-of-print purge included; null until the file's per-filament usage is known.</summary>
+    public decimal? EstimatedGrams { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
-    public static PartFilamentRequirement Create(Guid organizationId, Guid partId, FilamentRequirementSpec spec) =>
+    public static PartFilamentRequirement Create(Guid partId, FilamentRequirementSpec spec) =>
         new(
             Guid.NewGuid(),
-            organizationId,
             partId,
             spec.MaterialType,
             spec.DetectedColorHex,
             spec.DetectedSubBrand,
             spec.NarrowFilamentVariantId,
             spec.NarrowFilamentProfileId,
+            spec.EstimatedGrams,
             DateTimeOffset.UtcNow);
+
+    internal void SetEstimatedGrams(decimal? grams) => EstimatedGrams = grams;
 
     /// <summary>
     /// FR-012 (US4) — narrow/change/clear this requirement's filament choice at any time after

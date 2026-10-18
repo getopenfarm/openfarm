@@ -11,7 +11,6 @@ public interface IFeedSlotTelemetrySync
 {
     Task SyncAsync(
         Guid printerId,
-        Guid organizationId,
         string brand,
         IReadOnlyList<AmsUnit> amsUnits,
         AmsTray? externalSpoolTray,

@@ -15,7 +15,7 @@ public class GetMachineProfileQueryHandlerTests
     {
         var machineRepo = new FakeMachineProfileRepository();
 
-        var machine = MachineProfile.Create(Guid.NewGuid(), "Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        var machine = MachineProfile.Create("Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var handler = CreateHandler(machineRepo);
@@ -32,7 +32,7 @@ public class GetMachineProfileQueryHandlerTests
         var machineRepo = new FakeMachineProfileRepository();
 
         var machine = MachineProfile.CreateSystemProfile(
-            Guid.NewGuid(), "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
+            "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
             "Bambulab", "GM001", isSelectable: true, vendorMachineModelName: "Bambu Lab X1 Carbon", includedTemplateNames: null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 

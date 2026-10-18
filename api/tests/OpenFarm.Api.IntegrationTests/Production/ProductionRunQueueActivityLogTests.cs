@@ -20,7 +20,7 @@ public class ProductionRunQueueActivityLogTests(ProductionTestFactory factory) :
         await AssignAsync(job.Id, printer.Id, started: false);
         await ReplayAsync(printer.Id, "RUNNING");
         await ReplayAsync(printer.Id, "FINISH");
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var entries = await db.ActivityLogEntries.Where(e => e.EntityId == run.Id.ToString() || e.EntityId == job.Id.ToString()).ToListAsync();
         entries.Should().Contain(e => e.EventType == "ProductionRunCreated" && e.ActorType == ActorType.Operator && e.ActorId != null);
@@ -56,7 +56,7 @@ public class ProductionRunQueueActivityLogTests(ProductionTestFactory factory) :
             await ReplayAsync(printer.Id, "FAILED");
             await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/requeue", expected: System.Net.HttpStatusCode.Created);
             await PostAsync(client, $"/api/v1/production-runs/{run.Id}/cancel");
-            using var scope = Factory.CreateTenantScope();
+            using var scope = Factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var entries = await db.ActivityLogEntries.ToListAsync();
             foreach (var type in new[] { "PrintJobReordered", "PrintJobPinned", "PrintJobUnpinned", "PrintJobPauseRequested", "PrintJobResumeRequested", "PrintJobCancelRequested", "PrintJobRequeued", "RunLineRevisionModeChanged", "ProductionRunCancelled", "PrintJobCancelled" })

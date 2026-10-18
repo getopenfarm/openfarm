@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using OpenFarm.Application.Parts;
+using OpenFarm.Infrastructure.Production;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Infrastructure.Parts;
@@ -36,7 +37,8 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
             PlateCount: 1,
             plate.FilamentSlots,
             plate.Thumbnail is null ? [] : [new ThumbnailSpec(0, plate.Thumbnail)],
-            plate.MaterialMetadataComplete, DescribeGCode(content));
+            plate.MaterialMetadataComplete, DescribeGCode(content),
+            FilamentGrams: ReadFilamentGrams(() => JobFilamentUsageReader.Sum([JobFilamentUsageReader.Read(System.Text.Encoding.UTF8.GetBytes(content))])));
     }
 
     private static async Task<SlicedFileMetadata> ParseGCode3mfAsync(Stream fileStream, CancellationToken cancellationToken)
@@ -157,8 +159,16 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
                 }
             }
 
-            return new SlicedFileMetadata(nozzleComplete ? nozzleDiameterMm : null, totalMinutes, totalWeightGrams, plateNumbers.Count, allSlots, thumbnails, materialComplete, details, warnings);
+            return new SlicedFileMetadata(nozzleComplete ? nozzleDiameterMm : null, totalMinutes, totalWeightGrams, plateNumbers.Count, allSlots, thumbnails, materialComplete, details, warnings,
+                ReadFilamentGrams(() => JobFilamentUsageReader.Sum(plateNumbers.Select(n => JobFilamentUsageReader.Read(archive, n)))));
         }
+    }
+
+    /// <summary>Per-filament grams, purge included. Best effort: an unreadable usage section leaves the part with its total only, never fails the parse.</summary>
+    private static List<FilamentGrams>? ReadFilamentGrams(Func<List<FilamentGrams>> read)
+    {
+        try { return read() is { Count: > 0 } grams ? grams : null; }
+        catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException) { return null; }
     }
 
     private static ParsedPlate ParsePlate(string gcodeContent, ZipArchiveEntry? thumbnailEntry = null)

@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Identity;
 using OpenFarm.Application.Auth;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Infrastructure.Identity;
 
 namespace OpenFarm.Infrastructure.Auth;
@@ -35,8 +34,8 @@ public sealed class IdentityAuthenticationService(
 
         await userManager.ResetAccessFailedCountAsync(user);
 
-        var issuedToken = jwtTokenService.IssueToken(user.Id, Organization.WellKnownId);
-        return new LoginResult(issuedToken.Token, issuedToken.ExpiresAtUtc, user.Id, Organization.WellKnownId);
+        var issuedToken = jwtTokenService.IssueToken(user.Id);
+        return new LoginResult(issuedToken.Token, issuedToken.ExpiresAtUtc, user.Id);
     }
 
     public async Task<WhoAmIResult?> GetUserAsync(Guid userId, CancellationToken cancellationToken)
@@ -47,6 +46,6 @@ public sealed class IdentityAuthenticationService(
             return null;
         }
 
-        return new WhoAmIResult(user.Id, user.UserName ?? user.Email ?? string.Empty, Organization.WellKnownId);
+        return new WhoAmIResult(user.Id, user.UserName ?? user.Email ?? string.Empty, user.Email ?? string.Empty);
     }
 }

@@ -191,4 +191,30 @@ describe('PartFilamentRequirementsList (US4 narrowing control)', () => {
 
     expect(screen.getByText('Narrowed profile removed')).toBeInTheDocument();
   });
+
+  it('shows each colour’s grams when known', () => {
+    stubFetch({ '/profiles/filament': { items: [] } });
+
+    renderList(
+      [
+        {
+          key: 'req-1',
+          materialType: 'PLA',
+          detectedColorHex: '#000000',
+          detectedSubBrand: null,
+          estimatedGrams: 12.4,
+        },
+        {
+          key: 'req-2',
+          materialType: 'PLA',
+          detectedColorHex: '#ffffff',
+          detectedSubBrand: null,
+        },
+      ],
+      vi.fn(),
+    );
+
+    expect(screen.getByText('12.4 g')).toBeInTheDocument();
+    expect(screen.getAllByText(/ g$/)).toHaveLength(1);
+  });
 });

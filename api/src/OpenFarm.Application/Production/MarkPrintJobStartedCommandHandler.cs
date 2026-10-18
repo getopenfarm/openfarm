@@ -15,7 +15,7 @@ public sealed class MarkPrintJobStartedCommandHandler(
         var job = await jobRepository.GetByIdAsync(command.JobId, cancellationToken)
             ?? throw new PrintJobNotFoundException(command.JobId);
 
-        if (job.Status != PrintJobStatus.Queued || job.DispatchedPrinterId is not { } printerId)
+        if (job.Status != PrintJobStatus.Queued || job.PrinterId is not { } printerId)
         {
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }
@@ -31,7 +31,7 @@ public sealed class MarkPrintJobStartedCommandHandler(
         job.MarkStarted();
         printer.ObserveStatus("RUNNING");
         await jobRepository.SaveChangesAsync(cancellationToken);
-        await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
+        await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
 
         return job;
     }

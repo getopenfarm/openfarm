@@ -10,7 +10,7 @@ using OpenFarm.Application.Auth;
 namespace OpenFarm.Api.IntegrationTests.Profiles;
 
 // FR-011, SC-006 — the single-profile detail endpoint returns full rawDataJson plus chain-merged
-// derived fields and hasUnresolvedBaseInChain, and 404s for an unknown/cross-tenant id.
+// derived fields and hasUnresolvedBaseInChain, and 404s for an unknown id.
 public class GetProfileDetailEndpointTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();

@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.Parts;
 using OpenFarm.Api.IntegrationTests.Production;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Persistence;
 
@@ -16,9 +15,9 @@ public class EditPartEndpointTests(ProductionTestFactory factory) : ProductionTe
 {
     private async Task<Guid> FilamentProfileAsync()
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var profile = FilamentProfile.Create(Organization.WellKnownId, $"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+        var profile = FilamentProfile.Create($"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"],"nozzle_diameter":["0.4"]}""");
         db.FilamentProfiles.Add(profile);
         await db.SaveChangesAsync();
@@ -95,7 +94,7 @@ public class EditPartEndpointTests(ProductionTestFactory factory) : ProductionTe
         after.Name.Should().Be(part.Name);
         after.Tags.Should().BeEmpty();
         after.UnitsPerPrint.Should().Be(1);
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Tags.AnyAsync(t => t.Name == tag)).Should().BeFalse();
     }
 

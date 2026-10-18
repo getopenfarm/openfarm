@@ -109,6 +109,8 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             FilamentConsumptionSumMismatchException => (StatusCodes.Status400BadRequest, "Filament consumption does not match a requirement on this job"),
             JobNotEligibleForRemoteControlException => (StatusCodes.Status409Conflict, "Print job is not eligible for this remote-control action"),
             PrintJobAlreadyRequeuedException => (StatusCodes.Status409Conflict, "Print job has already been requeued"),
+            PrintFilamentNotAssignableException => (StatusCodes.Status409Conflict, "A spool cannot be assigned to this filament line"),
+            FilamentUsageNotEstimableException => (StatusCodes.Status422UnprocessableEntity, "Filament usage cannot be estimated"),
             PrintJobNotEligibleForRequeueException => (StatusCodes.Status409Conflict, "Print job is not eligible for requeue"),
             RunLineNotEligibleForBackfillLimitsException => (StatusCodes.Status409Conflict, "Run line is not unlimited, so backfill limits don't apply"),
             // Backstop for domain invariant guards (blank names, weight above capacity, ...) not caught by a request validator.

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { PartEstimate } from './PartEstimate';
+import { filamentGrams, PartEstimate } from './PartEstimate';
 
 describe('PartEstimate', () => {
   it('shows unknown fields without fabricated zero values or a spinner', () => {
@@ -17,5 +17,21 @@ describe('PartEstimate', () => {
   it('shows the spinner only for active estimation', () => {
     render(<PartEstimate status="Resolving" />);
     expect(screen.getByText('Estimating…')).toBeInTheDocument();
+  });
+  it('says when the weight includes purge', () => {
+    render(<PartEstimate size="lg" minutes={60} grams={12} includesPurge />);
+    expect(screen.getByText('Filament · incl. purge')).toBeInTheDocument();
+  });
+});
+
+describe('filamentGrams', () => {
+  it('sums the colours when every colour has grams', () => {
+    expect(
+      filamentGrams([{ estimatedGrams: 7.5 }, { estimatedGrams: 2.5 }], 9),
+    ).toBe(10);
+  });
+  it('falls back to the slicer total when any colour lacks grams', () => {
+    expect(filamentGrams([{ estimatedGrams: 7.5 }, {}], 9)).toBe(9);
+    expect(filamentGrams([], 9)).toBe(9);
   });
 });

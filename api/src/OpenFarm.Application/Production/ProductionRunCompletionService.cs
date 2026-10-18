@@ -63,8 +63,8 @@ public sealed class ProductionRunCompletionService(
         run.MarkComplete(allFiniteRequirementsSatisfied: true);
         await runRepository.SaveChangesAsync(cancellationToken);
         if (activityLogWriter is not null)
-            await activityLogWriter.WriteAsync(ActivityLogEntry.Create(run.OrganizationId, "ProductionRun", run.Id.ToString(), "ProductionRunCompleted", actorId, actorId is null ? ActorType.System : ActorType.Operator), cancellationToken);
-        await publisher.ProductionRunStatusChangedAsync(run.OrganizationId, run.Id, run.Status, cancellationToken);
+            await activityLogWriter.WriteAsync(ActivityLogEntry.Create("ProductionRun", run.Id.ToString(), "ProductionRunCompleted", actorId, actorId is null ? ActorType.System : ActorType.Operator), cancellationToken);
+        await publisher.ProductionRunStatusChangedAsync(run.Id, run.Status, cancellationToken);
     }
 
     private async Task<bool> AllFiniteRequirementsSatisfiedAsync(ProductionRun run, CancellationToken cancellationToken)

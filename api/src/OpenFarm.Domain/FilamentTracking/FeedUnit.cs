@@ -11,7 +11,6 @@ public sealed class FeedUnit
 
     private FeedUnit(
         Guid id,
-        Guid organizationId,
         Guid printerId,
         string kind,
         int unitIndex,
@@ -20,7 +19,6 @@ public sealed class FeedUnit
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         PrinterId = printerId;
         Kind = kind;
         UnitIndex = unitIndex;
@@ -31,8 +29,6 @@ public sealed class FeedUnit
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid PrinterId { get; }
 
@@ -94,23 +90,23 @@ public sealed class FeedUnit
     public IReadOnlyList<FeedSlot> FeedSlots => _feedSlots;
 
     /// <summary>Connector-derived <see cref="FeedUnitKindCatalog.MultiMaterialUnit"/>/<see cref="FeedUnitKindCatalog.ExternalSpool"/> rows — written exclusively by the telemetry sync (research.md §6).</summary>
-    public static FeedUnit CreateConnectorDerived(Guid organizationId, Guid printerId, string kind, int unitIndex) =>
-        new(Guid.NewGuid(), organizationId, printerId, kind, unitIndex, name: null, replacesFeedUnitId: null, DateTimeOffset.UtcNow);
+    public static FeedUnit CreateConnectorDerived(Guid printerId, string kind, int unitIndex) =>
+        new(Guid.NewGuid(), printerId, kind, unitIndex, name: null, replacesFeedUnitId: null, DateTimeOffset.UtcNow);
 
     /// <summary>Manually declared by an operator (research.md §7) — the one <see cref="FeedUnitKindCatalog.AutomaticFilamentReloader"/> exception.</summary>
-    public static FeedUnit CreateAutomaticFilamentReloader(Guid organizationId, Guid printerId, int unitIndex, string name, Guid? replacesFeedUnitId)
+    public static FeedUnit CreateAutomaticFilamentReloader(Guid printerId, int unitIndex, string name, Guid? replacesFeedUnitId)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
             throw new ArgumentException("An Automatic Filament Reloader requires a name.", nameof(name));
         }
 
-        return new FeedUnit(Guid.NewGuid(), organizationId, printerId, FeedUnitKindCatalog.AutomaticFilamentReloader, unitIndex, name, replacesFeedUnitId, DateTimeOffset.UtcNow);
+        return new FeedUnit(Guid.NewGuid(), printerId, FeedUnitKindCatalog.AutomaticFilamentReloader, unitIndex, name, replacesFeedUnitId, DateTimeOffset.UtcNow);
     }
 
     public FeedSlot AddFeedSlot(int slotPosition)
     {
-        var slot = FeedSlot.Create(OrganizationId, Id, slotPosition);
+        var slot = FeedSlot.Create(Id, slotPosition);
         _feedSlots.Add(slot);
         return slot;
     }

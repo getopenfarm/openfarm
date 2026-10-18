@@ -49,12 +49,12 @@ public sealed class InMemoryPrintJobRepository(params PrintJob[] seedJobs) : IPr
     public Dictionary<Guid, List<PrintJob>> JobsByRunId { get; } = [];
 
     public Task<PrintJob?> GetActiveJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) =>
-        Task.FromResult(_jobs.Values.FirstOrDefault(j => j.DispatchedPrinterId == printerId));
+        Task.FromResult(_jobs.Values.FirstOrDefault(j => j.PrinterId == printerId));
 
     public Task<IReadOnlyList<PrintJob>> ListDispatchInFlightAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<PrintJob>>([]);
 
-    public Task<double?> GetMaxQueuePositionAsync(Guid organizationId, CancellationToken cancellationToken) =>
+    public Task<double?> GetMaxQueuePositionAsync(CancellationToken cancellationToken) =>
         Task.FromResult(_jobs.Values.Count == 0 ? (double?)null : _jobs.Values.Max(j => j.QueuePosition));
 
     public Task<(IReadOnlyList<PrintJob> Jobs, int TotalCount, IReadOnlyDictionary<string, int> StatusCounts)> ListQueueAsync(
@@ -187,19 +187,19 @@ public sealed class RecordingProductionEventPublisher : IProductionEventPublishe
 
     public List<(Guid JobId, Guid PrinterId)> Dispatches { get; } = [];
 
-    public Task ProductionRunStatusChangedAsync(Guid organizationId, Guid productionRunId, ProductionRunStatus status, CancellationToken cancellationToken)
+    public Task ProductionRunStatusChangedAsync(Guid productionRunId, ProductionRunStatus status, CancellationToken cancellationToken)
     {
         RunStatusChanges.Add((productionRunId, status));
         return Task.CompletedTask;
     }
 
-    public Task PrintJobStatusChangedAsync(Guid organizationId, Guid printJobId, PrintJobStatus status, CancellationToken cancellationToken)
+    public Task PrintJobStatusChangedAsync(Guid printJobId, PrintJobStatus status, CancellationToken cancellationToken)
     {
         JobStatusChanges.Add((printJobId, status));
         return Task.CompletedTask;
     }
 
-    public Task PrintJobDispatchedAsync(Guid organizationId, Guid printJobId, Guid printerId, CancellationToken cancellationToken)
+    public Task PrintJobDispatchedAsync(Guid printJobId, Guid printerId, CancellationToken cancellationToken)
     {
         Dispatches.Add((printJobId, printerId));
         return Task.CompletedTask;
@@ -233,10 +233,10 @@ public sealed class InMemorySpoolRepository(params Spool[] spools) : ISpoolRepos
 
 public sealed class FakeAssemblyGraphQueryService(BomExplosionResult result) : IAssemblyGraphQueryService
 {
-    public Task<BomExplosionResult> ExplodeAsync(Guid organizationId, Guid rootAssemblyId, int quantity, CancellationToken cancellationToken) =>
+    public Task<BomExplosionResult> ExplodeAsync(Guid rootAssemblyId, int quantity, CancellationToken cancellationToken) =>
         Task.FromResult(result);
 
-    public Task<IReadOnlyList<(Guid ParentAssemblyId, Guid ChildAssemblyId)>> GetOrganizationEdgesAsync(Guid organizationId, CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<(Guid ParentAssemblyId, Guid ChildAssemblyId)>> GetEdgesAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<(Guid, Guid)>>([]);
 }
 
@@ -326,11 +326,11 @@ public static class ProductionTestFixtures
     /// Phase 15) — there is no manual-brand equivalent constructible via Printer.Create yet.
     /// </summary>
     public static Printer CreateLiveIntegratedPrinter(string? serialNumber = null) =>
-        Printer.Create(Guid.NewGuid(), "Bambu printer", "Bambu", "X1C", "10.0.0.5", serialNumber ?? $"SN-{Guid.NewGuid():N}");
+        Printer.Create("Bambu printer", "Bambu", "X1C", "10.0.0.5", serialNumber ?? $"SN-{Guid.NewGuid():N}");
 
     public static Part CreatePart(int unitsPerPrint = 1, string? revisionHash = null, int revisionNumber = 1) =>
         Part.Create(
-            Guid.NewGuid(), "Test part", PartFileFormat.ThreeMf, requiresSlicing: false, "widget.3mf", "path",
+            "Test part", PartFileFormat.ThreeMf, requiresSlicing: false, "widget.3mf", "path",
             fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null,
             EstimateStatus.Available, estimatedPrintTimeMinutes: 30, estimatedFilamentWeightGrams: 10m,
             plateCount: 1, unitsPerPrint: unitsPerPrint, revisionHash: revisionHash ?? $"{Guid.NewGuid():N}",
@@ -338,7 +338,7 @@ public static class ProductionTestFixtures
 
     public static PrintJob CreateQueuedJob(Guid partRequirementId, double queuePosition = 1024) =>
         PrintJob.Create(
-            Guid.NewGuid(), partRequirementId, queuePosition, plateQuantity: 1,
+            "Test part", partRequirementId, queuePosition, plateQuantity: 1,
             AssignmentMode.Unassigned, pinnedPrinterId: null, fileRevisionHash: $"{Guid.NewGuid():N}", fileRevisionNumber: 1,
             filamentRequirements: [new JobFilamentRequirementSpec("PLA", null)]);
 }

@@ -16,6 +16,7 @@ import type {
   ListFilamentsResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
+import { formatGrams } from '@/lib/formatUnits';
 
 export interface DisplayFilamentRequirement {
   /** Stable key — `id` for a saved Part's requirement, `requirementIndex` for a still-in-review
@@ -29,6 +30,8 @@ export interface DisplayFilamentRequirement {
   /** Only meaningful together with onNarrowToProfile (PartDetailPage, US4). */
   narrowFilamentProfileId?: string | null;
   narrowFilamentProfileUnresolved?: boolean;
+  /** Per plate set, purge included. */
+  estimatedGrams?: number | null;
 }
 
 interface PartFilamentRequirementsListProps {
@@ -109,6 +112,11 @@ export function PartFilamentRequirementsList({
               aria-hidden
             />
             <Badge variant="secondary">{requirementLabel(requirement)}</Badge>
+            {requirement.estimatedGrams != null && (
+              <span className="font-mono text-sm tabular-nums">
+                {formatGrams(requirement.estimatedGrams)}
+              </span>
+            )}
             {(onNarrow || requirement.narrowFilamentVariantId) && (
               <ArrowRightIcon
                 className="size-4 shrink-0 text-muted-foreground"

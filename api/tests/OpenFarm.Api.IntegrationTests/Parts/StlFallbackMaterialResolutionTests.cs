@@ -8,7 +8,6 @@ using OpenFarm.Api.Endpoints.Parts;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 
@@ -86,26 +85,25 @@ internal static class StlFallbackTestHelpers
     /// </summary>
     public static async Task SeedFullyConfiguredPrinterAsync(CustomWebApplicationFactory factory)
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var printerRepo = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
 
         var machine = MachineProfile.CreateSystemProfile(
-            Organization.WellKnownId, $"Fallback Test Machine {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+            $"Fallback Test Machine {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"machine","nozzle_diameter":["0.4"]}""",
             "System", Guid.NewGuid().ToString("N"), isSelectable: true, vendorMachineModelName: null, includedTemplateNames: null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var process = ProcessProfile.CreateSystemProfile(
-            Organization.WellKnownId, $"Fallback Test Process {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+            $"Fallback Test Process {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"process","layer_height":"0.2"}""",
             "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null);
         await processRepo.AddAsync(process, CancellationToken.None);
 
         var printer = Printer.Create(
-            Organization.WellKnownId, $"Fallback Test Printer {Guid.NewGuid():N}", "Bambu", "X1C", "10.0.0.90", $"SN-{Guid.NewGuid():N}");
+            $"Fallback Test Printer {Guid.NewGuid():N}", "Bambu", "X1C", "10.0.0.90", $"SN-{Guid.NewGuid():N}");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);
         // 012 — required alongside machine/process for the fleet-representative pick to consider this
@@ -117,12 +115,11 @@ internal static class StlFallbackTestHelpers
 
     public static async Task SeedSystemPlaFilamentProfileAsync(CustomWebApplicationFactory factory)
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var filamentRepo = scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>();
 
         var profile = FilamentProfile.CreateSystemProfile(
-            Organization.WellKnownId, $"Fallback Test PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+            $"Fallback Test PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"]}""",
             "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentRepo.AddAsync(profile, CancellationToken.None);

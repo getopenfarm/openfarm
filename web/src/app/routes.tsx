@@ -27,7 +27,7 @@ import { QueuePage } from '../features/production-runs/QueuePage';
 import { ProfileDetailPage } from '../features/profiles/ProfileDetailPage';
 import { ProfilesImportPage } from '../features/profiles/ProfilesImportPage';
 import { ProfilesPage } from '../features/profiles/ProfilesPage';
-import { SettingsPage } from '../features/settings/SettingsPage';
+import { SettingsLayout } from '../features/settings/SettingsLayout';
 import { SlicingDefaultsPage } from '../features/settings/SlicingDefaultsPage';
 import { SpoolDetailPage } from '../features/spools/SpoolDetailPage';
 import { SpoolFormPage } from '../features/spools/SpoolFormPage';
@@ -247,9 +247,13 @@ export const router = createBrowserRouter([
           },
           {
             path: '/settings',
+            element: <SettingsLayout />,
             handle: { title: 'Settings' },
             children: [
-              { index: true, element: <SettingsPage /> },
+              {
+                index: true,
+                element: <Navigate to="connection-secrets" replace />,
+              },
               {
                 path: 'connection-secrets',
                 handle: { title: 'Connection credentials' },

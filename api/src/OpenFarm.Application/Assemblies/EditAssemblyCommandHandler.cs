@@ -1,7 +1,6 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Assemblies;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Application.Assemblies;
 
@@ -39,7 +38,6 @@ public sealed class EditAssemblyCommandHandler(
             .ToList();
 
         return await assemblyRepository.RunWithStructuralLockAsync(
-            Organization.WellKnownId,
             async ct =>
             {
                 var assembly = await assemblyRepository.GetByIdAsync(command.AssemblyId, ct)
@@ -50,7 +48,7 @@ public sealed class EditAssemblyCommandHandler(
 
                 if (added.Any(l => l.TargetKind == BomLineTargetKind.Assembly))
                 {
-                    var graph = AssemblyGraph.FromEdges(await graphQueryService.GetOrganizationEdgesAsync(Organization.WellKnownId, ct));
+                    var graph = AssemblyGraph.FromEdges(await graphQueryService.GetEdgesAsync(ct));
                     foreach (var line in added.Where(l => l.TargetKind == BomLineTargetKind.Assembly))
                     {
                         graph.ValidateSave(assembly.Id, line.TargetAssemblyId!.Value);

@@ -12,7 +12,6 @@ public sealed class PartProcessingJob
 
     private PartProcessingJob(
         Guid id,
-        Guid organizationId,
         Guid? partId,
         PartProcessingJobKind kind,
         PartFileFormat fileFormat,
@@ -28,7 +27,6 @@ public sealed class PartProcessingJob
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         PartId = partId;
         Kind = kind;
         Status = PartProcessingJobStatus.Processing;
@@ -46,8 +44,6 @@ public sealed class PartProcessingJob
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid? PartId { get; private set; }
 
@@ -114,7 +110,7 @@ public sealed class PartProcessingJob
 
     public static PartProcessingJob CreateReprocess(Part part, SlicerRef? slicer, decimal? nozzle, string? material, Guid? userId)
     {
-        var job = new PartProcessingJob(Guid.NewGuid(), part.OrganizationId, part.Id, PartProcessingJobKind.Reprocess,
+        var job = new PartProcessingJob(Guid.NewGuid(), part.Id, PartProcessingJobKind.Reprocess,
             part.FileFormat, part.OriginalFileName, part.StoragePath, part.FileSizeBytes, part.RequiresSlicing,
             slicer?.Engine, slicer?.Version, nozzle, material, userId, DateTimeOffset.UtcNow);
         job.SourcePartUpdatedAtUtc = part.UpdatedAtUtc;
@@ -147,7 +143,6 @@ public sealed class PartProcessingJob
     public DateTimeOffset? ResolvedAtUtc { get; private set; }
 
     public static PartProcessingJob CreateAdd(
-        Guid organizationId,
         PartFileFormat fileFormat,
         string originalFileName,
         string storagePath,
@@ -158,10 +153,9 @@ public sealed class PartProcessingJob
         decimal? targetNozzleDiameterMm,
         string? targetMaterialType,
         Guid? requestedByUserId) =>
-        new(Guid.NewGuid(), organizationId, null, PartProcessingJobKind.Add, fileFormat, originalFileName, storagePath, fileSizeBytes, requiresSlicing, slicerEngineUsed, slicerVersionUsed, targetNozzleDiameterMm, targetMaterialType, requestedByUserId, DateTimeOffset.UtcNow);
+        new(Guid.NewGuid(), null, PartProcessingJobKind.Add, fileFormat, originalFileName, storagePath, fileSizeBytes, requiresSlicing, slicerEngineUsed, slicerVersionUsed, targetNozzleDiameterMm, targetMaterialType, requestedByUserId, DateTimeOffset.UtcNow);
 
     public static PartProcessingJob CreateReplace(
-        Guid organizationId,
         Guid partId,
         PartFileFormat fileFormat,
         string originalFileName,
@@ -173,7 +167,7 @@ public sealed class PartProcessingJob
         decimal? targetNozzleDiameterMm,
         string? targetMaterialType,
         Guid? requestedByUserId) =>
-        new(Guid.NewGuid(), organizationId, partId, PartProcessingJobKind.Replace, fileFormat, originalFileName, storagePath, fileSizeBytes, requiresSlicing, slicerEngineUsed, slicerVersionUsed, targetNozzleDiameterMm, targetMaterialType, requestedByUserId, DateTimeOffset.UtcNow);
+        new(Guid.NewGuid(), partId, PartProcessingJobKind.Replace, fileFormat, originalFileName, storagePath, fileSizeBytes, requiresSlicing, slicerEngineUsed, slicerVersionUsed, targetNozzleDiameterMm, targetMaterialType, requestedByUserId, DateTimeOffset.UtcNow);
 
     /// <summary>
     /// The job's own id is the storage key an Add's target file is saved under (its target
@@ -221,7 +215,7 @@ public sealed class PartProcessingJob
         foreach (var thumbnail in thumbnails)
         {
             _previewThumbnails.RemoveAll(t => t.PlateIndex == thumbnail.PlateIndex);
-            _previewThumbnails.Add(PartProcessingJobPreviewThumbnail.Create(OrganizationId, Id, thumbnail.PlateIndex, thumbnail.Bytes));
+            _previewThumbnails.Add(PartProcessingJobPreviewThumbnail.Create(Id, thumbnail.PlateIndex, thumbnail.Bytes));
         }
 
         ProcessedAtUtc = DateTimeOffset.UtcNow;
@@ -231,12 +225,15 @@ public sealed class PartProcessingJob
     /// research.md §3b's trailing continuation, success case, while still unconfirmed — refreshes the
     /// preview in place; <see cref="Status"/> stays <c>ReadyForReview</c>.
     /// </summary>
-    public void ResolveEstimate(int? estimatedPrintTimeMinutes, decimal? estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails)
+    public void ResolveEstimate(int? estimatedPrintTimeMinutes, decimal? estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails,
+        IReadOnlyList<FilamentGrams>? filamentGrams = null)
     {
         if (Status != PartProcessingJobStatus.ReadyForReview || PreviewEstimateStatus != EstimateStatus.Resolving)
         {
             return;
         }
+
+        _previewFilamentRequirements = PreviewFilamentRequirement.WithGrams(_previewFilamentRequirements, filamentGrams);
 
         PreviewEstimateStatus = PartEstimateAvailability.From(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
         EstimateUnavailableReason = PartEstimateAvailability.MissingMetadataReason(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
@@ -246,7 +243,7 @@ public sealed class PartProcessingJob
         foreach (var thumbnail in thumbnails)
         {
             _previewThumbnails.RemoveAll(t => t.PlateIndex == thumbnail.PlateIndex);
-            _previewThumbnails.Add(PartProcessingJobPreviewThumbnail.Create(OrganizationId, Id, thumbnail.PlateIndex, thumbnail.Bytes));
+            _previewThumbnails.Add(PartProcessingJobPreviewThumbnail.Create(Id, thumbnail.PlateIndex, thumbnail.Bytes));
         }
     }
 

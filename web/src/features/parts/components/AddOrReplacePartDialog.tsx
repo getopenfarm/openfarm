@@ -164,7 +164,7 @@ export function AddOrReplacePartDialog({
                     <SelectContent>
                       <SelectGroup>
                         <SelectItem value={USE_DEFAULT_SLICER}>
-                          Organization default
+                          Farm default
                           {effectiveDefault
                             ? ` (${effectiveDefault.engine} ${effectiveDefault.version})`
                             : ''}

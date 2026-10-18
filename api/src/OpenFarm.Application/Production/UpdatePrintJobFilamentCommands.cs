@@ -22,7 +22,7 @@ public sealed class SetPrintJobFilamentRequirementsCommandHandler(IPrintJobRepos
                 if (selection.NarrowFilamentProfileId is { } id && await profiles.GetByIdAsync(id, cancellationToken) is null)
                     throw new OpenFarm.Application.Printers.InvalidProfileReferenceException("filament", id);
         job.SetFilamentRequirements(command.Requirements);
-        repository.TrackNewFilamentConsumption(job.FilamentConsumption);
+        repository.TrackNewFilamentConsumption(job.Filaments);
         await repository.SaveChangesAsync(cancellationToken);
         await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);
         return job;

@@ -264,7 +264,7 @@ public static class BambuMqttMessageParser
             empty ? null : colorHex,
             empty ? null : subBrand,
             remainPercent is null or < 0 ? null : remainPercent,
-            Active: false); // Active-tray detection deferred — not required by any FR this phase.
+            Active: false); // Derived from tray_now in Printer.RecordTelemetry — the parser has no view across deltas.
     }
 
     private static string? GetString(JsonElement element, string propertyName) =>

@@ -8,7 +8,6 @@ using OpenFarm.Api.Endpoints.Parts;
 using OpenFarm.Api.Endpoints.Vendors;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 using static OpenFarm.Api.IntegrationTests.FilamentTracking.FilamentTrackingTestHelpers;
@@ -23,26 +22,25 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
     /// <summary>A printer fully configured (machine + process profile linked) so it wins the no-target-printer fleet-representative pick — the only way an STL upload reaches filament resolution at all. Deliberately separate from the simulator printer used to obtain a real feed slot below.</summary>
     private async Task SeedFullyConfiguredPrinterAsync()
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var printerRepo = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
 
         var machine = MachineProfile.CreateSystemProfile(
-            Organization.WellKnownId, $"Library Fallback Machine {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+            $"Library Fallback Machine {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"machine","nozzle_diameter":["0.4"]}""",
             "System", Guid.NewGuid().ToString("N"), isSelectable: true, vendorMachineModelName: null, includedTemplateNames: null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var process = ProcessProfile.CreateSystemProfile(
-            Organization.WellKnownId, $"Library Fallback Process {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+            $"Library Fallback Process {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"process","layer_height":"0.2"}""",
             "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null);
         await processRepo.AddAsync(process, CancellationToken.None);
 
         var printer = Printer.Create(
-            Organization.WellKnownId, $"Library Fallback Printer {Guid.NewGuid():N}", "Bambu", "X1C", "10.0.0.91", $"SN-{Guid.NewGuid():N}");
+            $"Library Fallback Printer {Guid.NewGuid():N}", "Bambu", "X1C", "10.0.0.91", $"SN-{Guid.NewGuid():N}");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);
         // 012 — required alongside machine/process for ResolveAsync to reach filament resolution at
@@ -54,12 +52,11 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
     /// <summary>Directly seeds a distinguishable System <see cref="FilamentProfile"/> row to link a tracked <see cref="OpenFarm.Domain.FilamentTracking.Filament"/> to — no HTTP endpoint creates a raw profile row outside a bundle import.</summary>
     private async Task<Guid> SeedDistinguishableFilamentProfileAsync()
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var filamentProfileRepo = scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>();
 
         var profile = FilamentProfile.CreateSystemProfile(
-            Organization.WellKnownId, $"Library Fallback PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+            $"Library Fallback PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"]}""",
             "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
         await filamentProfileRepo.AddAsync(profile, CancellationToken.None);
@@ -133,7 +130,7 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
 
         var finalJob = await WaitForTerminalStatusAsync(client, submitted!.JobId);
 
-        // No System PLA profile exists anywhere in this test's organization — if the library tier
+        // No System PLA profile exists anywhere in this test's database — if the library tier
         // hadn't engaged, this would fail at filament resolution naming 'PLA' unconfigured instead of
         // reaching the (always-broken, in this test environment) CLI invocation.
         finalJob.Status.Should().Be("ReadyForReview");

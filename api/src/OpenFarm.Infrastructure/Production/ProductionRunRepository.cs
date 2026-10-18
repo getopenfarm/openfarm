@@ -36,10 +36,7 @@ public sealed class ProductionRunRepository(OpenFarmDbContext dbContext) : IProd
         var totalCount = await query.CountAsync(cancellationToken);
         if (sorting is not null)
         {
-            // Raw read projection: every source and join is explicitly scoped to this tenant.
-            // Do not materialize every run or compute job summaries before selecting the page.
-            var organizationId = Guid.Parse(dbContext.TenantInfo?.Id
-                ?? throw new InvalidOperationException("A tenant is required to list production runs."));
+            // Raw read projection: do not materialize every run or compute job summaries before selecting the page.
             var labels = dbContext.Database.SqlQuery<RunListLabel>($"""
                 SELECT r."Id", COALESCE(r."Name",
                     CASE WHEN lines.count = 0 THEN 'Empty run'
@@ -54,12 +51,9 @@ public sealed class ProductionRunRepository(OpenFarmDbContext dbContext) : IProd
                         max(l."Quantity") AS quantity
                     FROM "RunLines" l
                     LEFT JOIN "Parts" p ON l."TargetKind" = 'Part' AND p."Id" = l."TargetId"
-                        AND p."OrganizationId" = {organizationId}
                     LEFT JOIN "Assemblies" a ON l."TargetKind" = 'Assembly' AND a."Id" = l."TargetId"
-                        AND a."OrganizationId" = {organizationId}
-                    WHERE l."ProductionRunId" = r."Id" AND l."OrganizationId" = {organizationId}
+                    WHERE l."ProductionRunId" = r."Id"
                 ) lines ON true
-                WHERE r."OrganizationId" = {organizationId}
                 """);
             var ordered = sorting.Descending ? labels.OrderByDescending(r => r.DisplayLabel.ToLower())
                 : labels.OrderBy(r => r.DisplayLabel.ToLower());

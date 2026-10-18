@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -69,16 +68,15 @@ public sealed class FilamentProfileConfiguration : IEntityTypeConfiguration<Fila
             .OnDelete(DeleteBehavior.SetNull);
 
         // Research.md §1 idempotency keys — same shape as MachineProfile/ProcessProfile.
-        builder.HasIndex(p => new { p.OrganizationId, p.SourceFormat, p.VendorName, p.ExternalId })
+        builder.HasIndex(p => new { p.SourceFormat, p.VendorName, p.ExternalId })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-        builder.HasIndex(p => new { p.OrganizationId, p.SourceFormat, p.VendorName, p.Name })
+        builder.HasIndex(p => new { p.SourceFormat, p.VendorName, p.Name })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
         // No uniqueness constraint on Name for User rows — FR-009 permits duplicate-named imports as
         // separate rows (data-model.md's Validation rules).
-        builder.IsMultiTenant();
     }
 }

@@ -23,7 +23,7 @@ public static class FilamentColor
     /// (e.g. <c>000000FF</c>); the simulator already sends <c>#RRGGBB</c>. Both collapse to the first
     /// six hex digits with a single leading <c>#</c>.
     /// </summary>
-    private static string? Normalize(string? colorHex)
+    public static string? Normalize(string? colorHex)
     {
         if (string.IsNullOrWhiteSpace(colorHex))
         {

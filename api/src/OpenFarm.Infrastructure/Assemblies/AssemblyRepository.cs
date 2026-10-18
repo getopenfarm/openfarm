@@ -81,13 +81,13 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
     public void StageLine(BomLine line) => dbContext.BomLines.Add(line);
 
     public async Task<TResult> RunWithStructuralLockAsync<TResult>(
-        Guid organizationId, Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken)
+        Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            await dbContext.AcquireStructuralLockAsync(organizationId, cancellationToken);
+            await dbContext.AcquireStructuralLockAsync(cancellationToken);
             var result = await operation(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return result;

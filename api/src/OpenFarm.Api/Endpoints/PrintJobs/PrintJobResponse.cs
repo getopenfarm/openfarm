@@ -6,7 +6,7 @@ public sealed class QueueJobRowResponse
 {
     public Guid JobId { get; set; }
 
-    public double QueuePosition { get; set; }
+    public double? QueuePosition { get; set; }
 
     public string Status { get; set; } = string.Empty;
 
@@ -22,17 +22,24 @@ public sealed class QueueJobRowResponse
     public string SnapshotState { get; set; } = string.Empty;
     public string? SnapshotRecoveryReason { get; set; }
 
-    public Guid PartId { get; set; }
+    public Guid? PartId { get; set; }
 
     public string PartName { get; set; } = string.Empty;
 
     public int PlateQuantity { get; set; }
 
-    public Guid RunLineId { get; set; }
+    public Guid? RunLineId { get; set; }
 
-    public Guid ProductionRunId { get; set; }
+    public Guid? ProductionRunId { get; set; }
 
     public string RunDisplayLabel { get; set; } = string.Empty;
+
+    /// <summary>"Dispatched" for a job OpenFarm queued, "External" for a print the printer started itself.</summary>
+    public string Source { get; set; } = string.Empty;
+
+    public DateTimeOffset? StartedAtUtc { get; set; }
+
+    public DateTimeOffset? EndedAtUtc { get; set; }
 
     public static QueueJobRowResponse FromRow(QueueJobRow row) => new()
     {
@@ -53,6 +60,9 @@ public sealed class QueueJobRowResponse
         RunLineId = row.RunLineId,
         ProductionRunId = row.ProductionRunId,
         RunDisplayLabel = row.RunDisplayLabel,
+        Source = row.Source.ToString(),
+        StartedAtUtc = row.StartedAtUtc,
+        EndedAtUtc = row.EndedAtUtc,
     };
 }
 
@@ -70,6 +80,10 @@ public sealed class JobFilamentConsumptionResponse
 
     public decimal? GramsConsumed { get; set; }
 
+    public decimal? EstimatedGrams { get; set; }
+
+    public int ToolIndex { get; set; }
+
     public static JobFilamentConsumptionResponse FromDetail(JobFilamentConsumptionDetail detail) => new()
     {
         Id = detail.Id,
@@ -79,6 +93,8 @@ public sealed class JobFilamentConsumptionResponse
         NarrowFilamentProfileId = detail.NarrowFilamentProfileId,
         SpoolId = detail.SpoolId,
         GramsConsumed = detail.GramsConsumed,
+        EstimatedGrams = detail.EstimatedGrams,
+        ToolIndex = detail.ToolIndex,
     };
 }
 
@@ -86,13 +102,13 @@ public sealed class PrintJobResponse
 {
     public Guid Id { get; set; }
 
-    public Guid PartRequirementId { get; set; }
+    public Guid? PartRequirementId { get; set; }
 
-    public double QueuePosition { get; set; }
+    public double? QueuePosition { get; set; }
 
-    public int PlateQuantity { get; set; }
+    public int? PlateQuantity { get; set; }
 
-    public string AssignmentMode { get; set; } = string.Empty;
+    public string? AssignmentMode { get; set; }
 
     public Guid? PinnedPrinterId { get; set; }
 
@@ -100,9 +116,9 @@ public sealed class PrintJobResponse
 
     public string Status { get; set; } = string.Empty;
 
-    public string FileRevisionHash { get; set; } = string.Empty;
+    public string? FileRevisionHash { get; set; }
 
-    public int FileRevisionNumber { get; set; }
+    public int? FileRevisionNumber { get; set; }
 
     public DateTimeOffset? DispatchedAtUtc { get; set; }
 
@@ -122,13 +138,18 @@ public sealed class PrintJobResponse
     public string SnapshotState { get; set; } = string.Empty;
     public string? SnapshotRecoveryReason { get; set; }
 
+    /// <summary>"Dispatched" or "External"; an external print has no requirement, queue slot, plate or file revision.</summary>
+    public string Source { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
     public static PrintJobResponse FromDetail(PrintJobDetail detail) => new()
     {
         Id = detail.Id,
         PartRequirementId = detail.PartRequirementId,
         QueuePosition = detail.QueuePosition,
         PlateQuantity = detail.PlateQuantity,
-        AssignmentMode = detail.AssignmentMode.ToString(),
+        AssignmentMode = detail.AssignmentMode?.ToString(),
         PinnedPrinterId = detail.PinnedPrinterId,
         DispatchedPrinterId = detail.DispatchedPrinterId,
         Status = detail.Status.ToString(),
@@ -144,5 +165,7 @@ public sealed class PrintJobResponse
         CreatedAtUtc = detail.CreatedAtUtc,
         SnapshotState = detail.SnapshotState,
         SnapshotRecoveryReason = detail.SnapshotRecoveryReason,
+        Source = detail.Source.ToString(),
+        Name = detail.Name,
     };
 }

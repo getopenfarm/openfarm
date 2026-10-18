@@ -9,21 +9,17 @@ namespace OpenFarm.Infrastructure.Assemblies;
 /// <summary>
 /// This codebase's first raw-SQL query (research.md R1) — <see cref="ExplodeAsync"/> runs a literal
 /// <c>WITH RECURSIVE</c> CTE over the current ADO.NET connection so BOM decomposition scales with rows
-/// scanned, not round-trips-per-level (SC-007). <see cref="GetOrganizationEdgesAsync"/> is a plain,
+/// scanned, not round-trips-per-level (SC-007). <see cref="GetEdgesAsync"/> is a plain,
 /// non-recursive LINQ query feeding <see cref="AssemblyGraph"/> (research.md R2).
 /// </summary>
 public sealed class AssemblyGraphQueryService(OpenFarmDbContext dbContext) : IAssemblyGraphQueryService
 {
     private const int MaxDepth = 10;
 
-    public Task<IReadOnlyList<(Guid ParentAssemblyId, Guid ChildAssemblyId)>> GetOrganizationEdgesAsync(
-        Guid organizationId, CancellationToken cancellationToken) =>
-        GetOrganizationEdgesCoreAsync(organizationId, cancellationToken);
-
-    private async Task<IReadOnlyList<(Guid, Guid)>> GetOrganizationEdgesCoreAsync(Guid organizationId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<(Guid ParentAssemblyId, Guid ChildAssemblyId)>> GetEdgesAsync(CancellationToken cancellationToken)
     {
         var rows = await dbContext.BomLines
-            .Where(l => l.OrganizationId == organizationId && l.TargetKind == BomLineTargetKind.Assembly)
+            .Where(l => l.TargetKind == BomLineTargetKind.Assembly)
             .Select(l => new { Parent = l.AssemblyId, Child = l.TargetAssemblyId!.Value })
             .ToListAsync(cancellationToken);
 
@@ -37,7 +33,7 @@ public sealed class AssemblyGraphQueryService(OpenFarmDbContext dbContext) : IAs
     /// aggregated by leaf target and split into printed parts vs. non-printed components (FR-009d).
     /// Never persists anything.
     /// </summary>
-    public async Task<BomExplosionResult> ExplodeAsync(Guid organizationId, Guid rootAssemblyId, int quantity, CancellationToken cancellationToken)
+    public async Task<BomExplosionResult> ExplodeAsync(Guid rootAssemblyId, int quantity, CancellationToken cancellationToken)
     {
         var sql = $"""
             WITH RECURSIVE explosion AS (
@@ -45,13 +41,13 @@ public sealed class AssemblyGraphQueryService(OpenFarmDbContext dbContext) : IAs
                        bl."TargetAssemblyId" AS "TargetAssemblyId", bl."TargetNonPrintedComponentId" AS "TargetNonPrintedComponentId",
                        bl."Quantity" * @quantity AS "Multiplier", 1 AS "Depth"
                 FROM "BomLines" bl
-                WHERE bl."AssemblyId" = @rootAssemblyId AND bl."OrganizationId" = @organizationId
+                WHERE bl."AssemblyId" = @rootAssemblyId
                 UNION ALL
                 SELECT child."TargetKind", child."TargetPartId", child."TargetAssemblyId", child."TargetNonPrintedComponentId",
                        child."Quantity" * e."Multiplier", e."Depth" + 1
                 FROM "BomLines" child
                 JOIN explosion e ON child."AssemblyId" = e."TargetAssemblyId"
-                WHERE e."TargetKind" = 'Assembly' AND e."Depth" < {MaxDepth} AND child."OrganizationId" = @organizationId
+                WHERE e."TargetKind" = 'Assembly' AND e."Depth" < {MaxDepth}
             )
             SELECT "TargetKind", "TargetPartId", "TargetNonPrintedComponentId", SUM("Multiplier") AS "TotalQuantity"
             FROM explosion
@@ -76,7 +72,6 @@ public sealed class AssemblyGraphQueryService(OpenFarmDbContext dbContext) : IAs
             command.CommandType = CommandType.Text;
             AddParameter(command, "quantity", quantity);
             AddParameter(command, "rootAssemblyId", rootAssemblyId);
-            AddParameter(command, "organizationId", organizationId);
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))

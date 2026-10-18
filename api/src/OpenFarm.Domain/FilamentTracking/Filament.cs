@@ -7,14 +7,12 @@ public sealed class Filament
 
     private Filament(
         Guid id,
-        Guid organizationId,
         Guid vendorId,
         string material,
         string materialType,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         VendorId = vendorId;
         Material = material;
         MaterialType = materialType;
@@ -22,8 +20,6 @@ public sealed class Filament
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid VendorId { get; private set; }
 
@@ -36,7 +32,7 @@ public sealed class Filament
     public void ReplaceProfileAssignments(IEnumerable<FilamentProfileAssignment> assignments)
     {
         var rows = assignments.ToList();
-        if (rows.Any(a => a.FilamentId != Id || a.OrganizationId != OrganizationId
+        if (rows.Any(a => a.FilamentId != Id
             || a.FilamentVariantId is { } variantId && !_variants.Any(v => v.Id == variantId)))
             throw new ArgumentException("Assignments must belong to this filament and its colours.");
         if (rows.Select(a => (a.Brand, a.ModelCode, a.NozzleDiameterMm, a.FilamentVariantId)).Distinct().Count() != rows.Count)
@@ -64,10 +60,10 @@ public sealed class Filament
 
     public IReadOnlyList<FilamentVariant> Variants => _variants;
 
-    public static Filament Create(Guid organizationId, Guid vendorId, string material, string materialType)
+    public static Filament Create(Guid vendorId, string material, string materialType)
     {
         GuardDetails(material, materialType);
-        return new Filament(Guid.NewGuid(), organizationId, vendorId, material, materialType, DateTimeOffset.UtcNow);
+        return new Filament(Guid.NewGuid(), vendorId, material, materialType, DateTimeOffset.UtcNow);
     }
 
     public void UpdateDetails(Guid vendorId, string material, string materialType)

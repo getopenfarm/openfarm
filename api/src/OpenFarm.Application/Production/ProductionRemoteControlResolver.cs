@@ -17,7 +17,7 @@ public sealed class ProductionRemoteControlResolver(
         Guid jobId, IReadOnlyCollection<PrintJobStatus> eligibleStatuses, CancellationToken cancellationToken)
     {
         var job = await jobRepository.GetByIdAsync(jobId, cancellationToken) ?? throw new PrintJobNotFoundException(jobId);
-        if (!eligibleStatuses.Contains(job.Status) || job.DispatchedPrinterId is not { } printerId)
+        if (!eligibleStatuses.Contains(job.Status) || job.PrinterId is not { } printerId)
         {
             throw new JobNotEligibleForRemoteControlException(job.Id);
         }

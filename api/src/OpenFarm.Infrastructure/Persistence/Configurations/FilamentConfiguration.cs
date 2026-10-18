@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.FilamentTracking;
@@ -12,9 +11,6 @@ public sealed class FilamentConfiguration : IEntityTypeConfiguration<Filament>
         builder.ToTable("Filaments");
 
         builder.HasKey(f => f.Id);
-
-        builder.Property(f => f.OrganizationId)
-            .IsRequired();
 
         builder.Property(f => f.Material)
             .IsRequired();
@@ -40,7 +36,5 @@ public sealed class FilamentConfiguration : IEntityTypeConfiguration<Filament>
 
         builder.Navigation(f => f.Variants)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
-
-        builder.IsMultiTenant();
     }
 }

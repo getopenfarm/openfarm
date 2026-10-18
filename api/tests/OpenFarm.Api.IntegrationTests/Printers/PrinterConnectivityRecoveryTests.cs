@@ -10,7 +10,6 @@ using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ConnectionSecrets;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Printers;
 
@@ -75,14 +74,13 @@ public class PrinterConnectivityRecoveryTests(ConnectivityTestFactory factory) :
     [Fact]
     public async Task SeparateDatabaseScopes_RecoverAfterSilence_AndPreserveThrottledDeltas()
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        var printer = Printer.Create(Organization.WellKnownId, "Recovery", "Bambu", "P1S", "127.0.0.1", $"REC-{Guid.NewGuid():N}");
-        using (var scope = factory.CreateTenantScope())
+        var printer = Printer.Create("Recovery", "Bambu", "P1S", "127.0.0.1", $"REC-{Guid.NewGuid():N}");
+        using (var scope = factory.Services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<IPrinterRepository>().AddAsync(printer, default);
             var protector = scope.ServiceProvider.GetRequiredService<ISecretProtector>();
             await scope.ServiceProvider.GetRequiredService<IConnectionSecretRepository>().AddAsync(
-                ConnectionSecret.Create(printer.OrganizationId, printer.SerialNumber, protector.Protect("test-code")), default);
+                ConnectionSecret.Create(printer.SerialNumber, protector.Protect("test-code")), default);
         }
         using var service = new PrinterConnectionBackgroundService(factory.Services.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<PrinterConnectionBackgroundService>.Instance, TimeSpan.FromMilliseconds(50),
@@ -110,7 +108,7 @@ public class PrinterConnectivityRecoveryTests(ConnectivityTestFactory factory) :
 
     private async Task<Printer> ReadAsync(Guid id)
     {
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         return (await scope.ServiceProvider.GetRequiredService<IPrinterRepository>().GetByIdAsync(id, default))!;
     }
 

@@ -4,17 +4,14 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
-using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Parts;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Persistence;
-using OpenFarm.Infrastructure.Multitenancy;
 
 namespace OpenFarm.Api.IntegrationTests.Parts;
 
@@ -38,7 +35,7 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
     }
 
     private static Part NewPart(string storagePath) => Part.Create(
-        Organization.WellKnownId, $"Removable {Guid.NewGuid():N}", PartFileFormat.GCode, false,
+        $"Removable {Guid.NewGuid():N}", PartFileFormat.GCode, false,
         "part.gcode", storagePath, 10, 0.4m, null, null, EstimateStatus.Available, 60, 20,
         1, 1, $"{Guid.NewGuid():N}", [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
 
@@ -46,14 +43,13 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
     public async Task DeleteUnusedPart_RetainsSharedFileAndOtherPart_ThenReturns404()
     {
         using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
         Guid firstId;
         Guid secondId;
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
             using var bytes = new MemoryStream(Encoding.UTF8.GetBytes("G28\nG1 X10"));
-            var path = await storage.SaveAsync(Organization.WellKnownId, $"{Guid.NewGuid():N}", "part.gcode", bytes, CancellationToken.None);
+            var path = await storage.SaveAsync($"{Guid.NewGuid():N}", "part.gcode", bytes, CancellationToken.None);
             var repository = scope.ServiceProvider.GetRequiredService<IPartRepository>();
             var first = NewPart(path);
             var second = NewPart(path);
@@ -70,58 +66,25 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
         (await client.GetStringAsync($"/api/v1/parts/{secondId}/file")).Should().Be("G28\nG1 X10");
     }
 
-    [Fact]
-    public async Task DeletePart_FromAnotherTenant_IsNotFoundAndLeavesOwnerPartIntact()
-    {
-        using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
-        Guid id;
-        using (var scope = factory.CreateTenantScope())
-        {
-            var part = NewPart("unused-test-path.gcode");
-            await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, CancellationToken.None);
-            id = part.Id;
-        }
-        using (var scope = factory.CreateTenantScope())
-        {
-            var setter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-            setter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(new AppTenantInfo
-            {
-                Id = Guid.NewGuid().ToString(),
-                Identifier = "other-tenant",
-                Name = "Other tenant"
-            });
-            var check = await scope.ServiceProvider.GetRequiredService<IPartDeletionEligibilityReader>().CheckAsync([id], default);
-            check[0].Status.Should().Be("Absent");
-            check[0].Name.Should().BeNull();
-            check[0].Blockers.Should().BeEmpty();
-            var handler = scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Common.ICommandHandler<DeletePartCommand, bool>>();
-            var action = () => handler.HandleAsync(new DeletePartCommand(id), CancellationToken.None);
-            await action.Should().ThrowAsync<PartNotFoundException>();
-        }
-        (await client.GetAsync($"/api/v1/parts/{id}")).StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task DeletePart_ReferencedByUnresolvedLegacyJob_Returns409(bool completed)
     {
         using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
         Guid id;
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var part = NewPart("unused-test-path.gcode");
-            var run = ProductionRun.Create(Organization.WellKnownId, "History", null, null, null,
+            var run = ProductionRun.Create("History", null, null, null,
                 [new RunLineSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
             if (completed) run.MarkComplete(true);
             db.Parts.Add(part);
             db.ProductionRuns.Add(run);
-            var requirement = PartRequirement.Create(Organization.WellKnownId, run.Lines[0].Id, part.Id, 1);
+            var requirement = PartRequirement.Create(run.Lines[0].Id, part.Id, 1);
             db.PartRequirements.Add(requirement);
-            db.PrintJobs.Add(PrintJob.Create(Organization.WellKnownId, requirement.Id, 1024, 1,
+            db.PrintJobs.Add(PrintJob.Create("Test part", requirement.Id, 1024, 1,
                 AssignmentMode.Unassigned, null, part.RevisionHash, part.RevisionNumber, [new JobFilamentRequirementSpec("PLA", null)]));
             await db.SaveChangesAsync();
             id = part.Id;
@@ -138,15 +101,14 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
     {
         // Exercise the database backstop directly, bypassing the handler preflight.
         using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var part = NewPart("unused-test-path.gcode");
-        var run = ProductionRun.Create(Organization.WellKnownId, "History", null, null, null,
+        var run = ProductionRun.Create("History", null, null, null,
             [new RunLineSpec(RunLineTargetKind.Part, part.Id, null, null, AssignmentMode.Unassigned, null, 1, null)]);
         db.Parts.Add(part);
         db.ProductionRuns.Add(run);
-        db.PartRequirements.Add(PartRequirement.Create(Organization.WellKnownId, run.Lines[0].Id, part.Id, null));
+        db.PartRequirements.Add(PartRequirement.Create(run.Lines[0].Id, part.Id, null));
         await db.SaveChangesAsync();
         var repository = scope.ServiceProvider.GetRequiredService<IPartRepository>();
         db.ChangeTracker.Clear();
@@ -158,25 +120,24 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
     public async Task CheckDeletion_MixedDependencies_IsReadOnlyAndMatchesDelete()
     {
         using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
         Guid blockedId;
         Guid eligibleId;
         Guid assemblyId;
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var blocked = NewPart("blocked.gcode");
             var eligible = NewPart("eligible.gcode");
-            var assembly = OpenFarm.Domain.Assemblies.Assembly.Create(Organization.WellKnownId, "Slab Ass", null,
+            var assembly = OpenFarm.Domain.Assemblies.Assembly.Create("Slab Ass", null,
                 [new OpenFarm.Domain.Assemblies.BomLineSpec(OpenFarm.Domain.Assemblies.BomLineTargetKind.Part, blocked.Id, null, null, 1)]);
-            var run = ProductionRun.Create(Organization.WellKnownId, "Unlimited slabs", null, null, null,
+            var run = ProductionRun.Create("Unlimited slabs", null, null, null,
                 [new RunLineSpec(RunLineTargetKind.Part, blocked.Id, null, null, AssignmentMode.Unassigned, null, 1, null)]);
-            var requirement = PartRequirement.Create(Organization.WellKnownId, run.Lines[0].Id, blocked.Id, null);
+            var requirement = PartRequirement.Create(run.Lines[0].Id, blocked.Id, null);
             db.Parts.AddRange(blocked, eligible);
             db.Assemblies.Add(assembly);
             db.ProductionRuns.Add(run);
             db.PartRequirements.Add(requirement);
-            db.PrintJobs.Add(PrintJob.Create(Organization.WellKnownId, requirement.Id, 1024, 1, AssignmentMode.Unassigned, null,
+            db.PrintJobs.Add(PrintJob.Create("Test part", requirement.Id, 1024, 1, AssignmentMode.Unassigned, null,
                 blocked.RevisionHash, blocked.RevisionNumber, [new JobFilamentRequirementSpec("PLA", null)]));
             await db.SaveChangesAsync();
             blockedId = blocked.Id;
@@ -191,7 +152,7 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
         var blockers = preview.Parts[0].Blockers;
         blockers.Select(b => b.Code).Should().BeEquivalentTo("AssemblyReference", "UnlimitedRun", "UnfinishedLegacyJob");
         blockers.Should().Contain(b => b.EntityId == assemblyId && b.Name == "Slab Ass");
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             (await db.Parts.FindAsync(blockedId)).Should().NotBeNull();
@@ -221,9 +182,8 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
     public async Task CheckDeletion_AssemblyAddedAfterPreview_BlocksLockedDelete()
     {
         using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
         Guid id;
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var part = NewPart("race.gcode");
             await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
@@ -241,18 +201,17 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
     public async Task AssemblyInsertInFlight_DeleteWaitsAndPreservesCommittedReference()
     {
         using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
         Guid id;
-        using (var seedScope = factory.CreateTenantScope())
+        using (var seedScope = factory.Services.CreateScope())
         {
             var part = NewPart("assembly-race.gcode");
             await seedScope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
             id = part.Id;
         }
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         await using var transaction = await db.Database.BeginTransactionAsync();
-        var assembly = OpenFarm.Domain.Assemblies.Assembly.Create(Organization.WellKnownId, "Concurrent assembly", null,
+        var assembly = OpenFarm.Domain.Assemblies.Assembly.Create("Concurrent assembly", null,
             [new OpenFarm.Domain.Assemblies.BomLineSpec(OpenFarm.Domain.Assemblies.BomLineTargetKind.Part, id, null, null, 1)]);
         db.Assemblies.Add(assembly);
         // The uncommitted BOM insert holds the FK key-share lock on the part.
@@ -268,9 +227,8 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
     public async Task ConcurrentDeletes_OnlyOneCommits()
     {
         using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
         Guid id;
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var part = NewPart("concurrent.gcode");
             await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
@@ -285,9 +243,8 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
     public async Task DeleteNotificationFailure_DoesNotUndoOrReportFailureForCommittedDeletion()
     {
         using var client = await ClientAsync();
-        await factory.EnsureTenantInfoResolvedAsync();
         Guid id;
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var part = NewPart("notification.gcode");
             var repository = scope.ServiceProvider.GetRequiredService<IPartRepository>();
@@ -301,11 +258,11 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
 
     private sealed class FailingDeletedPublisher : IPartEventPublisher
     {
-        public Task PartDeletedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) => throw new IOException("Notification unavailable");
-        public Task PartProcessingJobStatusChangedAsync(Guid organizationId, PartProcessingJob job, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PartUpsertedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PartEstimateResolvedAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PartEstimateUnavailableAsync(Guid organizationId, Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PartDeletedAsync(Guid partId, CancellationToken cancellationToken) => throw new IOException("Notification unavailable");
+        public Task PartProcessingJobStatusChangedAsync(PartProcessingJob job, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PartUpsertedAsync(Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PartEstimateResolvedAsync(Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PartEstimateUnavailableAsync(Guid partId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
 }

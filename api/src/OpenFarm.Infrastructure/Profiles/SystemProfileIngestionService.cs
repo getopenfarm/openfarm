@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
@@ -48,7 +47,6 @@ public sealed partial class SystemProfileIngestionService(
             return EmptySummary();
         }
 
-        var organizationId = Organization.WellKnownId;
         var vendorsScanned = 0;
         var vendorsSkipped = 0;
         var machineCounts = new MutableCounts();
@@ -97,9 +95,9 @@ public sealed partial class SystemProfileIngestionService(
                 LogSkippedPresetEntry(logger, skipped, summary.VendorName);
             }
 
-            var machineByName = await UpsertMachineAsync(organizationId, summary.VendorName, sourceFormat.Value, machineResult.Presets, machineCounts, seenMachineIds, cancellationToken);
-            var processByName = await UpsertProcessAsync(organizationId, summary.VendorName, sourceFormat.Value, processResult.Presets, processCounts, seenProcessIds, cancellationToken);
-            var filamentByName = await UpsertFilamentAsync(organizationId, summary.VendorName, sourceFormat.Value, filamentResult.Presets, filamentCounts, seenFilamentIds, cancellationToken);
+            var machineByName = await UpsertMachineAsync(summary.VendorName, sourceFormat.Value, machineResult.Presets, machineCounts, seenMachineIds, cancellationToken);
+            var processByName = await UpsertProcessAsync(summary.VendorName, sourceFormat.Value, processResult.Presets, processCounts, seenProcessIds, cancellationToken);
+            var filamentByName = await UpsertFilamentAsync(summary.VendorName, sourceFormat.Value, filamentResult.Presets, filamentCounts, seenFilamentIds, cancellationToken);
             foreach (var filamentProfile in filamentByName.Values)
             {
                 if (filamentProfile.VendorName is { } filamentVendorName)
@@ -117,7 +115,7 @@ public sealed partial class SystemProfileIngestionService(
             await filamentProfileRepository.SaveChangesAsync(cancellationToken);
         }
 
-        await EnsureVendorsExistAsync(organizationId, filamentVendorNamesSeen, cancellationToken);
+        await EnsureVendorsExistAsync(filamentVendorNamesSeen, cancellationToken);
 
         machineCounts.MarkedStale += await MarkStaleAsync(machineProfileRepository, seenMachineIds, sourceFormat.Value, cancellationToken);
         processCounts.MarkedStale += await MarkStaleAsync(processProfileRepository, seenProcessIds, sourceFormat.Value, cancellationToken);
@@ -132,7 +130,7 @@ public sealed partial class SystemProfileIngestionService(
     }
 
     private async Task<Dictionary<string, MachineProfile>> UpsertMachineAsync(
-        Guid organizationId, string vendorName, ProfileSourceFormat sourceFormat,
+        string vendorName, ProfileSourceFormat sourceFormat,
         IReadOnlyList<ParsedVendorPreset> presets, MutableCounts counts, HashSet<Guid> seenIds, CancellationToken cancellationToken)
     {
         var byName = new Dictionary<string, MachineProfile>(StringComparer.Ordinal);
@@ -163,7 +161,7 @@ public sealed partial class SystemProfileIngestionService(
             }
 
             var created = MachineProfile.CreateSystemProfile(
-                organizationId, preset.Name, sourceFormat, preset.BaseProfileName, preset.RawJson,
+                preset.Name, sourceFormat, preset.BaseProfileName, preset.RawJson,
                 vendorName, preset.ExternalId, preset.IsSelectable, preset.VendorMachineModelName, preset.IncludedTemplateNames);
             await machineProfileRepository.AddAsync(created, cancellationToken);
             counts.Created++;
@@ -175,7 +173,7 @@ public sealed partial class SystemProfileIngestionService(
     }
 
     private async Task<Dictionary<string, ProcessProfile>> UpsertProcessAsync(
-        Guid organizationId, string vendorName, ProfileSourceFormat sourceFormat,
+        string vendorName, ProfileSourceFormat sourceFormat,
         IReadOnlyList<ParsedVendorPreset> presets, MutableCounts counts, HashSet<Guid> seenIds, CancellationToken cancellationToken)
     {
         var byName = new Dictionary<string, ProcessProfile>(StringComparer.Ordinal);
@@ -205,7 +203,7 @@ public sealed partial class SystemProfileIngestionService(
             }
 
             var created = ProcessProfile.CreateSystemProfile(
-                organizationId, preset.Name, sourceFormat, preset.BaseProfileName, preset.RawJson,
+                preset.Name, sourceFormat, preset.BaseProfileName, preset.RawJson,
                 vendorName, preset.ExternalId, preset.IsSelectable, preset.CompatibleMachineNames);
             await processProfileRepository.AddAsync(created, cancellationToken);
             counts.Created++;
@@ -217,7 +215,7 @@ public sealed partial class SystemProfileIngestionService(
     }
 
     private async Task<Dictionary<string, FilamentProfile>> UpsertFilamentAsync(
-        Guid organizationId, string vendorName, ProfileSourceFormat sourceFormat,
+        string vendorName, ProfileSourceFormat sourceFormat,
         IReadOnlyList<ParsedVendorPreset> presets, MutableCounts counts, HashSet<Guid> seenIds, CancellationToken cancellationToken)
     {
         var byName = new Dictionary<string, FilamentProfile>(StringComparer.Ordinal);
@@ -255,7 +253,7 @@ public sealed partial class SystemProfileIngestionService(
             }
 
             var created = FilamentProfile.CreateSystemProfile(
-                organizationId, preset.Name, sourceFormat, preset.BaseProfileName, preset.RawJson,
+                preset.Name, sourceFormat, preset.BaseProfileName, preset.RawJson,
                 resolvedVendorName, preset.ExternalId, preset.IsSelectable, preset.CompatibleMachineNames, preset.MaterialType, preset.IncludedTemplateNames);
             await filamentProfileRepository.AddAsync(created, cancellationToken);
             counts.Created++;
@@ -306,14 +304,14 @@ public sealed partial class SystemProfileIngestionService(
     // when logging physical filament stock/spools too — scoped to filament brands only (machine/process
     // index-level vendor names like "Bambulab" aren't filament brands and don't share spelling with the
     // filament-side "Bambu Lab").
-    private async Task EnsureVendorsExistAsync(Guid organizationId, IReadOnlySet<string> vendorNames, CancellationToken cancellationToken)
+    private async Task EnsureVendorsExistAsync(IReadOnlySet<string> vendorNames, CancellationToken cancellationToken)
     {
         foreach (var vendorName in vendorNames)
         {
             var existing = await vendorRepository.GetByNameAsync(vendorName, cancellationToken);
             if (existing is null)
             {
-                await vendorRepository.AddAsync(Vendor.Create(organizationId, vendorName), cancellationToken);
+                await vendorRepository.AddAsync(Vendor.Create(vendorName), cancellationToken);
             }
         }
     }

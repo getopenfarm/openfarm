@@ -59,7 +59,7 @@ public sealed class SpoolUsageRecordedHandler(
         if (isReloader) feedUnit.SelectFeedingSlot(continuedSpool?.FeedSlotId, estimated: true);
         await spoolRepository.SaveChangesAsync(cancellationToken);
         if (isReloader)
-            await eventPublisher.FeedUnitsChangedAsync(feedUnit.OrganizationId, feedUnit.PrinterId, cancellationToken);
+            await eventPublisher.FeedUnitsChangedAsync(feedUnit.PrinterId, cancellationToken);
 
         if (continuedSpool is null)
         {
@@ -67,7 +67,7 @@ public sealed class SpoolUsageRecordedHandler(
             // Unconditional's whole-purpose-is-unattended-continuation case — both log the same
             // event type, since no separate severity field exists yet (Phase 10's dashboard scope).
             await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create(depletedSpool.OrganizationId, "FeedUnit", feedUnit.Id.ToString(), "FeedUnitNoQualifyingReload", null, ActorType.System),
+                ActivityLogEntry.Create("FeedUnit", feedUnit.Id.ToString(), "FeedUnitNoQualifyingReload", null, ActorType.System),
                 cancellationToken);
             return AutoContinuationResult.None;
         }
@@ -75,18 +75,17 @@ public sealed class SpoolUsageRecordedHandler(
         var materialMismatch = policy == ReloadPolicy.Unconditional && continuedSpool.FilamentVariantId != depletedSpool.FilamentVariantId;
 
         await activityLogWriter.WriteAsync(
-            ActivityLogEntry.Create(depletedSpool.OrganizationId, "FeedUnit", feedUnit.Id.ToString(), "FeedUnitAutoContinued", null, ActorType.System),
+            ActivityLogEntry.Create("FeedUnit", feedUnit.Id.ToString(), "FeedUnitAutoContinued", null, ActorType.System),
             cancellationToken);
 
         if (materialMismatch)
         {
             await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create(depletedSpool.OrganizationId, "FeedUnit", feedUnit.Id.ToString(), "FeedUnitMaterialMismatch", null, ActorType.System),
+                ActivityLogEntry.Create("FeedUnit", feedUnit.Id.ToString(), "FeedUnitMaterialMismatch", null, ActorType.System),
                 cancellationToken);
         }
 
         await eventPublisher.FeedUnitAutoContinuedAsync(
-            depletedSpool.OrganizationId,
             feedUnit.Id,
             depletedSpool.Id,
             continuedSpool.Id,

@@ -10,7 +10,7 @@ public sealed record IssuedToken(string Token, DateTimeOffset ExpiresAtUtc);
 
 public sealed class JwtTokenService(IConfiguration configuration)
 {
-    public IssuedToken IssueToken(Guid userId, Guid organizationId)
+    public IssuedToken IssueToken(Guid userId)
     {
         var issuer = configuration["Jwt:Issuer"]
             ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
@@ -22,7 +22,6 @@ public sealed class JwtTokenService(IConfiguration configuration)
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new Claim("org", organizationId.ToString()),
         };
 
         var credentials = new SigningCredentials(

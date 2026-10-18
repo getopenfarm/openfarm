@@ -1,6 +1,5 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Application.FilamentTracking;
 
@@ -14,7 +13,7 @@ public sealed class CreateVendorCommandHandler(IVendorRepository vendorRepositor
             throw new DuplicateVendorNameException(command.Name);
         }
 
-        var vendor = Vendor.Create(Organization.WellKnownId, command.Name);
+        var vendor = Vendor.Create(command.Name);
         await vendorRepository.AddAsync(vendor, cancellationToken);
 
         return vendor;

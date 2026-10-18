@@ -30,7 +30,7 @@ public sealed partial class ProductionSnapshotReconciler(OpenFarmDbContext db, I
                     : (await db.Assemblies.FirstOrDefaultAsync(a => a.Id == line.TargetId, ct))?.Name;
                 if (name is not null) line.CaptureTargetName(name);
             }
-            var jobs = await db.PrintJobs.Include(j => j.FilamentConsumption)
+            var jobs = await db.PrintJobs.Include(j => j.Filaments)
                 .Where(j => j.PartRequirementId == requirement.Id && j.ProductionSnapshotJson == null && j.SnapshotUnavailableAtUtc == null).ToListAsync(ct);
             foreach (var job in jobs)
             {

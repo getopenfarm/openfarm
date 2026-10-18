@@ -18,14 +18,13 @@ public sealed class GetPrinterCameraSnapshotEndpoint(IPrinterRepository printers
     public override async Task HandleAsync(CancellationToken ct)
     {
         HttpContext.Response.Headers.CacheControl = "no-store";
-        // Repository queries are tenant-filtered; never accept an organization id from the caller.
         var printer = await printers.GetByIdAsync(Route<Guid>("id"), ct);
         if (printer is null)
         {
             await HttpContext.Response.SendNotFoundAsync(ct);
             return;
         }
-        var snapshot = await snapshots.GetAsync(printer.OrganizationId, printer.Id, ct);
+        var snapshot = await snapshots.GetAsync(printer.Id, ct);
         if (snapshot is null)
         {
             await HttpContext.Response.SendNoContentAsync(ct);

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using OpenFarm.Domain.Organizations;
+using OpenFarm.Domain.Settings;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Persistence;
 
@@ -15,19 +15,19 @@ public sealed partial class FirstBootSeeder(
 {
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        await EnsureOrganizationAsync(cancellationToken);
+        await EnsureFarmSettingsAsync(cancellationToken);
         await EnsureAdminUserAsync(cancellationToken);
     }
 
-    private async Task EnsureOrganizationAsync(CancellationToken cancellationToken)
+    private async Task EnsureFarmSettingsAsync(CancellationToken cancellationToken)
     {
-        var exists = await dbContext.Organizations.FindAsync([Organization.WellKnownId], cancellationToken);
+        var exists = await dbContext.FarmSettings.FindAsync([FarmSettings.SingletonId], cancellationToken);
         if (exists is not null)
         {
             return;
         }
 
-        dbContext.Organizations.Add(Organization.Create("Default Organization"));
+        dbContext.FarmSettings.Add(FarmSettings.Create());
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

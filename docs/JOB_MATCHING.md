@@ -36,7 +36,7 @@ data; opening diagnostics does not request dispatch.
 ## API
 
 `GET /api/v1/print-jobs/{id}/matching-diagnostics` requires `print-jobs:view`
-and uses tenant-scoped repositories. It returns evaluation time, overall outcome,
+and uses the normal repositories. It returns evaluation time, overall outcome,
 effective filament requirements, job checks, and per-printer results. Checks have
 stable codes and Passed/Failed/NotEvaluated status. Configuration links are
 separate from explanatory messages.

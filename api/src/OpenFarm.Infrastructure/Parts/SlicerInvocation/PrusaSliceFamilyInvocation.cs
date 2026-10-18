@@ -10,7 +10,7 @@ namespace OpenFarm.Infrastructure.Parts.SlicerInvocation;
 /// <c>--load-settings</c>/<c>--load-filaments</c> reject a bare scalar-derived stub JSON outright —
 /// they require a complete, typed preset (<c>type</c>/<c>name</c>/<c>inherits</c>/<c>from</c>/etc.),
 /// confirmed empirically against the real bundled binary. <see cref="ResolvedSlicingProfiles"/>
-/// (from <c>ResolveSlicingProfileSelection</c>) supplies exactly that — the org's configured machine
+/// (from <c>ResolveSlicingProfileSelection</c>) supplies exactly that — the farm's configured machine
 /// profile, that machine's paired process profile (Orca enforces strict machine/process
 /// compatibility; only a preset authored/shipped for the exact machine passes, never a fixed generic
 /// one), and the material's default filament profile, each already flattened across its ancestor

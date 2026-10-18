@@ -236,7 +236,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
         var submitted = await uploadResponse.Content.ReadFromJsonAsync<PartProcessingJobSubmittedResponse>();
 
-        // Change the org default after the job was created but before re-checking it.
+        // Change the farm default after the job was created but before re-checking it.
         await client.PutAsJsonAsync(
             new Uri("/api/v1/settings/slicing-defaults", UriKind.Relative),
             new { engine = "SuperSlicer", version = "2.5.59.13" });
@@ -249,7 +249,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
 
         // Restore the auto-defaulted baseline (OrcaSlicer, the newest/preferred bundled engine) —
         // there's no "clear explicit default" endpoint, and every test in this IClassFixture-shared
-        // factory/database runs against the same Organization row with no guaranteed ordering, so
+        // factory/database runs against the same settings row with no guaranteed ordering, so
         // leaving the SuperSlicer override in place here would silently corrupt any sibling test that
         // assumes no explicit default has been set yet.
         await client.PutAsJsonAsync(

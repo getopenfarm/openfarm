@@ -1,10 +1,11 @@
+using OpenFarm.Domain.FilamentTracking;
+
 namespace OpenFarm.Domain.Printers;
 
 public sealed class Printer
 {
     private Printer(
         Guid id,
-        Guid organizationId,
         string name,
         string brand,
         string modelCode,
@@ -13,7 +14,6 @@ public sealed class Printer
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         Name = name;
         Brand = brand;
         ModelCode = modelCode;
@@ -26,8 +26,6 @@ public sealed class Printer
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public string Name { get; private set; }
 
@@ -136,7 +134,6 @@ public sealed class Printer
     public DateTimeOffset CreatedAtUtc { get; }
 
     public static Printer Create(
-        Guid organizationId,
         string name,
         string brand,
         string modelCode,
@@ -161,7 +158,7 @@ public sealed class Printer
         // Validates (brand, modelCode) resolves against the catalog; throws UnknownPrinterModelException otherwise.
         var model = PrinterModelCatalog.Resolve(brand, modelCode);
 
-        return new Printer(Guid.NewGuid(), organizationId, name, model.Brand.ToString(), model.ModelCode, ipAddress, serialNumber, DateTimeOffset.UtcNow);
+        return new Printer(Guid.NewGuid(), name, model.Brand.ToString(), model.ModelCode, ipAddress, serialNumber, DateTimeOffset.UtcNow);
     }
 
     /// <summary>
@@ -235,6 +232,40 @@ public sealed class Printer
         CurrentGcodeFile = currentGcodeFile ?? CurrentGcodeFile;
         AmsUnits = amsUnits.Count > 0 ? amsUnits : AmsUnits;
         ExternalSpoolTray = externalSpoolTray ?? ExternalSpoolTray;
+        MarkActiveFeed();
+    }
+
+    /// <summary>
+    /// <c>tray_now</c> and the <c>ams</c> array arrive in separate deltas, so which tray is the active feed can only be derived from
+    /// the merged state. With no AMS the external spool is the only feed path; with an AMS nothing is marked until <c>tray_now</c> is known.
+    /// </summary>
+    private void MarkActiveFeed()
+    {
+        var noAms = AmsUnits.Count == 0;
+        if (!noAms && ActiveTrayId is null)
+        {
+            return;
+        }
+
+        var trayId = ActiveTrayId ?? 255;
+        var externalActive = noAms || trayId == ProductionFeedPath.ExternalTrayId;
+        if (ExternalSpoolTray is { } external && external.Active != externalActive)
+        {
+            ExternalSpoolTray = external with { Active = externalActive };
+        }
+
+        // Rebuild only on a real change, so the jsonb value comparer sees no change on an unchanged tray_now.
+        if (AmsUnits.Any(unit => unit.Trays.Any(tray => tray.Active != ProductionFeedPath.IsActiveAmsTray(trayId, unit.UnitIndex, tray.SlotIndex))))
+        {
+            AmsUnits = AmsUnits
+                .Select(unit => unit with
+                {
+                    Trays = unit.Trays
+                        .Select(tray => tray with { Active = ProductionFeedPath.IsActiveAmsTray(trayId, unit.UnitIndex, tray.SlotIndex) })
+                        .ToList(),
+                })
+                .ToList();
+        }
     }
 
     /// <summary>Clears the last print's progress when a new job starts, so a stale value is never read as the new job's.</summary>

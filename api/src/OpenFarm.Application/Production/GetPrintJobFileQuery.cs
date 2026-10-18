@@ -20,6 +20,6 @@ public sealed class GetPrintJobFileQueryHandler(IPrintJobRepository jobs, IPartR
         var part = job.GetProductionPart()
             ?? throw new ProductionSnapshotUnavailableException(job.Id, job.SnapshotRecoveryReason);
         part.EnsurePrintRequirementsComplete();
-        return await resolver.ResolveAsync(part, job, job.DispatchedPrinterId ?? job.PinnedPrinterId ?? Guid.Empty, part.NozzleDiameterMm!.Value, cancellationToken);
+        return await resolver.ResolveAsync(part, job, job.PrinterId ?? job.PinnedPrinterId ?? Guid.Empty, part.NozzleDiameterMm!.Value, cancellationToken);
     }
 }

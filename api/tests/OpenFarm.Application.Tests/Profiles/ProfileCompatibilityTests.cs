@@ -12,12 +12,12 @@ public sealed class ProfileCompatibilityTests
     [Fact]
     public async Task MachinePickerFiltersByInheritedModelAndReportedNozzleBeforePagination()
     {
-        var printer = Printer.Create(Guid.NewGuid(), "P1S", "Bambu", "P1S", "127.0.0.1", "SN");
+        var printer = Printer.Create("P1S", "Bambu", "P1S", "127.0.0.1", "SN");
         printer.ObserveNozzle(0.6m, DateTimeOffset.UtcNow);
         var machines = new FakeMachineProfileRepository();
-        var baseProfile = MachineProfile.Create(printer.OrganizationId, "Base", ProfileSourceFormat.OrcaSlicer, null,
+        var baseProfile = MachineProfile.Create("Base", ProfileSourceFormat.OrcaSlicer, null,
             """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""");
-        var child = MachineProfile.Create(printer.OrganizationId, "P1S 0.6", ProfileSourceFormat.OrcaSlicer, "Base", """{"nozzle_diameter":["0.6"]}""");
+        var child = MachineProfile.Create("P1S 0.6", ProfileSourceFormat.OrcaSlicer, "Base", """{"nozzle_diameter":["0.6"]}""");
         child.ResolveBaseProfile(baseProfile.Id);
         await machines.AddAsync(baseProfile, default); await machines.AddAsync(child, default);
         var compatibility = new ProfileCompatibility(machines, new FakeFilamentProfileRepository());
@@ -33,8 +33,8 @@ public sealed class ProfileCompatibilityTests
     public async Task FilamentPickerUsesEffectiveInheritedMaterialForUserProfiles()
     {
         var profiles = new FakeFilamentProfileRepository();
-        var parent = FilamentProfile.Create(Guid.NewGuid(), "PLA base", ProfileSourceFormat.OrcaSlicer, null, """{"filament_type":["PLA"]}""");
-        var child = FilamentProfile.Create(parent.OrganizationId, "My PLA", ProfileSourceFormat.OrcaSlicer, "PLA base", "{}");
+        var parent = FilamentProfile.Create("PLA base", ProfileSourceFormat.OrcaSlicer, null, """{"filament_type":["PLA"]}""");
+        var child = FilamentProfile.Create("My PLA", ProfileSourceFormat.OrcaSlicer, "PLA base", "{}");
         child.ResolveBaseProfile(parent.Id);
         await profiles.AddAsync(parent, default); await profiles.AddAsync(child, default);
         var handler = new GetFilamentProfilesQueryHandler(profiles, new StubProfileBundleParser(), new ProfileCompatibility(new FakeMachineProfileRepository(), profiles), new FakeSlicingDefaultsQuery());
@@ -46,13 +46,13 @@ public sealed class ProfileCompatibilityTests
     public async Task FilamentCompatibilityRejectsMaterialAndNozzleMismatchesButDoesNotConfuseSourceWithHardware()
     {
         var profiles = new FakeFilamentProfileRepository();
-        var pla = FilamentProfile.Create(Guid.NewGuid(), "PLA 0.4", ProfileSourceFormat.OrcaSlicer, null,
+        var pla = FilamentProfile.Create("PLA 0.4", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"],"nozzle_diameter":["0.4"]}""");
         await profiles.AddAsync(pla, default);
         var compatibility = new ProfileCompatibility(new FakeMachineProfileRepository(), profiles);
         await ((Func<Task>)(() => compatibility.ValidateFilamentAsync(pla, "PETG", "Bambu", "P1S", 0.4m, default))).Should().ThrowAsync<SlicingProfileUnconfiguredException>();
         await ((Func<Task>)(() => compatibility.ValidateFilamentAsync(pla, "PLA", "Bambu", "P1S", 0.6m, default))).Should().ThrowAsync<SlicingProfileUnconfiguredException>();
-        var differentFormat = MachineProfile.Create(pla.OrganizationId, "P1S 0.4", ProfileSourceFormat.BambuStudio, null, "{}");
+        var differentFormat = MachineProfile.Create("P1S 0.4", ProfileSourceFormat.BambuStudio, null, "{}");
         await compatibility.ValidateFilamentAsync(pla, "PLA", "Bambu", "P1S", 0.4m, default, differentFormat);
     }
 
@@ -71,9 +71,9 @@ public sealed class ProfileCompatibilityTests
     public async Task FleetPickerFiltersAndPrefersTheSelectedEngineBeforePagination(SlicerEngine engine, int count, string firstName)
     {
         var profiles = new FakeFilamentProfileRepository();
-        await profiles.AddAsync(FilamentProfile.Create(Guid.NewGuid(), "A Bambu", ProfileSourceFormat.BambuStudio, null,
+        await profiles.AddAsync(FilamentProfile.Create("A Bambu", ProfileSourceFormat.BambuStudio, null,
             """{"filament_type":["PLA"]}"""), default);
-        await profiles.AddAsync(FilamentProfile.Create(Guid.NewGuid(), "Z Orca", ProfileSourceFormat.OrcaSlicer, null,
+        await profiles.AddAsync(FilamentProfile.Create("Z Orca", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"]}"""), default);
         var handler = new GetFilamentProfilesQueryHandler(profiles, new StubProfileBundleParser(),
             new ProfileCompatibility(new FakeMachineProfileRepository(), profiles), new FakeSlicingDefaultsQuery(engine));
@@ -88,9 +88,9 @@ public sealed class ProfileCompatibilityTests
     {
         var profiles = new FakeFilamentProfileRepository();
         var machines = new FakeMachineProfileRepository();
-        var machine = MachineProfile.Create(Guid.NewGuid(), "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null,
+        var machine = MachineProfile.Create("Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null,
             """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""");
-        var filament = FilamentProfile.Create(machine.OrganizationId, "Bambu PLA Basic @BBL X1C", ProfileSourceFormat.BambuStudio, null,
+        var filament = FilamentProfile.Create("Bambu PLA Basic @BBL X1C", ProfileSourceFormat.BambuStudio, null,
             """{"filament_type":["PLA"],"compatible_printers":["Bambu Lab P1S 0.4 nozzle"]}""");
         await machines.AddAsync(machine, default);
         await profiles.AddAsync(filament, default);
@@ -104,13 +104,13 @@ public sealed class ProfileCompatibilityTests
     [InlineData(true)]
     public async Task MachineCompatibilityPickerSortsAllMatchesBeforeTakingThePage(bool descending)
     {
-        var printer = Printer.Create(Guid.NewGuid(), "P1S", "Bambu", "P1S", "127.0.0.1", "SN");
+        var printer = Printer.Create("P1S", "Bambu", "P1S", "127.0.0.1", "SN");
         printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
         var machines = new FakeMachineProfileRepository();
         var rows = new List<MachineProfile>();
         foreach (var name in new[] { "Zulu", "alpha", "ALPHA", "Bravo" })
         {
-            var profile = MachineProfile.Create(printer.OrganizationId, name, ProfileSourceFormat.OrcaSlicer, null,
+            var profile = MachineProfile.Create(name, ProfileSourceFormat.OrcaSlicer, null,
                 """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""");
             rows.Add(profile);
             await machines.AddAsync(profile, default);
@@ -129,9 +129,9 @@ public sealed class ProfileCompatibilityTests
     public async Task ExplicitFilamentSortOverridesDefaultEnginePreferenceBeforePagination()
     {
         var profiles = new FakeFilamentProfileRepository();
-        await profiles.AddAsync(FilamentProfile.Create(Guid.NewGuid(), "Zulu Bambu", ProfileSourceFormat.BambuStudio, null,
+        await profiles.AddAsync(FilamentProfile.Create("Zulu Bambu", ProfileSourceFormat.BambuStudio, null,
             """{"filament_type":["PLA"]}"""), default);
-        await profiles.AddAsync(FilamentProfile.Create(Guid.NewGuid(), "alpha Orca", ProfileSourceFormat.OrcaSlicer, null,
+        await profiles.AddAsync(FilamentProfile.Create("alpha Orca", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"]}"""), default);
         var handler = new GetFilamentProfilesQueryHandler(profiles, new StubProfileBundleParser(),
             new ProfileCompatibility(new FakeMachineProfileRepository(), profiles), new FakeSlicingDefaultsQuery(SlicerEngine.OrcaSlicer));

@@ -39,9 +39,9 @@ public class ShortfallAndRequeueTests(ProductionTestFactory factory) : Productio
         var part = await PartAsync();
         var run = await RunAsync(client, part.Id, quantity: null);
         Guid id;
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
-            var job = PrintJob.Create(part.OrganizationId, run.Lines.Single().Requirements.Single().Id, 1024, 1,
+            var job = PrintJob.Create("Test part", run.Lines.Single().Requirements.Single().Id, 1024, 1,
                 AssignmentMode.Unassigned, null, part.RevisionHash, 1, []);
             job.MarkCancelled();
             var repo = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();

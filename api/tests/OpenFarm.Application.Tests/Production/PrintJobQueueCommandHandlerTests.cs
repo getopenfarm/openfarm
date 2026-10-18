@@ -130,10 +130,10 @@ public class RequeuePrintJobCommandHandlerTests
     [Fact]
     public async Task HandleAsync_CancelledFiniteJob_CreatesReplacementAndLinksBack()
     {
-        var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 5);
+        var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), 5);
         var part = ProductionTestFixtures.CreatePart();
-        var requirementWithPart = PartRequirement.Create(Guid.NewGuid(), requirement.RunLineId, part.Id, 5);
-        var job = PrintJob.Create(part.OrganizationId, requirementWithPart.Id, 1024, part.UnitsPerPrint,
+        var requirementWithPart = PartRequirement.Create(requirement.RunLineId, part.Id, 5);
+        var job = PrintJob.Create("Test part", requirementWithPart.Id, 1024, part.UnitsPerPrint,
             AssignmentMode.Unassigned, null, part.RevisionHash, part.RevisionNumber, ProductionJobRequirements.FromPart(part));
         job.CaptureProductionSnapshot(part);
         job.MarkCancelled();
@@ -153,7 +153,7 @@ public class RequeuePrintJobCommandHandlerTests
     [Fact]
     public async Task HandleAsync_AlreadyRequeuedJob_Throws()
     {
-        var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 5);
+        var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), 5);
         var job = ProductionTestFixtures.CreateQueuedJob(requirement.Id);
         job.MarkCancelled();
         job.MarkRequeuedAs(Guid.NewGuid());
@@ -169,7 +169,7 @@ public class RequeuePrintJobCommandHandlerTests
     [Fact]
     public async Task HandleAsync_StillQueuedJob_ThrowsNotEligibleForRequeue()
     {
-        var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 5);
+        var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), 5);
         var job = ProductionTestFixtures.CreateQueuedJob(requirement.Id);
 
         var handler = new RequeuePrintJobCommandHandler(
@@ -183,7 +183,7 @@ public class RequeuePrintJobCommandHandlerTests
     [Fact]
     public async Task HandleAsync_BackfillLineJob_ThrowsNotEligibleForRequeue()
     {
-        var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null);
+        var requirement = PartRequirement.Create(Guid.NewGuid(), Guid.NewGuid(), null);
         var job = ProductionTestFixtures.CreateQueuedJob(requirement.Id);
         job.MarkCancelled();
 

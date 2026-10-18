@@ -10,7 +10,8 @@ public sealed record PartFilamentRequirementDetail(
     Guid? NarrowFilamentVariantId,
     Guid? NarrowFilamentProfileId,
     bool NarrowFilamentVariantUnresolved,
-    bool NarrowFilamentProfileUnresolved);
+    bool NarrowFilamentProfileUnresolved,
+    decimal? EstimatedGrams = null);
 
 public sealed record PartDetail(
     Guid Id,

@@ -14,7 +14,7 @@ public sealed class CloseProductionRunCommandHandler(IProductionRunRepository ru
 
         run.Close();
         await runRepository.SaveChangesAsync(cancellationToken);
-        await publisher.ProductionRunStatusChangedAsync(run.OrganizationId, run.Id, run.Status, cancellationToken);
+        await publisher.ProductionRunStatusChangedAsync(run.Id, run.Status, cancellationToken);
 
         return run;
     }

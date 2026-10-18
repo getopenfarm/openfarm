@@ -49,24 +49,82 @@ interface PartEstimate {
   unitsPerPrint?: number;
   estimatedPrintTimeMinutes?: number | null;
   estimatedFilamentWeightGrams?: number | null;
+  /** Per-requirement grams per plate set, purge included. */
+  filamentByColor?: {
+    materialType?: string | null;
+    colorHex?: string | null;
+    grams?: number | null;
+  }[];
 }
 
-/** Estimates are per plate of unitsPerPrint units, so each unit costs estimate / unitsPerPrint. No rounding up to whole plates. */
+export interface ColorTotal {
+  materialType: string | null;
+  /** null = grams we cannot attribute to a colour (part not reprocessed, or several colours without a split). */
+  colorHex: string | null;
+  grams: number;
+}
+
+const colorKey = (material?: string | null, color?: string | null) =>
+  `${material ?? ''}|${(color ?? '').toUpperCase()}`;
+
+/**
+ * Estimates are per plate of unitsPerPrint units, so each unit costs estimate / unitsPerPrint. No rounding up to whole plates.
+ * `grams` is the sum of `colors`, so the rows always add up to the total.
+ */
 export function printTotals(
   parts: Map<string, number>,
   catalog: PartEstimate[],
 ) {
   let minutes = 0;
-  let grams = 0;
   let unestimated = 0;
+  const byColor = new Map<string, ColorTotal>();
+  const addGrams = (
+    material: string | null | undefined,
+    color: string | null | undefined,
+    grams: number,
+  ) => {
+    const key = colorKey(material, color);
+    const total = byColor.get(key) ?? {
+      materialType: material ?? null,
+      colorHex: color ?? null,
+      grams: 0,
+    };
+    total.grams += grams;
+    byColor.set(key, total);
+  };
+
   for (const [id, need] of parts) {
     const est = catalog.find((p) => p.id === id);
     const plates = need / Math.max(1, est?.unitsPerPrint ?? 1);
     if (est?.estimatedPrintTimeMinutes == null) unestimated++;
     minutes += plates * (est?.estimatedPrintTimeMinutes ?? 0);
-    grams += plates * (est?.estimatedFilamentWeightGrams ?? 0);
+
+    const colors = est?.filamentByColor ?? [];
+    if (colors.length > 0 && colors.every((c) => c.grams != null)) {
+      for (const c of colors)
+        addGrams(c.materialType, c.colorHex, plates * (c.grams ?? 0));
+    } else if (est?.estimatedFilamentWeightGrams != null) {
+      // One colour: the part total is that colour's grams (just without purge). Several, unsplit: unknown.
+      const sole = colors.length === 1 ? colors[0] : undefined;
+      addGrams(
+        sole?.materialType,
+        sole?.colorHex,
+        plates * est.estimatedFilamentWeightGrams,
+      );
+    }
   }
-  return { minutes, grams, unestimated };
+
+  const colors = [...byColor.values()].sort(
+    (a, b) =>
+      Number(a.colorHex == null) - Number(b.colorHex == null) ||
+      b.grams - a.grams,
+  );
+  return {
+    minutes,
+    grams: colors.reduce((sum, c) => sum + c.grams, 0),
+    unestimated,
+    colors,
+  };
 }
 
 /** Σ qty x unitCost; components without a cost are counted, not guessed. */

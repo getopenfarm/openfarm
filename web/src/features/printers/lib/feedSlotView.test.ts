@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   amsTopologyKey,
+  colorsDiffer,
+  detectedName,
   feedSlotView,
   normalizeFilamentColor,
 } from './feedSlotView';
@@ -164,5 +166,22 @@ describe('reloader telemetry projection', () => {
         external,
       ),
     ).toMatchObject({ material: null, active: false });
+  });
+});
+
+describe('detectedName', () => {
+  it('does not repeat the type already in the sub-brand', () => {
+    expect(detectedName('PLA', 'PLA Basic')).toBe('PLA Basic');
+    expect(detectedName('PETG', 'Basic')).toBe('PETG Basic');
+    expect(detectedName('PLA', null)).toBe('PLA');
+    expect(detectedName(null, null)).toBe('');
+  });
+});
+
+describe('colorsDiffer', () => {
+  it('ignores near-identical colors and flags clearly different ones', () => {
+    expect(colorsDiffer('#18181b', '#000000')).toBe(false);
+    expect(colorsDiffer('#000000', '#ffffff')).toBe(true);
+    expect(colorsDiffer(undefined, '#ffffff')).toBe(false);
   });
 });

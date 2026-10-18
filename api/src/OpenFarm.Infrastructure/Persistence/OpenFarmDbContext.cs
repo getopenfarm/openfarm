@@ -1,33 +1,22 @@
-using Finbuckle.MultiTenant.Abstractions;
-using Finbuckle.MultiTenant.EntityFrameworkCore;
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
 using OpenFarm.Domain.Profiles;
+using OpenFarm.Domain.Settings;
 using OpenFarm.Infrastructure.Identity;
 
 namespace OpenFarm.Infrastructure.Persistence;
 
-public sealed class OpenFarmDbContext(
-    DbContextOptions<OpenFarmDbContext> options,
-    IMultiTenantContextAccessor multiTenantContextAccessor)
-    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options), IMultiTenantDbContext
+public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> options)
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
-    public ITenantInfo? TenantInfo => multiTenantContextAccessor.MultiTenantContext?.TenantInfo;
-
-    public TenantMismatchMode TenantMismatchMode => TenantMismatchMode.Throw;
-
-    public TenantNotSetMode TenantNotSetMode => TenantNotSetMode.Throw;
-
-    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<FarmSettings> FarmSettings => Set<FarmSettings>();
 
     public DbSet<ConnectionSecret> ConnectionSecrets => Set<ConnectionSecret>();
 
@@ -83,25 +72,14 @@ public sealed class OpenFarmDbContext(
 
     public DbSet<ExternalPrint> ExternalPrints => Set<ExternalPrint>();
 
-    public DbSet<JobFilamentConsumption> JobFilamentConsumptions => Set<JobFilamentConsumption>();
+    public DbSet<Print> Prints => Set<Print>();
+
+    public DbSet<PrintFilament> PrintFilaments => Set<PrintFilament>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
         builder.ApplyConfigurationsFromAssembly(typeof(OpenFarmDbContext).Assembly);
-        builder.ConfigureMultiTenant();
-    }
-
-    public override int SaveChanges(bool acceptAllChangesOnSuccess)
-    {
-        this.EnforceMultiTenant();
-        return base.SaveChanges(acceptAllChangesOnSuccess);
-    }
-
-    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
-    {
-        this.EnforceMultiTenant();
-        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 }

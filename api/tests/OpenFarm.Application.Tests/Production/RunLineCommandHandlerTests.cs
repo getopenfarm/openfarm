@@ -1,7 +1,6 @@
 using FluentAssertions;
 using OpenFarm.Application.Production;
 using OpenFarm.Application.Tests.Production.Fakes;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Tests.Production;
@@ -12,7 +11,7 @@ public class SetRunLineRevisionModeCommandHandlerTests
     public async Task HandleAsync_ExistingFiniteLine_RejectsFollowLatest()
     {
         var run = ProductionRun.Create(
-            Organization.WellKnownId, null, null, null, null,
+            null, null, null, null,
             [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), 5, RevisionMode.Snapshot, AssignmentMode.Unassigned, null, 1, null)]);
         var handler = new SetRunLineRevisionModeCommandHandler(new InMemoryProductionRunRepository(run));
 

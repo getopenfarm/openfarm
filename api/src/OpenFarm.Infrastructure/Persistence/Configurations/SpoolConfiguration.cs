@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.FilamentTracking;
@@ -12,9 +11,6 @@ public sealed class SpoolConfiguration : IEntityTypeConfiguration<Spool>
         builder.ToTable("Spools");
 
         builder.HasKey(s => s.Id);
-
-        builder.Property(s => s.OrganizationId)
-            .IsRequired();
 
         builder.Property(s => s.FilamentVariantId)
             .IsRequired();
@@ -52,14 +48,12 @@ public sealed class SpoolConfiguration : IEntityTypeConfiguration<Spool>
             .IsUnique()
             .HasFilter("\"State\" = 'Using'");
 
-        // The inventory list: tenant filter + state filter, in creation order (GetSpoolsQuery).
-        builder.HasIndex(s => new { s.OrganizationId, s.State, s.CreatedAtUtc });
+        // The inventory list: state filter, in creation order (GetSpoolsQuery).
+        builder.HasIndex(s => new { s.State, s.CreatedAtUtc });
 
         // Postgres system column; the Npgsql provider auto-maps a "xmin"-named uint row-version
         // property to it (research.md/data-model.md's optimistic-concurrency requirement).
         builder.Property<uint>("xmin")
             .IsRowVersion();
-
-        builder.IsMultiTenant();
     }
 }

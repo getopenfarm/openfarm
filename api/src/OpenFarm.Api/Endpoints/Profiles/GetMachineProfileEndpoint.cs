@@ -45,9 +45,7 @@ public sealed class MachineProfileDetailResponse
     };
 }
 
-// GET /api/v1/profiles/machine/{id} (FR-011). 404 on an unknown/cross-tenant id — Finbuckle's
-// global query filter makes this indistinguishable from "doesn't exist" (same as every other
-// tenant-scoped lookup in this codebase).
+// GET /api/v1/profiles/machine/{id} (FR-011). 404 on an unknown id.
 [Permission("profiles:get-machine")]
 public sealed class GetMachineProfileEndpoint(IQueryHandler<GetMachineProfileQuery, MachineProfileDetail?> handler)
     : EndpointWithoutRequest<MachineProfileDetailResponse>

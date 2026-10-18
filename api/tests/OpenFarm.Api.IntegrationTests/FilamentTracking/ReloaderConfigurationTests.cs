@@ -3,10 +3,7 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
-using OpenFarm.Infrastructure.Persistence.Migrations;
 using OpenFarm.Api.Endpoints.FeedUnits;
 using OpenFarm.Api.Endpoints.Printers;
 using OpenFarm.Api.Endpoints.Spools;
@@ -138,8 +135,7 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
         var white = await RegisterSpoolAsync(client, await CreateFilamentVariantAsync(client, colorHex: "#EEEEEE"));
         (await client.PutAsJsonAsync(new Uri($"/api/v1/spools/{black}/load", UriKind.Relative), new { feedSlotId = reloader.FeedSlots[0].Id })).EnsureSuccessStatusCode();
         (await client.PutAsJsonAsync(new Uri($"/api/v1/spools/{white}/load", UriKind.Relative), new { feedSlotId = reloader.FeedSlots[1].Id })).EnsureSuccessStatusCode();
-        await factory.EnsureTenantInfoResolvedAsync();
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var service = scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>();
@@ -148,8 +144,7 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
             materials[0].ColorHex.Should().Be("#111111");
         }
         (await client.PutAsJsonAsync(new Uri($"/api/v1/feed-units/{reloader.Id}/feeding-slot", UriKind.Relative), new { feedingSlotId = reloader.FeedSlots[1].Id })).EnsureSuccessStatusCode();
-        await factory.EnsureTenantInfoResolvedAsync();
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var service = scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>();
@@ -174,33 +169,4 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
         spools!.Spools.Single(s => s.Id == spoolId).State.Should().Be("InStorage");
         spools.Spools.Single(s => s.Id == spoolId).FeedSlotId.Should().BeNull();
     }
-
-    [Fact]
-    public async Task LegacyRemovalBackfill_ArchivesUnitAndReturnsItsSpoolToInventory()
-    {
-        var (client, printerId, _) = await SetupAsync();
-        var variantId = await CreateFilamentVariantAsync(client);
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
-        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var legacy = FeedUnit.CreateAutomaticFilamentReloader(Organization.WellKnownId, printerId, 50, "Legacy removed", null);
-        var slot = legacy.AddFeedSlot(0);
-        var spool = Spool.Create(Organization.WellKnownId, variantId, null, 1000, 600);
-        spool.LoadOntoFeedSlot(slot.Id);
-        legacy.DeactivateAllSlots();
-        db.FeedUnits.Add(legacy);
-        db.Spools.Add(spool);
-        await db.SaveChangesAsync();
-        foreach (var operation in new ConfigureReloaderChannels().UpOperations.OfType<SqlOperation>())
-            await db.Database.ExecuteSqlRawAsync(operation.Sql);
-        db.ChangeTracker.Clear();
-        var migrated = await db.FeedUnits.SingleAsync(u => u.Id == legacy.Id);
-        migrated.ArchivedAtUtc.Should().NotBeNull();
-        migrated.FeedingSlotId.Should().BeNull();
-        var migratedSpool = await db.Spools.SingleAsync(s => s.Id == spool.Id);
-        migratedSpool.State.Should().Be(SpoolState.InStorage);
-        migratedSpool.FeedSlotId.Should().BeNull();
-        migratedSpool.RemainingWeightGrams.Should().Be(600);
-    }
-
 }

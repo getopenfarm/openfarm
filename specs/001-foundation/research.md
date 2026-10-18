@@ -39,6 +39,8 @@ docs leave implementation shape open, plus the alternatives considered for each.
 
 ## 3. Multi-tenancy resolution strategy for Phase 0
 
+> Superseded: OpenFarm is now single-tenant; the multi-tenancy decision below no longer applies.
+
 - **Decision**: Wire real Finbuckle.MultiTenant packages (`Finbuckle.MultiTenant` +
   `.EntityFrameworkCore`), `AddMultiTenant<AppTenantInfo>().WithStaticStrategy(<fixed id>)`.
   EF Core's `.IsMultiTenant()` per-entity global query filter is still Finbuckle-generated.

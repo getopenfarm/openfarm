@@ -1,7 +1,8 @@
 using System.Text.Json;
-using OpenFarm.Application.Organizations;
+using OpenFarm.Application.Settings;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Parts;
 
@@ -11,7 +12,7 @@ public sealed class PartFileProcessor(
     ISlicerEngine slicerEngine,
     ResolveEstimationProfiles? estimationProfiles = null,
     ResolveSlicerSelection? slicerSelection = null,
-    IOrganizationRepository? organizations = null, IHostPlatformProvider? hostPlatform = null) : IPartFileProcessor
+    IFarmSettingsRepository? farmSettings = null, IHostPlatformProvider? hostPlatform = null) : IPartFileProcessor
 {
     public async Task<PartMaterialResolution> ResolveMaterialAsync(PartProcessingJob job, Stream fileStream, CancellationToken cancellationToken)
     {
@@ -19,7 +20,7 @@ public sealed class PartFileProcessor(
         {
             var metadata = await slicedMetadataParser.ParseAsync(fileStream, job.FileFormat, cancellationToken);
             return new PartMaterialResolution(metadata.NozzleDiameterMm,
-                FilamentRequirementGrouper.Group(metadata.DetectedFilamentSlots), metadata.PlateCount,
+                PreviewFilamentRequirement.WithGrams(FilamentRequirementGrouper.Group(metadata.DetectedFilamentSlots), metadata.FilamentGrams), metadata.PlateCount,
                 new(metadata.EstimatedPrintTimeMinutes, metadata.EstimatedFilamentWeightGrams, metadata.Thumbnails),
                 MaterialMetadataComplete: metadata.MaterialMetadataComplete,
                 EstimateUnavailableReason: PartEstimateAvailability.MissingMetadataReason(metadata.EstimatedPrintTimeMinutes, metadata.EstimatedFilamentWeightGrams),
@@ -43,8 +44,8 @@ public sealed class PartFileProcessor(
         string? unavailable = null;
         try
         {
-            var organization = organizations is null ? null : await organizations.GetAsync(cancellationToken);
-            var selection = organization is null ? null : UpdateSlicingDefaultsCommandHandler.GetSelection(organization);
+            var settings = farmSettings is null ? null : await farmSettings.GetAsync(cancellationToken);
+            var selection = settings is null ? null : UpdateSlicingDefaultsCommandHandler.GetSelection(settings);
             if (selection is null || estimationProfiles is null)
                 unavailable = "Estimation unavailable: select default estimation profiles in Settings → Slicing Defaults.";
             else if (job.SlicerEngineUsed is { } engine)
@@ -76,6 +77,8 @@ public sealed class PartFileProcessor(
         if (configuration is null) throw new SlicingFailedException("No estimation configuration was resolved for this job.");
         var result = await slicerEngine.EstimateAsync(new(job.SlicerEngineUsed!.Value, job.SlicerVersionUsed!),
             fileStream, job.FileFormat, configuration, cancellationToken);
-        return new(result.EstimatedPrintTimeMinutes, result.EstimatedFilamentWeightGrams, result.Thumbnails);
+        // The sliced output is what a print draws from the spools, so its per-filament usage (purge included) is the by-colour split.
+        return new(result.EstimatedPrintTimeMinutes, result.EstimatedFilamentWeightGrams, result.Thumbnails,
+            JobFilamentUsageReader.ReadAllPlates(result.OutputFileBytes));
     }
 }

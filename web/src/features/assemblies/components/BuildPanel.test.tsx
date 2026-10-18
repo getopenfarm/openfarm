@@ -125,6 +125,44 @@ describe('BuildPanel', () => {
     expect(screen.queryByText('M3 screw')).not.toBeInTheDocument();
   });
 
+  it('lists filament grams by colour, adding up to the total', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/api/v1/parts'))
+          return Promise.resolve(
+            jsonResponse({
+              parts: [
+                {
+                  id: 'p1',
+                  name: 'Bracket',
+                  unitsPerPrint: 1,
+                  estimatedPrintTimeMinutes: 60,
+                  estimatedFilamentWeightGrams: 10,
+                  filamentByColor: [
+                    { materialType: 'PLA', colorHex: '#000000', grams: 7.4 },
+                    { materialType: 'PLA', colorHex: '#FFFFFF', grams: 3.1 },
+                  ],
+                },
+              ],
+            }),
+          );
+        return Promise.resolve(jsonResponse({ items: [] }));
+      }),
+    );
+    renderPanel(LINES.slice(0, 1));
+
+    const colours = await screen.findByRole('list', {
+      name: 'Filament by colour',
+    });
+    // 2 units x (7.4 + 3.1): purge-inclusive, not the slicer's 10 g.
+    expect(within(colours).getByText('PLA #000000')).toBeInTheDocument();
+    expect(within(colours).getByText('14.8 g')).toBeInTheDocument();
+    expect(within(colours).getByText('6.2 g')).toBeInTheDocument();
+    expect(stat('Filament').getByText('21 g')).toBeInTheDocument();
+  });
+
   it('updates when the lines prop changes', async () => {
     const { rerender } = renderPanel(LINES.slice(0, 1));
     await vi.waitFor(() =>

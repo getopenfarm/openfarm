@@ -17,6 +17,8 @@ public sealed class PartFilamentRequirementResponse
     public Guid? NarrowFilamentProfileId { get; set; }
     public bool NarrowFilamentVariantUnresolved { get; set; }
     public bool NarrowFilamentProfileUnresolved { get; set; }
+    /// <summary>Estimated grams per plate set, purge included; null until known.</summary>
+    public decimal? EstimatedGrams { get; set; }
 }
 
 public sealed class PartResponse
@@ -71,6 +73,7 @@ public sealed class PartResponse
             NarrowFilamentProfileId = r.NarrowFilamentProfileId,
             NarrowFilamentVariantUnresolved = r.NarrowFilamentVariantUnresolved,
             NarrowFilamentProfileUnresolved = r.NarrowFilamentProfileUnresolved,
+            EstimatedGrams = r.EstimatedGrams,
         }).ToList(),
         Thumbnails = detail.Thumbnails.Select(t => new ThumbnailResponse { PlateIndex = t.PlateIndex, ThumbnailBase64 = t.ThumbnailBase64 }).ToList(),
         Tags = detail.Tags.ToList(),
@@ -110,6 +113,7 @@ public sealed class PartResponse
             DetectedSubBrand = r.DetectedSubBrand,
             NarrowFilamentVariantId = r.NarrowFilamentVariantId,
             NarrowFilamentProfileId = r.NarrowFilamentProfileId,
+            EstimatedGrams = r.EstimatedGrams,
         }).ToList(),
         Thumbnails = part.Thumbnails.OrderBy(t => t.PlateIndex).Select(t => new ThumbnailResponse { PlateIndex = t.PlateIndex, ThumbnailBase64 = Convert.ToBase64String(t.Bytes) }).ToList(),
         Tags = part.Tags.Select(t => t.Name).ToList(),

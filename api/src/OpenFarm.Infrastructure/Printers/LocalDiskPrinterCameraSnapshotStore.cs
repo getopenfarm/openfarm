@@ -23,16 +23,16 @@ public sealed partial class LocalDiskPrinterCameraSnapshotStore(
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public bool Deleted { get; set; }
     }
-    private readonly ConcurrentDictionary<(Guid, Guid), Entry> _entries = new();
-    private string FilePath(Guid organizationId, Guid printerId) =>
-        Path.Combine(options.Value.RootDirectory, organizationId.ToString("N"), $"{printerId:N}.json");
+    private readonly ConcurrentDictionary<Guid, Entry> _entries = new();
+    private string FilePath(Guid printerId) =>
+        Path.Combine(options.Value.RootDirectory, $"{printerId:N}.json");
 
-    public async Task SaveAsync(Guid organizationId, Guid printerId, PrinterCameraSnapshot snapshot, CancellationToken ct)
+    public async Task SaveAsync(Guid printerId, PrinterCameraSnapshot snapshot, CancellationToken ct)
     {
         if (!Valid(snapshot)) return;
-        var entry = _entries.GetOrAdd((organizationId, printerId), _ => new Entry());
+        var entry = _entries.GetOrAdd(printerId, _ => new Entry());
         await entry.Gate.WaitAsync(ct);
-        var path = FilePath(organizationId, printerId);
+        var path = FilePath(printerId);
         var temporary = path + ".tmp";
         try
         {
@@ -53,14 +53,14 @@ public sealed partial class LocalDiskPrinterCameraSnapshotStore(
         }
     }
 
-    public async Task<PrinterCameraSnapshot?> GetAsync(Guid organizationId, Guid printerId, CancellationToken ct)
+    public async Task<PrinterCameraSnapshot?> GetAsync(Guid printerId, CancellationToken ct)
     {
-        var entry = _entries.GetOrAdd((organizationId, printerId), _ => new Entry());
+        var entry = _entries.GetOrAdd(printerId, _ => new Entry());
         await entry.Gate.WaitAsync(ct);
         try
         {
             if (entry.Deleted) return null;
-            var path = FilePath(organizationId, printerId);
+            var path = FilePath(printerId);
             if (!File.Exists(path)) return null;
             var snapshot = JsonSerializer.Deserialize<PrinterCameraSnapshot>(await File.ReadAllTextAsync(path, ct));
             return snapshot is not null && Valid(snapshot) ? snapshot : null;
@@ -73,14 +73,14 @@ public sealed partial class LocalDiskPrinterCameraSnapshotStore(
         finally { entry.Gate.Release(); }
     }
 
-    public async Task DeleteAsync(Guid organizationId, Guid printerId, CancellationToken ct)
+    public async Task DeleteAsync(Guid printerId, CancellationToken ct)
     {
-        var entry = _entries.GetOrAdd((organizationId, printerId), _ => new Entry());
+        var entry = _entries.GetOrAdd(printerId, _ => new Entry());
         await entry.Gate.WaitAsync(ct);
         try
         {
             entry.Deleted = true;
-            File.Delete(FilePath(organizationId, printerId));
+            File.Delete(FilePath(printerId));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { LogStorageFailure(logger, ex, printerId); }
         finally { entry.Gate.Release(); }

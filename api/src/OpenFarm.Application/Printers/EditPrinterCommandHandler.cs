@@ -5,7 +5,6 @@ using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 
@@ -123,7 +122,7 @@ public sealed class EditPrinterCommandHandler(
             printer.EditConnection(command.IpAddress!);
 
             var encryptedAccessCode = secretProtector.Protect(command.AccessCode!);
-            var secret = ConnectionSecret.Create(Organization.WellKnownId, printer.SerialNumber, encryptedAccessCode);
+            var secret = ConnectionSecret.Create(printer.SerialNumber, encryptedAccessCode);
             await connectionSecretRepository.AddAsync(secret, cancellationToken);
         }
 
@@ -173,7 +172,7 @@ public sealed class EditPrinterCommandHandler(
         {
             var eventType = printer.MachineProfileId is not null ? "PrinterMachineProfileLinked" : "PrinterMachineProfileUnlinked";
             await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create(printer.OrganizationId, "Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
+                ActivityLogEntry.Create("Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
                 cancellationToken);
         }
 
@@ -181,7 +180,7 @@ public sealed class EditPrinterCommandHandler(
         {
             var eventType = printer.ProcessProfileId is not null ? "PrinterProcessProfileLinked" : "PrinterProcessProfileUnlinked";
             await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create(printer.OrganizationId, "Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
+                ActivityLogEntry.Create("Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
                 cancellationToken);
         }
 
@@ -189,7 +188,7 @@ public sealed class EditPrinterCommandHandler(
         {
             var eventType = printer.BuildPlateType is not null ? "PrinterBuildPlateSelected" : "PrinterBuildPlateCleared";
             await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create(printer.OrganizationId, "Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
+                ActivityLogEntry.Create("Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
                 cancellationToken);
         }
 

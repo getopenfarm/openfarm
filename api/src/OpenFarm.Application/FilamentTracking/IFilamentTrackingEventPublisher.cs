@@ -10,7 +10,6 @@ namespace OpenFarm.Application.FilamentTracking;
 public interface IFilamentTrackingEventPublisher
 {
     Task SpoolStateChangedAsync(
-        Guid organizationId,
         Guid spoolId,
         SpoolState state,
         decimal remainingWeightGrams,
@@ -18,7 +17,6 @@ public interface IFilamentTrackingEventPublisher
         CancellationToken cancellationToken);
 
     Task FeedUnitAutoContinuedAsync(
-        Guid organizationId,
         Guid feedUnitId,
         Guid finishedSpoolId,
         Guid continuedSpoolId,
@@ -27,7 +25,6 @@ public interface IFilamentTrackingEventPublisher
         CancellationToken cancellationToken);
 
     Task FeedUnitsChangedAsync(
-        Guid organizationId,
         Guid printerId,
         CancellationToken cancellationToken);
 }

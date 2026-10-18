@@ -5,23 +5,22 @@ namespace OpenFarm.Domain.Tests.FilamentTracking;
 
 public class ProductionFeedPathTests
 {
-    private static readonly Guid Org = Guid.NewGuid();
     private static readonly Guid Printer = Guid.NewGuid();
 
     private static (FeedUnit Ams, FeedSlot[] AmsSlots, FeedUnit External, FeedSlot ExternalSlot) AmsPrinter()
     {
-        var ams = FeedUnit.CreateConnectorDerived(Org, Printer, FeedUnitKindCatalog.MultiMaterialUnit, 0);
+        var ams = FeedUnit.CreateConnectorDerived(Printer, FeedUnitKindCatalog.MultiMaterialUnit, 0);
         var slots = new[] { ams.AddFeedSlot(0), ams.AddFeedSlot(1) };
-        var external = FeedUnit.CreateConnectorDerived(Org, Printer, FeedUnitKindCatalog.ExternalSpool, 0);
+        var external = FeedUnit.CreateConnectorDerived(Printer, FeedUnitKindCatalog.ExternalSpool, 0);
         return (ams, slots, external, external.AddFeedSlot(0));
     }
 
     [Fact]
     public void ReloaderUsesSelectedSlotAndSupersedesItsExternalPort()
     {
-        var port = FeedUnit.CreateConnectorDerived(Org, Printer, FeedUnitKindCatalog.ExternalSpool, 0);
+        var port = FeedUnit.CreateConnectorDerived(Printer, FeedUnitKindCatalog.ExternalSpool, 0);
         var portSlot = port.AddFeedSlot(0);
-        var reloader = FeedUnit.CreateAutomaticFilamentReloader(Org, Printer, 0, "Reloader", port.Id);
+        var reloader = FeedUnit.CreateAutomaticFilamentReloader(Printer, 0, "Reloader", port.Id);
         var standby = reloader.AddFeedSlot(0);
         var feeding = reloader.AddFeedSlot(1);
         reloader.SelectFeedingSlot(feeding.Id);
@@ -34,7 +33,7 @@ public class ProductionFeedPathTests
     [Fact]
     public void NoAms_ExternalSpoolIsAlwaysUsable()
     {
-        var external = FeedUnit.CreateConnectorDerived(Org, Printer, FeedUnitKindCatalog.ExternalSpool, 0);
+        var external = FeedUnit.CreateConnectorDerived(Printer, FeedUnitKindCatalog.ExternalSpool, 0);
         var slot = external.AddFeedSlot(0);
 
         ProductionFeedPath.ActiveSlotIds([external], false).Should().BeEquivalentTo([slot.Id]);
@@ -66,7 +65,7 @@ public class ProductionFeedPathTests
     public void WithAms_ReloaderFeedingSlotIsUsableOnEitherPath()
     {
         var (ams, slots, external, _) = AmsPrinter();
-        var reloader = FeedUnit.CreateAutomaticFilamentReloader(Org, Printer, 0, "Reloader", external.Id);
+        var reloader = FeedUnit.CreateAutomaticFilamentReloader(Printer, 0, "Reloader", external.Id);
         var feeding = reloader.AddFeedSlot(0);
         reloader.SelectFeedingSlot(feeding.Id);
 

@@ -16,14 +16,14 @@ public class JobFilamentAutoDeductionTests
 
     private static Spool UsingSpool(decimal remaining = 1000)
     {
-        var spool = Spool.Create(Guid.NewGuid(), Guid.NewGuid(), null, 1000, remaining);
+        var spool = Spool.Create(Guid.NewGuid(), null, 1000, remaining);
         spool.LoadOntoFeedSlot(Guid.NewGuid());
         return spool;
     }
 
     private static PrintJob JobWith(params (string Material, string Color)[] lines)
     {
-        var job = PrintJob.Create(Guid.NewGuid(), Guid.NewGuid(), 1024, 1, AssignmentMode.Unassigned, null, "h", 1,
+        var job = PrintJob.Create("Test part", Guid.NewGuid(), 1024, 1, AssignmentMode.Unassigned, null, "h", 1,
             lines.Select(l => new JobFilamentRequirementSpec(l.Material, l.Color)).ToList());
         return job;
     }
@@ -33,11 +33,11 @@ public class JobFilamentAutoDeductionTests
     private static JobProgress FailedAt(int? layer = null, int? total = null, int? percent = null) =>
         new(PrintJobStatus.Failed, layer, total, percent);
 
-    private static JobFilamentConsumption LineWith(FilamentUsageCurve? curve)
+    private static PrintFilament LineWith(FilamentUsageCurve? curve)
     {
         var job = JobWith(("PLA", "#FF0000"));
         job.BindFilamentUsage([(Guid.NewGuid(), 10m, curve)]);
-        return job.FilamentConsumption[0];
+        return job.Filaments[0];
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class JobFilamentAutoDeductionTests
 
         red.RemainingWeightGrams.Should().Be(987.5m);
         white.RemainingWeightGrams.Should().Be(996m);
-        job.FilamentConsumption.Select(l => l.GramsConsumed).Should().Equal(12.5m, 4m);
+        job.Filaments.Select(l => l.GramsConsumed).Should().Equal(12.5m, 4m);
         _usage.Records.Should().OnlyContain(r => r.Source == SpoolUsageSource.Job && r.JobId == job.Id);
         _log.Entries.Should().BeEmpty();
     }
@@ -153,5 +153,108 @@ public class JobFilamentAutoDeductionTests
 
         await act.Should().NotThrowAsync();
         _log.Entries.Should().ContainSingle();
+    }
+
+    private static PrintJob ClosedJob(JobProgress outcome, params (string Material, string Color)[] lines)
+    {
+        var job = JobWith(lines);
+        job.MarkStarted();
+        if (outcome.Outcome == PrintJobStatus.Completed) job.MarkCompleted();
+        else job.MarkFailed();
+        return job;
+    }
+
+    [Fact]
+    public async Task EachSkippedLine_RecordsItsReason()
+    {
+        var spool = UsingSpool();
+        var returned = UsingSpool();
+        returned.ReturnToStorage();
+        var job = JobWith(("PLA", "#000000"), ("PLA", "#111111"), ("PLA", "#222222"));
+        job.BindFilamentUsage([(spool.Id, null, null), (null, 5m, null), (returned.Id, 5m, null)]);
+
+        await Create(spool, returned).ApplyAsync(job, Completed, CancellationToken.None);
+
+        job.Filaments.Select(l => l.SkippedReason).Should().Equal(
+            FilamentSkipReason.NoEstimate, FilamentSkipReason.NoSpool, FilamentSkipReason.SpoolNotLoaded);
+        job.NeedsFilamentFollowUp.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UnknownFraction_IsNoProgress_EvenWithoutASpool()
+    {
+        // A spool choice cannot fix this, so it must not be reported as the fixable NoSpool.
+        var job = JobWith(("PLA", "#FF0000"));
+        job.BindFilamentUsage([(null, 20m, null)]);
+
+        await Create().ApplyAsync(job, FailedAt(), CancellationToken.None);
+
+        job.Filaments[0].SkippedReason.Should().Be(FilamentSkipReason.NoProgress);
+    }
+
+    [Fact]
+    public async Task LogSkippedFalse_StillRecordsTheReasonButWritesNoLog()
+    {
+        var job = JobWith(("PLA", "#FF0000"));
+        job.BindFilamentUsage([(null, 20m, null)]);
+
+        await Create().ApplyAsync(job, Completed, CancellationToken.None, logSkipped: false);
+
+        job.Filaments[0].SkippedReason.Should().Be(FilamentSkipReason.NoSpool);
+        _log.Entries.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AssigningASpoolLater_DeductsFromThenOnAndClearsTheReason()
+    {
+        var spool = UsingSpool();
+        var job = ClosedJob(Completed, ("PLA", "#FF0000"));
+        job.BindFilamentUsage([(null, 20m, null)]);
+        var deduction = Create(spool);
+        await deduction.ApplyAsync(job, Completed, CancellationToken.None);
+
+        job.BindLineSpool(job.Filaments[0].Id, spool.Id);
+        await deduction.ApplyAsync(job, Completed, CancellationToken.None, logSkipped: false);
+        await deduction.ApplyAsync(job, Completed, CancellationToken.None, logSkipped: false);
+
+        spool.RemainingWeightGrams.Should().Be(980m);
+        job.Filaments[0].SkippedReason.Should().BeNull();
+        job.NeedsFilamentFollowUp.Should().BeFalse();
+        _usage.Records.Should().ContainSingle(r => r.JobId == job.Id && r.GramsConsumed == 20m);
+    }
+
+    [Fact]
+    public async Task AssigningASpoolToAFailedPrint_UsesTheStoppedProgress()
+    {
+        var spool = UsingSpool();
+        var job = ClosedJob(FailedAt(), ("PLA", "#FF0000"));
+        job.BindFilamentUsage([(null, 20m, null)]);
+        job.RecordStopProgress(null, null, 40);
+        var deduction = Create(spool);
+        await deduction.ApplyAsync(job, FailedAt(percent: 40), CancellationToken.None);
+
+        job.BindLineSpool(job.Filaments[0].Id, spool.Id);
+        await deduction.ApplyAsync(job, new JobProgress(job.Status, job.StopLayer, job.StopTotalLayers, job.StopPercent),
+            CancellationToken.None, logSkipped: false);
+
+        spool.RemainingWeightGrams.Should().Be(992m);
+    }
+
+    [Fact]
+    public async Task AssigningASpoolToAPrintThatUsedNothing_SettlesTheLineWithZero()
+    {
+        var spool = UsingSpool();
+        var job = ClosedJob(FailedAt(), ("PLA", "#FF0000"));
+        job.BindFilamentUsage([(null, 20m, null)]);
+        var deduction = Create(spool);
+        await deduction.ApplyAsync(job, FailedAt(percent: 0), CancellationToken.None);
+
+        job.BindLineSpool(job.Filaments[0].Id, spool.Id);
+        await deduction.ApplyAsync(job, FailedAt(percent: 0), CancellationToken.None, logSkipped: false);
+
+        job.Filaments[0].GramsConsumed.Should().Be(0m);
+        job.Filaments[0].SkippedReason.Should().BeNull();
+        spool.RemainingWeightGrams.Should().Be(1000m);
+        _usage.Records.Should().BeEmpty();
     }
 }

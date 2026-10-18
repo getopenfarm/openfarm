@@ -17,12 +17,12 @@ public class TerminalSnapshotDeletionTests(ProductionTestFactory factory) : Prod
     private async Task<(Guid RunId, Guid JobId)> LegacyJobAsync(Part part, PrintJobStatus status, bool unlimited = false)
     {
         var printer = await PrinterAsync();
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var run = ProductionRun.Create(part.OrganizationId, "Legacy dependency", null, null, null,
+        var run = ProductionRun.Create("Legacy dependency", null, null, null,
             [new RunLineSpec(RunLineTargetKind.Part, part.Id, unlimited ? null : 1, null, AssignmentMode.Unassigned, null, 1, null)]);
-        var requirement = PartRequirement.Create(part.OrganizationId, run.Lines[0].Id, part.Id, unlimited ? null : 1);
-        var job = PrintJob.Create(part.OrganizationId, requirement.Id, 1024, part.UnitsPerPrint,
+        var requirement = PartRequirement.Create(run.Lines[0].Id, part.Id, unlimited ? null : 1);
+        var job = PrintJob.Create("Test part", requirement.Id, 1024, part.UnitsPerPrint,
             AssignmentMode.Pinned, printer.Id, part.RevisionHash, part.RevisionNumber, [new JobFilamentRequirementSpec("PLA", null)]);
         if (status == PrintJobStatus.Cancelled) job.MarkCancelled();
         else if (status != PrintJobStatus.Queued)
@@ -73,7 +73,7 @@ public class TerminalSnapshotDeletionTests(ProductionTestFactory factory) : Prod
         requirement.JobsNeedingRequeue.Should().BeEmpty();
         if (status is PrintJobStatus.Cancelled or PrintJobStatus.Failed)
             requirement.JobsBlockedForRequeue.Should().Contain(jobId);
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var persisted = await db.PrintJobs.SingleAsync(j => j.Id == jobId);
         var unavailableAt = persisted.SnapshotUnavailableAtUtc;
@@ -149,14 +149,14 @@ public class TerminalSnapshotDeletionTests(ProductionTestFactory factory) : Prod
         var client = await ClientAsync();
         var part = await PartAsync();
         var (_, jobId) = await LegacyJobAsync(part, PrintJobStatus.Cancelled);
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var recover = scope.ServiceProvider.GetRequiredService<ProductionSnapshotReconciler>().ReconcileAsync(default);
             var deletion = client.DeleteAsync($"/api/v1/parts/{part.Id}");
             await Task.WhenAll(recover, deletion);
             (await deletion).StatusCode.Should().Be(HttpStatusCode.NoContent);
         }
-        using var fresh = Factory.CreateTenantScope();
+        using var fresh = Factory.Services.CreateScope();
         var job = await fresh.ServiceProvider.GetRequiredService<OpenFarmDbContext>().PrintJobs.SingleAsync(j => j.Id == jobId);
         job.GetSnapshotState().Should().BeOneOf("Ready", "Unavailable");
         (job.ProductionSnapshotJson is not null && job.SnapshotUnavailableAtUtc is not null).Should().BeFalse();

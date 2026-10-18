@@ -6,7 +6,6 @@ using OpenFarm.Api.Endpoints.Assemblies;
 using OpenFarm.Api.Endpoints.ProductionRuns;
 using OpenFarm.Application.Assemblies;
 using OpenFarm.Domain.Assemblies;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Api.IntegrationTests.Production;
 
@@ -18,15 +17,15 @@ public class RunCreationExplosionSnapshotTests(ProductionTestFactory factory) : 
         var client = await ClientAsync();
         var part = await PartAsync(4);
         Guid rootId;
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var assemblies = scope.ServiceProvider.GetRequiredService<IAssemblyRepository>();
             var components = scope.ServiceProvider.GetRequiredService<INonPrintedComponentRepository>();
-            var screw = NonPrintedComponent.Create(Organization.WellKnownId, "Screw", 1);
+            var screw = NonPrintedComponent.Create("Screw", 1);
             await components.AddAsync(screw, default);
-            var nested = Assembly.Create(Organization.WellKnownId, "Nested", null, [new BomLineSpec(BomLineTargetKind.Part, part.Id, null, null, 2)]);
+            var nested = Assembly.Create("Nested", null, [new BomLineSpec(BomLineTargetKind.Part, part.Id, null, null, 2)]);
             await assemblies.AddAsync(nested, default);
-            var root = Assembly.Create(Organization.WellKnownId, "Root", null, [
+            var root = Assembly.Create("Root", null, [
                 new BomLineSpec(BomLineTargetKind.Part, part.Id, null, null, 2),
                 new BomLineSpec(BomLineTargetKind.Assembly, null, nested.Id, null, 2),
                 new BomLineSpec(BomLineTargetKind.NonPrintedComponent, null, null, screw.Id, 6)]);

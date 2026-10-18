@@ -48,7 +48,7 @@ import {
 import { formatMinutes } from '@/lib/formatMinutes';
 import { formatFileSize, formatGrams, formatMm } from '@/lib/formatUnits';
 import { AddOrReplacePartDialog } from './components/AddOrReplacePartDialog';
-import { PartEstimate } from './components/PartEstimate';
+import { filamentGrams, PartEstimate } from './components/PartEstimate';
 import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
@@ -306,6 +306,7 @@ export function PartDetailPage() {
       };
       return {
         key: requirement.id ?? '',
+        estimatedGrams: requirement.estimatedGrams,
         materialType: requirement.materialType,
         detectedColorHex: requirement.detectedColorHex,
         detectedSubBrand: requirement.detectedSubBrand,
@@ -500,7 +501,14 @@ export function PartDetailPage() {
                           size="lg"
                           status={part.estimateStatus}
                           minutes={part.estimatedPrintTimeMinutes}
-                          grams={part.estimatedFilamentWeightGrams}
+                          grams={filamentGrams(
+                            requirements,
+                            part.estimatedFilamentWeightGrams,
+                          )}
+                          includesPurge={
+                            requirements.length > 0 &&
+                            requirements.every((r) => r.estimatedGrams != null)
+                          }
                         />
                         <FormField
                           control={form.control}

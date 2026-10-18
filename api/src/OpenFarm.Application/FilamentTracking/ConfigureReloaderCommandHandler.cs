@@ -21,7 +21,7 @@ public sealed class ConfigureReloaderCommandHandler(IFeedUnitRepository units,
             await units.SaveChangesAsync(cancellationToken);
             return unit;
         }, cancellationToken, printerId);
-        await events.FeedUnitsChangedAsync(unit.OrganizationId, unit.PrinterId, cancellationToken);
+        await events.FeedUnitsChangedAsync(unit.PrinterId, cancellationToken);
         return unit;
     }
 }
@@ -41,7 +41,7 @@ public sealed class SelectReloaderSlotCommandHandler(IFeedUnitRepository units, 
             await units.SaveChangesAsync(cancellationToken);
             return unit;
         }, cancellationToken, printerId);
-        await events.FeedUnitsChangedAsync(unit.OrganizationId, unit.PrinterId, cancellationToken);
+        await events.FeedUnitsChangedAsync(unit.PrinterId, cancellationToken);
         return unit;
     }
 }

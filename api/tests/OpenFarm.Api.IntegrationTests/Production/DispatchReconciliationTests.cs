@@ -31,7 +31,7 @@ public class DispatchReconciliationTests(ProductionTestFactory factory) : Produc
                 if (job.DispatchedAtUtc is not null && job.DispatchedAtUtc > previousDispatch)
                 {
                     job.Status.Should().Be(PrintJobStatus.Queued);
-                    job.DispatchedPrinterId.Should().Be(printer.Id);
+                    job.PrinterId.Should().Be(printer.Id);
                     return;
                 }
                 await Task.Delay(50);

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey } from '@/lib/api/generated/notifications/notifications';
 import {
   getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
@@ -28,7 +29,7 @@ vi.mock('@/lib/signalr/farmHubConnection', () => ({
 
 describe('Printer activity live updates', () => {
   beforeEach(() => hub.handlers.clear());
-  it('refreshes this printer and organization history while retaining other printer caches', () => {
+  it('refreshes this printer and farm history while retaining other printer caches', () => {
     const client = new QueryClient();
     const own = [
       '/api/v1/activity-log',
@@ -208,6 +209,27 @@ describe('Camera receipt timestamps', () => {
       frameJpegBase64: 'live',
       receivedAtUtc,
     });
+    unmount();
+  });
+
+  it('refetches the notifications on a push and after a reconnect', () => {
+    const client = new QueryClient();
+    const key =
+      getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey();
+    client.setQueryData(key, { data: { items: [], totalCount: 0 } });
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    expect(client.getQueryState(key)?.isInvalidated).toBe(false);
+
+    act(() => hub.handlers.get('NotificationsChanged')?.({}));
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+
+    client.setQueryData(key, { data: { items: [], totalCount: 0 } });
+    act(() => hub.reconnected());
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
     unmount();
   });
 });

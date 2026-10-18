@@ -1,5 +1,5 @@
 using OpenFarm.Application.Common;
-using OpenFarm.Application.Organizations;
+using OpenFarm.Application.Settings;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
@@ -8,7 +8,7 @@ public sealed record ReprocessPartCommand(Guid PartId, Guid? RequestedByUserId);
 
 public sealed class ReprocessPartCommandHandler(
     IPartRepository parts, IPartProcessingJobRepository jobs, IPartProcessingDispatcher dispatcher,
-    IOrganizationRepository organizations, ResolveSlicerSelection selection)
+    IFarmSettingsRepository farmSettings, ResolveSlicerSelection selection)
     : ICommandHandler<ReprocessPartCommand, AddPartResult>
 {
     public async Task<AddPartResult> HandleAsync(ReprocessPartCommand command, CancellationToken cancellationToken)
@@ -20,10 +20,10 @@ public sealed class ReprocessPartCommandHandler(
         string? material = null;
         if (part.RequiresSlicing)
         {
-            var organization = await organizations.GetAsync(cancellationToken);
+            var settings = await farmSettings.GetAsync(cancellationToken);
             try
             {
-                slicer = selection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, organization.DefaultSlicer);
+                slicer = selection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, settings.DefaultSlicer);
             }
             catch (SlicerUnavailableException)
             {
@@ -33,7 +33,7 @@ public sealed class ReprocessPartCommandHandler(
         }
         var job = PartProcessingJob.CreateReprocess(part, slicer, nozzle, material, command.RequestedByUserId);
         await jobs.AddAsync(job, cancellationToken);
-        dispatcher.Enqueue(new PartProcessingWorkItem(part.OrganizationId, job.Id));
+        dispatcher.Enqueue(new PartProcessingWorkItem(job.Id));
         return new AddPartResult(job.Id, job.Status);
     }
 }

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using FluentFTP;
+using FluentFTP.Exceptions;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Formatter;
@@ -273,12 +274,28 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         await ftp.AutoConnect(cancellationToken);
         foreach (var path in candidates)
         {
-            if (await ftp.FileExists(path, cancellationToken) && await ftp.DownloadBytes(path, token: cancellationToken) is { Length: > 0 } bytes)
-                return bytes;
+            // No FileExists first: it falls back to listing the folder and rejects the whole check when any unrelated file there
+            // has a name FluentFTP treats as a path-traversal attempt (e.g. "...Parametric....gcode.bbl"), which hid every
+            // file under /cache on some printers. A missing file answers 550 at once.
+            byte[]? bytes;
+            try
+            {
+                bytes = await ftp.DownloadBytes(path, cancellationToken);
+            }
+            catch (FtpException ex) when (IsFileMissing(ex))
+            {
+                continue;
+            }
+
+            if (bytes is { Length: > 0 }) return bytes;
         }
 
         return null;
     }
+
+    /// <summary>The server's 550 reply to a download of a file that is not there (or not readable).</summary>
+    internal static bool IsFileMissing(FtpException exception) =>
+        exception.InnerException is FtpCommandException { CompletionCode: "550" };
 
     /// <summary>
     /// Where a print the printer started itself is likely stored. Bambu Studio and Handy leave the project as

@@ -26,6 +26,9 @@ interface SpoolPickerProps {
   refreshing: boolean;
   value: string;
   onValueChange: (spoolId: string) => void;
+  /** What the list holds when nothing is shown, and what a screen reader hears for the group. */
+  emptyTitle?: string;
+  legend?: string;
 }
 
 /** Server-side search + material filter over a radio list; native radios give arrow-key navigation for free. */
@@ -38,6 +41,8 @@ export function SpoolPicker({
   refreshing,
   value,
   onValueChange,
+  emptyTitle = 'No spools in storage',
+  legend = 'Spools in storage',
 }: SpoolPickerProps) {
   const name = useId();
   const [materialType, setMaterialType] = useState(ALL);
@@ -69,9 +74,7 @@ export function SpoolPicker({
 
   const filtered = query.trim() !== '' || materialType !== ALL;
   if (spools.length === 0 && !filtered && !refreshing)
-    return (
-      <EmptyState size="sm" bordered={false} title="No spools in storage" />
-    );
+    return <EmptyState size="sm" bordered={false} title={emptyTitle} />;
 
   const clearFilters = () => {
     onQueryChange('');
@@ -136,7 +139,7 @@ export function SpoolPicker({
         />
       ) : (
         <fieldset className="m-0 min-w-0 divide-y rounded-lg border p-0">
-          <legend className="sr-only">Spools in storage</legend>
+          <legend className="sr-only">{legend}</legend>
           {visible.map((spool) => {
             const capacity = spool.spoolWeightGrams ?? 0;
             const remaining = spool.remainingWeightGrams;

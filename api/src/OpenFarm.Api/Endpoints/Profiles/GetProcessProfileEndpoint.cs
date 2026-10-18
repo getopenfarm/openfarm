@@ -35,9 +35,7 @@ public sealed class ProcessProfileDetailResponse
     };
 }
 
-// GET /api/v1/profiles/process/{id}. 404 on an unknown/cross-tenant id — Finbuckle's global query
-// filter makes this indistinguishable from "doesn't exist" (same as every other tenant-scoped
-// lookup in this codebase).
+// GET /api/v1/profiles/process/{id}. 404 on an unknown id.
 [Permission("profiles:get-process")]
 public sealed class GetProcessProfileEndpoint(IQueryHandler<GetProcessProfileQuery, ProcessProfileDetail?> handler)
     : EndpointWithoutRequest<ProcessProfileDetailResponse>

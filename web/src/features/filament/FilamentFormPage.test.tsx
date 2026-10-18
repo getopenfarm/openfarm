@@ -265,6 +265,7 @@ describe('FilamentFormPage', () => {
     await user.type(screen.getByLabelText('Name'), 'PETG');
 
     await user.click(screen.getByRole('button', { name: /add variant/i }));
+    await user.clear(within(screen.getByRole('dialog')).getByLabelText('Name'));
     await user.type(
       within(screen.getByRole('dialog')).getByLabelText('Name'),
       'Galaxy Black',
@@ -307,6 +308,7 @@ describe('FilamentFormPage', () => {
 
     await user.type(screen.getByLabelText('Name'), 'PLA+');
     await user.click(screen.getByRole('button', { name: /add variant/i }));
+    await user.clear(within(screen.getByRole('dialog')).getByLabelText('Name'));
     await user.type(
       within(screen.getByRole('dialog')).getByLabelText('Name'),
       'Black',
@@ -347,6 +349,7 @@ describe('FilamentFormPage', () => {
     await user.click(screen.getByRole('option', { name: /Generic PETG/ }));
 
     await user.click(screen.getByRole('button', { name: /add variant/i }));
+    await user.clear(within(screen.getByRole('dialog')).getByLabelText('Name'));
     await user.type(
       within(screen.getByRole('dialog')).getByLabelText('Name'),
       'Galaxy Black',
@@ -412,6 +415,7 @@ describe('FilamentFormPage', () => {
 
     await user.click(screen.getByRole('button', { name: /add variant/i }));
     const dialog = within(screen.getByRole('dialog'));
+    await user.clear(dialog.getByLabelText('Name'));
     await user.type(dialog.getByLabelText('Name'), 'Red');
     await user.click(dialog.getByRole('button', { name: 'Red' }));
     await user.click(dialog.getByRole('button', { name: 'Add variant' }));

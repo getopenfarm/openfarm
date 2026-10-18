@@ -29,7 +29,7 @@ export const ACCEPTED_EXTENSIONS = '.stl,.3mf,.gcode,.gco,.g';
 // research.md §11) rather than gated on file type. The backend ignores both fields for a file that
 // turns out not to require slicing either way (contracts/slicer-management-api.md), so offering the
 // choice a moment early is harmless.
-export const USE_DEFAULT_SLICER = '__use-organization-default__';
+export const USE_DEFAULT_SLICER = '__use-farm-default__';
 
 export function slicerSelectionKey(slicer: {
   engine?: string;

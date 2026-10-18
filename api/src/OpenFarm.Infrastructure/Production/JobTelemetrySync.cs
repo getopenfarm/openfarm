@@ -3,6 +3,8 @@ using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Production;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ActivityLog;
+using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Infrastructure.Production;
@@ -11,7 +13,7 @@ namespace OpenFarm.Infrastructure.Production;
 /// The single writer of every telemetry-observable <see cref="PrintJob"/> transition for a
 /// live-integrated printer (research.md R12) — a command handler never calls a <c>PrintJob.Mark*</c>
 /// method itself for one of these; only this, driven off the printer's own reported <c>gcodeState</c>,
-/// does. Looks up whichever job currently has <c>DispatchedPrinterId</c> equal to the reporting
+/// does. Looks up whichever job currently has <c>PrinterId</c> equal to the reporting
 /// printer and a non-terminal status, and drives at most one transition per event — a repeated
 /// gcodeState that already matches the job's current status is a no-op by construction, since every
 /// branch below only fires from the specific "before" status it expects.
@@ -20,73 +22,77 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
 {
     public async Task ObserveAsync(Guid printerId, string gcodeState, CancellationToken cancellationToken)
     {
-        var jobRepository = services.GetRequiredService<IPrintJobRepository>();
-        var job = await jobRepository.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken);
-        if (job is null)
-        {
-            // Not an OpenFarm print: a print started at the printer itself still deducts its filament.
-            if (services.GetService<ExternalPrintSync>() is { } external)
-                await external.ObserveStateAsync(printerId, gcodeState, cancellationToken);
-            return;
-        }
+        var state = gcodeState.Trim().ToUpperInvariant();
+        if (state is "FINISH" or "FAILED") ExternalPrintSync.ClearAttempt(printerId);
 
-        switch (gcodeState.Trim().ToUpperInvariant())
+        var jobRepository = services.GetRequiredService<IPrintJobRepository>();
+        // Not an OpenFarm job: a print started at the printer itself is tracked the same way.
+        Print? print = await jobRepository.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken);
+        if (print is null && services.GetService<IExternalPrintRepository>() is { } externalPrints)
+            print = await externalPrints.GetOpenByPrinterIdAsync(printerId, cancellationToken);
+        if (print is null) return;
+        var cancelRequested = print is PrintJob { CancelRequestedAtUtc: not null };
+
+        switch (state)
         {
             case "INIT" or "PREPARE" or "SLICING" or "RUNNING":
-                if (job.Status == PrintJobStatus.Queued)
+                if (print is PrintJob { Status: PrintJobStatus.Queued })
                 {
-                    job.MarkStarted();
+                    print.MarkStarted();
                     // The printer still holds the previous print's progress; a job that fails before reporting
                     // any layer must not inherit it.
                     if (await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, cancellationToken) is { } starting)
                         starting.ResetPrintProgress();
-                    await SaveAndPublishAsync(jobRepository, job, cancellationToken);
+                    await SaveAndPublishAsync(jobRepository, print, cancellationToken);
                 }
-                else if (job.Status == PrintJobStatus.Paused)
+                else if (print.Status == PrintJobStatus.Paused)
                 {
-                    job.MarkResumed();
-                    await SaveAndPublishAsync(jobRepository, job, cancellationToken);
+                    print.MarkResumed();
+                    await SaveAndPublishAsync(jobRepository, print, cancellationToken);
                 }
 
                 break;
 
             case "PAUSE":
-                if (job.Status == PrintJobStatus.Printing)
+                if (print.Status == PrintJobStatus.Printing)
                 {
-                    job.MarkPaused();
-                    await SaveAndPublishAsync(jobRepository, job, cancellationToken);
+                    print.MarkPaused();
+                    await SaveAndPublishAsync(jobRepository, print, cancellationToken);
                 }
 
                 break;
 
             case "FINISH":
-                if (job.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
+                if (print.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
                 {
-                    if (job.CancelRequestedAtUtc is not null) job.MarkCancelled();
-                    else job.MarkCompleted();
-                    await DeductFilamentAsync(job, printerId, cancellationToken);
-                    await SaveAndPublishAsync(jobRepository, job, cancellationToken);
+                    if (cancelRequested) print.MarkCancelled();
+                    else print.MarkCompleted();
+                    await DeductFilamentAsync(print, printerId, cancellationToken);
+                    await SaveAndPublishAsync(jobRepository, print, cancellationToken);
 
-                    var completionService = services.GetRequiredService<ProductionRunCompletionService>();
-                    await completionService.TryCompleteRunForRequirementAsync(job.PartRequirementId, cancellationToken);
+                    if (print is PrintJob job)
+                    {
+                        var completionService = services.GetRequiredService<ProductionRunCompletionService>();
+                        await completionService.TryCompleteRunForRequirementAsync(job.PartRequirementId, cancellationToken);
+                    }
                 }
 
                 break;
 
             case "FAILED":
-                if (job.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
+                if (print.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
                 {
-                    if (ResolveTerminalStatus(job.CancelRequestedAtUtc is not null) == PrintJobStatus.Cancelled)
+                    if (ResolveTerminalStatus(cancelRequested) == PrintJobStatus.Cancelled)
                     {
-                        job.MarkCancelled();
+                        print.MarkCancelled();
                     }
                     else
                     {
-                        job.MarkFailed(reason: "The printer reported a failed print.");
+                        print.MarkFailed(reason: "The printer reported a failed print.");
                     }
 
-                    await DeductFilamentAsync(job, printerId, cancellationToken);
-                    await SaveAndPublishAsync(jobRepository, job, cancellationToken);
+                    await DeductFilamentAsync(print, printerId, cancellationToken);
+                    await SaveAndPublishAsync(jobRepository, print, cancellationToken);
                 }
 
                 break;
@@ -107,29 +113,64 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
     /// Runs before the printer's own progress is overwritten by this event (HandleEventAsync records telemetry after
     /// this sync), so it reads the last progress observed while printing.
     /// </summary>
-    private async Task DeductFilamentAsync(PrintJob job, Guid printerId, CancellationToken cancellationToken)
+    private async Task DeductFilamentAsync(Print print, Guid printerId, CancellationToken cancellationToken)
     {
         var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, cancellationToken);
-        var progress = new JobProgress(job.Status, printer?.CurrentLayer, printer?.TotalLayers, printer?.PrintProgressPercent);
-        await services.GetRequiredService<JobFilamentAutoDeduction>().ApplyAsync(job, progress, cancellationToken);
+        // Kept on the print so an operator can finish a skipped deduction later, long after the printer moved on.
+        print.RecordStopProgress(printer?.CurrentLayer, printer?.TotalLayers, printer?.PrintProgressPercent);
+        if (print is ExternalPrint external && printer is not null) await BindToolSpoolsAsync(external, printer, cancellationToken);
+        var progress = new JobProgress(print.Status, print.StopLayer, print.StopTotalLayers, print.StopPercent);
+        await services.GetRequiredService<JobFilamentAutoDeduction>().ApplyAsync(print, progress, cancellationToken);
     }
 
-    private async Task SaveAndPublishAsync(IPrintJobRepository jobRepository, PrintJob job, CancellationToken cancellationToken)
+    /// <summary>
+    /// Which tray fed which tool of a multi-colour print isn't reported, and a print joined mid-print misses early trays, so the
+    /// tools are paired with the AMS trays by material and colour now, from the last AMS state seen while printing. Spools are
+    /// resolved here, not at the start: they may have been loaded in OpenFarm after the print began.
+    /// </summary>
+    private async Task BindToolSpoolsAsync(ExternalPrint print, Printer printer, CancellationToken cancellationToken)
     {
-        var printers = services.GetRequiredService<IPrinterRepository>();
-        if (job.DispatchedPrinterId is { } printerId && await printers.GetByIdAsync(printerId, cancellationToken) is { } printer)
+        var tools = print.Filaments.Where(f => f.SpoolId is null).Select(f => (f.ToolIndex, f.MaterialType, f.DetectedColorHex)).ToList();
+        if (tools.Count == 0) return;
+        var trays = printer.AmsUnits
+            .SelectMany(u => u.Trays.Where(t => !t.Empty).Select(t => new LoadedTray(ProductionFeedPath.TrayId(u.UnitIndex, t.SlotIndex), t.MaterialType, t.ColorHex)))
+            .ToList();
+        var resolver = services.GetRequiredService<FeedTrayResolver>();
+        var spools = new Dictionary<int, Guid>();
+        foreach (var (tool, tray) in ToolTrayMatcher.Match(tools, trays, print.ObservedTrayIds))
+            if (await resolver.ResolveSpoolAsync(printer.Id, tray, cancellationToken) is { } spool) spools[tool] = spool;
+        print.BindTools(spools);
+    }
+
+    private async Task SaveAndPublishAsync(IPrintJobRepository jobRepository, Print print, CancellationToken cancellationToken)
+    {
+        // A print started at the printer already drives the printer's own status; only OpenFarm's jobs mirror it back.
+        if (print is PrintJob job)
         {
-            printer.ObserveStatus(job.Status is PrintJobStatus.Completed or PrintJobStatus.Failed or PrintJobStatus.Cancelled ? "FINISH" : "RUNNING");
+            var printers = services.GetRequiredService<IPrinterRepository>();
+            if (job.PrinterId is { } printerId && await printers.GetByIdAsync(printerId, cancellationToken) is { } printer)
+            {
+                printer.ObserveStatus(job.IsClosed ? "FINISH" : "RUNNING");
+            }
+
+            await jobRepository.SaveChangesAsync(cancellationToken);
         }
-        await jobRepository.SaveChangesAsync(cancellationToken);
+        else
+        {
+            await services.GetRequiredService<IExternalPrintRepository>().SaveChangesAsync(cancellationToken);
+        }
 
         var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
-        var entry = ActivityLogEntry.Create(
-            job.OrganizationId, entityType: "PrintJob", entityId: job.Id.ToString(),
-            eventType: "PrintJobStatusObserved", actorId: null, actorType: ActorType.System);
-        await activityLogWriter.WriteAsync(entry, cancellationToken);
+        if (print is PrintJob || print.IsClosed)
+        {
+            var entry = ActivityLogEntry.Create(
+                entityType: print is PrintJob ? "PrintJob" : "ExternalPrint", entityId: print.Id.ToString(),
+                eventType: print is PrintJob ? "PrintJobStatusObserved" : "ExternalPrintFinished", actorId: null, actorType: ActorType.System);
+            await activityLogWriter.WriteAsync(entry, cancellationToken);
+        }
 
         var publisher = services.GetRequiredService<IProductionEventPublisher>();
-        await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
+        await publisher.PrintJobStatusChangedAsync(print.Id, print.Status, cancellationToken);
+        if (print.IsClosed) await publisher.NotificationsChangedAsync(cancellationToken);
     }
 }

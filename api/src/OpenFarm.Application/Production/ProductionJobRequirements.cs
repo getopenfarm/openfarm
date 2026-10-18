@@ -16,14 +16,14 @@ public sealed class ProductionJobRequirements(IProductionRunRepository runs, IPa
 
     public static IReadOnlyList<JobFilamentRequirementSpec> Resolve(PrintJob job, Part part, RevisionMode mode) =>
         !job.HasFilamentRequirementOverride && job.DispatchedAtUtc is null && mode == RevisionMode.FollowLatest
-            ? FromPart(part) : job.FilamentConsumption.Select(c => c.Requirement).ToList();
+            ? FromPart(part) : job.Filaments.Select(c => c.Requirement).ToList();
 
     public async Task<(IReadOnlyList<JobFilamentRequirementSpec> Requirements, string Source, string RevisionHash)> ResolveAsync(
         PrintJob job, Part part, CancellationToken ct)
     {
         var requirement = await requirements.GetByIdAsync(job.PartRequirementId, ct);
         if (job.ProductionSnapshotJson is not null && (requirement?.Quantity is not null || job.DispatchedAtUtc is not null))
-            return (job.FilamentConsumption.Select(c => c.Requirement).ToList(),
+            return (job.Filaments.Select(c => c.Requirement).ToList(),
                 job.HasFilamentRequirementOverride ? "Job override" : "Job snapshot", job.FileRevisionHash);
         var run = requirement is null ? null : await runs.GetByRunLineIdAsync(requirement.RunLineId, ct);
         var mode = run?.Lines.FirstOrDefault(l => l.Id == requirement!.RunLineId)?.RevisionMode ?? RevisionMode.Snapshot;

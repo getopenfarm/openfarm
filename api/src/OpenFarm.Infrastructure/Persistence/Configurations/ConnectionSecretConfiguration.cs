@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.ConnectionSecrets;
@@ -13,9 +12,6 @@ public sealed class ConnectionSecretConfiguration : IEntityTypeConfiguration<Con
 
         builder.HasKey(c => c.Id);
 
-        builder.Property(c => c.OrganizationId)
-            .IsRequired();
-
         builder.Property(c => c.PrinterSerialNumber)
             .IsRequired();
 
@@ -26,6 +22,5 @@ public sealed class ConnectionSecretConfiguration : IEntityTypeConfiguration<Con
             .IsRequired();
 
         // Immutable, append-only: no update-path columns/navigations are mapped beyond creation.
-        builder.IsMultiTenant();
     }
 }

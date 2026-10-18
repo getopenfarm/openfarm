@@ -14,7 +14,6 @@ public sealed class FeedSlotTelemetrySyncHandler(IFeedUnitRepository feedUnitRep
 {
     public async Task SyncAsync(
         Guid printerId,
-        Guid organizationId,
         string brand,
         IReadOnlyList<AmsUnit> amsUnits,
         AmsTray? externalSpoolTray,
@@ -31,7 +30,7 @@ public sealed class FeedSlotTelemetrySyncHandler(IFeedUnitRepository feedUnitRep
             var existing = existingUnits.FirstOrDefault(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit && u.UnitIndex == amsUnit.UnitIndex);
             if (existing is null)
             {
-                var unit = FeedUnit.CreateConnectorDerived(organizationId, printerId, FeedUnitKindCatalog.MultiMaterialUnit, amsUnit.UnitIndex);
+                var unit = FeedUnit.CreateConnectorDerived(printerId, FeedUnitKindCatalog.MultiMaterialUnit, amsUnit.UnitIndex);
                 foreach (var tray in amsUnit.Trays)
                 {
                     unit.AddFeedSlot(tray.SlotIndex);
@@ -54,7 +53,7 @@ public sealed class FeedSlotTelemetrySyncHandler(IFeedUnitRepository feedUnitRep
         {
             if (externalSpoolUnit is null)
             {
-                var unit = FeedUnit.CreateConnectorDerived(organizationId, printerId, FeedUnitKindCatalog.ExternalSpool, unitIndex: 0);
+                var unit = FeedUnit.CreateConnectorDerived(printerId, FeedUnitKindCatalog.ExternalSpool, unitIndex: 0);
                 unit.AddFeedSlot(0);
                 await feedUnitRepository.AddAsync(unit, cancellationToken);
             }

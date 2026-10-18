@@ -1,0 +1,47 @@
+# Self-hosted deployment. Copy this file + .env.prod.example (as .env) to a folder and run:
+#   docker compose up -d
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openfarm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: openfarm
+    volumes:
+      - pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfarm -d openfarm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  openfarm:
+    image: ghcr.io/getopenfarm/openfarm:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Linux only: Bambu printer discovery uses LAN broadcast/multicast (UDP 2021/1990), which a
+    # bridged container never receives. To enable it, uncomment `network_mode: host`, drop `ports`,
+    # and change `Host=postgres` below to `Host=localhost` (and publish postgres on 5432).
+    # network_mode: host
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/data
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      TZ: ${TZ:-Etc/UTC}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=openfarm;Username=openfarm;Password=${POSTGRES_PASSWORD}"
+      Jwt__Issuer: OpenFarm
+      Jwt__Audience: OpenFarm
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY in .env}
+      Seed__AdminUsername: ${ADMIN_USERNAME:-admin}
+      Seed__AdminEmail: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+
+volumes:
+  pg_data:

@@ -17,6 +17,13 @@ public sealed class ListPartsRequest
     public int PageSize { get; set; } = 25;
 }
 
+public sealed class PartColorGramsResponse
+{
+    public string? MaterialType { get; set; }
+    public string? ColorHex { get; set; }
+    public decimal? Grams { get; set; }
+}
+
 public sealed class PartSummaryResponse
 {
     public Guid Id { get; set; }
@@ -35,6 +42,8 @@ public sealed class PartSummaryResponse
     public string? ThumbnailBase64 { get; set; }
     public List<string> MaterialTypes { get; set; } = [];
     public List<string> Tags { get; set; } = [];
+    /// <summary>Per-requirement grams (per plate set, purge included) for by-colour totals.</summary>
+    public List<PartColorGramsResponse> FilamentByColor { get; set; } = [];
 }
 
 public sealed class ListPartsResponse
@@ -81,6 +90,7 @@ public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> ha
                 ThumbnailBase64 = p.ThumbnailBase64,
                 MaterialTypes = p.MaterialTypes.ToList(),
                 Tags = p.Tags.ToList(),
+                FilamentByColor = (p.FilamentByColor ?? []).Select(c => new PartColorGramsResponse { MaterialType = c.MaterialType, ColorHex = c.ColorHex, Grams = c.Grams }).ToList(),
             }).ToList(),
         };
     }

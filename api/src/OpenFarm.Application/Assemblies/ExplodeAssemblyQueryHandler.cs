@@ -1,6 +1,5 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Domain.Assemblies;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Application.Assemblies;
 
@@ -20,6 +19,6 @@ public sealed class ExplodeAssemblyQueryHandler(IAssemblyGraphQueryService graph
             throw new AssemblyNotFoundException(query.AssemblyId);
         }
 
-        return await graphQueryService.ExplodeAsync(Organization.WellKnownId, query.AssemblyId, query.Quantity, cancellationToken);
+        return await graphQueryService.ExplodeAsync(query.AssemblyId, query.Quantity, cancellationToken);
     }
 }

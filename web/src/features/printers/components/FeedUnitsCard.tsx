@@ -1,13 +1,21 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronRight, Plus } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
+import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { Swatch } from '@/components/swatch/Swatch';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { Spinner } from '@/components/ui/spinner';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
+import { FillMeter } from '@/features/spools/components/FillMeter';
 import { ManageSlotDialog } from '@/features/spools/components/ManageSlotDialog';
 import type {
   AmsTrayResponse,
@@ -23,7 +31,12 @@ import {
 } from '@/lib/api/generated/printers/printers';
 import { formatGrams } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
-import { feedSlotView, normalizeFilamentColor } from '../lib/feedSlotView';
+import {
+  colorsDiffer,
+  detectedName,
+  feedSlotView,
+  normalizeFilamentColor,
+} from '../lib/feedSlotView';
 import { selectReloaderSlot } from '../lib/reloaderApi';
 import { AddFeedUnitDialog } from './AddFeedUnitDialog';
 
@@ -34,24 +47,30 @@ export interface FeedUnitsCardProps {
   externalSpoolTray?: AmsTrayResponse | null;
 }
 
+type Filaments = ReturnType<typeof useFilamentCatalog>;
+
+/** One slot = what is loaded, how much is left, one status tag. The row opens the slot dialog. */
 function FeedSlotRow({
   unit,
   slot,
+  filaments,
   amsUnits,
   isReachable,
   externalSpoolTray,
   externalPortReplacedByReloader,
   unitPrinterId,
+  onManage,
 }: {
   unitPrinterId: string;
   unit: FeedUnitResponse;
   slot: FeedSlotResponse;
+  filaments: Filaments;
   amsUnits: AmsUnitResponse[];
   isReachable: boolean;
   externalSpoolTray?: AmsTrayResponse | null;
   externalPortReplacedByReloader?: boolean;
+  onManage: () => void;
 }) {
-  const filaments = useFilamentCatalog();
   const spool = slot.currentSpool;
   const filament = filaments.find((f) =>
     (f.variants ?? []).some((v) => v.id === spool?.filamentVariantId),
@@ -68,7 +87,6 @@ function FeedSlotRow({
     externalPortReplacedByReloader,
   );
   const queryClient = useQueryClient();
-  const [manageOpen, setManageOpen] = useState(false);
   const slotMutation = useMutation({
     mutationFn: () => selectReloaderSlot(unit.id ?? '', slot.id ?? ''),
     onSuccess: () =>
@@ -80,33 +98,56 @@ function FeedSlotRow({
   const isReloader = unit.kind === 'AutomaticFilamentReloader';
   const feeding = isReloader && slot.id === unit.feedingSlotId;
   const inactive = Boolean(slot.deactivatedAtUtc);
+  const canManage = !inactive && Boolean(slot.id);
+  const detected = detectedName(view.material, view.subBrand);
   const title = spool
     ? filament
       ? `${filament.vendorName} ${filament.material}`
       : 'Registered spool'
     : view.empty
       ? 'Empty'
-      : (view.material ?? 'No registered spool');
-  const detected = [view.material, view.subBrand].filter(Boolean).join(' · ');
-  const differentDetection =
-    spool &&
-    (view.material !== filament?.materialType ||
-      view.subBrand ||
-      (view.color && view.color !== normalizeFilamentColor(variant?.colorHex)));
+      : detected || 'No spool';
+  // Flag only what differs from the registered spool; a sub-brand that is already in its name is not a difference.
+  const registeredName =
+    `${filament?.vendorName} ${filament?.material}`.toLowerCase();
+  const materialDiffers =
+    Boolean(spool && view.material) &&
+    view.material?.toLowerCase() !== filament?.materialType?.toLowerCase();
+  const subBrandDiffers =
+    Boolean(spool && view.subBrand) &&
+    !registeredName.includes(view.subBrand?.toLowerCase() ?? '');
+  const colorDiffers =
+    Boolean(spool && view.color) &&
+    colorsDiffer(view.color, normalizeFilamentColor(variant?.colorHex));
+  // One status tag at most: inactive > tray empty > mismatch.
+  const tag = inactive
+    ? 'Inactive'
+    : spool && view.empty
+      ? 'Tray empty'
+      : materialDiffers || subBrandDiffers
+        ? `Detected: ${detected}`
+        : colorDiffers
+          ? 'Color differs'
+          : null;
+  const capacity = spool?.spoolWeightGrams ?? 0;
+  const lowPercent =
+    view.remainPercent != null && isReachable && !inactive
+      ? view.remainPercent <= 15
+        ? 'text-status-offline'
+        : view.remainPercent <= 30
+          ? 'text-status-attention'
+          : ''
+      : '';
 
-  return (
-    <li
-      aria-label={slot.displayLabel}
-      className={cn(
-        'flex flex-wrap items-center gap-3 border-b px-[18px] py-3 last:border-b-0',
-        view.active && 'bg-accent/40',
-        inactive && 'opacity-50',
-      )}
-    >
-      <span className="w-12 shrink-0 font-mono text-[11px] text-muted-foreground">
-        {slot.slotPosition != null
-          ? `Slot ${slot.slotPosition + 1}`
-          : slot.displayLabel}
+  const content = (
+    <>
+      <span className="w-4 shrink-0 text-center text-xs text-muted-foreground tabular-nums">
+        <span className="sr-only">{`${unit.displayLabel} · ${slot.displayLabel}`}</span>
+        <span aria-hidden="true">
+          {slot.slotPosition != null
+            ? slot.slotPosition + 1
+            : slot.displayLabel}
+        </span>
       </span>
       <Swatch
         colorHex={
@@ -114,106 +155,98 @@ function FeedSlotRow({
         }
         size="sm"
       />
-      <div className="min-w-0 flex-1 basis-24">
-        <p className="text-[13px] font-medium break-words">{title}</p>
-        {variant && (
-          <p className="text-[11.5px] text-muted-foreground">
-            {variant.colorName}
-          </p>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-2 text-[13px]">
+          <span className="font-medium break-words">{title}</span>
+          {variant && (
+            <span className="text-muted-foreground">{variant.colorName}</span>
+          )}
+          {view.active ? (
+            <Badge kind="green">Active</Badge>
+          ) : (
+            feeding && (
+              <Badge
+                kind="zinc"
+                title={
+                  unit.feedingSelectionSource === 'Estimated'
+                    ? 'Estimated'
+                    : undefined
+                }
+              >
+                Feeding
+              </Badge>
+            )
+          )}
+        </span>
+        {tag && (
+          <span className="block text-[11.5px] text-muted-foreground">
+            {tag}
+          </span>
         )}
-        {!spool && view.material && (
-          <p className="text-[11.5px] text-muted-foreground">
-            Detected · Unregistered{view.subBrand ? ` · ${view.subBrand}` : ''}
-          </p>
-        )}
-        {spool && view.empty && (
-          <p className="text-[11.5px] text-muted-foreground">
-            Printer reports empty
-          </p>
-        )}
-        {differentDetection && detected && (
-          <p className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-            {view.color && <Swatch colorHex={view.color} size="sm" />}
-            Printer detected: {detected}
-          </p>
-        )}
-        {!view.empty && !view.material && (
-          <p className="text-[11.5px] text-muted-foreground">
-            Detection unavailable
-          </p>
-        )}
-        {isReloader && (
-          <p className="text-[11.5px] text-muted-foreground">
-            {feeding
-              ? `Feeding${unit.feedingSelectionSource === 'Estimated' ? ' · Estimated' : ' · Operator selected'}`
-              : spool
-                ? 'Standby'
-                : 'Unloaded'}
-          </p>
-        )}
-        {feeding && unit.replacesFeedUnitId && view.material && (
-          <p className="text-[11.5px] text-muted-foreground">
-            Printer-port detection
-          </p>
-        )}
-        {isReloader && !feeding && !inactive && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={slotMutation.isPending}
-            onClick={() => slotMutation.mutate()}
-          >
-            {slotMutation.isPending && <Spinner data-icon="inline-start" />}
-            Set feeding slot
-          </Button>
-        )}
-        {!inactive && slot.id && (
+      </span>
+      <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums">
+        {spool?.remainingWeightGrams != null ? (
           <>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setManageOpen(true)}
-            >
-              {spool ? 'Change spool' : 'Load spool'}
-            </Button>
-            <ManageSlotDialog
-              printerId={unitPrinterId}
-              feedSlotId={slot.id}
-              slotLabel={`${unit.displayLabel} · ${slot.displayLabel}`}
-              open={manageOpen}
-              onOpenChange={setManageOpen}
-            />
-          </>
-        )}
-        {inactive && (
-          <p className="text-[11.5px] text-muted-foreground">Inactive slot</p>
-        )}
-        {view.active && (
-          <span className="inline-flex rounded bg-accent px-1.5 py-0.5 text-[11px] font-medium">
-            Active
-          </span>
-        )}
-      </div>
-      <div className="flex flex-col items-end gap-1 text-right font-mono text-[11px] text-muted-foreground">
-        {spool?.remainingWeightGrams != null && (
-          <span>Recorded: {formatGrams(spool.remainingWeightGrams)}</span>
-        )}
-        {view.remainPercent != null && (
-          <span
-            className={cn(
-              isReachable &&
-                !inactive &&
-                (view.remainPercent <= 15
-                  ? 'text-status-offline'
-                  : view.remainPercent <= 30
-                    ? 'text-status-attention'
-                    : ''),
+            {capacity > 0 && (
+              <FillMeter
+                className="w-14"
+                percent={(spool.remainingWeightGrams / capacity) * 100}
+              />
             )}
-          >
-            Printer estimate: {view.remainPercent}%
-          </span>
-        )}
-      </div>
+            <span>{formatGrams(spool.remainingWeightGrams)}</span>
+          </>
+        ) : !spool && view.material ? (
+          <>
+            <span>Unregistered</span>
+            {view.remainPercent != null && (
+              <span className={lowPercent} title="Printer estimate">
+                {view.remainPercent}%
+              </span>
+            )}
+          </>
+        ) : !spool && canManage ? (
+          <span>Load spool</span>
+        ) : null}
+      </span>
+      {canManage && (
+        <ChevronRight
+          className="size-4 shrink-0 text-muted-foreground"
+          aria-hidden="true"
+        />
+      )}
+    </>
+  );
+
+  return (
+    <li
+      aria-label={slot.displayLabel}
+      className={cn(
+        'relative flex items-center gap-2 border-b px-[18px] py-2.5 last:border-b-0',
+        inactive && 'opacity-50',
+      )}
+    >
+      {canManage ? (
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          onClick={onManage}
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{content}</div>
+      )}
+      {isReloader && !feeding && !inactive && (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={slotMutation.isPending}
+          onClick={() => slotMutation.mutate()}
+        >
+          {slotMutation.isPending && <Spinner data-icon="inline-start" />}
+          Set feeding slot
+        </Button>
+      )}
     </li>
   );
 }
@@ -221,24 +254,31 @@ function FeedSlotRow({
 function FeedUnitGroup({
   unit,
   printerId,
+  filaments,
   amsUnits,
   isReachable,
   externalSpoolTray,
   externalPortReplacedByReloader,
+  onManageSlot,
 }: {
   amsUnits: AmsUnitResponse[];
+  filaments: Filaments;
   isReachable: boolean;
   externalSpoolTray?: AmsTrayResponse | null;
   externalPortReplacedByReloader?: boolean;
   unit: FeedUnitResponse;
   printerId: string;
+  onManageSlot: (slot: FeedSlotResponse) => void;
 }) {
   const queryClient = useQueryClient();
+  const menuTriggerRef = useRef<HTMLElement | null>(null);
   const [configureOpen, setConfigureOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const removeMutation = useOpenFarmApiEndpointsFeedUnitsRemoveFeedUnitEndpoint(
     {
       mutation: {
         onSuccess: () => {
+          setRemoveOpen(false);
           toast.success(
             'Feed unit removed. Loaded spools returned to inventory.',
           );
@@ -255,46 +295,50 @@ function FeedUnitGroup({
           });
         },
         onError: () => {
+          setRemoveOpen(false);
           toast.error('Could not remove feed unit.');
         },
       },
     },
   );
+  const isReloader = unit.kind === 'AutomaticFilamentReloader';
+  const canRemove =
+    Boolean(unit.id) &&
+    (isReloader ||
+      (unit.kind === 'ExternalSpool' && Boolean(unit.supersededByFeedUnitId)));
 
   return (
     <div className="border-b last:border-b-0">
-      <div className="flex items-center justify-between px-[18px] py-2">
+      <div className="flex min-h-9 items-center justify-between px-[18px] py-1">
         <p className="text-xs font-medium text-muted-foreground">
           {unit.displayLabel}
         </p>
-        <div className="flex items-center gap-1">
-          {unit.kind === 'AutomaticFilamentReloader' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              onClick={() => setConfigureOpen(true)}
-            >
-              Edit reloader
-            </Button>
-          )}
-          {unit.id &&
-          (unit.kind === 'AutomaticFilamentReloader' ||
-            (unit.kind === 'ExternalSpool' && unit.supersededByFeedUnitId)) ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              disabled={removeMutation.isPending}
-              onClick={() => removeMutation.mutate({ id: unit.id ?? '' })}
-            >
-              {removeMutation.isPending && <Spinner data-icon="inline-start" />}
-              Remove
-            </Button>
-          ) : null}
-        </div>
+        {(isReloader || canRemove) && (
+          <DataTableRowActions
+            label={unit.displayLabel ?? 'feed unit'}
+            onOpen={(trigger) => {
+              menuTriggerRef.current = trigger;
+            }}
+          >
+            <DropdownMenuGroup>
+              {isReloader && (
+                <DropdownMenuItem onSelect={() => setConfigureOpen(true)}>
+                  Edit reloader
+                </DropdownMenuItem>
+              )}
+              {canRemove && (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => setRemoveOpen(true)}
+                >
+                  Remove
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuGroup>
+          </DataTableRowActions>
+        )}
       </div>
-      {unit.kind === 'AutomaticFilamentReloader' && !unit.feedingSlotId && (
+      {isReloader && !unit.feedingSlotId && (
         <p className="px-[18px] pb-2 text-xs text-muted-foreground">
           Feeding slot not set
         </p>
@@ -305,11 +349,13 @@ function FeedUnitGroup({
             key={slot.id}
             unit={unit}
             unitPrinterId={printerId}
+            filaments={filaments}
             externalPortReplacedByReloader={externalPortReplacedByReloader}
             externalSpoolTray={externalSpoolTray}
             slot={slot}
             amsUnits={amsUnits}
             isReachable={isReachable}
+            onManage={() => onManageSlot(slot)}
           />
         ))}
       </ul>
@@ -318,6 +364,18 @@ function FeedUnitGroup({
         unit={unit}
         open={configureOpen}
         onOpenChange={setConfigureOpen}
+      />
+      <ConfirmDialog
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        title="Remove feed unit"
+        description="Loaded spools return to inventory."
+        confirmLabel="Remove"
+        destructive
+        closeOnConfirm={false}
+        isPending={removeMutation.isPending}
+        returnFocusRef={menuTriggerRef}
+        onConfirm={() => removeMutation.mutate({ id: unit.id ?? '' })}
       />
     </div>
   );
@@ -330,6 +388,11 @@ export function FeedUnitsCard({
   externalSpoolTray,
 }: FeedUnitsCardProps) {
   const [addOpen, setAddOpen] = useState(false);
+  const [managing, setManaging] = useState<{
+    slotId: string;
+    label: string;
+  } | null>(null);
+  const filaments = useFilamentCatalog();
   const feedUnitsQuery = useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint(
     printerId,
     undefined,
@@ -343,22 +406,24 @@ export function FeedUnitsCard({
     <Card className="gap-0 py-0">
       <CardHeader className="flex items-center justify-between border-b px-[18px] py-3.5">
         <CardTitle className="text-sm font-semibold">Feed units</CardTitle>
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-7"
-          aria-label="Add feed unit"
-          onClick={() => setAddOpen(true)}
-        >
-          <Plus data-icon="inline-start" className="" aria-hidden="true" />
-        </Button>
+        <div className="flex items-center gap-3">
+          {!isReachable && (
+            <span className="text-xs text-muted-foreground">
+              Offline · last known
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-7"
+            aria-label="Add feed unit"
+            onClick={() => setAddOpen(true)}
+          >
+            <Plus data-icon="inline-start" className="" aria-hidden="true" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
-        {!isReachable && (
-          <p className="border-b px-[18px] py-2 text-xs text-muted-foreground">
-            Printer offline · Detection is last known
-          </p>
-        )}
         {feedUnitsQuery.isError && (
           <div role="alert">
             <ErrorState
@@ -386,6 +451,7 @@ export function FeedUnitsCard({
                 key={unit.id}
                 unit={unit}
                 printerId={printerId}
+                filaments={filaments}
                 externalPortReplacedByReloader={
                   unit.kind === 'ExternalSpool' &&
                   feedUnits.some(
@@ -398,6 +464,13 @@ export function FeedUnitsCard({
                 externalSpoolTray={externalSpoolTray}
                 amsUnits={amsUnits}
                 isReachable={isReachable}
+                onManageSlot={(slot) =>
+                  slot.id &&
+                  setManaging({
+                    slotId: slot.id,
+                    label: `${unit.displayLabel} · ${slot.displayLabel}`,
+                  })
+                }
               />
             ))}
           </div>
@@ -408,6 +481,15 @@ export function FeedUnitsCard({
         open={addOpen}
         onOpenChange={setAddOpen}
       />
+      {managing && (
+        <ManageSlotDialog
+          printerId={printerId}
+          feedSlotId={managing.slotId}
+          slotLabel={managing.label}
+          open
+          onOpenChange={(open) => !open && setManaging(null)}
+        />
+      )}
     </Card>
   );
 }

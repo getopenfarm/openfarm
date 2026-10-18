@@ -2,7 +2,6 @@ using FluentAssertions;
 using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Production;
 using OpenFarm.Application.Tests.Production.Fakes;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
@@ -103,7 +102,7 @@ public class CancelProductionRunCommandHandlerTests
     public async Task HandleAsync_CancelsOnlyNeverDispatchedQueuedJobs()
     {
         var run = ProductionRun.Create(
-            Organization.WellKnownId, null, null, null, null,
+            null, null, null, null,
             [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), 5, null, AssignmentMode.Unassigned, null, 1, null)]);
         var requirementId = Guid.NewGuid();
 
@@ -143,7 +142,7 @@ public class CloseProductionRunCommandHandlerTests
     public async Task HandleAsync_FromComplete_ClosesAndPublishes()
     {
         var run = ProductionRun.Create(
-            Organization.WellKnownId, null, null, null, null,
+            null, null, null, null,
             [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), 1, null, AssignmentMode.Unassigned, null, 1, null)]);
         run.MarkComplete(allFiniteRequirementsSatisfied: true);
         var publisher = new RecordingProductionEventPublisher();
@@ -159,7 +158,7 @@ public class CloseProductionRunCommandHandlerTests
     public async Task HandleAsync_FromActive_ThrowsInvalidRunCompletion()
     {
         var run = ProductionRun.Create(
-            Organization.WellKnownId, null, null, null, null,
+            null, null, null, null,
             [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), 1, null, AssignmentMode.Unassigned, null, 1, null)]);
         var handler = new CloseProductionRunCommandHandler(new InMemoryProductionRunRepository(run), new RecordingProductionEventPublisher());
 

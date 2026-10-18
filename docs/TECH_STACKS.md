@@ -10,7 +10,6 @@ This is the standing reference for the technologies and notable technical decisi
 | Backend language | C# | 13, nullable reference types enabled |
 | API endpoints | FastEndpoints | 7.x |
 | Auth / identity | ASP.NET Core Identity | ships with .NET 10 |
-| Multi-tenancy | Finbuckle.MultiTenant (+ `.AspNetCore`, `.EntityFrameworkCore`) | 10.x |
 | Validation | FluentValidation | latest, via FastEndpoints' native integration |
 | Database | PostgreSQL | 18.x |
 | ORM / migrations | EF Core | 10.x |
@@ -26,13 +25,13 @@ Pin exact versions in `global.json` (.NET SDK) and `package.json`/`bun.lock`, an
 ## Key technical decisions
 
 - **FastEndpoints as the HTTP layer** — not MediatR, not raw minimal-API route groups. Each endpoint is its own class (Request DTO → Handler → Response DTO, the REPR pattern), FluentValidation wires in natively, and OpenAPI metadata is generated per endpoint automatically. FastEndpoints' own lightweight command bus is used instead of adding MediatR. Validation and activity-logging are implemented as FastEndpoints pre/post-processors rather than MediatR pipeline behaviors — the activity-log post-processor writes to a shared `activity_log` table after any state-mutating command succeeds, making "every status change is logged" structural rather than convention.
-- **Finbuckle.MultiTenant for tenancy** — not hand-rolled query filters. Tenant resolution is claim-based off `organization_id`, and Finbuckle's EF Core integration applies a global query filter to every tenant-scoped entity automatically. Hand-rolling this is exactly the kind of thing that produces a subtle cross-tenant data leak, so it's built on the established library rather than bespoke logic.
+- **Single-tenant by design** — one farm per self-hosted install. There is no tenant/organization column, query filter, or per-tenant hub group; farm-wide settings live in a single `FarmSettings` row.
 - **Permission-based RBAC, not role-based** — a `permissions` catalog maps to roles via `role_permissions`. Both API policies and frontend nav/page visibility check permissions, not role names, so adding a new role is a seed-data change, not a code change.
 - **Status fields as Postgres enums with domain-enforced state machines, not free-text columns** — e.g. `printers.status`, `jobs.status`. Invalid transitions throw a typed domain exception rather than silently persisting bad state.
 - **Recursive CTE for BOM/assembly decomposition, not application-side recursion** — keeps nested-assembly expansion correct and fast regardless of nesting depth.
 - **Plain SPA, not Next.js/Remix/TanStack Start** — OpenFarm is an auth-gated operational dashboard with no SEO or public-content surface. A full-stack framework's server layer would sit unused or invite duplicating business logic outside the .NET API. A plain SPA also builds to static files, keeping self-hosting simple and avoiding a third Node-SSR tier. Routing is React Router v7 in library/declarative mode (client-side only).
 - **Orval-generated typed API client, never hand-edited** — generated from the backend's OpenAPI spec into typed TanStack Query hooks (`useGetPrinters`, `useCreateJob`, etc.). A CI contract-drift check regenerates and diffs the client so backend/frontend types cannot silently drift.
-- **SignalR for real-time, wired directly into TanStack Query's cache** — a single hub, tenant-scoped hub groups, pushing printer/job status changes to clients. Cache updates happen via `setQueryData`/invalidation on hub events rather than a separate real-time state store.
+- **SignalR for real-time, wired directly into TanStack Query's cache** — a single hub with one `farm` group, pushing printer/job status changes to clients. Cache updates happen via `setQueryData`/invalidation on hub events rather than a separate real-time state store.
 - **Printer connectivity behind an internal contract** — an `IPrinterConnector`-style boundary (domain events like `PrinterStatusChanged`, `AmsSlotChanged`, plus outbound commands) that `Application`/`Domain` consume without knowing the transport. The direct-LAN implementation is the only one that exists today, but because business logic only ever sees the contract, a different transport implementation can be swapped in later without reworking `Application`/`Domain`.
 
 ## Testing tools
@@ -42,7 +41,7 @@ Pin exact versions in `global.json` (.NET SDK) and `package.json`/`bun.lock`, an
 | Backend unit | xUnit + FluentAssertions | Domain state machines, BOM decomposition, weight-tracking math, validators |
 | Backend integration | xUnit + `WebApplicationFactory` + Testcontainers.PostgreSql | Real HTTP → real Postgres, run in CI against an ephemeral container |
 | Frontend unit/component | Vitest + React Testing Library | Feature components, forms, hooks |
-| End-to-end | Playwright | Critical flows, org-scoped auth boundaries |
+| End-to-end | Playwright | Critical flows, auth boundaries |
 | Contract | CI check | Generated Orval client is regenerated and diffed against committed output — fails the build if frontend types drifted from the API |
 
 ## CI/CD & security tooling
@@ -52,6 +51,7 @@ Pin exact versions in `global.json` (.NET SDK) and `package.json`/`bun.lock`, an
 - Vulnerability scanning: `dotnet list package --vulnerable`, `bun audit`.
 - Secret scanning: Gitleaks.
 - Dependency updates: Dependabot/Renovate.
+- Release: pushing an `X.Y.Z` tag re-runs CI, then builds and pushes the single `deploy/Dockerfile` image (linux/amd64) to `ghcr.io/getopenfarm/openfarm`.
 
 ## Observability
 

@@ -3,9 +3,6 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using FastEndpoints;
 using FastEndpoints.Swagger;
-using Finbuckle.MultiTenant.Abstractions;
-using Finbuckle.MultiTenant.AspNetCore.Extensions;
-using Finbuckle.MultiTenant.Extensions;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -13,7 +10,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenFarm.Api.ExceptionHandling;
@@ -26,11 +22,11 @@ using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.FilamentTracking;
-using OpenFarm.Application.Organizations;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Application.Settings;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.ActivityLog;
@@ -38,7 +34,6 @@ using OpenFarm.Infrastructure.Assemblies;
 using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
-using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Parts;
 using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 using OpenFarm.Infrastructure.Persistence;
@@ -90,6 +85,8 @@ using ResumePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<Op
 using CancelPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CancelPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using RequeuePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.RequeuePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using CompletePrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.CompletePrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
+using AssignPrintFilamentSpoolHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.AssignPrintFilamentSpoolCommand, OpenFarm.Application.Production.AssignPrintFilamentSpoolResult>;
+using DismissNotificationHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.DismissNotificationCommand, System.Guid>;
 using FailPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.FailPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using ReorderPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.ReorderPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using PinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.PinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
@@ -106,17 +103,7 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
 
-builder.Services.AddDbContext<OpenFarmDbContext>(options => options
-    .UseNpgsql(connectionString)
-    // The Part Library migrations (AddPartsCatalog/AddPrinterMachineProfileLink/
-    // AddOrganizationSlicingDefaults) were authored without `dotnet ef` tooling (no .NET SDK access
-    // in the sandbox that wrote them — see those migrations' own header comments), so
-    // OpenFarmDbContextModelSnapshot.cs was never regenerated to match. The migrations' Up()/Down()
-    // methods are themselves accurate; this only suppresses EF's design-time-oriented "did you use
-    // `dotnet ef migrations add`" check, which is the mitigation EF Core's own warning message
-    // recommends. Regenerate the snapshot for real (`dotnet ef migrations add`, expect an empty
-    // diff) once SDK access is available, then this can be removed.
-    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
+builder.Services.AddDbContext<OpenFarmDbContext>(options => options.UseNpgsql(connectionString));
 
 builder.Services
     .AddHealthChecks()
@@ -157,11 +144,6 @@ builder.Services
     })
     .AddRoles<ApplicationRole>()
     .AddEntityFrameworkStores<OpenFarmDbContext>();
-
-builder.Services
-    .AddMultiTenant<AppTenantInfo>()
-    .WithStaticStrategy(OrganizationTenantStore.StaticIdentifier)
-    .WithStore<OrganizationTenantStore>(ServiceLifetime.Scoped);
 
 var jwtIssuer = builder.Configuration["Jwt:Issuer"]
     ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
@@ -313,7 +295,7 @@ builder.Services.Configure<PartFileStorageOptions>(builder.Configuration.GetSect
 builder.Services.Configure<SlicerOptions>(builder.Configuration.GetSection(SlicerOptions.SectionName));
 builder.Services.Configure<SlicerBundleOptions>(builder.Configuration.GetSection(SlicerBundleOptions.SectionName));
 
-builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
+builder.Services.AddScoped<IFarmSettingsRepository, FarmSettingsRepository>();
 builder.Services.AddScoped<IPartRepository, PartRepository>();
 builder.Services.AddScoped<IPartDeletionEligibilityReader, PartDeletionEligibilityReader>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();
@@ -337,6 +319,7 @@ builder.Services.AddScoped<IJobFileResolver, JobFileResolver>();
 builder.Services.AddScoped<IQueryHandler<GetPrintJobFileQuery, JobFileContent>, GetPrintJobFileQueryHandler>();
 builder.Services.AddScoped<IJobTelemetrySync, JobTelemetrySync>();
 builder.Services.AddScoped<IExternalPrintRepository, ExternalPrintRepository>();
+builder.Services.AddScoped<IPrintRepository, PrintRepository>();
 builder.Services.AddScoped<FeedTrayResolver>();
 builder.Services.AddScoped<ExternalPrintSync>();
 builder.Services.AddScoped<IProductionEventPublisher, FarmHubProductionEventPublisher>();
@@ -442,6 +425,9 @@ builder.Services.AddScoped<IQueryHandler<GetProductionRunsQuery, ProductionRunsP
 builder.Services.AddScoped<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>, GetProductionRunDetailQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetQueueJobsQuery, QueueJobsPage>, GetQueueJobsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetPrintJobQuery, PrintJobDetail?>, GetPrintJobQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<ListNotificationsQuery, NotificationsPage>, ListNotificationsQueryHandler>();
+builder.Services.AddScoped<AssignPrintFilamentSpoolHandlerType, AssignPrintFilamentSpoolCommandHandler>();
+builder.Services.AddScoped<DismissNotificationHandlerType, DismissNotificationCommandHandler>();
 
 builder.Services.AddSignalR();
 
@@ -481,7 +467,9 @@ app.UseExceptionHandler();
 
 app.UseCors();
 
-app.UseMultiTenant();
+// Production image ships the built SPA in wwwroot; without it (dev) these are no-ops.
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -501,6 +489,9 @@ app.MapHub<FarmHub>("/hubs/farm");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
+
+// Client-side routes only — unknown /api/* must stay a real 404, not the SPA shell.
+app.MapFallbackToFile("{*path:regex(^(?!api/).*)}", "index.html");
 
 // Generate contracts without a database or starting printer/background services.
 if (args.Contains("export-openapi"))
@@ -529,16 +520,6 @@ using (var scope = app.Services.CreateScope())
 if (args.Contains("ingest-system-profiles"))
 {
     using var scope = app.Services.CreateScope();
-
-    // Finbuckle's tenant resolution is HTTP-middleware-based (UseMultiTenant()), which never runs
-    // for this CLI-only scope — without setting it explicitly, every tenant-scoped EF query filter
-    // (e.g. MachineProfiles', ProcessProfiles', FilamentProfiles') throws a NullReferenceException
-    // against a null TenantInfo. Same pattern as PrinterConnectionBackgroundService.CreateTenantScope.
-    var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-    var tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
-        ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before system profile ingestion.");
-    var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-    contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenantInfo);
 
     var scanner = scope.ServiceProvider.GetRequiredService<BundledSlicerScanner>();
     var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,7 +10,6 @@ using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Printers;
-using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Printers;
@@ -25,8 +23,8 @@ namespace OpenFarm.Infrastructure.Printers;
 /// DB or UI need to observe them — while status/reachability transitions still persist and broadcast
 /// immediately. Any connector-reported status reconciliation is logged directly via
 /// <see cref="IActivityLogWriter"/> with <see cref="ActorType.System"/> since this runs outside any
-/// HTTP request — the ActivityLogPostProcessor never fires here (plan.md's Security &amp;
-/// Multi-Tenancy decision).
+/// HTTP request — the ActivityLogPostProcessor never fires here (plan.md's Security
+/// decision).
 /// </summary>
 public sealed partial class PrinterConnectionBackgroundService : BackgroundService, IPrinterConnectionManager
 {
@@ -46,10 +44,6 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     private readonly CancellationTokenSource _lifetimeCts = new();
     private readonly TimeSpan _retryDelay;
     private int _disposed;
-
-    // Resolved once and reused for every scope this service creates — see CreateTenantScope's
-    // remarks for why. Written once from ExecuteAsync before any tenant-scoped work starts.
-    private AppTenantInfo? _tenantInfo;
 
     public PrinterConnectionBackgroundService(
         IServiceScopeFactory scopeFactory,
@@ -75,7 +69,6 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             {
                 try
                 {
-                    await EnsureTenantInfoResolvedAsync(stoppingToken);
                     await StartConnectionsForRegisteredPrintersAsync(stoppingToken);
                     break;
                 }
@@ -158,49 +151,9 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         _lifetimeCts.Dispose();
     }
 
-    /// <summary>
-    /// Resolves and caches the (single, static) organization's tenant info, once. Safe to call
-    /// repeatedly/concurrently — cheap no-op once cached.
-    /// </summary>
-    private async Task EnsureTenantInfoResolvedAsync(CancellationToken cancellationToken)
-    {
-        if (_tenantInfo is not null)
-        {
-            return;
-        }
-
-        using var scope = _scopeFactory.CreateScope();
-        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-        _tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
-            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before printer connections start.");
-    }
-
-    /// <summary>
-    /// Creates a DI scope with the organization's tenant context pre-populated. Finbuckle's tenant
-    /// resolution is HTTP-middleware-based (<c>UseMultiTenant()</c>), which never runs for a scope
-    /// this background service creates itself — without this, every tenant-scoped EF query filter
-    /// (e.g. Printers') throws a <see cref="NullReferenceException"/> against a null
-    /// <c>TenantInfo</c>. This is Finbuckle's documented pattern for resolving tenant context outside
-    /// the request pipeline (<see cref="IMultiTenantContextSetter"/>).
-    ///
-    /// Deliberately synchronous (relies on <see cref="EnsureTenantInfoResolvedAsync"/> having already
-    /// cached <see cref="_tenantInfo"/>): the underlying accessor stores its value in an
-    /// <see cref="System.Threading.AsyncLocal{T}"/>, and a value set inside a separately-awaited
-    /// async helper does not flow back out to the caller once that helper's own internal await
-    /// resumes on a captured continuation — only mutations made directly within the same
-    /// synchronous continuation as their use are guaranteed visible.
-    /// </summary>
-    private IServiceScope CreateTenantScope()
-    {
-        var scope = _scopeFactory.CreateScope();
-        var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(_tenantInfo!);
-        return scope;
-    }
-
     private async Task StartConnectionsForRegisteredPrintersAsync(CancellationToken stoppingToken)
     {
-        using var scope = CreateTenantScope();
+        using var scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
         var printers = await repository.ListAsync(stoppingToken);
         foreach (var printer in printers)
@@ -256,10 +209,9 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     private async Task<bool> RunConnectionAttemptAsync(Guid printerId, CancellationToken connectionToken)
     {
-        await EnsureTenantInfoResolvedAsync(connectionToken);
         PrinterConnectionDetails details;
         IPrinterConnector connector;
-        using (var scope = CreateTenantScope())
+        using (var scope = _scopeFactory.CreateScope())
         {
             var services = scope.ServiceProvider;
             var repository = services.GetRequiredService<IPrinterRepository>();
@@ -297,7 +249,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 {
                     // Reload persisted reachability/status on each event. The silence sweep and
                     // operator actions use different scopes; a long-lived tracked entity misses them.
-                    using var scope = CreateTenantScope();
+                    using var scope = _scopeFactory.CreateScope();
                     var services = scope.ServiceProvider;
                     var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, connectionToken);
                     if (printer is null) return false;
@@ -339,14 +291,14 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         {
             try
             {
-                using var scope = CreateTenantScope();
+                using var scope = _scopeFactory.CreateScope();
                 var services = scope.ServiceProvider;
                 var cameraRelay = services.GetRequiredService<IPrinterConnectorFactory>().CreateCameraRelay(details);
                 var publisher = services.GetRequiredService<IPrinterEventPublisher>();
                 var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, connectionToken);
                 if (printer is null) return;
                 await foreach (var frame in cameraRelay.StreamFramesAsync(details, connectionToken))
-                    await publisher.CameraFrameReceivedAsync(printer.OrganizationId, printer.Id, Convert.ToBase64String(frame), connectionToken);
+                    await publisher.CameraFrameReceivedAsync(printer.Id, Convert.ToBase64String(frame), connectionToken);
             }
             catch (OperationCanceledException) when (connectionToken.IsCancellationRequested) { return; }
             catch (Exception ex) { LogCameraLoopFailed(_logger, printerId, ex); }
@@ -382,8 +334,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             printer.BeginConnection();
             await services.GetRequiredService<IPrinterRepository>().SaveChangesAsync(cancellationToken);
             var connectionPublisher = services.GetRequiredService<IPrinterEventPublisher>();
-            await connectionPublisher.PrinterStatusChangedAsync(printer.OrganizationId, printer.Id, printer.Status, printer.IsReachable, cancellationToken);
-            await connectionPublisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id,
+            await connectionPublisher.PrinterStatusChangedAsync(printer.Id, printer.Status, printer.IsReachable, cancellationToken);
+            await connectionPublisher.PrinterTelemetryUpdatedAsync(printer.Id,
                 new(printer.NozzleTempC, printer.BedTempC, printer.PrintProgressPercent, printer.CurrentStageLabel,
                     printer.RemainingTimeMinutes, printer.CurrentJobName, printer.AmsUnits, printer.ExternalSpoolTray,
                     printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, false, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts), cancellationToken);
@@ -447,7 +399,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         await printerRepository.SaveChangesAsync(cancellationToken);
 
         var feedSlotTelemetrySync = services.GetRequiredService<IFeedSlotTelemetrySync>();
-        await feedSlotTelemetrySync.SyncAsync(printer.Id, printer.OrganizationId, printer.Brand, printer.AmsUnits, printer.ExternalSpoolTray, cancellationToken);
+        await feedSlotTelemetrySync.SyncAsync(printer.Id, printer.Brand, printer.AmsUnits, printer.ExternalSpoolTray, cancellationToken);
 
         var publisher = services.GetRequiredService<IPrinterEventPublisher>();
 
@@ -455,7 +407,6 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         {
             var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
             var entry = ActivityLogEntry.Create(
-                printer.OrganizationId,
                 entityType: "Printer",
                 entityId: printer.Id.ToString(),
                 eventType: "PrinterStatusObserved",
@@ -469,17 +420,16 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         {
             var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
             await activityLogWriter.WriteAsync(ActivityLogEntry.Create(
-                printer.OrganizationId, "Printer", printer.Id.ToString(), "PrinterAlertsChanged", null, ActorType.System,
+                "Printer", printer.Id.ToString(), "PrinterAlertsChanged", null, ActorType.System,
                 new ActivityLogDetails(ObservedAtUtc: connectorEvent.ReceivedAtUtc, PreviousAlerts: previousAlerts, ActiveAlerts: printer.ActiveAlerts)), cancellationToken);
         }
 
         if (reportedStateChanged || statusChanged || alertsChanged)
-            await publisher.PrinterActivityChangedAsync(printer.OrganizationId, printer.Id, cancellationToken);
+            await publisher.PrinterActivityChangedAsync(printer.Id, cancellationToken);
 
         if (statusChanged || !wasReachable)
         {
             await publisher.PrinterStatusChangedAsync(
-                printer.OrganizationId,
                 printer.Id,
                 printer.Status,
                 printer.IsReachable,
@@ -508,7 +458,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 printer.CurrentJobName,
                 printer.AmsUnits,
                 printer.ExternalSpoolTray, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts);
-            await publisher.PrinterTelemetryUpdatedAsync(printer.OrganizationId, printer.Id, mergedTelemetry, cancellationToken);
+            await publisher.PrinterTelemetryUpdatedAsync(printer.Id, mergedTelemetry, cancellationToken);
         }
 
         return connectorEvent.ReceivedAtUtc;
@@ -516,7 +466,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     private async Task SweepUnreachablePrintersAsync(CancellationToken stoppingToken)
     {
-        using var scope = CreateTenantScope();
+        using var scope = _scopeFactory.CreateScope();
         var printerRepository = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
         var publisher = scope.ServiceProvider.GetRequiredService<IPrinterEventPublisher>();
         var printers = await printerRepository.ListAsync(stoppingToken);
@@ -541,7 +491,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                     tracked.MarkUnreachable();
                     LogPrinterUnreachable(_logger, tracked.Id, _unreachableThreshold.TotalSeconds);
                     await printerRepository.SaveChangesAsync(stoppingToken);
-                    await publisher.PrinterStatusChangedAsync(tracked.OrganizationId, tracked.Id,
+                    await publisher.PrinterStatusChangedAsync(tracked.Id,
                         tracked.Status, tracked.IsReachable, stoppingToken);
                 }
                 finally { gate.Release(); }

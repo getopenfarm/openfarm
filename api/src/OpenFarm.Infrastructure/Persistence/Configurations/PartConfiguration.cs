@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Parts;
@@ -13,7 +12,6 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
 
         builder.HasKey(p => p.Id);
 
-        builder.Property(p => p.OrganizationId).IsRequired();
 
         builder.Property(p => p.Name).IsRequired();
 
@@ -63,11 +61,8 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(p => p.Thumbnails).UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        // PartTags is a plain FK-derived join between two already tenant-filtered aggregates — no
-        // independent OrganizationId shadow column (EF's skip-navigation insert path has no natural
-        // source to populate one from on Part.AddTag, unlike every real child/root entity in this
-        // feature, which does carry its own OrganizationId + IsMultiTenant()). A real CLR join type
-        // (PartTagJoinRow), not Dictionary<string,object>, for the more conventional EF Core pattern.
+        // PartTags is a plain FK-derived join, mapped as a real CLR type (PartTagJoinRow) rather than
+        // Dictionary<string,object> — the more conventional EF Core pattern.
         builder.HasMany(p => p.Tags)
             .WithMany()
             .UsingEntity<PartTagJoinRow>(
@@ -83,7 +78,5 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         // Postgres system column; the Npgsql provider auto-maps a "xmin"-named uint row-version
         // property to it (data-model.md's optimistic-concurrency requirement, same technique Spool uses).
         builder.Property<uint>("xmin").IsRowVersion();
-
-        builder.IsMultiTenant();
     }
 }

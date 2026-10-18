@@ -8,7 +8,6 @@ namespace OpenFarm.Application.Tests.FilamentTracking;
 
 public class SpoolUsageRecordedHandlerTests
 {
-    private readonly Guid _organizationId = Guid.NewGuid();
     private readonly InMemorySpoolRepository _spoolRepository = new();
     private readonly InMemoryFeedUnitRepository _feedUnitRepository = new();
     private readonly RecordingActivityLogWriter _activityLogWriter = new();
@@ -20,8 +19,8 @@ public class SpoolUsageRecordedHandlerTests
     private (FeedUnit Unit, FeedSlot[] Slots) CreateFeedUnit(string kind, int slotCount)
     {
         var unit = kind == FeedUnitKindCatalog.AutomaticFilamentReloader
-            ? FeedUnit.CreateAutomaticFilamentReloader(_organizationId, Guid.NewGuid(), 0, "Splicer A", null)
-            : FeedUnit.CreateConnectorDerived(_organizationId, Guid.NewGuid(), kind, 0);
+            ? FeedUnit.CreateAutomaticFilamentReloader(Guid.NewGuid(), 0, "Splicer A", null)
+            : FeedUnit.CreateConnectorDerived(Guid.NewGuid(), kind, 0);
 
         var slots = Enumerable.Range(0, slotCount).Select(i => unit.AddFeedSlot(i)).ToArray();
         if (kind == FeedUnitKindCatalog.AutomaticFilamentReloader) unit.SelectFeedingSlot(slots[0].Id);
@@ -36,7 +35,7 @@ public class SpoolUsageRecordedHandlerTests
 
     private Spool CreateUsingSpool(Guid filamentVariantId, FeedSlot feedSlot)
     {
-        var spool = Spool.Create(_organizationId, filamentVariantId, null, 1000, 1000);
+        var spool = Spool.Create(filamentVariantId, null, 1000, 1000);
         spool.LoadOntoFeedSlot(feedSlot.Id);
         _spoolRepository.Add(spool);
         return spool;
@@ -194,7 +193,7 @@ public class SpoolUsageRecordedHandlerTests
     public async Task Configuration_TransfersExternalSpool_AndHidesPort()
     {
         var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
-        var external = FeedUnit.CreateConnectorDerived(_organizationId, unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
+        var external = FeedUnit.CreateConnectorDerived(unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
         var externalSlot = external.AddFeedSlot(0);
         external.Reveal();
         _spoolRepository.FeedSlotOwners[externalSlot.Id] = external.Id;
@@ -211,7 +210,7 @@ public class SpoolUsageRecordedHandlerTests
     public async Task Configuration_RejectsOccupiedTransfer_BeforeChangingAssignments()
     {
         var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
-        var external = FeedUnit.CreateConnectorDerived(_organizationId, unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
+        var external = FeedUnit.CreateConnectorDerived(unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
         var externalSlot = external.AddFeedSlot(0);
         _spoolRepository.FeedSlotOwners[externalSlot.Id] = external.Id;
         var original = CreateUsingSpool(Guid.NewGuid(), externalSlot);
@@ -226,7 +225,7 @@ public class SpoolUsageRecordedHandlerTests
     public async Task Configuration_CanUnloadExternalSpoolInsteadOfTransfer()
     {
         var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
-        var external = FeedUnit.CreateConnectorDerived(_organizationId, unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
+        var external = FeedUnit.CreateConnectorDerived(unit.PrinterId, FeedUnitKindCatalog.ExternalSpool, 0);
         var externalSlot = external.AddFeedSlot(0);
         _spoolRepository.FeedSlotOwners[externalSlot.Id] = external.Id;
         var original = CreateUsingSpool(Guid.NewGuid(), externalSlot);
@@ -367,13 +366,13 @@ public class SpoolUsageRecordedHandlerTests
 
     private sealed class RecordingEventPublisher : IFilamentTrackingEventPublisher
     {
-        public Task SpoolStateChangedAsync(Guid organizationId, Guid spoolId, SpoolState state, decimal remainingWeightGrams, Guid? feedSlotId, CancellationToken cancellationToken) =>
+        public Task SpoolStateChangedAsync(Guid spoolId, SpoolState state, decimal remainingWeightGrams, Guid? feedSlotId, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task FeedUnitAutoContinuedAsync(Guid organizationId, Guid feedUnitId, Guid finishedSpoolId, Guid continuedSpoolId, Guid continuedFeedSlotId, bool materialMismatch, CancellationToken cancellationToken) =>
+        public Task FeedUnitAutoContinuedAsync(Guid feedUnitId, Guid finishedSpoolId, Guid continuedSpoolId, Guid continuedFeedSlotId, bool materialMismatch, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task FeedUnitsChangedAsync(Guid organizationId, Guid printerId, CancellationToken cancellationToken) =>
+        public Task FeedUnitsChangedAsync(Guid printerId, CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 }

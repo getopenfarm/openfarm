@@ -172,6 +172,14 @@ describe('Fixed compact dashboard', () => {
     fireEvent.click(issue);
     expect(screen.getByRole('dialog')).toHaveTextContent('Motor error');
   });
+  it('shows farm status, not the reported FINISH state, on the chip', async () => {
+    setup([finished]);
+    const card = await screen.findByRole('article', {
+      name: 'P1S-02 monitor',
+    });
+    expect(card).toHaveTextContent('Awaiting clear');
+    expect(card).not.toHaveTextContent('Finished');
+  });
   it('marks ready from the status chip and preserves run-completion confirmation', async () => {
     const { fetch } = setup([finished], {}, { confirmCompletion: true });
     const markReady = await screen.findByRole('button', {

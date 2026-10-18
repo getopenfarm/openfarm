@@ -27,7 +27,7 @@ public sealed class GetPartQueryHandler(
 
             requirements.Add(new PartFilamentRequirementDetail(
                 r.Id, r.MaterialType, r.DetectedColorHex, r.DetectedSubBrand,
-                r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, variantUnresolved, profileUnresolved));
+                r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, variantUnresolved, profileUnresolved, r.EstimatedGrams));
         }
 
         var slicer = part.SlicerEngineOverride is { } engine && part.SlicerVersionUsed is { } version

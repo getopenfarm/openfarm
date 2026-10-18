@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using FluentAssertions;
 using OpenFarm.Application.Production;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Production;
 
@@ -40,6 +41,25 @@ public class JobFilamentUsageReaderTests
 
         JobFilamentUsageReader.Read(file).Usages.Should().Equal(
             new FilamentUsage("PLA", "#FF0000", 12.5m, 0), new FilamentUsage("PLA", "#FFFFFF", 3.25m, 1));
+    }
+
+    [Fact]
+    public void ReadAllPlates_SumsEveryPlateByMaterialAndColour()
+    {
+        var file = ThreeMf(("Metadata/slice_info.config", TwoColourSliceInfo),
+            ("Metadata/plate_1.gcode", "G1"), ("Metadata/plate_2.gcode", "G1"));
+
+        JobFilamentUsageReader.ReadAllPlates(file).Should().BeEquivalentTo(
+        [
+            new FilamentGrams("PLA", "#FF0000", 12.5m), new FilamentGrams("PLA", "#FFFFFF", 3.25m),
+            new FilamentGrams("PLA", "#00FF00", 99m),
+        ]);
+    }
+
+    [Fact]
+    public void ReadAllPlates_UnreadableFile_IsEmpty()
+    {
+        JobFilamentUsageReader.ReadAllPlates([(byte)'P', (byte)'K', 1, 2, 3]).Should().BeEmpty();
     }
 
     [Fact]
@@ -109,5 +129,64 @@ public class JobFilamentUsageReaderTests
         var white = FilamentUsageCurve.FromExtrusion(report.Extrusion.Marks, [report.Extrusion.Tools[1]])!;
         white.ShareAt(20, 40).Should().Be(0);
         white.ShareAt(32).Should().BeInRange(0.001, 0.99);
+    }
+
+    private const string PlateFourSliceInfo = """
+        <config>
+          <plate>
+            <metadata key="index" value="4"/>
+            <filament id="1" type="PETG" color="#000000" used_m="50" used_g="171.4"/>
+          </plate>
+        </config>
+        """;
+
+    /// <summary>What the printer holds after "print plate 4" from a multi-plate project: only that plate, still numbered 4.</summary>
+    private static byte[] PlateFourOnly() =>
+        ThreeMf(("Metadata/slice_info.config", PlateFourSliceInfo), ("Metadata/plate_4.gcode", "G1"));
+
+    [Fact]
+    public void ChoosePlate_FileHoldingOnePlate_UsesThatPlate_WhateverTheNameSays()
+    {
+        var file = PlateFourOnly();
+
+        JobFilamentUsageReader.ChoosePlate(file, namedPlate: null).Should().Be(4);
+        JobFilamentUsageReader.ChoosePlate(file, namedPlate: 1).Should().Be(4);
+    }
+
+    [Fact]
+    public void Read_PlateTheFileHolds_FindsItsFilament_WherePlateOneFindsNone()
+    {
+        var file = PlateFourOnly();
+
+        JobFilamentUsageReader.Read(file).Usages.Should().BeEmpty("the default plate 1 is not in this file");
+        JobFilamentUsageReader.Read(file, JobFilamentUsageReader.ChoosePlate(file, null)!.Value).Usages
+            .Should().ContainSingle(u => u.MaterialType == "PETG" && u.Grams == 171.4m);
+    }
+
+    [Fact]
+    public void ChoosePlate_SeveralPlates_PrefersTheOneThePrinterNames_ElseGivesUp()
+    {
+        var file = ThreeMf(("Metadata/plate_1.gcode", "G1"), ("Metadata/plate_2.gcode", "G1"));
+
+        JobFilamentUsageReader.ChoosePlate(file, namedPlate: 2).Should().Be(2);
+        JobFilamentUsageReader.ChoosePlate(file, namedPlate: null).Should().BeNull();
+        JobFilamentUsageReader.ChoosePlate(file, namedPlate: 7).Should().BeNull("plate 7 is not in the file");
+    }
+
+    [Fact]
+    public void ChoosePlate_NoPlateGCodeToGoBy_FallsBackToTheNamedPlateThenPlateOne()
+    {
+        JobFilamentUsageReader.ChoosePlate(ThreeMf(("Metadata/slice_info.config", TwoColourSliceInfo)), namedPlate: 3).Should().Be(3);
+        JobFilamentUsageReader.ChoosePlate(ThreeMf(("Metadata/slice_info.config", TwoColourSliceInfo)), namedPlate: null).Should().Be(1);
+        JobFilamentUsageReader.ChoosePlate(Encoding.UTF8.GetBytes("G1 X0"), namedPlate: null).Should().Be(1);
+        JobFilamentUsageReader.ChoosePlate([(byte)'P', (byte)'K', 1, 2], namedPlate: null).Should().Be(1);
+    }
+
+    [Fact]
+    public void PlatesWithGCode_ListsPlateNumbersInOrder_IgnoringOtherEntries()
+    {
+        var file = ThreeMf(("Metadata/plate_10.gcode", "G1"), ("Metadata/plate_2.gcode", "G1"), ("Metadata/plate_2.png", "x"), ("Metadata/slice_info.config", "<config/>"));
+
+        JobFilamentUsageReader.PlatesWithGCode(file).Should().Equal(2, 10);
     }
 }

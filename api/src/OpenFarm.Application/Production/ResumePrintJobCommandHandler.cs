@@ -19,7 +19,7 @@ public sealed class ResumePrintJobCommandHandler(
         {
             job.MarkResumed();
             await jobRepository.SaveChangesAsync(cancellationToken);
-            await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
+            await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
             return job;
         }
 

@@ -12,7 +12,6 @@ public sealed class Part
 
     private Part(
         Guid id,
-        Guid organizationId,
         string name,
         PartFileFormat fileFormat,
         bool requiresSlicing,
@@ -32,7 +31,6 @@ public sealed class Part
         DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         Name = name;
         FileFormat = fileFormat;
         RequiresSlicing = requiresSlicing;
@@ -57,20 +55,18 @@ public sealed class Part
     /// <summary>Detached adapter for existing production validation; never attach this object to EF.</summary>
     public static Part FromProductionSnapshot(OpenFarm.Domain.Production.ProductionPartSnapshot snapshot)
     {
-        var part = new Part(snapshot.PartId, snapshot.OrganizationId, snapshot.Name, snapshot.FileFormat,
+        var part = new Part(snapshot.PartId, snapshot.Name, snapshot.FileFormat,
             snapshot.RequiresSlicing, snapshot.OriginalFileName, snapshot.StoragePath, snapshot.FileSizeBytes,
             snapshot.NozzleDiameterMm, snapshot.SlicerEngine, snapshot.SlicerVersion, snapshot.EstimateStatus,
             snapshot.EstimatedPrintTimeMinutes, snapshot.EstimatedFilamentWeightGrams, snapshot.PlateCount,
             snapshot.UnitsPerPrint, snapshot.RevisionHash, snapshot.RevisionNumber, DateTimeOffset.UtcNow)
         { MaterialMetadataComplete = snapshot.MaterialMetadataComplete };
         foreach (var requirement in snapshot.FilamentRequirements)
-            part._filamentRequirements.Add(PartFilamentRequirement.Create(part.OrganizationId, part.Id, requirement));
+            part._filamentRequirements.Add(PartFilamentRequirement.Create(part.Id, requirement));
         return part;
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public string Name { get; private set; }
 
@@ -174,7 +170,6 @@ public sealed class Part
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     public static Part Create(
-        Guid organizationId,
         string name,
         PartFileFormat fileFormat,
         bool requiresSlicing,
@@ -198,7 +193,6 @@ public sealed class Part
 
         var part = new Part(
             Guid.NewGuid(),
-            organizationId,
             name,
             fileFormat,
             requiresSlicing,
@@ -219,12 +213,12 @@ public sealed class Part
 
         foreach (var spec in filamentRequirements)
         {
-            part._filamentRequirements.Add(PartFilamentRequirement.Create(organizationId, part.Id, spec));
+            part._filamentRequirements.Add(PartFilamentRequirement.Create(part.Id, spec));
         }
 
         foreach (var thumbnail in thumbnails)
         {
-            part._thumbnails.Add(PartThumbnail.Create(organizationId, part.Id, thumbnail.PlateIndex, thumbnail.Bytes));
+            part._thumbnails.Add(PartThumbnail.Create(part.Id, thumbnail.PlateIndex, thumbnail.Bytes));
         }
 
         foreach (var tag in tags)
@@ -308,7 +302,7 @@ public sealed class Part
         _filamentRequirements.Clear();
         foreach (var spec in filamentRequirements)
         {
-            _filamentRequirements.Add(PartFilamentRequirement.Create(OrganizationId, Id, spec));
+            _filamentRequirements.Add(PartFilamentRequirement.Create(Id, spec));
         }
 
         _thumbnails.RemoveAll(t => thumbnails.All(s => s.PlateIndex != t.PlateIndex));
@@ -325,7 +319,7 @@ public sealed class Part
         {
             var existing = _thumbnails.Find(t => t.PlateIndex == spec.PlateIndex);
             if (existing is null)
-                _thumbnails.Add(PartThumbnail.Create(OrganizationId, Id, spec.PlateIndex, spec.Bytes));
+                _thumbnails.Add(PartThumbnail.Create(Id, spec.PlateIndex, spec.Bytes));
             else
                 existing.ReplaceBytes(spec.Bytes);
         }
@@ -336,12 +330,16 @@ public sealed class Part
     /// part confirmed early (FR-009c/FR-009d). A no-op if the estimate has already resolved/failed by
     /// the time this runs (idempotency guard against a redundant continuation firing twice).
     /// </summary>
-    public void ResolveEstimate(int? estimatedPrintTimeMinutes, decimal? estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails)
+    public void ResolveEstimate(int? estimatedPrintTimeMinutes, decimal? estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails,
+        IReadOnlyList<FilamentGrams>? filamentGrams = null)
     {
         if (EstimateStatus != EstimateStatus.Resolving)
         {
             return;
         }
+
+        var split = FilamentGrams.Distribute(_filamentRequirements.Select(r => (r.MaterialType, r.DetectedColorHex)).ToList(), filamentGrams);
+        for (var i = 0; i < split.Length; i++) _filamentRequirements[i].SetEstimatedGrams(split[i]);
 
         EstimateStatus = PartEstimateAvailability.From(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
         EstimateUnavailableReason = PartEstimateAvailability.MissingMetadataReason(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
@@ -368,11 +366,6 @@ public sealed class Part
 
     public void AddTag(Tag tag)
     {
-        if (tag.OrganizationId != OrganizationId)
-        {
-            throw new ArgumentException("Tag belongs to a different organization.", nameof(tag));
-        }
-
         if (_tags.Any(t => t.Id == tag.Id))
         {
             throw new DuplicatePartTagException(tag.Name);

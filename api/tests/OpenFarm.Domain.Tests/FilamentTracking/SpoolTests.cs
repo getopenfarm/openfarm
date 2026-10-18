@@ -6,12 +6,12 @@ namespace OpenFarm.Domain.Tests.FilamentTracking;
 public class SpoolTests
 {
     private static Spool NewSpool(decimal spoolWeightGrams = 1000, decimal? remainingWeightGrams = null) =>
-        Spool.Create(Guid.NewGuid(), Guid.NewGuid(), "Shelf A-1", spoolWeightGrams, remainingWeightGrams ?? spoolWeightGrams);
+        Spool.Create(Guid.NewGuid(), "Shelf A-1", spoolWeightGrams, remainingWeightGrams ?? spoolWeightGrams);
 
     [Fact]
     public void Create_DefaultsRemainingWeightToSpoolWeight_AndStartsInStorage()
     {
-        var spool = Spool.Create(Guid.NewGuid(), Guid.NewGuid(), null, 1000, 1000);
+        var spool = Spool.Create(Guid.NewGuid(), null, 1000, 1000);
 
         spool.RemainingWeightGrams.Should().Be(1000);
         spool.State.Should().Be(SpoolState.InStorage);
@@ -131,7 +131,7 @@ public class SpoolTests
     [InlineData(-100)]
     public void Create_WithNonPositiveSpoolWeight_Throws(decimal spoolWeightGrams)
     {
-        var act = () => Spool.Create(Guid.NewGuid(), Guid.NewGuid(), null, spoolWeightGrams, spoolWeightGrams <= 0 ? 1 : spoolWeightGrams);
+        var act = () => Spool.Create(Guid.NewGuid(), null, spoolWeightGrams, spoolWeightGrams <= 0 ? 1 : spoolWeightGrams);
 
         act.Should().Throw<ArgumentException>();
     }
@@ -139,7 +139,7 @@ public class SpoolTests
     [Fact]
     public void Create_WithRemainingWeightAboveSpoolWeight_Throws()
     {
-        var act = () => Spool.Create(Guid.NewGuid(), Guid.NewGuid(), null, 500, 600);
+        var act = () => Spool.Create(Guid.NewGuid(), null, 500, 600);
 
         act.Should().Throw<ArgumentException>();
     }

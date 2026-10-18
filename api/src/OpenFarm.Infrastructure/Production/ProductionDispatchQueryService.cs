@@ -11,7 +11,7 @@ namespace OpenFarm.Infrastructure.Production;
 /// <summary>
 /// Builds the per-printer inputs <see cref="ProductionDispatchMatcher"/> (Domain) needs (research.md
 /// R4 steps 1–3): a printer's own resolved nozzle diameter, what it currently has loaded, and the
-/// flat, indexed `(OrganizationId, Status, AssignmentMode, QueuePosition)` candidate query — kept as
+/// flat, indexed `(Status, AssignmentMode, QueuePosition)` candidate query — kept as
 /// plain data-fetching separate from the pure matching algorithm itself, matching the split
 /// <c>AssemblyGraphQueryService</c>/<c>AssemblyGraph</c> already established for Assemblies.
 /// </summary>
@@ -51,7 +51,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
     public async Task<string?> GetReadinessIssueAsync(Guid printerId, Guid partId,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, Guid? jobId = null)
     {
-        var job = jobId is null ? null : await dbContext.PrintJobs.Include(j => j.FilamentConsumption).FirstAsync(j => j.Id == jobId, ct);
+        var job = jobId is null ? null : await dbContext.PrintJobs.Include(j => j.Filaments).FirstAsync(j => j.Id == jobId, ct);
         var requirement = job is null ? null : await dbContext.PartRequirements.FirstAsync(r => r.Id == job.PartRequirementId, ct);
         var libraryPart = job is null || requirement?.Quantity is null && job.DispatchedAtUtc is null
             ? await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == partId, ct) : null;
@@ -81,29 +81,28 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
     /// <summary>
     /// Every <c>Queued</c>/<c>Unassigned</c> job not already dispatch-in-flight to some other printer,
     /// ordered by <see cref="PrintJob.QueuePosition"/>, backed by the
-    /// `(OrganizationId, Status, AssignmentMode, QueuePosition)` index (<c>PrintJobConfiguration</c>)
+    /// `(Status, AssignmentMode, QueuePosition)` index (<c>PrintJobConfiguration</c>)
     /// — an indexed SQL query, not an in-memory scan (research.md R4's scale note). The
-    /// <see cref="PrintJob.DispatchedPrinterId"/> exclusion closes the race a naive Status/AssignmentMode-only
+    /// <see cref="Print.PrinterId"/> exclusion closes the race a naive Status/AssignmentMode-only
     /// filter would leave open: a job stays <c>Queued</c>/<c>Unassigned</c> during the dispatch-in-flight
     /// window between <see cref="PrintJob.Dispatch(Guid)"/> and <c>IJobTelemetrySync</c>'s eventual
     /// <c>Printing</c> confirmation, so without this it could be matched a second time to a different
-    /// idle printer during that window. Tenant scoping is Finbuckle's global query filter alone, already
-    /// applied to this scoped <see cref="OpenFarmDbContext"/> by the caller's tenant-scope setup.
+    /// idle printer during that window.
     /// </summary>
     public Task<IReadOnlyList<DispatchCandidate>> GetUnassignedCandidatesAsync(CancellationToken cancellationToken) =>
-        GetCandidatesAsync(job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Unassigned && job.DispatchedPrinterId == null, cancellationToken);
+        GetCandidatesAsync(job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Unassigned && job.PrinterId == null, cancellationToken);
 
     /// <summary>FR-007c — every Queued job pinned to this exact printer, never matched against any other (research.md R4 step 4).</summary>
     public Task<IReadOnlyList<DispatchCandidate>> GetPinnedCandidatesAsync(Guid printerId, CancellationToken cancellationToken) =>
         GetCandidatesAsync(
             job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Pinned
-                && job.PinnedPrinterId == printerId && job.DispatchedPrinterId == null,
+                && job.PinnedPrinterId == printerId && job.PrinterId == null,
             cancellationToken);
 
     private async Task<IReadOnlyList<DispatchCandidate>> GetCandidatesAsync(
         System.Linq.Expressions.Expression<Func<PrintJob, bool>> predicate, CancellationToken cancellationToken)
     {
-        var jobs = await dbContext.PrintJobs.Where(predicate).Include(j => j.FilamentConsumption)
+        var jobs = await dbContext.PrintJobs.Where(predicate).Include(j => j.Filaments)
             .OrderBy(j => j.QueuePosition).ToListAsync(cancellationToken);
         var candidates = new List<DispatchCandidate>();
         foreach (var job in jobs)
@@ -148,7 +147,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
         foreach (var printer in idlePrinters)
         {
             if (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand) && !printer.IsReachable) continue;
-            if (await dbContext.PrintJobs.AnyAsync(j => j.DispatchedPrinterId == printer.Id && (j.Status == PrintJobStatus.Queued || j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused), cancellationToken)) continue;
+            if (await dbContext.PrintJobs.AnyAsync(j => j.PrinterId == printer.Id && (j.Status == PrintJobStatus.Queued || j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused), cancellationToken)) continue;
             var nozzleDiameterMm = await ResolvePrinterNozzleDiameterMmAsync(printer, cancellationToken);
             if (nozzleDiameterMm != requiredNozzleDiameterMm)
             {
@@ -234,7 +233,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
                     (j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused ||
                      (j.Status == PrintJobStatus.Queued && j.DispatchedAtUtc != null) ||
                      (j.Status == PrintJobStatus.Queued && j.AssignmentMode == AssignmentMode.Pinned)))
-                .Select(j => j.DispatchedPrinterId ?? j.PinnedPrinterId)
+                .Select(j => j.PrinterId ?? j.PinnedPrinterId)
                 .Where(id => id != null)
                 .Distinct()
                 .ToListAsync(cancellationToken);

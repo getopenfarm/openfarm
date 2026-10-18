@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-OpenFarm is a print-farm management webapp (printers, filament, maintenance, parts, assemblies/BOMs, print jobs), built open-source-first and architected for multi-tenancy from day one. **Phase 0 (Foundation) is delivered** — see `specs/001-foundation/` for its spec/plan/tasks. Real JWT login for a single seeded operator, an auto-created single `Organization`, encrypted/masked/immutable printer connection secrets, the structural activity log, and a base shadcn UI kit are all live; `api/src/OpenFarm.Infrastructure/Persistence/Migrations/` has the one consolidated `InitialFoundation` migration. Phase 1 (Fleet management + live Bambu integration) is next and not yet started. One CI job still carries a `STUB` comment worth checking before assuming it's fully wired up:
+OpenFarm is a print-farm management webapp (printers, filament, maintenance, parts, assemblies/BOMs, print jobs), built open-source-first as a single-tenant, self-hosted app (one farm per install). **Phase 0 (Foundation) is delivered** — see `specs/001-foundation/` for its spec/plan/tasks. Real JWT login for a single seeded operator, a `FarmSettings` singleton row, encrypted/masked/immutable printer connection secrets, the structural activity log, and a base shadcn UI kit are all live; `api/src/OpenFarm.Infrastructure/Persistence/Migrations/` has the one `InitialCreate` migration. Phase 1 (Fleet management + live Bambu integration) is next and not yet started. One CI job still carries a `STUB` comment worth checking before assuming it's fully wired up:
 - `.github/workflows/ci.yml`: `e2e` job stays disabled (`if: false`) until a real multi-step user flow exists to test (deferred to Phase 1+, per its own comment).
 
-The product/feature roadmap lives in `docs/FEATURE_PLAN.md` (phases 0–24, MVP-first sequencing and dependency rationale) and the locked-in technology choices live in `docs/TECH_STACKS.md` (stack table, key technical decisions, testing tools, CI/CD, observability). **Read both before implementing anything nontrivial** — `TECH_STACKS.md` is the authoritative source for decisions summarized below, including rationale that matters for future work (e.g. why FastEndpoints over MediatR, why Finbuckle over hand-rolled tenancy, why a plain SPA over Next.js/Remix). The non-negotiable engineering rules distilled from both docs are ratified in `.specify/memory/constitution.md`.
+The product/feature roadmap lives in `docs/FEATURE_PLAN.md` (phases 0–24, MVP-first sequencing and dependency rationale) and the locked-in technology choices live in `docs/TECH_STACKS.md` (stack table, key technical decisions, testing tools, CI/CD, observability). **Read both before implementing anything nontrivial** — `TECH_STACKS.md` is the authoritative source for decisions summarized below, including rationale that matters for future work (e.g. why FastEndpoints over MediatR, why a plain SPA over Next.js/Remix). The non-negotiable engineering rules distilled from both docs are ratified in `.specify/memory/constitution.md`.
 
 ## Commands
 
@@ -53,6 +53,9 @@ to `api/src/OpenFarm.Api/.slicers` and misses the repo-root `.slicers/` that
 `SlicerBundle__RootDirectory=$PWD/.slicers` to anchor it. **Run the backend via `./dev.sh api`, not
 a bare `dotnet run`.** (Docker is unaffected — compose sets that env var explicitly.)
 
+### Production deploy
+Single image (API serves the built SPA) — `deploy/Dockerfile`, `deploy/docker-compose.prod.yml`, published to `ghcr.io/getopenfarm/openfarm` by `.github/workflows/docker-publish.yml` on `X.Y.Z` tags (amd64 only; slicers are x86-64). See `deploy/README.md`.
+
 ### Local full stack (Docker)
 ```
 cp .env.example infra/.env   # adjust as needed
@@ -67,18 +70,18 @@ Monorepo: `api/` (ASP.NET Core solution) + `web/` (React SPA) + `infra/` (docker
 
 - **`OpenFarm.Domain`** — entities, value objects, domain events, state machines. Framework-agnostic, no FastEndpoints references.
 - **`OpenFarm.Application`** — commands/queries, handlers, validators, DTOs. Also framework-agnostic.
-- **`OpenFarm.Infrastructure`** — EF Core (`OpenFarmDbContext`), repositories, the Bambu printer client, encryption, background jobs. Business logic (`Domain`/`Application`) never depends on this layer directly — it's the swappable edge (e.g. printer connectivity is defined as an `IPrinterConnector` contract so a future SaaS "local agent" relay can replace the direct-LAN implementation without touching `Application`/`Domain`).
+- **`OpenFarm.Infrastructure`** — EF Core (`OpenFarmDbContext`), repositories, the Bambu printer client, encryption, background jobs. Business logic (`Domain`/`Application`) never depends on this layer directly — it's the swappable edge (e.g. printer connectivity is defined as an `IPrinterConnector` contract so a future "local agent" relay can replace the direct-LAN implementation without touching `Application`/`Domain`).
 - **`OpenFarm.Api`** — the web host: FastEndpoints endpoints, SignalR hubs, composition root. Endpoints are a thin adapter over `Application` commands/queries — HTTP concerns never leak into business logic.
 
 Key backend decisions (rationale in `docs/TECH_STACKS.md` § Key technical decisions):
 - **FastEndpoints**, not MediatR or raw minimal-API route groups, for the HTTP layer — REPR pattern (Request DTO → Handler → Response DTO), one class per endpoint, native FluentValidation wiring, per-endpoint OpenAPI generation. Uses FastEndpoints' own lightweight command bus instead of adding MediatR.
 - Two cross-cutting concerns are FastEndpoints pre/post-processors: FluentValidation (pre) and an **activity-log post-processor** that writes to the shared `activity_log` table after any state-mutating command succeeds — this is what makes "every status change is logged" structural rather than convention.
 - Errors surface uniformly as RFC 7807 `ProblemDetails`; domain-level failures are typed domain exceptions caught by global exception-handling middleware.
-- **Multi-tenancy** via Finbuckle.MultiTenant (claim-based tenant resolution off `organization_id`, EF Core global query filter applied automatically to tenant-scoped entities). Self-hosted installs get exactly one auto-created `Organization` at first boot — no multi-tenant UI is ever shown to solo operators.
+- **Single-tenant**: one farm per install, so there is no tenant/organization dimension in the schema, JWT, or hub groups. Farm-wide settings live in a single `FarmSettings` row.
 - **RBAC is permission-based, not role-based** — a `permissions` catalog maps to roles via `role_permissions`, seeded with four roles (Owner/Admin/Operator/Viewer). Both API policies and frontend nav/page visibility check permissions, not role names, so adding a role is a seed-data change, not a code change. `role_scopes` (tag-based scoping for Operator/Viewer) exists in schema but is **not enforced** yet — deferred by design.
 - `printers.status` and `jobs.status` are Postgres enums with explicit state machines enforced in `Domain` (invalid transitions throw), not free-text columns.
 - Long-running concerns (Bambu LAN connections, auto-reload threshold detection, maintenance-threshold checks) run as `BackgroundService`s inside `OpenFarm.Api` for Phase 1 — designed so they can later be extracted into a standalone worker host (required before running multiple API replicas) without a rewrite, because they only talk to `Application` through the same command bus the API uses.
-- Real-time: one SignalR hub (`/hubs/farm`), tenant-scoped hub groups, pushes printer/job status changes to the dashboard.
+- Real-time: one SignalR hub (`/hubs/farm`), a single `farm` hub group, pushes printer/job status changes to the dashboard.
 
 ### Frontend — plain SPA (deliberately not Next.js/Remix/TanStack Start)
 

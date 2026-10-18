@@ -46,13 +46,13 @@ public sealed class RequeuePrintJobCommandHandler(
         if (job.ProductionSnapshotJson is null)
             throw new ProductionSnapshotUnavailableException(job.Id, job.SnapshotRecoveryReason);
 
-        var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(job.OrganizationId, cancellationToken) ?? 0) + 1024;
-        var filamentSpecs = job.FilamentConsumption
+        var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(cancellationToken) ?? 0) + 1024;
+        var filamentSpecs = job.Filaments
             .Select(c => c.Requirement)
             .ToList();
 
         var replacement = PrintJob.Create(
-            job.OrganizationId, requirement.Id, nextQueuePosition, job.PlateQuantity,
+            job.Name, requirement.Id, nextQueuePosition, job.PlateQuantity,
             job.AssignmentMode, job.PinnedPrinterId, job.FileRevisionHash, job.FileRevisionNumber, filamentSpecs);
 
         replacement.CopyProductionSnapshot(job);

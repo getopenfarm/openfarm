@@ -2,7 +2,7 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
 
-/// <summary>The org's effective default — the explicit choice if set and still bundled, else the auto-defaulted fallback (research.md §5).</summary>
+/// <summary>The farm's effective default — the explicit choice if set and still bundled, else the auto-defaulted fallback (research.md §5).</summary>
 public sealed record EffectiveSlicerDefault(SlicerRef? Default, bool IsExplicit);
 
 /// <summary>
@@ -19,19 +19,19 @@ public sealed class ResolveSlicerSelection(IAvailableSlicerCatalog catalog, IHos
         [SlicerEngine.OrcaSlicer, SlicerEngine.BambuStudio, SlicerEngine.SuperSlicer];
 
     /// <summary>
-    /// Computes the effective default from the organization's optional explicit choice — never
+    /// Computes the effective default from the optional explicit choice — never
     /// throws; a fully empty catalog yields <c>Default: null</c> (FR-011), the "no slicer available"
     /// UI state.
     /// </summary>
-    public EffectiveSlicerDefault ResolveEffectiveDefault(SlicerRef? organizationDefault)
+    public EffectiveSlicerDefault ResolveEffectiveDefault(SlicerRef? farmDefault)
     {
         var platform = hostPlatform.Current;
         var available = catalog.GetAvailable().Where(a => a.Platform == platform).ToList();
 
-        if (organizationDefault is not null
-            && available.Any(a => a.Engine == organizationDefault.Engine && string.Equals(a.Version, organizationDefault.Version, StringComparison.Ordinal)))
+        if (farmDefault is not null
+            && available.Any(a => a.Engine == farmDefault.Engine && string.Equals(a.Version, farmDefault.Version, StringComparison.Ordinal)))
         {
-            return new EffectiveSlicerDefault(organizationDefault, IsExplicit: true);
+            return new EffectiveSlicerDefault(farmDefault, IsExplicit: true);
         }
 
         foreach (var engine in EnginePreferenceOrder)
@@ -49,10 +49,10 @@ public sealed class ResolveSlicerSelection(IAvailableSlicerCatalog catalog, IHos
     /// <summary>
     /// Resolves a requested selection into a validated, host-available <see cref="SlicerRef"/>:
     /// both engine and version present → that exact pair; engine-only → the newest available
-    /// version of that engine; neither → the effective org default.
+    /// version of that engine; neither → the effective farm default.
     /// </summary>
     /// <exception cref="SlicerUnavailableException">The resolved candidate isn't bundled for the host platform, or nothing is available at all.</exception>
-    public SlicerRef Resolve(SlicerEngine? overrideEngine, string? overrideVersion, SlicerRef? organizationDefault)
+    public SlicerRef Resolve(SlicerEngine? overrideEngine, string? overrideVersion, SlicerRef? farmDefault)
     {
         if (overrideEngine is { } engine && overrideVersion is { } version)
         {
@@ -71,7 +71,7 @@ public sealed class ResolveSlicerSelection(IAvailableSlicerCatalog catalog, IHos
             return newest.ToSlicerRef();
         }
 
-        var effective = ResolveEffectiveDefault(organizationDefault);
+        var effective = ResolveEffectiveDefault(farmDefault);
         if (effective.Default is null)
         {
             throw new SlicerUnavailableException("No slicer is available.");

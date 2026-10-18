@@ -153,25 +153,16 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<DateTimeOffset>("TimestampUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TimestampUtc");
+
                     b.HasIndex("EntityType", "EntityId");
 
-                    b.HasIndex("OrganizationId", "TimestampUtc");
-
                     b.ToTable("ActivityLogEntries", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.Assembly", b =>
@@ -190,13 +181,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -209,8 +193,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Assemblies", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.BomLine", b =>
@@ -220,9 +202,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("AssemblyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Quantity")
@@ -240,10 +219,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("TargetPartId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -271,8 +246,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_BomLines_NoDirectSelfReference", "\"TargetAssemblyId\" IS NULL OR \"TargetAssemblyId\" <> \"AssemblyId\"");
                         });
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.NonPrintedComponent", b =>
@@ -285,13 +258,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -310,8 +276,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("NonPrintedComponents", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.ConnectionSecrets.ConnectionSecret", b =>
@@ -327,22 +291,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("PrinterSerialNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TenantId")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
                     b.ToTable("ConnectionSecrets", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedSlot", b =>
@@ -360,15 +315,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("FeedUnitId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("SlotPosition")
                         .HasColumnType("integer");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -376,8 +324,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("FeedSlots", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FeedUnit", b =>
@@ -408,18 +354,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("PrinterId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ReplacesFeedUnitId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<int>("UnitIndex")
                         .HasColumnType("integer");
@@ -440,8 +379,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("FeedUnits", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Filament", b =>
@@ -461,13 +398,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<Guid>("VendorId")
                         .HasColumnType("uuid");
 
@@ -476,8 +406,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasIndex("VendorId");
 
                     b.ToTable("Filaments", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FilamentProfileAssignment", b =>
@@ -506,36 +434,25 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("NozzleDiameterMm")
                         .HasColumnType("numeric");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("FilamentId");
 
                     b.HasIndex("FilamentProfileId");
 
                     b.HasIndex("FilamentVariantId");
 
-                    b.HasIndex("OrganizationId", "FilamentId", "Brand", "ModelCode", "NozzleDiameterMm")
+                    b.HasIndex("FilamentId", "Brand", "ModelCode", "NozzleDiameterMm")
                         .IsUnique()
                         .HasFilter("\"FilamentVariantId\" IS NULL");
 
-                    b.HasIndex("OrganizationId", "FilamentId", "Brand", "ModelCode", "NozzleDiameterMm", "FilamentVariantId")
+                    b.HasIndex("FilamentId", "Brand", "ModelCode", "NozzleDiameterMm", "FilamentVariantId")
                         .IsUnique()
-                        .HasDatabaseName("IX_FilamentProfileAssignments_OrganizationId_FilamentId_Brand~1")
+                        .HasDatabaseName("IX_FilamentProfileAssignments_FilamentId_Brand_ModelCode_Nozz~1")
                         .HasFilter("\"FilamentVariantId\" IS NOT NULL");
 
                     b.ToTable("FilamentProfileAssignments", null, t =>
                         {
                             t.HasCheckConstraint("CK_FilamentAssignment_Nozzle", "\"NozzleDiameterMm\" > 0");
                         });
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.FilamentVariant", b =>
@@ -587,9 +504,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("Label")
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<decimal>("RemainingWeightGrams")
                         .HasColumnType("numeric");
 
@@ -597,10 +511,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric");
 
                     b.Property<string>("State")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TenantId")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -618,11 +528,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FilamentVariantId");
 
-                    b.HasIndex("OrganizationId", "State", "CreatedAtUtc");
+                    b.HasIndex("State", "CreatedAtUtc");
 
                     b.ToTable("Spools", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.SpoolUsageRecord", b =>
@@ -637,9 +545,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("JobId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("RecordedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -650,17 +555,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SpoolId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
 
                     b.HasIndex("SpoolId");
 
                     b.ToTable("SpoolUsageRecords", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.FilamentTracking.Vendor", b =>
@@ -676,58 +575,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("OrganizationId", "Name")
+                    b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("Vendors", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
-                });
-
-            modelBuilder.Entity("OpenFarm.Domain.Organizations.Organization", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DefaultSlicerEngine")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("DefaultSlicerVersion")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EstimationBuildPlateType")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("EstimationFilamentProfileId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("EstimationMachineProfileId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("EstimationProcessProfileId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Organizations", (string)null);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Parts.Part", b =>
@@ -783,9 +636,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("NozzleDiameterMm")
                         .HasColumnType("numeric");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("OriginalFileName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -813,10 +663,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int>("UnitsPerPrint")
                         .HasColumnType("integer");
 
@@ -832,8 +678,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Parts", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Parts.PartFilamentRequirement", b =>
@@ -851,6 +695,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("DetectedSubBrand")
                         .HasColumnType("text");
 
+                    b.Property<decimal?>("EstimatedGrams")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("MaterialType")
                         .HasColumnType("text");
 
@@ -860,23 +707,14 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("NarrowFilamentVariantId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("PartId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
                     b.HasIndex("PartId", "MaterialType", "DetectedColorHex");
 
                     b.ToTable("PartFilamentRequirements", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Parts.PartProcessingJob", b =>
@@ -913,9 +751,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("MetadataWarningsJson")
                         .HasColumnType("jsonb");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
 
                     b.Property<string>("OriginalFileName")
                         .IsRequired()
@@ -986,10 +821,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("TargetNozzleDiameterMm")
                         .HasColumnType("numeric");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -1003,8 +834,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasFilter("\"Kind\" = 'Reprocess' AND \"Status\" IN ('Processing', 'ReadyForReview')");
 
                     b.ToTable("PartProcessingJobs", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Parts.PartProcessingJobPreviewThumbnail", b =>
@@ -1019,18 +848,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.HasKey("JobId", "PlateIndex");
 
                     b.ToTable("PartProcessingJobPreviewThumbnails", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Parts.PartThumbnail", b =>
@@ -1045,18 +865,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.HasKey("PartId", "PlateIndex");
 
                     b.ToTable("PartThumbnails", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Parts.Tag", b =>
@@ -1072,21 +883,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("OrganizationId", "Name")
+                    b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("Tags", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Printers.Printer", b =>
@@ -1164,9 +966,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("NozzleTempC")
                         .HasColumnType("numeric");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<int?>("PrintProgressPercent")
                         .HasColumnType("integer");
 
@@ -1193,10 +992,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int?>("TotalLayers")
                         .HasColumnType("integer");
 
@@ -1206,109 +1001,108 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProcessProfileId");
 
-                    b.HasIndex("OrganizationId", "SerialNumber")
+                    b.HasIndex("SerialNumber")
                         .IsUnique();
 
                     b.ToTable("Printers", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
-            modelBuilder.Entity("OpenFarm.Domain.Production.ExternalPrint", b =>
+            modelBuilder.Entity("OpenFarm.Domain.Production.PartRequirement", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LibraryPartId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PartId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PartName")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("RunLineId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LibraryPartId");
+
+                    b.HasIndex("RunLineId", "PartId")
+                        .IsUnique();
+
+                    b.ToTable("PartRequirements", (string)null);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Production.Print", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ActualDurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("EndedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("JobName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.PrimitiveCollection<Guid[]>("ObservedSpoolIds")
-                        .IsRequired()
-                        .HasColumnType("uuid[]");
-
-                    b.PrimitiveCollection<int[]>("ObservedTrayIds")
-                        .IsRequired()
-                        .HasColumnType("integer[]");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Outcome")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("PrinterId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("StartedAtUtc")
+                    b.Property<DateTimeOffset?>("FilamentFollowUpDismissedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("TenantId")
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("PrinterId", "Outcome");
-
-                    b.ToTable("ExternalPrints", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
-                });
-
-            modelBuilder.Entity("OpenFarm.Domain.Production.ExternalPrintFilament", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid?>("PrinterId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("ColorHex")
-                        .HasColumnType("text");
-
-                    b.Property<decimal?>("EstimatedGrams")
-                        .HasColumnType("numeric");
-
-                    b.Property<Guid>("ExternalPrintId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal?>("GramsConsumed")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("MaterialType")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("SpoolId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
+                    b.Property<string>("Source")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("ToolIndex")
+                    b.Property<DateTimeOffset?>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("StopLayer")
                         .HasColumnType("integer");
 
-                    b.Property<string>("UsageCurve")
-                        .HasColumnType("text");
+                    b.Property<int?>("StopPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StopTotalLayers")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExternalPrintId");
+                    b.HasIndex("Status");
 
-                    b.HasIndex("SpoolId");
+                    b.HasIndex("PrinterId", "Status");
 
-                    b.ToTable("ExternalPrintFilaments", (string)null);
+                    b.HasIndex("Source", "StartedAtUtc");
 
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                    b.ToTable("Prints", (string)null);
+
+                    b.UseTptMappingStrategy();
                 });
 
-            modelBuilder.Entity("OpenFarm.Domain.Production.JobFilamentConsumption", b =>
+            modelBuilder.Entity("OpenFarm.Domain.Production.PrintFilament", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1332,175 +1126,28 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("NarrowFilamentVariantId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("OrganizationId")
+                    b.Property<Guid>("PrintId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("PrintJobId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("SkippedReason")
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("SpoolId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("ToolIndex")
+                        .HasColumnType("integer");
 
                     b.Property<string>("UsageCurve")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PrintJobId");
+                    b.HasIndex("PrintId");
 
                     b.HasIndex("SpoolId");
 
-                    b.ToTable("JobFilamentConsumptions", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
-                });
-
-            modelBuilder.Entity("OpenFarm.Domain.Production.PartRequirement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("LibraryPartId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PartId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PartName")
-                        .HasColumnType("text");
-
-                    b.Property<decimal?>("Quantity")
-                        .HasColumnType("numeric");
-
-                    b.Property<Guid>("RunLineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LibraryPartId");
-
-                    b.HasIndex("RunLineId", "PartId")
-                        .IsUnique();
-
-                    b.ToTable("PartRequirements", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
-                });
-
-            modelBuilder.Entity("OpenFarm.Domain.Production.PrintJob", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("ActualDurationMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("AssignmentMode")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("CancelRequestedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("DispatchedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("DispatchedPrinterId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("EndedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FileRevisionHash")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("FileRevisionNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("HasFilamentRequirementOverride")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PartRequirementId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("PinnedPrinterId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("PlateQuantity")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ProductionSnapshotJson")
-                        .HasColumnType("jsonb");
-
-                    b.Property<double>("QueuePosition")
-                        .HasColumnType("double precision");
-
-                    b.Property<Guid?>("RequeuedAsJobId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("SnapshotRecoveryReason")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("SnapshotUnavailableAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("StartedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<uint>("xmin")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DispatchedPrinterId");
-
-                    b.HasIndex("PartRequirementId");
-
-                    b.HasIndex("PinnedPrinterId");
-
-                    b.HasIndex("RequeuedAsJobId");
-
-                    b.HasIndex("OrganizationId", "PinnedPrinterId")
-                        .HasFilter("\"PinnedPrinterId\" IS NOT NULL");
-
-                    b.HasIndex("OrganizationId", "Status", "AssignmentMode", "QueuePosition");
-
-                    b.ToTable("PrintJobs", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                    b.ToTable("PrintFilaments", (string)null);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Production.ProductionRun", b =>
@@ -1521,17 +1168,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Priority")
                         .HasColumnType("text");
 
                     b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TenantId")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -1547,8 +1187,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ProductionRuns", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Production.RunLine", b =>
@@ -1568,9 +1206,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid?>("DefaultPinnedPrinterId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ProductionRunId")
@@ -1593,10 +1228,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("TargetName")
                         .HasColumnType("text");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
 
                     b.HasIndex("DefaultPinnedPrinterId");
@@ -1609,8 +1240,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_RunLines_QuantityAtLeastOne", "\"Quantity\" IS NULL OR \"Quantity\" >= 1");
                         });
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Profiles.FilamentProfile", b =>
@@ -1650,9 +1279,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Origin")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1665,10 +1291,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("VendorName")
                         .HasColumnType("text");
 
@@ -1676,17 +1298,15 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "ExternalId")
+                    b.HasIndex("SourceFormat", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "Name")
+                    b.HasIndex("SourceFormat", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
                     b.ToTable("FilamentProfiles", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Profiles.MachineProfile", b =>
@@ -1720,9 +1340,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Origin")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1732,10 +1349,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb");
 
                     b.Property<string>("SourceFormat")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TenantId")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -1749,17 +1362,15 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "ExternalId")
+                    b.HasIndex("SourceFormat", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "Name")
+                    b.HasIndex("SourceFormat", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
                     b.ToTable("MachineProfiles", (string)null);
-
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Profiles.ProcessProfile", b =>
@@ -1793,9 +1404,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Origin")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1808,10 +1416,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("VendorName")
                         .HasColumnType("text");
 
@@ -1819,17 +1423,48 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "ExternalId")
+                    b.HasIndex("SourceFormat", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("OrganizationId", "SourceFormat", "VendorName", "Name")
+                    b.HasIndex("SourceFormat", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
                     b.ToTable("ProcessProfiles", (string)null);
+                });
 
-                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+            modelBuilder.Entity("OpenFarm.Domain.Settings.FarmSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DefaultSlicerEngine")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DefaultSlicerVersion")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EstimationBuildPlateType")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("EstimationFilamentProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EstimationMachineProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EstimationProcessProfileId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("FarmSettings", (string)null);
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.ApplicationRole", b =>
@@ -1937,6 +1572,89 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasIndex("TagId");
 
                     b.ToTable("PartTags", (string)null);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Production.ExternalPrint", b =>
+                {
+                    b.HasBaseType("OpenFarm.Domain.Production.Print");
+
+                    b.PrimitiveCollection<Guid[]>("ObservedSpoolIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.PrimitiveCollection<int[]>("ObservedTrayIds")
+                        .IsRequired()
+                        .HasColumnType("integer[]");
+
+                    b.ToTable("ExternalPrints", (string)null);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Production.PrintJob", b =>
+                {
+                    b.HasBaseType("OpenFarm.Domain.Production.Print");
+
+                    b.Property<string>("AssignmentMode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("CancelRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DispatchedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileRevisionHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("FileRevisionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("HasFilamentRequirementOverride")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("PartRequirementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PinnedPrinterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PlateQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("PrintJobXmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("ProductionSnapshotJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<double>("QueuePosition")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid?>("RequeuedAsJobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SnapshotRecoveryReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("SnapshotUnavailableAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasIndex("PartRequirementId");
+
+                    b.HasIndex("PinnedPrinterId")
+                        .HasFilter("\"PinnedPrinterId\" IS NOT NULL");
+
+                    b.HasIndex("RequeuedAsJobId");
+
+                    b.HasIndex("AssignmentMode", "QueuePosition");
+
+                    b.ToTable("PrintJobs", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -2132,43 +1850,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
-            modelBuilder.Entity("OpenFarm.Domain.Production.ExternalPrint", b =>
-                {
-                    b.HasOne("OpenFarm.Domain.Printers.Printer", null)
-                        .WithMany()
-                        .HasForeignKey("PrinterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OpenFarm.Domain.Production.ExternalPrintFilament", b =>
-                {
-                    b.HasOne("OpenFarm.Domain.Production.ExternalPrint", null)
-                        .WithMany("Filaments")
-                        .HasForeignKey("ExternalPrintId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("OpenFarm.Domain.FilamentTracking.Spool", null)
-                        .WithMany()
-                        .HasForeignKey("SpoolId")
-                        .OnDelete(DeleteBehavior.SetNull);
-                });
-
-            modelBuilder.Entity("OpenFarm.Domain.Production.JobFilamentConsumption", b =>
-                {
-                    b.HasOne("OpenFarm.Domain.Production.PrintJob", null)
-                        .WithMany("FilamentConsumption")
-                        .HasForeignKey("PrintJobId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("OpenFarm.Domain.FilamentTracking.Spool", null)
-                        .WithMany()
-                        .HasForeignKey("SpoolId")
-                        .OnDelete(DeleteBehavior.SetNull);
-                });
-
             modelBuilder.Entity("OpenFarm.Domain.Production.PartRequirement", b =>
                 {
                     b.HasOne("OpenFarm.Domain.Parts.Part", null)
@@ -2183,27 +1864,25 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("OpenFarm.Domain.Production.PrintJob", b =>
+            modelBuilder.Entity("OpenFarm.Domain.Production.Print", b =>
                 {
                     b.HasOne("OpenFarm.Domain.Printers.Printer", null)
                         .WithMany()
-                        .HasForeignKey("DispatchedPrinterId")
+                        .HasForeignKey("PrinterId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
 
-                    b.HasOne("OpenFarm.Domain.Production.PartRequirement", null)
-                        .WithMany()
-                        .HasForeignKey("PartRequirementId")
+            modelBuilder.Entity("OpenFarm.Domain.Production.PrintFilament", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Production.Print", null)
+                        .WithMany("Filaments")
+                        .HasForeignKey("PrintId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("OpenFarm.Domain.Printers.Printer", null)
+                    b.HasOne("OpenFarm.Domain.FilamentTracking.Spool", null)
                         .WithMany()
-                        .HasForeignKey("PinnedPrinterId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("OpenFarm.Domain.Production.PrintJob", null)
-                        .WithMany()
-                        .HasForeignKey("RequeuedAsJobId")
+                        .HasForeignKey("SpoolId")
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
@@ -2260,6 +1939,40 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Production.ExternalPrint", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Production.Print", null)
+                        .WithOne()
+                        .HasForeignKey("OpenFarm.Domain.Production.ExternalPrint", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Production.PrintJob", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Production.Print", null)
+                        .WithOne()
+                        .HasForeignKey("OpenFarm.Domain.Production.PrintJob", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpenFarm.Domain.Production.PartRequirement", null)
+                        .WithMany()
+                        .HasForeignKey("PartRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpenFarm.Domain.Printers.Printer", null)
+                        .WithMany()
+                        .HasForeignKey("PinnedPrinterId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("OpenFarm.Domain.Production.PrintJob", null)
+                        .WithMany()
+                        .HasForeignKey("RequeuedAsJobId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.Assembly", b =>
                 {
                     b.Navigation("Lines");
@@ -2289,14 +2002,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Navigation("PreviewThumbnails");
                 });
 
-            modelBuilder.Entity("OpenFarm.Domain.Production.ExternalPrint", b =>
+            modelBuilder.Entity("OpenFarm.Domain.Production.Print", b =>
                 {
                     b.Navigation("Filaments");
-                });
-
-            modelBuilder.Entity("OpenFarm.Domain.Production.PrintJob", b =>
-                {
-                    b.Navigation("FilamentConsumption");
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Production.ProductionRun", b =>

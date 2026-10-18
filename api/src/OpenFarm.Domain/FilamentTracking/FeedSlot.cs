@@ -6,18 +6,15 @@ namespace OpenFarm.Domain.FilamentTracking;
 /// </summary>
 public sealed class FeedSlot
 {
-    private FeedSlot(Guid id, Guid organizationId, Guid feedUnitId, int slotPosition, DateTimeOffset createdAtUtc)
+    private FeedSlot(Guid id, Guid feedUnitId, int slotPosition, DateTimeOffset createdAtUtc)
     {
         Id = id;
-        OrganizationId = organizationId;
         FeedUnitId = feedUnitId;
         SlotPosition = slotPosition;
         CreatedAtUtc = createdAtUtc;
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid FeedUnitId { get; }
 
@@ -27,8 +24,8 @@ public sealed class FeedSlot
 
     public DateTimeOffset CreatedAtUtc { get; }
 
-    internal static FeedSlot Create(Guid organizationId, Guid feedUnitId, int slotPosition) =>
-        new(Guid.NewGuid(), organizationId, feedUnitId, slotPosition, DateTimeOffset.UtcNow);
+    internal static FeedSlot Create(Guid feedUnitId, int slotPosition) =>
+        new(Guid.NewGuid(), feedUnitId, slotPosition, DateTimeOffset.UtcNow);
 
     /// <summary>Idempotent — a no-op if already deactivated.</summary>
     public void Deactivate() => DeactivatedAtUtc ??= DateTimeOffset.UtcNow;

@@ -23,7 +23,7 @@ public sealed class FailPrintJobCommandHandler(
 
         if (job.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
         {
-            if (job.DispatchedPrinterId is { } printerId
+            if (job.PrinterId is { } printerId
                 && await printerRepository.GetByIdAsync(printerId, cancellationToken) is { } printer)
             {
                 if (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
@@ -41,7 +41,7 @@ public sealed class FailPrintJobCommandHandler(
 
         await filamentDeduction.ApplyAsync(job, new JobProgress(job.Status), cancellationToken);
         await jobRepository.SaveChangesAsync(cancellationToken);
-        await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
+        await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
 
         return job;
     }

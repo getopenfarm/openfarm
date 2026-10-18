@@ -9,6 +9,7 @@ import type {
   PrinterDetailResponse,
   PrinterDetailTelemetryResponse,
 } from '@/lib/api/generated/endpoints.schemas';
+import { getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey } from '@/lib/api/generated/notifications/notifications';
 import {
   getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
@@ -85,6 +86,16 @@ function invalidatePrinterQueries(
   });
 }
 
+/** The action-required list; refetched on a push and on every (re)connect, since missed pushes are never replayed. */
+function invalidateNotificationQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  queryClient.invalidateQueries({
+    queryKey:
+      getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey(),
+  });
+}
+
 /** Matches both the printer-scoped feed-units list (/api/v1/printers/{id}/feed-units) and the
  * global spools list (/api/v1/spools) — spool state and Feed unit topology are shown together
  * on FeedUnitsCard/SpoolsTable, so either changing invalidates both. */
@@ -119,6 +130,7 @@ export function useFarmHub() {
       onConnected: () => {
         setConnectionStatus('connected');
         invalidatePrinterQueries(queryClient);
+        invalidateNotificationQueries(queryClient);
       },
       onReconnecting: () => setConnectionStatus('reconnecting'),
       onClose: () => setConnectionStatus('disconnected'),
@@ -132,6 +144,7 @@ export function useFarmHub() {
         });
         nozzleByPrinter.clear();
         invalidatePrinterQueries(queryClient);
+        invalidateNotificationQueries(queryClient);
       },
     });
 
@@ -303,6 +316,10 @@ export function useFarmHub() {
         });
       },
     );
+
+    connection.on('NotificationsChanged', () => {
+      invalidateNotificationQueries(queryClient);
+    });
 
     connection.on('SpoolStateChanged', () => {
       invalidateFilamentTrackingQueries(queryClient);

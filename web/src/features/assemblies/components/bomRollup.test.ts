@@ -95,6 +95,74 @@ describe('printTotals', () => {
     expect(totals.unestimated).toBe(0);
   });
 
+  it('splits grams by colour, scaled by plates, and the colours add up to the total', () => {
+    const totals = printTotals(
+      new Map([
+        ['p1', 4],
+        ['p2', 1],
+      ]),
+      [
+        {
+          id: 'p1',
+          unitsPerPrint: 2,
+          estimatedFilamentWeightGrams: 10,
+          filamentByColor: [
+            { materialType: 'PLA', colorHex: '#000000', grams: 7 },
+            { materialType: 'PLA', colorHex: '#FFFFFF', grams: 3.5 },
+          ],
+        },
+        {
+          id: 'p2',
+          estimatedFilamentWeightGrams: 5,
+          filamentByColor: [
+            { materialType: 'PLA', colorHex: '#000000', grams: 5.4 },
+          ],
+        },
+      ],
+    );
+    // p1: 2 plates. Black 14 + 5.4, white 7 — purge-inclusive grams, not the slicer total.
+    expect(totals.colors).toEqual([
+      { materialType: 'PLA', colorHex: '#000000', grams: 19.4 },
+      { materialType: 'PLA', colorHex: '#FFFFFF', grams: 7 },
+    ]);
+    expect(totals.grams).toBeCloseTo(26.4);
+  });
+
+  it('puts grams it cannot attribute to a colour in one unknown bucket, last', () => {
+    const totals = printTotals(
+      new Map([
+        ['p1', 1],
+        ['p2', 1],
+        ['p3', 1],
+      ]),
+      [
+        // several colours, no split yet (not reprocessed)
+        {
+          id: 'p1',
+          estimatedFilamentWeightGrams: 8,
+          filamentByColor: [
+            { materialType: 'PLA', colorHex: '#000000', grams: null },
+            { materialType: 'PLA', colorHex: '#FFFFFF', grams: null },
+          ],
+        },
+        // one colour, no split yet: the total is that colour's
+        {
+          id: 'p2',
+          estimatedFilamentWeightGrams: 2,
+          filamentByColor: [
+            { materialType: 'PETG', colorHex: '#FF0000', grams: null },
+          ],
+        },
+        { id: 'p3', estimatedFilamentWeightGrams: 1 },
+      ],
+    );
+    expect(totals.colors).toEqual([
+      { materialType: 'PETG', colorHex: '#FF0000', grams: 2 },
+      { materialType: null, colorHex: null, grams: 9 },
+    ]);
+    expect(totals.grams).toBe(11);
+  });
+
   it('counts parts without an estimate', () => {
     const totals = printTotals(
       new Map([

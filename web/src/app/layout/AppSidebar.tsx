@@ -1,13 +1,13 @@
-import { HistoryIcon, LogOutIcon, SettingsIcon, UserIcon } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  HistoryIcon,
+  MoonIcon,
+  SettingsIcon,
+  SunIcon,
+} from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { Link, useLocation } from 'react-router';
 import {
   Sidebar,
   SidebarContent,
@@ -19,16 +19,17 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
+  useSidebar,
 } from '@/components/ui/sidebar';
-import { useAuth } from '@/lib/auth/useAuth';
 import { Logo } from './Logo';
 import { type NavItem, navSections } from './nav-config';
+import { UserMenu } from './UserMenu';
 
 function NavLink({ item }: { item: NavItem }) {
   const { pathname } = useLocation();
   const isActive =
     item.url === '/' ? pathname === '/' : pathname.startsWith(item.url);
-
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild tooltip={item.title} isActive={isActive}>
@@ -41,15 +42,41 @@ function NavLink({ item }: { item: NavItem }) {
   );
 }
 
+function ThemeButton() {
+  const { resolvedTheme, setTheme } = useTheme();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="Toggle theme"
+        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      >
+        <SunIcon className="dark:hidden" />
+        <MoonIcon className="hidden dark:block" />
+        <span className="dark:hidden">Light</span>
+        <span className="hidden dark:inline">Dark</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function CollapseButton() {
+  const { isMobile, state, toggleSidebar } = useSidebar();
+  if (isMobile) return null;
+  const collapsed = state === 'collapsed';
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip={collapsed ? 'Expand' : 'Collapse'}
+        onClick={toggleSidebar}
+      >
+        {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+        <span>Collapse</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 export function AppSidebar() {
-  const auth = useAuth();
-  const navigate = useNavigate();
-
-  function handleLogout() {
-    auth.logout();
-    navigate('/login', { replace: true });
-  }
-
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -81,30 +108,12 @@ export function AppSidebar() {
           <NavLink
             item={{ title: 'Settings', url: '/settings', icon: SettingsIcon }}
           />
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton tooltip="Account">
-                  <Avatar className="size-6">
-                    <AvatarFallback>
-                      <UserIcon className="size-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <span>Account</span>
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" align="end">
-                <DropdownMenuGroup>
-                  <DropdownMenuItem onSelect={handleLogout}>
-                    <LogOutIcon />
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
+          <ThemeButton />
+          <CollapseButton />
+          <UserMenu />
         </SidebarMenu>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }

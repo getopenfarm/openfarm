@@ -9,7 +9,7 @@ public sealed record EffectiveSlicerDefaultSummary(SlicerEngine Engine, string V
 public sealed record AvailableSlicerSummary(SlicerEngine Engine, string Version, SlicerPlatform Platform);
 
 /// <summary>
-/// The effective org default (<c>null</c> only when <see cref="Available"/> is empty, FR-011) plus
+/// The effective farm default (<c>null</c> only when <see cref="Available"/> is empty, FR-011) plus
 /// every host-platform-usable bundled slicer (contracts/slicer-management-api.md GET/PUT) — shared
 /// by both the read query and the "set default" command's response.
 /// </summary>

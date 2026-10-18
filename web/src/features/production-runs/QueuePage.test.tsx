@@ -45,13 +45,21 @@ function renderPage() {
   );
   return { ...result, queryClient };
 }
-function stub(handler: (params: URLSearchParams) => Response) {
+const NO_EXTERNAL = { items: [], totalCount: 0, statusCounts: {} };
+/** The printer-started section is empty unless a test opts in with `external`. */
+function stub(
+  handler: (params: URLSearchParams) => Response,
+  { external = false }: { external?: boolean } = {},
+) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = input.toString();
+    const params = new URL(url).searchParams;
     return Promise.resolve(
-      url.includes('/api/v1/print-jobs')
-        ? handler(new URL(url).searchParams)
-        : json({ printers: [] }),
+      !url.includes('/api/v1/print-jobs')
+        ? json({ printers: [] })
+        : params.get('view') === 'external' && !external
+          ? json(NO_EXTERNAL)
+          : handler(params),
     );
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -323,7 +331,7 @@ describe('QueuePage', () => {
             url.toString().includes('status=Cancelled') &&
             url.toString().includes('page=1'),
         ).length,
-      ).toBe(2),
+      ).toBe(3),
     );
     fireEvent.change(
       screen.getByRole('textbox', { name: 'Search jobs by part name' }),
@@ -334,7 +342,7 @@ describe('QueuePage', () => {
         fetchMock.mock.calls.filter(([url]) =>
           url.toString().includes('search=Bracket'),
         ).length,
-      ).toBe(2),
+      ).toBe(3),
     );
   });
 
@@ -426,5 +434,52 @@ describe('QueuePage', () => {
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: 'Page 1' })).toHaveLength(1),
     );
+  });
+  it('lists printer-started prints in their own section and counts them in the tabs', async () => {
+    stub(
+      (params) =>
+        params.get('view') === 'external'
+          ? json({
+              totalCount: 1,
+              statusCounts: { Printing: 1 },
+              items: [
+                {
+                  jobId: 'ext-1',
+                  partName: 'benchy.gcode.3mf',
+                  source: 'External',
+                  status: 'Printing',
+                  startedAtUtc: '2026-10-18T07:00:00Z',
+                },
+              ],
+            })
+          : json({ totalCount: 0, statusCounts: {}, items: [] }),
+      { external: true },
+    );
+    renderPage();
+    const link = await screen.findByRole('link', { name: 'benchy.gcode.3mf' });
+    expect(link).toHaveAttribute('href', '/jobs/ext-1');
+    const row = link.closest('[role="row"]') as HTMLElement;
+    expect(within(row).getByText('Printing')).toBeInTheDocument();
+    expect(within(row).getByText('Printer removed')).toBeInTheDocument();
+    expect(within(row).getByText(/Started/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('rowgroup', { name: 'Printer-started prints' }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole('tab', { name: 'Printing 1' }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the printer-started section on the Queued tab', async () => {
+    stub(() => json({ totalCount: 0, statusCounts: {}, items: [] }));
+    renderPage();
+    await screen.findByText('No active finite jobs');
+    expect(
+      screen.getByRole('rowgroup', { name: 'Printer-started prints' }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /^Queued/ }));
+    expect(
+      screen.queryByRole('rowgroup', { name: 'Printer-started prints' }),
+    ).not.toBeInTheDocument();
   });
 });

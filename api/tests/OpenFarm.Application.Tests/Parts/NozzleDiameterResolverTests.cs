@@ -8,7 +8,7 @@ public sealed class NozzleDiameterResolverTests
 {
     private static Printer Printer(decimal? nozzle)
     {
-        var printer = OpenFarm.Domain.Printers.Printer.Create(Guid.NewGuid(), "P1", "Bambu", "P1S", "127.0.0.1", Guid.NewGuid().ToString());
+        var printer = OpenFarm.Domain.Printers.Printer.Create("P1", "Bambu", "P1S", "127.0.0.1", Guid.NewGuid().ToString());
         printer.ObserveNozzle(nozzle, DateTimeOffset.UtcNow);
         return printer;
     }

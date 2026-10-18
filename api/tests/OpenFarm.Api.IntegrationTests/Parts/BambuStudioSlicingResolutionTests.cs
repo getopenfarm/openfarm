@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Api.IntegrationTests.Parts;
@@ -22,9 +21,7 @@ public class BambuStudioSlicingResolutionTests(CustomWebApplicationFactory facto
     {
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageBambuStudioLeaf(vendorName);
-
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         await ingestionService.IngestAsync(leaf, CancellationToken.None);
 
@@ -38,7 +35,7 @@ public class BambuStudioSlicingResolutionTests(CustomWebApplicationFactory facto
             .Single(p => p.VendorName == vendorName && p.ExternalId == "GP004");
 
         var printer = Printer.Create(
-            Organization.WellKnownId, "Bambu Studio Resolution Test Printer",
+            "Bambu Studio Resolution Test Printer",
             "Bambu", "X1C", "10.0.0.96", $"BS-{Guid.NewGuid():N}");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);

@@ -12,7 +12,7 @@ public sealed class CreatePartRequest
 {
     public IFormFile File { get; set; } = null!;
 
-    /// <summary>Optional (FR-004) — defaults to the organization's effective default when omitted. Only meaningful for a file that requires slicing.</summary>
+    /// <summary>Optional (FR-004) — defaults to the effective default when omitted. Only meaningful for a file that requires slicing.</summary>
     public string? SlicerEngine { get; set; }
 
     /// <summary>Optional (FR-004) — engine-only override resolves to that engine's newest available version; both present resolves to that exact pair.</summary>

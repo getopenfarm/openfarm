@@ -1,6 +1,6 @@
-using OpenFarm.Application.Organizations;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Production;
+using OpenFarm.Application.Settings;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
@@ -19,7 +19,7 @@ public sealed class JobFileResolver(
     IPartFileStorage partFileStorage,
     ISlicerEngine slicerEngine,
     ResolveSlicerSelection resolveSlicerSelection,
-    IOrganizationRepository organizationRepository,
+    IFarmSettingsRepository farmSettingsRepository,
     IPartFileClassifier classifier, ProductionProfileReadiness readiness,
     ResolveSlicingProfileSelection profileSelection, OpenFarm.Application.Printers.IPrinterRepository printers,
     ProductionJobRequirements jobRequirements) : IJobFileResolver
@@ -38,7 +38,7 @@ public sealed class JobFileResolver(
             effective.Requirements, cancellationToken, effective.RevisionHash);
         var storagePath = effective.RevisionHash == part.RevisionHash
             ? part.StoragePath
-            : await partFileStorage.GetRevisionStoragePathAsync(part.OrganizationId, effective.RevisionHash, part.OriginalFileName, cancellationToken);
+            : await partFileStorage.GetRevisionStoragePathAsync(effective.RevisionHash, part.OriginalFileName, cancellationToken);
         await using var stored = await partFileStorage.OpenReadAsync(storagePath, cancellationToken);
         var fileName = Path.GetFileName(storagePath);
         var classification = classifier.Classify(stored, fileName);
@@ -54,8 +54,8 @@ public sealed class JobFileResolver(
         }
 
         if (printerId == Guid.Empty) throw new JobNotEligibleForRemoteControlException(job.Id);
-        var organization = await organizationRepository.GetAsync(cancellationToken);
-        var slicerRef = resolveSlicerSelection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, organization.DefaultSlicer);
+        var settings = await farmSettingsRepository.GetAsync(cancellationToken);
+        var slicerRef = resolveSlicerSelection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, settings.DefaultSlicer);
         var selection = selections[0];
         var machineId = printer.MachineProfileId ?? throw new SlicingProfileUnconfiguredException("Select a machine profile.");
         var processId = printer.ProcessProfileId ?? throw new SlicingProfileUnconfiguredException("Select a process profile.");

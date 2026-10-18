@@ -1,7 +1,7 @@
 namespace OpenFarm.Domain.Production;
 
 public sealed class RunLineTargetNotFoundException(RunLineTargetKind targetKind, Guid targetId)
-    : Exception($"{targetKind} '{targetId}' was not found in this organization's catalog.")
+    : Exception($"{targetKind} '{targetId}' was not found in the catalog.")
 {
     public RunLineTargetKind TargetKind { get; } = targetKind;
 

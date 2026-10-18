@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Production;
@@ -12,8 +11,6 @@ public sealed class ProductionRunConfiguration : IEntityTypeConfiguration<Produc
         builder.ToTable("ProductionRuns");
 
         builder.HasKey(r => r.Id);
-
-        builder.Property(r => r.OrganizationId).IsRequired();
         builder.Property(r => r.Name);
         builder.Property(r => r.DueDate);
         builder.Property(r => r.Priority);
@@ -31,7 +28,5 @@ public sealed class ProductionRunConfiguration : IEntityTypeConfiguration<Produc
         // Postgres system column; the Npgsql provider auto-maps a "xmin"-named uint row-version
         // property to it (data-model.md's optimistic-concurrency requirement, mirrors AssemblyConfiguration).
         builder.Property<uint>("xmin").IsRowVersion();
-
-        builder.IsMultiTenant();
     }
 }

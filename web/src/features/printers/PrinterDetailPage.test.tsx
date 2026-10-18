@@ -209,7 +209,7 @@ describe('PrinterDetailPage', () => {
     expect(await screen.findByText('PLA')).toBeInTheDocument();
     expect(screen.getAllByText('Feed units')).toHaveLength(1);
     expect(screen.queryByText('Filament — AMS')).not.toBeInTheDocument();
-    expect(screen.getByText('Printer estimate: 62%')).toBeInTheDocument();
+    expect(screen.getByText('62%')).toBeInTheDocument();
     // Only the Printer-scoped activity entry is shown, not the unrelated Job one.
     expect(
       await screen.findByText('Printer status changed'),

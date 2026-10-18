@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using Finbuckle.MultiTenant.Abstractions;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,7 +14,6 @@ using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
-using OpenFarm.Infrastructure.Multitenancy;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Tests.Printers.Bambu;
 
@@ -35,9 +33,8 @@ public class PrinterConnectionBackgroundServiceTests
     [InlineData(true)]
     public async Task PublisherFailure_RetriesWithoutOrphaningCamera_AndStopsRequestStartedConnections(bool failCamera)
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Recovery", "Bambu", "P1S", "10.0.0.50", "SN-RECOVERY");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "code");
+        var printer = Printer.Create("Recovery", "Bambu", "P1S", "10.0.0.50", "SN-RECOVERY");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "code");
         var connector = new EmittingPrinterConnector();
         var publisher = new FailOncePublisher(failCamera);
         var relay = new TrackingCameraRelay();
@@ -73,9 +70,8 @@ public class PrinterConnectionBackgroundServiceTests
         {
             InitialReport = """{"print":{"gcode_state":"RUNNING","nozzle_temper":220,"bed_temper":60,"mc_percent":10}}""",
         };
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Protocol test", "Bambu", "P1S", harness.Details.IpAddress, harness.Details.SerialNumber);
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, harness.Details.AccessCode);
+        var printer = Printer.Create("Protocol test", "Bambu", "P1S", harness.Details.IpAddress, harness.Details.SerialNumber);
+        var secret = ConnectionSecret.Create(printer.SerialNumber, harness.Details.AccessCode);
         using var provider = BuildServiceProvider(printer, secret, harness.CreateConnector(), out _);
         using var service = new PrinterConnectionBackgroundService(
             provider.GetRequiredService<IServiceScopeFactory>(),
@@ -109,9 +105,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task ReachabilitySweep_FlipsUnreachableAfterSilence_AndBackOnNextMessage()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-REACH-1");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-REACH-1");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
 
         var provider = BuildServiceProvider(printer, secret, connector, out _);
@@ -145,9 +140,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task ConnectorReportedStatusChange_ReconcilesAndWritesActivityLogEntry()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-REACH-2");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-REACH-2");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
 
         var provider = BuildServiceProvider(printer, secret, connector, out var activityLogWriter);
@@ -184,9 +178,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task TelemetryEvents_WithSubsequentPartialDelta_BroadcastsMergedState()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-1");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-1");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
 
@@ -233,9 +226,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task TelemetryEvents_WithinFlushInterval_AreCoalescedIntoOneBroadcast()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-2");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-2");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
         var flushInterval = TimeSpan.FromMilliseconds(300);
@@ -293,9 +285,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task StatusChange_MidFlushInterval_FlushesImmediatelyDespiteThrottle()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-3");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-3");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
 
@@ -331,9 +322,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task CameraFrames_NeverTouchPrinterRepositoryOrTriggerDbWrite()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-CAMERA-1");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-CAMERA-1");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector(); // never emits an MQTT event in this test
         var publisher = new RecordingPrinterEventPublisher();
         var repository = new SaveCountingPrinterRepository(new InMemoryPrinterRepository(printer));
@@ -366,9 +356,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task StopThenImmediatelyStartConnection_DuringSlowUnwind_DoesNotOrphanTheNewLoop()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-RACE-1");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-RACE-1");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new SlowCancelPrinterConnector { CancellationLag = TimeSpan.FromMilliseconds(150) };
 
         var provider = BuildServiceProvider(printer, secret, connector, out _);
@@ -418,9 +407,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task FeedSlotTelemetrySync_FirstConnectionThenTopologyShrink_PopulatesThenSoftDeactivates()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-FEEDUNIT-1");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-FEEDUNIT-1");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
         var feedUnitRepository = new InMemoryFeedUnitRepository();
         var sync = new FeedSlotTelemetrySyncHandler(feedUnitRepository);
@@ -471,9 +459,8 @@ public class PrinterConnectionBackgroundServiceTests
     [Fact]
     public async Task ExactStateAndAlerts_InsideThrottle_LogAndBroadcastEveryChange()
     {
-        var organizationId = Guid.NewGuid();
-        var printer = Printer.Create(organizationId, "Printer", "Bambu", "P1S", "10.0.0.1", "SN-EXACT");
-        var secret = ConnectionSecret.Create(organizationId, printer.SerialNumber, "encrypted-code");
+        var printer = Printer.Create("Printer", "Bambu", "P1S", "10.0.0.1", "SN-EXACT");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector();
         var publisher = new RecordingPrinterEventPublisher();
         using var provider = BuildServiceProvider(printer, secret, connector, out var writer, publisher);
@@ -532,13 +519,6 @@ public class PrinterConnectionBackgroundServiceTests
         // starts a concurrent camera loop too — the stub factory below hands out a relay that never
         // emits by default so that path doesn't throw.
         services.AddSingleton<IPrinterConnectorFactory>(new StubPrinterConnectorFactory(connector, cameraRelay ?? new SilentCameraRelay()));
-
-        // PrinterConnectionBackgroundService resolves these to populate tenant context per scope
-        // (Finbuckle's HTTP-middleware-based resolution never runs for a scope it creates itself).
-        var tenantInfo = new AppTenantInfo { Id = printer.OrganizationId.ToString(), Identifier = "default" };
-        services.AddSingleton<IMultiTenantStore<AppTenantInfo>>(new StubTenantStore(tenantInfo));
-        services.AddSingleton<AsyncLocalMultiTenantContextAccessor<AppTenantInfo>>();
-        services.AddSingleton<IMultiTenantContextSetter>(sp => sp.GetRequiredService<AsyncLocalMultiTenantContextAccessor<AppTenantInfo>>());
 
         return services.BuildServiceProvider();
     }
@@ -755,27 +735,27 @@ public class PrinterConnectionBackgroundServiceTests
                 throw new IOException("Transient publisher failure");
             return Task.CompletedTask;
         }
-        public Task PrinterStatusChangedAsync(Guid organizationId, Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PrinterTelemetryUpdatedAsync(Guid organizationId, Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) => Publish(false);
-        public Task CameraFrameReceivedAsync(Guid organizationId, Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) => Publish(true);
+        public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) => Publish(false);
+        public Task CameraFrameReceivedAsync(Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) => Publish(true);
     }
 
     private sealed class NoOpPrinterEventPublisher : IPrinterEventPublisher
     {
-        public Task PrinterStatusChangedAsync(Guid organizationId, Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) =>
+        public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task PrinterTelemetryUpdatedAsync(Guid organizationId, Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) =>
+        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task CameraFrameReceivedAsync(Guid organizationId, Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) =>
+        public Task CameraFrameReceivedAsync(Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 
     private sealed class RecordingPrinterEventPublisher : IPrinterEventPublisher
     {
         public List<Guid> ActivityNotifications { get; } = [];
-        public Task PrinterActivityChangedAsync(Guid organizationId, Guid printerId, CancellationToken cancellationToken)
+        public Task PrinterActivityChangedAsync(Guid printerId, CancellationToken cancellationToken)
         {
             ActivityNotifications.Add(printerId);
             return Task.CompletedTask;
@@ -785,16 +765,16 @@ public class PrinterConnectionBackgroundServiceTests
 
         public List<string> CameraFramesReceived { get; } = [];
 
-        public Task PrinterStatusChangedAsync(Guid organizationId, Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) =>
+        public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task PrinterTelemetryUpdatedAsync(Guid organizationId, Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken)
+        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken)
         {
             TelemetryBroadcasts.Add(telemetry);
             return Task.CompletedTask;
         }
 
-        public Task CameraFrameReceivedAsync(Guid organizationId, Guid printerId, string frameJpegBase64, CancellationToken cancellationToken)
+        public Task CameraFrameReceivedAsync(Guid printerId, string frameJpegBase64, CancellationToken cancellationToken)
         {
             CameraFramesReceived.Add(frameJpegBase64);
             return Task.CompletedTask;
@@ -849,7 +829,7 @@ public class PrinterConnectionBackgroundServiceTests
 
     private sealed class NoOpFeedSlotTelemetrySync : IFeedSlotTelemetrySync
     {
-        public Task SyncAsync(Guid printerId, Guid organizationId, string brand, IReadOnlyList<AmsUnit> amsUnits, AmsTray? externalSpoolTray, CancellationToken cancellationToken) =>
+        public Task SyncAsync(Guid printerId, string brand, IReadOnlyList<AmsUnit> amsUnits, AmsTray? externalSpoolTray, CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 
@@ -902,22 +882,5 @@ public class PrinterConnectionBackgroundServiceTests
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
-    private sealed class StubTenantStore(AppTenantInfo tenantInfo) : IMultiTenantStore<AppTenantInfo>
-    {
-        public Task<AppTenantInfo?> GetAsync(string id) => Task.FromResult<AppTenantInfo?>(tenantInfo);
-
-        public Task<AppTenantInfo?> GetByIdentifierAsync(string identifier) => Task.FromResult<AppTenantInfo?>(tenantInfo);
-
-        public Task<IEnumerable<AppTenantInfo>> GetAllAsync() => Task.FromResult<IEnumerable<AppTenantInfo>>([tenantInfo]);
-
-        public Task<IEnumerable<AppTenantInfo>> GetAllAsync(int take, int skip) => Task.FromResult<IEnumerable<AppTenantInfo>>([tenantInfo]);
-
-        public Task<bool> AddAsync(AppTenantInfo tenantInfoToAdd) => Task.FromResult(true);
-
-        public Task<bool> UpdateAsync(AppTenantInfo tenantInfoToUpdate) => Task.FromResult(true);
-
-        public Task<bool> RemoveAsync(string identifier) => Task.FromResult(true);
     }
 }

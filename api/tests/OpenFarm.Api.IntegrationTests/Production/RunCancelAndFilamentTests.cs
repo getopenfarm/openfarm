@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Persistence;
 

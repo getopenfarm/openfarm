@@ -22,7 +22,6 @@ using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.ConnectionSecrets;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
@@ -31,7 +30,7 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Api.IntegrationTests.Production;
 
-// Real HTTP, tenancy, repositories and PostgreSQL. Tests explicitly start the real dispatcher or
+// Real HTTP, repositories and PostgreSQL. Tests explicitly start the real dispatcher or
 // replay telemetry so connection workers cannot race assertions about intermediate states.
 public class ProductionTestFactory : CustomWebApplicationFactory
 {
@@ -57,21 +56,19 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
             _token = (await login.Content.ReadFromJsonAsync<LoginResponse>())!.Token;
         }
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
-        await Factory.EnsureTenantInfoResolvedAsync();
         return client;
     }
 
     protected async Task<Part> PartAsync(int units = 1, string contents = "; revision one\n", string fileName = "part.gcode", bool legacy = false)
     {
-        await Factory.EnsureTenantInfoResolvedAsync();
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
         var bytes = Encoding.UTF8.GetBytes(contents);
         var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         using var stream = new MemoryStream(bytes);
-        var path = await storage.SaveAsync(Organization.WellKnownId, legacy ? Guid.NewGuid().ToString("N") : hash, fileName, stream, default);
+        var path = await storage.SaveAsync(legacy ? Guid.NewGuid().ToString("N") : hash, fileName, stream, default);
         if (legacy) hash = new string('a', 32);
-        var part = Part.Create(Organization.WellKnownId, $"Part {Guid.NewGuid():N}", PartFileFormat.GCode,
+        var part = Part.Create($"Part {Guid.NewGuid():N}", PartFileFormat.GCode,
             false, fileName, path, bytes.Length, 0.4m, null, null, EstimateStatus.Available,
             60, 20, 1, units, hash, [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
         await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
@@ -96,33 +93,33 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
 
     protected async Task<List<PrintJob>> JobsAsync(Guid runId)
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         return (await scope.ServiceProvider.GetRequiredService<IPrintJobRepository>().ListByProductionRunIdAsync(runId, default)).ToList();
     }
 
     protected async Task<Printer> PrinterAsync(bool manual = false, string state = "IDLE")
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var profile = MachineProfile.Create(Organization.WellKnownId, $"Machine {Guid.NewGuid():N}",
+        var profile = MachineProfile.Create($"Machine {Guid.NewGuid():N}",
             ProfileSourceFormat.OrcaSlicer, null, "{\"nozzle_diameter\":[\"0.4\"]}");
         db.MachineProfiles.Add(profile);
-        var printer = Printer.Create(Organization.WellKnownId, $"Printer {Guid.NewGuid():N}", "System", "Simulation", "127.0.0.1", $"SN{Guid.NewGuid():N}");
+        var printer = Printer.Create($"Printer {Guid.NewGuid():N}", "System", "Simulation", "127.0.0.1", $"SN{Guid.NewGuid():N}");
         printer.LinkMachineProfile(profile.Id);
         printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
-        var filamentProfile = FilamentProfile.Create(Organization.WellKnownId, $"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+        var filamentProfile = FilamentProfile.Create($"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"],"hot_plate_temp":["55"]}""");
         db.FilamentProfiles.Add(filamentProfile);
-        var vendor = Vendor.Create(Organization.WellKnownId, $"Vendor {Guid.NewGuid():N}");
+        var vendor = Vendor.Create($"Vendor {Guid.NewGuid():N}");
         db.Vendors.Add(vendor);
-        var filament = Filament.Create(Organization.WellKnownId, vendor.Id, "PLA", "PLA");
-        filament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(Organization.WellKnownId, filament.Id, "System", "Simulation", 0.4m, filamentProfile.Id)]);
+        var filament = Filament.Create(vendor.Id, "PLA", "PLA");
+        filament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(filament.Id, "System", "Simulation", 0.4m, filamentProfile.Id)]);
         var variant = filament.AddVariant("White", "FFFFFF");
         db.Filaments.Add(filament);
-        var feedUnit = FeedUnit.CreateConnectorDerived(Organization.WellKnownId, printer.Id, FeedUnitKindCatalog.ExternalSpool, 0);
+        var feedUnit = FeedUnit.CreateConnectorDerived(printer.Id, FeedUnitKindCatalog.ExternalSpool, 0);
         var slot = feedUnit.AddFeedSlot(0);
         db.FeedUnits.Add(feedUnit);
-        var spool = Spool.Create(Organization.WellKnownId, variant.Id, null, 1000, 1000);
+        var spool = Spool.Create(variant.Id, null, 1000, 1000);
         spool.LoadOntoFeedSlot(slot.Id);
         db.Spools.Add(spool);
         printer.MarkReachable(DateTimeOffset.UtcNow);
@@ -133,14 +130,14 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         // mapped field to test the already-defined non-live branch without adding a product brand.
         if (manual) db.Entry(printer).Property(p => p.Brand).CurrentValue = "Manual";
         var protector = scope.ServiceProvider.GetRequiredService<ISecretProtector>();
-        db.ConnectionSecrets.Add(ConnectionSecret.Create(Organization.WellKnownId, printer.SerialNumber, protector.Protect("test-access-code")));
+        db.ConnectionSecrets.Add(ConnectionSecret.Create(printer.SerialNumber, protector.Protect("test-access-code")));
         await db.SaveChangesAsync();
         return printer;
     }
 
     protected async Task AssignAsync(Guid jobId, Guid printerId, bool started = true)
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var job = await db.PrintJobs.SingleAsync(j => j.Id == jobId);
         job.Dispatch(printerId);
@@ -154,13 +151,13 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
 
     protected async Task<PrinterStatus> PrinterStatusAsync(Guid printerId)
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         return (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Printers.SingleAsync(p => p.Id == printerId)).Status;
     }
 
     protected async Task ReplayAsync(Guid printerId, string state)
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<IJobTelemetrySync>().ObserveAsync(printerId, state, default);
     }
 
@@ -172,7 +169,7 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         var timer = Stopwatch.StartNew();
         while (timer.Elapsed < TimeSpan.FromSeconds(10))
         {
-            var job = (await JobsAsync(runId)).FirstOrDefault(j => j.Id != excludeJobId && j.DispatchedPrinterId != null);
+            var job = (await JobsAsync(runId)).FirstOrDefault(j => j.Id != excludeJobId && j.PrinterId != null);
             if (job is not null) return job;
             await Task.Delay(50);
         }

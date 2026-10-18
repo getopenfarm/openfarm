@@ -8,10 +8,9 @@ namespace OpenFarm.Domain.Production;
 /// </summary>
 public sealed class PartRequirement
 {
-    private PartRequirement(Guid id, Guid organizationId, Guid runLineId, Guid partId, decimal? quantity)
+    private PartRequirement(Guid id, Guid runLineId, Guid partId, decimal? quantity)
     {
         Id = id;
-        OrganizationId = organizationId;
         RunLineId = runLineId;
         PartId = partId;
         LibraryPartId = partId;
@@ -19,8 +18,6 @@ public sealed class PartRequirement
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid RunLineId { get; }
 
@@ -45,6 +42,6 @@ public sealed class PartRequirement
     /// no synchronous Domain factory could perform, so the Application-layer command handler that
     /// awaits it is necessarily this type's only caller.
     /// </summary>
-    public static PartRequirement Create(Guid organizationId, Guid runLineId, Guid partId, decimal? quantity) =>
-        new(Guid.NewGuid(), organizationId, runLineId, partId, quantity);
+    public static PartRequirement Create(Guid runLineId, Guid partId, decimal? quantity) =>
+        new(Guid.NewGuid(), runLineId, partId, quantity);
 }

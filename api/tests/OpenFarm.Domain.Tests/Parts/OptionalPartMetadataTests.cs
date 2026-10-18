@@ -32,7 +32,7 @@ public class OptionalPartMetadataTests
     public void Reprocess_PreservesFileRevisionUploadTimeUnitsAndTags()
     {
         var part = Create(null, [], requiresSlicing: true);
-        var tag = Tag.Create(part.OrganizationId, "BOM");
+        var tag = Tag.Create("BOM");
         part.AddTag(tag);
         part.SetUnitsPerPrint(3);
         var uploadedAt = part.FileUploadedAtUtc;
@@ -56,7 +56,7 @@ public class OptionalPartMetadataTests
         PartEstimateAvailability.From(minutes, grams).Should().Be(expected);
 
     private static Part Create(decimal? nozzle, IReadOnlyList<FilamentRequirementSpec> requirements, bool requiresSlicing) =>
-        Part.Create(Guid.NewGuid(), "Part", requiresSlicing ? PartFileFormat.Stl : PartFileFormat.GCode, requiresSlicing,
+        Part.Create("Part", requiresSlicing ? PartFileFormat.Stl : PartFileFormat.GCode, requiresSlicing,
             "part.stl", "/tmp/part.stl", 100, nozzle, null, null, EstimateStatus.Unavailable, null, null,
             1, 1, new string('a', 64), requirements, [], []);
 }

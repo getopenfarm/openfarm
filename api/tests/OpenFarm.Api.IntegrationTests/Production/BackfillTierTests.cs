@@ -17,9 +17,9 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
         var run = await RunAsync(client, part.Id, quantity: null);
         (await JobsAsync(run.Id)).Should().BeEmpty();
         var printer = await PrinterAsync();
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
-            var job = PrintJob.Create(part.OrganizationId, run.Lines.Single().Requirements.Single().Id, 1024, 1,
+            var job = PrintJob.Create("Test part", run.Lines.Single().Requirements.Single().Id, 1024, 1,
                 AssignmentMode.Unassigned, null, part.RevisionHash, 1, []);
             job.Dispatch(printer.Id);
             job.MarkStarted();
@@ -32,7 +32,7 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
             ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PLA", null)], candidates.Where(c => c.RunLineId == run.Lines.Single().Id).ToList()).Should().BeNull();
         }
         await PostAsync(client, $"/api/v1/production-runs/{run.Id}/cancel");
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
             (await scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>().GetBackfillCandidatesAsync(default)).Should().NotContain(c => c.RunLineId == run.Lines.Single().Id);
     }
     [Fact]
@@ -67,7 +67,7 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
             worker.RequestDispatchAttempt(printer.Id);
             await Task.Delay(200);
             (await JobsAsync(backfill.Id)).Should().ContainSingle();
-            using var scope = Factory.CreateTenantScope();
+            using var scope = Factory.Services.CreateScope();
             var candidates = await scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>().GetBackfillCandidatesAsync(default);
             candidates.Single(c => c.RunLineId == backfill.Lines.Single().Id).CumulativeUnits.Should().Be(4);
         }
@@ -82,7 +82,7 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
         var target = await PrinterAsync();
         var other = await PrinterAsync();
         var run = await RunAsync(client, part.Id, quantity: null, pinned: target.Id);
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var query = scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>();
             (await query.GetBackfillCandidatesAsync(default, other.Id)).Should().NotContain(c => c.RunLineId == run.Lines.Single().Id);
@@ -90,7 +90,7 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
         }
         using var worker = Worker();
         await worker.StartAsync(default);
-        try { (await WaitForAssignmentAsync(run.Id)).DispatchedPrinterId.Should().Be(target.Id); }
+        try { (await WaitForAssignmentAsync(run.Id)).PrinterId.Should().Be(target.Id); }
         finally { await worker.StopAsync(default); }
     }
 

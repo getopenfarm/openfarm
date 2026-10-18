@@ -125,19 +125,17 @@ describe('FeedUnitsCard', () => {
 
     expect(await screen.findByText('Bambu Lab PLA Basic')).toBeInTheDocument();
     expect(screen.getByText('Black')).toBeInTheDocument();
-    expect(screen.getByText('Recorded: 400 g')).toBeInTheDocument();
+    expect(screen.getByText('400 g')).toBeInTheDocument();
   });
 
-  it('shows unknown detection for a Feed slot with no telemetry', async () => {
+  it('shows no spool for a Feed slot with no telemetry', async () => {
     renderCard();
 
-    expect(await screen.findAllByText('No registered spool')).not.toHaveLength(
-      0,
-    );
+    expect(await screen.findAllByText('No spool')).not.toHaveLength(0);
     expect(screen.queryByText('Empty')).not.toBeInTheDocument();
   });
 
-  it('combines tracked grams, detected contents and live percentage in one slot', async () => {
+  it('shows grams, one mismatch tag and the active mark in one slot', async () => {
     renderCard(undefined, {
       amsUnits: [
         {
@@ -156,12 +154,11 @@ describe('FeedUnitsCard', () => {
       ],
     });
     await screen.findByText('Bambu Lab PLA Basic');
-    const row = screen.getByText('Recorded: 400 g').closest('li');
+    const row = screen.getByText('400 g').closest('li');
     if (!row) throw new Error('Expected a registered spool row');
-    expect(within(row).getByText('Printer estimate: 0%')).toBeInTheDocument();
-    expect(
-      within(row).getByText('Printer detected: PETG · Basic'),
-    ).toBeInTheDocument();
+    // One number per source: recorded grams win over the printer percentage.
+    expect(within(row).queryByText('0%')).not.toBeInTheDocument();
+    expect(within(row).getByText('Detected: PETG Basic')).toBeInTheDocument();
     expect(within(row).getByText('Active')).toBeInTheDocument();
     expect(screen.getByText('Empty')).toBeInTheDocument();
   });
@@ -193,14 +190,14 @@ describe('FeedUnitsCard', () => {
       </QueryClientProvider>
     );
     const { rerender } = render(card(true, 62));
-    await screen.findByText('Printer estimate: 62%');
+    await screen.findByText('Bambu Lab PLA Basic');
+    expect(screen.getByText('Active')).toBeInTheDocument();
     rerender(card(true, 61));
-    expect(screen.getByText('Printer estimate: 61%')).toBeInTheDocument();
+    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.queryByText('Offline · last known')).not.toBeInTheDocument();
     rerender(card(false, 61));
     expect(screen.queryByText('Active')).not.toBeInTheDocument();
-    expect(
-      screen.getByText('Printer offline · Detection is last known'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Offline · last known')).toBeInTheDocument();
   });
 
   it('shows detected but unregistered filament without hiding the inventory state', async () => {
@@ -212,10 +209,8 @@ describe('FeedUnitsCard', () => {
         },
       ],
     });
-    expect(await screen.findByText('PETG')).toBeInTheDocument();
-    expect(
-      screen.getByText('Detected · Unregistered · Basic'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('PETG Basic')).toBeInTheDocument();
+    expect(screen.getByText('Unregistered')).toBeInTheDocument();
   });
 
   it('retains registered spool and zero grams when catalog lookup fails', async () => {
@@ -251,8 +246,8 @@ describe('FeedUnitsCard', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText('Registered spool')).toBeInTheDocument();
-    expect(screen.getByText('Recorded: 0 g')).toBeInTheDocument();
-    expect(screen.getByText('Inactive slot')).toBeInTheDocument();
+    expect(screen.getByText('0 g')).toBeInTheDocument();
+    expect(screen.getByText('Inactive')).toBeInTheDocument();
   });
 
   it('shows loading, then an error with retry, rather than a false empty state', async () => {
@@ -294,21 +289,22 @@ describe('FeedUnitsCard', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('offers Load spool on empty slots and Change spool on loaded ones', async () => {
+  it('opens the slot dialog from the row, with Load spool shown on empty slots', async () => {
+    const user = userEvent.setup();
     renderCard();
 
     await screen.findByText('AMS 1');
     // First "Slot 1" is the occupied AMS slot; the reloader's slot 1 is empty.
     const [occupied] = screen.getAllByRole('listitem', { name: 'Slot 1' });
-    expect(
-      within(occupied).getByRole('button', { name: 'Change spool' }),
-    ).toBeInTheDocument();
-    expect(
-      within(occupied).queryByRole('button', { name: 'Load spool' }),
-    ).not.toBeInTheDocument();
+    expect(within(occupied).queryByText('Load spool')).not.toBeInTheDocument();
     // AMS slot 2 and the reloader slot are empty.
-    expect(screen.getAllByRole('button', { name: 'Load spool' })).toHaveLength(
-      2,
+    expect(screen.getAllByText('Load spool')).toHaveLength(2);
+
+    await user.click(
+      within(occupied).getByRole('button', { name: /AMS 1 · Slot 1/ }),
+    );
+    expect(await screen.findByRole('dialog')).toHaveTextContent(
+      'AMS 1 · Slot 1',
     );
   });
 
@@ -320,22 +316,36 @@ describe('FeedUnitsCard', () => {
     ).toBeInTheDocument();
   });
 
-  it('offers Remove only for the Automatic filament reloader, not the connector-derived MMU', async () => {
+  it('offers unit actions only for the Automatic filament reloader, not the connector-derived MMU', async () => {
     renderCard();
 
     await screen.findByText('AMS 1');
     expect(screen.getByText('Splicer')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
+    expect(
+      screen.getByRole('button', { name: 'Actions for Splicer' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Actions for AMS 1' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('removes a Feed unit', async () => {
+  it('removes a Feed unit after confirming', async () => {
     const user = userEvent.setup();
     let deletedUrl: string | undefined;
     renderCard((url) => {
       deletedUrl = url;
     });
 
-    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for Splicer' }),
+    );
+    await user.click(await screen.findByRole('menuitem', { name: 'Remove' }));
+    expect(deletedUrl).toBeUndefined();
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Remove',
+      }),
+    );
 
     await waitFor(() =>
       expect(deletedUrl).toContain('/api/v1/feed-units/fu-2'),
@@ -357,7 +367,7 @@ describe('FeedUnitsCard', () => {
 
       await screen.findByText('External spool');
       expect(
-        screen.queryByRole('button', { name: 'Remove' }),
+        screen.queryByRole('button', { name: 'Actions for External spool' }),
       ).not.toBeInTheDocument();
     },
   );
@@ -379,13 +389,13 @@ describe('FeedUnitsCard', () => {
       },
     ]);
 
-    const label = await screen.findByText('External spool');
-    const header = label.parentElement;
-    if (!header) throw new Error('Expected a feed unit header');
+    await screen.findByText('External spool');
     expect(
-      within(header).queryByRole('button', { name: 'Remove' }),
+      screen.queryByRole('button', { name: 'Actions for External spool' }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
+    expect(
+      screen.getByRole('button', { name: 'Actions for Splicer' }),
+    ).toBeInTheDocument();
   });
 
   it('removes a superseded external spool through its endpoint', async () => {
@@ -407,7 +417,15 @@ describe('FeedUnitsCard', () => {
       ],
     );
 
-    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for External spool' }),
+    );
+    await user.click(await screen.findByRole('menuitem', { name: 'Remove' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Remove',
+      }),
+    );
     await waitFor(() =>
       expect(deletedUrl).toContain('/api/v1/feed-units/external-1'),
     );

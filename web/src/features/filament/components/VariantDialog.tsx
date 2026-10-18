@@ -26,7 +26,8 @@ export interface NewFilamentVariant {
 }
 
 function emptyVariant(): NewFilamentVariant {
-  return { colorName: '', colorHex: NAMED_COLOR_SWATCHES[0].hex };
+  const [first] = NAMED_COLOR_SWATCHES;
+  return { colorName: first.name, colorHex: first.hex };
 }
 
 interface VariantDialogProps {
@@ -97,11 +98,18 @@ export function VariantDialog({
                       setVariant((prev) => ({
                         ...prev,
                         colorHex: option.hex,
-                        colorName: prev.colorName || option.name,
+                        // Name follows the swatch until the user types a custom one.
+                        colorName:
+                          !prev.colorName ||
+                          NAMED_COLOR_SWATCHES.some(
+                            (swatch) => swatch.name === prev.colorName,
+                          )
+                            ? option.name
+                            : prev.colorName,
                       }))
                     }
                     className={cn(
-                      'rounded-[6px] p-0.5 ring-1 ring-transparent transition-all',
+                      'flex rounded-[6px] p-0.5 ring-1 ring-transparent transition-all',
                       variant.colorHex === option.hex &&
                         'ring-2 ring-ring ring-offset-1 ring-offset-background',
                     )}

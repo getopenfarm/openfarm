@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.FilamentTracking;
@@ -12,15 +11,13 @@ public sealed class FilamentProfileAssignmentConfiguration : IEntityTypeConfigur
     {
         builder.ToTable("FilamentProfileAssignments", table => table.HasCheckConstraint("CK_FilamentAssignment_Nozzle", "\"NozzleDiameterMm\" > 0"));
         builder.HasKey(a => a.Id);
-        builder.Property(a => a.OrganizationId).IsRequired();
         builder.Property(a => a.Brand).IsRequired();
         builder.Property(a => a.ModelCode).IsRequired();
         builder.HasOne<FilamentProfile>().WithMany().HasForeignKey(a => a.FilamentProfileId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<FilamentVariant>().WithMany().HasForeignKey(a => a.FilamentVariantId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasIndex(a => new { a.OrganizationId, a.FilamentId, a.Brand, a.ModelCode, a.NozzleDiameterMm })
+        builder.HasIndex(a => new { a.FilamentId, a.Brand, a.ModelCode, a.NozzleDiameterMm })
             .IsUnique().HasFilter("\"FilamentVariantId\" IS NULL");
-        builder.HasIndex(a => new { a.OrganizationId, a.FilamentId, a.Brand, a.ModelCode, a.NozzleDiameterMm, a.FilamentVariantId })
+        builder.HasIndex(a => new { a.FilamentId, a.Brand, a.ModelCode, a.NozzleDiameterMm, a.FilamentVariantId })
             .IsUnique().HasFilter("\"FilamentVariantId\" IS NOT NULL");
-        builder.IsMultiTenant();
     }
 }

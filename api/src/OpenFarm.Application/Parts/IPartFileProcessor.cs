@@ -25,7 +25,8 @@ public sealed record PartMaterialResolution(
 public sealed record PartEstimateResolution(
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
-    IReadOnlyList<ThumbnailSpec> Thumbnails);
+    IReadOnlyList<ThumbnailSpec> Thumbnails,
+    IReadOnlyList<FilamentGrams>? FilamentGrams = null);
 
 /// <summary>
 /// The single seam <c>PartProcessingBackgroundService</c> depends on — unifies the parse (already-sliced)

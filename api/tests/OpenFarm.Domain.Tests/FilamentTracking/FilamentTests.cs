@@ -8,7 +8,7 @@ public class FilamentTests
     [Fact]
     public void UpdateDetails_ReplacesVendorMaterialAndType()
     {
-        var filament = Filament.Create(Guid.NewGuid(), Guid.NewGuid(), "PLA Basic", "PLA");
+        var filament = Filament.Create(Guid.NewGuid(), "PLA Basic", "PLA");
         var vendorId = Guid.NewGuid();
 
         filament.UpdateDetails(vendorId, "PETG HF", "PETG");
@@ -23,7 +23,7 @@ public class FilamentTests
     [InlineData("PLA Basic", "")]
     public void UpdateDetails_RejectsBlankMaterialOrType(string material, string materialType)
     {
-        var filament = Filament.Create(Guid.NewGuid(), Guid.NewGuid(), "PLA Basic", "PLA");
+        var filament = Filament.Create(Guid.NewGuid(), "PLA Basic", "PLA");
 
         var act = () => filament.UpdateDetails(Guid.NewGuid(), material, materialType);
 

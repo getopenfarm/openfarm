@@ -77,7 +77,7 @@ public class CancelPrintJobCommandHandlerTests
     private static ResolvePrinterConnectionDetails MakeDetailsResolver(string? serialNumber = null) =>
         new(
             new InMemoryConnectionSecretRepository(
-                serialNumber is null ? [] : [ConnectionSecret.Create(Guid.NewGuid(), serialNumber, "encrypted")]),
+                serialNumber is null ? [] : [ConnectionSecret.Create(serialNumber, "encrypted")]),
             new PassthroughSecretProtector());
 }
 
@@ -94,7 +94,7 @@ public class PausePrintJobCommandHandlerTests
         var jobRepository = new InMemoryPrintJobRepository(job);
         var printerRepository = new InMemoryPrinterRepository(printer);
         var detailsResolver = new ResolvePrinterConnectionDetails(
-            new InMemoryConnectionSecretRepository(ConnectionSecret.Create(Guid.NewGuid(), printer.SerialNumber, "encrypted")),
+            new InMemoryConnectionSecretRepository(ConnectionSecret.Create(printer.SerialNumber, "encrypted")),
             new PassthroughSecretProtector());
         var resolver = new ProductionRemoteControlResolver(jobRepository, printerRepository, detailsResolver);
         var connector = new RecordingPrinterConnector();
@@ -139,7 +139,7 @@ public class ResumePrintJobCommandHandlerTests
         var jobRepository = new InMemoryPrintJobRepository(job);
         var printerRepository = new InMemoryPrinterRepository(printer);
         var detailsResolver = new ResolvePrinterConnectionDetails(
-            new InMemoryConnectionSecretRepository(ConnectionSecret.Create(Guid.NewGuid(), printer.SerialNumber, "encrypted")),
+            new InMemoryConnectionSecretRepository(ConnectionSecret.Create(printer.SerialNumber, "encrypted")),
             new PassthroughSecretProtector());
         var resolver = new ProductionRemoteControlResolver(jobRepository, printerRepository, detailsResolver);
         var connector = new RecordingPrinterConnector();

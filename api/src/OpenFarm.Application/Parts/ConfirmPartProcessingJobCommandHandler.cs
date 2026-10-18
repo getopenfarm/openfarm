@@ -1,5 +1,4 @@
 using OpenFarm.Application.Common;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
@@ -69,7 +68,8 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                     preview.DetectedColorHex,
                     preview.DetectedSubBrand,
                     overrideEntry is not null ? overrideEntry.NarrowFilamentVariantId : previous?.NarrowFilamentVariantId,
-                    overrideEntry is not null ? overrideEntry.NarrowFilamentProfileId : previous?.NarrowFilamentProfileId);
+                    overrideEntry is not null ? overrideEntry.NarrowFilamentProfileId : previous?.NarrowFilamentProfileId,
+                    preview.EstimatedGrams);
             })
             .ToList();
 
@@ -98,8 +98,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             }
 
             part = Part.Create(
-                Organization.WellKnownId,
-                command.Name!,
+                    command.Name!,
                 job.FileFormat,
                 job.RequiresSlicing,
                 job.OriginalFileName,
@@ -139,7 +138,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             if (fileStorage is not null && Path.GetFileNameWithoutExtension(part.StoragePath) != part.RevisionHash)
             {
                 await using var oldFile = await fileStorage.OpenReadAsync(part.StoragePath, cancellationToken);
-                await fileStorage.SaveAsync(part.OrganizationId, part.RevisionHash, part.OriginalFileName, oldFile, cancellationToken);
+                await fileStorage.SaveAsync(part.RevisionHash, part.OriginalFileName, oldFile, cancellationToken);
             }
             if (job.Kind == PartProcessingJobKind.Reprocess)
             {
@@ -173,7 +172,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
         }
 
 
-        await eventPublisher.PartUpsertedAsync(part.OrganizationId, part.Id, cancellationToken);
+        await eventPublisher.PartUpsertedAsync(part.Id, cancellationToken);
 
         return part;
     }
@@ -186,7 +185,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             return existing;
         }
 
-        var tag = Tag.Create(Organization.WellKnownId, name);
+        var tag = Tag.Create(name);
         await tagRepository.AddAsync(tag, cancellationToken);
         return tag;
     }

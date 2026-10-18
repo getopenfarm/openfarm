@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -15,7 +14,6 @@ public sealed class PartProcessingJobConfiguration : IEntityTypeConfiguration<Pa
 
         builder.HasKey(j => j.Id);
 
-        builder.Property(j => j.OrganizationId).IsRequired();
         builder.Property(j => j.PartId);
         builder.Property(j => j.Kind).IsRequired().HasConversion<string>();
         builder.Property(j => j.Status).IsRequired().HasConversion<string>();
@@ -74,7 +72,5 @@ public sealed class PartProcessingJobConfiguration : IEntityTypeConfiguration<Pa
             .HasForeignKey(t => t.JobId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(j => j.PreviewThumbnails).UsePropertyAccessMode(PropertyAccessMode.Field);
-
-        builder.IsMultiTenant();
     }
 }

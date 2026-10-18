@@ -594,6 +594,18 @@ export interface SetRunLineRevisionModeRequest {
   revisionMode?: string;
 }
 
+export interface AssignPrintFilamentSpoolResponse {
+  id?: string;
+  lineId?: string;
+  spoolId?: string;
+  gramsDeducted?: number;
+}
+
+export interface AssignPrintFilamentSpoolRequest {
+  /** @minLength 1 */
+  spoolId: string;
+}
+
 export interface JobFilamentConsumptionResponse {
   id?: string;
   /** @nullable */
@@ -608,21 +620,30 @@ export interface JobFilamentConsumptionResponse {
   spoolId?: string | null;
   /** @nullable */
   gramsConsumed?: number | null;
+  /** @nullable */
+  estimatedGrams?: number | null;
+  toolIndex?: number;
 }
 
 export interface PrintJobResponse {
   id?: string;
-  partRequirementId?: string;
-  queuePosition?: number;
-  plateQuantity?: number;
-  assignmentMode?: string;
+  /** @nullable */
+  partRequirementId?: string | null;
+  /** @nullable */
+  queuePosition?: number | null;
+  /** @nullable */
+  plateQuantity?: number | null;
+  /** @nullable */
+  assignmentMode?: string | null;
   /** @nullable */
   pinnedPrinterId?: string | null;
   /** @nullable */
   dispatchedPrinterId?: string | null;
   status?: string;
-  fileRevisionHash?: string;
-  fileRevisionNumber?: number;
+  /** @nullable */
+  fileRevisionHash?: string | null;
+  /** @nullable */
+  fileRevisionNumber?: number | null;
   /** @nullable */
   dispatchedAtUtc?: string | null;
   /** @nullable */
@@ -640,6 +661,8 @@ export interface PrintJobResponse {
   snapshotState?: string;
   /** @nullable */
   snapshotRecoveryReason?: string | null;
+  source?: string;
+  name?: string;
 }
 
 export interface CancelPrintJobRequest {
@@ -707,7 +730,8 @@ export type ListQueueJobsResponseStatusCounts = { [key: string]: number };
 
 export interface QueueJobRowResponse {
   jobId?: string;
-  queuePosition?: number;
+  /** @nullable */
+  queuePosition?: number | null;
   status?: string;
   assignmentMode?: string;
   /** @nullable */
@@ -721,12 +745,20 @@ export interface QueueJobRowResponse {
   snapshotState?: string;
   /** @nullable */
   snapshotRecoveryReason?: string | null;
-  partId?: string;
+  /** @nullable */
+  partId?: string | null;
   partName?: string;
   plateQuantity?: number;
-  runLineId?: string;
-  productionRunId?: string;
+  /** @nullable */
+  runLineId?: string | null;
+  /** @nullable */
+  productionRunId?: string | null;
   runDisplayLabel?: string;
+  source?: string;
+  /** @nullable */
+  startedAtUtc?: string | null;
+  /** @nullable */
+  endedAtUtc?: string | null;
 }
 
 export interface ListQueueJobsResponse {
@@ -1080,6 +1112,8 @@ export interface PartFilamentRequirementResponse {
   narrowFilamentProfileId?: string | null;
   narrowFilamentVariantUnresolved?: boolean;
   narrowFilamentProfileUnresolved?: boolean;
+  /** @nullable */
+  estimatedGrams?: number | null;
 }
 
 export interface ThumbnailResponse {
@@ -1129,6 +1163,15 @@ export interface EditPartRequest {
   filamentRequirements?: EditPartFilamentRequirementRequest[];
 }
 
+export interface PartColorGramsResponse {
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  grams?: number | null;
+}
+
 export interface PartSummaryResponse {
   id?: string;
   name?: string;
@@ -1151,6 +1194,7 @@ export interface PartSummaryResponse {
   thumbnailBase64?: string | null;
   materialTypes?: string[];
   tags?: string[];
+  filamentByColor?: PartColorGramsResponse[];
 }
 
 export interface ListPartsResponse {
@@ -1203,6 +1247,8 @@ export interface PreviewFilamentRequirementResponse {
   detectedColorHex?: string | null;
   /** @nullable */
   detectedSubBrand?: string | null;
+  /** @nullable */
+  estimatedGrams?: number | null;
 }
 
 export interface PartProcessingJobPreviewResponse {
@@ -1234,6 +1280,46 @@ export interface PartProcessingJobResponse {
   preview?: PartProcessingJobPreviewResponse | null;
   /** @nullable */
   errorMessage?: string | null;
+}
+
+export interface DismissNotificationResponse {
+  id?: string;
+}
+
+export interface DismissNotificationRequest {
+  [key: string]: unknown;
+}
+
+export interface NotificationLineResponse {
+  lineId?: string;
+  toolIndex?: number;
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  estimatedGrams?: number | null;
+  /** @nullable */
+  spoolId?: string | null;
+  reason?: string;
+}
+
+export interface NotificationItemResponse {
+  type?: string;
+  printId?: string;
+  name?: string;
+  source?: string;
+  status?: string;
+  /** @nullable */
+  printerId?: string | null;
+  /** @nullable */
+  endedAtUtc?: string | null;
+  lines?: NotificationLineResponse[];
+}
+
+export interface ListNotificationsResponse {
+  items?: NotificationItemResponse[];
+  totalCount?: number;
 }
 
 export interface NonPrintedComponentResponse {
@@ -1459,7 +1545,7 @@ export interface LoginCommand {
 export interface WhoAmIResult {
   userId?: string;
   username?: string;
-  organizationId?: string;
+  email?: string;
 }
 
 export interface BomLineResponse {

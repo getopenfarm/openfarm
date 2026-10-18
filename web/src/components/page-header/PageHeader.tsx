@@ -10,6 +10,8 @@ interface PageHeaderProps {
   action?: ReactNode;
   /** Content rendered above the title, e.g. a BackLink. */
   above?: ReactNode;
+  /** `section` is a smaller heading for a pane inside a page, e.g. a Settings section. */
+  size?: 'page' | 'section';
   className?: string;
 }
 
@@ -23,6 +25,7 @@ export function PageHeader({
   description,
   action,
   above,
+  size = 'page',
   className,
 }: PageHeaderProps) {
   return (
@@ -35,9 +38,16 @@ export function PageHeader({
     >
       <div>
         {above}
-        <h2 className="font-heading text-2xl font-semibold">{title}</h2>
+        <h2
+          className={cn(
+            'font-heading font-semibold',
+            size === 'page' ? 'text-[22px] tracking-[-0.02em]' : 'text-base',
+          )}
+        >
+          {title}
+        </h2>
         {description ? (
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-[13px] text-muted-foreground">{description}</p>
         ) : null}
       </div>
       {action}

@@ -9,7 +9,6 @@ using OpenFarm.Api.Endpoints.Printers;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
 
@@ -71,20 +70,19 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
     // vendor bundle and running ingestion just to get one compatible pair).
     private async Task<(Guid MachineProfileId, Guid ProcessProfileId, string MachineProfileName)> SeedCompatibleSystemProfilePairAsync()
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
 
         var suffix = Guid.NewGuid().ToString("N");
         var machineName = $"Edit Test Machine {suffix}";
         var machine = MachineProfile.CreateSystemProfile(
-            Organization.WellKnownId, machineName, ProfileSourceFormat.OrcaSlicer, null,
+            machineName, ProfileSourceFormat.OrcaSlicer, null,
             """{"name":"placeholder","nozzle_diameter":["0.4"]}""", "EditPrinterEndpointTests", suffix, true, null, null);
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var process = ProcessProfile.CreateSystemProfile(
-            Organization.WellKnownId, $"Edit Test Process {suffix}", ProfileSourceFormat.OrcaSlicer, null,
+            $"Edit Test Process {suffix}", ProfileSourceFormat.OrcaSlicer, null,
             """{"name":"placeholder"}""", "EditPrinterEndpointTests", $"proc-{suffix}", true, [machineName]);
         await processRepo.AddAsync(process, CancellationToken.None);
 
@@ -99,11 +97,10 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
     // catalog model has a narrower CompatiblePlateTypes set than System/Simulation's "all six".
     private async Task<Guid> RegisterBambuA1PrinterDirectlyAsync()
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var printerRepo = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
 
-        var printer = Printer.Create(Organization.WellKnownId, "A1 Test Printer", "Bambu", "A1", "10.0.0.96", $"A1-{Guid.NewGuid():N}");
+        var printer = Printer.Create("A1 Test Printer", "Bambu", "A1", "10.0.0.96", $"A1-{Guid.NewGuid():N}");
         await printerRepo.AddAsync(printer, CancellationToken.None);
         await printerRepo.SaveChangesAsync(CancellationToken.None);
 

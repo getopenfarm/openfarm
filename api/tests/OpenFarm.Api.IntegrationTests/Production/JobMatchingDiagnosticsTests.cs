@@ -26,7 +26,7 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
         Guid variantId;
         Guid processingId;
         Part part;
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             variantId = await (from spool in db.Spools
@@ -34,7 +34,7 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
                                join unit in db.FeedUnits on slot.FeedUnitId equals unit.Id
                                where unit.PrinterId == printer.Id
                                select spool.FilamentVariantId).SingleAsync();
-            var processing = PartProcessingJob.CreateAdd(source.OrganizationId, source.FileFormat,
+            var processing = PartProcessingJob.CreateAdd(source.FileFormat,
                 source.OriginalFileName, source.StoragePath, source.FileSizeBytes, false, null, null, null, null, null);
             processing.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", "#000000", null)],
                 1, EstimateStatus.Available, 60, 20, []);
@@ -52,16 +52,16 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
         var saved = (await confirm.Content.ReadFromJsonAsync<PartResponse>())!;
         var reopened = await client.GetFromJsonAsync<PartResponse>($"/api/v1/parts/{saved.Id}");
         reopened!.FilamentRequirements.Single().NarrowFilamentVariantId.Should().Be(variantId);
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
             part = (await scope.ServiceProvider.GetRequiredService<IPartRepository>().GetByIdAsync(saved.Id, default))!;
         var run = await RunAsync(client, part.Id, quantity: follows ? null : 1, revisionMode: mode, pinned: printer.Id);
         if (follows)
         {
             // An unsent backfill attempt remains library-dependent until dispatch commits.
-            using var scope = Factory.CreateTenantScope();
+            using var scope = Factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var requirement = await db.PartRequirements.SingleAsync(r => r.RunLineId == run.Lines.Single().Id);
-            var pending = PrintJob.Create(part.OrganizationId, requirement.Id, 1024, part.UnitsPerPrint,
+            var pending = PrintJob.Create("Test part", requirement.Id, 1024, part.UnitsPerPrint,
                 AssignmentMode.Pinned, printer.Id, part.RevisionHash, part.RevisionNumber,
                 ProductionJobRequirements.FromPart(part));
             pending.CaptureProductionSnapshot(part);
@@ -69,7 +69,7 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
             await db.SaveChangesAsync();
         }
         var job = (await JobsAsync(run.Id)).Single();
-        job.FilamentConsumption.Single().NarrowFilamentVariantId.Should().Be(variantId);
+        job.Filaments.Single().NarrowFilamentVariantId.Should().Be(variantId);
         var diagnostics = await client.GetFromJsonAsync<JobMatchingDiagnostics>($"/api/v1/print-jobs/{job.Id}/matching-diagnostics");
         diagnostics!.Printers.Single(p => p.PrinterId == printer.Id).Eligible.Should().BeTrue();
         diagnostics.Requirements.Single().DetectedColorHex.Should().Be("#000000");
@@ -105,14 +105,14 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
         {
             worker.RequestDispatchAttempt(printer.Id);
             var assigned = await WaitForAssignmentAsync(run.Id);
-            assigned.DispatchedPrinterId.Should().Be(printer.Id);
-            assigned.FilamentConsumption.Single().NarrowFilamentVariantId.Should().Be(variantId);
+            assigned.PrinterId.Should().Be(printer.Id);
+            assigned.Filaments.Single().NarrowFilamentVariantId.Should().Be(variantId);
         }
         finally { await worker.StopAsync(default); }
     }
 
     [Fact]
-    public async Task DiagnosticsRequireAuthentication_AndReturnNotFoundForForeignTenant()
+    public async Task DiagnosticsRequireAuthentication()
     {
         var client = await ClientAsync();
         var part = await PartAsync();
@@ -120,12 +120,6 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
         var job = (await JobsAsync(run.Id)).Single();
         using var anonymous = Factory.CreateClient();
         (await anonymous.GetAsync($"/api/v1/print-jobs/{job.Id}/matching-diagnostics")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        using (var scope = Factory.CreateTenantScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"PrintJobs\" SET \"TenantId\" = {Guid.NewGuid().ToString()} WHERE \"Id\" = {job.Id}");
-        }
-        (await client.GetAsync($"/api/v1/print-jobs/{job.Id}/matching-diagnostics")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]

@@ -1,5 +1,4 @@
 using OpenFarm.Application.Common;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Profiles;
@@ -39,7 +38,7 @@ public sealed class ConfirmProfileImportCommandHandler(
                 ?? throw new ProfileSelectionMismatchException(nameof(ProfileType.Machine), selection.Name);
 
             var profile = MachineProfile.Create(
-                Organization.WellKnownId, match.Name, sourceFormat, match.BaseProfileName, match.RawDataJson);
+                match.Name, sourceFormat, match.BaseProfileName, match.RawDataJson);
             await machineProfileRepository.AddAsync(profile, cancellationToken);
             createdMachineProfiles.Add(profile);
             IndexBatchName(machineBatchIndex, match.Name, profile.Id);
@@ -58,7 +57,7 @@ public sealed class ConfirmProfileImportCommandHandler(
                 ?? throw new ProfileSelectionMismatchException(nameof(ProfileType.Filament), selection.Name);
 
             var profile = FilamentProfile.Create(
-                Organization.WellKnownId, match.Name, sourceFormat, match.BaseProfileName, match.RawDataJson);
+                match.Name, sourceFormat, match.BaseProfileName, match.RawDataJson);
             await filamentProfileRepository.AddAsync(profile, cancellationToken);
             createdFilamentProfiles.Add(profile);
             IndexBatchName(filamentBatchIndex, match.Name, profile.Id);

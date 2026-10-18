@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Parts;
@@ -13,9 +12,6 @@ public sealed class PartProcessingJobPreviewThumbnailConfiguration : IEntityType
 
         builder.HasKey(t => new { t.JobId, t.PlateIndex });
 
-        builder.Property(t => t.OrganizationId).IsRequired();
         builder.Property(t => t.Bytes).IsRequired();
-
-        builder.IsMultiTenant();
     }
 }

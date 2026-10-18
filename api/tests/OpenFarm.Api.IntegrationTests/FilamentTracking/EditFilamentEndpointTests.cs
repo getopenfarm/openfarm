@@ -6,7 +6,6 @@ using OpenFarm.Api.Endpoints.Filaments;
 using OpenFarm.Api.Endpoints.Vendors;
 using OpenFarm.Api.IntegrationTests.Production;
 using OpenFarm.Application.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Infrastructure.Persistence;
 
@@ -17,9 +16,9 @@ public class EditFilamentEndpointTests(ProductionTestFactory factory) : Producti
 {
     private async Task<Guid> FilamentProfileAsync()
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var profile = FilamentProfile.Create(Organization.WellKnownId, $"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+        var profile = FilamentProfile.Create($"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"],"nozzle_diameter":["0.4"]}""");
         db.FilamentProfiles.Add(profile);
         await db.SaveChangesAsync();

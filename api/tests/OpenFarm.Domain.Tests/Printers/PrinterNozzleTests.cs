@@ -8,7 +8,7 @@ public sealed class PrinterNozzleTests
     [Fact]
     public void NozzleIsUnknownUntilReportedAndPreservedAcrossConnections()
     {
-        var printer = Printer.Create(Guid.NewGuid(), "P1", "Bambu", "P1S", "127.0.0.1", "SN");
+        var printer = Printer.Create("P1", "Bambu", "P1S", "127.0.0.1", "SN");
         printer.ReportedNozzleDiameterMm.Should().BeNull();
         printer.NozzleConfirmed.Should().BeFalse();
         var now = DateTimeOffset.UtcNow;

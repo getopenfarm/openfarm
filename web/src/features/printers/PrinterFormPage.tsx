@@ -650,7 +650,7 @@ function EditPrinterFormLoaded({
               printerId,
             ),
         });
-        // RecentActivityCard fetches org-wide and filters client-side to this printer — no
+        // RecentActivityCard fetches farm-wide and filters client-side to this printer — no
         // printer-scoped params to key off, so invalidate the endpoint's URL prefix broadly.
         queryClient.invalidateQueries({
           queryKey: ['/api/v1/activity-log'],

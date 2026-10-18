@@ -54,7 +54,7 @@ public class MarkPrinterReadyCommandHandlerTests
     }
 
     private static Printer CreatePrinter() =>
-        Printer.Create(Guid.NewGuid(), "Test Printer", "Bambu", "X1C", "10.0.0.5", $"SN-{Guid.NewGuid():N}");
+        Printer.Create("Test Printer", "Bambu", "X1C", "10.0.0.5", $"SN-{Guid.NewGuid():N}");
 
     private sealed class InMemoryPrinterRepository(params Printer[] printers) : IPrinterRepository
     {
@@ -89,7 +89,6 @@ public class MarkPrinterReadyCommandHandlerTests
         public List<(Guid PrinterId, PrinterStatus Status, bool IsReachable)> PublishedStatuses { get; } = [];
 
         public Task PrinterStatusChangedAsync(
-            Guid organizationId,
             Guid printerId,
             PrinterStatus status,
             bool isReachable,
@@ -100,13 +99,11 @@ public class MarkPrinterReadyCommandHandlerTests
         }
 
         public Task PrinterTelemetryUpdatedAsync(
-            Guid organizationId,
             Guid printerId,
             PrinterTelemetrySnapshot telemetry,
             CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task CameraFrameReceivedAsync(
-            Guid organizationId,
             Guid printerId,
             string frameJpegBase64,
             CancellationToken cancellationToken) => Task.CompletedTask;

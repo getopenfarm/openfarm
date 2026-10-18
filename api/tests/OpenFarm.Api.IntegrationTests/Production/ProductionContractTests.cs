@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Api.Endpoints.Parts;
 
 namespace OpenFarm.Api.IntegrationTests.Production;
@@ -67,14 +66,14 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         var snapshot = (await JobsAsync(run.Id)).Single();
         snapshot.FileRevisionHash.Should().HaveLength(64);
         snapshot.FileRevisionNumber.Should().Be(1);
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
         var bytes = Encoding.UTF8.GetBytes("; object_count = 3\n");
         var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         using var stream = new MemoryStream(bytes);
-        var path = await storage.SaveAsync(Organization.WellKnownId, hash, "new.gcode", stream, default);
-        var add = PartProcessingJob.CreateAdd(Organization.WellKnownId, PartFileFormat.GCode, "new.gcode", path, bytes.Length, false, null, null, null, null, null);
-        var replace = PartProcessingJob.CreateReplace(Organization.WellKnownId, legacy.Id, PartFileFormat.GCode, "new.gcode", path, bytes.Length, false, null, null, null, null, null);
+        var path = await storage.SaveAsync(hash, "new.gcode", stream, default);
+        var add = PartProcessingJob.CreateAdd(PartFileFormat.GCode, "new.gcode", path, bytes.Length, false, null, null, null, null, null);
+        var replace = PartProcessingJob.CreateReplace(legacy.Id, PartFileFormat.GCode, "new.gcode", path, bytes.Length, false, null, null, null, null, null);
         var jobs = scope.ServiceProvider.GetRequiredService<IPartProcessingJobRepository>();
         foreach (var processing in new[] { add, replace })
         {
@@ -88,7 +87,7 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         current.UnitsPerPrint.Should().Be(1, "replacement preserves the operator's existing default");
         var content = await scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>().ResolveAsync(current, snapshot, printer.Id, 0.4m, default);
         Encoding.UTF8.GetString(content.Bytes).Should().Be("; revision one\n");
-        var legacySnapshot = OpenFarm.Domain.Production.PrintJob.Create(legacy.OrganizationId, snapshot.PartRequirementId, 1024, 1,
+        var legacySnapshot = OpenFarm.Domain.Production.PrintJob.Create("Test part", snapshot.PartRequirementId, 1024, 1,
             OpenFarm.Domain.Production.AssignmentMode.Unassigned, null, legacy.RevisionHash, 1, [new("PLA", null)]);
         var unresolved = () => scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>()
             .ResolveAsync(current, legacySnapshot, printer.Id, 0.4m, default);

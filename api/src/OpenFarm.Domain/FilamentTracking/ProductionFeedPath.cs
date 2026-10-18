@@ -7,6 +7,20 @@ public static class ProductionFeedPath
     public const int ExternalTrayId = 254;
 
     /// <summary>
+    /// Whether the printer's <c>tray_now</c> addresses this AMS tray: AMS-HT units (id 128+) are addressed by their unit id with slot 0,
+    /// every other unit packs four trays per unit (<c>unit * 4 + slot</c>). 254 (external spool) and 255 (nothing loaded) match no tray.
+    /// </summary>
+    public static bool IsActiveAmsTray(int trayId, int unitIndex, int slotIndex) => trayId switch
+    {
+        >= ExternalTrayId => false,
+        >= 128 => unitIndex == trayId && slotIndex == 0,
+        _ => unitIndex == trayId / 4 && slotIndex == trayId % 4,
+    };
+
+    /// <summary>The <c>tray_now</c> id of an AMS tray; the inverse of <see cref="IsActiveAmsTray"/>.</summary>
+    public static int TrayId(int unitIndex, int slotIndex) => unitIndex >= 128 ? unitIndex : unitIndex * 4 + slotIndex;
+
+    /// <summary>
     /// A printer with an AMS shares one filament inlet between the AMS and the external spool, and an external spool that
     /// is not already loaded into the extruder is never fed automatically. So exactly one of them is usable at a time:
     /// the external spool only while the printer reports it as the active feed (<paramref name="externalIsActiveFeed"/>),

@@ -1,7 +1,6 @@
 using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
@@ -30,7 +29,7 @@ public sealed class CreateProductionRunCommandHandler(
                 l.DefaultPinnedPrinterId, l.BackfillPrinterCap, l.BackfillCumulativeUnitCeiling))
             .ToList();
 
-        var run = ProductionRun.Create(Organization.WellKnownId, command.Name, command.DueDate, command.Priority, command.Notes, lineSpecs);
+        var run = ProductionRun.Create(command.Name, command.DueDate, command.Priority, command.Notes, lineSpecs);
         var explodedByLine = new Dictionary<Guid, IReadOnlyList<ExplodedPartQuantity>>();
         foreach (var line in run.Lines)
         {
@@ -46,7 +45,7 @@ public sealed class CreateProductionRunCommandHandler(
         }
         await runRepository.AddAsync(run, cancellationToken);
 
-        var nextQueuePosition = await jobRepository.GetMaxQueuePositionAsync(Organization.WellKnownId, cancellationToken) ?? 0;
+        var nextQueuePosition = await jobRepository.GetMaxQueuePositionAsync(cancellationToken) ?? 0;
 
         foreach (var line in run.Lines)
         {
@@ -54,7 +53,7 @@ public sealed class CreateProductionRunCommandHandler(
 
             var requirements = explodedParts
                 .Select(exploded => PartRequirement.Create(
-                    Organization.WellKnownId, line.Id, exploded.PartId, line.Quantity is null ? null : exploded.Quantity))
+                    line.Id, exploded.PartId, line.Quantity is null ? null : exploded.Quantity))
                 .ToList();
             foreach (var requirement in requirements)
                 requirement.CaptureName(explodedParts.First(p => p.PartId == requirement.PartId).PartName);
@@ -71,9 +70,9 @@ public sealed class CreateProductionRunCommandHandler(
                     await using var bytes = await fileStorage.OpenReadAsync(legacyPart.StoragePath, cancellationToken);
                     var hash = await PartFileHasher.ComputeHashAsync(bytes, cancellationToken);
                     bytes.Position = 0;
-                    await fileStorage.SaveAsync(legacyPart.OrganizationId, legacyPart.RevisionHash, legacyPart.OriginalFileName, bytes, cancellationToken);
+                    await fileStorage.SaveAsync(legacyPart.RevisionHash, legacyPart.OriginalFileName, bytes, cancellationToken);
                     bytes.Position = 0;
-                    var path = await fileStorage.SaveAsync(legacyPart.OrganizationId, hash, legacyPart.OriginalFileName, bytes, cancellationToken);
+                    var path = await fileStorage.SaveAsync(hash, legacyPart.OriginalFileName, bytes, cancellationToken);
                     legacyPart.MigrateLegacyFileRevision(hash, path);
                 }
 
@@ -98,7 +97,7 @@ public sealed class CreateProductionRunCommandHandler(
                 {
                     nextQueuePosition += 1024;
                     jobs.Add(PrintJob.Create(
-                        Organization.WellKnownId, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
+                        part.Name, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
                         line.DefaultAssignmentMode, line.DefaultPinnedPrinterId, part.RevisionHash, part.RevisionNumber, filamentSpecs));
                 }
 
@@ -123,7 +122,7 @@ public sealed class CreateProductionRunCommandHandler(
                 throw new RunLineTargetNotFoundException(line.TargetKind, line.TargetId);
             // R1/R2's "quantity-1 explosion" for an unlimited line — enumerates the distinct printed
             // parts only; PartRequirement.Quantity is nulled out above regardless of this result.
-            var result = await graphQueryService.ExplodeAsync(Organization.WellKnownId, line.TargetId, line.Quantity ?? 1, cancellationToken);
+            var result = await graphQueryService.ExplodeAsync(line.TargetId, line.Quantity ?? 1, cancellationToken);
             return result.PrintedParts;
         }
 

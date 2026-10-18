@@ -14,7 +14,7 @@ public class ProductionRunCrudEndpointTests(ProductionTestFactory factory) : Pro
         var part = await PartAsync(4);
         var run = await RunAsync(client, part.Id, 20);
         var jobs = await JobsAsync(run.Id);
-        jobs.Should().HaveCount(5).And.OnlyContain(j => j.DispatchedPrinterId == null && j.PlateQuantity == 4);
+        jobs.Should().HaveCount(5).And.OnlyContain(j => j.PrinterId == null && j.PlateQuantity == 4);
         (await DetailAsync(client, run.Id)).Lines.Single().Requirements.Single().Quantity.Should().Be(20);
         var list = await client.GetFromJsonAsync<ListProductionRunsResponse>("/api/v1/production-runs");
         list!.Items.Should().Contain(r => r.Id == run.Id && r.DisplayLabel == $"{part.Name} ×20");

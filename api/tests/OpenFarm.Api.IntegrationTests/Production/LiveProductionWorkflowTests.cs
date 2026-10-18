@@ -38,7 +38,7 @@ public class LiveProductionWorkflowTests(LiveProductionFactory factory) : Produc
         await PostAsync(client, $"/api/v1/production-runs/{run.Id}/cancel");
         await WaitForStatusAsync(client, firstId, "Completed");
         var jobs = await JobsAsync(run.Id);
-        jobs.Single(j => j.Id == firstId).FilamentConsumption.Should().OnlyContain(c => c.SpoolId != null, "dispatch binds each line to the loaded spool");
+        jobs.Single(j => j.Id == firstId).Filaments.Should().OnlyContain(c => c.SpoolId != null, "dispatch binds each line to the loaded spool");
         jobs.Count(j => j.Status == OpenFarm.Domain.Production.PrintJobStatus.Cancelled).Should().Be(2);
         (await DetailAsync(client, run.Id)).Status.Should().Be("Cancelled");
         (await PrinterStatusAsync(printer.Id)).Should().Be(OpenFarm.Domain.Printers.PrinterStatus.AwaitingClear);

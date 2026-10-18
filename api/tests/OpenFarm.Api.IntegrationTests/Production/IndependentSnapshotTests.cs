@@ -92,15 +92,15 @@ public class IndependentSnapshotTests(ProductionTestFactory factory) : Productio
         var changed = await PartAsync();
         var missing = await PartAsync(contents: "; unique missing revision\n");
         var ids = new List<Guid>();
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             foreach (var part in new[] { verified, changed, missing })
             {
-                var run = ProductionRun.Create(part.OrganizationId, "Legacy", null, null, null,
+                var run = ProductionRun.Create("Legacy", null, null, null,
                     [new RunLineSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
-                var requirement = PartRequirement.Create(part.OrganizationId, run.Lines.Single().Id, part.Id, 1);
-                var job = PrintJob.Create(part.OrganizationId, requirement.Id, 1024, 1, AssignmentMode.Unassigned,
+                var requirement = PartRequirement.Create(run.Lines.Single().Id, part.Id, 1);
+                var job = PrintJob.Create("Test part", requirement.Id, 1024, 1, AssignmentMode.Unassigned,
                     null, part.RevisionHash, part.RevisionNumber, [new JobFilamentRequirementSpec("PLA", null)]);
                 db.ProductionRuns.Add(run);
                 db.PartRequirements.Add(requirement);
@@ -113,7 +113,7 @@ public class IndependentSnapshotTests(ProductionTestFactory factory) : Productio
             await scope.ServiceProvider.GetRequiredService<IPartFileStorage>().DeleteAsync(missing.StoragePath, default);
 
         }
-        using (var scope = Factory.CreateTenantScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var reconciler = scope.ServiceProvider.GetRequiredService<ProductionSnapshotReconciler>();
             await reconciler.ReconcileAsync(default);
@@ -129,7 +129,7 @@ public class IndependentSnapshotTests(ProductionTestFactory factory) : Productio
         }
         (await client.DeleteAsync($"/api/v1/parts/{verified.Id}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await client.DeleteAsync($"/api/v1/parts/{changed.Id}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
-        using var cleanup = Factory.CreateTenantScope();
+        using var cleanup = Factory.Services.CreateScope();
         var cleanupDb = cleanup.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         foreach (var job in await cleanupDb.PrintJobs.Where(j => ids.Contains(j.Id)).ToListAsync()) job.MarkCancelled();
         await cleanupDb.SaveChangesAsync();

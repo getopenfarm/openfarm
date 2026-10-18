@@ -1,6 +1,5 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Application.FilamentTracking;
 
@@ -13,7 +12,7 @@ public sealed class CreateFilamentCommandHandler(
         var vendor = await vendorRepository.GetByIdAsync(command.VendorId, cancellationToken)
             ?? throw new VendorNotFoundException(command.VendorId);
 
-        var filament = Filament.Create(Organization.WellKnownId, vendor.Id, command.Material, command.MaterialType);
+        var filament = Filament.Create(vendor.Id, command.Material, command.MaterialType);
         foreach (var variant in command.Variants)
         {
             filament.AddVariant(variant.ColorName, variant.ColorHex);

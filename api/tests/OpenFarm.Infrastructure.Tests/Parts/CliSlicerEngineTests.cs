@@ -187,14 +187,13 @@ public class CliSlicerEngineTests
     // pass as SliceAsync's materialType argument.
     private static ResolveSlicingProfileSelection CreateProfileSelection()
     {
-        var organizationId = Guid.NewGuid();
-        var machine = MachineProfile.Create(organizationId, "Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
-        var process = ProcessProfile.CreateSystemProfile(organizationId, "Test Process", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: null);
+        var machine = MachineProfile.Create("Test Machine", ProfileSourceFormat.OrcaSlicer, null, "{}");
+        var process = ProcessProfile.CreateSystemProfile("Test Process", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", isSelectable: true, compatibleMachineNames: null);
         var filament = FilamentProfile.CreateSystemProfile(
-            organizationId, "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"]}""",
+            "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"]}""",
             "Bambulab", "GFSA00", isSelectable: true, compatibleMachineNames: null, materialType: "Generic PLA", includedTemplateNames: null);
 
-        var printer = Printer.Create(organizationId, "Test Printer", "Bambu", "X1C", "10.0.0.5", "SN-TEST");
+        var printer = Printer.Create("Test Printer", "Bambu", "X1C", "10.0.0.5", "SN-TEST");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);
         // 012 — this fixture's own printer-tied resolution must succeed to exercise the unrelated

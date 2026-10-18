@@ -21,7 +21,7 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
         var printer = await PrinterAsync();
         var run = await RunAsync(client, part.Id);
         var job = (await JobsAsync(run.Id)).Single();
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var parts = scope.ServiceProvider.GetRequiredService<IPartRepository>();
         var current = (await parts.GetByIdAsync(part.Id, default))!;
         var resolver = scope.ServiceProvider.GetRequiredService<IJobFileResolver>();
@@ -31,7 +31,7 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
         var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
         using var stream = new MemoryStream(bytes);
-        var path = await storage.SaveAsync(part.OrganizationId, hash, "changed.stl", stream, default);
+        var path = await storage.SaveAsync(hash, "changed.stl", stream, default);
         current.ReplaceFile(PartFileFormat.Stl, true, "changed.stl", path, bytes.Length, 0.4m, null, null,
             EstimateStatus.Available, 60, 20, 1, hash, [new FilamentRequirementSpec("PLA", null, null, null, null)], []);
         parts.TrackReplacementChildren(current);
@@ -79,14 +79,14 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
             var first = await WaitForAssignmentAsync(run.Id);
             await ReplayAsync(printer.Id, "RUNNING");
             string hash;
-            using (var scope = Factory.CreateTenantScope())
+            using (var scope = Factory.Services.CreateScope())
             {
                 var parts = scope.ServiceProvider.GetRequiredService<IPartRepository>();
                 var current = (await parts.GetByIdAsync(part.Id, default))!;
                 var bytes = Encoding.UTF8.GetBytes("; revision two\n");
                 hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
                 using var stream = new MemoryStream(bytes);
-                var path = await scope.ServiceProvider.GetRequiredService<IPartFileStorage>().SaveAsync(part.OrganizationId, hash, "part.gcode", stream, default);
+                var path = await scope.ServiceProvider.GetRequiredService<IPartFileStorage>().SaveAsync(hash, "part.gcode", stream, default);
                 current.ReplaceFile(PartFileFormat.GCode, false, "part.gcode", path, bytes.Length, 0.4m, null, null,
                     EstimateStatus.Available, 60, 20, 1, hash, [new FilamentRequirementSpec("PLA", null, null, null, null)], []);
                 parts.TrackReplacementChildren(current);
@@ -96,7 +96,7 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
             await ReplayAsync(printer.Id, "FINISH");
             worker.RequestDispatchAttempt(printer.Id);
             await Task.Delay(100);
-            (await JobsAsync(run.Id)).Count(j => j.DispatchedPrinterId != null).Should().Be(1, "AwaitingClear prevents dispatch");
+            (await JobsAsync(run.Id)).Count(j => j.PrinterId != null).Should().Be(1, "AwaitingClear prevents dispatch");
             await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready");
             worker.RequestDispatchAttempt(printer.Id);
             var second = await WaitForAssignmentAsync(run.Id, first.Id);

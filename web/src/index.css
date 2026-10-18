@@ -2,14 +2,13 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "@fontsource-variable/space-grotesk";
 @import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-sans: "Geist Variable", sans-serif;
-  --font-heading: "Space Grotesk Variable", var(--font-sans);
+  --font-heading: var(--font-sans);
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
   --color-status-printing: var(--status-printing);
   --color-status-attention: var(--status-attention);
@@ -69,44 +68,40 @@
 }
 
 :root {
-  /* brand — same hue in both modes (mockup "Cobalt" accent) */
+  /* neutral zinc surfaces ported from akaun; brand stays blue */
   --brand: #2563eb;
   --brand-cyan: #47bfff;
 
-  --background: #faf9fc;
-  --foreground: #1b1723;
+  --background: #ffffff;
+  --foreground: oklch(0.21 0.006 285.9);
   --card: #ffffff;
   --card-foreground: var(--foreground);
   --popover: #ffffff;
   --popover-foreground: var(--foreground);
   --primary: color-mix(in oklch, var(--brand) 88%, black 12%);
   --primary-foreground: #ffffff;
-  --secondary: color-mix(in oklch, var(--foreground) 5%, var(--background) 95%);
+  --secondary: oklch(0.967 0.001 286.4);
   --secondary-foreground: var(--foreground);
-  --muted: color-mix(in oklch, var(--foreground) 6%, var(--background) 94%);
-  --muted-foreground: color-mix(
-    in oklch,
-    var(--foreground) 58%,
-    var(--background) 42%
-  );
-  --accent: color-mix(in srgb, var(--brand) 12%, var(--background) 88%);
+  --muted: oklch(0.967 0.001 286.4);
+  --muted-foreground: oklch(0.552 0.014 285.9);
+  --accent: oklch(0.967 0.001 286.4);
   --accent-foreground: var(--foreground);
-  --destructive: color-mix(in oklch, var(--status-offline) 85%, black 15%);
-  --border: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --input: color-mix(in oklch, var(--foreground) 15%, transparent);
+  --destructive: oklch(0.585 0.205 27.3);
+  --border: oklch(0.92 0.004 286.3);
+  --input: oklch(0.92 0.004 286.3);
   --ring: var(--brand);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --chart-1: var(--primary);
+  --chart-2: oklch(0.62 0.16 58);
+  --chart-3: oklch(0.6 0.13 156);
+  --chart-4: oklch(0.55 0.12 250);
+  --chart-5: oklch(0.55 0.16 300);
   --radius: 0.625rem;
-  --sidebar: #ffffff;
+  --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: color-mix(in srgb, var(--brand) 12%, var(--background) 88%);
-  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--brand);
 
@@ -141,47 +136,32 @@
 }
 
 .dark {
-  --background: #121016;
-  --foreground: #f1eefa;
-  --card: #1c1922;
+  /* hex (not oklch) for the surfaces: theme-contrast.test.ts parses them */
+  --background: #121214; /* oklch(0.181 0.004 285.9) */
+  --foreground: oklch(0.985 0 0);
+  --card: #19191b; /* oklch(0.214 0.005 285.9) */
   --card-foreground: var(--foreground);
-  --popover: #1c1922;
+  --popover: #19191b;
   --popover-foreground: var(--foreground);
   --primary: var(--brand);
   --primary-foreground: #ffffff;
-  --secondary: color-mix(
-    in oklch,
-    var(--foreground) 12%,
-    var(--background) 88%
-  );
+  --secondary: oklch(0.274 0.006 286);
   --secondary-foreground: var(--foreground);
-  --muted: color-mix(in oklch, var(--foreground) 10%, var(--background) 90%);
-  --muted-foreground: color-mix(
-    in oklch,
-    var(--foreground) 55%,
-    var(--background) 45%
-  );
-  --accent: color-mix(in srgb, var(--brand) 22%, var(--background) 78%);
+  --muted: oklch(0.274 0.006 286);
+  --muted-foreground: oklch(0.712 0.013 286.1);
+  --accent: oklch(0.274 0.006 286);
   --accent-foreground: var(--foreground);
-  --destructive: #ff5d5d;
-  --border: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --input: color-mix(in oklch, var(--foreground) 16%, transparent);
-  --ring: var(--brand);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: #1c1922;
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: color-mix(in srgb, var(--brand) 22%, var(--background) 78%);
-  --sidebar-accent-foreground: var(--foreground);
-  --sidebar-border: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --sidebar-ring: var(--brand);
+  --destructive: oklch(0.7 0.17 22);
+  --border: oklch(1 0 0 / 0.09);
+  --input: oklch(1 0 0 / 0.13);
+  --chart-2: oklch(0.79 0.14 70);
+  --chart-3: oklch(0.74 0.15 158);
+  --chart-4: oklch(0.7 0.12 250);
+  --chart-5: oklch(0.7 0.15 300);
+  --sidebar: oklch(0.205 0.005 285.9);
+  --sidebar-border: oklch(1 0 0 / 0.08);
 
-  /* status — dark mode, full-saturation brand hues read cleanly against the Ink Violet background */
+  /* status — dark mode, full-saturation hues read cleanly against the dark surface */
   --status-printing: var(--brand-cyan);
   --status-attention: #f5a623;
   --status-complete: #3dd68c;

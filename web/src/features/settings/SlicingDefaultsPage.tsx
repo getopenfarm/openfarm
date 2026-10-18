@@ -3,7 +3,6 @@ import { PackageIcon } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { Page } from '@/components/page/Page';
@@ -135,11 +134,7 @@ export function SlicingDefaultsPage() {
   return (
     <Page className="flex-1">
       <PageHeader
-        above={
-          <BackLink to="/settings" className="mb-1">
-            Back to settings
-          </BackLink>
-        }
+        size="section"
         title="Slicing defaults"
         description="Defaults for estimates. Project 3MF uses its embedded settings."
       />

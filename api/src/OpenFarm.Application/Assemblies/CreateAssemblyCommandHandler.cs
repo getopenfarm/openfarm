@@ -1,15 +1,14 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Assemblies;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Assemblies;
 
 /// <summary>
 /// Resolves each line's target existence, then — only when the new assembly has at least one
-/// Assembly-kind line — acquires the per-organization structural lock (research.md R3) and runs
-/// <see cref="AssemblyGraph.ValidateSave"/> for every such line against the organization's edge list
+/// Assembly-kind line — acquires the structural lock (research.md R3) and runs
+/// <see cref="AssemblyGraph.ValidateSave"/> for every such line against the edge list
 /// before persisting, all inside one transaction.
 /// </summary>
 public sealed class CreateAssemblyCommandHandler(
@@ -30,18 +29,17 @@ public sealed class CreateAssemblyCommandHandler(
 
         if (!hasAssemblyLine)
         {
-            var assembly = Assembly.Create(Organization.WellKnownId, command.Name, command.Description, lineSpecs);
+            var assembly = Assembly.Create(command.Name, command.Description, lineSpecs);
             await assemblyRepository.AddAsync(assembly, cancellationToken);
             return assembly;
         }
 
         return await assemblyRepository.RunWithStructuralLockAsync(
-            Organization.WellKnownId,
             async ct =>
             {
-                var assembly = Assembly.Create(Organization.WellKnownId, command.Name, command.Description, lineSpecs);
+                var assembly = Assembly.Create(command.Name, command.Description, lineSpecs);
 
-                var edges = await graphQueryService.GetOrganizationEdgesAsync(Organization.WellKnownId, ct);
+                var edges = await graphQueryService.GetEdgesAsync(ct);
                 var graph = AssemblyGraph.FromEdges(edges);
                 foreach (var line in assembly.Lines.Where(l => l.TargetKind == BomLineTargetKind.Assembly))
                 {

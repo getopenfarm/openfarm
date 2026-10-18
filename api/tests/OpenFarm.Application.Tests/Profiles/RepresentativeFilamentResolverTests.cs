@@ -18,7 +18,7 @@ public sealed class RepresentativeFilamentResolverTests
         public FakeFilamentRepository Filaments { get; } = new();
         public FakeSpoolRepository Spools { get; } = new();
         public FakeFeedUnitRepository Units { get; } = new();
-        public Printer Printer { get; } = Printer.Create(Guid.NewGuid(), "P1", "Bambu", "P1S", "127.0.0.1", "SN");
+        public Printer Printer { get; } = Printer.Create("P1", "Bambu", "P1S", "127.0.0.1", "SN");
         public Filament Filament { get; }
         public FilamentVariant Black { get; }
         public FilamentProfile Default { get; }
@@ -27,16 +27,16 @@ public sealed class RepresentativeFilamentResolverTests
 
         public Fixture()
         {
-            var machine = MachineProfile.Create(Printer.OrganizationId, "P1S 0.4", ProfileSourceFormat.OrcaSlicer, null,
+            var machine = MachineProfile.Create("P1S 0.4", ProfileSourceFormat.OrcaSlicer, null,
                 """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""");
             Machines.AddAsync(machine, default).GetAwaiter().GetResult();
             Printer.LinkMachineProfile(machine.Id);
             Printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
             var printers = new FakePrinterRepository(Printer);
-            Default = FilamentProfile.Create(Printer.OrganizationId, "My PLA", ProfileSourceFormat.OrcaSlicer, null,
+            Default = FilamentProfile.Create("My PLA", ProfileSourceFormat.OrcaSlicer, null,
                 """{"filament_type":["PLA"],"compatible_printers":["P1S 0.4"]}""");
             Profiles.AddAsync(Default, default).GetAwaiter().GetResult();
-            Filament = Filament.Create(Printer.OrganizationId, Guid.NewGuid(), "PLA Basic", "PLA");
+            Filament = Filament.Create(Guid.NewGuid(), "PLA Basic", "PLA");
             Black = Filament.AddVariant("Black", "#000000");
             Filaments.AddAsync(Filament, default).GetAwaiter().GetResult();
             var compatibility = new ProfileCompatibility(Machines, Profiles);
@@ -46,10 +46,10 @@ public sealed class RepresentativeFilamentResolverTests
 
         public async Task LoadAsync()
         {
-            var unit = FeedUnit.CreateConnectorDerived(Printer.OrganizationId, Printer.Id, FeedUnitKindCatalog.MultiMaterialUnit, 0);
+            var unit = FeedUnit.CreateConnectorDerived(Printer.Id, FeedUnitKindCatalog.MultiMaterialUnit, 0);
             var slot = unit.AddFeedSlot(0);
             await Units.AddAsync(unit, default);
-            var spool = Spool.Create(Printer.OrganizationId, Black.Id, null, 1000, 1000);
+            var spool = Spool.Create(Black.Id, null, 1000, 1000);
             spool.LoadOntoFeedSlot(slot.Id);
             await Spools.AddAsync(spool, default);
         }
@@ -72,12 +72,12 @@ public sealed class RepresentativeFilamentResolverTests
     public async Task StandbyReloaderSpoolCannotSatisfyReadiness()
     {
         var f = new Fixture(); await f.AssignAsync();
-        var unit = FeedUnit.CreateAutomaticFilamentReloader(f.Printer.OrganizationId, f.Printer.Id, 0, "Reloader", null);
+        var unit = FeedUnit.CreateAutomaticFilamentReloader(f.Printer.Id, 0, "Reloader", null);
         var standby = unit.AddFeedSlot(0);
         var feeding = unit.AddFeedSlot(1);
         unit.SelectFeedingSlot(feeding.Id);
         await f.Units.AddAsync(unit, default);
-        var spool = Spool.Create(f.Printer.OrganizationId, f.Black.Id, null, 1000, 1000);
+        var spool = Spool.Create(f.Black.Id, null, 1000, 1000);
         spool.LoadOntoFeedSlot(standby.Id);
         await f.Spools.AddAsync(spool, default);
         await ((Func<Task>)(() => f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, f.Black.Id, null, default)))
@@ -125,7 +125,7 @@ public sealed class RepresentativeFilamentResolverTests
     public async Task ColourOverrideWinsAndClearingRestoresDefault()
     {
         var f = new Fixture(); await f.LoadAsync();
-        var tuned = FilamentProfile.Create(f.Printer.OrganizationId, "Black PLA", ProfileSourceFormat.OrcaSlicer, null, """{"filament_type":["PLA"]}""");
+        var tuned = FilamentProfile.Create("Black PLA", ProfileSourceFormat.OrcaSlicer, null, """{"filament_type":["PLA"]}""");
         await f.Profiles.AddAsync(tuned, default);
         await f.Assignments.ReplaceAsync(f.Filament, [new("Bambu", "P1S", 0.4m, f.Default.Id), new("Bambu", "P1S", 0.4m, tuned.Id, "#000000")], default);
         (await f.Resolver.ResolveAsync(f.Printer.Id, "PLA", default)).Profile.Id.Should().Be(tuned.Id);
@@ -164,13 +164,13 @@ public sealed class RepresentativeFilamentResolverTests
     {
         var f = new Fixture(); await f.LoadAsync(); await f.AssignAsync();
         var assignedSpool = (await f.Spools.ListAsync(null, null, default))[0];
-        var unused = Filament.Create(f.Printer.OrganizationId, Guid.NewGuid(), "Other PLA", "PLA");
+        var unused = Filament.Create(Guid.NewGuid(), "Other PLA", "PLA");
         var variant = unused.AddVariant("Black", "#000000");
         await f.Filaments.AddAsync(unused, default);
         // The second spool goes in another slot of the same AMS: with an AMS attached the external spool is not a usable feed.
         var unit = (await f.Units.GetByPrinterIdAsync(f.Printer.Id, default)).Single(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit);
         var slot = unit.AddFeedSlot(unit.FeedSlots.Count);
-        var unassignedSpool = Spool.Create(f.Printer.OrganizationId, variant.Id, null, 1000, 1000);
+        var unassignedSpool = Spool.Create(variant.Id, null, 1000, 1000);
         var expectedSpoolId = assignedSpool.Id;
         var missingVariantId = variant.Id;
         if (unassignedSpool.Id.CompareTo(assignedSpool.Id) > 0)

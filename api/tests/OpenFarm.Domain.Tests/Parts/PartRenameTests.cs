@@ -27,6 +27,6 @@ public class PartRenameTests
     }
 
     private static Part NewPart() =>
-        Part.Create(Guid.NewGuid(), "Part", PartFileFormat.Stl, true, "part.stl", "/tmp/part.stl", 100, 0.4m, null, null,
+        Part.Create("Part", PartFileFormat.Stl, true, "part.stl", "/tmp/part.stl", 100, 0.4m, null, null,
             EstimateStatus.Unavailable, null, null, 1, 1, new string('a', 64), [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
 }

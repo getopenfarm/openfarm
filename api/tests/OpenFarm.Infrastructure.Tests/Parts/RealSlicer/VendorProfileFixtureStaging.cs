@@ -4,7 +4,6 @@ using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Profiles;
@@ -47,7 +46,7 @@ internal static class VendorProfileFixtureStaging
         var filament = (await filamentRepo.ListAsync(cancellationToken)).Single(p => p.Name == filamentProfileName);
 
         var printer = Printer.Create(
-            Organization.WellKnownId, "Real Slicer Test Printer", "Bambu", "X1C", "10.0.0.99", $"REALSLICER-{Guid.NewGuid():N}");
+            "Real Slicer Test Printer", "Bambu", "X1C", "10.0.0.99", $"REALSLICER-{Guid.NewGuid():N}");
         printer.LinkMachineProfile(machine.Id);
         printer.LinkProcessProfile(process.Id);
         // 012 — TexturedPei is X1C's real default_bed_type (research.md R2), so every real ingested

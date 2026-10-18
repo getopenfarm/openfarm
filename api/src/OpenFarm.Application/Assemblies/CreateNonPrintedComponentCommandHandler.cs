@@ -1,6 +1,5 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Domain.Assemblies;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Application.Assemblies;
 
@@ -9,7 +8,7 @@ public sealed class CreateNonPrintedComponentCommandHandler(INonPrintedComponent
 {
     public async Task<NonPrintedComponent> HandleAsync(CreateNonPrintedComponentCommand command, CancellationToken cancellationToken)
     {
-        var component = NonPrintedComponent.Create(Organization.WellKnownId, command.Name, command.UnitCost);
+        var component = NonPrintedComponent.Create(command.Name, command.UnitCost);
         await repository.AddAsync(component, cancellationToken);
 
         return component;

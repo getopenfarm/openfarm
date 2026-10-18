@@ -29,6 +29,7 @@ import {
 } from '@/lib/api/generated/print-jobs/print-jobs';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { cn } from '@/lib/utils';
+import { ExternalPrintCells } from './components/ExternalPrintCells';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
 import {
   QueueJobActions,
@@ -50,22 +51,41 @@ const STATUSES = [
   'Failed',
   'Cancelled',
 ] as const;
-const GROUPS = ['queue', 'backfill'] as const;
+const GROUPS = ['queue', 'backfill', 'external'] as const;
 type Group = (typeof GROUPS)[number];
-const LABELS = { queue: 'Finite jobs', backfill: 'Backfill jobs' };
+const LABELS = {
+  queue: 'Finite jobs',
+  backfill: 'Backfill jobs',
+  external: 'Printer-started prints',
+};
+const DESCRIPTIONS = {
+  queue: 'Fixed production quantity',
+  backfill: 'Unlimited production demand',
+  external: 'Started on the printer, not from OpenFarm',
+};
+// Prints started on the printer are never queued or cancelled.
+const EXTERNAL_HIDDEN_STATUSES = ['Queued', 'Cancelled'];
 /** One virtualized table, with independently paged finite and backfill sections. */
 export function QueuePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const finiteScrollRef = useRef<HTMLDivElement>(null);
   const backfillScrollRef = useRef<HTMLDivElement>(null);
+  const externalScrollRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<string>('Active');
   const [search, setSearch] = useState('');
   const [backfillCollapsedOverride, setBackfillCollapsedOverride] = useState<
     boolean | null
   >(null);
-  const [pageSizes, setPageSizes] = useState({ queue: 50, backfill: 50 });
-  const [pages, setPages] = useState({ queue: 1, backfill: 1 });
+  const [externalCollapsedOverride, setExternalCollapsedOverride] = useState<
+    boolean | null
+  >(null);
+  const [pageSizes, setPageSizes] = useState({
+    queue: 50,
+    backfill: 50,
+    external: 50,
+  });
+  const [pages, setPages] = useState({ queue: 1, backfill: 1, external: 1 });
   const [dragged, setDragged] = useState<{
     jobId: string;
     group: Group;
@@ -96,16 +116,45 @@ export function QueuePage() {
     status,
     search,
   });
-  const queries = { queue: finiteQuery, backfill: backfillQuery };
+  const externalQuery = useOpenFarmApiEndpointsPrintJobsListQueueJobsEndpoint({
+    view: 'external',
+    page: pages.external,
+    pageSize: pageSizes.external,
+    status,
+    search,
+  });
+  const scrollRefs = {
+    queue: finiteScrollRef,
+    backfill: backfillScrollRef,
+    external: externalScrollRef,
+  };
+  const queries = {
+    queue: finiteQuery,
+    backfill: backfillQuery,
+    external: externalQuery,
+  };
   const finiteData = finiteQuery.data?.data as
     | ListQueueJobsResponse
     | undefined;
   const backfillData = backfillQuery.data?.data as
     | ListQueueJobsResponse
     | undefined;
-  const dataByGroup = { queue: finiteData, backfill: backfillData };
+  const externalData = externalQuery.data?.data as
+    | ListQueueJobsResponse
+    | undefined;
+  const dataByGroup = {
+    queue: finiteData,
+    backfill: backfillData,
+    external: externalData,
+  };
   const backfillCollapsed =
     backfillCollapsedOverride ?? (backfillData?.totalCount ?? 0) === 0;
+  const externalCollapsed =
+    externalCollapsedOverride ?? (externalData?.totalCount ?? 0) === 0;
+  const showExternal = !EXTERNAL_HIDDEN_STATUSES.includes(status);
+  const sectionGroups = GROUPS.filter(
+    (group) => group !== 'external' || showExternal,
+  );
   const printers =
     useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data?.printers ??
     [];
@@ -122,47 +171,47 @@ export function QueuePage() {
     },
   });
 
-  // A removal or live transition can invalidate the last page in either section.
+  // A removal or live transition can invalidate the last page in any section.
   useEffect(() => {
     setPages((previous) => {
-      const queue = finiteData
-        ? Math.min(
-            previous.queue,
-            Math.max(
-              1,
-              Math.ceil((finiteData?.totalCount ?? 0) / pageSizes.queue),
-            ),
-          )
-        : previous.queue;
-      const backfill = backfillData
-        ? Math.min(
-            previous.backfill,
-            Math.max(
-              1,
-              Math.ceil((backfillData?.totalCount ?? 0) / pageSizes.backfill),
-            ),
-          )
-        : previous.backfill;
-      return queue === previous.queue && backfill === previous.backfill
+      const lastPage = (
+        data: ListQueueJobsResponse | undefined,
+        group: Group,
+      ) =>
+        data
+          ? Math.min(
+              previous[group],
+              Math.max(1, Math.ceil((data.totalCount ?? 0) / pageSizes[group])),
+            )
+          : previous[group];
+      const next = {
+        queue: lastPage(finiteData, 'queue'),
+        backfill: lastPage(backfillData, 'backfill'),
+        external: lastPage(externalData, 'external'),
+      };
+      return GROUPS.every((group) => next[group] === previous[group])
         ? previous
-        : { queue, backfill };
+        : next;
     });
-  }, [finiteData, backfillData, pageSizes]);
+  }, [finiteData, backfillData, externalData, pageSizes]);
 
   function resetFilters(nextStatus: string, nextSearch: string) {
     setStatus(nextStatus);
     setSearch(nextSearch);
-    setPages({ queue: 1, backfill: 1 });
+    setPages({ queue: 1, backfill: 1, external: 1 });
     setDragged(null);
     finiteScrollRef.current?.scrollTo?.(0, 0);
     backfillScrollRef.current?.scrollTo?.(0, 0);
+    externalScrollRef.current?.scrollTo?.(0, 0);
   }
   function count(value: string) {
     if (
       finiteQuery.isError ||
       backfillQuery.isError ||
+      externalQuery.isError ||
       !finiteQuery.data ||
-      !backfillData
+      !backfillData ||
+      !externalData
     )
       return '—';
     const statuses =
@@ -190,7 +239,7 @@ export function QueuePage() {
     <Page className="min-h-0 flex-1">
       <PageHeader
         title="Print queue"
-        description="Finite and backfill jobs · status updates live."
+        description="Finite, backfill and printer-started jobs · status updates live."
         action={
           <Button
             variant="outline"
@@ -264,32 +313,41 @@ export function QueuePage() {
                   </div>
                 </div>
                 <div
-                  className={cn(
-                    'grid min-h-0 flex-1',
-                    backfillCollapsed
-                      ? 'grid-rows-[minmax(0,1fr)_auto]'
-                      : 'grid-rows-[minmax(0,7fr)_minmax(0,3fr)]',
-                  )}
+                  className="grid min-h-0 flex-1"
+                  style={{
+                    gridTemplateRows: [
+                      'minmax(0,5fr)',
+                      backfillCollapsed ? 'auto' : 'minmax(0,3fr)',
+                      ...(showExternal
+                        ? [externalCollapsed ? 'auto' : 'minmax(0,3fr)']
+                        : []),
+                    ].join(' '),
+                  }}
                 >
-                  {GROUPS.map((group) => {
+                  {sectionGroups.map((group) => {
                     const query = queries[group];
                     const data = dataByGroup[group];
                     return (
                       <QueueTableSection
                         key={group}
                         label={LABELS[group]}
-                        collapsed={group === 'backfill' && backfillCollapsed}
+                        collapsed={
+                          group === 'backfill'
+                            ? backfillCollapsed
+                            : group === 'external' && externalCollapsed
+                        }
                         onToggle={
                           group === 'backfill'
                             ? () =>
                                 setBackfillCollapsedOverride(!backfillCollapsed)
-                            : undefined
+                            : group === 'external'
+                              ? () =>
+                                  setExternalCollapsedOverride(
+                                    !externalCollapsed,
+                                  )
+                              : undefined
                         }
-                        description={
-                          group === 'queue'
-                            ? 'Fixed production quantity'
-                            : 'Unlimited production demand'
-                        }
+                        description={DESCRIPTIONS[group]}
                         jobs={data?.items ?? []}
                         totalCount={data?.totalCount ?? 0}
                         page={pages[group]}
@@ -300,28 +358,18 @@ export function QueuePage() {
                             [group]: size,
                           }));
                           setPages((previous) => ({ ...previous, [group]: 1 }));
-                          (group === 'queue'
-                            ? finiteScrollRef
-                            : backfillScrollRef
-                          ).current?.scrollTo?.(0, 0);
+                          scrollRefs[group].current?.scrollTo?.(0, 0);
                         }}
                         isFetching={query.isFetching}
                         isError={query.isError}
                         isLoading={query.isLoading}
-                        scrollRef={
-                          group === 'queue'
-                            ? finiteScrollRef
-                            : backfillScrollRef
-                        }
+                        scrollRef={scrollRefs[group]}
                         onPageChange={(page) => {
                           setPages((previous) => ({
                             ...previous,
                             [group]: page,
                           }));
-                          (group === 'queue'
-                            ? finiteScrollRef
-                            : backfillScrollRef
-                          ).current?.scrollTo?.(0, 0);
+                          scrollRefs[group].current?.scrollTo?.(0, 0);
                         }}
                         feedback={
                           query.isLoading ? (
@@ -342,7 +390,11 @@ export function QueuePage() {
                                   ? 'No jobs match search'
                                   : `No ${status.toLowerCase()} ${LABELS[group].toLowerCase()}`
                               }
-                              description="Try another status or queue a production run."
+                              description={
+                                group === 'external'
+                                  ? 'Prints started on the printer appear here.'
+                                  : 'Try another status or queue a production run.'
+                              }
                             />
                           )
                         }
@@ -384,6 +436,13 @@ export function QueuePage() {
                           const printer = printers.find(
                             (p) => p.id === printerId,
                           );
+                          if (job.source === 'External')
+                            return (
+                              <ExternalPrintCells
+                                job={job}
+                                printerName={printer?.name}
+                              />
+                            );
                           return (
                             <>
                               <QueueTableCell className="flex items-center gap-2 whitespace-normal">

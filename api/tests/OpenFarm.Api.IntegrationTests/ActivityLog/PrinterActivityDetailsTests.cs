@@ -17,32 +17,24 @@ public class PrinterActivityDetailsTests(CustomWebApplicationFactory factory) : 
     public async Task FiltersBeforePagination_AndRoundTripsStateAndAlerts()
     {
         var client = await AuthenticatedClientAsync(factory.CreateClient());
-        await factory.EnsureTenantInfoResolvedAsync();
         Guid printerId;
         var warning = new PrinterAlert("Hms", "0300_0100_0002_0001", "Warning", "Needs attention");
-        using (var scope = factory.CreateTenantScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            var organizationId = db.Organizations.Select(o => o.Id).First();
-            var printer = Printer.Create(organizationId, "Reported status", "Bambu", "P1S", "10.0.0.1", $"ACT-{Guid.NewGuid():N}");
+            var printer = Printer.Create("Reported status", "Bambu", "P1S", "10.0.0.1", $"ACT-{Guid.NewGuid():N}");
             printerId = printer.Id;
             printer.ObserveStatus("PAUSE");
             printer.ObserveReportedState("PAUSE", DateTimeOffset.UtcNow);
             printer.ObserveAlerts([warning], null);
             db.Printers.Add(printer);
-            db.ActivityLogEntries.Add(ActivityLogEntry.Create(organizationId, "Printer", printer.Id.ToString(), "PrinterStatusObserved", null, ActorType.System,
+            db.ActivityLogEntries.Add(ActivityLogEntry.Create("Printer", printer.Id.ToString(), "PrinterStatusObserved", null, ActorType.System,
                 new ActivityLogDetails("RUNNING", "PAUSE", DateTimeOffset.UtcNow)));
-            db.ActivityLogEntries.Add(ActivityLogEntry.Create(organizationId, "Printer", printer.Id.ToString(), "PrinterAlertsChanged", null, ActorType.System,
+            db.ActivityLogEntries.Add(ActivityLogEntry.Create("Printer", printer.Id.ToString(), "PrinterAlertsChanged", null, ActorType.System,
                 new ActivityLogDetails(PreviousAlerts: [], ActiveAlerts: [warning])));
             for (var i = 0; i < 25; i++)
-                db.ActivityLogEntries.Add(ActivityLogEntry.Create(organizationId, "Printer", Guid.NewGuid().ToString(), "PrinterStatusObserved", null, ActorType.System));
+                db.ActivityLogEntries.Add(ActivityLogEntry.Create("Printer", Guid.NewGuid().ToString(), "PrinterStatusObserved", null, ActorType.System));
             await db.SaveChangesAsync();
-            // Even matching entity filters must never surface another tenant's history.
-            var foreignTenant = Guid.NewGuid().ToString();
-            await db.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO "ActivityLogEntries" ("Id", "OrganizationId", "TenantId", "EntityType", "EntityId", "EventType", "ActorType", "TimestampUtc")
-                VALUES ({Guid.NewGuid()}, {Guid.NewGuid()}, {foreignTenant}, 'Printer', {printerId.ToString()}, 'ForeignTenantEvent', 'System', {DateTimeOffset.UtcNow})
-                """);
         }
         var page = await client.GetFromJsonAsync<ActivityLogPageResponse>($"/api/v1/activity-log?entityType=Printer&entityId={printerId}&page=1&pageSize=1");
         page!.TotalCount.Should().Be(2);

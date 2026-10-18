@@ -39,7 +39,7 @@ public sealed class RemoveFeedUnitCommandHandler(
             await feedUnitRepository.SaveChangesAsync(cancellationToken);
             return unit;
         }, cancellationToken, printerId);
-        await eventPublisher.FeedUnitsChangedAsync(unit.OrganizationId, unit.PrinterId, cancellationToken);
+        await eventPublisher.FeedUnitsChangedAsync(unit.PrinterId, cancellationToken);
 
         return unit;
     }

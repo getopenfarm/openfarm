@@ -3,16 +3,16 @@ using System.Text;
 using System.Text.Json;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
-using OpenFarm.Application.Organizations;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Application.Settings;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
 public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver resolver, IPrinterRepository printers,
-    ResolveSlicingProfileSelection profileSelection, ProfileCompatibility compatibility, IOrganizationRepository organizations,
+    ResolveSlicingProfileSelection profileSelection, ProfileCompatibility compatibility, IFarmSettingsRepository farmSettings,
     ResolveSlicerSelection slicerSelection, IPartFileStorage storage, IPartFileClassifier classifier, IProfileEngineValidator engineValidator,
     FeedPlacementResolver placements)
 {
@@ -51,7 +51,7 @@ public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver re
     private async Task<bool> RequiresSlicingAsync(Part part, string? revisionHash, CancellationToken ct)
     {
         if (revisionHash is null || revisionHash == part.RevisionHash) return part.RequiresSlicing;
-        var path = await storage.GetRevisionStoragePathAsync(part.OrganizationId, revisionHash, part.OriginalFileName, ct);
+        var path = await storage.GetRevisionStoragePathAsync(revisionHash, part.OriginalFileName, ct);
         await using var file = await storage.OpenReadAsync(path, ct);
         return classifier.Classify(file, Path.GetFileName(path)).RequiresSlicing;
     }
@@ -60,8 +60,8 @@ public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver re
         ProductionFilamentSelection selection, CancellationToken ct)
     {
         var printer = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
-        var organization = await organizations.GetAsync(ct);
-        var slicer = slicerSelection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, organization.DefaultSlicer);
+        var settings = await farmSettings.GetAsync(ct);
+        var slicer = slicerSelection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, settings.DefaultSlicer);
         var profiles = await profileSelection.ResolveProfilesAsync(
             printer.MachineProfileId ?? throw new SlicingProfileUnconfiguredException("Select a machine profile."),
             printer.ProcessProfileId ?? throw new SlicingProfileUnconfiguredException("Select a process profile."), selection.Profile.Id,

@@ -5,11 +5,6 @@
     "title": "OpenFarm.Api",
     "version": "1.0.0"
   },
-  "servers": [
-    {
-      "url": "http://127.0.0.1:8899"
-    }
-  ],
   "paths": {
     "/api/v1/vendors": {
       "post": {
@@ -1535,6 +1530,80 @@
           }
         },
         "deprecated": true,
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/prints/{id}/filament-lines/{lineId}/spool": {
+      "post": {
+        "tags": [
+          "Prints"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintsAssignPrintFilamentSpoolEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "lineId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "AssignPrintFilamentSpoolRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignPrintFilamentSpoolRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignPrintFilamentSpoolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
         "security": [
           {
             "JWTBearerAuth": []
@@ -3205,6 +3274,79 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PartProcessingJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/{id}/dismiss": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "OpenFarmApiEndpointsNotificationsDismissNotificationEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DismissNotificationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "OpenFarmApiEndpointsNotificationsListNotificationsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListNotificationsResponse"
                 }
               }
             }
@@ -5892,6 +6034,43 @@
           }
         }
       },
+      "AssignPrintFilamentSpoolResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "lineId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "spoolId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "gramsDeducted": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "AssignPrintFilamentSpoolRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "spoolId"
+        ],
+        "properties": {
+          "spoolId": {
+            "type": "string",
+            "format": "guid",
+            "minLength": 1,
+            "nullable": false
+          }
+        }
+      },
       "PrintJobResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -5902,18 +6081,22 @@
           },
           "partRequirementId": {
             "type": "string",
-            "format": "guid"
+            "format": "guid",
+            "nullable": true
           },
           "queuePosition": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "nullable": true
           },
           "plateQuantity": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           },
           "assignmentMode": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "pinnedPrinterId": {
             "type": "string",
@@ -5929,11 +6112,13 @@
             "type": "string"
           },
           "fileRevisionHash": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "fileRevisionNumber": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           },
           "dispatchedAtUtc": {
             "type": "string",
@@ -5981,6 +6166,12 @@
           "snapshotRecoveryReason": {
             "type": "string",
             "nullable": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -6019,6 +6210,15 @@
             "type": "number",
             "format": "decimal",
             "nullable": true
+          },
+          "estimatedGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "toolIndex": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -6197,7 +6397,8 @@
           },
           "queuePosition": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "nullable": true
           },
           "status": {
             "type": "string"
@@ -6234,7 +6435,8 @@
           },
           "partId": {
             "type": "string",
-            "format": "guid"
+            "format": "guid",
+            "nullable": true
           },
           "partName": {
             "type": "string"
@@ -6245,14 +6447,29 @@
           },
           "runLineId": {
             "type": "string",
-            "format": "guid"
+            "format": "guid",
+            "nullable": true
           },
           "productionRunId": {
             "type": "string",
-            "format": "guid"
+            "format": "guid",
+            "nullable": true
           },
           "runDisplayLabel": {
             "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         }
       },
@@ -7190,6 +7407,11 @@
           },
           "narrowFilamentProfileUnresolved": {
             "type": "boolean"
+          },
+          "estimatedGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
           }
         }
       },
@@ -7342,6 +7564,31 @@
             "items": {
               "type": "string"
             }
+          },
+          "filamentByColor": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartColorGramsResponse"
+            }
+          }
+        }
+      },
+      "PartColorGramsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "grams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
           }
         }
       },
@@ -7547,6 +7794,114 @@
           "detectedSubBrand": {
             "type": "string",
             "nullable": true
+          },
+          "estimatedGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "DismissNotificationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "DismissNotificationRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ListNotificationsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationItemResponse"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "NotificationItemResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "printId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "printerId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "endedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationLineResponse"
+            }
+          }
+        }
+      },
+      "NotificationLineResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "toolIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "materialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimatedGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "spoolId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -8152,9 +8507,8 @@
           "username": {
             "type": "string"
           },
-          "organizationId": {
-            "type": "string",
-            "format": "guid"
+          "email": {
+            "type": "string"
           }
         }
       },

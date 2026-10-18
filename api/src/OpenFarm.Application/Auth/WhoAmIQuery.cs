@@ -4,7 +4,7 @@ namespace OpenFarm.Application.Auth;
 
 public sealed record WhoAmIQuery(Guid UserId);
 
-public sealed record WhoAmIResult(Guid UserId, string Username, Guid OrganizationId);
+public sealed record WhoAmIResult(Guid UserId, string Username, string Email);
 
 public sealed class WhoAmIQueryHandler(IAuthenticationService authenticationService)
     : IQueryHandler<WhoAmIQuery, WhoAmIResult?>

@@ -23,17 +23,17 @@ public interface IAssemblyRepository
     /// Stages a <see cref="BomLine"/> just added to an already-tracked <see cref="Assembly"/>
     /// (<see cref="Assembly.ReplaceLines"/>) directly on its own <c>DbSet</c>, rather than
     /// relying on change-tracker fixup discovery through the <see cref="Assembly.Lines"/> navigation —
-    /// the multi-tenant shadow column is only populated reliably for entities added this way.
+    /// a line with a client-assigned key would be discovered as Modified, not Added.
     /// </summary>
     /// <remarks>Does not save — the caller's own SaveChanges commits it.</remarks>
     void StageLine(BomLine line);
 
     /// <summary>
-    /// research.md R3 — opens a DB transaction, takes the per-organization Postgres advisory lock,
+    /// research.md R3 — opens a DB transaction, takes the Postgres advisory lock,
     /// runs <paramref name="operation"/>, then commits. Used only by structural writes that add or
     /// change an Assembly-kind BOM line, so <see cref="AssemblyGraph"/> validation and the write it
-    /// guards happen atomically against concurrent structural saves elsewhere in the organization.
+    /// guards happen atomically against concurrent structural saves elsewhere.
     /// </summary>
     Task<TResult> RunWithStructuralLockAsync<TResult>(
-        Guid organizationId, Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken);
+        Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken);
 }

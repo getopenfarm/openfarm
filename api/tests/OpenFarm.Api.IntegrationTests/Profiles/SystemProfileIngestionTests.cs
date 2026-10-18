@@ -15,7 +15,7 @@ namespace OpenFarm.Api.IntegrationTests.Profiles;
 //
 // Each test stages its own bundle leaf with a uniquely-renamed vendor "name" (the fixture's own
 // preset content, machine model names, and setting_ids are left untouched — only the vendor index's
-// top-level identity is rewritten) so tests never collide on the shared (single-organization)
+// top-level identity is rewritten) so tests never collide on the shared
 // database the class fixture's Postgres container backs, regardless of xUnit's execution order.
 public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
@@ -28,8 +28,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var filamentVendorSuffix = Guid.NewGuid().ToString("N");
         var leaf = StageLeaf(filamentVendorSuffix, ("OrcaSlicer", vendorName), ("UnsupportedVendor", null));
 
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
@@ -69,8 +68,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var filamentVendorSuffix = Guid.NewGuid().ToString("N");
         var leaf = StageLeaf(filamentVendorSuffix, ("OrcaSlicer", vendorName));
 
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var filamentRepo = scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>();
         var vendorRepo = scope.ServiceProvider.GetRequiredService<IVendorRepository>();
@@ -99,8 +97,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var suffix = Guid.NewGuid().ToString("N");
         var orcaLeaf = StageLeaf(suffix, ("OrcaSlicer", vendor));
         var bambuLeaf = StageLeaf(suffix, ("BambuStudio", vendor));
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var machines = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processes = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
@@ -127,7 +124,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
             (await filaments.GetByIdAsync(filament.BaseProfileId!.Value, default))!.SourceFormat.Should().Be(format);
         }
         // A fresh scope verifies re-ingestion did not persist stale flags on the other catalog.
-        using var fresh = factory.CreateTenantScope();
+        using var fresh = factory.Services.CreateScope();
         var persisted = await fresh.ServiceProvider.GetRequiredService<IMachineProfileRepository>().ListAsync(default);
         persisted.Where(p => p.VendorName == vendor).Should().OnlyContain(p => p.IsCurrentlyOffered);
     }
@@ -138,8 +135,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", vendorName));
 
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
 
         var first = await ingestionService.IngestAsync(leaf, CancellationToken.None);
@@ -161,8 +157,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", vendorName));
 
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
 
@@ -194,8 +189,7 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("BambuStudio", vendorName));
 
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
 

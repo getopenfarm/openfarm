@@ -9,7 +9,6 @@ public sealed class BomLine
 {
     private BomLine(
         Guid id,
-        Guid organizationId,
         Guid assemblyId,
         BomLineTargetKind targetKind,
         Guid? targetPartId,
@@ -40,7 +39,6 @@ public sealed class BomLine
         }
 
         Id = id;
-        OrganizationId = organizationId;
         AssemblyId = assemblyId;
         TargetKind = targetKind;
         TargetPartId = targetPartId;
@@ -50,8 +48,6 @@ public sealed class BomLine
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid AssemblyId { get; }
 
@@ -65,13 +61,12 @@ public sealed class BomLine
 
     public decimal Quantity { get; private set; }
 
-    internal static BomLine Create(Guid organizationId, Guid assemblyId, BomLineSpec spec)
+    internal static BomLine Create(Guid assemblyId, BomLineSpec spec)
     {
         ValidateQuantity(spec.TargetKind, spec.Quantity);
 
         return new BomLine(
             Guid.NewGuid(),
-            organizationId,
             assemblyId,
             spec.TargetKind,
             spec.TargetPartId,

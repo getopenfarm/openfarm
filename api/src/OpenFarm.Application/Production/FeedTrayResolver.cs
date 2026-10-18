@@ -15,8 +15,15 @@ public sealed class FeedTrayResolver(ISpoolRepository spools, IFeedUnitRepositor
         FeedSlot? slot;
         if (trayId == ExternalTray)
         {
-            var unit = (await feedUnits.GetByPrinterIdAsync(printerId, cancellationToken)).FirstOrDefault(u => u.Kind == FeedUnitKindCatalog.ExternalSpool);
-            slot = unit?.FeedSlots.OrderBy(s => s.SlotPosition).FirstOrDefault();
+            var units = await feedUnits.GetByPrinterIdAsync(printerId, cancellationToken);
+            var external = units.FirstOrDefault(u => u.Kind == FeedUnitKindCatalog.ExternalSpool);
+            // A reloader declared to replace the external port is what feeds this path, from the slot it is feeding; the external
+            // slot it replaces is then not in use (ProductionFeedPath). With none selected the spool is unknown, not the replaced one.
+            var reloader = units.FirstOrDefault(u => u.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader && u.ArchivedAtUtc is null
+                && u.ReplacesFeedUnitId is { } replaces && (external is null || replaces == external.Id));
+            slot = reloader is not null
+                ? reloader.FeedSlots.FirstOrDefault(s => s.Id == reloader.FeedingSlotId && s.DeactivatedAtUtc is null)
+                : external?.FeedSlots.OrderBy(s => s.SlotPosition).FirstOrDefault();
         }
         else
         {

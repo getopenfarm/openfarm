@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -7,7 +6,6 @@ using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Parts;
-using OpenFarm.Infrastructure.Multitenancy;
 
 namespace OpenFarm.Infrastructure.Parts;
 
@@ -15,9 +13,7 @@ namespace OpenFarm.Infrastructure.Parts;
 /// Bounded <see cref="Channel{T}"/> consumer for <see cref="PartProcessingWorkItem"/> — the
 /// Processing → Ready for Review (milestone 1) transition, and, for a requires-slicing job, the
 /// trailing milestone-2 estimate continuation that may target the job's own preview, an
-/// already-confirmed <see cref="Part"/>, or nothing at all if discarded (research.md §3/§3b). Uses
-/// the exact <see cref="IServiceScopeFactory"/> + <c>CreateTenantScope()</c> pattern
-/// <c>PrinterConnectionBackgroundService</c> already established. Test-after (research.md §12).
+/// already-confirmed <see cref="Part"/>, or nothing at all if discarded (research.md §3/§3b). Test-after (research.md §12).
 /// </summary>
 public sealed partial class PartProcessingBackgroundService : BackgroundService, IPartProcessingDispatcher
 {
@@ -25,7 +21,6 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PartProcessingBackgroundService> _logger;
     private readonly int _maxConcurrency;
-    private AppTenantInfo? _tenantInfo;
 
     public PartProcessingBackgroundService(IServiceScopeFactory scopeFactory, ILogger<PartProcessingBackgroundService> logger, int maxConcurrency = 2)
     {
@@ -42,8 +37,6 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await EnsureTenantInfoResolvedAsync(stoppingToken);
-
         // The work queue is an in-memory Channel, never durable across restarts — anything left
         // Processing or ReadyForReview-with-a-Resolving-preview-estimate at this exact moment was
         // orphaned by a previous process lifetime ending mid-job (crash, restart, deploy), not
@@ -57,26 +50,9 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
         await Task.WhenAll(workers);
     }
 
-    /// <summary>
-    /// Resolves and caches the (single, static) organization's tenant info, once. Safe to call
-    /// repeatedly/concurrently — cheap no-op once cached.
-    /// </summary>
-    private async Task EnsureTenantInfoResolvedAsync(CancellationToken cancellationToken)
-    {
-        if (_tenantInfo is not null)
-        {
-            return;
-        }
-
-        using var scope = _scopeFactory.CreateScope();
-        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-        _tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
-            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before part processing starts.");
-    }
-
     private async Task ReconcileOrphanedWorkAsync(CancellationToken stoppingToken)
     {
-        using var scope = CreateTenantScope();
+        using var scope = _scopeFactory.CreateScope();
         var services = scope.ServiceProvider;
         var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
         var partRepository = services.GetRequiredService<IPartRepository>();
@@ -94,7 +70,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             await jobRepository.SaveChangesAsync(stoppingToken);
             await WriteFailureActivityLogAsync(activityLogWriter, job,
                 job.Status == PartProcessingJobStatus.ReadyForReview ? "PartEstimateUnavailable" : "PartFileProcessingFailed", stoppingToken);
-            await publisher.PartProcessingJobStatusChangedAsync(job.OrganizationId, job, stoppingToken);
+            await publisher.PartProcessingJobStatusChangedAsync(job, stoppingToken);
             LogOrphanedJobReconciled(_logger, job.Id);
         }
 
@@ -103,8 +79,8 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             part.MarkEstimateUnavailable();
             await partRepository.SaveChangesAsync(stoppingToken);
             await WriteFailureActivityLogAsync(
-                activityLogWriter, part.OrganizationId, "PartEstimateUnavailable", "Part", part.Id.ToString(), stoppingToken);
-            await publisher.PartEstimateUnavailableAsync(part.OrganizationId, part.Id, stoppingToken);
+                activityLogWriter, "PartEstimateUnavailable", "Part", part.Id.ToString(), stoppingToken);
+            await publisher.PartEstimateUnavailableAsync(part.Id, stoppingToken);
             LogOrphanedEstimateReconciled(_logger, part.Id);
         }
     }
@@ -142,7 +118,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
     private async Task ProcessWorkItemAsync(PartProcessingWorkItem workItem, CancellationToken stoppingToken)
     {
-        using var scope = CreateTenantScope();
+        using var scope = _scopeFactory.CreateScope();
         var services = scope.ServiceProvider;
         var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
         var storage = services.GetRequiredService<IPartFileStorage>();
@@ -171,7 +147,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             job.MarkFailed(ex.Message);
             await jobRepository.SaveChangesAsync(stoppingToken);
             await WriteFailureActivityLogAsync(activityLogWriter, job, "PartFileProcessingFailed", stoppingToken);
-            await publisher.PartProcessingJobStatusChangedAsync(job.OrganizationId, job, stoppingToken);
+            await publisher.PartProcessingJobStatusChangedAsync(job, stoppingToken);
             return;
         }
 
@@ -216,7 +192,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             materialResolution.MaterialMetadataComplete,
             materialResolution.EstimateUnavailableReason);
         await jobRepository.SaveChangesAsync(stoppingToken);
-        await publisher.PartProcessingJobStatusChangedAsync(job.OrganizationId, job, stoppingToken);
+        await publisher.PartProcessingJobStatusChangedAsync(job, stoppingToken);
 
         if (materialResolution.ImmediateEstimate is not null || materialResolution.EstimateUnavailableReason is not null)
         {
@@ -250,7 +226,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
         // If confirmation wins a concurrent preview write, retry against its confirmed Part.
         for (var attempt = 0; attempt < 2; attempt++)
         {
-            using var updateScope = CreateTenantScope();
+            using var updateScope = _scopeFactory.CreateScope();
             var updateServices = updateScope.ServiceProvider;
             var jobs = updateServices.GetRequiredService<IPartProcessingJobRepository>();
             var parts = updateServices.GetRequiredService<IPartRepository>();
@@ -263,29 +239,29 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                 if (current.Status == PartProcessingJobStatus.ReadyForReview)
                 {
                     if (resolution is not null)
-                        current.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails);
+                        current.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails, resolution.FilamentGrams);
                     else
                         current.MarkEstimateUnavailable(unavailableReason!);
                     await jobs.SaveChangesAsync(stoppingToken);
                     if (resolution is null)
                         await WriteFailureActivityLogAsync(activity, current, "PartEstimateUnavailable", stoppingToken);
-                    await publisher.PartProcessingJobStatusChangedAsync(current.OrganizationId, current, stoppingToken);
+                    await publisher.PartProcessingJobStatusChangedAsync(current, stoppingToken);
                 }
                 else if (current.Status == PartProcessingJobStatus.Confirmed && current.PartId is { } partId)
                 {
                     var part = await parts.GetByIdAsync(partId, stoppingToken);
                     if (part is null || part.ActiveProcessingJobId != current.Id) return;
                     if (resolution is not null)
-                        part.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails);
+                        part.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails, resolution.FilamentGrams);
                     else
                         part.MarkEstimateUnavailable(unavailableReason);
                     await parts.SaveChangesAsync(stoppingToken);
                     if (resolution is not null)
-                        await publisher.PartEstimateResolvedAsync(part.OrganizationId, part.Id, stoppingToken);
+                        await publisher.PartEstimateResolvedAsync(part.Id, stoppingToken);
                     else
                     {
                         await WriteFailureActivityLogAsync(activity, current, "PartEstimateUnavailable", stoppingToken, entityType: "Part", entityId: part.Id.ToString());
-                        await publisher.PartEstimateUnavailableAsync(part.OrganizationId, part.Id, stoppingToken);
+                        await publisher.PartEstimateUnavailableAsync(part.Id, stoppingToken);
                     }
                 }
                 return;
@@ -309,7 +285,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
     {
         try
         {
-            using var scope = CreateTenantScope();
+            using var scope = _scopeFactory.CreateScope();
             var services = scope.ServiceProvider;
             var jobRepository = services.GetRequiredService<IPartProcessingJobRepository>();
             var publisher = services.GetRequiredService<IPartEventPublisher>();
@@ -324,7 +300,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             job.MarkFailed($"Part processing failed unexpectedly: {originalException.Message}");
             await jobRepository.SaveChangesAsync(stoppingToken);
             await WriteFailureActivityLogAsync(activityLogWriter, job, "PartFileProcessingFailed", stoppingToken);
-            await publisher.PartProcessingJobStatusChangedAsync(job.OrganizationId, job, stoppingToken);
+            await publisher.PartProcessingJobStatusChangedAsync(job, stoppingToken);
             LogOrphanedWorkItemRecovered(_logger, job.Id);
         }
         catch (Exception ex)
@@ -342,33 +318,16 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             : ((Guid?)null, ActorType.System);
 
         await WriteFailureActivityLogAsync(
-            activityLogWriter, job.OrganizationId, eventType, entityType, entityId ?? job.Id.ToString(), cancellationToken, actorId, actorType);
+            activityLogWriter, eventType, entityType, entityId ?? job.Id.ToString(), cancellationToken, actorId, actorType);
     }
 
     /// <summary>Reconciliation has no originating job/user to attribute to — always a system actor.</summary>
     private static async Task WriteFailureActivityLogAsync(
-        IActivityLogWriter activityLogWriter, Guid organizationId, string eventType,
+        IActivityLogWriter activityLogWriter, string eventType,
         string entityType, string entityId, CancellationToken cancellationToken, Guid? actorId = null, ActorType actorType = ActorType.System)
     {
-        var entry = ActivityLogEntry.Create(organizationId, entityType, entityId, eventType, actorId, actorType);
+        var entry = ActivityLogEntry.Create(entityType, entityId, eventType, actorId, actorType);
         await activityLogWriter.WriteAsync(entry, cancellationToken);
-    }
-
-    /// <summary>
-    /// Creates a DI scope with the organization's tenant context pre-populated. Finbuckle's tenant
-    /// resolution is HTTP-middleware-based (<c>UseMultiTenant()</c>), which never runs for a scope
-    /// this background service creates itself — without this, every tenant-scoped EF query filter
-    /// throws a <see cref="NullReferenceException"/> against a null <c>TenantInfo</c>. Mirrors
-    /// <c>PrinterConnectionBackgroundService.CreateTenantScope</c> exactly: resolves the tenant once
-    /// via <see cref="EnsureTenantInfoResolvedAsync"/> up front rather than doing a blocking DB call
-    /// on every scope creation.
-    /// </summary>
-    private IServiceScope CreateTenantScope()
-    {
-        var scope = _scopeFactory.CreateScope();
-        var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(_tenantInfo!);
-        return scope;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Part processing job {JobId} terminated unexpectedly.")]

@@ -1,9 +1,6 @@
-import {
-  getStatusLabel,
-  OFFLINE_META,
-  type PrinterStatus,
-} from '@/components/printer-tile/status';
+import type { PrinterStatus } from '@/components/printer-tile/status';
 import type { BadgeKind } from '@/components/status-badge/kinds';
+import { printerStatusToBadge } from '@/features/printers/lib/printerStatusBadge';
 import { reportedStateName } from '@/features/printers/lib/reportedState';
 import type {
   FleetPrinterResponse,
@@ -20,24 +17,17 @@ export function monitoringStatus(printer: MonitoredPrinter): {
   label: string;
   kind: BadgeKind;
 } {
-  if (!printer.isReachable) return { label: OFFLINE_META.label, kind: 'zinc' };
-  const raw = printer.telemetry?.reportedState?.trim();
+  // Farm status matches the printer page; only Paused/Failed override it.
   const state = reportedState(printer);
-  const label =
-    (raw && reportedStateName(raw)) ||
-    (printer.status ? getStatusLabel(printer.status as PrinterStatus) : '') ||
-    'Unknown';
-  return {
-    label,
-    kind:
-      state === 'FAILED'
-        ? 'red'
-        : state === 'PAUSE' || printer.status === 'AwaitingClear'
-          ? 'amber'
-          : printer.status === 'Printing'
-            ? 'green'
-            : 'zinc',
-  };
+  if (printer.isReachable && (state === 'PAUSE' || state === 'FAILED'))
+    return {
+      label: reportedStateName(state),
+      kind: state === 'FAILED' ? 'red' : 'amber',
+    };
+  return printerStatusToBadge(
+    (printer.status ?? 'Idle') as PrinterStatus,
+    printer.isReachable ?? false,
+  );
 }
 
 export function printerIssues(

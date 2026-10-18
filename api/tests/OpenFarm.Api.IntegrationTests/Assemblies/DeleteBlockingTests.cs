@@ -8,7 +8,6 @@ using OpenFarm.Api.Endpoints.Assemblies;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Application.Auth;
 using OpenFarm.Application.Parts;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Api.IntegrationTests.Assemblies;
@@ -31,12 +30,11 @@ public class DeleteBlockingTests(ProductionTestFactory factory) : IClassFixture<
 
     private async Task<Guid> SeedPartAsync(string name)
     {
-        await factory.EnsureTenantInfoResolvedAsync();
-        using var scope = factory.CreateTenantScope();
+        using var scope = factory.Services.CreateScope();
         var partRepository = scope.ServiceProvider.GetRequiredService<IPartRepository>();
 
         var part = Part.Create(
-            Organization.WellKnownId, name, PartFileFormat.Stl, true, "part.stl", $"/tmp/{Guid.NewGuid():N}.stl", 1024, 0.4m,
+            name, PartFileFormat.Stl, true, "part.stl", $"/tmp/{Guid.NewGuid():N}.stl", 1024, 0.4m,
             null, null, EstimateStatus.Available, 60, 20, 1, 1, $"{Guid.NewGuid():N}", [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
 
         await partRepository.AddAsync(part, CancellationToken.None);

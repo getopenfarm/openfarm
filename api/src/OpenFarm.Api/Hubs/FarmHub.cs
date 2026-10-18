@@ -4,23 +4,17 @@ using Microsoft.AspNetCore.SignalR;
 namespace OpenFarm.Api.Hubs;
 
 /// <summary>
-/// Push-only real-time channel (contracts/farm-hub.md) — clients join their organization's group
-/// on connect (from the JWT's "org" claim, same resolution as REST/ActivityLogPostProcessor); no
-/// client-invoked methods this phase.
+/// Push-only real-time channel (contracts/farm-hub.md) — every authenticated client joins the
+/// <see cref="Group"/> on connect; no client-invoked methods this phase.
 /// </summary>
 [Authorize]
 public sealed class FarmHub : Hub
 {
+    public const string Group = "farm";
+
     public override async Task OnConnectedAsync()
     {
-        var organizationId = Context.User?.FindFirst("org")?.Value;
-        if (!string.IsNullOrEmpty(organizationId))
-        {
-            await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(organizationId));
-        }
-
+        await Groups.AddToGroupAsync(Context.ConnectionId, Group);
         await base.OnConnectedAsync();
     }
-
-    public static string GroupName(string organizationId) => $"org:{organizationId}";
 }

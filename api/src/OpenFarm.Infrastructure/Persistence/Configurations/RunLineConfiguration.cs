@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Printers;
@@ -26,8 +25,6 @@ public sealed class RunLineConfiguration : IEntityTypeConfiguration<RunLine>
         });
 
         builder.HasKey(l => l.Id);
-
-        builder.Property(l => l.OrganizationId).IsRequired();
         builder.Property(l => l.ProductionRunId).IsRequired();
         builder.Property(l => l.TargetKind).IsRequired().HasConversion<string>();
         builder.Property(l => l.TargetId).IsRequired();
@@ -43,7 +40,5 @@ public sealed class RunLineConfiguration : IEntityTypeConfiguration<RunLine>
             .WithMany()
             .HasForeignKey(l => l.DefaultPinnedPrinterId)
             .OnDelete(DeleteBehavior.SetNull);
-
-        builder.IsMultiTenant();
     }
 }

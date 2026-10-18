@@ -30,7 +30,7 @@ Library estimation continues to use explicit estimation configuration, independe
 - Filament creation accepts `profileAssignments`; the former scalar `filamentProfileId` is removed.
 - Machine profile listing accepts `printerId`; filament profile listing accepts `brand`, `modelCode`, and `nozzleDiameterMm`.
 
-`AddTelemetryFilamentAssignments` adds persisted nozzle state and tenant-scoped assignment rows. It drops the old scalar column without backfilling development data. Generated frontend clients come from the OpenAPI contract. `export-openapi` exports contracts without running database initialization or printer workers.
+`AddTelemetryFilamentAssignments` adds persisted nozzle state and assignment rows. It drops the old scalar column without backfilling development data. Generated frontend clients come from the OpenAPI contract. `export-openapi` exports contracts without running database initialization or printer workers.
 
 ## Profile origin and engine compatibility
 
@@ -44,4 +44,4 @@ Inherited Bambu template includes are resolved in the source catalog before engi
 
 Verified with the locally installed OrcaSlicer 2.3.1 using the Bambu Studio 2.7.1 `Bambu PLA Basic @BBL P1S 0.4 nozzle` filament settings and native Orca P1S machine/process settings. The real engine validation slice succeeded.
 
-System catalog identities and uniqueness indexes include `SourceFormat` as well as tenant, vendor and external ID (or abstract-base name). Ingesting one engine no longer overwrites the other catalog or marks its rows stale. Re-ingestion reconnects each catalog’s inheritance within its own source. The `SeparateProfileSourceCatalogs` schema migration updates these indexes; no legacy catalog backfill is included.
+System catalog identities and uniqueness indexes include `SourceFormat` as well as vendor and external ID (or abstract-base name). Ingesting one engine no longer overwrites the other catalog or marks its rows stale. Re-ingestion reconnects each catalog’s inheritance within its own source. The `SeparateProfileSourceCatalogs` schema migration updates these indexes; no legacy catalog backfill is included.

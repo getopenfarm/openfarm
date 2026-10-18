@@ -1,6 +1,5 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Domain.FilamentTracking;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Application.FilamentTracking;
 
@@ -17,7 +16,7 @@ public sealed class RecordSpoolUsageCommandHandler(
 
         spool.RecordUsage(command.GramsConsumed);
 
-        var record = SpoolUsageRecord.Create(Organization.WellKnownId, spool.Id, command.GramsConsumed, command.JobId, SpoolUsageSource.Manual);
+        var record = SpoolUsageRecord.Create(spool.Id, command.GramsConsumed, command.JobId, SpoolUsageSource.Manual);
         await usageRecordRepository.AddAsync(record, cancellationToken);
 
         await spoolRepository.SaveChangesAsync(cancellationToken);

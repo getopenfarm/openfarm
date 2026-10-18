@@ -54,11 +54,9 @@ public class FeedUnitsListingTests(CustomWebApplicationFactory factory) : IClass
     }
 
     /// <summary>
-    /// Queries via a raw DI scope rather than the HTTP pipeline, so there's no request-scoped tenant
-    /// context for Finbuckle's multi-tenant query filter to resolve — <c>IgnoreQueryFilters()</c>
-    /// sidesteps that the same way <c>ConnectionSecretsEndpointTests</c> does for its own raw-scope
-    /// DbContext assertions. A fresh scope/DbContext per poll also avoids reusing a change tracker
-    /// against rows the background telemetry sync is concurrently inserting via its own DbContext.
+    /// Queries via a raw DI scope rather than the HTTP pipeline. A fresh scope/DbContext per poll
+    /// avoids reusing a change tracker against rows the background telemetry sync is concurrently
+    /// inserting via its own DbContext.
     /// </summary>
     private static async Task<FeedSlot> WaitForExternalSpoolSlotAsync(CustomWebApplicationFactory factory, Guid printerId)
     {
@@ -68,7 +66,6 @@ public class FeedUnitsListingTests(CustomWebApplicationFactory factory) : IClass
             using var scope = factory.Services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var units = await dbContext.FeedUnits
-                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Include(u => u.FeedSlots)
                 .Where(u => u.PrinterId == printerId)

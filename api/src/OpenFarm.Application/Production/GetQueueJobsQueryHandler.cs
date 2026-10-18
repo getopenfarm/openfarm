@@ -13,10 +13,13 @@ public sealed class GetQueueJobsQueryHandler(
     IProductionRunRepository runRepository,
     IPrinterRepository printerRepository,
     ProductionRunDisplayLabelResolver labelResolver,
-    IPrintJobEligibilityQuery? eligibilityQuery = null) : IQueryHandler<GetQueueJobsQuery, QueueJobsPage>
+    IPrintJobEligibilityQuery? eligibilityQuery = null,
+    IExternalPrintRepository? externalPrintRepository = null) : IQueryHandler<GetQueueJobsQuery, QueueJobsPage>
 {
     public async Task<QueueJobsPage> HandleAsync(GetQueueJobsQuery query, CancellationToken cancellationToken)
     {
+        if (query.ExternalOnly) return await ListExternalAsync(query, cancellationToken);
+
         var (jobs, totalCount, statusCounts) = await jobRepository.ListQueueAsync(query.BackfillOnly, query.Page, query.PageSize, cancellationToken, query.Status, query.Search);
 
         var eligibleIds = eligibilityQuery is null ? null : await eligibilityQuery.GetEligibleJobIdsAsync(jobs, cancellationToken);
@@ -60,12 +63,24 @@ public sealed class GetQueueJobsQueryHandler(
             if (eligibleIds is not null) isBlocked = job.Status == PrintJobStatus.Queued && job.DispatchedAtUtc is null && !eligibleIds.Contains(job.Id);
 
             items.Add(new QueueJobRow(
-                job.Id, job.QueuePosition, job.Status, job.AssignmentMode, job.PinnedPrinterId, job.DispatchedPrinterId,
+                job.Id, job.QueuePosition, job.Status, job.AssignmentMode, job.PinnedPrinterId, job.PrinterId,
                 isBlocked, requirement.PartId, job.GetProductionPart()?.Name ?? requirement.PartName ?? part?.Name ?? "Unknown part", job.PlateQuantity,
                 requirement.RunLineId, runInfo.RunId, runInfo.DisplayLabel,
-                isBlocked && eligibilityQuery is not null ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null, part is not null, job.GetSnapshotState(), job.SnapshotRecoveryReason));
+                isBlocked && eligibilityQuery is not null ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null, part is not null, job.GetSnapshotState(), job.SnapshotRecoveryReason,
+                job.Source, job.StartedAtUtc, job.EndedAtUtc));
         }
 
+        return new QueueJobsPage(items, totalCount, statusCounts);
+    }
+
+    /// <summary>Prints the printer started itself: newest first, no queue, run or part to resolve.</summary>
+    private async Task<QueueJobsPage> ListExternalAsync(GetQueueJobsQuery query, CancellationToken cancellationToken)
+    {
+        if (externalPrintRepository is null) return new QueueJobsPage([], 0, new Dictionary<string, int>());
+        var (prints, totalCount, statusCounts) = await externalPrintRepository.ListAsync(query.Page, query.PageSize, query.Status, query.Search, cancellationToken);
+        var items = prints.Select(print => new QueueJobRow(
+            print.Id, null, print.Status, AssignmentMode.Unassigned, null, print.PrinterId, false, null, print.Name, 1,
+            null, null, "Printer-started", null, false, "Ready", null, print.Source, print.StartedAtUtc, print.EndedAtUtc)).ToList();
         return new QueueJobsPage(items, totalCount, statusCounts);
     }
 }

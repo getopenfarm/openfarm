@@ -1,6 +1,5 @@
 using OpenFarm.Application.Common;
-using OpenFarm.Application.Organizations;
-using OpenFarm.Domain.Organizations;
+using OpenFarm.Application.Settings;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
@@ -12,7 +11,7 @@ public sealed class AddPartCommandHandler(
     IPartFileStorage storage,
     IPartProcessingJobRepository jobRepository,
     IPartProcessingDispatcher queue,
-    IOrganizationRepository organizationRepository,
+    IFarmSettingsRepository settingsRepository,
     ResolveSlicerSelection resolveSlicerSelection) : ICommandHandler<AddPartCommand, AddPartResult>
 {
     public async Task<AddPartResult> HandleAsync(AddPartCommand command, CancellationToken cancellationToken)
@@ -37,12 +36,12 @@ public sealed class AddPartCommandHandler(
 
         if (classification.RequiresSlicing)
         {
-            var organization = await organizationRepository.GetAsync(cancellationToken);
+            var settings = await settingsRepository.GetAsync(cancellationToken);
 
             // Keep the chosen engine/version reproducible even if estimation is unavailable.
             try
             {
-                slicerUsed = resolveSlicerSelection.Resolve(command.SlicerEngineOverride, command.SlicerVersionOverride, organization.DefaultSlicer);
+                slicerUsed = resolveSlicerSelection.Resolve(command.SlicerEngineOverride, command.SlicerVersionOverride, settings.DefaultSlicer);
             }
             catch (SlicerUnavailableException)
             {
@@ -55,7 +54,6 @@ public sealed class AddPartCommandHandler(
         }
 
         var job = PartProcessingJob.CreateAdd(
-            Organization.WellKnownId,
             classification.Format,
             command.FileName,
             storagePath: string.Empty,
@@ -70,12 +68,12 @@ public sealed class AddPartCommandHandler(
         // The job's own id becomes the storage key — an Add's target Part doesn't exist yet
         // (IPartFileStorage's remarks). Create* factories don't take a pre-generated id, so the
         // storage path/size is set post-construction, once the id is actually known.
-        var storagePath = await storage.SaveAsync(Organization.WellKnownId, contentHash, command.FileName, command.File, cancellationToken);
+        var storagePath = await storage.SaveAsync(contentHash, command.FileName, command.File, cancellationToken);
         var fileSizeBytes = command.File.CanSeek ? command.File.Length : 0;
         job.SetStoragePath(storagePath, fileSizeBytes);
 
         await jobRepository.AddAsync(job, cancellationToken);
-        queue.Enqueue(new PartProcessingWorkItem(Organization.WellKnownId, job.Id));
+        queue.Enqueue(new PartProcessingWorkItem(job.Id));
 
         return new AddPartResult(job.Id, job.Status);
     }

@@ -7,12 +7,11 @@ namespace OpenFarm.Domain.Production;
 public sealed class RunLine
 {
     private RunLine(
-        Guid id, Guid organizationId, Guid productionRunId, RunLineTargetKind targetKind, Guid targetId,
+        Guid id, Guid productionRunId, RunLineTargetKind targetKind, Guid targetId,
         int? quantity, RevisionMode revisionMode, AssignmentMode defaultAssignmentMode, Guid? defaultPinnedPrinterId,
         int backfillPrinterCap, int? backfillCumulativeUnitCeiling)
     {
         Id = id;
-        OrganizationId = organizationId;
         ProductionRunId = productionRunId;
         TargetKind = targetKind;
         TargetId = targetId;
@@ -25,8 +24,6 @@ public sealed class RunLine
     }
 
     public Guid Id { get; }
-
-    public Guid OrganizationId { get; }
 
     public Guid ProductionRunId { get; }
 
@@ -54,7 +51,7 @@ public sealed class RunLine
     /// <summary>Meaningful only when <see cref="Quantity"/> is null; null = no ceiling (FR-006d).</summary>
     public int? BackfillCumulativeUnitCeiling { get; private set; }
 
-    internal static RunLine Create(Guid organizationId, Guid productionRunId, RunLineSpec spec)
+    internal static RunLine Create(Guid productionRunId, RunLineSpec spec)
     {
         if (spec.Quantity is < 1)
         {
@@ -77,7 +74,7 @@ public sealed class RunLine
             throw new InvalidRevisionModeException();
 
         return new RunLine(
-            Guid.NewGuid(), organizationId, productionRunId, spec.TargetKind, spec.TargetId, spec.Quantity,
+            Guid.NewGuid(), productionRunId, spec.TargetKind, spec.TargetId, spec.Quantity,
             revisionMode, spec.DefaultAssignmentMode, spec.DefaultPinnedPrinterId, spec.BackfillPrinterCap,
             spec.BackfillCumulativeUnitCeiling);
     }

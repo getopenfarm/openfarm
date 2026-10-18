@@ -1,6 +1,5 @@
 using System.Threading.Channels;
 using System.Collections.Concurrent;
-using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,14 +13,13 @@ using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
-using OpenFarm.Infrastructure.Multitenancy;
 
 namespace OpenFarm.Infrastructure.Production;
 
 /// <summary>
 /// Bounded <see cref="Channel{T}"/> of printer ids (research.md R4) — mirrors
 /// <c>PartProcessingBackgroundService</c>'s shape, but consumed by exactly one worker, never several:
-/// a dispatch decision reads the whole org's Unassigned candidate pool and must not race a concurrent
+/// a dispatch decision reads the whole farm's Unassigned candidate pool and must not race a concurrent
 /// decision for a different printer into double-booking the same job (see
 /// <c>ProductionDispatchQueryService.GetUnassignedCandidatesAsync</c>'s own remarks on the
 /// dispatch-in-flight window this closes). <see cref="PrintJob.Dispatch(Guid)"/>/<see cref="PrintJob.RevertDispatch"/>
@@ -37,7 +35,6 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     private readonly ConcurrentDictionary<Guid, byte> _pending = new();
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ProductionDispatchBackgroundService> _logger;
-    private AppTenantInfo? _tenantInfo;
 
     public ProductionDispatchBackgroundService(IServiceScopeFactory scopeFactory, ILogger<ProductionDispatchBackgroundService> logger)
     {
@@ -61,8 +58,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     {
         try
         {
-            await EnsureTenantInfoResolvedAsync(stoppingToken);
-            using (var scope = CreateTenantScope())
+            using (var scope = _scopeFactory.CreateScope())
                 await scope.ServiceProvider.GetRequiredService<ProductionSnapshotReconciler>().ReconcileAsync(stoppingToken);
             await ReconcileAsync(stoppingToken);
 
@@ -102,7 +98,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     /// </summary>
     private async Task ReconcileAsync(CancellationToken stoppingToken)
     {
-        using var scope = CreateTenantScope();
+        using var scope = _scopeFactory.CreateScope();
         var services = scope.ServiceProvider;
         var jobRepository = services.GetRequiredService<IPrintJobRepository>();
         var printerRepository = services.GetRequiredService<IPrinterRepository>();
@@ -131,7 +127,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
     private async Task ProcessDispatchAttemptAsync(Guid printerId, CancellationToken cancellationToken)
     {
-        using var scope = CreateTenantScope();
+        using var scope = _scopeFactory.CreateScope();
         var services = scope.ServiceProvider;
         var printerRepository = services.GetRequiredService<IPrinterRepository>();
         var jobRepository = services.GetRequiredService<IPrintJobRepository>();
@@ -188,7 +184,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         }
 
         var job = await jobRepository.GetByIdAsync(jobId.Value, cancellationToken);
-        if (job is null || job.Status != PrintJobStatus.Queued || job.DispatchedPrinterId is not null
+        if (job is null || job.Status != PrintJobStatus.Queued || job.PrinterId is not null
             || (job.AssignmentMode == AssignmentMode.Pinned && job.PinnedPrinterId != printer.Id))
         {
             // Lost a race against another dispatch decision (or a manual pin/cancel) between the
@@ -263,13 +259,13 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
-        var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(requirement.OrganizationId, cancellationToken) ?? 0) + 1024;
+        var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(cancellationToken) ?? 0) + 1024;
         var filamentSpecs = part.FilamentRequirements
             .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId))
             .ToList();
 
         var newJob = PrintJob.Create(
-            requirement.OrganizationId, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
+            part.Name, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
             runLine.DefaultAssignmentMode, runLine.DefaultPinnedPrinterId, part.RevisionHash, part.RevisionNumber, filamentSpecs);
 
         await services.GetRequiredService<ProductionSnapshotFactory>().CaptureAsync(newJob, part, cancellationToken);
@@ -292,7 +288,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         if (revisionMode == RevisionMode.FollowLatest && !job.HasFilamentRequirementOverride)
         {
             job.SetFilamentRequirements(effective.Requirements, false);
-            jobRepository.TrackNewFilamentConsumption(job.FilamentConsumption);
+            jobRepository.TrackNewFilamentConsumption(job.Filaments);
         }
         if (!PrinterModelCatalog.SupportsLiveIntegration(printer.Brand))
         {
@@ -352,7 +348,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         if (dispatchPart.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
         if (revisionMode == RevisionMode.FollowLatest && !job.HasFilamentRequirementOverride
-            && !ProductionJobRequirements.FromPart(dispatchPart).SequenceEqual(job.FilamentConsumption.Select(c => c.Requirement))) return;
+            && !ProductionJobRequirements.FromPart(dispatchPart).SequenceEqual(job.Filaments.Select(c => c.Requirement))) return;
         if (revisionMode == RevisionMode.FollowLatest)
         {
             job.ResetUnsentBackfillSnapshot(dispatchPart);
@@ -370,7 +366,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         JobFileContent fileContent;
         string configurationStamp;
         var profileReadiness = services.GetRequiredService<ProductionProfileReadiness>();
-        var materialRequirements = job.FilamentConsumption.Select(c => c.Requirement).ToList();
+        var materialRequirements = job.Filaments.Select(c => c.Requirement).ToList();
         try
         {
             configurationStamp = await profileReadiness.GetConfigurationStampAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash);
@@ -389,7 +385,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         IReadOnlyList<OpenFarm.Application.Profiles.ProductionFilamentSelection> loadedSelections;
         try
         {
-            using var freshScope = CreateTenantScope();
+            using var freshScope = _scopeFactory.CreateScope();
             var currentPrinter = await freshScope.ServiceProvider.GetRequiredService<IPrinterRepository>().GetByIdAsync(printer.Id, cancellationToken);
             var freshJobs = freshScope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
             var persistedJob = await freshJobs.GetByIdAsync(job.Id, cancellationToken);
@@ -423,7 +419,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         var fileUsage = JobFilamentUsageReader.Read(fileContent.Bytes);
         var lineUsage = JobFilamentUsageMatcher.Match(
-            job.FilamentConsumption.Select(c => (c.MaterialType, c.DetectedColorHex)).ToList(), fileUsage.Usages);
+            job.Filaments.Select(c => (c.MaterialType, c.DetectedColorHex)).ToList(), fileUsage.Usages);
         job.BindFilamentUsage(loadedSelections.Select((s, i) => ((Guid?)s.SpoolId, lineUsage[i].Grams,
             FilamentUsageCurve.FromExtrusion(fileUsage.Extrusion.Marks,
                 lineUsage[i].Tools.Where(fileUsage.Extrusion.Tools.ContainsKey).Select(t => fileUsage.Extrusion.Tools[t])))).ToList());
@@ -479,38 +475,12 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     {
         var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
         var entry = ActivityLogEntry.Create(
-            job.OrganizationId, entityType: "PrintJob", entityId: job.Id.ToString(),
+            entityType: "PrintJob", entityId: job.Id.ToString(),
             eventType: "PrintJobDispatched", actorId: null, actorType: ActorType.System);
         await activityLogWriter.WriteAsync(entry, cancellationToken);
 
         var publisher = services.GetRequiredService<IProductionEventPublisher>();
-        await publisher.PrintJobDispatchedAsync(job.OrganizationId, job.Id, printerId, cancellationToken);
-    }
-
-    /// <summary>
-    /// Resolves and caches the (single, static) organization's tenant info, once. Safe to call
-    /// repeatedly/concurrently — cheap no-op once cached.
-    /// </summary>
-    private async Task EnsureTenantInfoResolvedAsync(CancellationToken cancellationToken)
-    {
-        if (_tenantInfo is not null)
-        {
-            return;
-        }
-
-        using var scope = _scopeFactory.CreateScope();
-        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-        _tenantInfo = await tenantStore.GetByIdentifierAsync(OrganizationTenantStore.StaticIdentifier)
-            ?? throw new InvalidOperationException("No organization found — FirstBootSeeder must run before dispatch starts.");
-    }
-
-    /// <summary>Mirrors <c>PartProcessingBackgroundService.CreateTenantScope</c> exactly — see its remarks.</summary>
-    private IServiceScope CreateTenantScope()
-    {
-        var scope = _scopeFactory.CreateScope();
-        var contextSetter = scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>();
-        contextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(_tenantInfo!);
-        return scope;
+        await publisher.PrintJobDispatchedAsync(job.Id, printerId, cancellationToken);
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Dispatch attempt for printer {PrinterId} terminated unexpectedly.")]

@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Application.Auth;
-using OpenFarm.Domain.Organizations;
 
 namespace OpenFarm.Api.IntegrationTests.Auth;
 
@@ -37,7 +36,7 @@ public class WhoAmIEndpointTests(CustomWebApplicationFactory factory) : IClassFi
         var body = await response.Content.ReadFromJsonAsync<WhoAmIResult>();
         body.Should().NotBeNull();
         body!.Username.Should().Be("admin");
-        body.OrganizationId.Should().Be(Organization.WellKnownId);
+        body.Email.Should().NotBeNullOrEmpty();
     }
 
     [Fact]

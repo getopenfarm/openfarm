@@ -1,4 +1,3 @@
-using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Parts;
@@ -13,8 +12,6 @@ public sealed class PartRequirementConfiguration : IEntityTypeConfiguration<Part
         builder.ToTable("PartRequirements");
 
         builder.HasKey(r => r.Id);
-
-        builder.Property(r => r.OrganizationId).IsRequired();
         builder.Property(r => r.RunLineId).IsRequired();
         builder.Property(r => r.PartId).IsRequired();
         builder.Property(r => r.LibraryPartId);
@@ -26,7 +23,5 @@ public sealed class PartRequirementConfiguration : IEntityTypeConfiguration<Part
 
         // FR-004's grain rule, enforced structurally — exactly one PartRequirement per (RunLine, Part) pair.
         builder.HasIndex(r => new { r.RunLineId, r.PartId }).IsUnique();
-
-        builder.IsMultiTenant();
     }
 }

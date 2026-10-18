@@ -2,7 +2,6 @@ using OpenFarm.Application.Common;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
 using OpenFarm.Application.Profiles;
-using OpenFarm.Domain.Organizations;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
@@ -68,7 +67,7 @@ public sealed class EditPartCommandHandler(
             var tag = await tagRepository.FindByNameAsync(name, cancellationToken);
             if (tag is null)
             {
-                tag = Tag.Create(Organization.WellKnownId, name);
+                tag = Tag.Create(name);
                 tagRepository.Stage(tag);
             }
 

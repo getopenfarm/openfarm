@@ -13,6 +13,7 @@ public sealed class PreviewFilamentRequirementResponse
     public string? MaterialType { get; set; }
     public string? DetectedColorHex { get; set; }
     public string? DetectedSubBrand { get; set; }
+    public decimal? EstimatedGrams { get; set; }
 }
 
 public sealed class ThumbnailResponse
@@ -82,6 +83,7 @@ public sealed class PartProcessingJobResponse
                 MaterialType = r.MaterialType,
                 DetectedColorHex = r.DetectedColorHex,
                 DetectedSubBrand = r.DetectedSubBrand,
+                EstimatedGrams = r.EstimatedGrams,
             }).ToList(),
             Thumbnails = detail.Preview.Thumbnails.Select(t => new ThumbnailResponse
             {

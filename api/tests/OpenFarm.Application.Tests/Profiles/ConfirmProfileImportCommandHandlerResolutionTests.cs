@@ -51,7 +51,7 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
     {
         var filamentRepo = new FakeFilamentProfileRepository();
         var existingBase = FilamentProfile.Create(
-            Guid.NewGuid(), "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}");
+            "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}");
         await filamentRepo.AddAsync(existingBase, CancellationToken.None);
 
         var parser = new FakeProfileBundleParser
@@ -123,10 +123,10 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
     {
         var filamentRepo = new FakeFilamentProfileRepository();
         await filamentRepo.AddAsync(
-            FilamentProfile.Create(Guid.NewGuid(), "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}"),
+            FilamentProfile.Create("Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}"),
             CancellationToken.None);
         await filamentRepo.AddAsync(
-            FilamentProfile.Create(Guid.NewGuid(), "Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}"),
+            FilamentProfile.Create("Generic PLA", ProfileSourceFormat.OrcaSlicer, null, "{}"),
             CancellationToken.None);
 
         var parser = new FakeProfileBundleParser
@@ -151,7 +151,7 @@ public class ConfirmProfileImportCommandHandlerResolutionTests
         // (research.md §3) — scoped by (SourceFormat, Name), not Name alone.
         var filamentRepo = new FakeFilamentProfileRepository();
         await filamentRepo.AddAsync(
-            FilamentProfile.Create(Guid.NewGuid(), "Generic PLA", ProfileSourceFormat.BambuStudio, null, "{}"),
+            FilamentProfile.Create("Generic PLA", ProfileSourceFormat.BambuStudio, null, "{}"),
             CancellationToken.None);
 
         var parser = new FakeProfileBundleParser

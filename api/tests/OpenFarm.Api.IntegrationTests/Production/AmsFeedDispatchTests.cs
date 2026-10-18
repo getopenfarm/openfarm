@@ -67,9 +67,9 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
     /// <summary>Gives the printer an AMS and moves its one loaded spool from the external port into AMS slot <paramref name="slot"/>.</summary>
     private async Task AttachAmsAsync(Guid printerId, int? moveSpoolToSlot, int? activeTrayId)
     {
-        using var scope = Factory.CreateTenantScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var ams = FeedUnit.CreateConnectorDerived(OpenFarm.Domain.Organizations.Organization.WellKnownId, printerId, FeedUnitKindCatalog.MultiMaterialUnit, 0);
+        var ams = FeedUnit.CreateConnectorDerived(printerId, FeedUnitKindCatalog.MultiMaterialUnit, 0);
         var slots = Enumerable.Range(0, 4).Select(ams.AddFeedSlot).ToArray();
         db.FeedUnits.Add(ams);
         if (moveSpoolToSlot is { } slot)
@@ -138,7 +138,7 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         try { await Task.Delay(1500); }
         finally { await worker.StopAsync(default); }
 
-        (await JobsAsync(run.Id)).Single().DispatchedPrinterId.Should().BeNull();
+        (await JobsAsync(run.Id)).Single().PrinterId.Should().BeNull();
         SentTo(printer).Should().BeEmpty();
     }
 

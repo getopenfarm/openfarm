@@ -23,7 +23,7 @@ public sealed class CancelProductionRunCommandHandler(
         run.Cancel();
 
         var jobs = await jobRepository.ListByProductionRunIdAsync(run.Id, cancellationToken);
-        var cancelledJobs = jobs.Where(j => j.Status == PrintJobStatus.Queued && j.DispatchedPrinterId is null).ToList();
+        var cancelledJobs = jobs.Where(j => j.Status == PrintJobStatus.Queued && j.PrinterId is null).ToList();
         foreach (var job in cancelledJobs)
         {
             job.MarkCancelled();
@@ -31,12 +31,12 @@ public sealed class CancelProductionRunCommandHandler(
 
         await runRepository.SaveChangesAsync(cancellationToken);
 
-        await publisher.ProductionRunStatusChangedAsync(run.OrganizationId, run.Id, run.Status, cancellationToken);
+        await publisher.ProductionRunStatusChangedAsync(run.Id, run.Status, cancellationToken);
         foreach (var job in cancelledJobs)
         {
             if (activityLogWriter is not null)
-                await activityLogWriter.WriteAsync(ActivityLogEntry.Create(job.OrganizationId, "PrintJob", job.Id.ToString(), "PrintJobCancelled", command.ActorId, command.ActorId is null ? ActorType.System : ActorType.Operator), cancellationToken);
-            await publisher.PrintJobStatusChangedAsync(job.OrganizationId, job.Id, job.Status, cancellationToken);
+                await activityLogWriter.WriteAsync(ActivityLogEntry.Create("PrintJob", job.Id.ToString(), "PrintJobCancelled", command.ActorId, command.ActorId is null ? ActorType.System : ActorType.Operator), cancellationToken);
+            await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
         }
 
         return run;

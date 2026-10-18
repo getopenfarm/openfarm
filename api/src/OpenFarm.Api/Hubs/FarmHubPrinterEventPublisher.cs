@@ -6,26 +6,24 @@ namespace OpenFarm.Api.Hubs;
 
 public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext, IPrinterCameraSnapshotStore snapshots) : IPrinterEventPublisher
 {
-    public Task PrinterActivityChangedAsync(Guid organizationId, Guid printerId, CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync("PrinterActivityChanged", new { printerId }, cancellationToken);
+    public Task PrinterActivityChangedAsync(Guid printerId, CancellationToken cancellationToken) =>
+        Group.SendAsync("PrinterActivityChanged", new { printerId }, cancellationToken);
 
     public Task PrinterStatusChangedAsync(
-        Guid organizationId,
         Guid printerId,
         PrinterStatus status,
         bool isReachable,
         CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync(
+        Group.SendAsync(
             "PrinterStatusChanged",
             new { printerId, status = status.ToString(), isReachable },
             cancellationToken);
 
     public Task PrinterTelemetryUpdatedAsync(
-        Guid organizationId,
         Guid printerId,
         PrinterTelemetrySnapshot telemetry,
         CancellationToken cancellationToken) =>
-        Group(organizationId).SendAsync(
+        Group.SendAsync(
             "PrinterTelemetryUpdated",
             new
             {
@@ -51,19 +49,17 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
             cancellationToken);
 
     public async Task CameraFrameReceivedAsync(
-        Guid organizationId,
         Guid printerId,
         string frameJpegBase64,
         CancellationToken cancellationToken)
     {
         var receivedAtUtc = DateTimeOffset.UtcNow;
-        await snapshots.SaveAsync(organizationId, printerId, new(frameJpegBase64, receivedAtUtc), cancellationToken);
-        await Group(organizationId).SendAsync(
+        await snapshots.SaveAsync(printerId, new(frameJpegBase64, receivedAtUtc), cancellationToken);
+        await Group.SendAsync(
             "CameraFrameReceived",
             new { printerId, frameJpegBase64, receivedAtUtc },
             cancellationToken);
     }
 
-    private IClientProxy Group(Guid organizationId) =>
-        hubContext.Clients.Group(FarmHub.GroupName(organizationId.ToString()));
+    private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);
 }
