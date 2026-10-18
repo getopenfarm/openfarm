@@ -27,18 +27,29 @@ public sealed class JobFilamentAutoDeduction(
     /// layer the printer stopped on, from the line's usage curve; without a curve, an even spread over the layers (or the
     /// reported percent), which is right only when every colour is used evenly.
     /// </summary>
-    public static decimal? Fraction(JobFilamentConsumption line, JobProgress progress) =>
+    public static decimal? Fraction(IFilamentUsageLine line, JobProgress progress) =>
         progress.Outcome == PrintJobStatus.Completed ? 1m
         : line.UsageCurve is { } curve && progress.CurrentLayer is { } layer ? (decimal)curve.ShareAt(layer, progress.Percent)
         : progress.CurrentLayer is { } evenLayer && progress.TotalLayers is > 0 ? Math.Clamp((decimal)evenLayer / progress.TotalLayers.Value, 0m, 1m)
         : progress.Percent is { } percent ? Math.Clamp(percent / 100m, 0m, 1m)
         : null;
 
-    public async Task ApplyAsync(PrintJob job, JobProgress progress, CancellationToken cancellationToken)
+    public Task ApplyAsync(PrintJob job, JobProgress progress, CancellationToken cancellationToken) =>
+        DeductAsync(job.OrganizationId, job.Id, "PrintJob", "PrintJobFilamentDeductionSkipped", job.FilamentConsumption, progress,
+            job.RecordFilamentConsumption, cancellationToken);
+
+    /// <summary>The same deduction for a print the printer started itself; only <see cref="PrintJobStatus.Completed"/>/<see cref="PrintJobStatus.Failed"/> outcomes occur.</summary>
+    public Task ApplyAsync(ExternalPrint print, JobProgress progress, CancellationToken cancellationToken) =>
+        DeductAsync(print.OrganizationId, print.Id, "ExternalPrint", "ExternalPrintFilamentDeductionSkipped", print.Filaments, progress,
+            print.RecordFilamentConsumption, cancellationToken);
+
+    private async Task DeductAsync(
+        Guid organizationId, Guid ownerId, string entityType, string skippedEvent, IEnumerable<IFilamentUsageLine> lines,
+        JobProgress progress, Action<Guid, Guid?, decimal> record, CancellationToken cancellationToken)
     {
         var skipped = false;
         var depleted = new List<Spool>();
-        foreach (var line in job.FilamentConsumption)
+        foreach (var line in lines)
         {
             if (Fraction(line, progress) is not { } fraction || line.SpoolId is not { } spoolId || line.EstimatedGrams is not { } estimate)
             {
@@ -58,9 +69,9 @@ public sealed class JobFilamentAutoDeduction(
             }
 
             spool.RecordUsage(delta);
-            job.RecordFilamentConsumption(line.Id, spoolId, target);
+            record(line.Id, spoolId, target);
             await usageRecordRepository.AddAsync(
-                SpoolUsageRecord.Create(job.OrganizationId, spoolId, delta, job.Id, SpoolUsageSource.Job), cancellationToken);
+                SpoolUsageRecord.Create(organizationId, spoolId, delta, ownerId, SpoolUsageSource.Job), cancellationToken);
             if (spool.RemainingWeightGrams == 0) depleted.Add(spool);
         }
 
@@ -69,7 +80,7 @@ public sealed class JobFilamentAutoDeduction(
         if (skipped)
         {
             await activityLogWriter.WriteAsync(ActivityLogEntry.Create(
-                job.OrganizationId, "PrintJob", job.Id.ToString(), "PrintJobFilamentDeductionSkipped", null, ActorType.System), cancellationToken);
+                organizationId, entityType, ownerId.ToString(), skippedEvent, null, ActorType.System), cancellationToken);
         }
     }
 }

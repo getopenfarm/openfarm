@@ -24,6 +24,9 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
         var job = await jobRepository.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken);
         if (job is null)
         {
+            // Not an OpenFarm print: a print started at the printer itself still deducts its filament.
+            if (services.GetService<ExternalPrintSync>() is { } external)
+                await external.ObserveStateAsync(printerId, gcodeState, cancellationToken);
             return;
         }
 

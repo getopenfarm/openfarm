@@ -23,3 +23,20 @@ public class BambuLanConnectorTests
         options.ClientId.Should().NotBeNullOrEmpty();
     }
 }
+
+public class BambuExternalPrintFileLookupTests
+{
+    [Fact]
+    public void CandidateFilePaths_LeadWithTheReportedProjectThenTheCacheByName()
+    {
+        BambuLanConnector.CandidateFilePaths("Benchy", "/sdcard/cache/Other.gcode.3mf").Should().Equal(
+            "/cache/Other.gcode.3mf", "/cache/Benchy.gcode.3mf", "/Benchy.gcode.3mf", "/cache/Benchy.3mf", "/Benchy.3mf");
+    }
+
+    [Fact]
+    public void CandidateFilePaths_SkipsAnInnerPlatePath_AndAcceptsAnSdCardGcode()
+    {
+        BambuLanConnector.CandidateFilePaths("a", "/data/Metadata/plate_1.gcode").Should().NotContain(p => p.Contains("Metadata"));
+        BambuLanConnector.CandidateFilePaths(null, "/sdcard/part.gcode").Should().Equal("/part.gcode");
+    }
+}

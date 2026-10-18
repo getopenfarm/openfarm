@@ -6,7 +6,7 @@ namespace OpenFarm.Domain.Production;
 /// <see cref="SpoolId"/>/<see cref="GramsConsumed"/> null; filled in via
 /// <see cref="Record"/> as the job closes (FR-013a fills it even on failure).
 /// </summary>
-public sealed class JobFilamentConsumption
+public sealed class JobFilamentConsumption : IFilamentUsageLine
 {
     private JobFilamentConsumption(Guid id, Guid organizationId, Guid printJobId, string? materialType, string? detectedColorHex)
     {

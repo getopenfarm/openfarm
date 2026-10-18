@@ -81,6 +81,8 @@ public sealed class OpenFarmDbContext(
 
     public DbSet<PrintJob> PrintJobs => Set<PrintJob>();
 
+    public DbSet<ExternalPrint> ExternalPrints => Set<ExternalPrint>();
+
     public DbSet<JobFilamentConsumption> JobFilamentConsumptions => Set<JobFilamentConsumption>();
 
     protected override void OnModelCreating(ModelBuilder builder)

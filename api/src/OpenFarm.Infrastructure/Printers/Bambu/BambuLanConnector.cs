@@ -28,6 +28,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     private const string MqttUsername = "bblp";
     private const string FtpsCacheDirectory = "/cache";
 
+    private static readonly JsonSerializerOptions IgnoreNullOptions = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+
     private readonly ILogger<BambuLanConnector> _logger;
     private readonly BambuTransportOptions _options;
 
@@ -225,7 +227,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 ams_mapping = sendMapping ? feedMapping!.Trays : null,
                 ams_mapping2 = sendMapping ? feedMapping!.Targets.Select(t => new { ams_id = t.AmsId, slot_id = t.SlotId }) : null,
             },
-        }, new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull });
+        }, IgnoreNullOptions);
         await PublishCommandAsync(details, payload, cancellationToken);
     }
 
@@ -258,6 +260,47 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     /// <inheritdoc />
     public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
         PublishCommandAsync(details, """{"print":{"sequence_id":"0","command":"stop"}}""", cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<byte[]?> FetchPrintFileAsync(PrinterConnectionDetails details, string? jobName, string? gcodeFile, CancellationToken cancellationToken)
+    {
+        var candidates = CandidateFilePaths(jobName, gcodeFile).Distinct().ToList();
+        if (candidates.Count == 0) return null;
+
+        await using var ftp = new AsyncFtpClient(details.IpAddress, MqttUsername, details.AccessCode, _options.FtpsPort);
+        ftp.Config.EncryptionMode = FtpEncryptionMode.Implicit;
+        ftp.Config.ValidateAnyCertificate = true;
+        await ftp.AutoConnect(cancellationToken);
+        foreach (var path in candidates)
+        {
+            if (await ftp.FileExists(path, cancellationToken) && await ftp.DownloadBytes(path, token: cancellationToken) is { Length: > 0 } bytes)
+                return bytes;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Where a print the printer started itself is likely stored. Bambu Studio and Handy leave the project as
+    /// <c>/cache/&lt;name&gt;.gcode.3mf</c> (or <c>.3mf</c>) while <c>gcode_file</c> usually names the plate inside it, so the
+    /// reported name leads; a <c>gcode_file</c> that is itself a file on the card (SD prints) is tried too. Unverified on hardware.
+    /// </summary>
+    internal static IEnumerable<string> CandidateFilePaths(string? jobName, string? gcodeFile)
+    {
+        const string card = "/sdcard";
+        if (!string.IsNullOrWhiteSpace(gcodeFile) && gcodeFile.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase))
+            yield return gcodeFile.StartsWith(card, StringComparison.Ordinal) ? gcodeFile[card.Length..] : gcodeFile;
+        if (!string.IsNullOrWhiteSpace(jobName) && !jobName.Contains('/', StringComparison.Ordinal))
+            foreach (var name in new[] { $"{jobName}.gcode.3mf", $"{jobName}.3mf" })
+            {
+                yield return $"{FtpsCacheDirectory}/{name}";
+                yield return $"/{name}";
+            }
+
+        if (!string.IsNullOrWhiteSpace(gcodeFile) && gcodeFile.StartsWith(card + "/", StringComparison.Ordinal)
+            && gcodeFile.EndsWith(".gcode", StringComparison.OrdinalIgnoreCase))
+            yield return gcodeFile[card.Length..];
+    }
 
     /// <summary>Short-lived connect, publish one command, disconnect — mirrors <see cref="VerifyAsync"/>'s shape.</summary>
     private async Task PublishCommandAsync(PrinterConnectionDetails details, string payload, CancellationToken cancellationToken)

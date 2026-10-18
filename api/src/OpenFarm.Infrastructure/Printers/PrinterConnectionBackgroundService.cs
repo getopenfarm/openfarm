@@ -12,6 +12,7 @@ using OpenFarm.Application.Production;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Multitenancy;
+using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Printers;
 
@@ -430,7 +431,10 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 telemetry.ExternalSpoolTray,
                 telemetry.CurrentLayer,
                 telemetry.TotalLayers,
-                telemetry.ActiveTrayId);
+                telemetry.ActiveTrayId,
+                telemetry.CurrentGcodeFile);
+            if (services.GetService<ExternalPrintSync>() is { } externalPrintSync)
+                await externalPrintSync.ObserveTelemetryAsync(printer, cancellationToken);
         }
 
         var mustFlushNow = reportedStateChanged || alertsChanged || statusChanged || !wasReachable || previousNozzle != printer.ReportedNozzleDiameterMm || previouslyConfirmed != printer.NozzleConfirmed;

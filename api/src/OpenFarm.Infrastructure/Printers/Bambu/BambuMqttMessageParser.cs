@@ -113,7 +113,7 @@ public static class BambuMqttMessageParser
 
             return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, amsUnits, externalSpoolTray, ParseNozzleDiameter(print), NozzleReported: HasNozzleReport(print),
                 CurrentLayer: TryGetInt(print, "layer_num"), TotalLayers: TryGetInt(print, "total_layer_num"),
-                ActiveTrayId: ParseActiveTrayId(print));
+                ActiveTrayId: ParseActiveTrayId(print), CurrentGcodeFile: GetString(print, "gcode_file"));
         }
         catch (JsonException)
         {

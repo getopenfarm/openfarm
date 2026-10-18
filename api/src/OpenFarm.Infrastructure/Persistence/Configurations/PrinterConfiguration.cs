@@ -52,6 +52,7 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.Property(p => p.CurrentStageLabel);
         builder.Property(p => p.RemainingTimeMinutes);
         builder.Property(p => p.CurrentJobName);
+        builder.Property(p => p.CurrentGcodeFile);
         builder.Property(p => p.ReportedState);
         builder.Property(p => p.StateObservedAtUtc);
         builder.Property(p => p.ActiveAlerts)

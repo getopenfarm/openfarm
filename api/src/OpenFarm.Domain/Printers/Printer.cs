@@ -102,6 +102,9 @@ public sealed class Printer
 
     public string? CurrentJobName { get; private set; }
 
+    /// <summary>The printer's own <c>gcode_file</c> for the current print — where an external print's file can be found.</summary>
+    public string? CurrentGcodeFile { get; private set; }
+
     public IReadOnlyList<AmsUnit> AmsUnits { get; private set; }
 
     public AmsTray? ExternalSpoolTray { get; private set; }
@@ -217,7 +220,8 @@ public sealed class Printer
         AmsTray? externalSpoolTray = null,
         int? currentLayer = null,
         int? totalLayers = null,
-        int? activeTrayId = null)
+        int? activeTrayId = null,
+        string? currentGcodeFile = null)
     {
         NozzleTempC = nozzleTempC ?? NozzleTempC;
         BedTempC = bedTempC ?? BedTempC;
@@ -228,6 +232,7 @@ public sealed class Printer
         CurrentStageLabel = currentStageLabel ?? CurrentStageLabel;
         RemainingTimeMinutes = remainingTimeMinutes ?? RemainingTimeMinutes;
         CurrentJobName = currentJobName ?? CurrentJobName;
+        CurrentGcodeFile = currentGcodeFile ?? CurrentGcodeFile;
         AmsUnits = amsUnits.Count > 0 ? amsUnits : AmsUnits;
         ExternalSpoolTray = externalSpoolTray ?? ExternalSpoolTray;
     }

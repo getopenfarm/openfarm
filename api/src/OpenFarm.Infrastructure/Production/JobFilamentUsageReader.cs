@@ -24,17 +24,18 @@ internal sealed record JobFilamentUsageReport(IReadOnlyList<FilamentUsage> Usage
 internal static class JobFilamentUsageReader
 {
     private const string SliceInfo = "Metadata/slice_info.config";
-    private const string PlateGCode = "Metadata/plate_1.gcode";
 
-    public static JobFilamentUsageReport Read(byte[] file)
+    /// <summary>Dispatch always sends plate 1; an external print names its own plate.</summary>
+    public static JobFilamentUsageReport Read(byte[] file, int plate = 1)
     {
+        var plateGCode = $"Metadata/plate_{plate}.gcode";
         try
         {
             if (file.Length >= 2 && file[0] == 'P' && file[1] == 'K')
             {
                 using var archive = new ZipArchive(new MemoryStream(file), ZipArchiveMode.Read);
-                var gcode = SlicedPlateMetadata.Find(archive, PlateGCode);
-                var usages = SlicedPlateMetadata.Find(archive, SliceInfo) is { } entry ? ReadSliceInfo(entry) : [];
+                var gcode = SlicedPlateMetadata.Find(archive, plateGCode);
+                var usages = SlicedPlateMetadata.Find(archive, SliceInfo) is { } entry ? ReadSliceInfo(entry, plate) : [];
                 if (usages.Count == 0 && gcode is not null)
                 {
                     using var footerReader = new StreamReader(gcode.Open());
@@ -80,11 +81,11 @@ internal static class JobFilamentUsageReader
             : u).ToList();
 
     /// <summary>A slice_info filament <c>id</c> is 1-based; the tool the G-code selects with <c>T&lt;n&gt;</c> is id - 1.</summary>
-    private static List<FilamentUsage> ReadSliceInfo(ZipArchiveEntry entry)
+    private static List<FilamentUsage> ReadSliceInfo(ZipArchiveEntry entry, int plateIndex)
     {
         using var input = entry.Open();
         var plate = XDocument.Load(input).Descendants("plate").FirstOrDefault(p => p.Elements("metadata")
-            .Any(m => (string?)m.Attribute("key") == "index" && (string?)m.Attribute("value") == "1"));
+            .Any(m => (string?)m.Attribute("key") == "index" && (string?)m.Attribute("value") == plateIndex.ToString(CultureInfo.InvariantCulture)));
         if (plate is null) return [];
         return plate.Elements("filament")
             .Select(f => new FilamentUsage((string?)f.Attribute("type"), SlicedPlateMetadata.NormalizeColor((string?)f.Attribute("color")),

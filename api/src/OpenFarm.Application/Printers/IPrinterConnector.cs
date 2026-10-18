@@ -22,7 +22,8 @@ public sealed record PrinterTelemetrySnapshot(
     IReadOnlyList<PrinterAlert>? ActiveAlerts = null,
     int? CurrentLayer = null,
     int? TotalLayers = null,
-    int? ActiveTrayId = null);
+    int? ActiveTrayId = null,
+    string? CurrentGcodeFile = null);
 
 /// <summary>
 /// One inbound message from a printer's live connection, already parsed into domain-shaped data —
@@ -89,4 +90,11 @@ public interface IPrinterConnector
     /// <c>Cancelled</c> rather than <c>Failed</c> (FR-024c).
     /// </summary>
     Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Downloads the file the printer is printing, for a print OpenFarm didn't send, from the name and <c>gcode_file</c> the
+    /// printer reports. Null when it can't be found or the brand can't be read back.
+    /// </summary>
+    Task<byte[]?> FetchPrintFileAsync(PrinterConnectionDetails details, string? jobName, string? gcodeFile, CancellationToken cancellationToken) =>
+        Task.FromResult<byte[]?>(null);
 }

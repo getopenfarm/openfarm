@@ -334,6 +334,9 @@ builder.Services.AddScoped<IPrintJobEligibilityQuery, PrintJobEligibilityQuery>(
 builder.Services.AddScoped<IJobFileResolver, JobFileResolver>();
 builder.Services.AddScoped<IQueryHandler<GetPrintJobFileQuery, JobFileContent>, GetPrintJobFileQueryHandler>();
 builder.Services.AddScoped<IJobTelemetrySync, JobTelemetrySync>();
+builder.Services.AddScoped<IExternalPrintRepository, ExternalPrintRepository>();
+builder.Services.AddScoped<FeedTrayResolver>();
+builder.Services.AddScoped<ExternalPrintSync>();
 builder.Services.AddScoped<IProductionEventPublisher, FarmHubProductionEventPublisher>();
 
 builder.Services.AddSingleton<ProductionDispatchBackgroundService>();
