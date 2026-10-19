@@ -54,6 +54,7 @@ export function useBomCatalog(excludeAssemblyId?: string) {
     assemblies,
     components,
     isPending: queries.some((q) => q.isPending),
+    isFetching: queries.some((q) => q.isFetching),
     isError: queries.some((q) => q.isError),
     retry: () => {
       for (const query of queries) void query.refetch();

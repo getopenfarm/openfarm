@@ -93,8 +93,7 @@ function renderPanel(lines: EditableLine[]) {
 
 const stat = (label: string) =>
   within(
-    screen.getByText(label, { selector: 'dt, span' })
-      .parentElement as HTMLElement,
+    screen.getByText(label, { selector: 'dt' }).parentElement as HTMLElement,
   );
 
 describe('BuildPanel', () => {
@@ -155,8 +154,8 @@ describe('BuildPanel', () => {
     );
     renderPanel(LINES.slice(0, 1));
 
-    const colours = await screen.findByRole('list', {
-      name: 'Filament by colour',
+    const colours = await screen.findByRole('table', {
+      name: 'Filament breakdown',
     });
     // 2 units x (7.4 + 3.1): purge-inclusive, not the slicer's 10 g.
     expect(within(colours).getByText('PLA #000000')).toBeInTheDocument();
@@ -174,6 +173,91 @@ describe('BuildPanel', () => {
     rerender(<BuildPanel lines={[{ ...LINES[0], quantity: 6 }]} />);
     expect(stat('Print time').getByText('3h')).toBeInTheDocument();
   });
+
+  it('shows unattributed weight even when no known colors are available', async () => {
+    renderPanel(LINES.slice(0, 1));
+    const table = await screen.findByRole('table', {
+      name: 'Filament breakdown',
+    });
+    const row = within(table).getByRole('row', { name: /Unknown color/ });
+    expect(within(row).getByRole('cell', { name: '10 g' })).toBeInTheDocument();
+    expect(
+      within(row).getByRole('cell', { name: 'Unavailable' }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    { price: 0, rowCost: '0.00', subtotal: '0.00' },
+    { price: null, rowCost: 'Unavailable', subtotal: '3.00 (partial)' },
+  ])(
+    'keeps zero and missing prices distinct in the build sheet ($price)',
+    async ({ price, rowCost, subtotal }) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: RequestInfo | URL) => {
+          const url = input.toString();
+          if (url.includes('/api/v1/filaments'))
+            return Promise.resolve(
+              jsonResponse({
+                filaments: [
+                  {
+                    variants: [
+                      { id: 'black', pricePerKg: 30 },
+                      { id: 'white', colorName: 'White', pricePerKg: price },
+                    ],
+                  },
+                ],
+              }),
+            );
+          if (url.includes('/api/v1/parts'))
+            return Promise.resolve(
+              jsonResponse({
+                parts: [
+                  {
+                    id: 'p1',
+                    unitsPerPrint: 2,
+                    estimatedPrintTimeMinutes: 60,
+                    filamentByColor: [
+                      {
+                        materialType: 'PLA',
+                        colorHex: '#000000',
+                        grams: 100,
+                        narrowFilamentVariantId: 'black',
+                      },
+                      {
+                        materialType: 'PLA',
+                        colorHex: '#FFFFFF',
+                        grams: 50,
+                        narrowFilamentVariantId: 'white',
+                      },
+                    ],
+                  },
+                ],
+              }),
+            );
+          const hit = ROUTES.find(([path]) => url.includes(path));
+          return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
+        }),
+      );
+      renderPanel(LINES.slice(0, 1));
+      const table = await screen.findByRole('table', {
+        name: 'Filament breakdown',
+      });
+      const row = within(table).getByRole('row', { name: /White/ });
+      expect(
+        within(row).getByRole('cell', { name: '50 g' }),
+      ).toBeInTheDocument();
+      expect(
+        within(row).getByRole('cell', { name: rowCost }),
+      ).toBeInTheDocument();
+      expect(
+        stat('Filament cost').getByText(price === 0 ? '3.00' : subtotal),
+      ).toBeInTheDocument();
+      expect(
+        stat('Estimated total').getByText(price === 0 ? '3.00' : subtotal),
+      ).toBeInTheDocument();
+    },
+  );
 
   it('flags parts without an estimate and components without a cost', async () => {
     vi.stubGlobal(
@@ -198,6 +282,109 @@ describe('BuildPanel', () => {
     expect(screen.getByText('1 component without cost.')).toBeInTheDocument();
   });
 
+  it('shows catalog names and keeps same-color variants and unselected material separate', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/api/v1/filaments'))
+          return Promise.resolve(
+            jsonResponse({
+              filaments: [
+                {
+                  vendorName: 'Bambu Lab',
+                  material: 'PETG Basic',
+                  pricePerKg: 20,
+                  variants: [
+                    { id: 'basic', colorName: 'White', colorHex: '#FFFFFF' },
+                  ],
+                },
+                {
+                  vendorName: 'Polymaker',
+                  material: 'PETG',
+                  pricePerKg: 30,
+                  variants: [
+                    {
+                      id: 'premium',
+                      colorName: 'Snow white',
+                      colorHex: '#FFFFFF',
+                    },
+                  ],
+                },
+              ],
+            }),
+          );
+        if (url.includes('/api/v1/parts'))
+          return Promise.resolve(
+            jsonResponse({
+              parts: [
+                {
+                  id: 'p1',
+                  unitsPerPrint: 2,
+                  estimatedPrintTimeMinutes: 60,
+                  filamentByColor: [
+                    {
+                      materialType: 'PETG',
+                      colorHex: '#FFFFFF',
+                      grams: 100,
+                      narrowFilamentVariantId: 'basic',
+                    },
+                    {
+                      materialType: 'PETG',
+                      colorHex: '#FFFFFF',
+                      grams: 50,
+                      narrowFilamentVariantId: 'premium',
+                    },
+                    { materialType: 'PETG', colorHex: '#FFFFFF', grams: 10 },
+                    {
+                      materialType: 'PETG',
+                      colorHex: '#FFFFFF',
+                      grams: 5,
+                      narrowFilamentVariantId: 'removed',
+                    },
+                  ],
+                },
+              ],
+            }),
+          );
+        const hit = ROUTES.find(([path]) => url.includes(path));
+        return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
+      }),
+    );
+    renderPanel(LINES.slice(0, 1));
+    const table = await screen.findByRole('table', {
+      name: 'Filament breakdown',
+    });
+    const basic = within(table).getByRole('row', {
+      name: /Bambu Lab PETG Basic · White/,
+    });
+    expect(
+      within(basic).getByRole('cell', { name: '100 g' }),
+    ).toBeInTheDocument();
+    expect(
+      within(basic).getByRole('cell', { name: '2.00' }),
+    ).toBeInTheDocument();
+    const premium = within(table).getByRole('row', {
+      name: /Polymaker PETG · Snow white/,
+    });
+    expect(
+      within(premium).getByRole('cell', { name: '50 g' }),
+    ).toBeInTheDocument();
+    expect(
+      within(premium).getByRole('cell', { name: '1.50' }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByRole('row', { name: /PETG #FFFFFF/ }),
+    ).toHaveTextContent('10 g');
+    expect(
+      within(table).getByRole('row', { name: /Filament unavailable/ }),
+    ).toHaveTextContent('5 g');
+    expect(stat('Filament').getByText('165 g')).toBeInTheDocument();
+    expect(
+      stat('Filament cost').getByText('3.50 (partial)'),
+    ).toBeInTheDocument();
+  });
+
   it('marks totals as loading while a sub-assembly explodes', () => {
     vi.stubGlobal(
       'fetch',
@@ -205,6 +392,13 @@ describe('BuildPanel', () => {
     );
     renderPanel(LINES.slice(2, 3));
     expect(screen.getByText('Loading sub-assemblies…')).toBeInTheDocument();
+    expect(
+      screen.getByRole('complementary', { name: 'Build' }),
+    ).toHaveAttribute('aria-busy', 'true');
+    expect(
+      screen.getByLabelText('Loading filament breakdown'),
+    ).toBeInTheDocument();
+    expect(stat('Estimated total').queryByText('0.00')).not.toBeInTheDocument();
   });
 
   it('marks totals incomplete when a sub-assembly explosion fails', async () => {
@@ -221,7 +415,7 @@ describe('BuildPanel', () => {
     renderPanel(LINES);
     expect(
       await screen.findByText(
-        '1 sub-assembly failed to load. Totals incomplete.',
+        'Could not load 1 sub-assembly. Totals incomplete.',
       ),
     ).toBeInTheDocument();
   });
@@ -276,7 +470,7 @@ describe('BuildPanel', () => {
       expect(stat('Filament cost').getByText('8.00')).toBeInTheDocument(),
     );
     expect(stat('Estimated total').getByText('8.90')).toBeInTheDocument();
-    const colors = screen.getByRole('list', { name: 'Filament by colour' });
+    const colors = screen.getByRole('table', { name: 'Filament breakdown' });
     expect(within(colors).getByText('6.00')).toBeInTheDocument();
     expect(within(colors).getByText('2.00')).toBeInTheDocument();
   });

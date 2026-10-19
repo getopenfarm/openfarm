@@ -59,17 +59,25 @@ interface PartEstimate {
 }
 
 export interface ColorTotal {
+  variantId?: string;
   materialType: string | null;
   /** null = grams we cannot attribute to a colour (part not reprocessed, or several colours without a split). */
   colorHex: string | null;
   grams: number;
 }
 
-const colorKey = (material?: string | null, color?: string | null) =>
-  `${material ?? ''}|${(color ?? '').toUpperCase()}`;
+const colorKey = (
+  material?: string | null,
+  color?: string | null,
+  variantId?: string | null,
+) =>
+  variantId
+    ? `variant:${variantId}`
+    : `${material ?? ''}|${(color ?? '').toUpperCase()}`;
 
 /**
  * Estimates are per plate of unitsPerPrint units, so each unit costs estimate / unitsPerPrint. No rounding up to whole plates.
+ * Selected variants stay distinct; unselected requirements group by file color.
  * `grams` is the sum of `colors`, so the rows always add up to the total.
  */
 export function printTotals(
@@ -83,12 +91,14 @@ export function printTotals(
     material: string | null | undefined,
     color: string | null | undefined,
     grams: number,
+    variantId?: string | null,
   ) => {
-    const key = colorKey(material, color);
+    const key = colorKey(material, color, variantId);
     const total = byColor.get(key) ?? {
       materialType: material ?? null,
       colorHex: color ?? null,
       grams: 0,
+      ...(variantId ? { variantId } : {}),
     };
     total.grams += grams;
     byColor.set(key, total);
@@ -103,7 +113,12 @@ export function printTotals(
     const colors = est?.filamentByColor ?? [];
     if (colors.length > 0 && colors.every((c) => c.grams != null)) {
       for (const c of colors)
-        addGrams(c.materialType, c.colorHex, plates * (c.grams ?? 0));
+        addGrams(
+          c.materialType,
+          c.colorHex,
+          plates * (c.grams ?? 0),
+          c.narrowFilamentVariantId,
+        );
     } else if (est?.estimatedFilamentWeightGrams != null) {
       // One colour: the part total is that colour's grams (just without purge). Several, unsplit: unknown.
       const sole = colors.length === 1 ? colors[0] : undefined;
@@ -111,6 +126,7 @@ export function printTotals(
         sole?.materialType,
         sole?.colorHex,
         plates * est.estimatedFilamentWeightGrams,
+        sole?.narrowFilamentVariantId,
       );
     }
   }
@@ -148,7 +164,7 @@ interface FilamentPrice {
   variants?: { id?: string; pricePerKg?: number | null }[] | null;
 }
 
-/** Resolve prices before grouping colors: identical colors may refer to different products. */
+/** Resolve prices and group by selected variant, falling back to file color when unselected. */
 export function filamentCost(
   parts: Map<string, number>,
   catalog: PartEstimate[],
@@ -182,7 +198,11 @@ export function filamentCost(
           ? requirements.map((requirement) => ({ ...requirement, grams: null }))
           : [{ grams: part?.estimatedFilamentWeightGrams }];
     for (const row of rows) {
-      const key = colorKey(row.materialType, row.colorHex);
+      const key = colorKey(
+        row.materialType,
+        row.colorHex,
+        row.narrowFilamentVariantId,
+      );
       const color = colors.get(key) ?? { total: 0, priced: 0, missing: 0 };
       const variantId = row.narrowFilamentVariantId;
       const price = variantId ? prices.get(variantId) : null;

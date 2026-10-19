@@ -174,6 +174,44 @@ describe('printTotals', () => {
     expect(totals.minutes).toBe(10);
     expect(totals.unestimated).toBe(1);
   });
+
+  it('combines the same selected variant across file colors and preserves single-color fallback identity', () => {
+    const totals = printTotals(
+      new Map([
+        ['p1', 2],
+        ['p2', 1],
+      ]),
+      [
+        {
+          id: 'p1',
+          unitsPerPrint: 2,
+          filamentByColor: [
+            {
+              materialType: 'PETG',
+              colorHex: '#FFFFFF',
+              grams: 10,
+              narrowFilamentVariantId: 'white',
+            },
+          ],
+        },
+        {
+          id: 'p2',
+          estimatedFilamentWeightGrams: 5,
+          filamentByColor: [
+            {
+              materialType: 'PETG',
+              colorHex: '#FFFFFE',
+              grams: null,
+              narrowFilamentVariantId: 'white',
+            },
+          ],
+        },
+      ],
+    );
+    expect(totals.colors).toHaveLength(1);
+    expect(totals.colors[0]).toMatchObject({ variantId: 'white', grams: 15 });
+    expect(totals.grams).toBe(15);
+  });
 });
 
 describe('hardwareCost', () => {
@@ -228,7 +266,8 @@ describe('filamentCost', () => {
     expect(result.total).toBe(7.5);
     expect(result.incomplete).toBe(false);
     expect([...result.colors.values()]).toEqual([
-      { total: 7.5, priced: 2, missing: 0 },
+      { total: 3, priced: 1, missing: 0 },
+      { total: 4.5, priced: 1, missing: 0 },
     ]);
   });
 

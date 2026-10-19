@@ -1,10 +1,27 @@
 import { useQueries } from '@tanstack/react-query';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { getOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointQueryOptions } from '@/lib/api/generated/assemblies/assemblies';
 import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
 import { formatMinutes } from '@/lib/formatMinutes';
 import { formatCost, formatGrams } from '@/lib/formatUnits';
-import { cn } from '@/lib/utils';
 import type { EditableLine } from './BomLineEditor';
 import {
   filamentColorKey,
@@ -60,6 +77,28 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
   const total = rollUp(lines, subExplosions);
   const print = printTotals(total.parts, catalog.parts);
   const cost = hardwareCost(total.components, catalog.components);
+  const variants = new Map(
+    (filamentQuery.data?.data?.filaments ?? []).flatMap((filament) =>
+      (filament.variants ?? []).map(
+        (variant) =>
+          [
+            variant.id,
+            {
+              name:
+                [
+                  [filament.vendorName, filament.material]
+                    .filter(Boolean)
+                    .join(' '),
+                  variant.colorName,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || 'Filament unavailable',
+              colorHex: variant.colorHex,
+            },
+          ] as const,
+      ),
+    ),
+  );
   const filament = filamentCost(
     total.parts,
     catalog.parts,
@@ -82,7 +121,7 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
       'Filament weight estimates unavailable. Filament cost incomplete.',
     subPending && 'Loading sub-assemblies…',
     subFailed > 0 &&
-      `${plural(subFailed, 'sub-assembly', 'sub-assemblies')} failed to load. Totals incomplete.`,
+      `Could not load ${plural(subFailed, 'sub-assembly', 'sub-assemblies')}. Totals incomplete.`,
     print.unestimated > 0 &&
       `${plural(print.unestimated, 'part', 'parts')} not estimated.`,
     cost.missingCost > 0 &&
@@ -93,72 +132,98 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
     <aside
       aria-labelledby="build-heading"
       aria-busy={loading}
-      className={cn('rounded-lg border bg-card', className)}
+      className={className}
     >
-      <div className="flex items-center gap-3 border-b px-4 py-3">
-        <h3 id="build-heading" className="font-medium">
-          Build
-        </h3>
-      </div>
-
-      <div
-        aria-live="polite"
-        className={cn(
-          'flex flex-col gap-4 px-4 py-4',
-          incomplete && 'opacity-60',
-        )}
-      >
-        <div className="flex flex-col">
-          <span className="text-sm text-muted-foreground">Print time</span>
-          <span className="font-heading text-3xl font-semibold tabular-nums">
-            {incomplete ? 'Unavailable' : formatMinutes(print.minutes)}
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-1.5 text-sm">
-          <dl>
-            <Row
+      <Card>
+        <CardHeader>
+          <CardTitle id="build-heading">Build</CardTitle>
+        </CardHeader>
+        <CardContent className="flex min-w-0 flex-col gap-4" aria-live="polite">
+          <dl className="grid grid-cols-2 gap-4">
+            <Metric
+              label="Print time"
+              value={incomplete ? 'Unavailable' : formatMinutes(print.minutes)}
+              loading={loading}
+            />
+            <Metric
               label="Filament"
               value={incomplete ? 'Unavailable' : formatGrams(print.grams)}
+              loading={loading}
             />
           </dl>
-          {print.colors.some((c) => c.colorHex) && (
-            <ul aria-label="Filament by colour" className="flex flex-col gap-1">
-              {print.colors.map((c) => (
-                <li
-                  key={`${c.materialType}|${c.colorHex}`}
-                  className="flex items-center justify-between gap-3 pl-3 text-muted-foreground"
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="size-3 shrink-0 rounded-full border"
-                      style={{ backgroundColor: c.colorHex ?? undefined }}
-                      aria-hidden
-                    />
-                    {c.colorHex
-                      ? `${c.materialType ?? 'Any'} ${c.colorHex}`
-                      : 'Unknown colour'}
-                  </span>
-                  <span className="text-right tabular-nums">
-                    {formatGrams(c.grams)}
-                    <span className="block text-xs">
-                      {(() => {
-                        const color = filament.colors.get(
-                          filamentColorKey(c.materialType, c.colorHex),
-                        );
-                        return estimate(
+          {loading ? (
+            <Skeleton
+              className="h-24 w-full"
+              aria-label="Loading filament breakdown"
+            />
+          ) : print.colors.length > 0 && !failed ? (
+            <Table aria-label="Filament breakdown">
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">Filament</TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Weight
+                  </TableHead>
+                  <TableHead scope="col" className="text-right">
+                    Cost
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {print.colors.map((c) => {
+                  const color = filament.colors.get(
+                    filamentColorKey(c.materialType, c.colorHex, c.variantId),
+                  );
+                  const variant = c.variantId
+                    ? variants.get(c.variantId)
+                    : undefined;
+                  return (
+                    <TableRow
+                      key={filamentColorKey(
+                        c.materialType,
+                        c.colorHex,
+                        c.variantId,
+                      )}
+                    >
+                      <TableCell className="whitespace-normal">
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="size-3 shrink-0 rounded-full border"
+                            style={{
+                              backgroundColor:
+                                variant?.colorHex ?? c.colorHex ?? undefined,
+                            }}
+                            aria-hidden
+                          />
+                          <span>
+                            {variant
+                              ? variant.name
+                              : c.variantId
+                                ? 'Filament unavailable'
+                                : c.colorHex
+                                  ? `${c.materialType ?? 'Any'} ${c.colorHex}`
+                                  : 'Unknown color'}
+                          </span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatGrams(c.grams)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {estimate(
                           color?.total ?? 0,
                           (color?.missing ?? 0) > 0,
                           (color?.priced ?? 0) > 0,
-                        );
-                      })()}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <dl>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : null}
+          <Separator />
+          <dl className="flex flex-col gap-2">
             <Row
               label="Filament cost"
               value={estimate(
@@ -166,11 +231,17 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
                 filament.incomplete,
                 filament.priced > 0 || total.parts.size === 0,
               )}
+              loading={loading}
             />
             <Row
               label="Hardware cost"
               value={estimate(cost.total, cost.missingCost > 0)}
+              loading={loading}
             />
+          </dl>
+        </CardContent>
+        <CardFooter>
+          <dl className="w-full" aria-live="polite">
             <Row
               label="Estimated total"
               value={estimate(
@@ -180,43 +251,93 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
                   total.components.size > cost.missingCost ||
                   (total.parts.size === 0 && total.components.size === 0),
               )}
+              loading={loading}
+              prominent
             />
           </dl>
-        </div>
-      </div>
-
-      {failed && (
-        <div className="px-4 pb-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              catalog.retry();
-              void filamentQuery.refetch();
-              for (const query of subQueries) void query.refetch();
-            }}
-          >
-            Retry totals
-          </Button>
-        </div>
-      )}
+        </CardFooter>
+      </Card>
       {notes.length > 0 && (
-        <ul className="flex flex-col gap-1 border-t px-4 py-3 text-xs text-muted-foreground">
-          {notes.map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ul>
+        <Alert role="status" className="mt-4">
+          <AlertTitle>
+            {loading ? 'Calculating build…' : 'Build estimates incomplete'}
+          </AlertTitle>
+          <AlertDescription>
+            <ul className="flex flex-col gap-1">
+              {notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+            {failed && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={
+                  catalog.isFetching ||
+                  filamentQuery.isFetching ||
+                  subQueries.some((q) => q.isFetching)
+                }
+                onClick={() => {
+                  catalog.retry();
+                  void filamentQuery.refetch();
+                  for (const query of subQueries) void query.refetch();
+                }}
+              >
+                Retry totals
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
       )}
     </aside>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  loading,
+}: {
+  label: string;
+  value: string;
+  loading: boolean;
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
+    <div className="flex min-w-0 flex-col gap-1">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium tabular-nums">{value}</dd>
+      <dd className="font-heading text-xl font-semibold break-words tabular-nums">
+        {loading ? <Skeleton className="h-7 w-20" /> : value}
+      </dd>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  value,
+  loading,
+  prominent = false,
+}: {
+  label: string;
+  value: string;
+  loading: boolean;
+  prominent?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <dt className={prominent ? 'font-medium' : 'text-muted-foreground'}>
+        {label}
+      </dt>
+      <dd
+        className={
+          prominent
+            ? 'font-heading text-xl font-semibold tabular-nums'
+            : 'font-medium tabular-nums'
+        }
+      >
+        {loading ? <Skeleton className="h-6 w-20" /> : value}
+      </dd>
     </div>
   );
 }

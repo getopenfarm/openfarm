@@ -136,7 +136,7 @@ export function AssemblyEditor({
           {headerAction}
         </header>
 
-        <div className="grid flex-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="grid flex-1 items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <FormField
             control={form.control}
             name="lines"
@@ -151,7 +151,7 @@ export function AssemblyEditor({
               </div>
             )}
           />
-          <BuildPanel lines={lines} className="lg:sticky lg:top-4" />
+          <BuildPanel lines={lines} className="min-w-0" />
         </div>
 
         <FormFooter
