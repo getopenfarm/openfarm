@@ -53,7 +53,7 @@ function stub(
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = input.toString();
-    const params = new URL(url).searchParams;
+    const params = new URL(url, window.location.origin).searchParams;
     return Promise.resolve(
       !url.includes('/api/v1/print-jobs')
         ? json({ printers: [] })
@@ -139,7 +139,7 @@ describe('QueuePage', () => {
       ).getByRole('combobox', { name: 'Rows per page' }),
     ).toHaveTextContent('50');
     const urls = requests.mock.calls.map(
-      ([input]) => new URL(input.toString()),
+      ([input]) => new URL(input.toString(), window.location.origin),
     );
     expect(
       urls.some(

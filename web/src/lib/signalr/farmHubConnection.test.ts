@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectFarmHub } from './farmHubConnection';
 
 const hub = vi.hoisted(() => ({
+  withUrl: vi.fn(),
   start: vi.fn<() => Promise<void>>(),
   stop: vi.fn<() => Promise<void>>(),
   close: (_error?: Error) => {},
@@ -14,7 +15,8 @@ const hub = vi.hoisted(() => ({
 
 vi.mock('@microsoft/signalr', () => ({
   HubConnectionBuilder: class {
-    withUrl() {
+    withUrl(...args: unknown[]) {
+      hub.withUrl(...args);
       return this;
     }
     withAutomaticReconnect(policy: typeof hub.policy) {
@@ -40,10 +42,30 @@ vi.mock('@microsoft/signalr', () => ({
 describe('farm hub recovery', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    hub.withUrl.mockClear();
     hub.start.mockReset().mockResolvedValue();
     hub.stop.mockReset().mockResolvedValue();
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it.each([undefined, '', 'https://farm.example/'])(
+    'connects the hub using API base %s',
+    async (base) => {
+      vi.stubEnv('VITE_API_BASE_URL', base);
+      const session = connectFarmHub();
+      expect(hub.withUrl).toHaveBeenCalledWith(
+        `${base ? 'https://farm.example' : window.location.origin}/hubs/farm`,
+        expect.objectContaining({
+          accessTokenFactory: expect.any(Function),
+          withCredentials: false,
+        }),
+      );
+      await session.stop();
+    },
+  );
 
   it('retries initial failures and reports the first successful connection once', async () => {
     hub.start

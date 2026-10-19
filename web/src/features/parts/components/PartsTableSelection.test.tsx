@@ -212,7 +212,9 @@ describe('Part Library selection and bulk removal', () => {
       expect(screen.getByText('1 part removed')).toBeInTheDocument(),
     );
     expect(
-      deletes.mock.calls.map(([url]) => new URL(url.toString()).pathname),
+      deletes.mock.calls.map(
+        ([url]) => new URL(url.toString(), window.location.origin).pathname,
+      ),
     ).toEqual(['/api/v1/parts/a']);
     expect(
       (await screen.findByText('1 part removed')).closest(

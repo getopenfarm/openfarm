@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { PartFilamentRequirementsList } from '@/features/parts/components/PartFilamentRequirementsList';
+import { apiUrl } from '@/lib/api/apiUrl';
 import type { PrintJobResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   useOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpoint,
@@ -357,10 +358,9 @@ export function PrintJobDetailPage() {
   const fail = useOpenFarmApiEndpointsPrintJobsFailPrintJobEndpoint(options);
   async function download() {
     const token = getToken();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8888'}/api/v1/print-jobs/${id}/file`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const response = await fetch(apiUrl(`/api/v1/print-jobs/${id}/file`), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!response.ok) {
       toast.error(
         'Could not retrieve job file. Assign a printer before slicing.',

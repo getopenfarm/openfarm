@@ -16,6 +16,8 @@ services:
       timeout: 5s
       retries: 10
 
+  # Exactly one application instance per installation. Workers and migrations run here.
+  # Replace this instance during upgrades; overlapping replicas are unsupported.
   openfarm:
     image: ghcr.io/getopenfarm/openfarm:latest
     restart: unless-stopped

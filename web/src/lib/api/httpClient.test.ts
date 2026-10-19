@@ -12,8 +12,28 @@ function jsonResponse(body: unknown, status = 200) {
 describe('httpClient', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     clearToken();
   });
+
+  it.each([undefined, '', 'https://farm.example/'])(
+    'sends authenticated requests using API base %s',
+    async (base) => {
+      vi.stubEnv('VITE_API_BASE_URL', base);
+      setToken('a-valid-token');
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+      vi.stubGlobal('fetch', fetchMock);
+      await httpClient('/api/v1/printers');
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${base ? 'https://farm.example' : ''}/api/v1/printers`,
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer a-valid-token',
+          }),
+        }),
+      );
+    },
+  );
 
   it('does not set Content-Type on a bodyless request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));

@@ -1,12 +1,10 @@
 import * as signalR from '@microsoft/signalr';
+import { apiUrl } from '@/lib/api/apiUrl';
 import { getToken } from '@/lib/auth/tokenStorage';
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8888';
 
 function buildFarmHubConnection(): signalR.HubConnection {
   return new signalR.HubConnectionBuilder()
-    .withUrl(`${API_BASE_URL}/hubs/farm`, {
+    .withUrl(new URL(apiUrl('/hubs/farm'), window.location.origin).href, {
       accessTokenFactory: () => getToken() ?? '',
       // Auth is via the JWT bearer token above, not cookies — disabling credentialed
       // requests avoids requiring Access-Control-Allow-Credentials on the CORS policy.

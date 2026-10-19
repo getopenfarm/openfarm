@@ -248,7 +248,7 @@ it('clears page-local selection on sort and preserves header focus while loading
   expect(screen.getByText('Part 1')).toBeInTheDocument();
   expect(header).toHaveFocus();
   const request = requests.mock.calls
-    .map(([url]) => new URL(url.toString()))
+    .map(([url]) => new URL(url.toString(), window.location.origin))
     .findLast((url) => url.pathname === '/api/v1/parts');
   expect(request?.searchParams.get('sortBy')).toBe('name');
   expect(request?.searchParams.get('sortDirection')).toBe('asc');
@@ -276,7 +276,7 @@ it('keeps previous rows after a failed sort and retries the same requested order
   await user.click(screen.getByRole('button', { name: 'Retry' }));
   await waitFor(() => expect(header).toBeEnabled());
   const request = requests.mock.calls
-    .map(([url]) => new URL(url.toString()))
+    .map(([url]) => new URL(url.toString(), window.location.origin))
     .findLast((url) => url.pathname === '/api/v1/parts');
   expect(request?.searchParams.get('sortDirection')).toBe('asc');
   expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');

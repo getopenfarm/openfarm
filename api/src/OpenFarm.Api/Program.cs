@@ -471,11 +471,22 @@ app.UseCors();
 
 // Local development serves the SPA through Vite and has no wwwroot.
 // Retain missing-assets warnings in production so broken deployments stay visible.
+var spaFileOptions = new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        // Only Vite's fingerprinted build assets are safe to cache across releases.
+        context.Context.Response.Headers.CacheControl =
+            OpenFarm.Api.Hosting.SpaAssetCache.IsFingerprintedAsset(context.Context.Request.Path)
+                ? "public, max-age=31536000, immutable"
+                : "no-cache";
+    }
+};
 var serveSpa = !app.Environment.IsDevelopment() || Directory.Exists(app.Environment.WebRootPath);
 if (serveSpa)
 {
     app.UseDefaultFiles();
-    app.UseStaticFiles();
+    app.UseStaticFiles(spaFileOptions);
 }
 
 app.UseAuthentication();
@@ -497,10 +508,10 @@ app.MapHub<FarmHub>("/hubs/farm");
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
 
-// Client-side routes only — unknown /api/* must stay a real 404, not the SPA shell.
+// Only extensionless client routes get the shell; server namespaces retain real errors.
 if (serveSpa)
 {
-    app.MapFallbackToFile("{*path:regex(^(?!api/).*)}", "index.html");
+    app.MapFallbackToFile("{*path:nonfile:regex(^(?!(api|hubs|health|assets)(/|$)).*)}", "index.html", spaFileOptions);
 }
 
 // Generate contracts without a database or starting printer/background services.

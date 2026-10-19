@@ -3,10 +3,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
+import { clearToken, setToken } from '@/lib/auth/tokenStorage';
 import { PrintJobDetailPage } from './PrintJobDetailPage';
 
 vi.mock('./hooks/useProductionHub', () => ({ useProductionHub: () => {} }));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  clearToken();
+});
 
 function setup(
   status: string,
@@ -254,3 +259,26 @@ it('shows a printer-started print without the job-only controls', async () => {
     screen.queryByRole('button', { name: 'Job diagnosis' }),
   ).not.toBeInTheDocument();
 });
+
+it.each([undefined, '', 'https://farm.example/'])(
+  'downloads authenticated files using API base %s',
+  async (base) => {
+    vi.stubEnv('VITE_API_BASE_URL', base);
+    setToken('download-token');
+    const requests = setup('Cancelled');
+    const button = await screen.findByRole('button', {
+      name: 'Download print file',
+    });
+    // Exercise the actual request without invoking browser-only blob navigation.
+    requests.mockImplementation(
+      async () => new Response(null, { status: 404 }),
+    );
+    await userEvent.setup().click(button);
+    await waitFor(() =>
+      expect(requests).toHaveBeenCalledWith(
+        `${base ? 'https://farm.example' : ''}/api/v1/print-jobs/job-1/file`,
+        { headers: { Authorization: 'Bearer download-token' } },
+      ),
+    );
+  },
+);

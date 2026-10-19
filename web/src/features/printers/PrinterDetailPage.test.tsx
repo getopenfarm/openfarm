@@ -194,7 +194,7 @@ describe('PrinterDetailPage', () => {
     expect(await screen.findByText('Detail Test Printer')).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([input]) => {
-        const url = new URL(input.toString());
+        const url = new URL(input.toString(), window.location.origin);
         return (
           url.pathname.endsWith('/activity-log') &&
           url.searchParams.get('entityType') === 'Printer' &&

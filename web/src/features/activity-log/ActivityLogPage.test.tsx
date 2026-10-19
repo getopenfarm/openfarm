@@ -89,7 +89,7 @@ it('resets Activity Log to page one when changing page size with the keyboard', 
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
-      const url = new URL(input.toString());
+      const url = new URL(input.toString(), window.location.origin);
       requests.push(url);
       return jsonResponse({
         items: [{ id: 'entry', entityType: 'Part', eventType: 'Created' }],

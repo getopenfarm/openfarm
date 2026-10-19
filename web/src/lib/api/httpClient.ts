@@ -1,7 +1,5 @@
+import { apiUrl } from '@/lib/api/apiUrl';
 import { clearToken, getToken } from '@/lib/auth/tokenStorage';
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8888';
 
 // Orval's `httpClient: 'fetch'` mode expects the mutator to resolve to
 // `{ data, status, headers }`, not the bare parsed body.
@@ -25,7 +23,7 @@ export async function httpClient<T>(
   // `application/json` here would corrupt the upload.
   const isFormData = body instanceof FormData;
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  const response = await fetch(apiUrl(url), {
     ...options,
     body,
     headers: {
