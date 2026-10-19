@@ -67,7 +67,16 @@ web)     cd web && VITE_API_BASE_URL="${VITE_API_BASE_URL:-}" bun run dev --host
 # `kill 0` signals the whole process group, which is what reaps `dotnet run`'s grandchildren.
 # Run this from an interactive shell only — job control gives it its own process group there.
 # Invoked from another script (no job control) it would signal the caller too.
-up)      trap 'kill 0' EXIT INT TERM; "$0" api & "$0" web ;;
+# Web waits for /health/ready so an open tab doesn't flood vite's proxy with ECONNREFUSED.
+up)      trap 'kill 0' EXIT INT TERM
+         "$0" api &
+         api_pid=$!
+         echo "Waiting for API health check..."
+         until curl -sf -o /dev/null http://localhost:8888/health/ready; do
+           kill -0 "$api_pid" 2>/dev/null || { echo "API exited before becoming healthy" >&2; exit 1; }
+           sleep 1
+         done
+         "$0" web ;;
 #: slicers  download slicer bundles into ./.slicers for this platform
 slicers) dotnet run --project=tools/provision-slicers -- \
            --manifest slicers.manifest.json --out "$SlicerBundle__RootDirectory" --platform "$PLATFORM" ;;
