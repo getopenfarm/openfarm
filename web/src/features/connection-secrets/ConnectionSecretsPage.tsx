@@ -4,13 +4,12 @@ import { useNavigate } from 'react-router';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
-import { Page } from '@/components/page/Page';
-import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOpenFarmApiEndpointsConnectionSecretsListConnectionSecretsEndpoint } from '@/lib/api/generated/connection-secrets/connection-secrets';
 import type { ConnectionSecretResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatDateTime } from '@/lib/formatDateTime';
+import { SettingsSection } from '../settings/SettingsParts';
 
 const columns: ColumnDef<ConnectionSecretResponse>[] = [
   {
@@ -47,19 +46,16 @@ export function ConnectionSecretsPage() {
   const secrets = listQuery.data?.data ?? [];
 
   return (
-    <Page>
-      <PageHeader
-        size="section"
-        title="Connection credentials"
-        description="Encrypted LAN access codes."
-        action={
-          <Button onClick={() => navigate('/settings/connection-secrets/new')}>
-            <PlusIcon data-icon="inline-start" />
-            Add credential
-          </Button>
-        }
-      />
-
+    <SettingsSection
+      title="Connection credentials"
+      description="Encrypted LAN access codes."
+      action={
+        <Button onClick={() => navigate('/settings/connection-secrets/new')}>
+          <PlusIcon data-icon="inline-start" />
+          Add credential
+        </Button>
+      }
+    >
       {listQuery.isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : listQuery.isError ? (
@@ -84,6 +80,6 @@ export function ConnectionSecretsPage() {
       ) : (
         <DataTable pageSize={25} columns={columns} data={secrets} />
       )}
-    </Page>
+    </SettingsSection>
   );
 }
