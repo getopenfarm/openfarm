@@ -6,12 +6,13 @@ import { AssemblyFormPage } from '../features/assemblies/AssemblyFormPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { ConnectionSecretFormPage } from '../features/connection-secrets/ConnectionSecretFormPage';
 import { ConnectionSecretsPage } from '../features/connection-secrets/ConnectionSecretsPage';
+import { CostCatalogPage } from '../features/cost-catalog/CostCatalogPage';
+import { CostItemFormPage } from '../features/cost-catalog/CostItemFormPage';
+import { LegacyCostCatalogRedirect } from '../features/cost-catalog/LegacyCostCatalogRedirect';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { FilamentFormPage } from '../features/filament/FilamentFormPage';
 import { FilamentPage } from '../features/filament/FilamentPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
-import { NonPrintedComponentFormPage } from '../features/non-printed-components/NonPrintedComponentFormPage';
-import { NonPrintedComponentsPage } from '../features/non-printed-components/NonPrintedComponentsPage';
 import { PartDetailPage } from '../features/parts/PartDetailPage';
 import { PartFormPage } from '../features/parts/PartFormPage';
 import { PartsPage } from '../features/parts/PartsPage';
@@ -196,22 +197,30 @@ export const router = createBrowserRouter([
             ],
           },
           {
-            path: '/non-printed-components',
-            handle: { title: 'Non-printed components' },
+            path: '/non-printed-components/*',
+            element: <LegacyCostCatalogRedirect />,
+          },
+          {
+            path: '/cost-catalog',
+            handle: { title: 'Cost catalog' },
             children: [
               {
                 index: true,
-                element: <NonPrintedComponentsPage />,
+                element: <CostCatalogPage />,
               },
               {
                 path: 'new',
-                element: <NonPrintedComponentFormPage mode="add" />,
-                handle: { title: 'Add non-printed component' },
+                element: <CostItemFormPage mode="add" />,
+                handle: { title: 'Add cost item' },
+              },
+              {
+                path: ':id',
+                element: <CostItemFormPage mode="edit" />,
+                handle: { title: 'Cost item' },
               },
               {
                 path: ':id/edit',
-                element: <NonPrintedComponentFormPage mode="edit" />,
-                handle: { title: 'Edit non-printed component' },
+                element: <Navigate to=".." relative="path" replace />,
               },
             ],
           },

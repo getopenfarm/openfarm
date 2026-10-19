@@ -154,7 +154,7 @@ export function BomLineEditor({
         <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
           <p className="font-medium">No lines</p>
           <p className="text-sm text-muted-foreground">
-            Add parts, sub-assemblies, or components. Press{' '}
+            Add parts or sub-assemblies. Press{' '}
             <kbd className="rounded border bg-muted px-1 text-xs">/</kbd> to
             search.
           </p>
@@ -215,8 +215,20 @@ export function BomLineEditor({
                     </Button>
                     <Input
                       type="number"
-                      min={1}
-                      step={1}
+                      min={
+                        line.targetKind === 'NonPrintedComponent' &&
+                        (catalog.components.find((c) => c.id === line.targetId)
+                          ?.pricing?.unit ?? 'Piece') !== 'Piece'
+                          ? '0.000000001'
+                          : 1
+                      }
+                      step={
+                        line.targetKind === 'NonPrintedComponent' &&
+                        (catalog.components.find((c) => c.id === line.targetId)
+                          ?.pricing?.unit ?? 'Piece') !== 'Piece'
+                          ? 'any'
+                          : 1
+                      }
                       value={line.quantity}
                       onChange={(e) =>
                         setQuantity(line.key, Number(e.target.value))
@@ -399,14 +411,6 @@ function AddLinePicker({
         name: a.name ?? '',
       })),
     },
-    {
-      kind: 'NonPrintedComponent',
-      heading: 'Components',
-      items: catalog.components.map((c) => ({
-        id: c.id ?? '',
-        name: c.name ?? '',
-      })),
-    },
   ];
 
   return (
@@ -421,10 +425,7 @@ function AddLinePicker({
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <Command>
-          <CommandInput
-            autoFocus
-            placeholder="Search parts, assemblies, components"
-          />
+          <CommandInput autoFocus placeholder="Search parts, assemblies" />
           <CommandList>
             <CommandEmpty>No matches.</CommandEmpty>
             {groups.map(

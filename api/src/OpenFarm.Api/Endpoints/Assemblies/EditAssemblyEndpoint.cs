@@ -32,6 +32,8 @@ public sealed class EditAssemblyRequest : IActivityLoggable
     /// <summary>Full replacement of the BOM; omit (null) to rename/redescribe only.</summary>
     public List<EditAssemblyLineRequest>? Lines { get; set; }
 
+    public List<AssemblyCostInput>? AdditionalCosts { get; set; }
+
     public string EntityType => "Assembly";
 
     public string EventType => "AssemblyEdited";
@@ -67,7 +69,7 @@ public sealed class EditAssemblyEndpoint(EditAssemblyHandler handler, IQueryHand
     {
         req.Id = Route<Guid>("id");
         var lines = req.Lines?.Select(l => new AssemblyLineEditInput(l.LineId, Enum.Parse<BomLineTargetKind>(l.TargetKind), l.TargetId, l.Quantity)).ToList();
-        await handler.HandleAsync(new EditAssemblyCommand(req.Id, req.Name, req.Description, lines), ct);
+        await handler.HandleAsync(new EditAssemblyCommand(req.Id, req.Name, req.Description, lines, req.AdditionalCosts), ct);
 
         var detail = await getAssembly.HandleAsync(new GetAssemblyQuery(req.Id), ct);
         Response = AssemblyResponse.FromDetail(detail!);

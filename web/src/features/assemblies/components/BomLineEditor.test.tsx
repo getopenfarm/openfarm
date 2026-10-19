@@ -52,14 +52,14 @@ function renderEditor(
 describe('BomLineEditor', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('searches all three kinds in one picker and adds the pick', async () => {
+  it('searches parts and assemblies, not catalog items, and adds the pick', async () => {
     stubFetch({
       '/api/v1/parts': {
         parts: [{ id: 'p1', name: 'Bracket' }],
         totalCount: 1,
       },
       '/api/v1/assemblies': { items: [{ id: 'a2', name: 'Hinge' }] },
-      '/api/v1/non-printed-components': {
+      '/api/v1/cost-items': {
         items: [{ id: 'c1', name: 'M3 screw' }],
       },
     });
@@ -70,9 +70,11 @@ describe('BomLineEditor', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /add line/i }));
     expect(
-      await screen.findByRole('option', { name: /M3 screw/ }),
+      await screen.findByRole('option', { name: 'Hinge' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Hinge' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: /M3 screw/ }),
+    ).not.toBeInTheDocument();
 
     await user.type(screen.getByRole('combobox'), 'brack');
     await user.click(screen.getByRole('option', { name: 'Bracket' }));
@@ -94,7 +96,7 @@ describe('BomLineEditor', () => {
         totalCount: 1,
       },
       '/api/v1/assemblies': { items: [] },
-      '/api/v1/non-printed-components': { items: [] },
+      '/api/v1/cost-items': { items: [] },
     });
 
     const onChange = vi.fn();
@@ -124,7 +126,7 @@ describe('BomLineEditor', () => {
     stubFetch({
       '/api/v1/parts': { parts: [], totalCount: 0 },
       '/api/v1/assemblies': { items: [], totalCount: 0 },
-      '/api/v1/non-printed-components': { items: [], totalCount: 0 },
+      '/api/v1/cost-items': { items: [], totalCount: 0 },
     });
 
     const onChange = vi.fn();
@@ -148,7 +150,7 @@ describe('BomLineEditor', () => {
     stubFetch({
       '/api/v1/parts': { parts: [], totalCount: 0 },
       '/api/v1/assemblies': { items: [] },
-      '/api/v1/non-printed-components': {
+      '/api/v1/cost-items': {
         items: [{ id: 'c2', name: 'M3 screw' }],
       },
     });

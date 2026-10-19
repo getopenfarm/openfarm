@@ -81,10 +81,10 @@ public sealed class BomLine
         Quantity = quantity;
     }
 
-    /// <summary>FR-004a/FR-004b: every line is a whole-number count ≥ 1 — non-printed components are unitless pieces.</summary>
+    /// <summary>Printed parts and subassemblies are whole counts. Material quantities are positive; catalog-unit validation enforces whole pieces in the application workflow.</summary>
     internal static void ValidateQuantity(BomLineTargetKind targetKind, decimal quantity)
     {
-        if (quantity < 1 || quantity != Math.Truncate(quantity))
+        if (quantity <= 0 || (targetKind != BomLineTargetKind.NonPrintedComponent && (quantity < 1 || quantity != Math.Truncate(quantity))))
         {
             throw new InvalidBomLineQuantityException(targetKind, quantity);
         }

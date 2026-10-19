@@ -17,34 +17,40 @@ public sealed class EditAssemblyCommandHandler(
 {
     public async Task<Assembly> HandleAsync(EditAssemblyCommand command, CancellationToken cancellationToken)
     {
-        if (command.Lines is null)
-        {
-            var assembly = await assemblyRepository.GetByIdAsync(command.AssemblyId, cancellationToken)
-                ?? throw new AssemblyNotFoundException(command.AssemblyId);
-
-            assembly.Rename(command.Name, command.Description);
-            await assemblyRepository.SaveChangesAsync(cancellationToken);
-
-            return assembly;
-        }
-
-        foreach (var line in command.Lines.Where(l => l.LineId is null))
-        {
-            await BomLineTargets.EnsureExistsAsync(line.TargetKind, line.TargetId, partRepository, assemblyRepository, nonPrintedComponentRepository, cancellationToken);
-        }
-
-        var edits = command.Lines
-            .Select(l => new BomLineEdit(l.LineId, BomLineTargets.ToSpec(l.TargetKind, l.TargetId, l.Quantity)))
-            .ToList();
-
         return await assemblyRepository.RunWithStructuralLockAsync(
             async ct =>
             {
+                await AssemblyCosts.ValidateAsync(command.AdditionalCosts, nonPrintedComponentRepository, ct);
+                if (command.Lines is not null)
+                {
+                    foreach (var line in command.Lines.Where(l => l.TargetKind == BomLineTargetKind.NonPrintedComponent))
+                    {
+                        var item = await nonPrintedComponentRepository.GetByIdAsync(line.TargetId, ct)
+                            ?? throw new NonPrintedComponentNotFoundException(line.TargetId);
+                        item.ValidateUsage(line.Quantity, bom: true);
+                    }
+                }
+
+                foreach (var line in (command.Lines ?? []).Where(l => l.LineId is null))
+                {
+                    await BomLineTargets.EnsureExistsAsync(line.TargetKind, line.TargetId, partRepository, assemblyRepository, nonPrintedComponentRepository, ct);
+                }
+
+                var edits = command.Lines?
+                    .Select(l => new BomLineEdit(l.LineId, BomLineTargets.ToSpec(l.TargetKind, l.TargetId, l.Quantity)))
+                    .ToList();
+
                 var assembly = await assemblyRepository.GetByIdAsync(command.AssemblyId, ct)
                     ?? throw new AssemblyNotFoundException(command.AssemblyId);
 
                 assembly.Rename(command.Name, command.Description);
-                var added = assembly.ReplaceLines(edits);
+                var added = edits is null ? [] : assembly.ReplaceLines(edits);
+                if (command.AdditionalCosts is not null)
+                {
+                    foreach (var costLine in assembly.ReplaceAdditionalCosts(command.AdditionalCosts))
+                        assemblyRepository.StageCostLine(costLine);
+                }
+                assembly.ValidateCostDuplicates();
 
                 if (added.Any(l => l.TargetKind == BomLineTargetKind.Assembly))
                 {

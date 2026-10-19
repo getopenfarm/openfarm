@@ -65,7 +65,7 @@ describe('AssemblyFormPage (add)', () => {
         if (url.includes('/api/v1/assemblies')) {
           return Promise.resolve(jsonResponse({ items: [], totalCount: 0 }));
         }
-        if (url.includes('/api/v1/non-printed-components')) {
+        if (url.includes('/api/v1/cost-items')) {
           return Promise.resolve(jsonResponse({ items: [], totalCount: 0 }));
         }
         return Promise.reject(new Error(`Unexpected fetch: ${url}`));
@@ -84,6 +84,7 @@ describe('AssemblyFormPage (add)', () => {
 
     await vi.waitFor(() => {
       expect(capturedBody).toEqual({
+        additionalCosts: [],
         name: 'Enclosure',
         description: null,
         lines: [{ targetKind: 'Part', targetId: 'p1', quantity: 1 }],

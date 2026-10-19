@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { useAllCostItems } from '@/features/cost-catalog/api';
 import type {
   AssemblySummaryResponse,
-  NonPrintedComponentResponse,
   PartSummaryResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
@@ -39,20 +39,21 @@ export function useBomCatalog(excludeAssemblyId?: string) {
     '/api/v1/assemblies',
     'items',
   );
-  const componentsQuery = useCompleteCollection<NonPrintedComponentResponse>(
-    '/api/v1/non-printed-components',
-    'items',
-  );
+  const componentsQuery = useAllCostItems();
   const parts = partsQuery.data ?? [];
   const assemblies = (assembliesQuery.data ?? []).filter(
     (a) => a.id !== excludeAssemblyId,
   );
-  const components = componentsQuery.data ?? [];
+  const costItems = componentsQuery.data ?? [];
+  const components = costItems
+    .filter((c) => c.pricing?.itemType !== 'Service')
+    .map((c) => ({ ...c, unitCost: c.effectiveRate }));
   const queries = [partsQuery, assembliesQuery, componentsQuery];
   return {
     parts,
     assemblies,
     components,
+    costItems,
     isPending: queries.some((q) => q.isPending),
     isFetching: queries.some((q) => q.isFetching),
     isError: queries.some((q) => q.isError),

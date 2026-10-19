@@ -4004,6 +4004,259 @@
         ]
       }
     },
+    "/api/v1/cost-items": {
+      "get": {
+        "tags": [
+          "Cost-Items"
+        ],
+        "operationId": "OpenFarmApiEndpointsCostCatalogListCostItemsEndpoint",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "itemType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCostItemsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Cost-Items"
+        ],
+        "operationId": "OpenFarmApiEndpointsCostCatalogCreateCostItemEndpoint",
+        "requestBody": {
+          "x-name": "SaveCostItemRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCostItemRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostItemResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/cost-items/{id}": {
+      "get": {
+        "tags": [
+          "Cost-Items"
+        ],
+        "operationId": "OpenFarmApiEndpointsCostCatalogGetCostItemEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostItemResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Cost-Items"
+        ],
+        "operationId": "OpenFarmApiEndpointsCostCatalogEditCostItemEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SaveCostItemRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCostItemRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostItemResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Cost-Items"
+        ],
+        "operationId": "OpenFarmApiEndpointsCostCatalogDeleteCostItemEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/connection-secrets": {
       "post": {
         "tags": [
@@ -8490,6 +8743,116 @@
         "type": "object",
         "additionalProperties": false
       },
+      "ListCostItemsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostItemResponse"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CostItemResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/CatalogPricing"
+          },
+          "effectiveRate": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "CatalogPricing": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "itemType": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "pricingMode": {
+            "type": "string"
+          },
+          "directRate": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "packageLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "packagePrice": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "packageQuantity": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "length": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lengthUnit": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "widthUnit": {
+            "type": "string"
+          }
+        }
+      },
+      "ListCostItemsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "CostItemIdRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SaveCostItemRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/CatalogPricing"
+          }
+        }
+      },
       "ConnectionSecretResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -8584,6 +8947,12 @@
               "$ref": "#/components/schemas/BomLineResponse"
             }
           },
+          "additionalCosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssemblyCostInput"
+            }
+          },
           "createdAtUtc": {
             "type": "string",
             "format": "date-time"
@@ -8618,6 +8987,46 @@
           }
         }
       },
+      "AssemblyCostInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "catalogItemId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "inputMode": {
+            "type": "string"
+          },
+          "length": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lengthUnit": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "widthUnit": {
+            "type": "string"
+          },
+          "pieces": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "CreateAssemblyRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -8633,6 +9042,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CreateAssemblyLineRequest"
+            }
+          },
+          "additionalCosts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AssemblyCostInput"
             }
           }
         }
@@ -8675,6 +9091,13 @@
             "items": {
               "$ref": "#/components/schemas/EditAssemblyLineRequest"
             }
+          },
+          "additionalCosts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AssemblyCostInput"
+            }
           }
         }
       },
@@ -8704,6 +9127,18 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "productionCosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssemblyCostContribution"
+            }
+          },
+          "finalProductCosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssemblyCostContribution"
+            }
+          },
           "printedParts": {
             "type": "array",
             "items": {
@@ -8715,6 +9150,42 @@
             "items": {
               "$ref": "#/components/schemas/ExplodedNonPrintedComponentResponse"
             }
+          }
+        }
+      },
+      "AssemblyCostContribution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "catalogItemId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "rate": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "purpose": {
+            "type": "string"
           }
         }
       },

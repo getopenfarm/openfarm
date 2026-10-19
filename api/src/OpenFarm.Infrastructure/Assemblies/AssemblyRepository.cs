@@ -16,14 +16,14 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
     }
 
     public Task<Assembly?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Assemblies.Include(a => a.Lines).FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        dbContext.Assemblies.Include(a => a.Lines).Include(a => a.AdditionalCosts).FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Assemblies.AnyAsync(a => a.Id == id, cancellationToken);
 
     public async Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
     {
-        var query = dbContext.Assemblies.Include(a => a.Lines).AsQueryable();
+        var query = dbContext.Assemblies.Include(a => a.Lines).Include(a => a.AdditionalCosts).AsQueryable();
 
         var totalCount = await query.CountAsync(cancellationToken);
         var ordered = sorting is null ? query.OrderByDescending(a => a.CreatedAtUtc)
@@ -48,6 +48,11 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
         };
 
         var referencingAssemblyIds = await linesQuery.Select(l => l.AssemblyId).Distinct().ToListAsync(cancellationToken);
+        if (targetKind == BomLineTargetKind.NonPrintedComponent)
+        {
+            referencingAssemblyIds.AddRange(await dbContext.Set<AssemblyCostLine>()
+                .Where(l => l.CatalogItemId == targetId).Select(l => l.AssemblyId).Distinct().ToListAsync(cancellationToken));
+        }
         if (referencingAssemblyIds.Count == 0)
         {
             return [];
@@ -77,6 +82,8 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
             throw new AssemblyConcurrencyConflictException(assemblyId);
         }
     }
+
+    public void StageCostLine(AssemblyCostLine line) => dbContext.Set<AssemblyCostLine>().Add(line);
 
     public void StageLine(BomLine line) => dbContext.BomLines.Add(line);
 

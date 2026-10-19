@@ -12,6 +12,8 @@ public interface INonPrintedComponentRepository
 
     Task<(IReadOnlyList<NonPrintedComponent> Components, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null);
 
+    Task<(IReadOnlyList<NonPrintedComponent> Components, int TotalCount)> ListCatalogAsync(int page, int pageSize, string? itemType, string? category, OpenFarm.Application.Common.ListSort? sorting, CancellationToken cancellationToken);
+
     Task RemoveAsync(NonPrintedComponent component, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);

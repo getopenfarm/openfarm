@@ -7,7 +7,9 @@ namespace OpenFarm.Application.Assemblies;
 /// </summary>
 public sealed record BomExplosionResult(
     IReadOnlyList<ExplodedPartQuantity> PrintedParts,
-    IReadOnlyList<ExplodedNonPrintedComponentQuantity> NonPrintedComponents);
+    IReadOnlyList<ExplodedNonPrintedComponentQuantity> NonPrintedComponents,
+    IReadOnlyList<AssemblyCostContribution>? ProductionCosts = null,
+    IReadOnlyList<AssemblyCostContribution>? FinalProductCosts = null);
 
 public sealed record ExplodedPartQuantity(Guid PartId, string PartName, decimal Quantity);
 

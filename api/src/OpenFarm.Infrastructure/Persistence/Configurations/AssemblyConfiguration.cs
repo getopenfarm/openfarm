@@ -22,6 +22,9 @@ public sealed class AssemblyConfiguration : IEntityTypeConfiguration<Assembly>
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(a => a.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        builder.HasMany(a => a.AdditionalCosts).WithOne().HasForeignKey(l => l.AssemblyId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(a => a.AdditionalCosts).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Postgres system column; the Npgsql provider auto-maps a "xmin"-named uint row-version
         // property to it (data-model.md's optimistic-concurrency requirement, mirrors PartConfiguration).
         builder.Property<uint>("xmin").IsRowVersion();

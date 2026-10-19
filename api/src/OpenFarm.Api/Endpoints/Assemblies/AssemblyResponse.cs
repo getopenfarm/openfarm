@@ -34,6 +34,8 @@ public sealed class AssemblyResponse
 
     public List<BomLineResponse> Lines { get; set; } = [];
 
+    public List<OpenFarm.Domain.Assemblies.AssemblyCostInput> AdditionalCosts { get; set; } = [];
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }
@@ -44,6 +46,7 @@ public sealed class AssemblyResponse
         Name = detail.Name,
         Description = detail.Description,
         Lines = detail.Lines.Select(BomLineResponse.FromDetail).ToList(),
+        AdditionalCosts = detail.AdditionalCosts?.ToList() ?? [],
         CreatedAtUtc = detail.CreatedAtUtc,
         UpdatedAtUtc = detail.UpdatedAtUtc,
     };

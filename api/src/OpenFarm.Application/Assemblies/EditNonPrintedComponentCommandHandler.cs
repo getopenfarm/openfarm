@@ -11,6 +11,8 @@ public sealed class EditNonPrintedComponentCommandHandler(INonPrintedComponentRe
         var component = await repository.GetByIdAsync(command.NonPrintedComponentId, cancellationToken)
             ?? throw new NonPrintedComponentNotFoundException(command.NonPrintedComponentId);
 
+        if (!component.IsLegacyCompatible)
+            throw new ArgumentException("Use the cost catalog to edit measured or package-priced items.");
         component.Edit(command.Name, command.UnitCost);
         await repository.SaveChangesAsync(cancellationToken);
 

@@ -9,6 +9,37 @@ namespace OpenFarm.Domain.Assemblies;
 public sealed class Assembly
 {
     private readonly List<BomLine> _lines = [];
+    private readonly List<AssemblyCostLine> _additionalCosts = [];
+    public IReadOnlyList<AssemblyCostLine> AdditionalCosts => _additionalCosts;
+
+    public IReadOnlyList<AssemblyCostLine> ReplaceAdditionalCosts(IReadOnlyList<AssemblyCostInput> inputs)
+    {
+        if (inputs.Select(i => i.CatalogItemId).Distinct().Count() != inputs.Count)
+            throw new ArgumentException("A catalog item can appear only once in additional costs.");
+        if (inputs.Any(i => _lines.Any(l => l.TargetNonPrintedComponentId == i.CatalogItemId)))
+            throw new ArgumentException("A catalog item cannot appear in both the BOM and additional costs.");
+        var added = new List<AssemblyCostLine>();
+        foreach (var input in inputs)
+        {
+            var existing = _additionalCosts.FirstOrDefault(l => l.CatalogItemId == input.CatalogItemId);
+            if (existing is not null) existing.Update(input);
+            else
+            {
+                var line = AssemblyCostLine.Create(Id, input);
+                _additionalCosts.Add(line);
+                added.Add(line);
+            }
+        }
+        _additionalCosts.RemoveAll(l => !inputs.Any(i => i.CatalogItemId == l.CatalogItemId));
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+        return added;
+    }
+
+    public void ValidateCostDuplicates()
+    {
+        if (_additionalCosts.Any(i => _lines.Any(l => l.TargetNonPrintedComponentId == i.CatalogItemId)))
+            throw new ArgumentException("A catalog item cannot appear in both the BOM and additional costs.");
+    }
 
     private Assembly(Guid id, string name, string? description, DateTimeOffset createdAtUtc)
     {

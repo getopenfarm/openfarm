@@ -14,20 +14,26 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { AssemblyResponse } from '@/lib/api/generated/endpoints.schemas';
+import type {
+  AssemblyCostInput,
+  AssemblyResponse,
+} from '@/lib/api/generated/endpoints.schemas';
 import { BomLineEditor, type EditableLine } from './BomLineEditor';
 import { BuildPanel } from './BuildPanel';
+import { CostItemsEditor } from './CostItemsEditor';
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Name required'),
   description: z.string().optional(),
   lines: z.array(z.custom<EditableLine>()).min(1, 'Add at least one line.'),
+  additionalCosts: z.array(z.custom<AssemblyCostInput>()),
 });
 
 export type AssemblyFormValues = z.infer<typeof schema>;
 
 function toFormValues(assembly?: AssemblyResponse): AssemblyFormValues {
   return {
+    additionalCosts: assembly?.additionalCosts ?? [],
     name: assembly?.name ?? '',
     description: assembly?.description ?? '',
     lines: (assembly?.lines ?? []).map((line) => ({
@@ -85,6 +91,10 @@ export function AssemblyEditor({
 }: AssemblyEditorProps) {
   const { isDirty } = form.formState;
   const lines = useWatch({ control: form.control, name: 'lines' });
+  const additionalCosts = useWatch({
+    control: form.control,
+    name: 'additionalCosts',
+  });
 
   return (
     <Form {...form}>
@@ -137,21 +147,40 @@ export function AssemblyEditor({
         </header>
 
         <div className="grid flex-1 items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <FormField
-            control={form.control}
-            name="lines"
-            render={({ field }) => (
-              <div className="flex flex-col gap-2">
-                <BomLineEditor
+          <div className="flex min-w-0 flex-col gap-6">
+            <FormField
+              control={form.control}
+              name="lines"
+              render={({ field }) => (
+                <div className="flex flex-col gap-2">
+                  <BomLineEditor
+                    lines={field.value}
+                    onChange={field.onChange}
+                    excludeAssemblyId={assemblyId}
+                  />
+                  <FormMessage />
+                </div>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="additionalCosts"
+              render={({ field }) => (
+                <CostItemsEditor
                   lines={field.value}
                   onChange={field.onChange}
-                  excludeAssemblyId={assemblyId}
+                  structureItemIds={lines
+                    .filter((line) => line.targetKind === 'NonPrintedComponent')
+                    .map((line) => line.targetId)}
                 />
-                <FormMessage />
-              </div>
-            )}
+              )}
+            />
+          </div>
+          <BuildPanel
+            lines={lines}
+            additionalCosts={additionalCosts}
+            className="min-w-0 xl:sticky xl:top-4"
           />
-          <BuildPanel lines={lines} className="min-w-0" />
         </div>
 
         <FormFooter

@@ -29,3 +29,6 @@ through `variantPrices: [{ variantId, pricePerKg }]`; omitted variants retain th
 prices. Omitting the filament `pricePerKg` preserves its price; explicit null
 clears it. Price changes, new variants, details, and profile assignments share one
 atomic save. Existing variant identity and colors remain immutable.
+
+Physical material package rates, measured usage, labour, and shipping allowances
+are described in [Cost catalog](COST_CATALOG.md).

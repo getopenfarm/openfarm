@@ -52,8 +52,8 @@ const assemblies: NavItem = {
   icon: ComponentIcon,
 };
 const nonPrintedComponents: NavItem = {
-  title: 'Non-printed components',
-  url: '/non-printed-components',
+  title: 'Cost catalog',
+  url: '/cost-catalog',
   icon: PackageIcon,
 };
 const profiles: NavItem = {

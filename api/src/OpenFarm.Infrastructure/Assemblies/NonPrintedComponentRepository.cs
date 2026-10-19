@@ -23,7 +23,7 @@ public sealed class NonPrintedComponentRepository(OpenFarmDbContext dbContext) :
 
     public async Task<(IReadOnlyList<NonPrintedComponent> Components, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
     {
-        var query = dbContext.NonPrintedComponents.AsQueryable();
+        var query = dbContext.NonPrintedComponents.Where(c => c.ItemType == "Physical" && c.Unit == "Piece" && c.PricingMode == "Direct");
 
         var totalCount = await query.CountAsync(cancellationToken);
         var ordered = sorting is null ? query.OrderByDescending(c => c.CreatedAtUtc)
@@ -35,6 +35,18 @@ public sealed class NonPrintedComponentRepository(OpenFarmDbContext dbContext) :
             .ToListAsync(cancellationToken);
 
         return (components, totalCount);
+    }
+
+    public async Task<(IReadOnlyList<NonPrintedComponent> Components, int TotalCount)> ListCatalogAsync(
+        int page, int pageSize, string? itemType, string? category, OpenFarm.Application.Common.ListSort? sorting, CancellationToken cancellationToken)
+    {
+        var query = dbContext.NonPrintedComponents.AsQueryable();
+        if (!string.IsNullOrEmpty(itemType)) query = query.Where(c => c.ItemType == itemType);
+        if (!string.IsNullOrEmpty(category)) query = query.Where(c => c.Category == category);
+        var total = await query.CountAsync(cancellationToken);
+        var ordered = sorting is null ? query.OrderByDescending(c => c.CreatedAtUtc)
+            : sorting.Descending ? query.OrderByDescending(c => c.Name.ToLower()) : query.OrderBy(c => c.Name.ToLower());
+        return (await ordered.ThenBy(c => c.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken), total);
     }
 
     public Task RemoveAsync(NonPrintedComponent component, CancellationToken cancellationToken)

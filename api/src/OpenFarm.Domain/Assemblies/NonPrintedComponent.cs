@@ -1,10 +1,9 @@
 namespace OpenFarm.Domain.Assemblies;
 
 /// <summary>
-/// A reusable, informational catalog entry (spec Key Entities / FR-005) — screws, inserts, packaging.
-/// Unitless: BOM lines count it in whole pieces, and <see cref="UnitCost"/> is the cost per piece.
-/// No stock/on-hand/reorder fields of any kind (FR-005a); <see cref="UnitCost"/> is genuinely
-/// optional (FR-005c).
+/// Reusable physical material or service rate. The legacy entity/table identity preserves BOM
+/// references; package prices normalize into UnitCost in the configured consumption unit.
+/// No stock or purchasing state is tracked.
 /// </summary>
 public sealed class NonPrintedComponent
 {
@@ -23,6 +22,50 @@ public sealed class NonPrintedComponent
 
     public decimal? UnitCost { get; private set; }
 
+    public string ItemType { get; private set; } = "Physical";
+    public string Category { get; private set; } = "Hardware";
+    public string Unit { get; private set; } = "Piece";
+    public string PricingMode { get; private set; } = "Direct";
+    public string? PackageLabel { get; private set; }
+    public decimal? PackagePrice { get; private set; }
+    public decimal? PackageQuantity { get; private set; }
+    public decimal? Length { get; private set; }
+    public string LengthUnit { get; private set; } = "m";
+    public decimal? Width { get; private set; }
+    public string WidthUnit { get; private set; } = "m";
+
+    public CatalogPricing Pricing => new(ItemType, Category, Unit, PricingMode,
+        PricingMode == "Direct" ? UnitCost : null, PackageLabel, PackagePrice, PackageQuantity,
+        Length, LengthUnit, Width, WidthUnit);
+
+    public bool IsLegacyCompatible => ItemType == "Physical" && Unit == "Piece" && PricingMode == "Direct";
+
+    public void Configure(CatalogPricing pricing)
+    {
+        var rate = pricing.EffectiveRate();
+        ItemType = pricing.ItemType;
+        Category = pricing.Category;
+        Unit = pricing.Unit;
+        PricingMode = pricing.PricingMode;
+        UnitCost = rate;
+        PackageLabel = pricing.PricingMode == "Package" ? pricing.PackageLabel : null;
+        PackagePrice = pricing.PricingMode == "Package" ? pricing.PackagePrice : null;
+        PackageQuantity = pricing.PricingMode == "Package" ? pricing.NormalizedPackageQuantity() : null;
+        Length = pricing.PricingMode == "Package" ? pricing.Length : null;
+        Width = pricing.PricingMode == "Package" ? pricing.Width : null;
+        LengthUnit = pricing.LengthUnit;
+        WidthUnit = pricing.WidthUnit;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    public void ValidateUsage(decimal quantity, bool bom = false)
+    {
+        if (quantity <= 0 || (Unit == "Piece" && quantity != decimal.Truncate(quantity)) || (bom && ItemType != "Physical"))
+        {
+            throw new ArgumentException("Usage must be positive; pieces must be whole and services cannot be BOM components.");
+        }
+    }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
@@ -30,12 +73,14 @@ public sealed class NonPrintedComponent
     public static NonPrintedComponent Create(string name, decimal? unitCost)
     {
         Validate(name);
+        if (unitCost < 0) throw new ArgumentException("Price cannot be negative.", nameof(unitCost));
         return new NonPrintedComponent(Guid.NewGuid(), name, unitCost, DateTimeOffset.UtcNow);
     }
 
     public void Edit(string name, decimal? unitCost)
     {
         Validate(name);
+        if (unitCost < 0) throw new ArgumentException("Price cannot be negative.", nameof(unitCost));
 
         Name = name;
         UnitCost = unitCost;

@@ -195,6 +195,56 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.ToTable("Assemblies", (string)null);
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Assemblies.AssemblyCostLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssemblyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CatalogItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("InputMode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("Length")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("LengthUnit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Pieces")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("Width")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("WidthUnit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogItemId");
+
+                    b.HasIndex("AssemblyId", "CatalogItemId")
+                        .IsUnique();
+
+                    b.ToTable("AssemblyCostLines", (string)null);
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.BomLine", b =>
                 {
                     b.Property<Guid>("Id")
@@ -254,18 +304,69 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("Hardware");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ItemType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("Physical");
+
+                    b.Property<decimal?>("Length")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("LengthUnit")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("m");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("PackageLabel")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("PackagePrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("PackageQuantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("PricingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("Direct");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("Piece");
 
                     b.Property<decimal?>("UnitCost")
                         .HasColumnType("numeric");
 
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("Width")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("WidthUnit")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("m");
 
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
@@ -398,11 +499,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("VendorId")
-                        .HasColumnType("uuid");
-
                     b.Property<decimal?>("PricePerKg")
                         .HasColumnType("numeric");
+
+                    b.Property<Guid>("VendorId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -1714,6 +1815,21 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Assemblies.AssemblyCostLine", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Assemblies.Assembly", null)
+                        .WithMany("AdditionalCosts")
+                        .HasForeignKey("AssemblyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpenFarm.Domain.Assemblies.NonPrintedComponent", null)
+                        .WithMany()
+                        .HasForeignKey("CatalogItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.BomLine", b =>
                 {
                     b.HasOne("OpenFarm.Domain.Assemblies.Assembly", null)
@@ -1981,6 +2097,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.Assembly", b =>
                 {
+                    b.Navigation("AdditionalCosts");
+
                     b.Navigation("Lines");
                 });
 

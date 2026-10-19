@@ -386,6 +386,7 @@ builder.Services.AddScoped<IQueryHandler<GetPartFileQuery, PartFileDownload?>, G
 builder.Services.AddScoped<IQueryHandler<ListTagsQuery, IReadOnlyList<TagSummary>>, ListTagsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>, GetSlicingDefaultsQueryHandler>();
 
+builder.Services.AddScoped<CostCatalogService>();
 builder.Services.AddScoped<CreateAssemblyHandlerType, CreateAssemblyCommandHandler>();
 builder.Services.AddScoped<EditAssemblyHandlerType, EditAssemblyCommandHandler>();
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<EditPartCommand, OpenFarm.Domain.Parts.Part>, EditPartCommandHandler>();

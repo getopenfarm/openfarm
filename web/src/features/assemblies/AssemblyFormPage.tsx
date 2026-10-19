@@ -48,6 +48,7 @@ export function AssemblyFormPage() {
   function onSubmit(values: AssemblyFormValues) {
     createMutation.mutate({
       data: {
+        additionalCosts: values.additionalCosts,
         name: values.name.trim(),
         description: values.description?.trim() || null,
         lines: values.lines.map(toLinePayload),

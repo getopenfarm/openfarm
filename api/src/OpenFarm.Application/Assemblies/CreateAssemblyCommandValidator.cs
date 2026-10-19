@@ -13,13 +13,13 @@ public sealed class CreateAssemblyCommandValidator : AbstractValidator<CreateAss
     }
 }
 
-/// <summary>FR-004a/FR-004b: whole number ≥ 1 for every target kind.</summary>
+/// <summary>Material quantities may be measured; the referenced catalog unit validates whole pieces.</summary>
 public sealed class AssemblyLineInputValidator : AbstractValidator<AssemblyLineInput>
 {
     public AssemblyLineInputValidator()
     {
         RuleFor(x => x.Quantity)
-            .Must(q => q >= 1 && q == Math.Truncate(q))
-            .WithMessage("Quantity must be a whole number of at least 1.");
+            .Must((line, q) => q > 0 && (line.TargetKind == BomLineTargetKind.NonPrintedComponent || q == Math.Truncate(q)))
+            .WithMessage("Quantity must be positive; parts and assemblies require whole numbers.");
     }
 }

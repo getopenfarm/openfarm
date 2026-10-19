@@ -28,6 +28,8 @@ public interface IAssemblyRepository
     /// <remarks>Does not save — the caller's own SaveChanges commits it.</remarks>
     void StageLine(BomLine line);
 
+    void StageCostLine(AssemblyCostLine line);
+
     /// <summary>
     /// research.md R3 — opens a DB transaction, takes the Postgres advisory lock,
     /// runs <paramref name="operation"/>, then commits. Used only by structural writes that add or

@@ -94,6 +94,7 @@ describe('AssemblyDetailPage', () => {
 
     await vi.waitFor(() => expect(puts).toHaveLength(1));
     expect(puts[0]).toEqual({
+      additionalCosts: [],
       name: 'Big enclosure',
       description: null,
       lines: [

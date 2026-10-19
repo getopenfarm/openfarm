@@ -45,11 +45,29 @@ const ROUTES: [string, unknown][] = [
   ],
   ['/api/v1/assemblies', { items: [] }],
   [
-    '/api/v1/non-printed-components',
+    '/api/v1/cost-items',
     {
       items: [
-        { id: 'c1', name: 'Magnet', unitCost: 0.25 },
-        { id: 'c2', name: 'M3 screw', unitCost: 0.05 },
+        {
+          id: 'c1',
+          name: 'Magnet',
+          effectiveRate: 0.25,
+          pricing: {
+            itemType: 'Physical',
+            unit: 'Piece',
+            category: 'Hardware',
+          },
+        },
+        {
+          id: 'c2',
+          name: 'M3 screw',
+          effectiveRate: 0.05,
+          pricing: {
+            itemType: 'Physical',
+            unit: 'Piece',
+            category: 'Hardware',
+          },
+        },
       ],
     },
   ],
@@ -254,7 +272,9 @@ describe('BuildPanel', () => {
         stat('Filament cost').getByText(price === 0 ? '3.00' : subtotal),
       ).toBeInTheDocument();
       expect(
-        stat('Estimated total').getByText(price === 0 ? '3.00' : subtotal),
+        stat('Estimated total including shipping').getByText(
+          price === 0 ? '3.00' : subtotal,
+        ),
       ).toBeInTheDocument();
     },
   );
@@ -268,7 +288,7 @@ describe('BuildPanel', () => {
           return Promise.resolve(
             jsonResponse({ parts: [{ id: 'p1', name: 'Bracket' }] }),
           );
-        if (url.includes('/api/v1/non-printed-components'))
+        if (url.includes('/api/v1/cost-items'))
           return Promise.resolve(
             jsonResponse({ items: [{ id: 'c1', name: 'Magnet' }] }),
           );
@@ -398,7 +418,9 @@ describe('BuildPanel', () => {
     expect(
       screen.getByLabelText('Loading filament breakdown'),
     ).toBeInTheDocument();
-    expect(stat('Estimated total').queryByText('0.00')).not.toBeInTheDocument();
+    expect(
+      stat('Estimated total including shipping').queryByText('0.00'),
+    ).not.toBeInTheDocument();
   });
 
   it('marks totals incomplete when a sub-assembly explosion fails', async () => {
@@ -469,7 +491,9 @@ describe('BuildPanel', () => {
     await vi.waitFor(() =>
       expect(stat('Filament cost').getByText('8.00')).toBeInTheDocument(),
     );
-    expect(stat('Estimated total').getByText('8.90')).toBeInTheDocument();
+    expect(
+      stat('Estimated total including shipping').getByText('8.90'),
+    ).toBeInTheDocument();
     const colors = screen.getByRole('table', { name: 'Filament breakdown' });
     expect(within(colors).getByText('6.00')).toBeInTheDocument();
     expect(within(colors).getByText('2.00')).toBeInTheDocument();
@@ -491,7 +515,7 @@ describe('BuildPanel', () => {
     renderPanel(LINES);
     const retry = await screen.findByRole('button', { name: 'Retry totals' });
     expect(
-      stat('Estimated total').getByText('Unavailable'),
+      stat('Estimated total including shipping').getByText('Unavailable'),
     ).toBeInTheDocument();
     fail = false;
     await user.tab();
@@ -499,9 +523,127 @@ describe('BuildPanel', () => {
     await user.keyboard('{Enter}');
     await vi.waitFor(() =>
       expect(
-        stat('Estimated total').getByText('0.90 (partial)'),
+        stat('Estimated total including shipping').getByText('0.90 (partial)'),
       ).toBeInTheDocument(),
     );
     expect(stat('Filament cost').getByText('Unavailable')).toBeInTheDocument();
   });
+});
+
+it('adds area packaging and shipping while inheriting only production costs', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes('/api/v1/assemblies/child/explosion'))
+        return Promise.resolve(
+          jsonResponse({
+            printedParts: [],
+            nonPrintedComponents: [],
+            productionCosts: [
+              { catalogItemId: 'labour', category: 'Labour', cost: 2 },
+            ],
+            finalProductCosts: [
+              { catalogItemId: 'shipping', category: 'Shipping', cost: 99 },
+            ],
+          }),
+        );
+      if (url.includes('/api/v1/cost-items'))
+        return Promise.resolve(
+          jsonResponse({
+            items: [
+              {
+                id: 'wrap',
+                name: 'Bubble wrap',
+                effectiveRate: 0.4,
+                pricing: {
+                  itemType: 'Physical',
+                  category: 'Packaging',
+                  unit: 'SquareMetre',
+                },
+              },
+              {
+                id: 'shipping',
+                name: 'Shipping',
+                effectiveRate: 8,
+                pricing: {
+                  itemType: 'Service',
+                  category: 'Shipping',
+                  unit: 'Application',
+                },
+              },
+            ],
+            totalCount: 2,
+          }),
+        );
+      if (url.includes('/api/v1/filaments'))
+        return Promise.resolve(jsonResponse({ filaments: [] }));
+      return Promise.resolve(
+        jsonResponse({ parts: [], items: [], totalCount: 0 }),
+      );
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const lines: EditableLine[] = [
+    {
+      key: 'child',
+      targetKind: 'Assembly',
+      targetId: 'child',
+      targetName: 'Child',
+      quantity: 3,
+    },
+  ];
+  const { rerender } = render(
+    <QueryClientProvider client={client}>
+      <BuildPanel
+        lines={lines}
+        additionalCosts={[
+          {
+            catalogItemId: 'wrap',
+            purpose: 'FinalProduct',
+            inputMode: 'Dimensions',
+            length: 50,
+            lengthUnit: 'cm',
+            width: 20,
+            widthUnit: 'cm',
+            pieces: 1,
+          },
+          { catalogItemId: 'shipping', purpose: 'FinalProduct', quantity: 1 },
+        ]}
+      />
+    </QueryClientProvider>,
+  );
+  await vi.waitFor(() =>
+    expect(
+      stat('Estimated total including shipping').getByText('14.04'),
+    ).toBeInTheDocument(),
+  );
+  expect(stat('Product cost').getByText('6.04')).toBeInTheDocument();
+  expect(stat('Labor cost').getByText('6.00')).toBeInTheDocument();
+  expect(stat('Shipping allowance').getByText('8.00')).toBeInTheDocument();
+  rerender(
+    <QueryClientProvider client={client}>
+      <BuildPanel
+        lines={lines}
+        additionalCosts={[
+          {
+            catalogItemId: 'wrap',
+            purpose: 'FinalProduct',
+            inputMode: 'Dimensions',
+            length: 50,
+            lengthUnit: 'cm',
+            width: 20,
+            widthUnit: 'cm',
+            pieces: 2,
+          },
+        ]}
+      />
+    </QueryClientProvider>,
+  );
+  expect(
+    stat('Estimated total including shipping').getByText('6.08'),
+  ).toBeInTheDocument();
+  vi.unstubAllGlobals();
 });

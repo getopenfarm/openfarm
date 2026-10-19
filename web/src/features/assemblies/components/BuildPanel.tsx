@@ -18,7 +18,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { categories, usage } from '@/features/cost-catalog/costing';
 import { getOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointQueryOptions } from '@/lib/api/generated/assemblies/assemblies';
+import type { AssemblyCostInput } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
 import { formatMinutes } from '@/lib/formatMinutes';
 import { formatCost, formatGrams } from '@/lib/formatUnits';
@@ -36,6 +38,7 @@ interface BuildPanelProps {
   /** The form's draft lines — the preview never waits for a save. */
   lines: EditableLine[];
   className?: string;
+  additionalCosts?: AssemblyCostInput[];
 }
 
 const plural = (n: number, one: string, many: string) =>
@@ -48,7 +51,11 @@ const plural = (n: number, one: string, many: string) =>
  * ponytail: a sub-assembly whose saved tree contains this assembly inflates the preview up to the
  * CTE depth cap (10); save rejects the cycle anyway, so no client-side cycle check.
  */
-export function BuildPanel({ lines, className }: BuildPanelProps) {
+export function BuildPanel({
+  lines,
+  additionalCosts = [],
+  className,
+}: BuildPanelProps) {
   const catalog = useBomCatalog();
   const filamentQuery = useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
 
@@ -77,6 +84,54 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
   const total = rollUp(lines, subExplosions);
   const print = printTotals(total.parts, catalog.parts);
   const cost = hardwareCost(total.components, catalog.components);
+  const breakdown = new Map<string, number>();
+  let missingAdditional = 0;
+  let pricedAdditional = 0;
+  const addCost = (category: string, amount: number | null | undefined) => {
+    if (amount == null) {
+      missingAdditional++;
+      return;
+    }
+    pricedAdditional++;
+    breakdown.set(category, (breakdown.get(category) ?? 0) + amount);
+  };
+  for (const [id, quantity] of total.components) {
+    const item = catalog.components.find((c) => c.id === id);
+    if (item?.unitCost != null) {
+      const category = item.pricing?.category ?? 'Hardware';
+      breakdown.set(
+        category,
+        (breakdown.get(category) ?? 0) + quantity * item.unitCost,
+      );
+    }
+  }
+  for (const line of additionalCosts) {
+    const item = catalog.costItems.find(
+      (item) => item.id === line.catalogItemId,
+    );
+    const consumed = usage(line, item?.pricing?.unit);
+    addCost(
+      item?.pricing?.category ?? 'Other',
+      item?.effectiveRate == null || !(consumed > 0)
+        ? null
+        : consumed * item.effectiveRate,
+    );
+  }
+  for (const line of lines.filter((line) => line.targetKind === 'Assembly')) {
+    const sub = subExplosions.get(line.targetId);
+    for (const inherited of sub?.productionCosts ?? [])
+      addCost(
+        inherited.category ?? 'Other',
+        inherited.cost == null ? null : inherited.cost * line.quantity,
+      );
+  }
+  const shipping = breakdown.get('Shipping') ?? 0;
+  const physicalAndAdditional = [...breakdown.values()].reduce(
+    (sum, amount) => sum + amount,
+    0,
+  );
+  const costsPartial = cost.missingCost > 0 || missingAdditional > 0;
+
   const variants = new Map(
     (filamentQuery.data?.data?.filaments ?? []).flatMap((filament) =>
       (filament.variants ?? []).map(
@@ -124,6 +179,7 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
       `Could not load ${plural(subFailed, 'sub-assembly', 'sub-assemblies')}. Totals incomplete.`,
     print.unestimated > 0 &&
       `${plural(print.unestimated, 'part', 'parts')} not estimated.`,
+    missingAdditional > 0 && 'Cost items have missing prices or usage.',
     cost.missingCost > 0 &&
       `${plural(cost.missingCost, 'component', 'components')} without cost.`,
   ].filter((n): n is string => Boolean(n));
@@ -233,9 +289,31 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
               )}
               loading={loading}
             />
+            {categories
+              .filter(
+                (category) =>
+                  category !== 'Shipping' &&
+                  (category === 'Hardware' || breakdown.has(category)),
+              )
+              .map((category) => (
+                <Row
+                  key={category}
+                  label={`${category === 'Labour' ? 'Labor' : category} cost`}
+                  value={estimate(breakdown.get(category) ?? 0, costsPartial)}
+                  loading={loading}
+                />
+              ))}
             <Row
-              label="Hardware cost"
-              value={estimate(cost.total, cost.missingCost > 0)}
+              label="Product cost"
+              value={estimate(
+                filament.total + physicalAndAdditional - shipping,
+                filament.incomplete || costsPartial,
+              )}
+              loading={loading}
+            />
+            <Row
+              label="Shipping allowance"
+              value={estimate(shipping, costsPartial)}
               loading={loading}
             />
           </dl>
@@ -243,11 +321,12 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
         <CardFooter>
           <dl className="w-full" aria-live="polite">
             <Row
-              label="Estimated total"
+              label="Estimated total including shipping"
               value={estimate(
-                filament.total + cost.total,
-                filament.incomplete || cost.missingCost > 0,
+                filament.total + physicalAndAdditional,
+                filament.incomplete || costsPartial,
                 filament.priced > 0 ||
+                  pricedAdditional > 0 ||
                   total.components.size > cost.missingCost ||
                   (total.parts.size === 0 && total.components.size === 0),
               )}

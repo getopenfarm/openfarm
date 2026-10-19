@@ -54,6 +54,10 @@ export function AssemblyDetailPage() {
     mutation: {
       onSuccess: (response) => {
         if (response.data) resetTo(response.data);
+        void queryClient.invalidateQueries({
+          predicate: (query) =>
+            String(query.queryKey[0]).startsWith('/api/v1/assemblies'),
+        });
         invalidateList();
         if (id) {
           queryClient.invalidateQueries({
@@ -137,6 +141,7 @@ export function AssemblyDetailPage() {
     editMutation.mutate({
       id,
       data: {
+        additionalCosts: values.additionalCosts,
         name: values.name.trim(),
         description: values.description?.trim() || null,
         lines: values.lines.map((l) => ({

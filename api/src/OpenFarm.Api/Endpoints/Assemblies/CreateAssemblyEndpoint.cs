@@ -26,6 +26,8 @@ public sealed class CreateAssemblyRequest : IActivityLoggable
 
     public List<CreateAssemblyLineRequest> Lines { get; set; } = [];
 
+    public List<AssemblyCostInput>? AdditionalCosts { get; set; }
+
     public string EntityType => "Assembly";
 
     public string EventType => "AssemblyCreated";
@@ -62,7 +64,7 @@ public sealed class CreateAssemblyEndpoint(CreateAssemblyHandler handler, IQuery
         var lines = req.Lines
             .Select(l => new AssemblyLineInput(Enum.Parse<BomLineTargetKind>(l.TargetKind), l.TargetId, l.Quantity))
             .ToList();
-        var assembly = await handler.HandleAsync(new CreateAssemblyCommand(req.Name, req.Description, lines), ct);
+        var assembly = await handler.HandleAsync(new CreateAssemblyCommand(req.Name, req.Description, lines, req.AdditionalCosts), ct);
 
         var detail = await getAssembly.HandleAsync(new GetAssemblyQuery(assembly.Id), ct);
         Response = AssemblyResponse.FromDetail(detail!);

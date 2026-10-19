@@ -1539,6 +1539,53 @@ export interface RemoveFeedUnitRequest {
   [key: string]: unknown;
 }
 
+export interface CatalogPricing {
+  itemType?: string;
+  category?: string;
+  unit?: string;
+  pricingMode?: string;
+  /** @nullable */
+  directRate?: number | null;
+  /** @nullable */
+  packageLabel?: string | null;
+  /** @nullable */
+  packagePrice?: number | null;
+  /** @nullable */
+  packageQuantity?: number | null;
+  /** @nullable */
+  length?: number | null;
+  lengthUnit?: string;
+  /** @nullable */
+  width?: number | null;
+  widthUnit?: string;
+}
+
+export interface CostItemResponse {
+  id?: string;
+  name?: string;
+  pricing?: CatalogPricing;
+  /** @nullable */
+  effectiveRate?: number | null;
+}
+
+export interface ListCostItemsResponse {
+  items?: CostItemResponse[];
+  totalCount?: number;
+}
+
+export interface ListCostItemsRequest {
+  [key: string]: unknown;
+}
+
+export interface CostItemIdRequest {
+  [key: string]: unknown;
+}
+
+export interface SaveCostItemRequest {
+  name?: string;
+  pricing?: CatalogPricing;
+}
+
 export interface ConnectionSecretResponse {
   id?: string;
   printerSerialNumber?: string;
@@ -1575,12 +1622,27 @@ export interface BomLineResponse {
   quantity?: number;
 }
 
+export interface AssemblyCostInput {
+  catalogItemId?: string;
+  purpose?: string;
+  quantity?: number;
+  inputMode?: string;
+  /** @nullable */
+  length?: number | null;
+  lengthUnit?: string;
+  /** @nullable */
+  width?: number | null;
+  widthUnit?: string;
+  pieces?: number;
+}
+
 export interface AssemblyResponse {
   id?: string;
   name?: string;
   /** @nullable */
   description?: string | null;
   lines?: BomLineResponse[];
+  additionalCosts?: AssemblyCostInput[];
   createdAtUtc?: string;
   updatedAtUtc?: string;
 }
@@ -1596,6 +1658,8 @@ export interface CreateAssemblyRequest {
   /** @nullable */
   description?: string | null;
   lines?: CreateAssemblyLineRequest[];
+  /** @nullable */
+  additionalCosts?: AssemblyCostInput[] | null;
 }
 
 export interface DeleteAssemblyRequest {
@@ -1616,6 +1680,21 @@ export interface EditAssemblyRequest {
   description?: string | null;
   /** @nullable */
   lines?: EditAssemblyLineRequest[] | null;
+  /** @nullable */
+  additionalCosts?: AssemblyCostInput[] | null;
+}
+
+export interface AssemblyCostContribution {
+  catalogItemId?: string;
+  name?: string;
+  category?: string;
+  unit?: string;
+  quantity?: number;
+  /** @nullable */
+  rate?: number | null;
+  /** @nullable */
+  cost?: number | null;
+  purpose?: string;
 }
 
 export interface ExplodedPartResponse {
@@ -1631,6 +1710,8 @@ export interface ExplodedNonPrintedComponentResponse {
 }
 
 export interface ExplodeAssemblyResponse {
+  productionCosts?: AssemblyCostContribution[];
+  finalProductCosts?: AssemblyCostContribution[];
   printedParts?: ExplodedPartResponse[];
   nonPrintedComponents?: ExplodedNonPrintedComponentResponse[];
 }
@@ -1895,6 +1976,27 @@ export type OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams = {
    * @nullable
    */
   includeArchived?: boolean | null;
+};
+
+export type OpenFarmApiEndpointsCostCatalogListCostItemsEndpointParams = {
+  page: number;
+  pageSize: number;
+  /**
+   * @nullable
+   */
+  itemType?: string | null;
+  /**
+   * @nullable
+   */
+  category?: string | null;
+  /**
+   * @nullable
+   */
+  sortBy?: string | null;
+  /**
+   * @nullable
+   */
+  sortDirection?: string | null;
 };
 
 export type OpenFarmApiEndpointsAssembliesListAssembliesEndpointParams = {
