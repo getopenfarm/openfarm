@@ -1165,6 +1165,8 @@ export interface EditPartRequest {
 
 export interface PartColorGramsResponse {
   /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
   materialType?: string | null;
   /** @nullable */
   colorHex?: string | null;
@@ -1364,12 +1366,16 @@ export interface FilamentProfileAssignmentInput {
 }
 
 export interface FilamentVariantResponse {
+  /** @nullable */
+  pricePerKg?: number | null;
   id?: string;
   colorName?: string;
   colorHex?: string;
 }
 
 export interface FilamentResponse {
+  /** @nullable */
+  pricePerKg?: number | null;
   id?: string;
   vendorId?: string;
   vendorName?: string;
@@ -1380,11 +1386,15 @@ export interface FilamentResponse {
 }
 
 export interface CreateFilamentVariantRequest {
+  /** @nullable */
+  pricePerKg?: number | null;
   colorName?: string;
   colorHex?: string;
 }
 
 export interface CreateFilamentRequest {
+  /** @nullable */
+  pricePerKg?: number | null;
   vendorId?: string;
   material?: string;
   materialType?: string;
@@ -1392,7 +1402,16 @@ export interface CreateFilamentRequest {
   variants?: CreateFilamentVariantRequest[];
 }
 
+export interface FilamentVariantPriceInput {
+  variantId?: string;
+  /** @nullable */
+  pricePerKg?: number | null;
+}
+
 export interface EditFilamentRequest {
+  /** @nullable */
+  pricePerKg?: number | null;
+  variantPrices?: FilamentVariantPriceInput[];
   vendorId?: string;
   material?: string;
   materialType?: string;

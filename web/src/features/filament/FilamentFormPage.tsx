@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { type UseFormReturn, useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -55,12 +56,19 @@ import {
   useOpenFarmApiEndpointsVendorsCreateVendorEndpoint,
 } from '@/lib/api/generated/vendors/vendors';
 import { ProfileAssignmentsCard } from './components/ProfileAssignmentsCard';
+import type { VariantDialogResult } from './components/VariantDialog';
 import { VariantsCard } from './components/VariantsCard';
 import { VendorCombobox } from './components/VendorCombobox';
+import { inferMaterialType, MATERIAL_TYPES } from './lib/materialType';
 
-const MATERIAL_TYPES = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PC'] as const;
+const priceSchema = z
+  .number()
+  .finite()
+  .nonnegative('Price must be non-negative')
+  .nullable();
 
 const schema = z.object({
+  pricePerKg: priceSchema,
   // Nested so its refine runs even when sibling fields fail.
   vendor: z
     .object({ vendorId: z.string(), newVendorName: z.string().optional() })
@@ -80,6 +88,7 @@ const schema = z.object({
     .array(
       z.object({
         id: z.string().optional(),
+        pricePerKg: priceSchema,
         colorName: z.string(),
         colorHex: z.string(),
       }),
@@ -108,12 +117,14 @@ function toEditValues(
   return {
     vendor: { vendorId: filament.vendorId ?? '' },
     material: filament.material ?? '',
+    pricePerKg: filament.pricePerKg ?? null,
     materialType:
       MATERIAL_TYPES.find((type) => type === filament.materialType) ??
       MATERIAL_TYPES[0],
     profileAssignments: toAssignmentValues(assignments),
     variants: (filament.variants ?? []).map((variant) => ({
       id: variant.id,
+      pricePerKg: variant.pricePerKg ?? null,
       colorName: variant.colorName ?? '',
       colorHex: variant.colorHex ?? '',
     })),
@@ -145,14 +156,40 @@ function useResolveVendorId() {
 }
 
 /** Vendor / Name / Type — shared by add and edit. A type change drops profile assignments,
- * which the server validates against the material type. */
-function MaterialFields({ form }: { form: UseFormReturn<FormValues> }) {
+ * which the server validates against the material type.
+ *
+ * With `inferType` (add only), the name suggests the type ("PETG Basic" → PETG) until the user
+ * picks one. It never overrides a manual pick, and it stops once profiles are assigned, since a
+ * type change would drop them. */
+function MaterialFields({
+  form,
+  inferType = false,
+}: {
+  form: UseFormReturn<FormValues>;
+  inferType?: boolean;
+}) {
+  const [typePicked, setTypePicked] = useState(false);
+  const [typeInferred, setTypeInferred] = useState(false);
+
+  function suggestType(name: string) {
+    if (
+      !inferType ||
+      typePicked ||
+      form.getValues('profileAssignments').length > 0
+    ) {
+      return;
+    }
+    const type = inferMaterialType(name);
+    setTypeInferred(type != null);
+    if (type) form.setValue('materialType', type, { shouldDirty: true });
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Material</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <CardContent className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FormField
           control={form.control}
           name="vendor"
@@ -181,7 +218,14 @@ function MaterialFields({ form }: { form: UseFormReturn<FormValues> }) {
             <FormItem>
               <FormLabel>Name</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. PLA Basic" {...field} />
+                <Input
+                  placeholder="e.g. PLA Basic"
+                  {...field}
+                  onChange={(event) => {
+                    field.onChange(event);
+                    suggestType(event.target.value);
+                  }}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -197,6 +241,8 @@ function MaterialFields({ form }: { form: UseFormReturn<FormValues> }) {
                 value={field.value}
                 onValueChange={(value) => {
                   field.onChange(value);
+                  setTypePicked(true);
+                  setTypeInferred(false);
                   form.setValue('profileAssignments', [], {
                     shouldDirty: true,
                   });
@@ -217,12 +263,74 @@ function MaterialFields({ form }: { form: UseFormReturn<FormValues> }) {
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {typeInferred && (
+                <FormDescription>Detected from name</FormDescription>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="pricePerKg"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Price per kg</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={field.value ?? ''}
+                  onChange={(event) =>
+                    field.onChange(
+                      event.target.value === ''
+                        ? null
+                        : Number(event.target.value),
+                    )
+                  }
+                  onBlur={field.onBlur}
+                  name={field.name}
+                  ref={field.ref}
+                />
+              </FormControl>
+              <FormDescription>
+                Default for every variant. Blank if unknown.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
       </CardContent>
     </Card>
+  );
+}
+
+/** Writes a variant from the variant dialog into the draft, along with its color's profile
+ * overrides. Overrides are keyed by color, so they follow a staged variant's color change. */
+function applyVariant(
+  form: UseFormReturn<FormValues>,
+  index: number | null,
+  { variant, overrides }: VariantDialogResult,
+) {
+  const variants = form.getValues('variants');
+  const previousColor = index == null ? null : variants[index]?.colorHex;
+  form.setValue(
+    'profileAssignments',
+    [
+      ...form
+        .getValues('profileAssignments')
+        .filter((a) => !a.colorHex || a.colorHex !== previousColor),
+      ...toAssignmentValues(overrides),
+    ],
+    { shouldDirty: true },
+  );
+  form.setValue(
+    'variants',
+    index == null
+      ? [...variants, variant]
+      : variants.map((existing, i) => (i === index ? variant : existing)),
+    { shouldDirty: true, shouldValidate: form.formState.isSubmitted },
   );
 }
 
@@ -246,6 +354,7 @@ function AddFilamentForm() {
     defaultValues: {
       vendor: { vendorId: '' },
       material: '',
+      pricePerKg: null,
       materialType: MATERIAL_TYPES[0],
       profileAssignments: [],
       variants: [],
@@ -279,6 +388,8 @@ function AddFilamentForm() {
   const isPending = vendorResolver.isPending || createMutation.isPending;
   const materialType = form.watch('materialType');
   const variants = form.watch('variants');
+  const pricePerKg = form.watch('pricePerKg');
+  const profileAssignments = form.watch('profileAssignments');
 
   async function onSubmit(values: FormValues) {
     const vendorId = await vendorResolver.resolve(values.vendor);
@@ -287,9 +398,11 @@ function AddFilamentForm() {
       data: {
         vendorId,
         material: values.material.trim(),
+        pricePerKg: values.pricePerKg,
         materialType: values.materialType,
         profileAssignments: values.profileAssignments,
         variants: values.variants.map((variant) => ({
+          pricePerKg: variant.pricePerKg,
           colorName: variant.colorName,
           colorHex: variant.colorHex,
         })),
@@ -311,10 +424,11 @@ function AddFilamentForm() {
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
+          noValidate
           className="flex flex-1 flex-col gap-6"
         >
           <FieldGroup className="flex-1 gap-6">
-            <MaterialFields form={form} />
+            <MaterialFields form={form} inferType />
 
             <FormField
               control={form.control}
@@ -324,11 +438,11 @@ function AddFilamentForm() {
                   <FormControl>
                     <VariantsCard
                       variants={variants}
-                      onAdd={(variant) =>
-                        form.setValue('variants', [...variants, variant], {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        })
+                      inheritedPrice={pricePerKg}
+                      materialType={materialType}
+                      assignments={profileAssignments}
+                      onSave={(index, result) =>
+                        applyVariant(form, index, result)
                       }
                       onRemove={(index) => {
                         const removedColor = variants[index]?.colorHex;
@@ -355,7 +469,7 @@ function AddFilamentForm() {
             <ProfileAssignmentsCard
               materialType={materialType}
               variants={variants}
-              assignments={form.watch('profileAssignments')}
+              assignments={profileAssignments}
               onChange={(value) =>
                 form.setValue('profileAssignments', toAssignmentValues(value), {
                   shouldDirty: true,
@@ -526,6 +640,8 @@ function EditFilamentForm({
   const isPending = vendorResolver.isPending || editMutation.isPending;
   const materialType = form.watch('materialType');
   const variants = form.watch('variants');
+  const pricePerKg = form.watch('pricePerKg');
+  const profileAssignments = form.watch('profileAssignments');
 
   async function onSubmit(values: FormValues) {
     const vendorId = await vendorResolver.resolve(values.vendor);
@@ -535,12 +651,22 @@ function EditFilamentForm({
       data: {
         vendorId,
         material: values.material.trim(),
+        pricePerKg: values.pricePerKg,
         materialType: values.materialType,
         newVariants: values.variants
           .filter((variant) => !variant.id)
           .map((variant) => ({
+            pricePerKg: variant.pricePerKg,
             colorName: variant.colorName,
             colorHex: variant.colorHex,
+          })),
+        variantPrices: values.variants
+          .filter((variant): variant is typeof variant & { id: string } =>
+            Boolean(variant.id),
+          )
+          .map((variant) => ({
+            variantId: variant.id,
+            pricePerKg: variant.pricePerKg,
           })),
         // Full replace: always send the whole current list, or the server wipes assignments.
         profileAssignments: values.profileAssignments,
@@ -559,6 +685,7 @@ function EditFilamentForm({
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
+          noValidate
           className="flex flex-1 flex-col gap-6"
         >
           <FieldGroup className="flex-1 gap-6">
@@ -566,11 +693,11 @@ function EditFilamentForm({
 
             <VariantsCard
               variants={variants}
-              onAdd={(variant) =>
-                form.setValue('variants', [...variants, variant], {
-                  shouldDirty: true,
-                })
-              }
+              inheritedPrice={pricePerKg}
+              materialType={materialType}
+              assignments={profileAssignments}
+              issues={issues}
+              onSave={(index, result) => applyVariant(form, index, result)}
               onRemove={(index) => {
                 const removedColor = variants[index]?.colorHex;
                 form.setValue(
@@ -591,7 +718,7 @@ function EditFilamentForm({
             <ProfileAssignmentsCard
               materialType={materialType}
               variants={variants}
-              assignments={form.watch('profileAssignments')}
+              assignments={profileAssignments}
               issues={issues}
               onChange={(value) =>
                 form.setValue('profileAssignments', toAssignmentValues(value), {

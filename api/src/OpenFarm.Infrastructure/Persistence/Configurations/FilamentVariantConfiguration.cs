@@ -11,6 +11,8 @@ public sealed class FilamentVariantConfiguration : IEntityTypeConfiguration<Fila
     {
         builder.ToTable("FilamentVariants");
 
+        builder.Property(f => f.PricePerKg);
+
         builder.HasKey(v => v.Id);
 
         builder.Property(v => v.ColorName)

@@ -5,6 +5,8 @@ namespace OpenFarm.Api.Endpoints.Filaments;
 
 public sealed class FilamentVariantResponse
 {
+    public decimal? PricePerKg { get; set; }
+
     public Guid Id { get; set; }
 
     public string ColorName { get; set; } = string.Empty;
@@ -12,14 +14,16 @@ public sealed class FilamentVariantResponse
     public string ColorHex { get; set; } = string.Empty;
 
     public static FilamentVariantResponse FromDomain(FilamentVariant variant) =>
-        new() { Id = variant.Id, ColorName = variant.ColorName, ColorHex = variant.ColorHex };
+        new() { Id = variant.Id, ColorName = variant.ColorName, ColorHex = variant.ColorHex, PricePerKg = variant.PricePerKg };
 
     public static FilamentVariantResponse FromSummary(FilamentVariantSummary summary) =>
-        new() { Id = summary.Id, ColorName = summary.ColorName, ColorHex = summary.ColorHex };
+        new() { Id = summary.Id, ColorName = summary.ColorName, ColorHex = summary.ColorHex, PricePerKg = summary.PricePerKg };
 }
 
 public sealed class FilamentResponse
 {
+    public decimal? PricePerKg { get; set; }
+
     public Guid Id { get; set; }
 
     public Guid VendorId { get; set; }
@@ -37,6 +41,7 @@ public sealed class FilamentResponse
     public static FilamentResponse FromDomain(Filament filament, string vendorName) => new()
     {
         Id = filament.Id,
+        PricePerKg = filament.PricePerKg,
         VendorId = filament.VendorId,
         VendorName = vendorName,
         Material = filament.Material,
@@ -48,6 +53,7 @@ public sealed class FilamentResponse
     public static FilamentResponse FromSummary(FilamentSummary summary) => new()
     {
         Id = summary.Id,
+        PricePerKg = summary.PricePerKg,
         VendorId = summary.VendorId,
         VendorName = summary.VendorName,
         Material = summary.Material,

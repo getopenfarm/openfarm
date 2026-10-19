@@ -11,7 +11,11 @@ public sealed record EditFilamentCommand(
     string Material,
     string MaterialType,
     IReadOnlyList<CreateFilamentVariantInput> NewVariants,
-    IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments);
+    IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments,
+    decimal? PricePerKg = null, bool UpdatePrice = false,
+    IReadOnlyList<FilamentVariantPriceInput>? VariantPrices = null);
+
+public sealed record FilamentVariantPriceInput(Guid VariantId, decimal? PricePerKg);
 
 /// <summary>
 /// PUT /api/v1/filaments/{id} — updates vendor/material/type, adds colour variants and replaces profile
@@ -30,6 +34,16 @@ public sealed class EditFilamentCommandHandler(IFilamentRepository filaments, IV
         var vendor = await vendors.GetByIdAsync(command.VendorId, cancellationToken)
             ?? throw new VendorNotFoundException(command.VendorId);
 
+        var prices = command.VariantPrices ?? [];
+        if (command.PricePerKg < 0 || prices.Any(p => p.PricePerKg < 0) || command.NewVariants.Any(v => v.PricePerKg < 0))
+            throw new ArgumentOutOfRangeException(nameof(command), "Price must be non-negative.");
+        foreach (var price in prices)
+            if (!filament.Variants.Any(v => v.Id == price.VariantId))
+                throw new FilamentVariantNotFoundException(price.VariantId);
+        if (command.UpdatePrice) filament.SetPricePerKg(command.PricePerKg);
+        foreach (var price in prices)
+            filament.Variants.Single(v => v.Id == price.VariantId).SetPricePerKg(price.PricePerKg);
+
         // Before ReplaceAsync: assignments are validated against the (possibly new) material type.
         filament.UpdateDetails(vendor.Id, command.Material, command.MaterialType);
 
@@ -42,7 +56,7 @@ public sealed class EditFilamentCommandHandler(IFilamentRepository filaments, IV
                 throw new DuplicateFilamentVariantColorException(command.FilamentId, variant.ColorName);
             }
 
-            filament.AddVariant(variant.ColorName, variant.ColorHex);
+            filament.AddVariant(variant.ColorName, variant.ColorHex).SetPricePerKg(variant.PricePerKg);
         }
 
         await assignments.ReplaceAsync(filament, command.ProfileAssignments, cancellationToken);

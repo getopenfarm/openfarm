@@ -401,6 +401,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("VendorId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("PricePerKg")
+                        .HasColumnType("numeric");
+
                     b.HasKey("Id");
 
                     b.HasIndex("VendorId");
@@ -474,6 +477,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("FilamentId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("PricePerKg")
+                        .HasColumnType("numeric");
 
                     b.HasKey("Id");
 

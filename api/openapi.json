@@ -7577,6 +7577,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "narrowFilamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "materialType": {
             "type": "string",
             "nullable": true
@@ -7979,6 +7984,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8038,6 +8048,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8054,6 +8069,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "vendorId": {
             "type": "string",
             "format": "guid"
@@ -8082,6 +8102,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "colorName": {
             "type": "string"
           },
@@ -8094,6 +8119,17 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "variantPrices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentVariantPriceInput"
+            }
+          },
           "vendorId": {
             "type": "string",
             "format": "guid"
@@ -8115,6 +8151,21 @@
             "items": {
               "$ref": "#/components/schemas/FilamentProfileAssignmentInput"
             }
+          }
+        }
+      },
+      "FilamentVariantPriceInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
           }
         }
       },

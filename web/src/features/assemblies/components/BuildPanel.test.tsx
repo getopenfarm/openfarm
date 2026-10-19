@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EditableLine } from './BomLineEditor';
@@ -13,6 +14,7 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 const ROUTES: [string, unknown][] = [
+  ['/api/v1/filaments', { filaments: [] }],
   [
     '/api/v1/assemblies/a1/explosion',
     {
@@ -222,5 +224,90 @@ describe('BuildPanel', () => {
         '1 sub-assembly failed to load. Totals incomplete.',
       ),
     ).toBeInTheDocument();
+  });
+  it('shows selected filament costs, color breakdown and combined hardware total', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/api/v1/filaments'))
+          return Promise.resolve(
+            jsonResponse({
+              filaments: [
+                {
+                  pricePerKg: 20,
+                  variants: [{ id: 'black', pricePerKg: 30 }, { id: 'white' }],
+                },
+              ],
+            }),
+          );
+        if (url.includes('/api/v1/parts'))
+          return Promise.resolve(
+            jsonResponse({
+              parts: [
+                {
+                  id: 'p1',
+                  unitsPerPrint: 2,
+                  estimatedPrintTimeMinutes: 60,
+                  filamentByColor: [
+                    {
+                      materialType: 'PLA',
+                      colorHex: '#000000',
+                      grams: 100,
+                      narrowFilamentVariantId: 'black',
+                    },
+                    {
+                      materialType: 'PLA',
+                      colorHex: '#FFFFFF',
+                      grams: 50,
+                      narrowFilamentVariantId: 'white',
+                    },
+                  ],
+                },
+              ],
+            }),
+          );
+        const hit = ROUTES.find(([path]) => url.includes(path));
+        return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
+      }),
+    );
+    renderPanel(LINES);
+    await vi.waitFor(() =>
+      expect(stat('Filament cost').getByText('8.00')).toBeInTheDocument(),
+    );
+    expect(stat('Estimated total').getByText('8.90')).toBeInTheDocument();
+    const colors = screen.getByRole('list', { name: 'Filament by colour' });
+    expect(within(colors).getByText('6.00')).toBeInTheDocument();
+    expect(within(colors).getByText('2.00')).toBeInTheDocument();
+  });
+
+  it('keeps totals unavailable after catalog failure and supports keyboard retry', async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/api/v1/filaments') && fail)
+          return Promise.resolve(jsonResponse({}, 500));
+        const hit = ROUTES.find(([path]) => url.includes(path));
+        return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
+      }),
+    );
+    renderPanel(LINES);
+    const retry = await screen.findByRole('button', { name: 'Retry totals' });
+    expect(
+      stat('Estimated total').getByText('Unavailable'),
+    ).toBeInTheDocument();
+    fail = false;
+    await user.tab();
+    expect(retry).toHaveFocus();
+    await user.keyboard('{Enter}');
+    await vi.waitFor(() =>
+      expect(
+        stat('Estimated total').getByText('0.90 (partial)'),
+      ).toBeInTheDocument(),
+    );
+    expect(stat('Filament cost').getByText('Unavailable')).toBeInTheDocument();
   });
 });

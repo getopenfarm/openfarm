@@ -54,6 +54,7 @@ interface PartEstimate {
     materialType?: string | null;
     colorHex?: string | null;
     grams?: number | null;
+    narrowFilamentVariantId?: string | null;
   }[];
 }
 
@@ -141,3 +142,73 @@ export function hardwareCost(
   }
   return { total, missingCost };
 }
+
+interface FilamentPrice {
+  pricePerKg?: number | null;
+  variants?: { id?: string; pricePerKg?: number | null }[] | null;
+}
+
+/** Resolve prices before grouping colors: identical colors may refer to different products. */
+export function filamentCost(
+  parts: Map<string, number>,
+  catalog: PartEstimate[],
+  filaments: FilamentPrice[],
+) {
+  const prices = new Map<string, number | null | undefined>();
+  for (const filament of filaments)
+    for (const variant of filament.variants ?? [])
+      if (variant.id)
+        prices.set(variant.id, variant.pricePerKg ?? filament.pricePerKg);
+  let total = 0;
+  let priced = 0;
+  let missingSelection = 0;
+  let missingPrice = 0;
+  let missingGrams = 0;
+  const colors = new Map<
+    string,
+    { total: number; priced: number; missing: number }
+  >();
+  for (const [id, quantity] of parts) {
+    const part = catalog.find((p) => p.id === id);
+    const scale = quantity / Math.max(1, part?.unitsPerPrint ?? 1);
+    const requirements = part?.filamentByColor ?? [];
+    const splitKnown =
+      requirements.length > 0 && requirements.every((r) => r.grams != null);
+    const rows = splitKnown
+      ? requirements
+      : requirements.length === 1
+        ? [{ ...requirements[0], grams: part?.estimatedFilamentWeightGrams }]
+        : requirements.length > 1
+          ? requirements.map((requirement) => ({ ...requirement, grams: null }))
+          : [{ grams: part?.estimatedFilamentWeightGrams }];
+    for (const row of rows) {
+      const key = colorKey(row.materialType, row.colorHex);
+      const color = colors.get(key) ?? { total: 0, priced: 0, missing: 0 };
+      const variantId = row.narrowFilamentVariantId;
+      const price = variantId ? prices.get(variantId) : null;
+      if (row.grams == null) missingGrams++;
+      if (!variantId) missingSelection++;
+      else if (price == null) missingPrice++;
+      if (row.grams == null || price == null) color.missing++;
+      else {
+        const cost = ((row.grams * scale) / 1000) * price;
+        total += cost;
+        color.total += cost;
+        color.priced++;
+        priced++;
+      }
+      colors.set(key, color);
+    }
+  }
+  return {
+    total,
+    priced,
+    missingSelection,
+    missingPrice,
+    missingGrams,
+    colors,
+    incomplete: missingSelection + missingPrice + missingGrams > 0,
+  };
+}
+
+export const filamentColorKey = colorKey;

@@ -373,6 +373,36 @@ describe('FilamentFormPage', () => {
     });
   });
 
+  it('suggests the type from the name until the user picks one', async () => {
+    const user = userEvent.setup();
+    renderAddPage();
+
+    const name = await screen.findByLabelText('Name');
+    const type = screen.getByRole('combobox', { name: 'Type' });
+    await user.type(name, 'PETG Basic');
+    expect(type).toHaveTextContent('PETG');
+    expect(screen.getByText('Detected from name')).toBeInTheDocument();
+
+    await user.click(type);
+    await user.click(await screen.findByRole('option', { name: 'ABS' }));
+    expect(screen.queryByText('Detected from name')).not.toBeInTheDocument();
+    await user.clear(name);
+    await user.type(name, 'PLA Matte');
+    expect(type).toHaveTextContent('ABS');
+  });
+
+  it('does not change the type from the name in edit mode', async () => {
+    const user = userEvent.setup();
+    renderEditPage('f-1');
+
+    const name = await screen.findByLabelText('Name');
+    await user.clear(name);
+    await user.type(name, 'PETG Basic');
+    expect(screen.getByRole('combobox', { name: 'Type' })).toHaveTextContent(
+      'PLA',
+    );
+  });
+
   it('blocks in-app navigation away while the form has unsaved changes', async () => {
     const user = userEvent.setup();
     renderAddPage();
@@ -493,5 +523,105 @@ describe('FilamentFormPage', () => {
         profileAssignments: [],
       },
     });
+  });
+  it('saves default and variant prices together, then clears an override to inherit', async () => {
+    const user = userEvent.setup();
+    const writes: Record<string, unknown>[] = [];
+    renderEditPage('f-1', (_url, init) => {
+      if (init?.method === 'PUT') writes.push(JSON.parse(init.body as string));
+    });
+    const price = await screen.findByRole('spinbutton', {
+      name: 'Price per kg',
+    });
+    // Variant prices are not inline form fields; they live in the variant dialog.
+    expect(screen.getAllByRole('spinbutton')).toHaveLength(1);
+    expect(screen.getByText('No price')).toBeInTheDocument();
+    await user.type(price, '25.5');
+    expect(screen.getByText('25.50/kg default')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Edit Galaxy Black' }));
+    let dialog = within(screen.getByRole('dialog'));
+    const override = dialog.getByLabelText('Price per kg');
+    expect(override).toHaveAttribute('placeholder', 'Default: 25.50');
+    await user.type(override, '30');
+    await user.click(dialog.getByRole('button', { name: 'Update variant' }));
+    expect(screen.getByText('30.00/kg')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      pricePerKg: 25.5,
+      variantPrices: [{ variantId: 'var-1', pricePerKg: 30 }],
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit Galaxy Black' }));
+    dialog = within(screen.getByRole('dialog'));
+    await user.clear(dialog.getByLabelText('Price per kg'));
+    await user.click(dialog.getByRole('button', { name: 'Update variant' }));
+    await user.clear(price);
+    await user.type(price, '25');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1]).toMatchObject({
+      pricePerKg: 25,
+      variantPrices: [{ variantId: 'var-1', pricePerKg: null }],
+    });
+  });
+
+  it('stages a color profile override from the variant dialog', async () => {
+    const user = userEvent.setup();
+    const writes: Record<string, unknown>[] = [];
+    renderEditPage('f-1', (_url, init) => {
+      if (init?.method === 'PUT') writes.push(JSON.parse(init.body as string));
+    });
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Edit Galaxy Black' }),
+    );
+    const dialog = within(screen.getByRole('dialog'));
+    await user.click(
+      dialog.getByRole('button', { name: 'P1S · 0.4 mm profile' }),
+    );
+    await user.click(
+      await screen.findByRole('option', { name: /Generic PETG/ }),
+    );
+    await user.click(dialog.getByRole('button', { name: 'Update variant' }));
+    expect(screen.getByText('1 profile override')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      profileAssignments: [
+        SAVED_ASSIGNMENT,
+        {
+          brand: 'Bambu',
+          modelCode: 'P1S',
+          nozzleDiameterMm: 0.4,
+          filamentProfileId: 'fp-1',
+          colorHex: '#18181b',
+        },
+      ],
+    });
+  });
+
+  it('rejects negative prices before sending a request', async () => {
+    const user = userEvent.setup();
+    const writes: unknown[] = [];
+    renderEditPage('f-1', (_url, init) => {
+      if (init?.method === 'PUT') writes.push(init.body);
+    });
+    const price = await screen.findByRole('spinbutton', {
+      name: 'Price per kg',
+    });
+    await user.type(price, '-1');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(writes).toEqual([]);
+    expect(
+      await screen.findByText('Price must be non-negative'),
+    ).toBeInTheDocument();
+    expect(price).toBeInvalid();
   });
 });

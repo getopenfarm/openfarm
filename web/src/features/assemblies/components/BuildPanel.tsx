@@ -1,10 +1,18 @@
 import { useQueries } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
 import { getOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointQueryOptions } from '@/lib/api/generated/assemblies/assemblies';
+import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
 import { formatMinutes } from '@/lib/formatMinutes';
 import { formatCost, formatGrams } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import type { EditableLine } from './BomLineEditor';
-import { hardwareCost, printTotals, rollUp } from './bomRollup';
+import {
+  filamentColorKey,
+  filamentCost,
+  hardwareCost,
+  printTotals,
+  rollUp,
+} from './bomRollup';
 import { useBomCatalog } from './useBomCatalog';
 
 interface BuildPanelProps {
@@ -25,6 +33,7 @@ const plural = (n: number, one: string, many: string) =>
  */
 export function BuildPanel({ lines, className }: BuildPanelProps) {
   const catalog = useBomCatalog();
+  const filamentQuery = useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
 
   const subIds = [
     ...new Set(
@@ -44,13 +53,33 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
   const subFailed = subQueries.filter((q) => q.isError).length;
   const subPending = subQueries.some((q) => q.isPending);
   // Missing explosions drop parts from every total, so nothing reads as final until all load.
-  const incomplete = subPending || subFailed > 0;
+  const loading = subPending || catalog.isPending || filamentQuery.isPending;
+  const failed = subFailed > 0 || catalog.isError || filamentQuery.isError;
+  const incomplete = loading || failed;
 
   const total = rollUp(lines, subExplosions);
   const print = printTotals(total.parts, catalog.parts);
   const cost = hardwareCost(total.components, catalog.components);
+  const filament = filamentCost(
+    total.parts,
+    catalog.parts,
+    filamentQuery.data?.data?.filaments ?? [],
+  );
+  const estimate = (amount: number, partial: boolean, available = true) =>
+    incomplete || !available
+      ? 'Unavailable'
+      : `${formatCost(amount)}${partial ? ' (partial)' : ''}`;
 
   const notes = [
+    (catalog.isPending || filamentQuery.isPending) && 'Loading catalog…',
+    (catalog.isError || filamentQuery.isError) &&
+      'Could not load catalog. Totals incomplete.',
+    filament.missingSelection > 0 &&
+      'Select catalog filament on parts to estimate all filament costs.',
+    filament.missingPrice > 0 &&
+      'Selected filament has no price. Filament cost incomplete.',
+    filament.missingGrams > 0 &&
+      'Filament weight estimates unavailable. Filament cost incomplete.',
     subPending && 'Loading sub-assemblies…',
     subFailed > 0 &&
       `${plural(subFailed, 'sub-assembly', 'sub-assemblies')} failed to load. Totals incomplete.`,
@@ -63,7 +92,7 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
   return (
     <aside
       aria-labelledby="build-heading"
-      aria-busy={subPending}
+      aria-busy={loading}
       className={cn('rounded-lg border bg-card', className)}
     >
       <div className="flex items-center gap-3 border-b px-4 py-3">
@@ -82,13 +111,16 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
         <div className="flex flex-col">
           <span className="text-sm text-muted-foreground">Print time</span>
           <span className="font-heading text-3xl font-semibold tabular-nums">
-            {formatMinutes(print.minutes)}
+            {incomplete ? 'Unavailable' : formatMinutes(print.minutes)}
           </span>
         </div>
 
         <div className="flex flex-col gap-1.5 text-sm">
           <dl>
-            <Row label="Filament" value={formatGrams(print.grams)} />
+            <Row
+              label="Filament"
+              value={incomplete ? 'Unavailable' : formatGrams(print.grams)}
+            />
           </dl>
           {print.colors.some((c) => c.colorHex) && (
             <ul aria-label="Filament by colour" className="flex flex-col gap-1">
@@ -107,17 +139,68 @@ export function BuildPanel({ lines, className }: BuildPanelProps) {
                       ? `${c.materialType ?? 'Any'} ${c.colorHex}`
                       : 'Unknown colour'}
                   </span>
-                  <span className="tabular-nums">{formatGrams(c.grams)}</span>
+                  <span className="text-right tabular-nums">
+                    {formatGrams(c.grams)}
+                    <span className="block text-xs">
+                      {(() => {
+                        const color = filament.colors.get(
+                          filamentColorKey(c.materialType, c.colorHex),
+                        );
+                        return estimate(
+                          color?.total ?? 0,
+                          (color?.missing ?? 0) > 0,
+                          (color?.priced ?? 0) > 0,
+                        );
+                      })()}
+                    </span>
+                  </span>
                 </li>
               ))}
             </ul>
           )}
           <dl>
-            <Row label="Hardware cost" value={formatCost(cost.total)} />
+            <Row
+              label="Filament cost"
+              value={estimate(
+                filament.total,
+                filament.incomplete,
+                filament.priced > 0 || total.parts.size === 0,
+              )}
+            />
+            <Row
+              label="Hardware cost"
+              value={estimate(cost.total, cost.missingCost > 0)}
+            />
+            <Row
+              label="Estimated total"
+              value={estimate(
+                filament.total + cost.total,
+                filament.incomplete || cost.missingCost > 0,
+                filament.priced > 0 ||
+                  total.components.size > cost.missingCost ||
+                  (total.parts.size === 0 && total.components.size === 0),
+              )}
+            />
           </dl>
         </div>
       </div>
 
+      {failed && (
+        <div className="px-4 pb-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              catalog.retry();
+              void filamentQuery.refetch();
+              for (const query of subQueries) void query.refetch();
+            }}
+          >
+            Retry totals
+          </Button>
+        </div>
+      )}
       {notes.length > 0 && (
         <ul className="flex flex-col gap-1 border-t px-4 py-3 text-xs text-muted-foreground">
           {notes.map((note) => (

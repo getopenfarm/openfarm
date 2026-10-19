@@ -9,6 +9,8 @@ namespace OpenFarm.Api.Endpoints.Filaments;
 
 public sealed class CreateFilamentVariantRequest
 {
+    public decimal? PricePerKg { get; set; }
+
     public string ColorName { get; set; } = string.Empty;
 
     public string ColorHex { get; set; } = string.Empty;
@@ -16,6 +18,8 @@ public sealed class CreateFilamentVariantRequest
 
 public sealed class CreateFilamentRequest : IActivityLoggable
 {
+    public decimal? PricePerKg { get; set; }
+
     public Guid VendorId { get; set; }
 
     public string Material { get; set; } = string.Empty;
@@ -37,12 +41,14 @@ public sealed class CreateFilamentRequestValidator : AbstractValidator<CreateFil
     {
         RuleFor(x => x.VendorId).NotEmpty();
         RuleFor(x => x.Material).NotEmpty();
+        RuleFor(x => x.PricePerKg).GreaterThanOrEqualTo(0);
         RuleFor(x => x.MaterialType).NotEmpty();
         RuleFor(x => x.Variants).NotEmpty();
         RuleForEach(x => x.Variants).ChildRules(variant =>
         {
             variant.RuleFor(v => v.ColorName).NotEmpty();
             variant.RuleFor(v => v.ColorHex).NotEmpty();
+            variant.RuleFor(v => v.PricePerKg).GreaterThanOrEqualTo(0);
         });
     }
 }
@@ -64,7 +70,7 @@ public sealed class CreateFilamentEndpoint(CreateFilamentHandler handler, IVendo
             req.VendorId,
             req.Material,
             req.MaterialType,
-            req.Variants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex)).ToList(), req.ProfileAssignments);
+            req.Variants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex, v.PricePerKg)).ToList(), req.ProfileAssignments, req.PricePerKg);
 
         var filament = await handler.HandleAsync(command, ct);
         var vendor = await vendorRepository.GetByIdAsync(filament.VendorId, ct);

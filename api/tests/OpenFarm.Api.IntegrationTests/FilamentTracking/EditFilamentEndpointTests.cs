@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using OpenFarm.Api.Endpoints.Parts;
 using OpenFarm.Api.Endpoints.Filaments;
 using OpenFarm.Api.Endpoints.Vendors;
 using OpenFarm.Api.IntegrationTests.Production;
@@ -47,6 +49,102 @@ public class EditFilamentEndpointTests(ProductionTestFactory factory) : Producti
 
     private static async Task<FilamentResponse> ReloadAsync(HttpClient client, Guid id) =>
         (await client.GetFromJsonAsync<ListFilamentsResponse>("/api/v1/filaments"))!.Filaments.Single(f => f.Id == id);
+
+    [Fact]
+    public async Task PartSummary_ExposesSelectedVariantForAssemblyPricing()
+    {
+        var client = await ClientAsync();
+        var filament = await FilamentAsync(client);
+        var part = await PartAsync();
+        var variantId = filament.Variants.Single().Id;
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var tracked = await db.Parts.Include(p => p.FilamentRequirements).SingleAsync(p => p.Id == part.Id);
+            tracked.NarrowFilamentRequirement(tracked.FilamentRequirements.Single().Id, variantId, null);
+            await db.SaveChangesAsync();
+        }
+        var summary = (await client.GetFromJsonAsync<ListPartsResponse>("/api/v1/parts?page=1&pageSize=200"))!
+            .Parts.Single(p => p.Id == part.Id);
+        summary.FilamentByColor.Single().NarrowFilamentVariantId.Should().Be(variantId);
+    }
+
+    [Fact]
+    public async Task Prices_CreateEditClearAndLegacyOmission_RoundTrip()
+    {
+        var client = await ClientAsync();
+        var vendorId = await VendorAsync(client);
+        var created = await client.PostAsJsonAsync("/api/v1/filaments", new CreateFilamentRequest
+        {
+            VendorId = vendorId,
+            Material = "Priced PLA",
+            MaterialType = "PLA",
+            PricePerKg = 20.50m,
+            Variants = [new() { ColorName = "Black", ColorHex = "#000000", PricePerKg = 30m }],
+        });
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var filament = (await created.Content.ReadFromJsonAsync<FilamentResponse>())!;
+        filament.PricePerKg.Should().Be(20.50m);
+        filament.Variants.Single().PricePerKg.Should().Be(30m);
+        var legacy = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new
+        {
+            vendorId,
+            material = "Renamed",
+            materialType = "PLA",
+        });
+        legacy.EnsureSuccessStatusCode();
+        var saved = await ReloadAsync(client, filament.Id);
+        saved.PricePerKg.Should().Be(20.50m);
+        saved.Variants.Single().PricePerKg.Should().Be(30m);
+        var edited = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
+        {
+            VendorId = vendorId,
+            Material = "Renamed",
+            MaterialType = "PLA",
+            PricePerKg = 0m,
+            VariantPrices = [new(saved.Variants.Single().Id, null)],
+            NewVariants = [new() { ColorName = "White", ColorHex = "#FFFFFF", PricePerKg = 24m }],
+        });
+        edited.EnsureSuccessStatusCode();
+        saved = await ReloadAsync(client, filament.Id);
+        saved.PricePerKg.Should().Be(0m);
+        saved.Variants.Single(v => v.ColorName == "Black").PricePerKg.Should().BeNull();
+        saved.Variants.Single(v => v.ColorName == "White").PricePerKg.Should().Be(24m);
+        var cleared = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new
+        {
+            vendorId,
+            material = "Renamed",
+            materialType = "PLA",
+            pricePerKg = (decimal?)null,
+        });
+        cleared.EnsureSuccessStatusCode();
+        (await ReloadAsync(client, filament.Id)).PricePerKg.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Prices_ForeignVariantOrNegativePrice_PersistNothing()
+    {
+        var client = await ClientAsync();
+        var filament = await FilamentAsync(client);
+        var other = await FilamentAsync(client);
+        foreach (var foreign in new[] { false, true })
+        {
+            var response = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
+            {
+                VendorId = filament.VendorId,
+                Material = "Should not save",
+                MaterialType = "PLA",
+                PricePerKg = foreign ? 20m : -1m,
+                VariantPrices = [new(other.Variants.Single().Id, 25m)],
+                NewVariants = [new() { ColorName = "White", ColorHex = "#FFFFFF" }],
+            });
+            response.StatusCode.Should().Be(foreign ? HttpStatusCode.NotFound : HttpStatusCode.BadRequest);
+            var saved = await ReloadAsync(client, filament.Id);
+            saved.Material.Should().Be(filament.Material);
+            saved.PricePerKg.Should().BeNull();
+            saved.Variants.Should().ContainSingle();
+        }
+    }
 
     [Fact]
     public async Task Edit_AddsVariantAndAssignmentReferencingIt_AndLogsFilamentEdited()

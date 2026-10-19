@@ -11,6 +11,14 @@ public sealed class FilamentVariant
         CreatedAtUtc = createdAtUtc;
     }
 
+    public decimal? PricePerKg { get; private set; }
+
+    public void SetPricePerKg(decimal? price)
+    {
+        if (price < 0) throw new ArgumentOutOfRangeException(nameof(price), "Price must be non-negative.");
+        PricePerKg = price;
+    }
+
     public Guid Id { get; }
 
     public Guid FilamentId { get; }

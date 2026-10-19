@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hardwareCost, printTotals, rollUp } from './bomRollup';
+import { filamentCost, hardwareCost, printTotals, rollUp } from './bomRollup';
 
 const part = (targetId: string, quantity: number) => ({
   targetKind: 'Part' as const,
@@ -192,5 +192,113 @@ describe('hardwareCost', () => {
     );
     expect(cost.total).toBeCloseTo(0.7);
     expect(cost.missingCost).toBe(1);
+  });
+});
+
+describe('filamentCost', () => {
+  const prices = [
+    {
+      pricePerKg: 20,
+      variants: [
+        { id: 'base' },
+        { id: 'special', pricePerKg: 30 },
+        { id: 'free', pricePerKg: 0 },
+      ],
+    },
+  ];
+  const requirement = (variant: string | null, grams: number | null = 100) => ({
+    materialType: 'PLA',
+    colorHex: '#000000',
+    grams,
+    narrowFilamentVariantId: variant,
+  });
+
+  it('scales per-print grams by quantity and units per print, then applies overrides before grouping', () => {
+    const result = filamentCost(
+      new Map([['p', 3]]),
+      [
+        {
+          id: 'p',
+          unitsPerPrint: 2,
+          filamentByColor: [requirement('base'), requirement('special')],
+        },
+      ],
+      prices,
+    );
+    expect(result.total).toBe(7.5);
+    expect(result.incomplete).toBe(false);
+    expect([...result.colors.values()]).toEqual([
+      { total: 7.5, priced: 2, missing: 0 },
+    ]);
+  });
+
+  it('keeps zero prices and falls back to aggregate weight only for one requirement', () => {
+    const result = filamentCost(
+      new Map([['p', 2]]),
+      [
+        {
+          id: 'p',
+          estimatedFilamentWeightGrams: 100,
+          filamentByColor: [requirement('free', null)],
+        },
+      ],
+      prices,
+    );
+    expect(result.total).toBe(0);
+    expect(result.priced).toBe(1);
+    expect(result.incomplete).toBe(false);
+  });
+
+  it('reports partial prices without guessing a product from a color', () => {
+    const result = filamentCost(
+      new Map([['p', 1]]),
+      [
+        {
+          id: 'p',
+          filamentByColor: [
+            requirement('base'),
+            requirement(null),
+            requirement('missing'),
+          ],
+        },
+      ],
+      prices,
+    );
+    expect(result.total).toBe(2);
+    expect(result.missingSelection).toBe(1);
+    expect(result.missingPrice).toBe(1);
+    expect(result.incomplete).toBe(true);
+  });
+
+  it('does not divide an aggregate weight across unsplit requirements', () => {
+    const result = filamentCost(
+      new Map([['p', 1]]),
+      [
+        {
+          id: 'p',
+          estimatedFilamentWeightGrams: 200,
+          filamentByColor: [
+            requirement('base', null),
+            requirement('special', null),
+          ],
+        },
+      ],
+      prices,
+    );
+    expect(result.priced).toBe(0);
+    expect(result.missingGrams).toBe(2);
+    expect(result.missingSelection).toBe(0);
+    expect(result.incomplete).toBe(true);
+  });
+
+  it('recomputes inherited prices when a default changes or an override is cleared', () => {
+    const parts = new Map([['p', 1]]);
+    const catalog = [{ id: 'p', filamentByColor: [requirement('special')] }];
+    expect(filamentCost(parts, catalog, prices).total).toBe(3);
+    expect(
+      filamentCost(parts, catalog, [
+        { pricePerKg: 40, variants: [{ id: 'special', pricePerKg: null }] },
+      ]).total,
+    ).toBe(4);
   });
 });

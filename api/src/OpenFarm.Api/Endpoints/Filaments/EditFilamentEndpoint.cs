@@ -9,6 +9,18 @@ namespace OpenFarm.Api.Endpoints.Filaments;
 
 public sealed class EditFilamentRequest : IActivityLoggable
 {
+    private decimal? _pricePerKg;
+    public decimal? PricePerKg
+    {
+        get => _pricePerKg;
+        set { _pricePerKg = value; HasPricePerKg = true; }
+    }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasPricePerKg { get; private set; }
+
+    public IReadOnlyList<FilamentVariantPriceInput> VariantPrices { get; set; } = [];
+
     public Guid Id { get; set; }
 
     public Guid VendorId { get; set; }
@@ -32,6 +44,15 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
     {
         RuleFor(x => x.VendorId).NotEmpty();
         RuleFor(x => x.Material).NotEmpty();
+        RuleFor(x => x.PricePerKg).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.VariantPrices).NotNull();
+        RuleFor(x => x.VariantPrices).Must(p => p.Select(v => v.VariantId).Distinct().Count() == p.Count)
+            .When(x => x.VariantPrices is not null);
+        RuleForEach(x => x.VariantPrices).ChildRules(price =>
+        {
+            price.RuleFor(p => p.VariantId).NotEmpty();
+            price.RuleFor(p => p.PricePerKg).GreaterThanOrEqualTo(0);
+        });
         RuleFor(x => x.MaterialType).NotEmpty();
         RuleFor(x => x.NewVariants).NotNull();
         RuleFor(x => x.ProfileAssignments).NotNull();
@@ -39,11 +60,12 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
         {
             variant.RuleFor(v => v.ColorName).NotEmpty();
             variant.RuleFor(v => v.ColorHex).NotEmpty();
+            variant.RuleFor(v => v.PricePerKg).GreaterThanOrEqualTo(0);
         });
     }
 }
 
-/// <summary>PUT /api/v1/filaments/{id} — updates vendor/material/type, adds colour variants and replaces profile assignments in one all-or-nothing save. Existing variants stay immutable.</summary>
+/// <summary>PUT /api/v1/filaments/{id} — updates vendor/material/type, adds colour variants and replaces profile assignments in one all-or-nothing save. Existing variant identity and color stay immutable; prices can be updated.</summary>
 [Permission("filaments:assign-profiles")]
 public sealed class EditFilamentEndpoint(EditFilamentHandler handler, IVendorRepository vendorRepository)
     : Endpoint<EditFilamentRequest, FilamentResponse>
@@ -62,8 +84,8 @@ public sealed class EditFilamentEndpoint(EditFilamentHandler handler, IVendorRep
             req.VendorId,
             req.Material,
             req.MaterialType,
-            req.NewVariants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex)).ToList(),
-            req.ProfileAssignments);
+            req.NewVariants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex, v.PricePerKg)).ToList(),
+            req.ProfileAssignments, req.PricePerKg, req.HasPricePerKg, req.VariantPrices);
 
         var filament = await handler.HandleAsync(command, ct);
         var vendor = await vendorRepository.GetByIdAsync(filament.VendorId, ct);

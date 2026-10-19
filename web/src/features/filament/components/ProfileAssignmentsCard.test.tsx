@@ -68,13 +68,18 @@ const parent: FilamentProfileAssignmentInput = {
 };
 
 describe('Profile assignments card', () => {
-  it('shows hardware groups, preserves other nozzle assignments, and restores inheritance when an override clears', async () => {
+  it('shows hardware groups and sets one default without touching other nozzles or color overrides', async () => {
     const user = userEvent.setup();
     const changed = vi.fn();
+    const blackOverride = {
+      ...parent,
+      filamentProfileId: 'black',
+      colorHex: '#000000',
+    };
     function Editor() {
       const [assignments, setAssignments] = useState<
         FilamentProfileAssignmentInput[]
-      >([parent, { ...parent, nozzleDiameterMm: 0.6 }]);
+      >([parent, { ...parent, nozzleDiameterMm: 0.6 }, blackOverride]);
       return (
         <ProfileAssignmentsCard
           materialType="PLA"
@@ -93,28 +98,36 @@ describe('Profile assignments card', () => {
     expect(screen.getByText('X1C · 0.6 mm')).toBeInTheDocument();
     expect(screen.getByText(/2 printers/)).toBeInTheDocument();
     expect(screen.getByText(/Printer awaiting telemetry/)).toBeInTheDocument();
-    await user.click(screen.getAllByText('Color overrides')[0]);
-    expect(screen.getAllByText('Black · Inherited')).toHaveLength(2);
+    // Color overrides are edited per variant, not here.
+    expect(
+      screen.queryByLabelText('Black profile for P1S · 0.4 mm'),
+    ).not.toBeInTheDocument();
+
     await user.selectOptions(
-      screen.getByLabelText('Black profile for P1S · 0.4 mm'),
-      'black',
-    );
-    expect(changed).toHaveBeenLastCalledWith(
-      expect.arrayContaining([
-        { ...parent, filamentProfileId: 'black', colorHex: '#000000' },
-        { ...parent, nozzleDiameterMm: 0.6 },
-      ]),
-    );
-    expect(screen.getByText('Black · Override')).toBeInTheDocument();
-    await user.selectOptions(
-      screen.getByLabelText('Black profile for P1S · 0.4 mm'),
-      '',
+      screen.getByLabelText('Default profile for X1C · 0.6 mm'),
+      'default',
     );
     expect(changed).toHaveBeenLastCalledWith([
       parent,
       { ...parent, nozzleDiameterMm: 0.6 },
+      blackOverride,
+      {
+        brand: 'Bambu',
+        modelCode: 'X1C',
+        nozzleDiameterMm: 0.6,
+        filamentProfileId: 'default',
+        colorHex: null,
+      },
     ]);
-    expect(screen.queryByText('Black · Override')).not.toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByLabelText('Default profile for P1S · 0.4 mm'),
+      '',
+    );
+    expect(changed).toHaveBeenLastCalledWith(
+      expect.not.arrayContaining([parent]),
+    );
+    expect(changed.mock.lastCall?.[0]).toContainEqual(blackOverride);
   });
 
   it('shows an invalid saved assignment with the backend reason', () => {

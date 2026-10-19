@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { FilamentResponse } from '@/lib/api/generated/endpoints.schemas';
 
+import { formatCost } from '@/lib/formatUnits';
+
 const MAX_VISIBLE_SWATCHES = 4;
 
 interface FilamentCatalogTableProps {
@@ -48,6 +50,15 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
       cell: ({ row }) => (
         <StatusBadge kind="zinc" label={row.original.materialType ?? ''} />
       ),
+    },
+    {
+      id: 'pricePerKg',
+      header: 'Price per kg',
+      accessorKey: 'pricePerKg',
+      cell: ({ row }) =>
+        row.original.pricePerKg == null
+          ? '—'
+          : formatCost(row.original.pricePerKg),
     },
     {
       id: 'colors',

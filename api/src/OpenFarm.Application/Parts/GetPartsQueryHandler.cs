@@ -34,7 +34,7 @@ public sealed class GetPartsQueryHandler(IPartRepository partRepository) : IQuer
                 materialTypes,
                 part.Tags.Select(t => t.Name).ToList(),
                 part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation, part.UnitsPerPrint,
-                part.FilamentRequirements.Select(r => new PartColorGrams(r.MaterialType, r.DetectedColorHex, r.EstimatedGrams)).ToList());
+                part.FilamentRequirements.Select(r => new PartColorGrams(r.MaterialType, r.DetectedColorHex, r.EstimatedGrams, r.NarrowFilamentVariantId)).ToList());
         }).ToList();
 
         return new PartsPage(summaries, totalCount);

@@ -40,7 +40,7 @@ public class FilamentGramsTests
         // A partial split would sum to less than the file's total, so none is better than a wrong one.
         var split = FilamentGrams.Distribute(BlackWhite, [new("PLA", "#000000", 12m), new("PLA", "#FF0000", 2m)]);
 
-        split.Should().Equal(null, null);
+        split.Should().Equal(new decimal?[] { null, null });
     }
 
     [Theory]
@@ -48,6 +48,6 @@ public class FilamentGramsTests
     [InlineData(true)]
     public void NoGrams_LeaveEveryRequirementUnknown(bool empty)
     {
-        FilamentGrams.Distribute(BlackWhite, empty ? [] : null).Should().Equal(null, null);
+        FilamentGrams.Distribute(BlackWhite, empty ? [] : null).Should().Equal(new decimal?[] { null, null });
     }
 }

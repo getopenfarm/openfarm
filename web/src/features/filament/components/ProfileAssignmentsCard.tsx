@@ -1,23 +1,36 @@
 import { ErrorState } from '@/components/empty-state/EmptyState';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import type {
-  FilamentAssignmentFleet,
   FilamentProfileAssignmentInput,
   FilamentProfileAssignmentIssue,
   FilamentVariantResponse,
 } from '@/lib/api/generated/endpoints.schemas';
-import { useOpenFarmApiEndpointsFilamentsGetFilamentAssignmentFleetEndpoint } from '@/lib/api/generated/filaments/filaments';
+import {
+  type AssignmentRow,
+  matchesRow,
+  rowLabel,
+  useAssignmentRows,
+} from './useAssignmentRows';
 
 interface Props {
   materialType: string;
+  /** Names the color in issue messages for color overrides. */
   variants: Pick<FilamentVariantResponse, 'colorName' | 'colorHex'>[];
   assignments: FilamentProfileAssignmentInput[];
   issues?: FilamentProfileAssignmentIssue[];
   onChange: (value: FilamentProfileAssignmentInput[]) => void;
 }
 
+/** Default filament profile per printer model and nozzle. Per-color overrides live in each variant. */
 export function ProfileAssignmentsCard({
   materialType,
   variants,
@@ -25,40 +38,10 @@ export function ProfileAssignmentsCard({
   issues = [],
   onChange,
 }: Props) {
-  const fleetQuery =
-    useOpenFarmApiEndpointsFilamentsGetFilamentAssignmentFleetEndpoint();
-  const fleet = fleetQuery.data?.data as FilamentAssignmentFleet | undefined;
-  const rows = [...(fleet?.variants ?? [])];
-  for (const assignment of assignments) {
-    if (
-      !rows.some(
-        (row) =>
-          row.brand === assignment.brand &&
-          row.modelCode === assignment.modelCode &&
-          row.nozzleDiameterMm === assignment.nozzleDiameterMm,
-      )
-    ) {
-      rows.push({
-        brand: assignment.brand,
-        modelCode: assignment.modelCode,
-        nozzleDiameterMm: assignment.nozzleDiameterMm,
-        printerCount: 0,
-      });
-    }
-  }
-  function setProfile(
-    row: (typeof rows)[number],
-    colorHex: string | null,
-    profileId: string | null,
-  ) {
+  const { fleetQuery, fleet, rows } = useAssignmentRows(assignments);
+  function setDefault(row: AssignmentRow, profileId: string | null) {
     const retained = assignments.filter(
-      (a) =>
-        !(
-          a.brand === row.brand &&
-          a.modelCode === row.modelCode &&
-          a.nozzleDiameterMm === row.nozzleDiameterMm &&
-          (a.colorHex ?? null) === colorHex
-        ),
+      (a) => !(matchesRow(a, row) && !a.colorHex),
     );
     onChange(
       profileId
@@ -69,7 +52,7 @@ export function ProfileAssignmentsCard({
               modelCode: row.modelCode,
               nozzleDiameterMm: row.nozzleDiameterMm,
               filamentProfileId: profileId,
-              colorHex,
+              colorHex: null,
             },
           ]
         : retained,
@@ -79,12 +62,9 @@ export function ProfileAssignmentsCard({
     <Card>
       <CardHeader>
         <CardTitle>Profile assignments</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Assign profiles for each printer model and reported nozzle. Required
-          before production use. Colors inherit the default unless overridden.
-          Compatible profiles from the default slicer appear first. Bambu Studio
-          presets used in OrcaSlicer are validated before slicing.
-        </p>
+        <CardDescription>
+          Required for production. Per-color profile: edit the variant.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
         {fleetQuery.isLoading && (
@@ -97,29 +77,23 @@ export function ProfileAssignmentsCard({
           <ErrorState
             className="col-span-full"
             size="sm"
-            title="Could not load fleet variants"
+            title="Could not load printer models"
             onRetry={() => fleetQuery.refetch()}
           />
         )}
         {fleet && rows.length === 0 && (
           <p className="col-span-full text-sm text-muted-foreground">
-            Connect a printer to report its nozzle size. You can save this
-            filament now and assign profiles later.
+            No printer nozzles reported. Assign profiles later.
           </p>
         )}
         {!!fleet?.printersAwaitingNozzle?.length && (
           <p className="col-span-full text-sm text-status-attention">
-            Waiting for nozzle information:{' '}
-            {fleet.printersAwaitingNozzle.join(', ')}.
+            Waiting for nozzle data: {fleet.printersAwaitingNozzle.join(', ')}.
           </p>
         )}
         {rows.map((row) => {
           const base = assignments.find(
-            (a) =>
-              a.brand === row.brand &&
-              a.modelCode === row.modelCode &&
-              a.nozzleDiameterMm === row.nozzleDiameterMm &&
-              !a.colorHex,
+            (a) => matchesRow(a, row) && !a.colorHex,
           );
           const rowIssues = issues
             .filter((issue) =>
@@ -133,30 +107,28 @@ export function ProfileAssignmentsCard({
               ),
             )
             .filter(
-              (issue) =>
-                issue.assignment?.brand === row.brand &&
-                issue.assignment?.modelCode === row.modelCode &&
-                issue.assignment?.nozzleDiameterMm === row.nozzleDiameterMm,
+              (issue) => issue.assignment && matchesRow(issue.assignment, row),
             );
-          const label = `${row.modelCode} · ${row.nozzleDiameterMm} mm`;
+          const label = rowLabel(row);
           return (
             <div
               key={`${row.brand}-${row.modelCode}-${row.nozzleDiameterMm}`}
               className="min-w-0 rounded-lg border p-4 flex flex-col gap-3"
             >
-              <div className="flex justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="font-medium">{label}</span>
-                <span className="text-sm text-muted-foreground">
+                <span className="flex-1 text-sm text-muted-foreground">
                   {row.printerCount
                     ? `${row.printerCount} printer${row.printerCount === 1 ? '' : 's'}`
-                    : 'Not currently in fleet'}{' '}
-                  ·{' '}
-                  {rowIssues.length
-                    ? 'Invalid assignment'
-                    : base
-                      ? 'Assigned'
-                      : 'Missing default'}
+                    : 'Not in fleet'}
                 </span>
+                {rowIssues.length ? (
+                  <Badge kind="red">Invalid assignment</Badge>
+                ) : base ? (
+                  <Badge kind="green">Assigned</Badge>
+                ) : (
+                  <Badge kind="amber">Missing default</Badge>
+                )}
               </div>
               {rowIssues.map((issue) => (
                 <p
@@ -173,63 +145,12 @@ export function ProfileAssignmentsCard({
                 kind="filament"
                 ariaLabel={`Default profile for ${label}`}
                 value={base?.filamentProfileId}
-                onChange={(id) => setProfile(row, null, id)}
+                onChange={(id) => setDefault(row, id)}
                 materialType={materialType}
                 brand={row.brand}
                 modelCode={row.modelCode}
                 nozzleDiameterMm={row.nozzleDiameterMm}
-                placeholder="Assign filament profile"
               />
-              {variants.length > 0 && (
-                <details>
-                  <summary className="cursor-pointer text-sm">
-                    Color overrides
-                  </summary>
-                  <div className="mt-3 flex flex-col gap-3">
-                    {variants.map((variant) => {
-                      const override = assignments.find(
-                        (a) =>
-                          a.brand === row.brand &&
-                          a.modelCode === row.modelCode &&
-                          a.nozzleDiameterMm === row.nozzleDiameterMm &&
-                          a.colorHex === variant.colorHex,
-                      );
-                      return (
-                        <div
-                          key={variant.colorHex}
-                          className="grid gap-2 sm:grid-cols-2"
-                        >
-                          <span className="text-sm self-center">
-                            {variant.colorName} ·{' '}
-                            {override
-                              ? 'Override'
-                              : base
-                                ? 'Inherited'
-                                : 'Missing assignment'}
-                          </span>
-                          <ProfilePickerCombobox
-                            kind="filament"
-                            ariaLabel={`${variant.colorName} profile for ${label}`}
-                            value={override?.filamentProfileId}
-                            onChange={(id) =>
-                              setProfile(row, variant.colorHex ?? null, id)
-                            }
-                            materialType={materialType}
-                            brand={row.brand}
-                            modelCode={row.modelCode}
-                            nozzleDiameterMm={row.nozzleDiameterMm}
-                            placeholder={
-                              base
-                                ? 'Use filament default'
-                                : 'No default assigned'
-                            }
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </details>
-              )}
             </div>
           );
         })}
