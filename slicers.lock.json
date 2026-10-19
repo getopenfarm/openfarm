@@ -1,3 +1,32 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "engine": "OrcaSlicer",
+      "version": "2.3.1",
+      "platform": "Linux",
+      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.1.AppImage",
+      "sha256": "f199e5408914efdbbbfa4fd6752cd6ad4727209b488bc47bff9a0da5f053a701"
+    },
+    {
+      "engine": "OrcaSlicer",
+      "version": "2.3.2",
+      "platform": "Linux",
+      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.2.AppImage",
+      "sha256": "c64336ceec37d941766e675cbaaaf5124e184402bf18177fbf81ba5102734ad8"
+    },
+    {
+      "engine": "OrcaSlicer",
+      "version": "2.4.2",
+      "platform": "Linux",
+      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage",
+      "sha256": "d12fb8c8eac1aecd2dfb6377acd48f994f8fa439ed5292fa532dd82880f029fd"
+    },
+    {
+      "engine": "BambuStudio",
+      "version": "2.7.1",
+      "platform": "Linux",
+      "assetUrl": "https://github.com/bambulab/BambuStudio/releases/download/v02.07.01.57/BambuStudio_ubuntu-24.04-v02.07.01.57-20260601192128.AppImage",
+      "sha256": "85b053853f1a238775cd7ae2d4d19544e35260592428d2276ca27dcbd5f8eb53"
+    }
+  ]
 }

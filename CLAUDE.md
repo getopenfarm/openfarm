@@ -43,6 +43,8 @@ bunx tsc -b                # typecheck only
 ./dev.sh up         # both in one terminal, Ctrl-C stops both
 ./dev.sh slicers    # provision slicer bundles into ./.slicers for this platform
 ./dev.sh ingest     # ingest system profiles from the provisioned slicers
+./dev.sh setup      # bun install + slicers + ingest (first-time setup)
+./dev.sh reset      # drop DB schema + local keys/data/.slicers/node_modules
 ./dev.sh test       # dotnet test + vitest
 ./dev.sh fmt        # dotnet format + biome
 ```

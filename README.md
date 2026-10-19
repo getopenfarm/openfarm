@@ -96,14 +96,18 @@ Restore dependencies, provision slicer bundles, and ingest their system profiles
 
 ```bash
 dotnet restore api/OpenFarm.slnx
-(cd web && bun install)
-./dev.sh slicers
-./dev.sh ingest
+./dev.sh setup      # bun install + ./dev.sh slicers + ./dev.sh ingest
 ```
 
 Both API startup and `./dev.sh ingest` automatically apply database migrations
 and seed initial data after connecting. There is no separate migration command
 needed for this setup. Ingestion can be rerun against the provisioned bundles.
+
+To start over from a fresh system, run `./dev.sh reset`, then
+`./dev.sh setup`. `reset` runs immediately, without a confirmation prompt. It
+drops the database's `public` schema, including all tables and migration history. It also deletes the local
+DataProtection keys, part files, camera snapshots, `.slicers/`, and
+`web/node_modules`. It uses `psql` with the same connection string as the API.
 
 Start the API and frontend:
 
