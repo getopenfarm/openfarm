@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenFarm.Api.ExceptionHandling;
 using OpenFarm.Api.Hubs;
+using OpenFarm.Api.Logging;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.ActivityLog;
@@ -98,6 +99,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((ctx, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
+    .Filter.With<ExpectedMigrationProbeFilter>()
     .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture));
 
 var connectionString = builder.Configuration.GetConnectionString("Default")
@@ -467,9 +469,14 @@ app.UseExceptionHandler();
 
 app.UseCors();
 
-// Production image ships the built SPA in wwwroot; without it (dev) these are no-ops.
-app.UseDefaultFiles();
-app.UseStaticFiles();
+// Local development serves the SPA through Vite and has no wwwroot.
+// Retain missing-assets warnings in production so broken deployments stay visible.
+var serveSpa = !app.Environment.IsDevelopment() || Directory.Exists(app.Environment.WebRootPath);
+if (serveSpa)
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -491,7 +498,10 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => fa
 app.MapHealthChecks("/health/ready");
 
 // Client-side routes only — unknown /api/* must stay a real 404, not the SPA shell.
-app.MapFallbackToFile("{*path:regex(^(?!api/).*)}", "index.html");
+if (serveSpa)
+{
+    app.MapFallbackToFile("{*path:regex(^(?!api/).*)}", "index.html");
+}
 
 // Generate contracts without a database or starting printer/background services.
 if (args.Contains("export-openapi"))
@@ -508,7 +518,7 @@ if (args.Contains("export-openapi"))
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-    await dbContext.Database.MigrateAsync();
+    await StartupMigrationRunner.RunAsync(dbContext, Log.ForContext<Program>());
 
     var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
     await seeder.SeedAsync();

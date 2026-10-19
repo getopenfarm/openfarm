@@ -43,6 +43,8 @@ public static class ResourcesProfilesLocator
         }
 
         return Directory.EnumerateFiles(profilesDirectory, "*.json", SearchOption.TopDirectoryOnly)
+            // This ID-bookkeeping file also has empty vendor-list keys, but is not a vendor index.
+            .Where(file => !Path.GetFileName(file).Equals("blacklist.json", StringComparison.OrdinalIgnoreCase))
             .Where(LooksLikeVendorIndex)
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToList();
