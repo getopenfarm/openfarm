@@ -1,12 +1,7 @@
-import { ChevronRightIcon, RotateCcwIcon } from 'lucide-react';
+import { RotateCcwIcon } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogDescription,
@@ -82,7 +77,6 @@ export function VariantDialog({
   const [draft, setDraft] = useState<FilamentVariantDraft>(emptyVariant());
   // Row key -> profile id; a missing key inherits the row's default.
   const [overrides, setOverrides] = useState<Record<string, string>>({});
-  const [overridesOpen, setOverridesOpen] = useState(false);
   const { fleet, rows } = useAssignmentRows(assignments);
 
   // Seed only when the dialog opens, so a background refetch can't reset in-progress edits.
@@ -98,20 +92,11 @@ export function VariantDialog({
         existing.map((a) => [rowKey(a), a.filamentProfileId ?? '']),
       ),
     );
-    // Collapsed unless there is something to show: existing overrides, or a saved variant
-    // (whose name and color are fixed, so overrides are all there is to edit).
-    setOverridesOpen(
-      Boolean(variant?.id) ||
-        variant?.pricePerKg != null ||
-        existing.length > 0,
-    );
   }, [open]);
 
   const isSaved = Boolean(draft.id);
   const priceInvalid = draft.pricePerKg != null && draft.pricePerKg < 0;
   const canSave = draft.colorName.trim().length > 0 && !priceInvalid;
-  const overrideCount =
-    (draft.pricePerKg != null ? 1 : 0) + Object.keys(overrides).length;
 
   function setOverride(row: AssignmentRow, profileId: string | null) {
     setOverrides((prev) => {
@@ -150,11 +135,9 @@ export function VariantDialog({
         {variant && <Swatch colorHex={variant.colorHex} size="md" />}
         {variant ? `Edit ${variant.colorName}` : 'Add variant'}
       </DialogTitle>
-      <DialogDescription>
-        {isSaved
-          ? 'Name and color are fixed once saved.'
-          : 'Color of this filament.'}
-      </DialogDescription>
+      {!isSaved && (
+        <DialogDescription>Color of this filament.</DialogDescription>
+      )}
     </>
   );
 
@@ -177,6 +160,7 @@ export function VariantDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogScrollableContent
         className="sm:max-w-lg"
+        {...(isSaved ? { 'aria-describedby': undefined } : {})}
         header={header}
         footer={footer}
       >
@@ -236,121 +220,90 @@ export function VariantDialog({
               </FieldGroup>
             )}
 
-            <Collapsible
-              open={overridesOpen}
-              onOpenChange={setOverridesOpen}
-              className="flex flex-col gap-3"
-            >
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="-mx-2 justify-start self-stretch [&[data-state=open]>svg]:rotate-90"
-                >
-                  <ChevronRightIcon
-                    data-icon="inline-start"
-                    className="transition-transform motion-reduce:transition-none"
-                  />
-                  Overrides
-                  <span className="font-normal text-muted-foreground">
-                    {overrideCount > 0 ? `${overrideCount} set` : 'Optional'}
-                  </span>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <FieldSet>
-                  <FieldLegend className="sr-only">Overrides</FieldLegend>
-                  <FieldGroup className="gap-4">
-                    <Field data-invalid={priceInvalid || undefined}>
-                      <FieldLabel htmlFor="variant-price">
-                        Price per kg
-                      </FieldLabel>
-                      <Input
-                        id="variant-price"
-                        type="number"
-                        min="0"
-                        step="any"
-                        aria-invalid={priceInvalid || undefined}
-                        aria-describedby={
-                          priceInvalid ? 'variant-price-error' : undefined
-                        }
-                        placeholder={
-                          inheritedPrice == null
-                            ? 'No default price'
-                            : `Default: ${formatCost(inheritedPrice)}`
-                        }
-                        value={draft.pricePerKg ?? ''}
-                        onChange={(event) =>
-                          setDraft((prev) => ({
-                            ...prev,
-                            pricePerKg:
-                              event.target.value === ''
-                                ? null
-                                : Number(event.target.value),
-                          }))
-                        }
-                      />
-                      {priceInvalid && (
-                        <FieldError id="variant-price-error">
-                          Price must be non-negative
-                        </FieldError>
-                      )}
-                    </Field>
+            <FieldGroup className="gap-4">
+              <Field data-invalid={priceInvalid || undefined}>
+                <FieldLabel htmlFor="variant-price">Price per kg</FieldLabel>
+                <Input
+                  id="variant-price"
+                  type="number"
+                  min="0"
+                  step="any"
+                  aria-invalid={priceInvalid || undefined}
+                  aria-describedby={
+                    priceInvalid ? 'variant-price-error' : undefined
+                  }
+                  placeholder={
+                    inheritedPrice == null
+                      ? 'No default price'
+                      : `Default: ${formatCost(inheritedPrice)}`
+                  }
+                  value={draft.pricePerKg ?? ''}
+                  onChange={(event) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      pricePerKg:
+                        event.target.value === ''
+                          ? null
+                          : Number(event.target.value),
+                    }))
+                  }
+                />
+                {priceInvalid && (
+                  <FieldError id="variant-price-error">
+                    Price must be non-negative
+                  </FieldError>
+                )}
+              </Field>
 
-                    {fleet && rows.length === 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        No printer nozzles reported.
-                      </p>
-                    )}
-                    {rows.map((row) => {
-                      const label = rowLabel(row);
-                      const id = `variant-profile-${rowKey(row)}`;
-                      const hasDefault = assignments.some(
-                        (a) => matchesRow(a, row) && !a.colorHex,
-                      );
-                      const value = overrides[rowKey(row)];
-                      return (
-                        <Field key={rowKey(row)}>
-                          <FieldLabel htmlFor={id}>{label} profile</FieldLabel>
-                          <div className="flex items-center gap-2">
-                            <div className="min-w-0 flex-1">
-                              <ProfilePickerCombobox
-                                kind="filament"
-                                id={id}
-                                value={value}
-                                onChange={(profileId) =>
-                                  setOverride(row, profileId)
-                                }
-                                materialType={materialType}
-                                brand={row.brand}
-                                modelCode={row.modelCode}
-                                nozzleDiameterMm={row.nozzleDiameterMm}
-                                placeholder={
-                                  hasDefault
-                                    ? 'Use default profile'
-                                    : 'No default assigned'
-                                }
-                              />
-                            </div>
-                            {value && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`Use default for ${label}`}
-                                onClick={() => setOverride(row, null)}
-                              >
-                                <RotateCcwIcon />
-                              </Button>
-                            )}
-                          </div>
-                        </Field>
-                      );
-                    })}
-                  </FieldGroup>
-                </FieldSet>
-              </CollapsibleContent>
-            </Collapsible>
+              {fleet && rows.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No printer nozzles reported.
+                </p>
+              )}
+              {rows.map((row) => {
+                const label = rowLabel(row);
+                const id = `variant-profile-${rowKey(row)}`;
+                const hasDefault = assignments.some(
+                  (a) => matchesRow(a, row) && !a.colorHex,
+                );
+                const value = overrides[rowKey(row)];
+                return (
+                  <Field key={rowKey(row)}>
+                    <FieldLabel htmlFor={id}>{label} profile</FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <ProfilePickerCombobox
+                          kind="filament"
+                          id={id}
+                          value={value}
+                          onChange={(profileId) => setOverride(row, profileId)}
+                          materialType={materialType}
+                          brand={row.brand}
+                          modelCode={row.modelCode}
+                          nozzleDiameterMm={row.nozzleDiameterMm}
+                          placeholder={
+                            hasDefault
+                              ? 'Use default profile'
+                              : 'No default assigned'
+                          }
+                        />
+                      </div>
+                      {value && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Use default for ${label}`}
+                          onClick={() => setOverride(row, null)}
+                        >
+                          <RotateCcwIcon />
+                        </Button>
+                      )}
+                    </div>
+                  </Field>
+                );
+              })}
+            </FieldGroup>
           </FieldGroup>
         </form>
       </DialogScrollableContent>

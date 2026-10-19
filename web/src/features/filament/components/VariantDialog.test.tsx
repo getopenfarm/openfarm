@@ -94,8 +94,8 @@ describe('VariantDialog', () => {
     // Saved variants keep their name and color.
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
     expect(
-      screen.getByText('Name and color are fixed once saved.'),
-    ).toBeVisible();
+      screen.queryByText('Name and color are fixed once saved.'),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('option', { name: 'Use default profile' }),
     ).toBeInTheDocument();
@@ -161,20 +161,21 @@ describe('VariantDialog', () => {
     });
   });
 
-  it('hides overrides when adding until expanded', async () => {
+  it('shows overrides immediately when adding', async () => {
     const user = userEvent.setup();
     const { onSave } = renderDialog();
 
-    const toggle = screen.getByRole('button', { name: /Overrides/ });
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(toggle).toHaveTextContent('Optional');
-    expect(screen.queryByLabelText('Price per kg')).not.toBeInTheDocument();
+    const price = screen.getByLabelText('Price per kg');
+    expect(price).toBeVisible();
+    expect(screen.getByLabelText('P1S · 0.4 mm profile')).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: /Overrides/ }),
+    ).not.toBeInTheDocument();
 
-    await user.click(toggle);
-    await user.type(screen.getByLabelText('Price per kg'), '30');
-    await user.click(toggle);
-    // Collapsing keeps the value and summarizes it.
-    expect(toggle).toHaveTextContent('1 set');
+    await user.click(price);
+    await user.keyboard('30');
+    await user.tab();
+    expect(screen.getByLabelText('P1S · 0.4 mm profile')).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Add variant' }));
 
     expect(onSave).toHaveBeenCalledWith(
@@ -184,15 +185,11 @@ describe('VariantDialog', () => {
     );
   });
 
-  it('opens overrides for a staged variant that already has one', () => {
+  it('shows existing overrides for a staged variant', () => {
     renderDialog({
       variant: { colorName: 'Red', colorHex: '#ef4444', pricePerKg: 28 },
     });
 
-    expect(screen.getByRole('button', { name: /Overrides/ })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
     expect(screen.getByLabelText('Price per kg')).toHaveValue(28);
   });
 
