@@ -41,11 +41,11 @@ internal static class FilamentTrackingTestHelpers
         return filament!.Variants[0].Id;
     }
 
-    public static async Task<Guid> RegisterSimulatorPrinterAsync(HttpClient client)
+    public static async Task<Guid> RegisterSimulatorPrinterAsync(HttpClient client, string? name = null)
     {
         var response = await client.PostAsJsonAsync(new Uri("/api/v1/printers", UriKind.Relative), new RegisterPrinterRequest
         {
-            Name = $"Sim {Guid.NewGuid():N}",
+            Name = name ?? $"Sim {Guid.NewGuid():N}",
             Brand = "System",
             ModelCode = "Simulation",
             IpAddress = "10.0.0.60",

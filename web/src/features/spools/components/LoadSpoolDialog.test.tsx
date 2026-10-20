@@ -32,13 +32,13 @@ function stubFetch(onPut: (url: string, body: unknown) => void) {
                     {
                       id: 'slot-1',
                       slotPosition: 0,
-                      displayLabel: 'Slot 1',
+                      displayLabel: 'AMS 1 · Slot 1',
                       currentSpool: null,
                     },
                     {
                       id: 'slot-2',
                       slotPosition: 1,
-                      displayLabel: 'Slot 2',
+                      displayLabel: 'AMS 1 · Slot 2',
                       currentSpool: { id: 'other-spool' },
                     },
                   ],

@@ -142,7 +142,7 @@ function FeedSlotRow({
   const content = (
     <>
       <span className="w-4 shrink-0 text-center text-xs text-muted-foreground tabular-nums">
-        <span className="sr-only">{`${unit.displayLabel} · ${slot.displayLabel}`}</span>
+        <span className="sr-only">{slot.displayLabel}</span>
         <span aria-hidden="true">
           {slot.slotPosition != null
             ? slot.slotPosition + 1
@@ -468,7 +468,7 @@ export function FeedUnitsCard({
                   slot.id &&
                   setManaging({
                     slotId: slot.id,
-                    label: `${unit.displayLabel} · ${slot.displayLabel}`,
+                    label: slot.displayLabel ?? '',
                   })
                 }
               />

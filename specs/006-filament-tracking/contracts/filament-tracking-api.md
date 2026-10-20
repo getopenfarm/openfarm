@@ -214,6 +214,8 @@ uses the same `PUT /spools/{id}/load` below.
 
 **Response 200**: `{ "spools": [ { "id", "label", "filamentVariantId", "colorName", "colorHex", "material", "vendorName", "spoolWeightGrams", "remainingWeightGrams", "state", "feedSlotId", "feedSlotLabel", "hasUsageOverrun" } ] }`
 
+`feedSlotLabel` is the spool's location, printer first — `"P01 · AMS 1 · Slot 2"`, `"P01 · External Spool"` — or `null` unless loaded. The part after the printer name is the slot's `displayLabel` from `GET /printers/{id}/feed-units`.
+
 ### `PUT /api/v1/spools/{id}/load`
 FR-005, FR-021, FR-022, FR-023 — detected-material validation fires for any Feed Slot kind with actual
 detected data (no longer restricted to `MultiMaterialUnit`); a `portSharingNote` appears when loading onto

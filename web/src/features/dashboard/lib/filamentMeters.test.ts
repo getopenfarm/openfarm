@@ -282,6 +282,25 @@ describe('Compact filament rail model', () => {
       undefined,
     ]);
   });
+  it('uses the API slot label as the location instead of repeating the unit label', () => {
+    const ams: FeedUnitResponse = {
+      id: 'ams',
+      kind: 'MultiMaterialUnit',
+      unitIndex: 0,
+      displayLabel: 'AMS 1',
+      feedSlots: [
+        { id: 'persisted', slotPosition: 0, displayLabel: 'AMS 1 · Slot 1' },
+      ],
+    };
+    const rail = buildFilamentRail(online, [ams], [], []);
+    // Telemetry-only slots have no API label, so they fall back to unit + position.
+    expect(rail.meters.map((meter) => meter.location)).toEqual([
+      'AMS 1 · Slot 1',
+      'AMS 1 · Slot 2',
+      'AMS 1 · Slot 3',
+      'AMS 1 · Slot 4',
+    ]);
+  });
   it('leaves invalid printer percentages unknown and does not duplicate replaced-port telemetry', () => {
     const rail = buildFilamentRail(
       { ...online, externalSpoolTray: { active: true, remainPercent: -1 } },

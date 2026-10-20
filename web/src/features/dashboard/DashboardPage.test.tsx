@@ -262,10 +262,10 @@ describe('Fixed compact dashboard', () => {
         {
           id: 'slot-1',
           slotPosition: 0,
-          displayLabel: 'Slot 1',
+          displayLabel: 'AMS 1 · Slot 1',
           currentSpool: { id: 's1', remainingWeightGrams: 300 },
         },
-        { id: 'slot-2', slotPosition: 1, displayLabel: 'Slot 2' },
+        { id: 'slot-2', slotPosition: 1, displayLabel: 'AMS 1 · Slot 2' },
       ],
     };
     const spools = [
@@ -273,9 +273,9 @@ describe('Fixed compact dashboard', () => {
     ];
     async function bars() {
       const [one, two, three] = await Promise.all([
-        screen.findByRole('button', { name: /AMS 1 · Slot 1:/ }),
-        screen.findByRole('button', { name: /AMS 1 · Slot 2:/ }),
-        screen.findByRole('button', { name: /AMS 1 · Slot 3:/ }),
+        screen.findByRole('button', { name: /^AMS 1 · Slot 1:/ }),
+        screen.findByRole('button', { name: /^AMS 1 · Slot 2:/ }),
+        screen.findByRole('button', { name: /^AMS 1 · Slot 3:/ }),
       ]);
       return { one, two, three };
     }

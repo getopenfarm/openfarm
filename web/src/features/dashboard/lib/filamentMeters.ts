@@ -172,7 +172,9 @@ export function buildFilamentRail(
               `${unit.id ?? `${kind}:${unit.unitIndex}`}:${slot.slotPosition ?? index}`,
             slotId: slot.id,
             position: slot.slotPosition ?? index,
-            location: `${label} · ${slot.displayLabel || `Slot ${(slot.slotPosition ?? index) + 1}`}`,
+            location:
+              slot.displayLabel ||
+              `${label} · Slot ${(slot.slotPosition ?? index) + 1}`,
             material: current
               ? [filament?.material, variant?.colorName]
                   .filter(Boolean)

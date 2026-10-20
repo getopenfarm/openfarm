@@ -109,17 +109,18 @@ public class ListSpoolsEndpointTests(CustomWebApplicationFactory factory) : ICla
         var stored = await RegisterSpoolAsync(client, seeded.VariantId);
         var loaded = await RegisterSpoolAsync(client, seeded.VariantId);
 
-        var printerId = await RegisterSimulatorPrinterAsync(client);
+        var printerName = $"Printer{seeded.Tag}";
+        var printerId = await RegisterSimulatorPrinterAsync(client, printerName);
         var feedUnits = await WaitForFeedUnitsAsync(client, printerId);
-        var slotId = feedUnits.FeedUnits[0].FeedSlots[0].Id;
-        await client.PutAsJsonAsync(new Uri($"/api/v1/spools/{loaded}/load", UriKind.Relative), new { feedSlotId = slotId });
+        var slot = feedUnits.FeedUnits[0].FeedSlots[0];
+        await client.PutAsJsonAsync(new Uri($"/api/v1/spools/{loaded}/load", UriKind.Relative), new { feedSlotId = slot.Id });
 
         (await ListAsync(client, $"vendorId={seeded.VendorId}")).Select(s => s.Id).Should().BeEquivalentTo([stored, loaded]);
         (await ListAsync(client, $"filamentId={seeded.FilamentId}&state=InStorage")).Select(s => s.Id).Should().Equal(stored);
         (await ListAsync(client, $"filamentVariantId={seeded.VariantId}&search=combo{seeded.Tag}&state=Using")).Select(s => s.Id).Should().Equal(loaded);
 
         var using_ = (await ListAsync(client, $"vendorId={seeded.VendorId}&state=Using")).Single();
-        using_.FeedSlotLabel.Should().Contain("Slot 1");
+        using_.FeedSlotLabel.Should().Be($"{printerName} · {slot.DisplayLabel}");
         (await ListAsync(client, $"vendorId={seeded.VendorId}&state=InStorage")).Single().FeedSlotLabel.Should().BeNull();
     }
 

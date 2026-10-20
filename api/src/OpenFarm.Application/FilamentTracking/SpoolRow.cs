@@ -18,8 +18,8 @@ public sealed record SpoolRow(
     bool HasUsageOverrun,
     SpoolSlotPlacement? Placement);
 
-/// <summary>The columns <see cref="FeedUnitDisplay.SlotLabel(string, int, string?, int, string)"/> reads for a loaded spool.</summary>
-public sealed record SpoolSlotPlacement(string UnitKind, int UnitIndex, string? UnitName, int SlotPosition, string PrinterBrand);
+/// <summary>The columns <see cref="FeedUnitDisplay.SlotLabel(string, int, string?, int, string)"/> reads for a loaded spool, plus the printer's name — a spool's location must say which printer.</summary>
+public sealed record SpoolSlotPlacement(string UnitKind, int UnitIndex, string? UnitName, int SlotPosition, string PrinterBrand, string PrinterName);
 
 /// <summary>Rows for the requested page and the total number of rows matching the filters.</summary>
 public sealed record SpoolRowPage(IReadOnlyList<SpoolRow> Rows, int TotalCount);
@@ -39,7 +39,7 @@ internal static class SpoolRowMapping
         row.State,
         row.FeedSlotId,
         row.Placement is { } placement
-            ? FeedUnitDisplay.SlotLabel(placement.UnitKind, placement.UnitIndex, placement.UnitName, placement.SlotPosition, placement.PrinterBrand)
+            ? $"{placement.PrinterName} · {FeedUnitDisplay.SlotLabel(placement.UnitKind, placement.UnitIndex, placement.UnitName, placement.SlotPosition, placement.PrinterBrand)}"
             : null,
         row.HasUsageOverrun);
 }

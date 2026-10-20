@@ -121,6 +121,7 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                 UnitName = x.unit.Name,
                 SlotPosition = (int?)x.slot.SlotPosition,
                 PrinterBrand = x.printer.Brand,
+                PrinterName = x.printer.Name,
             })
             .ToListAsync(cancellationToken);
 
@@ -139,7 +140,7 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                 r.FeedSlotId,
                 r.HasUsageOverrun,
                 r is { UnitKind: not null, UnitIndex: { } unitIndex, SlotPosition: { } slotPosition }
-                    ? new SpoolSlotPlacement(r.UnitKind, unitIndex, r.UnitName, slotPosition, r.PrinterBrand ?? string.Empty)
+                    ? new SpoolSlotPlacement(r.UnitKind, unitIndex, r.UnitName, slotPosition, r.PrinterBrand ?? string.Empty, r.PrinterName ?? string.Empty)
                     : null))
             .ToList();
 

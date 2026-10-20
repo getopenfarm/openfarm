@@ -37,7 +37,7 @@ function flattenAvailableSlots(feedUnits: FeedUnitResponse[]) {
       .filter((slot) => !slot.deactivatedAtUtc && !slot.currentSpool)
       .map((slot) => ({
         id: slot.id ?? '',
-        label: `${unit.displayLabel} · ${slot.displayLabel}`,
+        label: slot.displayLabel ?? '',
       })),
   );
 }

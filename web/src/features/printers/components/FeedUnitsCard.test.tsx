@@ -34,7 +34,7 @@ function stubFetch(
                     {
                       id: 'slot-1',
                       slotPosition: 0,
-                      displayLabel: 'Slot 1',
+                      displayLabel: 'AMS 1 · Slot 1',
                       currentSpool: {
                         id: 'spool-1',
                         filamentVariantId: 'var-1',
@@ -44,7 +44,7 @@ function stubFetch(
                     {
                       id: 'slot-2',
                       slotPosition: 1,
-                      displayLabel: 'Slot 2',
+                      displayLabel: 'AMS 1 · Slot 2',
                       currentSpool: null,
                     },
                   ],
@@ -58,7 +58,7 @@ function stubFetch(
                     {
                       id: 'slot-3',
                       slotPosition: 0,
-                      displayLabel: 'Slot 1',
+                      displayLabel: 'Splicer · Slot 1',
                       currentSpool: null,
                     },
                   ],
@@ -294,8 +294,7 @@ describe('FeedUnitsCard', () => {
     renderCard();
 
     await screen.findByText('AMS 1');
-    // First "Slot 1" is the occupied AMS slot; the reloader's slot 1 is empty.
-    const [occupied] = screen.getAllByRole('listitem', { name: 'Slot 1' });
+    const occupied = screen.getByRole('listitem', { name: 'AMS 1 · Slot 1' });
     expect(within(occupied).queryByText('Load spool')).not.toBeInTheDocument();
     // AMS slot 2 and the reloader slot are empty.
     expect(screen.getAllByText('Load spool')).toHaveLength(2);
@@ -303,9 +302,9 @@ describe('FeedUnitsCard', () => {
     await user.click(
       within(occupied).getByRole('button', { name: /AMS 1 · Slot 1/ }),
     );
-    expect(await screen.findByRole('dialog')).toHaveTextContent(
-      'AMS 1 · Slot 1',
-    );
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('AMS 1 · Slot 1');
+    expect(dialog).not.toHaveTextContent('AMS 1 · AMS 1');
   });
 
   it('has an Add feed unit action', async () => {
