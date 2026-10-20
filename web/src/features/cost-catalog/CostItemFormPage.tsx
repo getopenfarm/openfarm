@@ -32,6 +32,7 @@ import type {
 import { httpClient } from '@/lib/api/httpClient';
 import { catalogKey } from './api';
 import { Choice, DimensionFields, NumberField, UnitSelect } from './CostFields';
+import { CostIconPicker } from './CostIconPicker';
 import { CostPricingSummary } from './CostPricingSummary';
 import {
   type CostItemFormValues,
@@ -54,6 +55,7 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
     control: form.control,
     name: 'packageMeasurement',
   });
+  const icon = useWatch({ control: form.control, name: 'icon' });
   const { errors, isDirty, isSubmitted } = form.formState;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -99,6 +101,7 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
           method: mode === 'edit' ? 'PUT' : 'POST',
           body: JSON.stringify({
             name: values.name.trim(),
+            icon: values.icon,
             pricing: pricingPayload(values.pricing, values.packageMeasurement),
           }),
         },
@@ -226,15 +229,24 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   data-invalid={!!errors.name || undefined}
                 >
                   <FieldLabel htmlFor="cost-name">Name</FieldLabel>
-                  <Input
-                    id="cost-name"
-                    placeholder={service ? 'Assembly labor' : 'Bubble wrap'}
-                    {...form.register('name')}
-                    aria-invalid={!!errors.name || undefined}
-                    aria-describedby={
-                      errors.name ? 'cost-name-error' : undefined
-                    }
-                  />
+                  <div className="flex gap-2">
+                    <CostIconPicker
+                      icon={icon}
+                      category={pricing.category}
+                      onChange={(next) =>
+                        form.setValue('icon', next, { shouldDirty: true })
+                      }
+                    />
+                    <Input
+                      id="cost-name"
+                      placeholder={service ? 'Assembly labor' : 'Bubble wrap'}
+                      {...form.register('name')}
+                      aria-invalid={!!errors.name || undefined}
+                      aria-describedby={
+                        errors.name ? 'cost-name-error' : undefined
+                      }
+                    />
+                  </div>
                   {errors.name && (
                     <FieldError id="cost-name-error">
                       {errors.name.message}

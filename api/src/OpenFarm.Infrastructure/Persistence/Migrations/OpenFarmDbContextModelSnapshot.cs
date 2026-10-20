@@ -313,6 +313,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Icon")
+                        .HasColumnType("text");
+
                     b.Property<string>("ItemType")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

@@ -165,4 +165,38 @@ public class CostCatalogEndpointTests(CustomWebApplicationFactory factory) : ICl
         var duplicate = await client.PutAsJsonAsync(new Uri($"/api/v1/assemblies/{assembly.Id}", UriKind.Relative), new { name = "Duplicate", additionalCosts = new[] { new AssemblyCostInput(material.Id) } });
         duplicate.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
+
+    [Fact]
+    public async Task IconRoundTripsClearsAndRejectsInvalidNames()
+    {
+        var client = await ClientAsync();
+        var pricing = new CatalogPricing(Category: "Hardware", Unit: "Piece", DirectRate: 0.05m);
+        var create = await client.PostAsJsonAsync(new Uri("/api/v1/cost-items", UriKind.Relative), new { name = $"Magnet {Guid.NewGuid():N}", icon = "magnet", pricing });
+        create.StatusCode.Should().Be(HttpStatusCode.Created);
+        var item = (await create.Content.ReadFromJsonAsync<CostItemResponse>())!;
+        item.Icon.Should().Be("magnet");
+        (await client.GetFromJsonAsync<CostItemResponse>($"/api/v1/cost-items/{item.Id}"))!.Icon.Should().Be("magnet");
+        foreach (var invalid in new[] { "Not valid!", "UPPER", "-lead", new string('a', 41) })
+        {
+            var bad = await client.PutAsJsonAsync(new Uri($"/api/v1/cost-items/{item.Id}", UriKind.Relative), new { name = item.Name, icon = invalid, pricing });
+            bad.StatusCode.Should().Be(HttpStatusCode.BadRequest, invalid);
+        }
+        // PUT replaces the item, so an omitted icon clears it.
+        var clear = await client.PutAsJsonAsync(new Uri($"/api/v1/cost-items/{item.Id}", UriKind.Relative), new { name = item.Name, pricing });
+        clear.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await clear.Content.ReadFromJsonAsync<CostItemResponse>())!.Icon.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task LegacyEditKeepsTheIcon()
+    {
+        var client = await ClientAsync();
+        var create = await client.PostAsJsonAsync(new Uri("/api/v1/cost-items", UriKind.Relative), new { name = $"Screw {Guid.NewGuid():N}", icon = "screw", pricing = new CatalogPricing(Unit: "Piece", DirectRate: 0.05m) });
+        var item = (await create.Content.ReadFromJsonAsync<CostItemResponse>())!;
+        var legacy = await client.PutAsJsonAsync(new Uri($"/api/v1/non-printed-components/{item.Id}", UriKind.Relative), new { name = "Legacy edit", unitCost = 0.06 });
+        legacy.StatusCode.Should().Be(HttpStatusCode.OK);
+        var saved = await client.GetFromJsonAsync<CostItemResponse>($"/api/v1/cost-items/{item.Id}");
+        saved!.Name.Should().Be("Legacy edit");
+        saved.Icon.Should().Be("screw");
+    }
 }

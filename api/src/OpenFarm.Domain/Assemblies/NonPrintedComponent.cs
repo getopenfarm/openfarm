@@ -40,6 +40,11 @@ public sealed class NonPrintedComponent
 
     public bool IsLegacyCompatible => ItemType == "Physical" && Unit == "Piece" && PricingMode == "Direct";
 
+    // Lucide icon name picked in the catalog. Null means the UI derives a default from Category.
+    public string? Icon { get; private set; }
+
+    public void SetIcon(string? icon) => Icon = string.IsNullOrWhiteSpace(icon) ? null : icon.Trim();
+
     public void Configure(CatalogPricing pricing)
     {
         var rate = pricing.EffectiveRate();

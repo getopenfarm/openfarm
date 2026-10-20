@@ -1,4 +1,4 @@
-import { PackageIcon, PencilIcon, PlusIcon, XIcon } from 'lucide-react';
+import { PencilIcon, PlusIcon, XIcon } from 'lucide-react';
 import { type Ref, useEffect, useRef, useState } from 'react';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAllCostItems } from '@/features/cost-catalog/api';
+import { CostItemIcon, costIconFor } from '@/features/cost-catalog/costIcons';
 import {
   categoryLabel,
   formatQuantity,
@@ -215,9 +216,7 @@ function CostRow({
       : `${formatQuantity(line.length ?? 0)} ${line.lengthUnit ?? 'cm'} × ${formatQuantity(line.width ?? 0)} ${line.widthUnit ?? 'cm'}`;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-2 py-2 sm:px-3">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <PackageIcon className="size-4" />
-      </div>
+      <CostItemIcon icon={item?.icon} category={item?.pricing?.category} />
       <div className="flex min-w-0 flex-1 basis-40 flex-col">
         <span
           title={name}
@@ -380,6 +379,7 @@ function CostItemPicker({
             </CommandEmpty>
             {sorted.map((item) => {
               const id = item.id ?? '';
+              const Icon = costIconFor(item.icon, item.pricing?.category);
               const reason = addedIds.includes(id)
                 ? 'Added'
                 : structureIds.includes(id)
@@ -397,6 +397,7 @@ function CostItemPicker({
                     setOpen(false);
                   }}
                 >
+                  <Icon className="text-muted-foreground" />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span title={item.name} className="truncate">
                       {item.name}

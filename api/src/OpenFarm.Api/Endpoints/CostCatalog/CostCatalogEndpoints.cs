@@ -50,7 +50,7 @@ public sealed class CreateCostItemEndpoint(CostCatalogService catalog) : Endpoin
     public override async Task HandleAsync(SaveCostItemRequest req, CancellationToken ct)
     {
         req.Id = Guid.Empty;
-        Response = CostItemResponse.FromDomain(await catalog.SaveAsync(null, req.Name, req.Pricing, ct));
+        Response = CostItemResponse.FromDomain(await catalog.SaveAsync(null, req.Name, req.Icon, req.Pricing, ct));
         HttpContext.Response.StatusCode = StatusCodes.Status201Created;
     }
 }
@@ -62,7 +62,7 @@ public sealed class EditCostItemEndpoint(CostCatalogService catalog) : Endpoint<
     public override async Task HandleAsync(SaveCostItemRequest req, CancellationToken ct)
     {
         req.Id = Route<Guid>("id");
-        Response = CostItemResponse.FromDomain(await catalog.SaveAsync(req.Id, req.Name, req.Pricing, ct));
+        Response = CostItemResponse.FromDomain(await catalog.SaveAsync(req.Id, req.Name, req.Icon, req.Pricing, ct));
     }
 }
 

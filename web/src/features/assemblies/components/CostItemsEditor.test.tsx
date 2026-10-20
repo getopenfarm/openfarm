@@ -137,6 +137,34 @@ describe('CostItemsEditor', () => {
     ]);
   });
 
+  it('shows the item icon, or the category default, in the picker and on rows', async () => {
+    const glue = {
+      ...item('glue', 'Mystery glue', 'Consumables', 'Millilitre', 0.1),
+      icon: 'tube-lotion',
+    };
+    const items = [glue, item('screw', 'M3 screw', 'Hardware', 'Piece', 0.05)];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(json({ items, totalCount: items.length }))),
+    );
+    const user = renderEditor();
+    await openPicker(user);
+    const glueOption = await screen.findByRole('option', {
+      name: /Mystery glue/,
+    });
+    expect(glueOption.querySelector('.lucide-tube-lotion')).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole('option', { name: /M3 screw/ })
+        .querySelector('.lucide-screw'),
+    ).toBeInTheDocument();
+    await user.click(glueOption);
+    const row = (
+      await screen.findByLabelText('Quantity for Mystery glue')
+    ).closest('li') as HTMLElement;
+    expect(row.querySelector('.lucide-tube-lotion')).toBeInTheDocument();
+  });
+
   it('adds a counted item with quantity 1, shows its purpose, and focuses usage', async () => {
     stubCatalog();
     const user = renderEditor();

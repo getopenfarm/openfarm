@@ -90,6 +90,13 @@ type/category filters, server pagination, and trailing row-action menus. Selecti
 is limited to the current page. Remove selected confirms once, reports referenced
 items that could not be removed, and retains those selections for another attempt.
 
+Each item shows an icon in the catalog table and in the assembly Cost items rows.
+The default comes from the category (Hardware screw, Packaging package, Consumables
+droplet, Labor hard hat, Shipping truck, Other shapes). An optional per-item icon,
+chosen beside Name from the library in `costIcons.tsx`, overrides it. The API stores
+only the Lucide name (`icon`, lowercase kebab-case, max 40); an unknown name falls
+back to the category default.
+
 The add/detail editor uses compact Cost item (name, category) and Pricing cards,
 matching Add filament. Pricing is one row: price, then quantity with its unit.
 The cost per unit appears below it, with the purchase it comes from. Add opens

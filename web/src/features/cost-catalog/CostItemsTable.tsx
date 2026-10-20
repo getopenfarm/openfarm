@@ -5,7 +5,7 @@ import type {
   HeaderContext,
   RowSelectionState,
 } from '@tanstack/react-table';
-import { PackageIcon, Trash2Icon } from 'lucide-react';
+import { Trash2Icon } from 'lucide-react';
 import {
   createContext,
   type RefObject,
@@ -36,6 +36,7 @@ import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { CostItemResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
 import { catalogKey } from './api';
+import { CostItemIcon } from './costIcons';
 import {
   categoryLabel,
   formatRate,
@@ -71,9 +72,7 @@ const columns: ColumnDef<CostItemResponse>[] = [
       const item = row.original;
       return (
         <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <PackageIcon className="size-5" />
-          </div>
+          <CostItemIcon icon={item.icon} category={item.pricing?.category} />
           <div className="flex min-w-0 flex-col gap-0.5">
             <Link
               to={`/cost-catalog/${item.id}`}

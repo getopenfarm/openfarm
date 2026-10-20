@@ -6,7 +6,7 @@ public sealed class CostCatalogService(INonPrintedComponentRepository items, IAs
 {
     public Task<NonPrintedComponent?> GetAsync(Guid id, CancellationToken ct) => items.GetByIdAsync(id, ct);
 
-    public Task<NonPrintedComponent> SaveAsync(Guid? id, string name, CatalogPricing pricing, CancellationToken ct) =>
+    public Task<NonPrintedComponent> SaveAsync(Guid? id, string name, string? icon, CatalogPricing pricing, CancellationToken ct) =>
         assemblies.RunWithStructuralLockAsync(async token =>
         {
             pricing.Validate();
@@ -21,6 +21,7 @@ public sealed class CostCatalogService(INonPrintedComponentRepository items, IAs
             }
             item.Edit(name, pricing.DirectRate);
             item.Configure(pricing);
+            item.SetIcon(icon);
             if (id.HasValue) await items.SaveChangesAsync(token);
             else await items.AddAsync(item, token);
             return item;

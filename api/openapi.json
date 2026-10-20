@@ -8770,6 +8770,10 @@
           "name": {
             "type": "string"
           },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
           "pricing": {
             "$ref": "#/components/schemas/CatalogPricing"
           },
@@ -8847,6 +8851,10 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
           },
           "pricing": {
             "$ref": "#/components/schemas/CatalogPricing"

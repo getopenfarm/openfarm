@@ -1563,6 +1563,8 @@ export interface CatalogPricing {
 export interface CostItemResponse {
   id?: string;
   name?: string;
+  /** @nullable */
+  icon?: string | null;
   pricing?: CatalogPricing;
   /** @nullable */
   effectiveRate?: number | null;
@@ -1583,6 +1585,8 @@ export interface CostItemIdRequest {
 
 export interface SaveCostItemRequest {
   name?: string;
+  /** @nullable */
+  icon?: string | null;
   pricing?: CatalogPricing;
 }
 

@@ -464,9 +464,98 @@ describe('Guided cost editor', () => {
     expect(puts).toBe(1);
     expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument();
   });
+
+  it('saves the picked icon', async () => {
+    const saved = stubSave({ id: 'magnet', name: 'Magnet', pricing: {} });
+    renderPage(<CostItemFormPage mode="add" />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Name'), 'Magnet');
+    await user.click(screen.getByRole('button', { name: 'Icon' }));
+    await user.type(screen.getByPlaceholderText('Search icons'), 'magnet');
+    await user.click(await screen.findByRole('option', { name: 'Magnet' }));
+    await user.click(screen.getByRole('button', { name: 'Add cost item' }));
+    await screen.findByText('Edit destination');
+    expect(saved.body).toMatchObject({ name: 'Magnet', icon: 'magnet' });
+  });
+
+  it('sends a null icon when Default is chosen', async () => {
+    let put: unknown;
+    const gift = { ...bubbleWrap, icon: 'gift' };
+    renderEdit(gift, (body) => {
+      put = body;
+    });
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Bubble wrap' });
+    await user.click(screen.getByRole('button', { name: 'Icon' }));
+    await user.click(await screen.findByRole('option', { name: 'Default' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(put).toMatchObject({ icon: null }));
+  });
+
+  it('finds icons by either spelling of disc and by roll', async () => {
+    stubSave({ id: 'x', name: 'x', pricing: {} });
+    renderPage(<CostItemFormPage mode="add" />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Icon' }));
+    const search = screen.getByPlaceholderText('Search icons');
+    await user.type(search, 'disk');
+    expect(await screen.findByRole('option', { name: 'Disc' })).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Magnet' })).toBeVisible();
+    await user.clear(search);
+    await user.type(search, 'roll');
+    expect(await screen.findByRole('option', { name: 'Roll' })).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Bubble wrap' })).toBeVisible();
+  });
+
+  it('finds people icons by human or people', async () => {
+    stubSave({ id: 'x', name: 'x', pricing: {} });
+    renderPage(<CostItemFormPage mode="add" />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Icon' }));
+    const search = screen.getByPlaceholderText('Search icons');
+    await user.type(search, 'human');
+    expect(await screen.findByRole('option', { name: 'Person' })).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Operator' })).toBeVisible();
+    await user.clear(search);
+    await user.type(search, 'people');
+    expect(await screen.findByRole('option', { name: 'Team' })).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Avatar' })).toBeVisible();
+  });
 });
 
 describe('Cost catalog table', () => {
+  it('shows the chosen icon, or the category default', async () => {
+    const hardware = { ...bubbleWrap.pricing, category: 'Hardware' };
+    const magnet = {
+      ...bubbleWrap,
+      id: 'magnet',
+      name: 'Magnet 6x2',
+      icon: 'magnet',
+      pricing: hardware,
+    };
+    const screw = {
+      ...bubbleWrap,
+      id: 'screw',
+      name: 'Screw M3',
+      pricing: hardware,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(json({ items: [magnet, screw], totalCount: 2 })),
+      ),
+    );
+    renderPage(<CostCatalogPage />);
+    const row = async (name: string) =>
+      (await screen.findByRole('link', { name })).closest('tr') as HTMLElement;
+    expect(
+      (await row('Magnet 6x2')).querySelector('.lucide-magnet'),
+    ).toBeInTheDocument();
+    expect(
+      (await row('Screw M3')).querySelector('.lucide-screw'),
+    ).toBeInTheDocument();
+  });
+
   it('uses page-local selection, a column menu, and clears selection when filters change', async () => {
     const urls: string[] = [];
     vi.stubGlobal(

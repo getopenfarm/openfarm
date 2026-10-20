@@ -24,6 +24,7 @@ const units: readonly string[] = [...physicalUnits, ...serviceUnits];
 export const costItemSchema = z
   .object({
     name: z.string().trim().min(1, 'Name is required.'),
+    icon: z.string().nullable(),
     packageMeasurement: z.enum(['Quantity', 'Dimensions']),
     pricing: z.custom<CatalogPricing>(),
   })
@@ -63,6 +64,7 @@ export function formValues(item?: CostItemResponse): CostItemFormValues {
   const p = { ...initialPricing, ...item?.pricing };
   return {
     name: item?.name ?? '',
+    icon: item?.icon ?? null,
     packageMeasurement:
       p.length != null || p.width != null ? 'Dimensions' : 'Quantity',
     // A Direct row is the price of one unit.
