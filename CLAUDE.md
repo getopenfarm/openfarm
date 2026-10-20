@@ -33,6 +33,7 @@ bunx vitest run <path/to/File.test.tsx>   # single test file
 bun run lint              # biome check .
 bun run format             # biome format --write .
 bunx tsc -b                # typecheck only
+bun run icons              # regenerate favicon/PWA/iOS icons in public/ from public/favicon.svg
 ```
 
 ### Local dev — `./dev.sh` (native, against a locally installed Postgres)
