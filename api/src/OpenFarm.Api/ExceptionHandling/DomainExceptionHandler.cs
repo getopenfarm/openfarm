@@ -40,6 +40,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             ProcessProfileNotFoundException => (StatusCodes.Status404NotFound, "Process profile not found"),
             ProcessProfileSourceFormatMismatchException => (StatusCodes.Status422UnprocessableEntity, "Process profile source format mismatch"),
             InvalidProfileJsonException => (StatusCodes.Status422UnprocessableEntity, "Invalid profile JSON"),
+            SystemProfileReadOnlyException => (StatusCodes.Status422UnprocessableEntity, "System profile is read-only"),
             VendorNotFoundException => (StatusCodes.Status404NotFound, "Vendor not found"),
             FilamentNotFoundException => (StatusCodes.Status404NotFound, "Filament not found"),
             FilamentVariantNotFoundException => (StatusCodes.Status404NotFound, "Filament variant not found"),
@@ -131,6 +132,12 @@ public sealed class DomainExceptionHandler : IExceptionHandler
         }
         else if (exception is PartConcurrencyConflictException) extensions["code"] = "PartConcurrencyConflict";
         else if (exception is PartReferencedException or PartReferencedByAssemblyException) extensions["code"] = "PartDependenciesChanged";
+        else if (exception is ProfileSetBlockedException setBlocked)
+        {
+            extensions["code"] = setBlocked.Code;
+            extensions["issues"] = setBlocked.Issues.Select(issue => new { kind = issue.Kind?.ToString(), code = issue.Code.ToString(), name = issue.Name }).ToList();
+        }
+        else if (exception is SlicingProfileUnconfiguredException { Code: { } profileCode }) extensions["code"] = profileCode;
         httpContext.Response.StatusCode = statusCode;
         await httpContext.Response.WriteAsJsonAsync(
             new ProblemDetails

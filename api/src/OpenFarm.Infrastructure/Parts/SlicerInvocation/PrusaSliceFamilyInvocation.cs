@@ -1,4 +1,3 @@
-using System.Globalization;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 
@@ -6,7 +5,7 @@ namespace OpenFarm.Infrastructure.Parts.SlicerInvocation;
 
 /// <summary>
 /// OrcaSlicer/Bambu Studio's real CLI form (research.md §4, revised twice). Unlike PrusaSlicer/
-/// SuperSlicer, neither engine has a <c>--nozzle-diameter</c> or <c>--export-gcode</c> flag, and
+/// SuperSlicer, neither engine has an <c>--export-gcode</c> flag, and
 /// <c>--load-settings</c>/<c>--load-filaments</c> reject a bare scalar-derived stub JSON outright —
 /// they require a complete, typed preset (<c>type</c>/<c>name</c>/<c>inherits</c>/<c>from</c>/etc.),
 /// confirmed empirically against the real bundled binary. <see cref="ResolvedSlicingProfiles"/>
@@ -17,9 +16,11 @@ namespace OpenFarm.Infrastructure.Parts.SlicerInvocation;
 /// chain. The only export flag is <c>--export-3mf</c>, which writes a gcode-bearing 3MF (the real
 /// G-code lives inside it at <c>Metadata/plate_1.gcode</c>; <c>CliSlicerEngine</c> retains the
 /// archive for production while extracting metadata).
-/// Nozzle diameter and material are also passed as trailing command-line overrides — confirmed to
-/// take highest priority and to parse fine alongside <c>--load-settings</c>/<c>--load-filaments</c> —
-/// cheap insurance if a resolved profile is slightly stale.
+/// <c>--allow-newer-file</c> is always passed: the CLI otherwise refuses any 3MF whose generator has a
+/// different major version or a newer minor version than the bundled slicer (exit -24), e.g. a project
+/// saved by Bambu Studio 1.x or a newer Orca. Nozzle diameter and material are deliberately NOT passed
+/// as overrides: the resolved machine profile is already validated against the nozzle and the filament
+/// profile against the material, and a single-value vector override collapses a multi-filament project.
 /// </summary>
 public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
 {
@@ -43,8 +44,7 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
 
         var outputPath = Path.Combine(workDirectoryPath, "output.gcode.3mf");
 
-        var arguments = $"--slice 0 --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{filamentSettingsPath}\" " +
-            $"--nozzle-diameter {nozzleDiameterMm.ToString(CultureInfo.InvariantCulture)} --filament-type \"{EscapeMaterial(materialType)}\" " +
+        var arguments = $"--slice 0 --allow-newer-file --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{filamentSettingsPath}\" " +
             $"--export-3mf \"{outputPath}\" \"{modelFilePath}\"";
 
         return new SlicerProcessInvocation(slicer.ExecutablePath, arguments, outputPath, ProducesGCodeBearingThreeMf: true);
@@ -58,12 +58,10 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
             throw new SlicingFailedException("Embedded-project estimation is unavailable for Bambu Studio 2.7.1 on macOS because its CLI is not compatible with this mode.");
         var output = Path.Combine(workDirectory, "output.gcode.3mf");
         // No load-settings, scalar overrides, updates, or profile-name substitution: preserve the project.
-        return new(slicer.ExecutablePath, $"--slice 0 --export-3mf \"{output}\" \"{modelPath}\"", output, true);
+        return new(slicer.ExecutablePath, $"--slice 0 --allow-newer-file --export-3mf \"{output}\" \"{modelPath}\"", output, true);
     }
 
     public static bool SupportsEmbeddedProject(AvailableSlicer slicer) =>
         slicer.Engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
         && !(slicer.Engine == SlicerEngine.BambuStudio && slicer.Platform == SlicerPlatform.MacOs && slicer.Version == "2.7.1");
-
-    private static string EscapeMaterial(string materialType) => materialType.Replace("\"", "\\\"");
 }

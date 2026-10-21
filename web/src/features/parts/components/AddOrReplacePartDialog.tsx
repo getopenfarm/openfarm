@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { formatSlicer } from '@/features/slicing/formatSlicer';
+import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { formatFileSize } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import { PartProcessingReviewSection } from './PartProcessingReviewSection';
@@ -33,6 +35,8 @@ interface AddOrReplacePartDialogProps {
   partId?: string;
   partName?: string;
   mode?: 'replace' | 'reprocess';
+  /** The slicer the part is pinned to: replacing or reprocessing keeps it unless another is chosen. */
+  currentSlicer?: { engine?: string; version?: string } | null;
 }
 
 /**
@@ -49,6 +53,7 @@ export function AddOrReplacePartDialog({
   partId,
   partName,
   mode = 'replace',
+  currentSlicer,
 }: AddOrReplacePartDialogProps) {
   const {
     file,
@@ -85,6 +90,53 @@ export function AddOrReplacePartDialog({
   }
 
   const canConfirm = status === 'ReadyForReview';
+
+  // Replacing or reprocessing keeps the part's slicer unless the operator picks another: say which one will be used.
+  const [chosenEngine, chosenVersion] =
+    slicerSelection === USE_DEFAULT_SLICER
+      ? [
+          (currentSlicer ?? effectiveDefault)?.engine,
+          (currentSlicer ?? effectiveDefault)?.version,
+        ]
+      : slicerSelection.split('::');
+  const slicerPicker = availableSlicers.length > 0 && (
+    <Field className="flex flex-col gap-1.5">
+      <FieldLabel htmlFor="part-slicer-override">Slicer</FieldLabel>
+      <Select value={slicerSelection} onValueChange={setSlicerSelection}>
+        <SelectTrigger id="part-slicer-override" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value={USE_DEFAULT_SLICER}>
+              {currentSlicer?.engine
+                ? `Keep current slicer (${formatSlicer(currentSlicer.engine, currentSlicer.version)})`
+                : `Farm default${
+                    effectiveDefault
+                      ? ` (${formatSlicer(effectiveDefault.engine, effectiveDefault.version)})`
+                      : ''
+                  }`}
+            </SelectItem>
+            {availableSlicers.map((slicer) => (
+              <SelectItem
+                key={slicerSelectionKey(slicer)}
+                value={slicerSelectionKey(slicer)}
+              >
+                {formatSlicer(slicer.engine, slicer.version)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      <p className="text-muted-foreground text-xs">
+        Only used for files that need slicing (STL or an unsliced 3MF) — ignored
+        otherwise. The slicer uses only its own profiles.
+      </p>
+      {chosenEngine && chosenVersion && (
+        <SlicerReadinessPanel engine={chosenEngine} version={chosenVersion} />
+      )}
+    </Field>
+  );
 
   return (
     <Dialog
@@ -144,6 +196,7 @@ export function AddOrReplacePartDialog({
                   Reprocess the saved file using current printer and profile
                   configuration. Review the results before saving.
                 </p>
+                {slicerPicker}
                 <Button onClick={reprocess} disabled={isReprocessPending}>
                   {isReprocessPending ? 'Starting…' : 'Start reprocessing'}
                 </Button>
@@ -151,41 +204,7 @@ export function AddOrReplacePartDialog({
             )
           ) : !file ? (
             <div className="flex flex-col gap-4">
-              {availableSlicers.length > 0 && (
-                <Field className="flex flex-col gap-1.5">
-                  <FieldLabel htmlFor="part-slicer-override">Slicer</FieldLabel>
-                  <Select
-                    value={slicerSelection}
-                    onValueChange={setSlicerSelection}
-                  >
-                    <SelectTrigger id="part-slicer-override" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value={USE_DEFAULT_SLICER}>
-                          Farm default
-                          {effectiveDefault
-                            ? ` (${effectiveDefault.engine} ${effectiveDefault.version})`
-                            : ''}
-                        </SelectItem>
-                        {availableSlicers.map((slicer) => (
-                          <SelectItem
-                            key={slicerSelectionKey(slicer)}
-                            value={slicerSelectionKey(slicer)}
-                          >
-                            {slicer.engine} {slicer.version}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-muted-foreground text-xs">
-                    Only used for files that need slicing (STL or an unsliced
-                    3MF) — ignored otherwise.
-                  </p>
-                </Field>
-              )}
+              {slicerPicker}
               <div className="flex flex-col gap-2">
                 <button
                   type="button"

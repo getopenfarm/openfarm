@@ -1,8 +1,13 @@
+using OpenFarm.Domain.Profiles;
+
 namespace OpenFarm.Application.Profiles;
 
 // One persisted row's chain-relevant fields — enough to keep walking without needing the full
-// MachineProfile/FilamentProfile entity type (both share this shape, data-model.md).
-public sealed record ProfileChainNode(string RawDataJson, Guid? BaseProfileId, string? BaseProfileName);
+// MachineProfile/FilamentProfile entity type (both share this shape, data-model.md). Origin and
+// SourceVersion let a caller tell which catalog version a layer of the chain comes from.
+public sealed record ProfileChainNode(
+    string RawDataJson, Guid? BaseProfileId, string? BaseProfileName,
+    ProfileOrigin Origin = ProfileOrigin.User, string? SourceVersion = null);
 
 // Id-matched ancestor-chain walk shared by every read path that needs a profile's resolved
 // BaseProfileId chain (research.md §10): the confirm-import preview's catalog-lookup fallback, and
@@ -20,7 +25,15 @@ public static class ProfileChainWalker
     public static async Task<(List<string> AncestorsOldestFirst, bool HasUnresolvedBase)> WalkByIdAsync(
         Guid startId, FetchById fetchById, CancellationToken cancellationToken)
     {
-        var chainNewestFirst = new List<string>();
+        var (nodes, hasUnresolvedBase) = await WalkNodesByIdAsync(startId, fetchById, cancellationToken);
+        return (nodes.Select(node => node.RawDataJson).ToList(), hasUnresolvedBase);
+    }
+
+    // Same walk, keeping each node so a caller can read its Origin/SourceVersion.
+    public static async Task<(List<ProfileChainNode> NodesOldestFirst, bool HasUnresolvedBase)> WalkNodesByIdAsync(
+        Guid startId, FetchById fetchById, CancellationToken cancellationToken)
+    {
+        var chainNewestFirst = new List<ProfileChainNode>();
         var visited = new HashSet<Guid>();
         var hasUnresolvedBase = false;
         Guid? currentId = startId;
@@ -41,7 +54,7 @@ public static class ProfileChainWalker
                 break;
             }
 
-            chainNewestFirst.Add(node.RawDataJson);
+            chainNewestFirst.Add(node);
             if (node.BaseProfileId is null && node.BaseProfileName is not null)
             {
                 hasUnresolvedBase = true;

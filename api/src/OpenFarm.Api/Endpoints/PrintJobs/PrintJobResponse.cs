@@ -22,6 +22,9 @@ public sealed class QueueJobRowResponse
     public string SnapshotState { get; set; } = string.Empty;
     public string? SnapshotRecoveryReason { get; set; }
 
+    /// <summary>Why the last attempt to send this queued job failed after a printer matched it (slicing, feed mapping, send); <c>null</c> when none did.</summary>
+    public string? LastBlockReason { get; set; }
+
     public Guid? PartId { get; set; }
 
     public string PartName { get; set; } = string.Empty;
@@ -54,6 +57,7 @@ public sealed class QueueJobRowResponse
         SourcePartAvailable = row.SourcePartAvailable,
         SnapshotState = row.SnapshotState,
         SnapshotRecoveryReason = row.SnapshotRecoveryReason,
+        LastBlockReason = row.LastBlockReason,
         PartId = row.PartId,
         PartName = row.PartName,
         PlateQuantity = row.PlateQuantity,
@@ -143,6 +147,14 @@ public sealed class PrintJobResponse
 
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Why the last attempt to send this job failed after a printer matched it; <c>null</c> when none did or a later send succeeded.</summary>
+    public string? LastBlockReason { get; set; }
+
+    public DateTimeOffset? LastBlockedAtUtc { get; set; }
+
+    /// <summary>The slicer pin and the presets the file sent to the printer was sliced with; <c>null</c> for a file sent as stored or a job never sent.</summary>
+    public DispatchProvenanceResponse? Provenance { get; set; }
+
     public static PrintJobResponse FromDetail(PrintJobDetail detail) => new()
     {
         Id = detail.Id,
@@ -167,5 +179,51 @@ public sealed class PrintJobResponse
         SnapshotRecoveryReason = detail.SnapshotRecoveryReason,
         Source = detail.Source.ToString(),
         Name = detail.Name,
+        LastBlockReason = detail.LastBlockReason,
+        LastBlockedAtUtc = detail.LastBlockedAtUtc,
+        Provenance = detail.Provenance is null ? null : DispatchProvenanceResponse.From(detail.Provenance),
     };
+}
+
+public sealed class DispatchProvenanceResponse
+{
+    public string Engine { get; set; } = string.Empty;
+
+    public string Version { get; set; } = string.Empty;
+
+    public DateTimeOffset AtUtc { get; set; }
+
+    public List<ResolvedPresetResponse> Presets { get; set; } = [];
+
+    public static DispatchProvenanceResponse From(DispatchProvenance provenance) => new()
+    {
+        Engine = provenance.Pin.Engine.ToString(),
+        Version = provenance.Pin.Version,
+        AtUtc = provenance.AtUtc,
+        Presets = provenance.Presets.Select(p => new ResolvedPresetResponse
+        {
+            Kind = p.Kind.ToString(),
+            SelectedName = p.SelectedName,
+            ResolvedName = p.ResolvedName,
+            SettingId = p.SettingId,
+            SourceVersion = p.SourceVersion,
+            Outcome = p.Outcome.ToString(),
+        }).ToList(),
+    };
+}
+
+public sealed class ResolvedPresetResponse
+{
+    public string Kind { get; set; } = string.Empty;
+
+    public string SelectedName { get; set; } = string.Empty;
+
+    public string ResolvedName { get; set; } = string.Empty;
+
+    public string? SettingId { get; set; }
+
+    public string? SourceVersion { get; set; }
+
+    /// <summary>How the selected preset reached the pinned slicer's own copy: Exact, MappedVersion, MappedEngine or UserNative.</summary>
+    public string Outcome { get; set; } = string.Empty;
 }

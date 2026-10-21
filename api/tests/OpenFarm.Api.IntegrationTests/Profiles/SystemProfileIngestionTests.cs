@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -110,15 +111,18 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         unchanged.Filament.Created.Should().Be(0);
         foreach (var format in new[] { ProfileSourceFormat.OrcaSlicer, ProfileSourceFormat.BambuStudio })
         {
-            var machine = await machines.FindByExternalIdAsync(format, vendor, "GM001", default);
+            var machine = (await machines.ListAsync(default)).SingleOrDefault(
+                p => p.SourceFormat == format && p.VendorName == vendor && p.ExternalId == "GM001");
             machine.Should().NotBeNull();
             machine!.IsCurrentlyOffered.Should().BeTrue();
             machine.BaseProfileId.Should().NotBeNull();
             (await machines.GetByIdAsync(machine.BaseProfileId!.Value, default))!.SourceFormat.Should().Be(format);
-            var process = await processes.FindByExternalIdAsync(format, vendor, "GP004", default);
+            var process = (await processes.ListAsync(default)).SingleOrDefault(
+                p => p.SourceFormat == format && p.VendorName == vendor && p.ExternalId == "GP004");
             process.Should().NotBeNull();
             process!.IsCurrentlyOffered.Should().BeTrue();
-            var filament = await filaments.FindByExternalIdAsync(format, $"Bambu Lab-{suffix}", "GFSA00", default);
+            var filament = (await filaments.ListAsync(default)).SingleOrDefault(
+                p => p.SourceFormat == format && p.VendorName == $"Bambu Lab-{suffix}" && p.ExternalId == "GFSA00");
             filament.Should().NotBeNull();
             filament!.IsCurrentlyOffered.Should().BeTrue();
             (await filaments.GetByIdAsync(filament.BaseProfileId!.Value, default))!.SourceFormat.Should().Be(format);
@@ -207,6 +211,253 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
         leafMachine.IncludedTemplateNames!.Should().Contain("Bambu Lab X1 Carbon 0.4 nozzle template machine_start_gcode");
     }
 
+    [Fact]
+    public async Task IngestAsync_TwoVersionsOfOneEngine_KeepSeparateCatalogsThatNeverOverwriteEachOther()
+    {
+        var vendor = $"Bambulab-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N");
+        var v1 = StageLeafAt("1.0.0", suffix, ("OrcaSlicer", vendor));
+        var v2 = StageLeafAt("2.0.0", suffix, ("OrcaSlicer", vendor));
+        EditFixture(v2, "process/0.20mm Standard @BBL X1C.json", "It has a general layer height", "NEW-IN-2.0.0 It has a general layer height");
+
+        IngestionSummary first, second;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
+            first = await service.IngestAsync(v1, default);
+            second = await service.IngestAsync(v2, default);
+        }
+
+        // The second version is a fresh catalog: nothing of it counts as "updated" and nothing of the first changes.
+        second.Machine.Created.Should().Be(first.Machine.Created);
+        second.Process.Created.Should().Be(first.Process.Created);
+        second.Filament.Created.Should().Be(first.Filament.Created);
+        second.Process.Updated.Should().Be(0);
+
+        using var fresh = factory.Services.CreateScope();
+        var processes = (await fresh.ServiceProvider.GetRequiredService<IProcessProfileRepository>().ListAsync(default))
+            .Where(p => p.VendorName == vendor && p.ExternalId == "GP004").ToList();
+        processes.Should().HaveCount(2);
+        processes.Single(p => p.SourceVersion == "1.0.0").RawDataJson.Should().NotContain("NEW-IN-2.0.0");
+        processes.Single(p => p.SourceVersion == "2.0.0").RawDataJson.Should().Contain("NEW-IN-2.0.0");
+
+        var machines = (await fresh.ServiceProvider.GetRequiredService<IMachineProfileRepository>().ListAsync(default))
+            .Where(p => p.VendorName == vendor).ToList();
+        var leafMachine = machines.Single(p => p.SourceVersion == "2.0.0" && p.ExternalId == "GM001");
+        machines.Single(p => p.Id == leafMachine.BaseProfileId).SourceVersion.Should().Be("2.0.0", "inheritance never crosses catalog versions");
+    }
+
+    [Fact]
+    public async Task IngestAsync_RemovedPreset_IsStaleOnlyInTheVersionThatDroppedIt()
+    {
+        var vendor = $"Bambulab-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N");
+        var v1 = StageLeafAt("1.0.0", suffix, ("OrcaSlicer", vendor));
+        var v2 = StageLeafAt("2.0.0", suffix, ("OrcaSlicer", vendor));
+        using (var scope = factory.Services.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
+            await service.IngestAsync(v1, default);
+            await service.IngestAsync(v2, default);
+        }
+
+        RemoveFromIndex(v2, "process_list", "0.20mm Standard @BBL X1C");
+        IngestionSummary rerun;
+        using (var scope = factory.Services.CreateScope())
+        {
+            rerun = await scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(v2, default);
+        }
+
+        rerun.Process.MarkedStale.Should().Be(1);
+        // Read from a fresh DbContext so the assertion sees what was persisted, not what the ingestion run tracked.
+        using var fresh = factory.Services.CreateScope();
+        var processes = (await fresh.ServiceProvider.GetRequiredService<IProcessProfileRepository>().ListAsync(default))
+            .Where(p => p.VendorName == vendor && p.ExternalId == "GP004").ToList();
+        processes.Single(p => p.SourceVersion == "2.0.0").IsCurrentlyOffered.Should().BeFalse();
+        processes.Single(p => p.SourceVersion == "1.0.0").IsCurrentlyOffered.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task IngestAsync_RerunInAFreshProcess_ReportsNothingCreatedOrUpdated()
+    {
+        // A new DbContext reads the rows back as Postgres jsonb text (its own key order and spacing), so this
+        // only stays at zero if change detection compares JSON structurally rather than as text.
+        var leaf = StageLeaf(Guid.NewGuid().ToString("N"), ("OrcaSlicer", $"Bambulab-{Guid.NewGuid():N}"));
+        using (var first = factory.Services.CreateScope())
+        {
+            await first.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, default);
+        }
+
+        using var second = factory.Services.CreateScope();
+        var rerun = await second.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, default);
+
+        rerun.Machine.Should().Be(new ProfileKindIngestionCounts(0, 0, 0));
+        rerun.Process.Should().Be(new ProfileKindIngestionCounts(0, 0, 0));
+        rerun.Filament.Should().Be(new ProfileKindIngestionCounts(0, 0, 0));
+    }
+
+    [Fact]
+    public async Task IngestAsync_PresetsSharingASettingId_AreKeyedByNameAndNoneIsLost()
+    {
+        var vendor = $"Bambulab-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N");
+        var leaf = StageLeaf(suffix, ("OrcaSlicer", vendor));
+        // Two more presets with the same setting_id (GFSA00) as "Bambu PLA Basic @BBL X1C" — as in the real BBL bundle.
+        var original = File.ReadAllText(Path.Combine(leaf, "resources", "profiles", "filament", "Bambu PLA Basic @BBL X1C.json"));
+        foreach (var name in new[] { "Bambu PLA Basic Dup A", "Bambu PLA Basic Dup B" })
+        {
+            File.WriteAllText(
+                Path.Combine(leaf, "resources", "profiles", "filament", $"{name}.json"),
+                original.Replace("\"name\": \"Bambu PLA Basic @BBL X1C\"", $"\"name\": \"{name}\""));
+            AddToIndex(leaf, "filament_list", name, $"filament/{name}.json");
+        }
+
+        IngestionSummary first, second;
+        using (var scope = factory.Services.CreateScope())
+        {
+            first = await scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, default);
+        }
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            second = await scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, default);
+        }
+
+        using var fresh = factory.Services.CreateScope();
+        var rows = (await fresh.ServiceProvider.GetRequiredService<IFilamentProfileRepository>().ListAsync(default))
+            .Where(p => p.VendorName == $"Bambu Lab-{suffix}" && p.Name.StartsWith("Bambu PLA Basic ", StringComparison.Ordinal) && p.IsSelectable).ToList();
+        rows.Select(p => p.Name).Should().BeEquivalentTo("Bambu PLA Basic @BBL X1C", "Bambu PLA Basic Dup A", "Bambu PLA Basic Dup B");
+        rows.Should().OnlyContain(p => p.ExternalId == null, "a shared setting_id cannot be the identity");
+        second.Filament.Created.Should().Be(0);
+        second.Filament.Updated.Should().Be(0);
+        first.Filament.Created.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task IngestAsync_BaseRemovedBetweenRuns_ClearsTheStoredBaseLink()
+    {
+        var vendor = $"Bambulab-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N");
+        var leaf = StageLeaf(suffix, ("OrcaSlicer", vendor));
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, default);
+        }
+
+        // The preset now inherits from a name this vendor no longer ships. (A process preset, because a filament's
+        // resolved brand comes from its ancestor chain: a broken chain would change its identity, not just its base.)
+        EditFixture(leaf, "process/0.20mm Standard @BBL X1C.json", "\"inherits\": \"fdm_process_single_0.20\"", "\"inherits\": \"Gone Base\"");
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, default);
+        }
+
+        using var fresh = factory.Services.CreateScope();
+        var row = (await fresh.ServiceProvider.GetRequiredService<IProcessProfileRepository>().ListAsync(default))
+            .Single(p => p.VendorName == vendor && p.ExternalId == "GP004");
+        row.BaseProfileName.Should().Be("Gone Base");
+        row.BaseProfileId.Should().BeNull("a link to the previous parent row would resolve a base the preset no longer inherits");
+    }
+
+    [Fact]
+    public async Task IngestAsync_FilamentInheritingFromTheOrcaLibrary_StoresOnlyTheLibraryBasesItNeedsAndResolvesTheChain()
+    {
+        var vendor = $"Bambulab-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N");
+        var leaf = StageLeaf(suffix, ("OrcaSlicer", vendor));
+        var profiles = Path.Combine(leaf, "resources", "profiles");
+
+        // OrcaSlicer ships generic bases in a vendor-less index of its own; the vendor's filament inherits from it.
+        var library = new[]
+        {
+            ("fdm_filament_common", """{"type":"filament","name":"fdm_filament_common","instantiation":"false","filament_vendor":["Generic"],"x_origin":"LIBRARY"}"""),
+            ("fdm_filament_pla", """{"type":"filament","name":"fdm_filament_pla","inherits":"fdm_filament_common","instantiation":"false","filament_type":["PLA"],"x_origin":"LIBRARY"}"""),
+            ("Overture PLA @base", $$"""{"type":"filament","name":"Overture PLA @base","inherits":"fdm_filament_pla","instantiation":"false","filament_vendor":["Overture-{{suffix}}"]}"""),
+            ("Unrelated PETG @base", """{"type":"filament","name":"Unrelated PETG @base","inherits":"fdm_filament_common","instantiation":"false","filament_type":["PETG"]}"""),
+        };
+        Directory.CreateDirectory(Path.Combine(profiles, "OrcaFilamentLibrary", "filament"));
+        foreach (var (name, json) in library)
+        {
+            File.WriteAllText(Path.Combine(profiles, "OrcaFilamentLibrary", "filament", $"{name}.json"), json);
+        }
+
+        File.WriteAllText(
+            Path.Combine(profiles, "OrcaFilamentLibrary.json"),
+            new JsonObject
+            {
+                ["name"] = "OrcaFilamentLibrary",
+                ["filament_list"] = new JsonArray(library.Select(p => (JsonNode)new JsonObject { ["name"] = p.Item1, ["sub_path"] = $"filament/{p.Item1}.json" }).ToArray()),
+            }.ToJsonString());
+        File.WriteAllText(
+            Path.Combine(profiles, "filament", "Overture PLA @BBL X1C.json"),
+            """{"type":"filament","name":"Overture PLA @BBL X1C","inherits":"Overture PLA @base","from":"system","setting_id":"OVR01","instantiation":"true"}""");
+        AddToIndex(leaf, "filament_list", "Overture PLA @BBL X1C", "filament/Overture PLA @BBL X1C.json");
+
+        IngestionSummary second;
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, default);
+        }
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            second = await scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, default);
+        }
+
+        using var fresh = factory.Services.CreateScope();
+        var rows = (await fresh.ServiceProvider.GetRequiredService<IFilamentProfileRepository>().ListAsync(default)).ToList();
+        var leafRow = rows.Single(p => p.ExternalId == "OVR01" && p.VendorName == $"Overture-{suffix}");
+        leafRow.MaterialType.Should().Be("PLA", "the chain through the library declares filament_type");
+        leafRow.IsSelectable.Should().BeTrue();
+
+        var overtureBase = rows.Single(p => p.Id == leafRow.BaseProfileId);
+        overtureBase.Name.Should().Be("Overture PLA @base");
+        overtureBase.VendorName.Should().Be("OrcaFilamentLibrary");
+        overtureBase.IsSelectable.Should().BeFalse("library bases are never offered as presets");
+        var plaBase = rows.Single(p => p.Id == overtureBase.BaseProfileId);
+        plaBase.VendorName.Should().Be("OrcaFilamentLibrary");
+        plaBase.RawDataJson.Should().Contain("LIBRARY", "a library preset's parent is the library's own, not the vendor's same-named preset");
+        rows.Single(p => p.Id == plaBase.BaseProfileId).Name.Should().Be("fdm_filament_common");
+
+        rows.Should().NotContain(p => p.Name == "Unrelated PETG @base", "only the library bases a vendor preset needs are stored");
+        var vendors = fresh.ServiceProvider.GetRequiredService<IVendorRepository>();
+        (await vendors.GetByNameAsync($"Overture-{suffix}", default)).Should().NotBeNull();
+        (await vendors.GetByNameAsync("OrcaFilamentLibrary", default)).Should().BeNull();
+
+        second.Filament.Created.Should().Be(0);
+        second.Filament.Updated.Should().Be(0);
+    }
+
+    private static void EditFixture(string leaf, string relativePath, string oldText, string newText)
+    {
+        var path = Path.Combine(leaf, "resources", "profiles", relativePath);
+        var text = File.ReadAllText(path);
+        text.Should().Contain(oldText);
+        File.WriteAllText(path, text.Replace(oldText, newText));
+    }
+
+    // The staged vendor's own index (the one with machine models), not a library index added next to it.
+    private static string VendorIndexPath(string leaf) =>
+        Directory.EnumerateFiles(Path.Combine(leaf, "resources", "profiles"), "*.json", SearchOption.TopDirectoryOnly)
+            .Single(file => File.ReadAllText(file).Contains("machine_model_list", StringComparison.Ordinal));
+
+    private static void RemoveFromIndex(string leaf, string listKey, string presetName)
+    {
+        var path = VendorIndexPath(leaf);
+        var index = JsonNode.Parse(File.ReadAllText(path))!;
+        var list = index[listKey]!.AsArray();
+        list.Remove(list.Single(entry => entry!["name"]!.GetValue<string>() == presetName));
+        File.WriteAllText(path, index.ToJsonString());
+    }
+
+    private static void AddToIndex(string leaf, string listKey, string presetName, string subPath)
+    {
+        var path = VendorIndexPath(leaf);
+        var index = JsonNode.Parse(File.ReadAllText(path))!;
+        index[listKey]!.AsArray().Add(new JsonObject { ["name"] = presetName, ["sub_path"] = subPath });
+        File.WriteAllText(path, index.ToJsonString());
+    }
+
     /// <summary>
     /// Copies one or more of this project's linked VendorIndex fixture folders into a fresh temp
     /// directory shaped like a real bundle leaf (<c>&lt;root&gt;/orcaslicer/&lt;version&gt;/linux/resources/profiles/…</c>,
@@ -217,10 +468,14 @@ public class SystemProfileIngestionTests(CustomWebApplicationFactory factory) : 
     /// <paramref name="filamentVendorSuffix"/> — filament rows key off that resolved per-preset value now
     /// (research.md §0), not the renamed vendor index name above, so it needs its own isolation knob.
     /// </summary>
-    private static string StageLeaf(string filamentVendorSuffix, params (string FixtureFolder, string? RenamedVendorName)[] vendors)
+    private static string StageLeaf(string filamentVendorSuffix, params (string FixtureFolder, string? RenamedVendorName)[] vendors) =>
+        StageLeafAt("1.0.0", filamentVendorSuffix, vendors);
+
+    // The leaf directory name is the catalog version the rows are ingested under.
+    private static string StageLeafAt(string version, string filamentVendorSuffix, params (string FixtureFolder, string? RenamedVendorName)[] vendors)
     {
         var engineSlug = vendors.Any(v => v.FixtureFolder == "BambuStudio") ? "bambustudio" : "orcaslicer";
-        var leaf = Path.Combine(Path.GetTempPath(), "openfarm-ingestion-tests", Guid.NewGuid().ToString(), engineSlug, "1.0.0", "linux");
+        var leaf = Path.Combine(Path.GetTempPath(), "openfarm-ingestion-tests", Guid.NewGuid().ToString(), engineSlug, version, "linux");
         var profilesDir = Path.Combine(leaf, "resources", "profiles");
         Directory.CreateDirectory(profilesDir);
 

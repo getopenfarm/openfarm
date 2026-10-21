@@ -80,6 +80,40 @@ public sealed class ResolveSlicerSelection(IAvailableSlicerCatalog catalog, IHos
         return effective.Default;
     }
 
+    /// <summary>
+    /// The slicer for a part whose file is replaced or reprocessed: what the operator asked for (engine + version, or an
+    /// engine alone for its newest version), else the part's current pin — an existing pin is never moved to the farm
+    /// default behind the operator's back. Only a part with no pin yet takes the farm default.
+    /// </summary>
+    /// <exception cref="SlicerUnavailableException">The chosen pair isn't bundled for the host platform.</exception>
+    public SlicerRef ResolveKeepingPin(
+        SlicerEngine? requestedEngine, string? requestedVersion, SlicerEngine? currentEngine, string? currentVersion, SlicerRef? farmDefault) =>
+        requestedEngine is null && requestedVersion is null && currentEngine is { } engine && !string.IsNullOrWhiteSpace(currentVersion)
+            ? EnsureAvailable(new SlicerRef(engine, currentVersion))
+            : Resolve(requestedEngine, requestedVersion, farmDefault);
+
+    /// <summary>
+    /// The slicer a part was pinned to at upload — production slices with exactly that pair or not at all. Unlike
+    /// <see cref="Resolve"/> it never fills a gap from the farm default or "the newest version": a part with no complete
+    /// pin has no slicer, and changing the pin is an explicit operator action (replace or reprocess the part).
+    /// </summary>
+    /// <exception cref="SlicingProfileUnconfiguredException">The part has no complete (engine + version) pin.</exception>
+    /// <exception cref="SlicerUnavailableException">The pinned pair isn't bundled for the host platform.</exception>
+    public SlicerRef ResolvePinned(SlicerEngine? engine, string? version)
+    {
+        if (engine is not { } pinnedEngine || string.IsNullOrWhiteSpace(version))
+        {
+            throw new SlicingProfileUnconfiguredException(
+                "The part has no slicer pinned. Reprocess the part to pin a slicer.", nameof(Profiles.ProfileResolutionOutcome.NoPin));
+        }
+
+        return EnsureAvailable(new SlicerRef(pinnedEngine, version));
+    }
+
+    /// <summary>The newest bundled version of <paramref name="engine"/> for the host platform, or <c>null</c> when none is.</summary>
+    public SlicerRef? NewestAvailable(SlicerEngine engine) =>
+        NewestFor(catalog.GetAvailable().Where(a => a.Platform == hostPlatform.Current).ToList(), engine)?.ToSlicerRef();
+
     /// <summary>Validates a fully-specified pair is bundled for the host platform (FR-007) — used directly by "set as default".</summary>
     /// <exception cref="SlicerUnavailableException"><paramref name="requested"/> isn't bundled for the host platform.</exception>
     public SlicerRef EnsureAvailable(SlicerRef requested)

@@ -54,7 +54,7 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
             {
                 var profileId = filament.ResolveProfileId(printer.Brand, printer.ModelCode, printer.ReportedNozzleDiameterMm!.Value, variant.Id)
                     ?? throw new SlicingProfileUnconfiguredException($"Assign a profile for '{filament.Material}' ({variant.ColorName}) on {printer.ModelCode} {printer.ReportedNozzleDiameterMm} mm in /filament/{filament.Id}/edit.");
-                if (narrowedProfileId is { } narrowedId && profileId != narrowedId)
+                if (narrowedProfileId is { } narrowedId && profileId != narrowedId && !await IsSameProfileAsync(profileId, narrowedId, ct))
                     throw new SlicingProfileUnconfiguredException("The loaded filament assignment does not match the part's required filament profile.");
                 var profile = await profiles.GetByIdAsync(profileId, ct)
                     ?? throw new SlicingProfileUnconfiguredException("The assigned filament profile no longer exists.");
@@ -67,6 +67,13 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
         if (issue is not null) throw issue;
         throw new SlicingProfileUnconfiguredException($"Register and load a tracked spool for '{materialType ?? "the required material"}'{(colorHex is null ? "" : $" ({colorHex})")} on printer '{printer.Name}'.{FeedPathHint(units, externalIsActive)}");
     }
+
+    // The part's narrowing and the filament's assignment may name rows of different slicer versions that are the
+    // same preset; only genuinely different presets are a mismatch.
+    private async Task<bool> IsSameProfileAsync(Guid assignedId, Guid narrowedId, CancellationToken ct) =>
+        await profiles.GetByIdAsync(assignedId, ct) is { } assigned
+        && await profiles.GetByIdAsync(narrowedId, ct) is { } narrowed
+        && ProfileIdentity.Same(assigned, narrowed);
 }
 
 public sealed record ProductionFilamentSelection(Guid SpoolId, Guid FilamentVariantId, Guid FilamentId, string MaterialType, FilamentProfile Profile);

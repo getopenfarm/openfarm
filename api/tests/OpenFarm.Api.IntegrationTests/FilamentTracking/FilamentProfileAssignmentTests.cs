@@ -112,59 +112,47 @@ public class FilamentProfileAssignmentTests(ProductionTestFactory factory) : Pro
         (await client.GetFromJsonAsync<FilamentProfileAssignmentsResponse>(route))!.Issues.Should().ContainSingle();
     }
 
+    // Production only ever slices with the pinned slicer's own presets, so a preset of the other engine is not an
+    // assignment the farm could use: it is refused when saved, with a stable code, and nothing is stored.
     [Fact]
-    public async Task BambuOriginAssignmentIsAcceptedForOrcaButFailedEngineValidationBlocksTheQueue()
+    public async Task AssignmentOfAnotherEnginesPresetIsRejectedAndNothingIsSaved()
     {
         var client = await ClientAsync();
-        var printer = await PrinterAsync();
-        var stored = await PartAsync(fileName: "profile-validation.stl");
-        Part part;
-        Guid filamentId, profileId;
+        Guid profileId;
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            var trackedPrinter = await db.Printers.SingleAsync(p => p.Id == printer.Id);
-            var process = ProcessProfile.CreateSystemProfile(Guid.NewGuid().ToString(),
-                ProfileSourceFormat.OrcaSlicer, null, "{}", "test", Guid.NewGuid().ToString(), true,
-                [(await db.MachineProfiles.SingleAsync(p => p.Id == trackedPrinter.MachineProfileId)).Name]);
-            db.ProcessProfiles.Add(process);
-            trackedPrinter.LinkProcessProfile(process.Id);
-            trackedPrinter.SelectBuildPlate(BuildPlateType.HighTemp);
-            var profile = FilamentProfile.Create("Imported Bambu PLA", ProfileSourceFormat.BambuStudio, null,
-                """{"filament_type":["PLA"],"hot_plate_temp":["55"]}""");
-            db.FilamentProfiles.Add(profile);
-            // Identify the filament on this exact printer's loaded tracked spool.
-            var slots = await db.FeedUnits.Where(u => u.PrinterId == printer.Id).SelectMany(u => u.FeedSlots).Select(s => s.Id).ToListAsync();
-            var variantId = (await db.Spools.SingleAsync(s => s.FeedSlotId != null && slots.Contains(s.FeedSlotId.Value))).FilamentVariantId;
-            filamentId = await db.Filaments.Where(f => f.Variants.Any(v => v.Id == variantId)).Select(f => f.Id).SingleAsync();
-            profileId = profile.Id;
-            part = Part.Create(Guid.NewGuid().ToString(), PartFileFormat.Stl, true,
-                stored.OriginalFileName, stored.StoragePath, stored.FileSizeBytes, 0.4m, null, null,
-                EstimateStatus.Available, 1, 1, 1, 1, stored.RevisionHash,
-                [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
-            db.Parts.Add(part);
+            var imported = FilamentProfile.Create("Imported Bambu PLA", ProfileSourceFormat.BambuStudio, null,
+                """{"filament_type":["PLA"],"nozzle_diameter":["0.4"]}""");
+            db.FilamentProfiles.Add(imported);
             await db.SaveChangesAsync();
+            profileId = imported.Id;
         }
-        var filament = (await client.GetFromJsonAsync<ListFilamentsResponse>("/api/v1/filaments"))!.Filaments.Single(f => f.Id == filamentId);
-        var save = await client.PutAsJsonAsync($"/api/v1/filaments/{filamentId}", new EditFilamentRequest
+        var vendor = (await (await client.PostAsJsonAsync("/api/v1/vendors", new CreateVendorRequest { Name = Guid.NewGuid().ToString() }))
+            .Content.ReadFromJsonAsync<VendorResponse>())!;
+        var created = await client.PostAsJsonAsync("/api/v1/filaments", new CreateFilamentRequest
+        {
+            VendorId = vendor.Id,
+            Material = "PLA Basic",
+            MaterialType = "PLA",
+            Variants = [new() { ColorName = "Black", ColorHex = "#000000" }],
+        });
+        var filament = (await created.Content.ReadFromJsonAsync<FilamentResponse>())!;
+
+        var save = await client.PutAsJsonAsync($"/api/v1/filaments/{filament.Id}", new EditFilamentRequest
         {
             VendorId = filament.VendorId,
             Material = filament.Material,
             MaterialType = filament.MaterialType,
-            ProfileAssignments = [new("System", "Simulation", 0.4m, profileId)],
+            ProfileAssignments = [new("Bambu", "P1S", 0.4m, profileId)],
         });
-        save.StatusCode.Should().Be(HttpStatusCode.OK, await save.Content.ReadAsStringAsync());
-        using (var scope = Factory.Services.CreateScope())
-        {
-            var issue = await scope.ServiceProvider.GetRequiredService<ProductionProfileReadiness>()
-                .GetIssueAsync(printer.Id, part, [("PLA", null)], default);
-            issue.Should().Contain("Profile compatibility validation failed with OrcaSlicer 2.2.0")
-                .And.Contain($"/filament/{filamentId}/edit");
-        }
-        var run = await RunAsync(client, part.Id, pinned: printer.Id);
-        var jobs = await client.GetFromJsonAsync<OpenFarm.Api.Endpoints.PrintJobs.ListQueueJobsResponse>("/api/v1/print-jobs?view=queue&pageSize=1000");
-        jobs!.Items.Should().Contain(j => j.ProductionRunId == run.Id && j.IsBlocked
-            && j.BlockingReason!.Contains("Profile compatibility validation failed"));
+
+        save.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await save.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("UnsupportedOrigin");
+        problem.GetProperty("detail").GetString().Should().Contain("its own profiles only");
+        (await client.GetFromJsonAsync<FilamentProfileAssignmentsResponse>($"/api/v1/filaments/{filament.Id}/profile-assignments"))!
+            .Assignments.Should().BeEmpty();
     }
 
     [Fact]

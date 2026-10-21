@@ -1401,6 +1401,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("SourceVersion")
+                        .HasColumnType("text");
+
                     b.Property<string>("VendorName")
                         .HasColumnType("text");
 
@@ -1408,15 +1411,18 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("SourceFormat", "VendorName", "ExternalId")
+                    b.HasIndex("SourceFormat", "SourceVersion", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("SourceFormat", "VendorName", "Name")
+                    b.HasIndex("SourceFormat", "SourceVersion", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
-                    b.ToTable("FilamentProfiles", (string)null);
+                    b.ToTable("FilamentProfiles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FilamentProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Profiles.MachineProfile", b =>
@@ -1462,6 +1468,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("SourceVersion")
+                        .HasColumnType("text");
+
                     b.Property<string>("VendorMachineModelName")
                         .HasColumnType("text");
 
@@ -1472,15 +1481,18 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("SourceFormat", "VendorName", "ExternalId")
+                    b.HasIndex("SourceFormat", "SourceVersion", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("SourceFormat", "VendorName", "Name")
+                    b.HasIndex("SourceFormat", "SourceVersion", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
-                    b.ToTable("MachineProfiles", (string)null);
+                    b.ToTable("MachineProfiles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MachineProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Profiles.ProcessProfile", b =>
@@ -1526,6 +1538,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("SourceVersion")
+                        .HasColumnType("text");
+
                     b.Property<string>("VendorName")
                         .HasColumnType("text");
 
@@ -1533,15 +1548,18 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BaseProfileId");
 
-                    b.HasIndex("SourceFormat", "VendorName", "ExternalId")
+                    b.HasIndex("SourceFormat", "SourceVersion", "VendorName", "ExternalId")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-                    b.HasIndex("SourceFormat", "VendorName", "Name")
+                    b.HasIndex("SourceFormat", "SourceVersion", "VendorName", "Name")
                         .IsUnique()
                         .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
-                    b.ToTable("ProcessProfiles", (string)null);
+                    b.ToTable("ProcessProfiles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProcessProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Settings.FarmSettings", b =>
@@ -1707,8 +1725,16 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("BlockFailureCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTimeOffset?>("CancelRequestedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DispatchProvenanceJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<DateTimeOffset?>("DispatchedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -1724,6 +1750,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<string>("LastBlockReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("LastBlockedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("PartRequirementId")
                         .HasColumnType("uuid");

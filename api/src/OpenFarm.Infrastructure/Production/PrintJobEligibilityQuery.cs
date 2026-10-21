@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
@@ -7,9 +8,9 @@ using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Infrastructure.Production;
 
-public sealed class PrintJobEligibilityQuery(IPrinterRepository printers, IPartRequirementRepository requirements,
+public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers, IPartRequirementRepository requirements,
     IPartRepository parts, ProductionDispatchQueryService dispatchQuery, IPrintJobRepository printJobs,
-    ProductionJobRequirements jobRequirements, IFilamentRepository filaments) : IPrintJobEligibilityQuery
+    ProductionJobRequirements jobRequirements, IFilamentRepository filaments, ILogger<PrintJobEligibilityQuery> logger) : IPrintJobEligibilityQuery
 {
     private readonly Dictionary<Guid, JobMatchingDiagnostics> _evaluations = [];
     private readonly Dictionary<Guid, (IReadOnlyList<LoadedProductionFilament> Loaded, decimal? Nozzle, bool Reserved)> _printerFacts = [];
@@ -45,6 +46,24 @@ public sealed class PrintJobEligibilityQuery(IPrinterRepository printers, IPartR
     }
 
     public async Task<JobMatchingDiagnostics> GetDiagnosticsAsync(PrintJob job, CancellationToken cancellationToken, bool includeScheduling = true)
+    {
+        try
+        {
+            return await EvaluateJobAsync(job, includeScheduling, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // One job whose data cannot be read is a blocked job, never an error for every job listed beside it.
+            LogEvaluationFailed(logger, job.Id, ex);
+            return new(job.Id, DateTimeOffset.UtcNow, "Job snapshot", "Blocked",
+                "Job data is unreadable. See the server log.", [], [], []);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Evaluating print job {JobId} failed unexpectedly.")]
+    private static partial void LogEvaluationFailed(ILogger logger, Guid jobId, Exception exception);
+
+    private async Task<JobMatchingDiagnostics> EvaluateJobAsync(PrintJob job, bool includeScheduling, CancellationToken cancellationToken)
     {
         var ct = cancellationToken;
         var requirement = await requirements.GetByIdAsync(job.PartRequirementId, ct);

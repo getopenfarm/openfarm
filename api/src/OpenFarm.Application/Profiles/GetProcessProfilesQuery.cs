@@ -27,26 +27,32 @@ public sealed record ProcessProfileSummary(
     bool HasUnresolvedBaseInChain,
     double? LayerHeightMm,
     int? WallLoops,
-    IReadOnlyList<string> CompatiblePrinterNames);
+    IReadOnlyList<string> CompatiblePrinterNames)
+{
+    /// <summary>The slicer version this System row belongs to; always set for a System row.</summary>
+    public string? SourceVersion { get; init; }
+}
 
 public sealed class GetProcessProfilesQueryHandler(
     IProcessProfileRepository repository,
     IProfileBundleParser parser,
     IPrinterRepository printerRepository,
-    IMachineProfileRepository machineProfileRepository)
+    IMachineProfileRepository machineProfileRepository,
+    ProfileCatalogVersions? catalogVersions = null)
     : IQueryHandler<GetProcessProfilesQuery, ProfilePage<ProcessProfileSummary>>
 {
     private const int MaxChainDepth = 32;
 
     public async Task<ProfilePage<ProcessProfileSummary>> HandleAsync(GetProcessProfilesQuery query, CancellationToken cancellationToken)
     {
+        var scope = catalogVersions is null ? null : await catalogVersions.GetScopeAsync(cancellationToken);
         var isPickerStyleCall = query.Origin is not null || query.SearchText is not null
             || query.CompatibleWithMachineName is not null || query.PrinterId is not null
             || query.Page is not null || query.PageSize is not null;
 
         if (!isPickerStyleCall)
         {
-            return await BuildLegacyBrowsePageResultAsync(cancellationToken);
+            return await BuildLegacyBrowsePageResultAsync(scope is null ? null : scope with { NativeFormat = null }, cancellationToken);
         }
 
         var compatibleWithMachineName = query.CompatibleWithMachineName;
@@ -66,20 +72,21 @@ public sealed class GetProcessProfilesQueryHandler(
         var page = query.Page ?? 1;
         var (rows, totalCount) = await repository.SearchAsync(
             ProfileOriginQueryParser.ParseEffectiveFilter(query.Origin), true, compatibleWithMachineName,
-            null, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken);
+            null, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken, scope);
 
         var leanSummaries = rows.Select(r => new ProcessProfileSummary(
             r.Id, r.Name, r.Origin, r.VendorName, r.SourceFormat, r.BaseProfileId, r.BaseProfileName,
-            false, null, null, [])).ToList();
+            false, null, null, [])
+        { SourceVersion = r.SourceVersion }).ToList();
 
         var reportedPageSize = query.PageSize ?? totalCount;
         var result = new ProfilePage<ProcessProfileSummary>(leanSummaries, page, reportedPageSize, totalCount);
         return query.PrinterId is not null ? result with { Available = true } : result;
     }
 
-    private async Task<ProfilePage<ProcessProfileSummary>> BuildLegacyBrowsePageResultAsync(CancellationToken cancellationToken)
+    private async Task<ProfilePage<ProcessProfileSummary>> BuildLegacyBrowsePageResultAsync(ProfileCatalogScope? scope, CancellationToken cancellationToken)
     {
-        var rows = await repository.ListAsync(cancellationToken);
+        var rows = await repository.ListAsync(cancellationToken, scope);
         var byId = rows.ToDictionary(r => r.Id);
 
         var summaries = new List<ProcessProfileSummary>(rows.Count);
@@ -92,7 +99,8 @@ public sealed class GetProcessProfilesQueryHandler(
 
             summaries.Add(new ProcessProfileSummary(
                 row.Id, row.Name, row.Origin, row.VendorName, row.SourceFormat, row.BaseProfileId, row.BaseProfileName, hasUnresolvedBase,
-                fields.LayerHeightMm, fields.WallLoops, fields.CompatiblePrinterNames));
+                fields.LayerHeightMm, fields.WallLoops, fields.CompatiblePrinterNames)
+            { SourceVersion = row.SourceVersion });
         }
 
         return new ProfilePage<ProcessProfileSummary>(summaries, 1, summaries.Count, summaries.Count);

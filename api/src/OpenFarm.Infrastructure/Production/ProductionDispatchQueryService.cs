@@ -1,5 +1,6 @@
 using OpenFarm.Domain.Parts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
@@ -15,7 +16,8 @@ namespace OpenFarm.Infrastructure.Production;
 /// plain data-fetching separate from the pure matching algorithm itself, matching the split
 /// <c>AssemblyGraphQueryService</c>/<c>AssemblyGraph</c> already established for Assemblies.
 /// </summary>
-public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, OpenFarm.Application.Production.ProductionProfileReadiness readiness, OpenFarm.Application.Production.ProductionJobRequirements jobRequirements)
+public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbContext, OpenFarm.Application.Production.ProductionProfileReadiness readiness,
+    OpenFarm.Application.Production.ProductionJobRequirements jobRequirements, ILogger<ProductionDispatchQueryService> logger)
 {
     /// <summary>
     /// Only nozzle telemetry confirmed on the current connection is usable for dispatch.
@@ -105,23 +107,47 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
         var jobs = await dbContext.PrintJobs.Where(predicate).Include(j => j.Filaments)
             .OrderBy(j => j.QueuePosition).ToListAsync(cancellationToken);
         var candidates = new List<DispatchCandidate>();
+        var now = DateTimeOffset.UtcNow;
         foreach (var job in jobs)
         {
-            var requirement = await dbContext.PartRequirements.FirstAsync(r => r.Id == job.PartRequirementId, cancellationToken);
-            var run = await (from line in dbContext.RunLines
-                             join productionRun in dbContext.ProductionRuns on line.ProductionRunId equals productionRun.Id
-                             where line.Id == requirement.RunLineId
-                             select productionRun).FirstAsync(cancellationToken);
-            if (run.Status is ProductionRunStatus.Cancelled or ProductionRunStatus.Closed) continue;
-            var libraryPart = requirement.Quantity is null && job.DispatchedAtUtc is null
-                ? await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == requirement.PartId, cancellationToken) : null;
-            var part = OpenFarm.Application.Production.ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
-            if (part?.PrintRequirementsStatus != PrintRequirementsStatus.Complete) continue;
-            var effective = await jobRequirements.ResolveAsync(job, part, cancellationToken);
-            candidates.Add(new DispatchCandidate(job.Id, job.QueuePosition, part.NozzleDiameterMm!.Value,
-                effective.Requirements.Select(r => r.MatchingValues).ToList()));
+            // A job whose last attempt failed waits out its backoff instead of being re-sliced on every telemetry tick.
+            if (job.IsInRetryBackoff(now)) continue;
+            DispatchCandidate? candidate;
+            try
+            {
+                candidate = await CandidateOrNullAsync(job, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A job whose data cannot be read must not stop every job queued behind it from being looked at.
+                LogCandidateFailed(logger, job.Id, ex);
+                continue;
+            }
+
+            if (candidate is not null) candidates.Add(candidate);
         }
+
         return candidates;
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Print job {JobId} could not be evaluated for dispatch and was skipped.")]
+    private static partial void LogCandidateFailed(ILogger logger, Guid jobId, Exception exception);
+
+    private async Task<DispatchCandidate?> CandidateOrNullAsync(PrintJob job, CancellationToken cancellationToken)
+    {
+        var requirement = await dbContext.PartRequirements.FirstAsync(r => r.Id == job.PartRequirementId, cancellationToken);
+        var run = await (from line in dbContext.RunLines
+                         join productionRun in dbContext.ProductionRuns on line.ProductionRunId equals productionRun.Id
+                         where line.Id == requirement.RunLineId
+                         select productionRun).FirstAsync(cancellationToken);
+        if (run.Status is ProductionRunStatus.Cancelled or ProductionRunStatus.Closed) return null;
+        var libraryPart = requirement.Quantity is null && job.DispatchedAtUtc is null
+            ? await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == requirement.PartId, cancellationToken) : null;
+        var part = OpenFarm.Application.Production.ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
+        if (part?.PrintRequirementsStatus != PrintRequirementsStatus.Complete) return null;
+        var effective = await jobRequirements.ResolveAsync(job, part, cancellationToken);
+        return new DispatchCandidate(job.Id, job.QueuePosition, part.NozzleDiameterMm!.Value,
+            effective.Requirements.Select(r => r.MatchingValues).ToList());
     }
 
     /// <summary>
@@ -217,6 +243,7 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
 
         var occupancyByLine = new Dictionary<Guid, int>();
         var cumulativeUnitsByLine = new Dictionary<Guid, int>();
+        var linesWithAWaitingJob = new HashSet<Guid>();
 
         foreach (var line in lines)
         {
@@ -226,6 +253,15 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
                 occupancyByLine[line.Id] = 0;
                 cumulativeUnitsByLine[line.Id] = 0;
                 continue;
+            }
+
+            // A job created for this line that could not be sent (and now waits out its backoff) is the line's pending
+            // work: creating another one every attempt would pile up jobs behind a failure that has not been fixed.
+            if (await dbContext.PrintJobs.AnyAsync(j => requirementIdsForLine.Contains(j.PartRequirementId)
+                    && j.Status == PrintJobStatus.Queued && j.PrinterId == null && j.DispatchedAtUtc == null
+                    && j.AssignmentMode == AssignmentMode.Unassigned, cancellationToken))
+            {
+                linesWithAWaitingJob.Add(line.Id);
             }
 
             var occupiedPrinterIds = await dbContext.PrintJobs
@@ -257,6 +293,11 @@ public sealed class ProductionDispatchQueryService(OpenFarmDbContext dbContext, 
             }
 
             var line = lines.First(l => l.Id == requirement.RunLineId);
+            if (linesWithAWaitingJob.Contains(line.Id))
+            {
+                continue;
+            }
+
             candidates.Add(new BackfillLineCandidate(
                 line.Id,
                 requirement.Id,

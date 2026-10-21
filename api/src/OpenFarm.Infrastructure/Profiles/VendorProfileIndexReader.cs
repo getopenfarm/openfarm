@@ -87,8 +87,15 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
     /// filament's <see cref="ParsedVendorPreset.MaterialType"/> by walking its own ancestor chain
     /// within this same fetched batch (research.md §0 point 5 — every ancestor a leaf preset declares
     /// is itself present in the same vendor file, so no external lookup is needed at read time).
+    /// <para>
+    /// OrcaSlicer's own bundles are the exception: a vendor's filament may inherit a base that only
+    /// <c>OrcaFilamentLibrary</c> ships. <paramref name="libraryFilaments"/> (that library's presets by name) lets a
+    /// chain continue there, with OrcaSlicer's lookup rule — own vendor first, then the library — and once a chain
+    /// is inside the library it stays there, since a library preset's parent is resolved in the library.
+    /// </para>
     /// </summary>
-    public VendorPresetReadResult ReadPresets(string vendorIndexFilePath, ProfileKind kind)
+    public VendorPresetReadResult ReadPresets(
+        string vendorIndexFilePath, ProfileKind kind, IReadOnlyDictionary<string, ParsedVendorPreset>? libraryFilaments = null)
     {
         using var indexStream = File.OpenRead(vendorIndexFilePath);
         using var indexDocument = JsonDocument.Parse(indexStream);
@@ -179,7 +186,7 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
 
         if (kind == ProfileKind.Filament)
         {
-            presets = ResolveFilamentDerivedFields(presets);
+            presets = ResolveFilamentDerivedFields(presets, libraryFilaments);
         }
 
         return new VendorPresetReadResult(presets, skipped);
@@ -194,7 +201,8 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
     // Lab") — so it's resolved off the same merged ancestor document rather than the vendor index's own
     // top-level name, which real bundles mix many actual brands under (a single BBL.json filament index
     // covers Bambu-branded presets alongside Generic/eSUN/SUNLU/etc.).
-    private static List<ParsedVendorPreset> ResolveFilamentDerivedFields(List<ParsedVendorPreset> presets)
+    private static List<ParsedVendorPreset> ResolveFilamentDerivedFields(
+        List<ParsedVendorPreset> presets, IReadOnlyDictionary<string, ParsedVendorPreset>? library)
     {
         var byName = presets
             .GroupBy(p => p.Name, StringComparer.Ordinal)
@@ -207,9 +215,26 @@ public sealed partial class VendorProfileIndexReader(ILogger<VendorProfileIndexR
             var visited = new HashSet<string>(StringComparer.Ordinal);
             var currentName = (string?)preset.Name;
             var depth = 0;
+            var insideLibrary = false;
 
-            while (currentName is not null && depth++ < MaxChainDepth && visited.Add(currentName) && byName.TryGetValue(currentName, out var node))
+            while (currentName is not null && depth++ < MaxChainDepth && visited.Add(currentName))
             {
+                ParsedVendorPreset? node = null;
+                if (!insideLibrary && byName.TryGetValue(currentName, out var own))
+                {
+                    node = own;
+                }
+                else if (library is not null && library.TryGetValue(currentName, out var fromLibrary))
+                {
+                    node = fromLibrary;
+                    insideLibrary = true;
+                }
+
+                if (node is null)
+                {
+                    break;
+                }
+
                 ancestorsOldestFirst.Insert(0, node.RawJson);
                 currentName = node.BaseProfileName;
             }

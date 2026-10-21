@@ -44,9 +44,20 @@ public sealed class PrintJob : Print
         SnapshotRecoveryReason = "Source part removed; retry and file download are unavailable.";
     }
 
-    public OpenFarm.Domain.Parts.Part? GetProductionPart() => ProductionSnapshotJson is null ? null
-        : OpenFarm.Domain.Parts.Part.FromProductionSnapshot(
-            System.Text.Json.JsonSerializer.Deserialize<ProductionPartSnapshot>(ProductionSnapshotJson)!);
+    /// <summary>The part exactly as it was when the job was queued; <c>null</c> when there is none or it can no longer be read — either way the job needs its snapshot recovered, and no other job is affected.</summary>
+    public OpenFarm.Domain.Parts.Part? GetProductionPart()
+    {
+        if (ProductionSnapshotJson is null) return null;
+        try
+        {
+            return OpenFarm.Domain.Parts.Part.FromProductionSnapshot(
+                System.Text.Json.JsonSerializer.Deserialize<ProductionPartSnapshot>(ProductionSnapshotJson)!);
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or NullReferenceException or ArgumentException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
 
     public void CaptureProductionSnapshot(OpenFarm.Domain.Parts.Part part, OpenFarm.Domain.Parts.SlicerRef? slicer = null)
     {
@@ -115,6 +126,43 @@ public sealed class PrintJob : Print
     public bool HasFilamentRequirementOverride { get; private set; }
 
     /// <summary>
+    /// JSON of the pin and the presets (selected → resolved) the file last sent for this job was sliced with; <c>null</c>
+    /// for a file sent as stored or a job never sent. Evidence for "what was this printed with".
+    /// </summary>
+    public string? DispatchProvenanceJson { get; private set; }
+
+    /// <summary>Why the last attempt to send this job failed after a printer matched it (slicing, feed mapping, send); cleared by a successful dispatch or an operator edit.</summary>
+    public string? LastBlockReason { get; private set; }
+
+    public DateTimeOffset? LastBlockedAtUtc { get; private set; }
+
+    /// <summary>Consecutive failed attempts; drives <see cref="IsInRetryBackoff"/> so a failing job is not re-sliced on every telemetry tick.</summary>
+    public int BlockFailureCount { get; private set; }
+
+    public void RecordDispatchProvenance(string provenanceJson) => DispatchProvenanceJson = provenanceJson;
+
+    public void RecordBlock(string reason, DateTimeOffset atUtc)
+    {
+        LastBlockReason = reason;
+        LastBlockedAtUtc = atUtc;
+        BlockFailureCount++;
+    }
+
+    public void ClearBlock()
+    {
+        LastBlockReason = null;
+        LastBlockedAtUtc = null;
+        BlockFailureCount = 0;
+    }
+
+    /// <summary>How long to leave a job alone after <paramref name="failureCount"/> failed attempts in a row: 1, 2, 4, then at most 5 minutes — a fix is never waited on long.</summary>
+    public static TimeSpan RetryDelay(int failureCount) =>
+        failureCount <= 0 ? TimeSpan.Zero : TimeSpan.FromMinutes(Math.Min(5, 1 << Math.Min(failureCount - 1, 3)));
+
+    public bool IsInRetryBackoff(DateTimeOffset nowUtc) =>
+        LastBlockedAtUtc is { } blockedAt && nowUtc < blockedAt + RetryDelay(BlockFailureCount);
+
+    /// <summary>
     /// A standalone aggregate root, not a <see cref="ProductionRun"/>/<see cref="PartRequirement"/>
     /// child collection — see <see cref="PartRequirement.Create"/>'s own remarks on why (eager
     /// creation for a finite requirement, research.md R2, is an Application-layer command handler
@@ -155,6 +203,7 @@ public sealed class PrintJob : Print
 
         AssignmentMode = AssignmentMode.Pinned;
         PinnedPrinterId = printerId;
+        ClearBlock();
     }
 
     /// <summary>-> Unassigned, eligible for ordinary dispatch matching again. Only valid pre-dispatch.</summary>
@@ -163,6 +212,7 @@ public sealed class PrintJob : Print
         EnsureQueued();
         AssignmentMode = AssignmentMode.Unassigned;
         PinnedPrinterId = null;
+        ClearBlock();
     }
 
     /// <summary>FR-008 — the fractional-index move (research.md R3). Only valid pre-dispatch.</summary>
@@ -221,6 +271,7 @@ public sealed class PrintJob : Print
         EnsureQueued();
         if (requirements.Count == 0) throw new FilamentConsumptionSumMismatchException(null, null);
         HasFilamentRequirementOverride = isOverride;
+        ClearBlock();
         ClearFilaments();
         for (var i = 0; i < requirements.Count; i++)
             AddFilament(PrintFilament.Create(Id, i, requirements[i]));

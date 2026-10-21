@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OpenFarm.Application.Parts;
+using OpenFarm.Application.Tests.Parts.Fakes;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Tests.Parts;
@@ -121,22 +122,90 @@ public class ResolveSlicerSelectionTests
         act.Should().Throw<SlicerUnavailableException>();
     }
 
+    // ---------------------------------------------------------------- production pin: that pair or nothing
+
+    [Fact]
+    public void ResolvePinned_CompletePairBundledForTheHost_IsThatPair()
+    {
+        var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.2.0"), Available(SlicerEngine.OrcaSlicer, "2.3.0"));
+
+        sut.ResolvePinned(SlicerEngine.OrcaSlicer, "2.2.0").Should().Be(new SlicerRef(SlicerEngine.OrcaSlicer, "2.2.0"));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData(SlicerEngine.OrcaSlicer, null)]
+    [InlineData(null, "2.2.0")]
+    [InlineData(SlicerEngine.OrcaSlicer, " ")]
+    public void ResolvePinned_IncompletePin_IsBlockedNeverFilledFromTheFarmDefaultOrTheNewestVersion(SlicerEngine? engine, string? version)
+    {
+        var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.2.0"), Available(SlicerEngine.OrcaSlicer, "2.3.0"));
+
+        var act = () => sut.ResolvePinned(engine, version);
+
+        act.Should().Throw<SlicingProfileUnconfiguredException>().Which.Code.Should().Be("NoPin");
+    }
+
+    [Fact]
+    public void ResolvePinned_PairNotBundled_IsUnavailableNotSubstituted()
+    {
+        var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.3.0"));
+
+        var act = () => sut.ResolvePinned(SlicerEngine.OrcaSlicer, "2.2.0");
+
+        act.Should().Throw<SlicerUnavailableException>();
+    }
+
+    // ---------------------------------------------------------------- replacing or reprocessing a part
+
+    [Fact]
+    public void ResolveKeepingPin_NothingRequested_KeepsTheCurrentPinOverTheFarmDefault()
+    {
+        var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.2.0"), Available(SlicerEngine.BambuStudio, "2.7.1"));
+
+        var result = sut.ResolveKeepingPin(null, null, SlicerEngine.OrcaSlicer, "2.2.0", new SlicerRef(SlicerEngine.BambuStudio, "2.7.1"));
+
+        result.Should().Be(new SlicerRef(SlicerEngine.OrcaSlicer, "2.2.0"));
+    }
+
+    [Fact]
+    public void ResolveKeepingPin_ExplicitPair_MovesThePart()
+    {
+        var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.2.0"), Available(SlicerEngine.BambuStudio, "2.7.1"));
+
+        var result = sut.ResolveKeepingPin(SlicerEngine.BambuStudio, "2.7.1", SlicerEngine.OrcaSlicer, "2.2.0", null);
+
+        result.Should().Be(new SlicerRef(SlicerEngine.BambuStudio, "2.7.1"));
+    }
+
+    [Fact]
+    public void ResolveKeepingPin_EngineOnly_MovesToTheNewestVersionOfThatEngine()
+    {
+        var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.2.0"), Available(SlicerEngine.OrcaSlicer, "2.3.0"));
+
+        sut.ResolveKeepingPin(SlicerEngine.OrcaSlicer, null, SlicerEngine.OrcaSlicer, "2.2.0", null)
+            .Should().Be(new SlicerRef(SlicerEngine.OrcaSlicer, "2.3.0"));
+    }
+
+    [Fact]
+    public void ResolveKeepingPin_PartWithoutAPin_TakesTheFarmDefault()
+    {
+        var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.2.0"), Available(SlicerEngine.BambuStudio, "2.7.1"));
+
+        sut.ResolveKeepingPin(null, null, null, null, new SlicerRef(SlicerEngine.BambuStudio, "2.7.1"))
+            .Should().Be(new SlicerRef(SlicerEngine.BambuStudio, "2.7.1"));
+    }
+
+    [Fact]
+    public void ResolveKeepingPin_CurrentPinNoLongerBundled_IsUnavailableNotReplacedByTheDefault()
+    {
+        var sut = CreateSut(Available(SlicerEngine.OrcaSlicer, "2.3.0"));
+
+        var act = () => sut.ResolveKeepingPin(null, null, SlicerEngine.OrcaSlicer, "2.2.0", new SlicerRef(SlicerEngine.OrcaSlicer, "2.3.0"));
+
+        act.Should().Throw<SlicerUnavailableException>();
+    }
+
     private static AvailableSlicer Available(SlicerEngine engine, string version) =>
         new(engine, version, SlicerPlatform.Linux, $"/bundle/{engine}/{version}/linux/slicer");
-
-    private sealed class FakeAvailableSlicerCatalog(IReadOnlyList<AvailableSlicer> available) : IAvailableSlicerCatalog
-    {
-        public IReadOnlyList<AvailableSlicer> GetAvailable() => available;
-
-        public AvailableSlicer? Find(SlicerRef slicerRef, SlicerPlatform platform) =>
-            available.FirstOrDefault(a =>
-                a.Engine == slicerRef.Engine
-                && string.Equals(a.Version, slicerRef.Version, StringComparison.Ordinal)
-                && a.Platform == platform);
-    }
-
-    private sealed class FakeHostPlatformProvider(SlicerPlatform current) : IHostPlatformProvider
-    {
-        public SlicerPlatform Current { get; } = current;
-    }
 }

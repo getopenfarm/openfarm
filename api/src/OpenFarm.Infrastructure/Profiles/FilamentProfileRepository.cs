@@ -18,23 +18,46 @@ public sealed class FilamentProfileRepository(OpenFarmDbContext dbContext) : IFi
     public Task<FilamentProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.FilamentProfiles.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
-    public async Task<IReadOnlyList<FilamentProfile>> ListAsync(CancellationToken cancellationToken) =>
-        await dbContext.FilamentProfiles.AsNoTracking().OrderBy(p => p.Name).ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<FilamentProfile>> ListAsync(CancellationToken cancellationToken, ProfileCatalogScope? scope = null)
+    {
+        var query = dbContext.FilamentProfiles.AsNoTracking();
+        if (scope is not null)
+        {
+            query = query.Where(scope.Predicate<FilamentProfile>());
+        }
 
-    public async Task<IReadOnlyList<FilamentProfile>> FindByNameAsync(
+        return await query.OrderBy(p => p.Name).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FilamentProfile>> FindByNameInCatalogAsync(
+        ProfileSourceFormat sourceFormat, string? sourceVersion, string name, CancellationToken cancellationToken) =>
+        await dbContext.FilamentProfiles
+            .AsNoTracking()
+            .Where(p => p.SourceFormat == sourceFormat && p.Name == name
+                && (p.Origin == ProfileOrigin.User || p.SourceVersion == sourceVersion))
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<FilamentProfile>> FindByNameAnyVersionAsync(
         ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
         await dbContext.FilamentProfiles
             .AsNoTracking()
             .Where(p => p.SourceFormat == sourceFormat && p.Name == name)
             .ToListAsync(cancellationToken);
 
-    public Task<FilamentProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
-        dbContext.FilamentProfiles.FirstOrDefaultAsync(
-            p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId, cancellationToken);
+    public async Task<IReadOnlyList<FilamentProfile>> FindInCatalogByIdentityAsync(
+        ProfileSourceFormat sourceFormat, string sourceVersion, string? externalId, string? vendorName, string name, CancellationToken cancellationToken) =>
+        await dbContext.FilamentProfiles
+            .AsNoTracking()
+            .Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion
+                && ((externalId != null && p.ExternalId == externalId) || (p.VendorName == vendorName && p.Name == name)))
+            .ToListAsync(cancellationToken);
 
-    public Task<FilamentProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
-        dbContext.FilamentProfiles.FirstOrDefaultAsync(
-            p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name, cancellationToken);
+    public async Task<IReadOnlyList<FilamentProfile>> ListSystemCatalogAsync(ProfileSourceFormat sourceFormat, string? sourceVersion, CancellationToken cancellationToken) =>
+        await dbContext.FilamentProfiles
+            .Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion)
+            .ToListAsync(cancellationToken);
+
+    public void Stage(FilamentProfile profile) => dbContext.FilamentProfiles.Add(profile);
 
     public async Task<(IReadOnlyList<FilamentProfile> Items, int TotalCount)> SearchAsync(
         ProfileOrigin? origin,
@@ -44,9 +67,14 @@ public sealed class FilamentProfileRepository(OpenFarmDbContext dbContext) : IFi
         string? searchText,
         int page,
         int pageSize,
-        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
+        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null, ProfileCatalogScope? catalog = null)
     {
         var query = dbContext.FilamentProfiles.AsNoTracking().AsQueryable();
+
+        if (catalog is not null)
+        {
+            query = query.Where(catalog.Predicate<FilamentProfile>());
+        }
 
         if (origin is { } requestedOrigin)
         {

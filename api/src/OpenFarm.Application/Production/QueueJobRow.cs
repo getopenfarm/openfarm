@@ -8,6 +8,7 @@ namespace OpenFarm.Application.Production;
 /// <c>ORDER BY QueuePosition</c> query, no tree assembly needed for this lens.
 /// </summary>
 /// <param name="IsBlocked">Pinned + target printer unavailable (FR-007c) — always false until US2's Pin exists.</param>
+/// <param name="LastBlockReason">Why the last attempt to send this job failed after a printer matched it; <c>null</c> when none did.</param>
 /// <remarks>A print started on the printer has no queue position, part, plate or run: those fields are null for it.</remarks>
 public sealed record QueueJobRow(
     Guid JobId,
@@ -23,4 +24,5 @@ public sealed record QueueJobRow(
     Guid? RunLineId,
     Guid? ProductionRunId,
     string RunDisplayLabel, string? BlockingReason = null, bool SourcePartAvailable = true, string SnapshotState = "Ready", string? SnapshotRecoveryReason = null,
-    PrintSource Source = PrintSource.Dispatched, DateTimeOffset? StartedAtUtc = null, DateTimeOffset? EndedAtUtc = null);
+    PrintSource Source = PrintSource.Dispatched, DateTimeOffset? StartedAtUtc = null, DateTimeOffset? EndedAtUtc = null,
+    string? LastBlockReason = null);

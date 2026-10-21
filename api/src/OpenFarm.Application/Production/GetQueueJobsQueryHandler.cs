@@ -67,7 +67,7 @@ public sealed class GetQueueJobsQueryHandler(
                 isBlocked, requirement.PartId, job.GetProductionPart()?.Name ?? requirement.PartName ?? part?.Name ?? "Unknown part", job.PlateQuantity,
                 requirement.RunLineId, runInfo.RunId, runInfo.DisplayLabel,
                 isBlocked && eligibilityQuery is not null ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null, part is not null, job.GetSnapshotState(), job.SnapshotRecoveryReason,
-                job.Source, job.StartedAtUtc, job.EndedAtUtc));
+                job.Source, job.StartedAtUtc, job.EndedAtUtc, job.Status == PrintJobStatus.Queued ? job.LastBlockReason : null));
         }
 
         return new QueueJobsPage(items, totalCount, statusCounts);

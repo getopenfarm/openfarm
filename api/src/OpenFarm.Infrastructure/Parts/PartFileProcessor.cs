@@ -48,8 +48,8 @@ public sealed class PartFileProcessor(
             var selection = settings is null ? null : UpdateSlicingDefaultsCommandHandler.GetSelection(settings);
             if (selection is null || estimationProfiles is null)
                 unavailable = "Estimation unavailable: select default estimation profiles in Settings → Slicing Defaults.";
-            else if (job.SlicerEngineUsed is { } engine)
-                (defaults, details) = await estimationProfiles.ResolveAsync(selection, engine, cancellationToken);
+            else if (job.SlicerEngineUsed is { } engine && job.SlicerVersionUsed is { } version)
+                (defaults, details) = await estimationProfiles.ResolveAsync(selection, new SlicerRef(engine, version), cancellationToken);
             unavailable ??= AvailabilityReason(job, embedded: false);
         }
         catch (SlicingProfileUnconfiguredException ex) { unavailable = $"Estimation unavailable: {ex.Message}"; }

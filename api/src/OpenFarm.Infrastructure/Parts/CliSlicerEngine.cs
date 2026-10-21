@@ -23,7 +23,6 @@ public sealed partial class CliSlicerEngine(
     IAvailableSlicerCatalog catalog,
     IHostPlatformProvider hostPlatform,
     IEnumerable<ISlicerInvocation> invocationStrategies,
-    ResolveSlicingProfileSelection profileSelection,
     IOptions<SlicerOptions> options,
     ILogger<CliSlicerEngine> logger) : ISlicerEngine
 {
@@ -33,7 +32,7 @@ public sealed partial class CliSlicerEngine(
         try
         {
             return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, configuration.MaterialType ?? string.Empty,
-                configuration.NozzleDiameterMm ?? 0, null, cancellationToken, configuration);
+                configuration.NozzleDiameterMm ?? 0, configuration, configuration.Profiles, cancellationToken);
         }
         catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException
             && ex is not SlicerUnavailableException && ex is not SlicingProfileUnconfiguredException)
@@ -43,39 +42,30 @@ public sealed partial class CliSlicerEngine(
     public async Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
         string materialType, decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken)
     {
-        try { return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, printerId, cancellationToken, productionProfiles: profiles); }
+        // Closes the rest of the exception surface the Process.Start-specific catch below doesn't cover — temp-dir/file
+        // I/O errors or unparseable output must surface as SlicingFailedException too, or it escapes
+        // RunEstimateContinuationAsync's catch and leaves the job/part silently stuck in "Resolving" forever
+        // (research.md §4). Genuine caller-requested cancellation, an availability mismatch (which should have already
+        // been caught upstream by ResolveSlicerSelection), and an unconfigured slicing profile
+        // (ResolveSlicingProfileSelection) are deliberately left unconverted so they're still recognizable as what
+        // they are, each with its own distinct ProblemDetails title.
+        try { return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, estimation: null, profiles, cancellationToken); }
         catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException
             && ex is not SlicerUnavailableException && ex is not SlicingProfileUnconfiguredException)
         { throw new SlicingFailedException($"Slicing failed: {ex.Message}", ex); }
     }
 
-    public async Task<SlicingResult> SliceAsync(
-        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
-        Guid? printerId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await SliceCoreAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, printerId, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not SlicingFailedException && ex is not OperationCanceledException
-            && ex is not SlicerUnavailableException && ex is not SlicingProfileUnconfiguredException)
-        {
-            // Closes the rest of the exception surface the Process.Start-specific catch below
-            // doesn't cover — temp-dir/file I/O errors or unparseable output must surface as
-            // SlicingFailedException too, or it escapes RunEstimateContinuationAsync's catch and
-            // leaves the job/part silently stuck in "Resolving" forever (research.md §4).
-            // Genuine caller-requested cancellation, an availability mismatch (which should have
-            // already been caught upstream by ResolveSlicerSelection), and an unconfigured slicing
-            // profile (ResolveSlicingProfileSelection) are deliberately left unconverted so they're
-            // still recognizable as what they are, each with its own distinct ProblemDetails title.
-            throw new SlicingFailedException($"Slicing failed: {ex.Message}", ex);
-        }
-    }
-
     private async Task<SlicingResult> SliceCoreAsync(
         SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
-        Guid? printerId, CancellationToken cancellationToken, EstimationConfiguration? estimation = null, ResolvedSlicingProfiles? productionProfiles = null)
+        EstimationConfiguration? estimation, ResolvedSlicingProfiles? resolvedProfiles, CancellationToken cancellationToken)
     {
+        // The presets were resolved for one exact slicer; running them in another would slice with data the operator never chose.
+        if (resolvedProfiles is not null && resolvedProfiles.Pin != slicer)
+        {
+            throw new SlicingProfileUnconfiguredException(
+                $"The profiles were resolved for {resolvedProfiles.Pin.Engine} {resolvedProfiles.Pin.Version}, not {slicer.Engine} {slicer.Version}.");
+        }
+
         var platform = hostPlatform.Current;
         var available = catalog.Find(slicer, platform)
             ?? throw new SlicerUnavailableException(slicer.Engine, slicer.Version, platform);
@@ -94,10 +84,6 @@ public sealed partial class CliSlicerEngine(
 
             // Only OrcaSlicer/Bambu Studio need real, complete presets (PrusaSliceFamilyInvocation) —
             // SuperSlicer builds plain scalar flags and never looks at this.
-            var resolvedProfiles = productionProfiles ?? (estimation is not null ? estimation.Profiles
-                : slicer.Engine is SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio
-                    ? await profileSelection.ResolveAsync(printerId, materialType, narrowedFilamentProfileId: null, cancellationToken, slicer.Engine) : null);
-
             if (resolvedProfiles is not null)
             {
                 LogResolvedSlicingProfiles(logger, slicer.Engine, resolvedProfiles.MachineProfileName, resolvedProfiles.ProcessProfileName, resolvedProfiles.FilamentProfileName);
@@ -164,7 +150,10 @@ public sealed partial class CliSlicerEngine(
 
                 if (process.ExitCode != 0 || !File.Exists(processInvocation.OutputPath))
                 {
-                    throw new SlicingFailedException($"The {slicer.Engine} CLI exited with code {process.ExitCode}: {errorOutput}");
+                    LogSlicerFailed(logger, slicer.Engine, process.ExitCode, errorOutput);
+                    var meaning = SlicerCliExitCodes.Describe(process.ExitCode);
+                    throw new SlicingFailedException(
+                        $"The {slicer.Engine} CLI exited with code {process.ExitCode}{(meaning is null ? "" : $" ({meaning})")}: {errorOutput}");
                 }
 
                 if (processInvocation.ProducesGCodeBearingThreeMf)
@@ -237,6 +226,11 @@ public sealed partial class CliSlicerEngine(
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{Engine} CLI exited with code {ExitCode} after {ElapsedMilliseconds}ms")]
     private static partial void LogSlicerExited(ILogger logger, SlicerEngine engine, int exitCode, long elapsedMilliseconds);
+
+    // Warning (not Debug) so a failed slice leaves a server-side trace even at the production log level;
+    // a native crash (exit 139) otherwise reaches the user as a bare code with an empty stderr.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Engine} CLI failed with exit code {ExitCode}: {StdErr}")]
+    private static partial void LogSlicerFailed(ILogger logger, SlicerEngine engine, int exitCode, string stdErr);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Using slicing profiles for {Engine}: machine={MachineProfileName} process={ProcessProfileName} filament={FilamentProfileName}")]
     private static partial void LogResolvedSlicingProfiles(ILogger logger, SlicerEngine engine, string machineProfileName, string processProfileName, string filamentProfileName);

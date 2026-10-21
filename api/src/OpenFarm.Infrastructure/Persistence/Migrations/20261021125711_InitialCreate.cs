@@ -159,6 +159,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     Origin = table.Column<string>(type: "text", nullable: false),
                     VendorName = table.Column<string>(type: "text", nullable: true),
                     ExternalId = table.Column<string>(type: "text", nullable: true),
+                    SourceVersion = table.Column<string>(type: "text", nullable: true),
                     IsCurrentlyOffered = table.Column<bool>(type: "boolean", nullable: false),
                     IsSelectable = table.Column<bool>(type: "boolean", nullable: false),
                     CompatibleMachineNames = table.Column<string>(type: "jsonb", nullable: true),
@@ -168,6 +169,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_FilamentProfiles", x => x.Id);
+                    table.CheckConstraint("CK_FilamentProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)");
                     table.ForeignKey(
                         name: "FK_FilamentProfiles_FilamentProfiles_BaseProfileId",
                         column: x => x.BaseProfileId,
@@ -190,6 +192,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     Origin = table.Column<string>(type: "text", nullable: false),
                     VendorName = table.Column<string>(type: "text", nullable: true),
                     ExternalId = table.Column<string>(type: "text", nullable: true),
+                    SourceVersion = table.Column<string>(type: "text", nullable: true),
                     IsCurrentlyOffered = table.Column<bool>(type: "boolean", nullable: false),
                     IsSelectable = table.Column<bool>(type: "boolean", nullable: false),
                     VendorMachineModelName = table.Column<string>(type: "text", nullable: true),
@@ -198,6 +201,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_MachineProfiles", x => x.Id);
+                    table.CheckConstraint("CK_MachineProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)");
                     table.ForeignKey(
                         name: "FK_MachineProfiles_MachineProfiles_BaseProfileId",
                         column: x => x.BaseProfileId,
@@ -213,6 +217,18 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false),
                     UnitCost = table.Column<decimal>(type: "numeric", nullable: true),
+                    ItemType = table.Column<string>(type: "text", nullable: false, defaultValue: "Physical"),
+                    Category = table.Column<string>(type: "text", nullable: false, defaultValue: "Hardware"),
+                    Unit = table.Column<string>(type: "text", nullable: false, defaultValue: "Piece"),
+                    PricingMode = table.Column<string>(type: "text", nullable: false, defaultValue: "Direct"),
+                    PackageLabel = table.Column<string>(type: "text", nullable: true),
+                    PackagePrice = table.Column<decimal>(type: "numeric", nullable: true),
+                    PackageQuantity = table.Column<decimal>(type: "numeric", nullable: true),
+                    Length = table.Column<decimal>(type: "numeric", nullable: true),
+                    LengthUnit = table.Column<string>(type: "text", nullable: false, defaultValue: "m"),
+                    Width = table.Column<decimal>(type: "numeric", nullable: true),
+                    WidthUnit = table.Column<string>(type: "text", nullable: false, defaultValue: "m"),
+                    Icon = table.Column<string>(type: "text", nullable: true),
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     UpdatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
@@ -314,6 +330,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     Origin = table.Column<string>(type: "text", nullable: false),
                     VendorName = table.Column<string>(type: "text", nullable: true),
                     ExternalId = table.Column<string>(type: "text", nullable: true),
+                    SourceVersion = table.Column<string>(type: "text", nullable: true),
                     IsCurrentlyOffered = table.Column<bool>(type: "boolean", nullable: false),
                     IsSelectable = table.Column<bool>(type: "boolean", nullable: false),
                     CompatibleMachineNames = table.Column<string>(type: "jsonb", nullable: true)
@@ -321,6 +338,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ProcessProfiles", x => x.Id);
+                    table.CheckConstraint("CK_ProcessProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)");
                     table.ForeignKey(
                         name: "FK_ProcessProfiles_ProcessProfiles_BaseProfileId",
                         column: x => x.BaseProfileId,
@@ -502,6 +520,39 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AssemblyCostLines",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    AssemblyId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CatalogItemId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Purpose = table.Column<string>(type: "text", nullable: false),
+                    Quantity = table.Column<decimal>(type: "numeric", nullable: false),
+                    InputMode = table.Column<string>(type: "text", nullable: false),
+                    Length = table.Column<decimal>(type: "numeric", nullable: true),
+                    LengthUnit = table.Column<string>(type: "text", nullable: false),
+                    Width = table.Column<decimal>(type: "numeric", nullable: true),
+                    WidthUnit = table.Column<string>(type: "text", nullable: false),
+                    Pieces = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AssemblyCostLines", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AssemblyCostLines_Assemblies_AssemblyId",
+                        column: x => x.AssemblyId,
+                        principalTable: "Assemblies",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_AssemblyCostLines_NonPrintedComponents_CatalogItemId",
+                        column: x => x.CatalogItemId,
+                        principalTable: "NonPrintedComponents",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "PartProcessingJobPreviewThumbnails",
                 columns: table => new
                 {
@@ -574,6 +625,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     DetectedSubBrand = table.Column<string>(type: "text", nullable: true),
                     NarrowFilamentVariantId = table.Column<Guid>(type: "uuid", nullable: true),
                     NarrowFilamentProfileId = table.Column<Guid>(type: "uuid", nullable: true),
+                    EstimatedGrams = table.Column<decimal>(type: "numeric", nullable: true),
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -688,6 +740,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    PricePerKg = table.Column<decimal>(type: "numeric", nullable: true),
                     VendorId = table.Column<Guid>(type: "uuid", nullable: false),
                     Material = table.Column<string>(type: "text", nullable: false),
                     MaterialType = table.Column<string>(type: "text", nullable: false),
@@ -774,6 +827,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    PricePerKg = table.Column<decimal>(type: "numeric", nullable: true),
                     FilamentId = table.Column<Guid>(type: "uuid", nullable: false),
                     ColorName = table.Column<string>(type: "text", nullable: false),
                     ColorHex = table.Column<string>(type: "text", nullable: false),
@@ -924,6 +978,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     CancelRequestedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     RequeuedAsJobId = table.Column<Guid>(type: "uuid", nullable: true),
                     HasFilamentRequirementOverride = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    DispatchProvenanceJson = table.Column<string>(type: "jsonb", nullable: true),
+                    LastBlockReason = table.Column<string>(type: "text", nullable: true),
+                    LastBlockedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    BlockFailureCount = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                     xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
@@ -1059,6 +1117,17 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_AssemblyCostLines_AssemblyId_CatalogItemId",
+                table: "AssemblyCostLines",
+                columns: new[] { "AssemblyId", "CatalogItemId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssemblyCostLines_CatalogItemId",
+                table: "AssemblyCostLines",
+                column: "CatalogItemId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_BomLines_AssemblyId_TargetAssemblyId",
                 table: "BomLines",
                 columns: new[] { "AssemblyId", "TargetAssemblyId" },
@@ -1143,16 +1212,16 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 column: "BaseProfileId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_FilamentProfiles_SourceFormat_VendorName_ExternalId",
+                name: "IX_FilamentProfiles_SourceFormat_SourceVersion_VendorName_Exte~",
                 table: "FilamentProfiles",
-                columns: new[] { "SourceFormat", "VendorName", "ExternalId" },
+                columns: new[] { "SourceFormat", "SourceVersion", "VendorName", "ExternalId" },
                 unique: true,
                 filter: "\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_FilamentProfiles_SourceFormat_VendorName_Name",
+                name: "IX_FilamentProfiles_SourceFormat_SourceVersion_VendorName_Name",
                 table: "FilamentProfiles",
-                columns: new[] { "SourceFormat", "VendorName", "Name" },
+                columns: new[] { "SourceFormat", "SourceVersion", "VendorName", "Name" },
                 unique: true,
                 filter: "\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
@@ -1173,16 +1242,16 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 column: "BaseProfileId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MachineProfiles_SourceFormat_VendorName_ExternalId",
+                name: "IX_MachineProfiles_SourceFormat_SourceVersion_VendorName_Exter~",
                 table: "MachineProfiles",
-                columns: new[] { "SourceFormat", "VendorName", "ExternalId" },
+                columns: new[] { "SourceFormat", "SourceVersion", "VendorName", "ExternalId" },
                 unique: true,
                 filter: "\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MachineProfiles_SourceFormat_VendorName_Name",
+                name: "IX_MachineProfiles_SourceFormat_SourceVersion_VendorName_Name",
                 table: "MachineProfiles",
-                columns: new[] { "SourceFormat", "VendorName", "Name" },
+                columns: new[] { "SourceFormat", "SourceVersion", "VendorName", "Name" },
                 unique: true,
                 filter: "\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
@@ -1282,16 +1351,16 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 column: "BaseProfileId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProcessProfiles_SourceFormat_VendorName_ExternalId",
+                name: "IX_ProcessProfiles_SourceFormat_SourceVersion_VendorName_Exter~",
                 table: "ProcessProfiles",
-                columns: new[] { "SourceFormat", "VendorName", "ExternalId" },
+                columns: new[] { "SourceFormat", "SourceVersion", "VendorName", "ExternalId" },
                 unique: true,
                 filter: "\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProcessProfiles_SourceFormat_VendorName_Name",
+                name: "IX_ProcessProfiles_SourceFormat_SourceVersion_VendorName_Name",
                 table: "ProcessProfiles",
-                columns: new[] { "SourceFormat", "VendorName", "Name" },
+                columns: new[] { "SourceFormat", "SourceVersion", "VendorName", "Name" },
                 unique: true,
                 filter: "\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 
@@ -1360,6 +1429,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetUserTokens");
+
+            migrationBuilder.DropTable(
+                name: "AssemblyCostLines");
 
             migrationBuilder.DropTable(
                 name: "BomLines");

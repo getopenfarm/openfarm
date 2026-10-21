@@ -16,7 +16,7 @@ public sealed class ReplacePartFileCommandHandler(
 {
     public async Task<AddPartResult> HandleAsync(ReplacePartFileCommand command, CancellationToken cancellationToken)
     {
-        _ = await partRepository.GetByIdAsync(command.PartId, cancellationToken)
+        var part = await partRepository.GetByIdAsync(command.PartId, cancellationToken)
             ?? throw new PartNotFoundException(command.PartId);
 
         var classification = classifier.Classify(command.File, command.FileName);
@@ -42,13 +42,17 @@ public sealed class ReplacePartFileCommandHandler(
             var settings = await settingsRepository.GetAsync(cancellationToken);
             try
             {
-                slicerUsed = resolveSlicerSelection.Resolve(command.SlicerEngineOverride, command.SlicerVersionOverride, settings.DefaultSlicer);
+                // No explicit choice keeps the part's own slicer: replacing the file never re-pins to the farm default.
+                slicerUsed = resolveSlicerSelection.ResolveKeepingPin(command.SlicerEngineOverride, command.SlicerVersionOverride,
+                    part.SlicerEngineOverride, part.SlicerVersionUsed, settings.DefaultSlicer);
             }
             catch (SlicerUnavailableException)
             {
-                // Preserve an explicit pair for reproducible retries even when it is unavailable.
+                // Preserve the chosen pair (explicit, else the part's current one) for reproducible retries even when it is unavailable.
                 if (command.SlicerEngineOverride is { } engine && command.SlicerVersionOverride is { } version)
                     slicerUsed = new SlicerRef(engine, version);
+                else if (command.SlicerEngineOverride is null && part.SlicerEngineOverride is { } pinnedEngine && part.SlicerVersionUsed is { } pinnedVersion)
+                    slicerUsed = new SlicerRef(pinnedEngine, pinnedVersion);
             }
 
 

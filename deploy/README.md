@@ -7,6 +7,8 @@ docker compose up -d      # http://<host>:8888, log in with the ADMIN_* values f
 ```
 
 - **Upgrade:** `docker compose pull && docker compose up -d` (migrations run at startup). Replace the existing application instance; do not run an overlapping instance against the same database. Expect brief downtime.
+- **Slicer profiles:** the image bundles the slicers listed in `slicers.manifest.json`, and the entrypoint loads their System profiles (machine / process / filament) on every start — one catalog per slicer version, so adding a version never overwrites another. To re-run it by hand:
+  `docker compose exec openfarm dotnet OpenFarm.Api.dll ingest-system-profiles` (idempotent).
 - **Backup:** `./data` (part files, camera snapshots, DataProtection keys) **and** the Postgres volume
   (`docker compose exec postgres pg_dump -U openfarm openfarm > backup.sql`). Losing `./data/keys`
   makes stored printer secrets undecryptable.

@@ -18,33 +18,49 @@ public sealed class FakeProcessProfileRepository : IProcessProfileRepository
     public Task<ProcessProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         Task.FromResult(_rows.FirstOrDefault(p => p.Id == id));
 
-    public Task<IReadOnlyList<ProcessProfile>> ListAsync(CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<ProcessProfile>>(_rows.ToList());
+    public Task<IReadOnlyList<ProcessProfile>> ListAsync(CancellationToken cancellationToken, ProfileCatalogScope? scope = null) =>
+        Task.FromResult<IReadOnlyList<ProcessProfile>>(
+            scope is null ? _rows.ToList() : _rows.Where(p => scope.Includes(p.Origin, p.SourceFormat, p.SourceVersion)).ToList());
 
-    public Task<IReadOnlyList<ProcessProfile>> FindByNameAsync(
+    public Task<IReadOnlyList<ProcessProfile>> FindByNameInCatalogAsync(
+        ProfileSourceFormat sourceFormat, string? sourceVersion, string name, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ProcessProfile>>(
+            _rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name
+                && (p.Origin == ProfileOrigin.User || p.SourceVersion == sourceVersion)).ToList());
+
+    public Task<IReadOnlyList<ProcessProfile>> FindByNameAnyVersionAsync(
         ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<ProcessProfile>>(
             _rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-    public Task<ProcessProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
-        Task.FromResult(_rows.FirstOrDefault(p =>
-            p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId));
+    public Task<IReadOnlyList<ProcessProfile>> FindInCatalogByIdentityAsync(
+        ProfileSourceFormat sourceFormat, string sourceVersion, string? externalId, string? vendorName, string name, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ProcessProfile>>(
+            _rows.Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion
+                && ((externalId != null && p.ExternalId == externalId) || (p.VendorName == vendorName && p.Name == name))).ToList());
 
-    public Task<ProcessProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
-        Task.FromResult(_rows.FirstOrDefault(p =>
-            p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+    public Task<IReadOnlyList<ProcessProfile>> ListSystemCatalogAsync(ProfileSourceFormat sourceFormat, string? sourceVersion, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ProcessProfile>>(
+            _rows.Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion).ToList());
+
+    public void Stage(ProcessProfile profile) => _rows.Add(profile);
 
     public Task<(IReadOnlyList<ProcessProfile> Items, int TotalCount)> SearchAsync(
-        ProfileOrigin? origin,
-        bool? isSelectable,
-        string? compatibleWithMachineName,
-        string? materialType,
-        string? searchText,
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken)
+            ProfileOrigin? origin,
+            bool? isSelectable,
+            string? compatibleWithMachineName,
+            string? materialType,
+            string? searchText,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken, ProfileCatalogScope? catalog = null)
     {
         var candidates = _rows.AsEnumerable();
+
+        if (catalog is not null)
+        {
+            candidates = candidates.Where(p => catalog.Includes(p.Origin, p.SourceFormat, p.SourceVersion));
+        }
 
         if (origin is { } requestedOrigin)
         {

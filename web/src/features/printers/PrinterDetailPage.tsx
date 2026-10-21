@@ -24,6 +24,7 @@ import { CurrentJobCard } from './components/CurrentJobCard';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { PrinterReportedStatus } from './components/PrinterReportedStatus';
+import { PrinterSlicerReadinessCard } from './components/PrinterSlicerReadinessCard';
 import { RecentActivityCard } from './components/RecentActivityCard';
 import { useMarkPrinterReady } from './hooks/useMarkPrinterReady';
 import { printerStatusToBadge } from './lib/printerStatusBadge';
@@ -202,6 +203,7 @@ export function PrinterDetailPage() {
                   )}
                 </CardContent>
               </Card>
+              <PrinterSlicerReadinessCard printerId={printer.id ?? ''} />
               <RecentActivityCard printerId={printer.id ?? ''} />
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { formatSlicer } from '@/features/slicing/formatSlicer';
 import type { EstimationDetails } from '@/lib/api/generated/endpoints.schemas';
 
 export function PartEstimationSource({
@@ -27,7 +28,7 @@ export function PartEstimationSource({
       )}
       {estimation.engine && (
         <p className="text-muted-foreground">
-          {estimation.engine} {estimation.version}
+          {formatSlicer(estimation.engine, estimation.version)}
         </p>
       )}
       {estimation.source !== 'EmbeddedSlicedMetadata' && (

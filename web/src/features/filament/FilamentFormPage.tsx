@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { invalidateSlicingChecks } from '@/features/slicing/invalidateSlicingChecks';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
@@ -371,6 +372,7 @@ function AddFilamentForm() {
       mutation: {
         onSuccess: () => {
           toast.success('Filament added.');
+          invalidateSlicingChecks(queryClient);
           queryClient.invalidateQueries({
             queryKey:
               getOpenFarmApiEndpointsFilamentsListFilamentsEndpointQueryKey(),
@@ -378,8 +380,10 @@ function AddFilamentForm() {
           markClean();
           navigate('/filament');
         },
-        onError: () => {
-          toast.error('Could not add filament.');
+        onError: async (error) => {
+          toast.error(
+            await extractErrorDetail(error, 'Could not add filament.'),
+          );
         },
       },
     },
@@ -627,6 +631,7 @@ function EditFilamentForm({
               filamentId,
             ),
         });
+        invalidateSlicingChecks(queryClient);
         toast.success('Filament saved.');
       },
       onError: async (error: unknown) => {

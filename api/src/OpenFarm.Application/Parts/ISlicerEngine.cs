@@ -31,19 +31,13 @@ public interface ISlicerEngine
         EstimationConfiguration configuration, CancellationToken cancellationToken) =>
         throw new SlicingFailedException("The selected slicer does not support file-based estimation.");
 
-    Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
-        string materialType, decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken)
-        => SliceAsync(slicer, modelFileStream, modelFileFormat, materialType, nozzleDiameterMm, printerId, cancellationToken);
-
+    /// <summary>
+    /// Slices with exactly the presets in <paramref name="profiles"/>, resolved for the pin it carries — an engine never
+    /// picks presets of its own, and <paramref name="slicer"/> must be that pin.
+    /// </summary>
     /// <param name="printerId">The assigned production printer. Library estimates use EstimateAsync.</param>
     /// <exception cref="SlicingFailedException">The CLI process failed, timed out, or produced unparseable output.</exception>
     /// <exception cref="SlicerUnavailableException"><paramref name="slicer"/> is not bundled for the host platform.</exception>
-    Task<SlicingResult> SliceAsync(
-        SlicerRef slicer,
-        Stream modelFileStream,
-        PartFileFormat modelFileFormat,
-        string materialType,
-        decimal nozzleDiameterMm,
-        Guid? printerId,
-        CancellationToken cancellationToken);
+    Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+        string materialType, decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken);
 }

@@ -130,6 +130,45 @@ export interface UnloadSpoolRequest {
   action?: string;
 }
 
+export interface ReadinessIssueResponse {
+  /** @nullable */
+  kind?: string | null;
+  code?: string;
+  message?: string;
+  link?: string;
+}
+
+export interface PrinterReadinessResponse {
+  printerId?: string;
+  printerName?: string;
+  issues?: ReadinessIssueResponse[];
+}
+
+export interface FilamentReadinessResponse {
+  filamentId?: string;
+  filamentName?: string;
+  brand?: string;
+  modelCode?: string;
+  nozzleDiameterMm?: number;
+  /** @nullable */
+  colorHex?: string | null;
+  profileName?: string;
+  printerIds?: string[];
+  issues?: ReadinessIssueResponse[];
+}
+
+export interface SlicingReadinessResponse {
+  engine?: string;
+  version?: string;
+  isReady?: boolean;
+  printers?: PrinterReadinessResponse[];
+  filaments?: FilamentReadinessResponse[];
+}
+
+export interface GetSlicingReadinessRequest {
+  [key: string]: unknown;
+}
+
 export interface EffectiveSlicerDefaultResponse {
   engine?: string;
   version?: string;
@@ -264,6 +303,8 @@ export interface FilamentProfileResponse {
   materialType?: string | null;
   sourceFormat?: string;
   /** @nullable */
+  sourceVersion?: string | null;
+  /** @nullable */
   baseProfileId?: string | null;
   /** @nullable */
   baseProfileName?: string | null;
@@ -306,6 +347,8 @@ export interface MachineProfileResponse {
   vendorName?: string | null;
   sourceFormat?: string;
   /** @nullable */
+  sourceVersion?: string | null;
+  /** @nullable */
   baseProfileId?: string | null;
   /** @nullable */
   baseProfileName?: string | null;
@@ -341,6 +384,8 @@ export interface ProcessProfileResponse {
   /** @nullable */
   vendorName?: string | null;
   sourceFormat?: string;
+  /** @nullable */
+  sourceVersion?: string | null;
   /** @nullable */
   baseProfileId?: string | null;
   /** @nullable */
@@ -625,6 +670,24 @@ export interface JobFilamentConsumptionResponse {
   toolIndex?: number;
 }
 
+export interface ResolvedPresetResponse {
+  kind?: string;
+  selectedName?: string;
+  resolvedName?: string;
+  /** @nullable */
+  settingId?: string | null;
+  /** @nullable */
+  sourceVersion?: string | null;
+  outcome?: string;
+}
+
+export interface DispatchProvenanceResponse {
+  engine?: string;
+  version?: string;
+  atUtc?: string;
+  presets?: ResolvedPresetResponse[];
+}
+
 export interface PrintJobResponse {
   id?: string;
   /** @nullable */
@@ -663,6 +726,11 @@ export interface PrintJobResponse {
   snapshotRecoveryReason?: string | null;
   source?: string;
   name?: string;
+  /** @nullable */
+  lastBlockReason?: string | null;
+  /** @nullable */
+  lastBlockedAtUtc?: string | null;
+  provenance?: DispatchProvenanceResponse | null;
 }
 
 export interface CancelPrintJobRequest {
@@ -745,6 +813,8 @@ export interface QueueJobRowResponse {
   snapshotState?: string;
   /** @nullable */
   snapshotRecoveryReason?: string | null;
+  /** @nullable */
+  lastBlockReason?: string | null;
   /** @nullable */
   partId?: string | null;
   partName?: string;
@@ -1210,6 +1280,13 @@ export interface ListPartsRequest {
 
 export interface ReplacePartFileRequest {
   file?: Blob;
+  /** @nullable */
+  slicerEngine?: string | null;
+  /** @nullable */
+  slicerVersion?: string | null;
+}
+
+export interface ReprocessPartRequest {
   /** @nullable */
   slicerEngine?: string | null;
   /** @nullable */
@@ -1805,6 +1882,17 @@ export type OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams = {
    * @nullable
    */
   pageSize?: number | null;
+};
+
+export type OpenFarmApiEndpointsSlicingGetSlicingReadinessEndpointParams = {
+  /**
+   * @nullable
+   */
+  engine?: string | null;
+  /**
+   * @nullable
+   */
+  version?: string | null;
 };
 
 export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {

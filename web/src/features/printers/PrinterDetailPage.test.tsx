@@ -7,6 +7,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { PrinterDetailPage } from './PrinterDetailPage';
 
+vi.mock('./components/PrinterSlicerReadinessCard', () => ({
+  PrinterSlicerReadinessCard: () => null,
+}));
+
 function renderPage(printerId: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

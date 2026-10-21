@@ -102,17 +102,26 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
 
     public new async Task DisposeAsync()
     {
-        // Stop workers before their database so teardown cannot race background queries.
-        await base.DisposeAsync();
-        await _postgres.StopAsync();
-
         try
         {
-            Directory.Delete(_slicerBundleDirectory, recursive: true);
-            if (Directory.Exists(_partFilesDirectory)) Directory.Delete(_partFilesDirectory, recursive: true);
+            // Stop workers before their database so teardown cannot race background queries.
+            await base.DisposeAsync();
         }
-        catch (IOException)
+        finally
         {
+            // Stopping the host can throw (it is reported as a class cleanup failure); the database container must
+            // still go. A leaked container stays up until the test process exits, and enough of them starve a small
+            // Docker VM so that later classes' Postgres is OOM-killed while initialising.
+            await _postgres.StopAsync();
+
+            try
+            {
+                Directory.Delete(_slicerBundleDirectory, recursive: true);
+                if (Directory.Exists(_partFilesDirectory)) Directory.Delete(_partFilesDirectory, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
         }
     }
 }

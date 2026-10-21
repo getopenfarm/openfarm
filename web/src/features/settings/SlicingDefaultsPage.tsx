@@ -15,6 +15,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
+import { formatSlicer } from '@/features/slicing/formatSlicer';
+import { invalidateSlicingChecks } from '@/features/slicing/invalidateSlicingChecks';
+import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import type {
   AvailableSlicerResponse,
   EstimationProfilesRequest,
@@ -83,6 +86,7 @@ export function SlicingDefaultsPage() {
         onSuccess: () => {
           toast.success('Slicing defaults saved.');
           query.refetch();
+          invalidateSlicingChecks(queryClient);
           queryClient.invalidateQueries({
             predicate: ({ queryKey }) =>
               typeof queryKey[0] === 'string' &&
@@ -151,8 +155,8 @@ export function SlicingDefaultsPage() {
               htmlFor="slicing-default-select"
               help={
                 effectiveDefault && !effectiveDefault.isExplicit
-                  ? 'No explicit default. Using the newest version.'
-                  : undefined
+                  ? 'No explicit default. The newest version is used. New parts only. Existing parts keep their slicer.'
+                  : 'New parts only. Existing parts keep their slicer.'
               }
               wide
             >
@@ -176,7 +180,8 @@ export function SlicingDefaultsPage() {
                       const key = selectionKey(slicer);
                       return (
                         <SelectItem key={key} value={key}>
-                          {slicer.engine} {slicer.version} ({slicer.platform})
+                          {formatSlicer(slicer.engine, slicer.version)} (
+                          {slicer.platform})
                         </SelectItem>
                       );
                     })}
@@ -185,6 +190,12 @@ export function SlicingDefaultsPage() {
               </Select>
             </SettingsRow>
           </SettingsRows>
+          {selection && (
+            <SlicerReadinessPanel
+              engine={selection.split('::')[0]}
+              version={selection.split('::')[1]}
+            />
+          )}
 
           <SettingsSubhead>Estimation profiles</SettingsSubhead>
           <SettingsRows>

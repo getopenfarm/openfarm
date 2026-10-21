@@ -36,6 +36,8 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { formatSlicer } from '@/features/slicing/formatSlicer';
+import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { PartResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -85,7 +87,7 @@ function PartFileFacts({ part }: { part: PartResponse }) {
   if (part.slicer?.engine) {
     facts.push([
       'Slicer',
-      `${part.slicer.engine} ${part.slicer.version ?? ''}`,
+      formatSlicer(part.slicer.engine, part.slicer.version),
     ]);
   }
   const estimation = part.estimation;
@@ -424,6 +426,12 @@ export function PartDetailPage() {
           />
 
           <PartRemovalToast notice={removalNotice} />
+          {part.slicer?.engine && part.slicer.version && (
+            <SlicerReadinessPanel
+              engine={part.slicer.engine}
+              version={part.slicer.version}
+            />
+          )}
           {(incomplete || (part?.processingWarnings ?? []).length > 0) && (
             <Alert role="status">
               <TriangleAlertIcon className="text-kind-amber" />
@@ -608,6 +616,7 @@ export function PartDetailPage() {
           <AddOrReplacePartDialog
             partId={part.id}
             partName={part.name}
+            currentSlicer={part.slicer}
             open={replaceOpen}
             onOpenChange={setReplaceOpen}
           />
@@ -615,6 +624,7 @@ export function PartDetailPage() {
           <AddOrReplacePartDialog
             partId={part.id}
             partName={part.name}
+            currentSlicer={part.slicer}
             mode="reprocess"
             open={reprocessOpen}
             onOpenChange={setReprocessOpen}

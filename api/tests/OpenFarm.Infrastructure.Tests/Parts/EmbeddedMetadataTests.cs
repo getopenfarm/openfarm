@@ -93,7 +93,7 @@ public class EmbeddedMetadataTests
     {
         var invocation = PrusaSliceFamilyInvocation.BuildEmbeddedProjectInvocation(
             new(SlicerEngine.OrcaSlicer, "2.3.1", SlicerPlatform.MacOs, "/orca"), "/input.3mf", "/work");
-        invocation.Arguments.Should().Be("--slice 0 --export-3mf \"/work/output.gcode.3mf\" \"/input.3mf\"");
+        invocation.Arguments.Should().Be("--slice 0 --allow-newer-file --export-3mf \"/work/output.gcode.3mf\" \"/input.3mf\"");
     }
 
     [Fact]

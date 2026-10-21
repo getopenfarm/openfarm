@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
+import { stripConfigurationLink } from '@/features/slicing/stripConfigurationLink';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
   ListQueueJobsResponse,
@@ -516,7 +517,7 @@ export function QueuePage() {
                                   </span>
                                 )}
                               </QueueTableCell>
-                              <QueueTableCell className="flex items-center whitespace-normal">
+                              <QueueTableCell className="flex flex-col items-start justify-center gap-0.5 whitespace-normal">
                                 <JobMatchingDialog
                                   jobId={job.jobId ?? ''}
                                   trigger={
@@ -539,6 +540,23 @@ export function QueuePage() {
                                     </Button>
                                   }
                                 />
+                                {job.isBlocked && job.blockingReason ? (
+                                  <span
+                                    className="line-clamp-2 text-destructive text-xs"
+                                    title={job.blockingReason}
+                                  >
+                                    {stripConfigurationLink(job.blockingReason)}
+                                  </span>
+                                ) : (
+                                  job.lastBlockReason && (
+                                    <span
+                                      className="line-clamp-2 text-destructive text-xs"
+                                      title={job.lastBlockReason}
+                                    >
+                                      Last attempt failed: {job.lastBlockReason}
+                                    </span>
+                                  )
+                                )}
                               </QueueTableCell>
                               <QueueTableCell className="flex items-center justify-end">
                                 <QueueJobActions

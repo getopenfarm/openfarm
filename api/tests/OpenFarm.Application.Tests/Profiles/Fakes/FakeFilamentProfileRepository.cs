@@ -9,42 +9,64 @@ public sealed class FakeFilamentProfileRepository : IFilamentProfileRepository
 
     public IReadOnlyList<FilamentProfile> Rows => _rows;
 
+    /// <summary>How many rows were read by id — a cheap proxy for how much work a caller did.</summary>
+    public int GetByIdCalls { get; private set; }
+
     public Task AddAsync(FilamentProfile profile, CancellationToken cancellationToken)
     {
         _rows.Add(profile);
         return Task.CompletedTask;
     }
 
-    public Task<FilamentProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        Task.FromResult(_rows.FirstOrDefault(p => p.Id == id));
+    public Task<FilamentProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        GetByIdCalls++;
+        return Task.FromResult(_rows.FirstOrDefault(p => p.Id == id));
+    }
 
-    public Task<IReadOnlyList<FilamentProfile>> ListAsync(CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<FilamentProfile>>(_rows.ToList());
+    public Task<IReadOnlyList<FilamentProfile>> ListAsync(CancellationToken cancellationToken, ProfileCatalogScope? scope = null) =>
+        Task.FromResult<IReadOnlyList<FilamentProfile>>(
+            scope is null ? _rows.ToList() : _rows.Where(p => scope.Includes(p.Origin, p.SourceFormat, p.SourceVersion)).ToList());
 
-    public Task<IReadOnlyList<FilamentProfile>> FindByNameAsync(
+    public Task<IReadOnlyList<FilamentProfile>> FindByNameInCatalogAsync(
+        ProfileSourceFormat sourceFormat, string? sourceVersion, string name, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<FilamentProfile>>(
+            _rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name
+                && (p.Origin == ProfileOrigin.User || p.SourceVersion == sourceVersion)).ToList());
+
+    public Task<IReadOnlyList<FilamentProfile>> FindByNameAnyVersionAsync(
         ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<FilamentProfile>>(
             _rows.Where(p => p.SourceFormat == sourceFormat && p.Name == name).ToList());
 
-    public Task<FilamentProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
-        Task.FromResult(_rows.FirstOrDefault(p =>
-            p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId));
+    public Task<IReadOnlyList<FilamentProfile>> FindInCatalogByIdentityAsync(
+        ProfileSourceFormat sourceFormat, string sourceVersion, string? externalId, string? vendorName, string name, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<FilamentProfile>>(
+            _rows.Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion
+                && ((externalId != null && p.ExternalId == externalId) || (p.VendorName == vendorName && p.Name == name))).ToList());
 
-    public Task<FilamentProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
-        Task.FromResult(_rows.FirstOrDefault(p =>
-            p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name));
+    public Task<IReadOnlyList<FilamentProfile>> ListSystemCatalogAsync(ProfileSourceFormat sourceFormat, string? sourceVersion, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<FilamentProfile>>(
+            _rows.Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion).ToList());
+
+    public void Stage(FilamentProfile profile) => _rows.Add(profile);
 
     public Task<(IReadOnlyList<FilamentProfile> Items, int TotalCount)> SearchAsync(
-        ProfileOrigin? origin,
-        bool? isSelectable,
-        string? compatibleWithMachineName,
-        string? materialType,
-        string? searchText,
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
+            ProfileOrigin? origin,
+            bool? isSelectable,
+            string? compatibleWithMachineName,
+            string? materialType,
+            string? searchText,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null, ProfileCatalogScope? catalog = null)
     {
         var candidates = _rows.AsEnumerable();
+
+        if (catalog is not null)
+        {
+            candidates = candidates.Where(p => catalog.Includes(p.Origin, p.SourceFormat, p.SourceVersion));
+        }
 
         if (origin is { } requestedOrigin)
         {

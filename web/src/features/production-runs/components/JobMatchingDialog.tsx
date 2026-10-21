@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { stripConfigurationLink } from '@/features/slicing/stripConfigurationLink';
 import type { MatchingCheck } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint } from '@/lib/api/generated/print-jobs/print-jobs';
 import { formatDateTime } from '@/lib/formatDateTime';
@@ -60,10 +61,7 @@ function CheckRow({
         {check.actual && <p>Actual: {check.actual}</p>}
         {check.message && (
           <p className="mt-1 break-words">
-            {check.message.replace(
-              /\s*Configure (?:in|profiles at) \/(?:filament|printers)\/[a-fA-F0-9-]+\/edit\.?/g,
-              '',
-            )}
+            {stripConfigurationLink(check.message)}
           </p>
         )}
         {check.configurationUrl && check.status === 'Failed' && (

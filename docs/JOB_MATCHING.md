@@ -27,9 +27,12 @@ replacement, editing a saved part, or overriding a queued job. Existing direct
 profile constraints are shown separately and can be cleared. Printer-specific
 filament profiles are resolved from the catalog filament's fleet assignments.
 
-Click **Why isn’t this printing?** on a queued job or its detail page. The modal
+Click **Job diagnosis** on a job's detail page, or the status link in its queue
+row (for example **No matching printer**). The modal
 shows effective requirements and their source, followed by each printer's checks,
-required/actual values and configuration links. Queue ordering and printer
+required/actual values and configuration links. The queue row also shows the
+blocking reason, and **Last attempt failed: …** when a dispatch attempt stopped
+after the job had passed the checks. Queue ordering and printer
 preference are shown separately from compatibility. Refresh reevaluates current
 data; opening diagnostics does not request dispatch.
 

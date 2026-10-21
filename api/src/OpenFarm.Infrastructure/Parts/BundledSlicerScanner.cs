@@ -88,12 +88,13 @@ public sealed partial class BundledSlicerScanner(IOptions<SlicerBundleOptions> o
     }
 
     /// <summary>
-    /// Every (engine, version, platform) leaf directory present under the root, regardless of whether
-    /// a resolvable executable exists there — used by System Profile ingestion (009), which only needs
-    /// each leaf directory to search it for <c>resources/profiles/</c> (<see cref="ResourcesProfilesLocator"/>),
-    /// not the bundled slicer's own binary.
+    /// One leaf directory per (engine, version) present under the root — the <paramref name="preferredPlatform"/>'s
+    /// when it has one, else the first by name — regardless of whether a resolvable executable exists there.
+    /// System Profile ingestion (009) only needs a leaf to search for <c>resources/profiles/</c>
+    /// (<see cref="ResourcesProfilesLocator"/>), not the bundled slicer's own binary, and a version's profile data
+    /// is the same on every platform, so ingesting each platform's copy would only repeat the same catalog.
     /// </summary>
-    public IReadOnlyList<string> ScanLeafDirectories()
+    public IReadOnlyList<string> ScanLeafDirectories(SlicerPlatform preferredPlatform)
     {
         var root = options.Value.RootDirectory;
         var results = new List<string>();
@@ -112,12 +113,15 @@ public sealed partial class BundledSlicerScanner(IOptions<SlicerBundleOptions> o
 
             foreach (var versionDir in Directory.EnumerateDirectories(engineDir).OrderBy(d => d, StringComparer.Ordinal))
             {
-                foreach (var platformDir in Directory.EnumerateDirectories(versionDir).OrderBy(d => d, StringComparer.Ordinal))
+                var platformDirs = Directory.EnumerateDirectories(versionDir)
+                    .Where(d => PlatformSlugs.ContainsKey(Path.GetFileName(d)))
+                    .OrderBy(d => d, StringComparer.Ordinal)
+                    .ToList();
+                var chosen = platformDirs.FirstOrDefault(d => PlatformSlugs[Path.GetFileName(d)] == preferredPlatform)
+                    ?? platformDirs.FirstOrDefault();
+                if (chosen is not null)
                 {
-                    if (PlatformSlugs.ContainsKey(Path.GetFileName(platformDir)))
-                    {
-                        results.Add(platformDir);
-                    }
+                    results.Add(chosen);
                 }
             }
         }

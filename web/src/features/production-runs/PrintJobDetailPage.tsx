@@ -25,7 +25,9 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { PartFilamentRequirementsList } from '@/features/parts/components/PartFilamentRequirementsList';
+import { formatSlicer } from '@/features/slicing/formatSlicer';
 import { apiUrl } from '@/lib/api/apiUrl';
+import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { PrintJobResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   useOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpoint,
@@ -363,7 +365,10 @@ export function PrintJobDetailPage() {
     });
     if (!response.ok) {
       toast.error(
-        'Could not retrieve job file. Assign a printer before slicing.',
+        await extractErrorDetail(
+          response,
+          'Could not retrieve job file. Assign a printer before slicing.',
+        ),
       );
       return;
     }
@@ -468,6 +473,11 @@ export function PrintJobDetailPage() {
                         ? 'job-source-warning'
                         : undefined
                     }
+                    title={
+                      job.provenance
+                        ? 'The file is made again with the current settings. It can differ from the sent file.'
+                        : undefined
+                    }
                   >
                     Download print file
                   </Button>
@@ -493,6 +503,35 @@ export function PrintJobDetailPage() {
               <AlertDescription>
                 {job.snapshotRecoveryReason ??
                   'The original production inputs could not be verified. Restore the original inputs or cancel and recreate the run.'}
+              </AlertDescription>
+            </Alert>
+          )}
+          {!external && job.status === 'Queued' && job.lastBlockReason && (
+            <Alert variant="destructive" id="job-last-attempt">
+              <AlertTitle>Last attempt failed</AlertTitle>
+              <AlertDescription>{job.lastBlockReason}</AlertDescription>
+            </Alert>
+          )}
+          {!external && job.provenance && (
+            <Alert id="job-provenance">
+              <AlertTitle>
+                Sliced with{' '}
+                {formatSlicer(job.provenance.engine, job.provenance.version)}
+              </AlertTitle>
+              <AlertDescription>
+                <ul>
+                  {(job.provenance.presets ?? []).map((preset) => (
+                    <li key={`${preset.kind}:${preset.resolvedName}`}>
+                      {preset.kind}: {preset.resolvedName}
+                      {preset.selectedName !== preset.resolvedName
+                        ? ` (selected: ${preset.selectedName})`
+                        : ''}
+                      {preset.outcome === 'MappedEngine'
+                        ? ' — the slicer’s own copy of the selected profile'
+                        : ''}
+                    </li>
+                  ))}
+                </ul>
               </AlertDescription>
             </Alert>
           )}

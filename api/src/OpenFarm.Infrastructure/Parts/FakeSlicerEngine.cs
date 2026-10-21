@@ -20,17 +20,16 @@ public sealed class FakeSlicerEngine : ISlicerEngine
     ];
 
     public Task<SlicingResult> EstimateAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
-        EstimationConfiguration configuration, CancellationToken cancellationToken) =>
-        SliceAsync(slicer, modelFileStream, modelFileFormat, configuration.MaterialType ?? "PLA",
-            configuration.NozzleDiameterMm ?? 0.4m, null, cancellationToken);
+        EstimationConfiguration configuration, CancellationToken cancellationToken) => Task.FromResult(Canned());
 
-    public Task<SlicingResult> SliceAsync(
-        SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType, decimal nozzleDiameterMm,
-        Guid? printerId, CancellationToken cancellationToken) =>
-        Task.FromResult(new SlicingResult(
-            PlateCount: 1,
-            EstimatedPrintTimeMinutes: 47,
-            EstimatedFilamentWeightGrams: 18.4m,
-            Thumbnails: [new ThumbnailSpec(0, OnePixelPng)],
-            OutputFileBytes: System.Text.Encoding.UTF8.GetBytes("; fake sliced gcode\n")));
+    public Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+        string materialType, decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken) =>
+        Task.FromResult(Canned());
+
+    private static SlicingResult Canned() => new(
+        PlateCount: 1,
+        EstimatedPrintTimeMinutes: 47,
+        EstimatedFilamentWeightGrams: 18.4m,
+        Thumbnails: [new ThumbnailSpec(0, OnePixelPng)],
+        OutputFileBytes: System.Text.Encoding.UTF8.GetBytes("; fake sliced gcode\n"));
 }

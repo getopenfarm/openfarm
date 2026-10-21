@@ -40,7 +40,13 @@ public sealed class ProfileCompatibility(IMachineProfileRepository machines, IFi
     public async Task<bool> MachineMatchesAsync(MachineProfile profile, string brand, string modelCode, decimal nozzleMm, CancellationToken ct)
     {
         if (!profile.IsSelectable || !profile.IsCurrentlyOffered) return false;
-        using var json = JsonDocument.Parse(await MachineJsonAsync(profile, ct));
+        return MachineJsonMatches(await MachineJsonAsync(profile, ct), brand, modelCode, nozzleMm);
+    }
+
+    /// <summary>The printer fit of an already-flattened machine preset.</summary>
+    public static bool MachineJsonMatches(string machineJson, string brand, string modelCode, decimal nozzleMm)
+    {
+        using var json = JsonDocument.Parse(machineJson);
         var root = json.RootElement;
         var nozzles = ReadStrings(root, "nozzle_diameter");
         if (!PrinterModelCatalog.TryResolve(brand, modelCode, out var registered)) return false;
@@ -58,28 +64,59 @@ public sealed class ProfileCompatibility(IMachineProfileRepository machines, IFi
     }
 
     public async Task ValidateFilamentAsync(FilamentProfile profile, string materialType, string brand, string modelCode,
-        decimal nozzleMm, CancellationToken ct, MachineProfile? targetMachine = null)
+        decimal nozzleMm, CancellationToken ct, MachineProfile? targetMachine = null, ProfileCatalogScope? scope = null)
     {
         if (!profile.IsSelectable || !profile.IsCurrentlyOffered)
             throw new SlicingProfileUnconfiguredException($"Filament profile '{profile.Name}' is no longer selectable.");
-        using var json = JsonDocument.Parse(await FilamentJsonAsync(profile, ct));
-        var root = json.RootElement;
-        if (!ReadStrings(root, "filament_type").Contains(materialType, StringComparer.Ordinal))
-            throw new SlicingProfileUnconfiguredException($"Filament profile '{profile.Name}' does not match material '{materialType}'.");
-        var compatible = ReadStrings(root, "compatible_printers");
-        var declaredNozzles = ReadStrings(root, "nozzle_diameter");
-        if (declaredNozzles.Any(n => !decimal.TryParse(n, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || value != nozzleMm))
-            throw new SlicingProfileUnconfiguredException($"Filament profile '{profile.Name}' does not match the {nozzleMm} mm nozzle.");
-        if (ReadStrings(root, "compatible_printers_condition").Any(c => !string.IsNullOrWhiteSpace(c)))
-            throw new SlicingProfileUnconfiguredException($"Filament profile '{profile.Name}' uses a compatibility expression that OpenFarm cannot validate. Import a profile with explicit compatible printers.");
+        var (compatible, problem) = InspectFilamentJson(profile.Name, await FilamentJsonAsync(profile, ct), materialType, nozzleMm);
+        if (problem is not null) throw new SlicingProfileUnconfiguredException(problem);
         if (compatible.Count == 0) return;
-        var candidates = targetMachine is null ? await machines.ListAsync(ct) : [targetMachine];
+        var candidates = targetMachine is null ? await machines.ListAsync(ct, scope) : [targetMachine];
         foreach (var machine in candidates)
         {
             if (compatible.Contains(machine.Name, StringComparer.Ordinal)
                 && await MachineMatchesAsync(machine, brand, modelCode, nozzleMm, ct)) return;
         }
         throw new SlicingProfileUnconfiguredException($"Filament profile '{profile.Name}' is incompatible with {modelCode} {nozzleMm} mm.");
+    }
+
+    /// <summary>
+    /// The same rules on the presets a slice will actually use — already resolved to the pinned slicer's catalog and
+    /// flattened. What was checked on the stored rows says nothing about the resolved ones: a preset's compatibility
+    /// lists differ between versions and engines.
+    /// </summary>
+    public static IReadOnlyList<ProfileIssue> ValidateResolvedSet(
+        ProfileUseContext use, MachineProfile machine, string machineJson, FilamentProfile filament, string filamentJson)
+    {
+        var issues = new List<ProfileIssue>();
+        if (!MachineJsonMatches(machineJson, use.Brand, use.ModelCode, use.NozzleMm))
+        {
+            issues.Add(new(ProfileKind.Machine, ProfileResolutionOutcome.Incompatible, machine.Name,
+                $"Machine profile '{machine.Name}' does not match {use.ModelCode} with its reported {use.NozzleMm} mm nozzle. Select a compatible machine profile."));
+        }
+
+        var (compatible, problem) = InspectFilamentJson(filament.Name, filamentJson, use.MaterialType, use.NozzleMm);
+        problem ??= compatible.Count > 0 && !compatible.Contains(machine.Name, StringComparer.Ordinal)
+            ? $"Filament profile '{filament.Name}' is incompatible with {use.ModelCode} {use.NozzleMm} mm."
+            : null;
+        if (problem is not null) issues.Add(new(ProfileKind.Filament, ProfileResolutionOutcome.Incompatible, filament.Name, problem));
+        return issues;
+    }
+
+    // The checks on a flattened filament preset that need no machine; also returns its declared compatible printers.
+    private static (IReadOnlyList<string> Compatible, string? Problem) InspectFilamentJson(
+        string name, string filamentJson, string materialType, decimal nozzleMm)
+    {
+        using var json = JsonDocument.Parse(filamentJson);
+        var root = json.RootElement;
+        if (!ReadStrings(root, "filament_type").Contains(materialType, StringComparer.Ordinal))
+            return ([], $"Filament profile '{name}' does not match material '{materialType}'.");
+        var declaredNozzles = ReadStrings(root, "nozzle_diameter");
+        if (declaredNozzles.Any(n => !decimal.TryParse(n, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || value != nozzleMm))
+            return ([], $"Filament profile '{name}' does not match the {nozzleMm} mm nozzle.");
+        if (ReadStrings(root, "compatible_printers_condition").Any(c => !string.IsNullOrWhiteSpace(c)))
+            return ([], $"Filament profile '{name}' uses a compatibility expression that OpenFarm cannot validate. Import a profile with explicit compatible printers.");
+        return (ReadStrings(root, "compatible_printers"), null);
     }
 
     public static IReadOnlyList<string> ReadStrings(JsonElement root, string key)

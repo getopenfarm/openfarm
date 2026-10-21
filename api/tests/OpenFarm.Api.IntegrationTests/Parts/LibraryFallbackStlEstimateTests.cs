@@ -30,13 +30,13 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
         var machine = MachineProfile.CreateSystemProfile(
             $"Library Fallback Machine {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"machine","nozzle_diameter":["0.4"]}""",
-            "System", Guid.NewGuid().ToString("N"), isSelectable: true, vendorMachineModelName: null, includedTemplateNames: null);
+            "System", Guid.NewGuid().ToString("N"), isSelectable: true, vendorMachineModelName: null, includedTemplateNames: null, sourceVersion: "2.2.0");
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var process = ProcessProfile.CreateSystemProfile(
             $"Library Fallback Process {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"process","layer_height":"0.2"}""",
-            "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null);
+            "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null, sourceVersion: "2.2.0");
         await processRepo.AddAsync(process, CancellationToken.None);
 
         var printer = Printer.Create(
@@ -58,7 +58,7 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
         var profile = FilamentProfile.CreateSystemProfile(
             $"Library Fallback PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"]}""",
-            "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null);
+            "System", Guid.NewGuid().ToString("N"), isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null, sourceVersion: "2.2.0");
         await filamentProfileRepo.AddAsync(profile, CancellationToken.None);
 
         return profile.Id;

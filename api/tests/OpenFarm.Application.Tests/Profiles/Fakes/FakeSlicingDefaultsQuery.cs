@@ -4,8 +4,8 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Tests.Profiles.Fakes;
 
-public sealed class FakeSlicingDefaultsQuery(SlicerEngine? engine = null) : IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>
+public sealed class FakeSlicingDefaultsQuery(SlicerEngine? engine = null, string version = "test") : IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>
 {
     public Task<SlicingDefaults> HandleAsync(GetSlicingDefaultsQuery query, CancellationToken cancellationToken) =>
-        Task.FromResult(new SlicingDefaults(engine is { } selected ? new(selected, "test", true) : null, []));
+        Task.FromResult(new SlicingDefaults(engine is { } selected ? new(selected, version, true) : null, []));
 }

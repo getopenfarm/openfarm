@@ -17,6 +17,7 @@ function setup(
   status: string,
   selectedVariantId?: string,
   snapshotState = 'Ready',
+  extra: Record<string, unknown> = {},
 ) {
   const requests = vi.fn(
     async (input: RequestInfo | URL, _init?: RequestInit) => {
@@ -31,6 +32,7 @@ function setup(
             : null,
         plateQuantity: 1,
         fileRevisionNumber: 1,
+        ...extra,
         filamentConsumption: [
           {
             materialType: 'PLA',
@@ -282,3 +284,73 @@ it.each([undefined, '', 'https://farm.example/'])(
     );
   },
 );
+
+const BLOCK_REASON =
+  "Process profile '0.20mm Standard @BBL X1C' is not in Bambu Studio 2.7.1. Select another profile, or pin the part to another slicer.";
+
+it('shows why the last dispatch attempt failed on a queued job', async () => {
+  setup('Queued', undefined, 'Ready', { lastBlockReason: BLOCK_REASON });
+
+  expect(await screen.findByText('Last attempt failed')).toBeInTheDocument();
+  expect(screen.getByText(BLOCK_REASON)).toBeInTheDocument();
+});
+
+it('does not show a stale block reason once the job is no longer queued', async () => {
+  setup('Printing', undefined, 'Ready', { lastBlockReason: BLOCK_REASON });
+
+  await screen.findByRole('button', { name: 'Job diagnosis' });
+  expect(screen.queryByText('Last attempt failed')).not.toBeInTheDocument();
+});
+
+it('shows the slicer and the profiles a job was sliced with', async () => {
+  setup('Printing', undefined, 'Ready', {
+    provenance: {
+      engine: 'BambuStudio',
+      version: '2.7.1',
+      presets: [
+        {
+          kind: 'Process',
+          selectedName: '0.20mm Standard @BBL X1C',
+          resolvedName: '0.20mm Standard @BBL X1C',
+          outcome: 'MappedEngine',
+        },
+        {
+          kind: 'Filament',
+          selectedName: 'Bambu PLA Basic @BBL X1C',
+          resolvedName: 'Bambu PLA Basic @BBL X1C v2',
+          outcome: 'MappedVersion',
+        },
+      ],
+    },
+  });
+
+  expect(
+    await screen.findByText('Sliced with Bambu Studio 2.7.1'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'Process: 0.20mm Standard @BBL X1C — the slicer’s own copy of the selected profile',
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'Filament: Bambu PLA Basic @BBL X1C v2 (selected: Bambu PLA Basic @BBL X1C)',
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Download print file' }),
+  ).toHaveAttribute(
+    'title',
+    'The file is made again with the current settings. It can differ from the sent file.',
+  );
+});
+
+it('shows no slicing provenance for a job that was never sliced', async () => {
+  setup('Queued');
+
+  await screen.findByRole('button', { name: 'Job diagnosis' });
+  expect(screen.queryByText(/^Sliced with/)).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Download print file' }),
+  ).not.toHaveAttribute('title');
+});

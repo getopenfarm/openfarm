@@ -16,23 +16,46 @@ public sealed class ProcessProfileRepository(OpenFarmDbContext dbContext) : IPro
     public Task<ProcessProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.ProcessProfiles.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
-    public async Task<IReadOnlyList<ProcessProfile>> ListAsync(CancellationToken cancellationToken) =>
-        await dbContext.ProcessProfiles.AsNoTracking().OrderBy(p => p.Name).ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<ProcessProfile>> ListAsync(CancellationToken cancellationToken, ProfileCatalogScope? scope = null)
+    {
+        var query = dbContext.ProcessProfiles.AsNoTracking();
+        if (scope is not null)
+        {
+            query = query.Where(scope.Predicate<ProcessProfile>());
+        }
 
-    public async Task<IReadOnlyList<ProcessProfile>> FindByNameAsync(
+        return await query.OrderBy(p => p.Name).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProcessProfile>> FindByNameInCatalogAsync(
+        ProfileSourceFormat sourceFormat, string? sourceVersion, string name, CancellationToken cancellationToken) =>
+        await dbContext.ProcessProfiles
+            .AsNoTracking()
+            .Where(p => p.SourceFormat == sourceFormat && p.Name == name
+                && (p.Origin == ProfileOrigin.User || p.SourceVersion == sourceVersion))
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProcessProfile>> FindByNameAnyVersionAsync(
         ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
         await dbContext.ProcessProfiles
             .AsNoTracking()
             .Where(p => p.SourceFormat == sourceFormat && p.Name == name)
             .ToListAsync(cancellationToken);
 
-    public Task<ProcessProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
-        dbContext.ProcessProfiles.FirstOrDefaultAsync(
-            p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId, cancellationToken);
+    public async Task<IReadOnlyList<ProcessProfile>> FindInCatalogByIdentityAsync(
+        ProfileSourceFormat sourceFormat, string sourceVersion, string? externalId, string? vendorName, string name, CancellationToken cancellationToken) =>
+        await dbContext.ProcessProfiles
+            .AsNoTracking()
+            .Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion
+                && ((externalId != null && p.ExternalId == externalId) || (p.VendorName == vendorName && p.Name == name)))
+            .ToListAsync(cancellationToken);
 
-    public Task<ProcessProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
-        dbContext.ProcessProfiles.FirstOrDefaultAsync(
-            p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name, cancellationToken);
+    public async Task<IReadOnlyList<ProcessProfile>> ListSystemCatalogAsync(ProfileSourceFormat sourceFormat, string? sourceVersion, CancellationToken cancellationToken) =>
+        await dbContext.ProcessProfiles
+            .Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion)
+            .ToListAsync(cancellationToken);
+
+    public void Stage(ProcessProfile profile) => dbContext.ProcessProfiles.Add(profile);
 
     public async Task<(IReadOnlyList<ProcessProfile> Items, int TotalCount)> SearchAsync(
         ProfileOrigin? origin,
@@ -42,10 +65,15 @@ public sealed class ProcessProfileRepository(OpenFarmDbContext dbContext) : IPro
         string? searchText,
         int page,
         int pageSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, ProfileCatalogScope? catalog = null)
     {
         // materialType has no matching column on ProcessProfile — ignored (research.md §6).
         var query = dbContext.ProcessProfiles.AsNoTracking().AsQueryable();
+
+        if (catalog is not null)
+        {
+            query = query.Where(catalog.Predicate<ProcessProfile>());
+        }
 
         if (origin is { } requestedOrigin)
         {

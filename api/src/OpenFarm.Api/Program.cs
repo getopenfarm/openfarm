@@ -342,6 +342,8 @@ builder.Services.AddSingleton<ISlicerInvocation, SuperSlicerInvocation>();
 builder.Services.AddScoped<ResolveSlicerSelection>();
 builder.Services.AddScoped<RepresentativeFilamentResolver>();
 builder.Services.AddScoped<ProfileCompatibility>();
+builder.Services.AddScoped<ProfileCatalogVersions>();
+builder.Services.AddScoped<ProfileResolver>();
 builder.Services.AddScoped<FeedPlacementResolver>();
 builder.Services.AddScoped<ProductionProfileReadiness>();
 builder.Services.AddScoped<ProductionJobRequirements>();
@@ -353,8 +355,6 @@ builder.Services.AddScoped<ResolveSlicingProfileSelection>();
 builder.Services.AddScoped<ResolveEstimationProfiles>();
 
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
-builder.Services.AddSingleton<ProfileEngineValidationCache>();
-builder.Services.AddScoped<IProfileEngineValidator, ProfileEngineValidator>();
 builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();
 builder.Services.AddScoped<IPartFileProcessor, PartFileProcessor>();
 
@@ -385,6 +385,7 @@ builder.Services.AddScoped<IQueryHandler<GetPartQuery, PartDetail?>, GetPartQuer
 builder.Services.AddScoped<IQueryHandler<GetPartFileQuery, PartFileDownload?>, GetPartFileQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<ListTagsQuery, IReadOnlyList<TagSummary>>, ListTagsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults>, GetSlicingDefaultsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<OpenFarm.Application.Slicing.GetSlicingReadinessQuery, OpenFarm.Application.Slicing.SlicingReadinessReport>, OpenFarm.Application.Slicing.GetSlicingReadinessQueryHandler>();
 
 builder.Services.AddScoped<CostCatalogService>();
 builder.Services.AddScoped<CreateAssemblyHandlerType, CreateAssemblyCommandHandler>();
@@ -544,19 +545,20 @@ if (args.Contains("ingest-system-profiles"))
     using var scope = app.Services.CreateScope();
 
     var scanner = scope.ServiceProvider.GetRequiredService<BundledSlicerScanner>();
-    var ingestionService = scope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>();
     var ingestionLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    var leaves = scanner.ScanLeafDirectories();
+    var leaves = scanner.ScanLeafDirectories(scope.ServiceProvider.GetRequiredService<IHostPlatformProvider>().Current);
     // CA1848 (LoggerMessage source-generation) and CA1873 (avoid evaluating log arguments when the
     // level is disabled) are both hot-path optimizations — this CLI entry point logs a handful of
     // times total per process lifetime, never in a request/loop-processing path.
 #pragma warning disable CA1848, CA1873
-    ingestionLogger.LogInformation("System Profile ingestion: found {LeafCount} bundled slicer leaf/leaves under the configured root.", leaves.Count);
+    ingestionLogger.LogInformation("System Profile ingestion: found {LeafCount} bundled slicer version(s) under the configured root.", leaves.Count);
 
     foreach (var leaf in leaves)
     {
-        var summary = await ingestionService.IngestAsync(leaf, CancellationToken.None);
+        // A scope (and so a DbContext) per leaf: one version's tracked rows are never carried into the next.
+        using var leafScope = app.Services.CreateScope();
+        var summary = await leafScope.ServiceProvider.GetRequiredService<ISystemProfileIngestionService>().IngestAsync(leaf, CancellationToken.None);
         ingestionLogger.LogInformation(
             "Ingested '{Leaf}': vendors scanned={VendorsScanned}, skipped={VendorsSkipped}; " +
             "machine created={MachineCreated} updated={MachineUpdated} stale={MachineStale}; " +

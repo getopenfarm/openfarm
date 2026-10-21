@@ -10,7 +10,8 @@ public sealed class FilamentProfileConfiguration : IEntityTypeConfiguration<Fila
 {
     public void Configure(EntityTypeBuilder<FilamentProfile> builder)
     {
-        builder.ToTable("FilamentProfiles");
+        builder.ToTable("FilamentProfiles", table => table.HasCheckConstraint(
+            "CK_FilamentProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)"));
 
         builder.HasKey(p => p.Id);
 
@@ -36,6 +37,7 @@ public sealed class FilamentProfileConfiguration : IEntityTypeConfiguration<Fila
 
         builder.Property(p => p.VendorName);
         builder.Property(p => p.ExternalId);
+        builder.Property(p => p.SourceVersion);
         builder.Property(p => p.IsCurrentlyOffered).IsRequired();
         builder.Property(p => p.IsSelectable).IsRequired();
         builder.Property(p => p.MaterialType);
@@ -68,11 +70,13 @@ public sealed class FilamentProfileConfiguration : IEntityTypeConfiguration<Fila
             .OnDelete(DeleteBehavior.SetNull);
 
         // Research.md §1 idempotency keys — same shape as MachineProfile/ProcessProfile.
-        builder.HasIndex(p => new { p.SourceFormat, p.VendorName, p.ExternalId })
+        // Per-version catalogs: a System row is unique per (engine, slicer version, vendor, identity). A System row
+        // always has a version (CK_*_SystemHasVersion), so the keys never contain NULL.
+        builder.HasIndex(p => new { p.SourceFormat, p.SourceVersion, p.VendorName, p.ExternalId })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-        builder.HasIndex(p => new { p.SourceFormat, p.VendorName, p.Name })
+        builder.HasIndex(p => new { p.SourceFormat, p.SourceVersion, p.VendorName, p.Name })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 

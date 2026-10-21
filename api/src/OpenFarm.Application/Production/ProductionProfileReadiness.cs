@@ -1,22 +1,30 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Application.Profiles;
-using OpenFarm.Application.Settings;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver resolver, IPrinterRepository printers,
-    ResolveSlicingProfileSelection profileSelection, ProfileCompatibility compatibility, IFarmSettingsRepository farmSettings,
-    ResolveSlicerSelection slicerSelection, IPartFileStorage storage, IPartFileClassifier classifier, IProfileEngineValidator engineValidator,
-    FeedPlacementResolver placements)
+/// <summary>
+/// What production uses for one job on one printer: the loaded spool and filament profile of each requirement, and —
+/// when the file needs slicing — the machine, process and filament presets resolved to the part's pinned slicer
+/// (<see cref="Profiles"/>, with its provenance). The file generator slices with exactly <see cref="Profiles"/>, so
+/// what was checked is what runs.
+/// </summary>
+public sealed record ProductionResolution(IReadOnlyList<ProductionFilamentSelection> Selections, ResolvedSlicingProfiles? Profiles);
+
+public sealed partial class ProductionProfileReadiness(RepresentativeFilamentResolver resolver, IPrinterRepository printers,
+    ResolveSlicingProfileSelection profileSelection, ProfileCompatibility compatibility,
+    ResolveSlicerSelection slicerSelection, IPartFileStorage storage, IPartFileClassifier classifier,
+    FeedPlacementResolver placements, ILogger<ProductionProfileReadiness> logger)
 {
-    public async Task<IReadOnlyList<ProductionFilamentSelection>> ResolveAsync(Guid printerId, Part part,
+    public async Task<ProductionResolution> ResolveAsync(Guid printerId, Part part,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, string? revisionHash = null)
     {
         var specs = requirements.Select(r =>
@@ -27,7 +35,7 @@ public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver re
         return await ResolveAsync(printerId, part, specs, ct, revisionHash);
     }
 
-    public async Task<IReadOnlyList<ProductionFilamentSelection>> ResolveAsync(Guid printerId, Part part,
+    public async Task<ProductionResolution> ResolveAsync(Guid printerId, Part part,
         IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null)
     {
         var requiresSlicing = await RequiresSlicingAsync(part, revisionHash, ct);
@@ -42,10 +50,9 @@ public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver re
             if (await placements.ResolveAsync(selection.SpoolId, ct) is { } placement) feeds.Add(placement);
         if (PrintFeedMappingBuilder.MixesAmsWithExternal(feeds))
             throw new SlicingProfileUnconfiguredException("One job can't draw from the AMS and the reloader at once. Load all colours in the AMS, or all in the reloader.");
-        if (requiresSlicing && selections.Select(s => s.Profile.Id).Distinct().Count() > 1)
+        if (requiresSlicing && selections.Select(s => ProfileIdentity.Key(s.Profile)).Distinct().Count() > 1)
             throw new SlicingProfileUnconfiguredException("Production slicing with multiple filament profiles is not supported. Use a pre-sliced file.");
-        if (requiresSlicing) await ResolveSettingsAsync(printerId, part, selections[0], ct);
-        return selections;
+        return new(selections, requiresSlicing ? await ResolveSettingsAsync(printerId, part, selections[0], ct) : null);
     }
 
     private async Task<bool> RequiresSlicingAsync(Part part, string? revisionHash, CancellationToken ct)
@@ -56,20 +63,27 @@ public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver re
         return classifier.Classify(file, Path.GetFileName(path)).RequiresSlicing;
     }
 
-    private async Task<(ResolvedSlicingProfiles Profiles, SlicerRef Slicer)> ResolveSettingsAsync(Guid printerId, Part part,
-        ProductionFilamentSelection selection, CancellationToken ct)
+    // The part's own pin, never a fallback: production slices with the slicer the part was pinned to, or not at all.
+    private async Task<ResolvedSlicingProfiles> ResolveSettingsAsync(Guid printerId, Part part, ProductionFilamentSelection selection, CancellationToken ct)
     {
         var printer = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
-        var settings = await farmSettings.GetAsync(ct);
-        var slicer = slicerSelection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, settings.DefaultSlicer);
-        var profiles = await profileSelection.ResolveProfilesAsync(
-            printer.MachineProfileId ?? throw new SlicingProfileUnconfiguredException("Select a machine profile."),
-            printer.ProcessProfileId ?? throw new SlicingProfileUnconfiguredException("Select a process profile."), selection.Profile.Id,
-            printer.BuildPlateType ?? throw new SlicingProfileUnconfiguredException("Select a build plate."), ct, slicer.Engine);
-        try { await engineValidator.ValidateAsync(slicer, profiles, selection.MaterialType, printer.ReportedNozzleDiameterMm!.Value, ct); }
-        catch (SlicingProfileUnconfiguredException ex)
-        { throw new SlicingProfileUnconfiguredException($"{ex.Message} Configure profiles at /filament/{selection.FilamentId}/edit."); }
-        return (profiles, slicer);
+        var pin = slicerSelection.ResolvePinned(part.SlicerEngineOverride, part.SlicerVersionUsed);
+        var printerLink = $"Configure in /printers/{printer.Id}/edit.";
+        var use = new ProfileUseContext(printer.Brand, printer.ModelCode, printer.ReportedNozzleDiameterMm!.Value, selection.MaterialType);
+        try
+        {
+            return await profileSelection.ResolveProfilesAsync(
+                printer.MachineProfileId ?? throw new SlicingProfileUnconfiguredException($"Select a machine profile. {printerLink}"),
+                printer.ProcessProfileId ?? throw new SlicingProfileUnconfiguredException($"Select a process profile. {printerLink}"), selection.Profile.Id,
+                printer.BuildPlateType ?? throw new SlicingProfileUnconfiguredException($"Select a build plate. {printerLink}"), pin, use, ct);
+        }
+        catch (ProfileSetBlockedException blocked)
+        {
+            // Say where each problem is fixed: the printer's machine/process, or the filament's assignment.
+            throw new ProfileSetBlockedException(blocked.Issues.Select(issue => issue.Code is ProfileResolutionOutcome.CatalogNotLoaded or ProfileResolutionOutcome.EngineWithoutProfiles
+                ? issue
+                : issue with { Message = $"{issue.Message} Configure in {(issue.Kind == ProfileKind.Filament ? $"/filament/{selection.FilamentId}/edit" : $"/printers/{printer.Id}/edit")}." }).ToList());
+        }
     }
 
     public Task<string> GetConfigurationStampAsync(Guid printerId, Part part,
@@ -79,46 +93,57 @@ public sealed class ProductionProfileReadiness(RepresentativeFilamentResolver re
             part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == r.MaterialType && n.DetectedColorHex == r.ColorHex)?.NarrowFilamentProfileId)).ToList(), ct, revisionHash);
 
     public async Task<string> GetConfigurationStampAsync(Guid printerId, Part part,
-        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null)
+        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null) =>
+        await StampAsync(printerId, await ResolveAsync(printerId, part, requirements, ct, revisionHash), ct);
+
+    /// <summary>
+    /// A fingerprint of everything a production file depends on: the printer's confirmed configuration, the loaded
+    /// spools and their filament presets, and the resolved slicing presets with their provenance (pin, selected and
+    /// resolved ids, names, <c>setting_id</c>s, versions, outcomes). Two equal stamps mean the same file would be produced.
+    /// </summary>
+    public async Task<string> StampAsync(Guid printerId, ProductionResolution resolution, CancellationToken ct)
     {
-        var selections = await ResolveAsync(printerId, part, requirements, ct, revisionHash);
         var printer = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
-        ResolvedSlicingProfiles? settings = null;
-        SlicerRef? slicer = null;
-        if (await RequiresSlicingAsync(part, revisionHash, ct)) (settings, slicer) = await ResolveSettingsAsync(printerId, part, selections[0], ct);
         var filamentSettings = new List<string>();
-        foreach (var selection in selections) filamentSettings.Add(await compatibility.FilamentJsonAsync(selection.Profile, ct));
+        foreach (var selection in resolution.Selections) filamentSettings.Add(await compatibility.FilamentJsonAsync(selection.Profile, ct));
         var json = JsonSerializer.Serialize(new
         {
             printer.ReportedNozzleDiameterMm,
             printer.MachineProfileId,
             printer.ProcessProfileId,
             printer.BuildPlateType,
-            settings,
-            slicer,
+            settings = resolution.Profiles,
+            slicer = resolution.Profiles?.Pin,
             filamentSettings,
-            Selections = selections.Select(s => new { s.SpoolId, s.FilamentVariantId, s.Profile.Id })
+            Selections = resolution.Selections.Select(s => new { s.SpoolId, s.FilamentVariantId, s.Profile.Id })
         });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
     }
 
-    public async Task<string?> GetIssueAsync(Guid printerId, Part part,
-        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null)
+    public Task<string?> GetIssueAsync(Guid printerId, Part part,
+        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null) =>
+        IssueAsync(printerId, () => ResolveAsync(printerId, part, requirements, ct, revisionHash));
+
+    public Task<string?> GetIssueAsync(Guid printerId, Part part,
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, string? revisionHash = null) =>
+        IssueAsync(printerId, () => ResolveAsync(printerId, part, requirements, ct, revisionHash));
+
+    // Whatever goes wrong while checking is a reason this job cannot go to this printer — never an unhandled error that
+    // takes the queue page down or stops the dispatcher from looking at the jobs behind this one.
+    private async Task<string?> IssueAsync(Guid printerId, Func<Task<ProductionResolution>> resolve)
     {
-        try { await ResolveAsync(printerId, part, requirements, ct, revisionHash); return null; }
+        try { await resolve(); return null; }
         catch (SlicingProfileUnconfiguredException ex) { return ex.Message; }
         catch (SlicerUnavailableException ex) { return ex.Message; }
         catch (UnsupportedPartFileFormatException ex) { return ex.Message; }
         catch (IOException) { return "The retained job file is unavailable. Review or replace the part file."; }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogReadinessCheckFailed(logger, printerId, ex);
+            return "Production settings check failed. See the server log.";
+        }
     }
 
-    public async Task<string?> GetIssueAsync(Guid printerId, Part part,
-        IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, string? revisionHash = null)
-    {
-        try { await ResolveAsync(printerId, part, requirements, ct, revisionHash); return null; }
-        catch (SlicingProfileUnconfiguredException ex) { return ex.Message; }
-        catch (SlicerUnavailableException ex) { return ex.Message; }
-        catch (UnsupportedPartFileFormatException ex) { return ex.Message; }
-        catch (IOException) { return "The retained job file is unavailable. Review or replace the part file."; }
-    }
+    [LoggerMessage(Level = LogLevel.Error, Message = "Checking production settings for printer {PrinterId} failed unexpectedly.")]
+    private static partial void LogReadinessCheckFailed(ILogger logger, Guid printerId, Exception exception);
 }

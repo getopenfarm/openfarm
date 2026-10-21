@@ -78,12 +78,12 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         var machineName = $"Edit Test Machine {suffix}";
         var machine = MachineProfile.CreateSystemProfile(
             machineName, ProfileSourceFormat.OrcaSlicer, null,
-            """{"name":"placeholder","nozzle_diameter":["0.4"]}""", "EditPrinterEndpointTests", suffix, true, null, null);
+            """{"name":"placeholder","nozzle_diameter":["0.4"]}""", "EditPrinterEndpointTests", suffix, true, null, null, sourceVersion: "2.2.0");
         await machineRepo.AddAsync(machine, CancellationToken.None);
 
         var process = ProcessProfile.CreateSystemProfile(
             $"Edit Test Process {suffix}", ProfileSourceFormat.OrcaSlicer, null,
-            """{"name":"placeholder"}""", "EditPrinterEndpointTests", $"proc-{suffix}", true, [machineName]);
+            """{"name":"placeholder"}""", "EditPrinterEndpointTests", $"proc-{suffix}", true, [machineName], sourceVersion: "2.2.0");
         await processRepo.AddAsync(process, CancellationToken.None);
 
         return (machine.Id, process.Id, machineName);

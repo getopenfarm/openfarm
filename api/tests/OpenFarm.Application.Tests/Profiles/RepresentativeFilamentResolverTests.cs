@@ -41,7 +41,7 @@ public sealed class RepresentativeFilamentResolverTests
             Filaments.AddAsync(Filament, default).GetAwaiter().GetResult();
             var compatibility = new ProfileCompatibility(Machines, Profiles);
             Resolver = new(Profiles, Spools, Filaments, Units, printers, Machines, compatibility);
-            Assignments = new(Profiles, printers, compatibility, new FakeSlicingDefaultsQuery());
+            Assignments = new(Profiles, printers, compatibility, new FakeSlicingDefaultsQuery(), new ProfileResolver(Machines, new FakeProcessProfileRepository(), Profiles));
         }
 
         public async Task LoadAsync()
@@ -187,4 +187,39 @@ public sealed class RepresentativeFilamentResolverTests
             .Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*Assign a profile*");
     }
 
+
+    private static FilamentProfile SystemPla(string version, string externalId = "GFSA00") => FilamentProfile.CreateSystemProfile(
+        "Bambu PLA Basic @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, """{"filament_type":["PLA"]}""",
+        "Bambu Lab", externalId, isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null,
+        sourceVersion: version);
+
+    [Fact]
+    public async Task NarrowedProfileOfAnotherSlicerVersion_IsTheSamePresetNotAMismatch()
+    {
+        var f = new Fixture(); await f.LoadAsync();
+        var narrowedInOldVersion = SystemPla("2.3.1");
+        var assignedInCurrentVersion = SystemPla("2.4.2");
+        await f.Profiles.AddAsync(narrowedInOldVersion, default);
+        await f.Profiles.AddAsync(assignedInCurrentVersion, default);
+        await f.AssignAsync(profile: assignedInCurrentVersion.Id);
+
+        var result = await f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, null, narrowedInOldVersion.Id, default);
+
+        result.Profile.Id.Should().Be(assignedInCurrentVersion.Id);
+    }
+
+    [Fact]
+    public async Task NarrowedProfileThatIsADifferentPreset_IsStillAMismatch()
+    {
+        var f = new Fixture(); await f.LoadAsync();
+        var narrowed = SystemPla("2.3.1", externalId: "GFSA01");
+        var assigned = SystemPla("2.4.2");
+        await f.Profiles.AddAsync(narrowed, default);
+        await f.Profiles.AddAsync(assigned, default);
+        await f.AssignAsync(profile: assigned.Id);
+
+        var act = async () => await f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, null, narrowed.Id, default);
+
+        await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*does not match the part's required filament profile*");
+    }
 }

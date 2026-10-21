@@ -148,8 +148,17 @@ export function usePartFileProcessing({
   });
 
   function reprocess() {
-    if (partId && !jobId && !reprocessMutation.isPending)
-      reprocessMutation.mutate({ id: partId });
+    if (partId && !jobId && !reprocessMutation.isPending) {
+      // Nothing chosen keeps the part's own slicer; an explicit choice moves it.
+      const [slicerEngine, slicerVersion] =
+        slicerSelection === USE_DEFAULT_SLICER
+          ? [undefined, undefined]
+          : slicerSelection.split('::');
+      reprocessMutation.mutate({
+        id: partId,
+        data: { slicerEngine, slicerVersion },
+      });
+    }
   }
 
   const confirmMutation =

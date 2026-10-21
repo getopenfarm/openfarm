@@ -26,4 +26,5 @@ public sealed record PrintJobDetail(
     Guid? RequeuedAsJobId,
     IReadOnlyList<JobFilamentConsumptionDetail> FilamentConsumption,
     DateTimeOffset CreatedAtUtc, string SnapshotState = "Ready", string? SnapshotRecoveryReason = null,
-    PrintSource Source = PrintSource.Dispatched, string Name = "");
+    PrintSource Source = PrintSource.Dispatched, string Name = "",
+    string? LastBlockReason = null, DateTimeOffset? LastBlockedAtUtc = null, DispatchProvenance? Provenance = null);

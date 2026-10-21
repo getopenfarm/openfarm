@@ -3,6 +3,7 @@ using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Profiles;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
 
@@ -14,7 +15,8 @@ public sealed record FilamentAssignmentFleet(IReadOnlyList<FleetFilamentVariant>
 public sealed record FilamentProfileAssignmentIssue(FilamentProfileAssignmentInput Assignment, string Message);
 
 public sealed class FilamentProfileAssignmentService(IFilamentProfileRepository profiles, IPrinterRepository printers,
-    ProfileCompatibility compatibility, IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults> slicingDefaults)
+    ProfileCompatibility compatibility, IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults> slicingDefaults,
+    ProfileResolver resolver, ProfileCatalogVersions? catalogVersions = null)
 {
     public async Task<FilamentAssignmentFleet> GetFleetAsync(CancellationToken ct)
     {
@@ -29,16 +31,16 @@ public sealed class FilamentProfileAssignmentService(IFilamentProfileRepository 
     public async Task<IReadOnlyList<FilamentProfileAssignmentIssue>> GetIssuesAsync(Filament filament, CancellationToken ct)
     {
         var issues = new List<FilamentProfileAssignmentIssue>();
-        var engine = (await slicingDefaults.HandleAsync(new(), ct)).Default?.Engine;
+        var pin = await DefaultSlicerAsync(ct);
+        var scope = catalogVersions is null ? null : await catalogVersions.GetScopeAsync(ct);
         foreach (var assignment in filament.ProfileAssignments)
         {
             try
             {
                 var profile = await profiles.GetByIdAsync(assignment.FilamentProfileId, ct)
                     ?? throw new SlicingProfileUnconfiguredException("The assigned profile no longer exists.");
-                if (engine is { } selected) ProfileEngineCompatibility.EnsureSupported(selected, profile.SourceFormat);
-                await compatibility.ValidateFilamentAsync(profile, filament.MaterialType, assignment.Brand,
-                    assignment.ModelCode, assignment.NozzleDiameterMm, ct);
+                await compatibility.ValidateFilamentAsync(await UsableAsync(profile, pin, ct), filament.MaterialType, assignment.Brand,
+                    assignment.ModelCode, assignment.NozzleDiameterMm, ct, scope: scope);
             }
             catch (SlicingProfileUnconfiguredException ex)
             {
@@ -52,7 +54,8 @@ public sealed class FilamentProfileAssignmentService(IFilamentProfileRepository 
     public async Task ReplaceAsync(Filament filament, IReadOnlyList<FilamentProfileAssignmentInput> inputs, CancellationToken ct)
     {
         var rows = new List<FilamentProfileAssignment>();
-        var engine = (await slicingDefaults.HandleAsync(new(), ct)).Default?.Engine;
+        var pin = await DefaultSlicerAsync(ct);
+        var scope = catalogVersions is null ? null : await catalogVersions.GetScopeAsync(ct);
         foreach (var input in inputs)
         {
             if (input.NozzleDiameterMm <= 0 || input.FilamentProfileId == Guid.Empty)
@@ -61,8 +64,7 @@ public sealed class FilamentProfileAssignmentService(IFilamentProfileRepository 
             var brand = Enum.Parse<PrinterBrand>(input.Brand, true).ToString();
             var profile = await profiles.GetByIdAsync(input.FilamentProfileId, ct)
                 ?? throw new FilamentProfileNotFoundException(input.FilamentProfileId);
-            if (engine is { } selected) ProfileEngineCompatibility.EnsureSupported(selected, profile.SourceFormat);
-            await compatibility.ValidateFilamentAsync(profile, filament.MaterialType, brand, model.ModelCode, input.NozzleDiameterMm, ct);
+            await compatibility.ValidateFilamentAsync(await UsableAsync(profile, pin, ct), filament.MaterialType, brand, model.ModelCode, input.NozzleDiameterMm, ct, scope: scope);
             Guid? variantId = null;
             if (input.ColorHex is not null)
                 variantId = filament.Variants.FirstOrDefault(v => string.Equals(v.ColorHex, input.ColorHex, StringComparison.OrdinalIgnoreCase))?.Id
@@ -74,4 +76,12 @@ public sealed class FilamentProfileAssignmentService(IFilamentProfileRepository 
             throw new SlicingProfileUnconfiguredException("Duplicate profile assignment for the same model, nozzle and colour.");
         filament.ReplaceProfileAssignments(rows);
     }
+
+    private async Task<SlicerRef?> DefaultSlicerAsync(CancellationToken ct) =>
+        (await slicingDefaults.HandleAsync(new(), ct)).Default is { } summary ? new SlicerRef(summary.Engine, summary.Version) : null;
+
+    // What a new part (pinned to the farm default slicer) would slice with: the assigned preset resolved to that slicer's
+    // own catalog — or the reason there is none. A preset the default slicer cannot use is not an assignment to keep.
+    private async Task<FilamentProfile> UsableAsync(FilamentProfile profile, SlicerRef? pin, CancellationToken ct) =>
+        pin is null ? profile : (await resolver.ResolveAsync(profile, pin, ct)).Require();
 }

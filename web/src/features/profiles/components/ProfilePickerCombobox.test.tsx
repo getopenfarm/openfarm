@@ -184,6 +184,43 @@ describe('ProfilePickerCombobox', () => {
   });
 });
 
+describe('ProfilePickerCombobox catalog version label', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('names the slicer version a System row was ingested from', async () => {
+    stubFetch({
+      '/profiles/machine': {
+        items: [
+          {
+            id: 'orca',
+            name: 'Bambu Lab P1S 0.4 nozzle',
+            sourceFormat: 'OrcaSlicer',
+            sourceVersion: '2.3.1',
+            vendorName: 'Bambulab',
+            origin: 'System',
+          },
+          {
+            id: 'bambu',
+            name: 'My tuned P1S',
+            sourceFormat: 'BambuStudio',
+            origin: 'User',
+          },
+        ],
+      },
+    });
+    renderPicker();
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Select a profile…' }));
+
+    expect(
+      await screen.findByText('OrcaSlicer 2.3.1 · System: Bambulab'),
+    ).toBeInTheDocument();
+    // User rows belong to no catalog version.
+    expect(screen.getByText('Bambu Studio · User')).toBeInTheDocument();
+  });
+});
+
 describe('ProfilePickerCombobox keyboard and failure behavior', () => {
   afterEach(() => vi.unstubAllGlobals());
 

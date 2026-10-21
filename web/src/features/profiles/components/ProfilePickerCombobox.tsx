@@ -42,6 +42,7 @@ interface PickerItem {
   origin: string;
   vendorName?: string | null;
   sourceFormat?: string | null;
+  sourceVersion?: string | null;
 }
 
 export interface ProfilePickerComboboxProps {
@@ -88,7 +89,21 @@ function toPickerItem(
     origin: item.origin ?? 'User',
     vendorName: item.vendorName,
     sourceFormat: item.sourceFormat,
+    sourceVersion: item.sourceVersion,
   };
+}
+
+/** "OrcaSlicer 2.3.1 · " — the engine and, for a System row, the catalog version it was ingested from. */
+function engineLabel({ sourceFormat, sourceVersion }: PickerItem) {
+  const engine =
+    sourceFormat === 'BambuStudio'
+      ? 'Bambu Studio'
+      : sourceFormat === 'OrcaSlicer'
+        ? 'OrcaSlicer'
+        : null;
+  return engine
+    ? `${engine}${sourceVersion ? ` ${sourceVersion}` : ''} · `
+    : '';
 }
 
 /**
@@ -331,11 +346,7 @@ export function ProfilePickerCombobox({
                         {item.name}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {item.sourceFormat === 'BambuStudio'
-                          ? 'Bambu Studio · '
-                          : item.sourceFormat === 'OrcaSlicer'
-                            ? 'OrcaSlicer · '
-                            : ''}
+                        {engineLabel(item)}
                         {item.origin === 'System'
                           ? `System${item.vendorName ? `: ${item.vendorName}` : ''}`
                           : 'User'}

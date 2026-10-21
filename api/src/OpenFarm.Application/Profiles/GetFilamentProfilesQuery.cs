@@ -38,21 +38,23 @@ public sealed record FilamentProfileSummary(
     // Domain-level canonical field (set at ingestion, research.md §0), distinct from the
     // parsed/display-only `Material` above which only ever gets populated for User rows.
     public string? MaterialType { get; init; }
+
+    /// <summary>The slicer version this System row belongs to; <c>null</c> for User rows.</summary>
+    public string? SourceVersion { get; init; }
 }
 
 public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository repository, IProfileBundleParser parser, ProfileCompatibility compatibility,
-    IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults> slicingDefaults)
+    IQueryHandler<GetSlicingDefaultsQuery, SlicingDefaults> slicingDefaults, ProfileCatalogVersions? catalogVersions = null)
     : IQueryHandler<GetFilamentProfilesQuery, ProfilePage<FilamentProfileSummary>>
 {
-    private const int MaxChainDepth = 32;
-
     public async Task<ProfilePage<FilamentProfileSummary>> HandleAsync(GetFilamentProfilesQuery query, CancellationToken cancellationToken)
     {
+        var scope = catalogVersions is null ? null : await catalogVersions.GetScopeAsync(cancellationToken);
         if (query.MaterialType is not null || query.Brand is not null)
         {
             var engine = query.Brand is not null ? (await slicingDefaults.HandleAsync(new(), cancellationToken)).Default?.Engine : null;
             var matches = new List<FilamentProfileSummary>();
-            foreach (var profile in await repository.ListAsync(cancellationToken))
+            foreach (var profile in await repository.ListAsync(cancellationToken, scope))
             {
                 if (!profile.IsSelectable || !profile.IsCurrentlyOffered
                     || engine is { } selectedEngine && !ProfileEngineCompatibility.Supports(selectedEngine, profile.SourceFormat)
@@ -69,7 +71,7 @@ public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository r
                     {
                         if (query.ModelCode is null || query.NozzleDiameterMm is not > 0) continue;
                         await compatibility.ValidateFilamentAsync(profile, material ?? "", query.Brand, query.ModelCode,
-                            query.NozzleDiameterMm.Value, cancellationToken);
+                            query.NozzleDiameterMm.Value, cancellationToken, scope: scope);
                     }
                     var names = ProfileCompatibility.ReadStrings(json.RootElement, "compatible_printers");
                     if (query.CompatibleWithMachineName is { } machineName && names.Count > 0 && !names.Contains(machineName, StringComparer.Ordinal)) continue;
@@ -77,7 +79,7 @@ public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository r
                     matches.Add(new(profile.Id, profile.Name, profile.Origin, profile.VendorName, profile.SourceFormat, profile.BaseProfileId,
                         profile.BaseProfileName, false, fields.Material, fields.Brand, fields.ColorHex, fields.NozzleSizeMm, fields.NozzleTempC,
                         fields.BedTempC, fields.MaxVolumetricSpeedMm3s, fields.FanPercent, names)
-                    { MaterialType = material });
+                    { MaterialType = material, SourceVersion = profile.SourceVersion });
                 }
                 catch (SlicingProfileUnconfiguredException) { }
             }
@@ -95,20 +97,21 @@ public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository r
 
         if (!isPickerStyleCall)
         {
-            var legacy = await BuildLegacyBrowsePageResultAsync(cancellationToken);
+            var legacy = await BuildLegacyBrowsePageResultAsync(scope is null ? null : scope with { NativeFormat = null }, cancellationToken);
             return query.Sorting is null ? legacy : legacy with { Items = query.Sorting.Order(legacy.Items, p => p.Name, p => p.Id).ToList() };
         }
 
         var page = query.Page ?? 1;
         var (rows, totalCount) = await repository.SearchAsync(
             ProfileOriginQueryParser.ParseEffectiveFilter(query.Origin), true, query.CompatibleWithMachineName,
-            query.MaterialType, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken, query.Sorting);
+            query.MaterialType, query.SearchText, page, query.PageSize ?? 100_000, cancellationToken, query.Sorting, scope);
 
         var leanSummaries = rows.Select(r => new FilamentProfileSummary(
             r.Id, r.Name, r.Origin, r.VendorName, r.SourceFormat, r.BaseProfileId, r.BaseProfileName,
             false, null, null, null, null, null, null, null, null, [])
         {
             MaterialType = r.MaterialType,
+            SourceVersion = r.SourceVersion,
         }).ToList();
 
         var reportedPageSize = query.PageSize ?? totalCount;
@@ -118,19 +121,17 @@ public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository r
 
     // Feature 003, FR-010/US3's original browse page, restricted to User rows only now that System
     // rows exist in the same table (009 FR-013 — System profiles are picker-only, never browsable/
-    // importable here). `byId` still spans every origin so a User row's BaseProfileId chain can
-    // resolve through a System ancestor; only the emitted top-level rows are User-filtered.
-    private async Task<ProfilePage<FilamentProfileSummary>> BuildLegacyBrowsePageResultAsync(CancellationToken cancellationToken)
+    // importable here). Each User row's chain is walked by id, so it resolves through a System
+    // ancestor of ANY catalog version (a User row pins the ancestor it was imported against).
+    private async Task<ProfilePage<FilamentProfileSummary>> BuildLegacyBrowsePageResultAsync(ProfileCatalogScope? scope, CancellationToken cancellationToken)
     {
-        var rows = await repository.ListAsync(cancellationToken);
-        var byId = rows.ToDictionary(r => r.Id);
-        var userRows = rows.Where(r => r.Origin == ProfileOrigin.User).ToList();
+        var userRows = (await repository.ListAsync(cancellationToken, scope)).Where(r => r.Origin == ProfileOrigin.User).ToList();
 
         var summaries = new List<FilamentProfileSummary>(userRows.Count);
 
         foreach (var row in userRows)
         {
-            var (ancestorsOldestFirst, hasUnresolvedBase) = WalkInMemory(row.Id, byId);
+            var (ancestorsOldestFirst, hasUnresolvedBase) = await ProfileChainWalker.WalkByIdAsync(row.Id, FetchNode, cancellationToken);
             var merged = ProfileRawDataMerger.MergeAncestorChain(ancestorsOldestFirst);
             var fields = parser.ExtractFilamentDisplayFields(merged, row.SourceFormat, row.Name, hasBaseProfileName: row.BaseProfileName is not null);
 
@@ -140,39 +141,16 @@ public sealed class GetFilamentProfilesQueryHandler(IFilamentProfileRepository r
                 fields.MaxVolumetricSpeedMm3s, fields.FanPercent, fields.CompatiblePrinterNames)
             {
                 MaterialType = row.MaterialType,
+                SourceVersion = row.SourceVersion,
             });
         }
 
         return new ProfilePage<FilamentProfileSummary>(summaries, 1, summaries.Count, summaries.Count);
     }
 
-    private static (List<string> AncestorsOldestFirst, bool HasUnresolvedBase) WalkInMemory(
-        Guid startId, Dictionary<Guid, FilamentProfile> byId)
+    private async Task<ProfileChainNode?> FetchNode(Guid id, CancellationToken cancellationToken)
     {
-        var chainNewestFirst = new List<string>();
-        var visited = new HashSet<Guid>();
-        var hasUnresolvedBase = false;
-        Guid? currentId = startId;
-        var depth = 0;
-
-        while (currentId is not null)
-        {
-            if (depth++ >= MaxChainDepth || !visited.Add(currentId.Value) || !byId.TryGetValue(currentId.Value, out var row))
-            {
-                hasUnresolvedBase = true;
-                break;
-            }
-
-            chainNewestFirst.Add(row.RawDataJson);
-            if (row.BaseProfileId is null && row.BaseProfileName is not null)
-            {
-                hasUnresolvedBase = true;
-            }
-
-            currentId = row.BaseProfileId;
-        }
-
-        chainNewestFirst.Reverse();
-        return (chainNewestFirst, hasUnresolvedBase);
+        var node = await repository.GetByIdAsync(id, cancellationToken);
+        return node is null ? null : new ProfileChainNode(node.RawDataJson, node.BaseProfileId, node.BaseProfileName, node.Origin, node.SourceVersion);
     }
 }

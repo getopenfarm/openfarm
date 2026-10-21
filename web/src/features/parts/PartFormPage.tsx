@@ -29,6 +29,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { formatSlicer } from '@/features/slicing/formatSlicer';
+import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { formatFileSize } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
@@ -163,7 +165,7 @@ export function PartFormPage() {
                               <SelectItem value={USE_DEFAULT_SLICER}>
                                 Farm default
                                 {effectiveDefault
-                                  ? ` (${effectiveDefault.engine} ${effectiveDefault.version})`
+                                  ? ` (${formatSlicer(effectiveDefault.engine, effectiveDefault.version)})`
                                   : ''}
                               </SelectItem>
                               {availableSlicers.map((slicer) => (
@@ -171,7 +173,7 @@ export function PartFormPage() {
                                   key={slicerSelectionKey(slicer)}
                                   value={slicerSelectionKey(slicer)}
                                 >
-                                  {slicer.engine} {slicer.version}
+                                  {formatSlicer(slicer.engine, slicer.version)}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
@@ -179,8 +181,24 @@ export function PartFormPage() {
                         </Select>
                         <p className="text-muted-foreground text-xs">
                           Only used for files that need slicing (STL or an
-                          unsliced 3MF) — ignored otherwise.
+                          unsliced 3MF) — ignored otherwise. The slicer uses
+                          only its own profiles.
                         </p>
+                        {(() => {
+                          const [engine, version] =
+                            slicerSelection === USE_DEFAULT_SLICER
+                              ? [
+                                  effectiveDefault?.engine,
+                                  effectiveDefault?.version,
+                                ]
+                              : slicerSelection.split('::');
+                          return engine && version ? (
+                            <SlicerReadinessPanel
+                              engine={engine}
+                              version={version}
+                            />
+                          ) : null;
+                        })()}
                       </Field>
                     )}
                     <div className="flex flex-col gap-2">

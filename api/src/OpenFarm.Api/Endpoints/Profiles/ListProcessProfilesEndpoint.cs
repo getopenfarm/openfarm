@@ -22,6 +22,7 @@ public sealed class ProcessProfileResponse
     public string Origin { get; set; } = string.Empty;
     public string? VendorName { get; set; }
     public string SourceFormat { get; set; } = string.Empty;
+    public string? SourceVersion { get; set; }
     public Guid? BaseProfileId { get; set; }
     public string? BaseProfileName { get; set; }
     public bool HasUnresolvedBaseInChain { get; set; }
@@ -36,6 +37,7 @@ public sealed class ProcessProfileResponse
         Origin = summary.Origin.ToString(),
         VendorName = summary.VendorName,
         SourceFormat = summary.SourceFormat.ToString(),
+        SourceVersion = summary.SourceVersion,
         BaseProfileId = summary.BaseProfileId,
         BaseProfileName = summary.BaseProfileName,
         HasUnresolvedBaseInChain = summary.HasUnresolvedBaseInChain,

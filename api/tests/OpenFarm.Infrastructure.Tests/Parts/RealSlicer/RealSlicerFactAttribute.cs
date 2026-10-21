@@ -12,10 +12,18 @@ public sealed class RealSlicerFactAttribute : FactAttribute
 {
     public RealSlicerFactAttribute(SlicerEngine engine, string version)
     {
+        Skip = SkipReason(engine, version);
+    }
+
+    /// <summary>For a test that also reads another slicer's own profile catalog (it never runs that slicer).</summary>
+    public RealSlicerFactAttribute(SlicerEngine engine, string version, SlicerEngine catalogEngine, string catalogVersion)
+    {
+        Skip = SkipReason(engine, version) ?? SkipReason(catalogEngine, catalogVersion);
+    }
+
+    private static string? SkipReason(SlicerEngine engine, string version)
+    {
         var (available, reason) = RealSlicerBundleLocator.TryResolve(engine, version);
-        if (available is null)
-        {
-            Skip = reason;
-        }
+        return available is null ? reason : null;
     }
 }

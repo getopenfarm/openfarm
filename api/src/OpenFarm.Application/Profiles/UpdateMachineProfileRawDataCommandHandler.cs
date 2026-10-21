@@ -1,4 +1,3 @@
-using System.Text.Json;
 using OpenFarm.Application.Common;
 
 namespace OpenFarm.Application.Profiles;
@@ -14,14 +13,7 @@ public sealed class UpdateMachineProfileRawDataCommandHandler(IMachineProfileRep
         var row = await repository.GetByIdAsync(command.MachineProfileId, cancellationToken)
             ?? throw new MachineProfileNotFoundException(command.MachineProfileId);
 
-        try
-        {
-            JsonDocument.Parse(command.RawDataJson).Dispose();
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidProfileJsonException($"Machine profile raw data is not valid JSON: {ex.Message}");
-        }
+        ProfileRawJson.EnsureEditable(row.Origin, command.RawDataJson, "Machine profile");
 
         row.ReplaceRawData(command.RawDataJson);
         await repository.SaveChangesAsync(cancellationToken);

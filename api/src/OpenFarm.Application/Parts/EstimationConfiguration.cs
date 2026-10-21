@@ -13,38 +13,32 @@ public sealed record EstimationProfileSelection(Guid MachineProfileId, Guid Proc
 public sealed record EstimationConfiguration(bool EmbeddedProject, decimal? NozzleDiameterMm,
     string? MaterialType, ResolvedSlicingProfiles? Profiles);
 
-public sealed class ResolveEstimationProfiles(IMachineProfileRepository machines, IProcessProfileRepository processes,
-    IFilamentProfileRepository filaments, ResolveSlicingProfileSelection resolver)
+public sealed class ResolveEstimationProfiles(ResolveSlicingProfileSelection resolver)
 {
     public async Task<(EstimationConfiguration Configuration, EstimationDetails Details)> ResolveAsync(
-        EstimationProfileSelection selection, SlicerEngine engine, CancellationToken cancellationToken)
+        EstimationProfileSelection selection, SlicerRef slicer, CancellationToken cancellationToken)
     {
-        try { return await ResolveCoreAsync(selection, engine, cancellationToken); }
+        try { return await ResolveCoreAsync(selection, slicer, cancellationToken); }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException or ArgumentException)
         { throw new SlicingProfileUnconfiguredException($"The estimation profiles could not be resolved: {ex.Message}"); }
     }
 
     private async Task<(EstimationConfiguration Configuration, EstimationDetails Details)> ResolveCoreAsync(
-        EstimationProfileSelection selection, SlicerEngine engine, CancellationToken cancellationToken)
+        EstimationProfileSelection selection, SlicerRef slicer, CancellationToken cancellationToken)
     {
-        if (engine is not (SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio))
+        if (slicer.Engine is not (SlicerEngine.OrcaSlicer or SlicerEngine.BambuStudio))
             throw new SlicingProfileUnconfiguredException("This slicer does not support the available estimation profile formats.");
-        var machine = await machines.GetByIdAsync(selection.MachineProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException("The estimation machine profile no longer exists.");
-        var process = await processes.GetByIdAsync(selection.ProcessProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException("The estimation process profile no longer exists.");
-        var filament = await filaments.GetByIdAsync(selection.FilamentProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException("The estimation filament profile no longer exists.");
-        ProfileEngineCompatibility.EnsureSupported(engine, machine.SourceFormat, process.SourceFormat, filament.SourceFormat);
-        if (!machine.IsSelectable || !process.IsSelectable || !filament.IsSelectable)
-            throw new SlicingProfileUnconfiguredException("Estimation profiles must be selectable profiles.");
+        // The defaults may have been chosen in another slicer version or engine; estimate with the slicer's own presets
+        // or not at all — the checks below run on those resolved presets.
+        var set = (await resolver.ResolveSetAsync(selection.MachineProfileId, selection.ProcessProfileId, selection.FilamentProfileId, slicer, cancellationToken)).Require();
+        var (machine, process, filament) = (set.Machine, set.Process, set.Filament);
         if (process.Origin != ProfileOrigin.System || process.CompatibleMachineNames?.Contains(machine.Name, StringComparer.Ordinal) != true)
             throw new SlicingProfileUnconfiguredException("The estimation process profile is incompatible with the machine profile.");
         if (filament.CompatibleMachineNames is { Count: > 0 } compatible && !compatible.Contains(machine.Name, StringComparer.Ordinal))
             throw new SlicingProfileUnconfiguredException("The estimation filament profile is incompatible with the machine profile.");
         if (!Enum.IsDefined(selection.BuildPlateType))
             throw new SlicingProfileUnconfiguredException("The estimation build plate is invalid.");
-        var profiles = await resolver.ResolveProfilesAsync(machine.Id, process.Id, filament.Id, selection.BuildPlateType, cancellationToken, engine);
+        var profiles = await resolver.ResolveProfilesAsync(set, selection.BuildPlateType, use: null, cancellationToken);
         using var machineJson = JsonDocument.Parse(profiles.MachineSettingsJson);
         var model = PrinterModelCatalog.All.SelectMany(g => g.Models.Select(code => PrinterModelCatalog.Resolve(g.Brand.ToString(), code)))
             .FirstOrDefault(m => m.VendorMachineModelName == (machine.VendorMachineModelName ?? ReadFirst(machineJson.RootElement, "printer_model")) && m.VendorMachineModelName is not null);

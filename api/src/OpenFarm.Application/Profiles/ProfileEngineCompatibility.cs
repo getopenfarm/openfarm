@@ -3,15 +3,10 @@ using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Profiles;
 
-/// <summary>Source identifies provenance. Cross-source support is directional and needs a real engine check.</summary>
+/// <summary>Source identifies provenance. An engine uses presets of its own format only; another engine's preset is reached through <see cref="ProfileResolver"/>.</summary>
 public static class ProfileEngineCompatibility
 {
-    public static bool Supports(SlicerEngine engine, ProfileSourceFormat source) => engine switch
-    {
-        SlicerEngine.OrcaSlicer => source is ProfileSourceFormat.OrcaSlicer or ProfileSourceFormat.BambuStudio,
-        SlicerEngine.BambuStudio => source == ProfileSourceFormat.BambuStudio,
-        _ => false,
-    };
+    public static bool Supports(SlicerEngine engine, ProfileSourceFormat source) => NativeFormat(engine) == source;
 
     public static SlicerEngine NativeEngine(ProfileSourceFormat source) => source switch
     {
@@ -20,9 +15,17 @@ public static class ProfileEngineCompatibility
         _ => throw new SlicingProfileUnconfiguredException("Unsupported profile source."),
     };
 
+    /// <summary>The profile format an engine ships its own catalog in; <c>null</c> for an engine without profile presets.</summary>
+    public static ProfileSourceFormat? NativeFormat(SlicerEngine engine) => engine switch
+    {
+        SlicerEngine.OrcaSlicer => ProfileSourceFormat.OrcaSlicer,
+        SlicerEngine.BambuStudio => ProfileSourceFormat.BambuStudio,
+        _ => null,
+    };
+
     public static void EnsureSupported(SlicerEngine engine, params ProfileSourceFormat[] sources)
     {
         if (sources.Any(source => !Supports(engine, source)))
-            throw new SlicingProfileUnconfiguredException($"One or more selected profiles cannot be used with {engine}. Orca-origin presets are not supported by Bambu Studio.");
+            throw new SlicingProfileUnconfiguredException($"A selected profile cannot be used with {engine}. {engine} uses its own profiles only.", ProfileResolutionOutcome.UnsupportedOrigin.ToString());
     }
 }

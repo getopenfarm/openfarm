@@ -10,7 +10,8 @@ public sealed class ProcessProfileConfiguration : IEntityTypeConfiguration<Proce
 {
     public void Configure(EntityTypeBuilder<ProcessProfile> builder)
     {
-        builder.ToTable("ProcessProfiles");
+        builder.ToTable("ProcessProfiles", table => table.HasCheckConstraint(
+            "CK_ProcessProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)"));
 
         builder.HasKey(p => p.Id);
 
@@ -36,6 +37,7 @@ public sealed class ProcessProfileConfiguration : IEntityTypeConfiguration<Proce
 
         builder.Property(p => p.VendorName);
         builder.Property(p => p.ExternalId);
+        builder.Property(p => p.SourceVersion);
         builder.Property(p => p.IsCurrentlyOffered).IsRequired();
         builder.Property(p => p.IsSelectable).IsRequired();
 
@@ -59,11 +61,13 @@ public sealed class ProcessProfileConfiguration : IEntityTypeConfiguration<Proce
         // Research.md §1 idempotency keys — same shape as MachineProfile/FilamentProfile. Every
         // ProcessProfile row is System-origin after 009 (FR-011), but the index stays partial for
         // consistency and to tolerate any pre-existing interim-era User row (migration default).
-        builder.HasIndex(p => new { p.SourceFormat, p.VendorName, p.ExternalId })
+        // Per-version catalogs: a System row is unique per (engine, slicer version, vendor, identity). A System row
+        // always has a version (CK_*_SystemHasVersion), so the keys never contain NULL.
+        builder.HasIndex(p => new { p.SourceFormat, p.SourceVersion, p.VendorName, p.ExternalId })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-        builder.HasIndex(p => new { p.SourceFormat, p.VendorName, p.Name })
+        builder.HasIndex(p => new { p.SourceFormat, p.SourceVersion, p.VendorName, p.Name })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
     }

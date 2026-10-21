@@ -18,23 +18,46 @@ public sealed class MachineProfileRepository(OpenFarmDbContext dbContext) : IMac
     public Task<MachineProfile?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.MachineProfiles.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
-    public async Task<IReadOnlyList<MachineProfile>> ListAsync(CancellationToken cancellationToken) =>
-        await dbContext.MachineProfiles.AsNoTracking().OrderBy(p => p.Name).ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<MachineProfile>> ListAsync(CancellationToken cancellationToken, ProfileCatalogScope? scope = null)
+    {
+        var query = dbContext.MachineProfiles.AsNoTracking();
+        if (scope is not null)
+        {
+            query = query.Where(scope.Predicate<MachineProfile>());
+        }
 
-    public async Task<IReadOnlyList<MachineProfile>> FindByNameAsync(
+        return await query.OrderBy(p => p.Name).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MachineProfile>> FindByNameInCatalogAsync(
+        ProfileSourceFormat sourceFormat, string? sourceVersion, string name, CancellationToken cancellationToken) =>
+        await dbContext.MachineProfiles
+            .AsNoTracking()
+            .Where(p => p.SourceFormat == sourceFormat && p.Name == name
+                && (p.Origin == ProfileOrigin.User || p.SourceVersion == sourceVersion))
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<MachineProfile>> FindByNameAnyVersionAsync(
         ProfileSourceFormat sourceFormat, string name, CancellationToken cancellationToken) =>
         await dbContext.MachineProfiles
             .AsNoTracking()
             .Where(p => p.SourceFormat == sourceFormat && p.Name == name)
             .ToListAsync(cancellationToken);
 
-    public Task<MachineProfile?> FindByExternalIdAsync(ProfileSourceFormat sourceFormat, string vendorName, string externalId, CancellationToken cancellationToken) =>
-        dbContext.MachineProfiles.FirstOrDefaultAsync(
-            p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == externalId, cancellationToken);
+    public async Task<IReadOnlyList<MachineProfile>> FindInCatalogByIdentityAsync(
+        ProfileSourceFormat sourceFormat, string sourceVersion, string? externalId, string? vendorName, string name, CancellationToken cancellationToken) =>
+        await dbContext.MachineProfiles
+            .AsNoTracking()
+            .Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion
+                && ((externalId != null && p.ExternalId == externalId) || (p.VendorName == vendorName && p.Name == name)))
+            .ToListAsync(cancellationToken);
 
-    public Task<MachineProfile?> FindSystemByNameAsync(ProfileSourceFormat sourceFormat, string vendorName, string name, CancellationToken cancellationToken) =>
-        dbContext.MachineProfiles.FirstOrDefaultAsync(
-            p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.VendorName == vendorName && p.ExternalId == null && p.Name == name, cancellationToken);
+    public async Task<IReadOnlyList<MachineProfile>> ListSystemCatalogAsync(ProfileSourceFormat sourceFormat, string? sourceVersion, CancellationToken cancellationToken) =>
+        await dbContext.MachineProfiles
+            .Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion == sourceVersion)
+            .ToListAsync(cancellationToken);
+
+    public void Stage(MachineProfile profile) => dbContext.MachineProfiles.Add(profile);
 
     public async Task<(IReadOnlyList<MachineProfile> Items, int TotalCount)> SearchAsync(
         ProfileOrigin? origin,
@@ -44,11 +67,16 @@ public sealed class MachineProfileRepository(OpenFarmDbContext dbContext) : IMac
         string? searchText,
         int page,
         int pageSize,
-        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
+        CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null, ProfileCatalogScope? catalog = null)
     {
         // compatibleWithMachineName/materialType have no matching column on MachineProfile — a
         // machine profile IS a machine, so neither filter applies here (research.md §6).
         var query = dbContext.MachineProfiles.AsNoTracking().AsQueryable();
+
+        if (catalog is not null)
+        {
+            query = query.Where(catalog.Predicate<MachineProfile>());
+        }
 
         if (origin is { } requestedOrigin)
         {
@@ -78,6 +106,14 @@ public sealed class MachineProfileRepository(OpenFarmDbContext dbContext) : IMac
             false => query.Where(p => !((p.IsSelectable && p.IsCurrentlyOffered) || p.Origin == ProfileOrigin.User)),
             null => query,
         };
+
+    public async Task<IReadOnlyList<string>> ListIngestedVersionsAsync(ProfileSourceFormat sourceFormat, CancellationToken cancellationToken) =>
+        await dbContext.MachineProfiles
+            .AsNoTracking()
+            .Where(p => p.SourceFormat == sourceFormat && p.Origin == ProfileOrigin.System && p.SourceVersion != null)
+            .Select(p => p.SourceVersion!)
+            .Distinct()
+            .ToListAsync(cancellationToken);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

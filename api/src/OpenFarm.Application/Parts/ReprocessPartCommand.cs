@@ -4,7 +4,8 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
 
-public sealed record ReprocessPartCommand(Guid PartId, Guid? RequestedByUserId);
+/// <param name="SlicerEngine">With <paramref name="SlicerVersion"/>, the slicer to move the part to; both <c>null</c> keeps the part's current one.</param>
+public sealed record ReprocessPartCommand(Guid PartId, Guid? RequestedByUserId, SlicerEngine? SlicerEngine = null, string? SlicerVersion = null);
 
 public sealed class ReprocessPartCommandHandler(
     IPartRepository parts, IPartProcessingJobRepository jobs, IPartProcessingDispatcher dispatcher,
@@ -23,11 +24,14 @@ public sealed class ReprocessPartCommandHandler(
             var settings = await farmSettings.GetAsync(cancellationToken);
             try
             {
-                slicer = selection.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed, settings.DefaultSlicer);
+                slicer = selection.ResolveKeepingPin(command.SlicerEngine, command.SlicerVersion,
+                    part.SlicerEngineOverride, part.SlicerVersionUsed, settings.DefaultSlicer);
             }
             catch (SlicerUnavailableException)
             {
-                if (part.SlicerEngineOverride is { } engine && part.SlicerVersionUsed is { } version)
+                if (command.SlicerEngine is { } requestedEngine && command.SlicerVersion is { } requestedVersion)
+                    slicer = new SlicerRef(requestedEngine, requestedVersion);
+                else if (command.SlicerEngine is null && part.SlicerEngineOverride is { } engine && part.SlicerVersionUsed is { } version)
                     slicer = new SlicerRef(engine, version);
             }
         }

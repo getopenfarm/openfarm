@@ -22,7 +22,7 @@ public sealed class UpdateSlicingDefaultsCommandHandler(
         if (profiles is not null)
         {
             if (estimationProfiles is null) throw new SlicingProfileUnconfiguredException("Estimation profile resolution is unavailable.");
-            _ = await estimationProfiles.ResolveAsync(profiles, command.Engine, cancellationToken);
+            _ = await estimationProfiles.ResolveAsync(profiles, validated, cancellationToken);
         }
         if (command.UpdateEstimationProfiles)
             settings.SetEstimationProfiles(profiles?.MachineProfileId, profiles?.ProcessProfileId, profiles?.FilamentProfileId, profiles?.BuildPlateType);

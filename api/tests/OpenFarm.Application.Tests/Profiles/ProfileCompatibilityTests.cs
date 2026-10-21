@@ -57,18 +57,19 @@ public sealed class ProfileCompatibilityTests
     }
 
     [Theory]
-    [InlineData(SlicerEngine.OrcaSlicer, ProfileSourceFormat.BambuStudio, true)]
+    [InlineData(SlicerEngine.OrcaSlicer, ProfileSourceFormat.BambuStudio, false)]
     [InlineData(SlicerEngine.OrcaSlicer, ProfileSourceFormat.OrcaSlicer, true)]
     [InlineData(SlicerEngine.BambuStudio, ProfileSourceFormat.OrcaSlicer, false)]
     [InlineData(SlicerEngine.BambuStudio, ProfileSourceFormat.BambuStudio, true)]
     [InlineData(SlicerEngine.SuperSlicer, ProfileSourceFormat.BambuStudio, false)]
-    public void EngineSupportIsDirectional(SlicerEngine engine, ProfileSourceFormat source, bool supported) =>
+    [InlineData(SlicerEngine.SuperSlicer, ProfileSourceFormat.OrcaSlicer, false)]
+    public void EngineSupportsOnlyItsOwnPresetFormat(SlicerEngine engine, ProfileSourceFormat source, bool supported) =>
         ProfileEngineCompatibility.Supports(engine, source).Should().Be(supported);
 
     [Theory]
-    [InlineData(SlicerEngine.OrcaSlicer, 2, "Z Orca")]
+    [InlineData(SlicerEngine.OrcaSlicer, 1, "Z Orca")]
     [InlineData(SlicerEngine.BambuStudio, 1, "A Bambu")]
-    public async Task FleetPickerFiltersAndPrefersTheSelectedEngineBeforePagination(SlicerEngine engine, int count, string firstName)
+    public async Task FleetPickerListsOnlyTheSelectedEnginesPresetsBeforePagination(SlicerEngine engine, int count, string firstName)
     {
         var profiles = new FakeFilamentProfileRepository();
         await profiles.AddAsync(FilamentProfile.Create("A Bambu", ProfileSourceFormat.BambuStudio, null,
@@ -126,12 +127,14 @@ public sealed class ProfileCompatibilityTests
     }
 
     [Fact]
-    public async Task ExplicitFilamentSortOverridesDefaultEnginePreferenceBeforePagination()
+    public async Task ExplicitFilamentSortIsAppliedBeforePagination_AndTheOtherEnginesPresetsStayOut()
     {
         var profiles = new FakeFilamentProfileRepository();
-        await profiles.AddAsync(FilamentProfile.Create("Zulu Bambu", ProfileSourceFormat.BambuStudio, null,
+        await profiles.AddAsync(FilamentProfile.Create("Zulu Orca", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"]}"""), default);
         await profiles.AddAsync(FilamentProfile.Create("alpha Orca", ProfileSourceFormat.OrcaSlicer, null,
+            """{"filament_type":["PLA"]}"""), default);
+        await profiles.AddAsync(FilamentProfile.Create("Bambu only", ProfileSourceFormat.BambuStudio, null,
             """{"filament_type":["PLA"]}"""), default);
         var handler = new GetFilamentProfilesQueryHandler(profiles, new StubProfileBundleParser(),
             new ProfileCompatibility(new FakeMachineProfileRepository(), profiles), new FakeSlicingDefaultsQuery(SlicerEngine.OrcaSlicer));
@@ -141,7 +144,7 @@ public sealed class ProfileCompatibilityTests
         var sorted = defaults with { Sorting = new OpenFarm.Application.Common.ListSort("name", true) };
         var first = await handler.HandleAsync(sorted, default);
         first.TotalCount.Should().Be(2);
-        first.Items.Should().ContainSingle().Which.Name.Should().Be("Zulu Bambu");
+        first.Items.Should().ContainSingle().Which.Name.Should().Be("Zulu Orca");
         (await handler.HandleAsync(sorted with { Page = 2 }, default)).Items.Should().ContainSingle().Which.Name.Should().Be("alpha Orca");
     }
 

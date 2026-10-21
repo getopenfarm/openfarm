@@ -1,10 +1,18 @@
+using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
 /// <summary>The bytes a dispatcher actually sends to a printer, plus a display name for the connector's job-name field.</summary>
-public sealed record JobFileContent(byte[] Bytes, string FileName);
+public sealed record JobFileContent(byte[] Bytes, string FileName)
+{
+    /// <summary>The configuration the file was produced for (<see cref="ProductionProfileReadiness.StampAsync"/>); compared with the live one right before sending.</summary>
+    public string? ConfigurationStamp { get; init; }
+
+    /// <summary>The presets the file was sliced with, pin and provenance included; <c>null</c> for a file that was sent as stored.</summary>
+    public ResolvedSlicingProfiles? Profiles { get; init; }
+}
 
 /// <summary>
 /// Resolves a job's sliceable output at dispatch time (014 FR-011): an already-sliced

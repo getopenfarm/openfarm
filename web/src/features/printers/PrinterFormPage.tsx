@@ -40,7 +40,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
+import { invalidateSlicingChecks } from '@/features/slicing/invalidateSlicingChecks';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
+import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
   BuildPlateTypeOptionResponse,
   DiscoveredPrinterResponse,
@@ -220,6 +222,7 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
       mutation: {
         onSuccess: () => {
           toast.success('Printer added.');
+          invalidateSlicingChecks(queryClient);
           queryClient.invalidateQueries({
             queryKey:
               getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
@@ -641,6 +644,7 @@ function EditPrinterFormLoaded({
     mutation: {
       onSuccess: () => {
         toast.success('Printer saved.');
+        invalidateSlicingChecks(queryClient);
         queryClient.invalidateQueries({
           queryKey: getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
         });
@@ -658,8 +662,8 @@ function EditPrinterFormLoaded({
         markClean();
         navigate('/printers');
       },
-      onError: () => {
-        toast.error('Could not save printer.');
+      onError: async (error) => {
+        toast.error(await extractErrorDetail(error, 'Could not save printer.'));
       },
     },
   });

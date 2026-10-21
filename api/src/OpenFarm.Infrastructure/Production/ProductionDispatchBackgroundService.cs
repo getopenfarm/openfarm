@@ -315,6 +315,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 job.Dispatch(printer.Id);
             }
 
+            job.ClearBlock();
             await jobRepository.SaveChangesAsync(cancellationToken);
             await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
             return;
@@ -337,6 +338,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         if (secret is null)
         {
             LogNoConnectionSecret(_logger, printer.Id);
+            await BlockAsync(job, $"Printer '{printer.Name}' has no saved access code. Enter the access code in the printer settings.", cancellationToken);
             return;
         }
 
@@ -369,15 +371,17 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var materialRequirements = job.Filaments.Select(c => c.Requirement).ToList();
         try
         {
-            configurationStamp = await profileReadiness.GetConfigurationStampAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash);
+            // One resolution produces both the file and the stamp of the exact configuration it was made for.
             fileContent = await fileResolver.ResolveAsync(dispatchPart, job, printer.Id, nozzleDiameterMm, cancellationToken);
+            configurationStamp = fileContent.ConfigurationStamp
+                ?? await profileReadiness.GetConfigurationStampAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Resolving/slicing the output failed before any dispatch was recorded — the job is
-            // untouched (still Queued/Unassigned) and simply tried again on the next trigger.
-            job.RevertDispatch();
+            // Resolving/slicing the output failed before any dispatch was recorded — nothing was sent. The job stays
+            // Queued/Unassigned, says why, and is tried again after a growing pause.
             LogFileResolutionFailed(_logger, job.Id, ex);
+            await BlockAsync(job, Describe(ex), cancellationToken);
             return;
         }
 
@@ -398,22 +402,29 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 || persistedJob is not null && (persistedJob.Status != PrintJobStatus.Queued || persistedJob.DispatchedAtUtc is not null)
                 || currentPrinter is null || !currentPrinter.IsReachable || currentPrinter.Status != PrinterStatus.Idle || currentPart is null
                 || revisionMode == RevisionMode.FollowLatest && (currentPart.RevisionHash != dispatchPart.RevisionHash || currentPart.UpdatedAtUtc != dispatchPart.UpdatedAtUtc
-                    || !job.HasFilamentRequirementOverride && !ProductionJobRequirements.FromPart(currentPart).SequenceEqual(materialRequirements))
-                || configurationStamp != await freshScope.ServiceProvider.GetRequiredService<ProductionProfileReadiness>()
-                    .GetConfigurationStampAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash))
+                    || !job.HasFilamentRequirementOverride && !ProductionJobRequirements.FromPart(currentPart).SequenceEqual(materialRequirements)))
             {
                 job.RevertDispatch();
                 return;
             }
 
             // The spools loaded right now are the ones this job draws from; deduction on the terminal transition uses them.
-            loadedSelections = await freshScope.ServiceProvider.GetRequiredService<ProductionProfileReadiness>()
-                .ResolveAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash);
+            var freshReadiness = freshScope.ServiceProvider.GetRequiredService<ProductionProfileReadiness>();
+            var fresh = await freshReadiness.ResolveAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash);
+            if (configurationStamp != await freshReadiness.StampAsync(printer.Id, fresh, cancellationToken))
+            {
+                // The printer, spools or presets changed while the file was being made: what was made is not what is current.
+                job.RevertDispatch();
+                await BlockAsync(job, "Printer settings changed during slicing. The job will be tried again.", cancellationToken);
+                return;
+            }
+
+            loadedSelections = fresh.Selections;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            job.RevertDispatch();
             LogFileResolutionFailed(_logger, job.Id, ex);
+            await BlockAsync(job, Describe(ex), cancellationToken);
             return;
         }
 
@@ -433,6 +444,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             {
                 job.RevertDispatch();
                 LogFeedMappingUnavailable(_logger, job.Id);
+                await BlockAsync(job, FeedMappingReason, cancellationToken);
                 return;
             }
 
@@ -444,11 +456,19 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             job.RevertDispatch();
             LogFeedMappingUnavailable(_logger, job.Id);
+            await BlockAsync(job, FeedMappingReason, cancellationToken);
             return;
         }
 
         var details = new PrinterConnectionDetails(
             printer.Brand, printer.ModelCode, printer.IpAddress, printer.SerialNumber, secretProtector.Unprotect(secret.EncryptedAccessCode));
+
+        // What this file was made with is recorded with the dispatch itself — in the log and on the job.
+        if (fileContent.Profiles is { } sliced)
+        {
+            job.RecordDispatchProvenance(DispatchProvenance.From(sliced, configurationStamp, DateTimeOffset.UtcNow).ToJson());
+            LogSlicingProfilesUsed(_logger, job.Id, printer.Id, sliced.Pin.Engine, sliced.Pin.Version, sliced.Machine, sliced.Process, sliced.Filament);
+        }
 
         await jobRepository.SaveChangesAsync(cancellationToken);
 
@@ -465,11 +485,37 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             job.RevertDispatch();
             await jobRepository.SaveChangesAsync(cancellationToken);
             LogStartJobFailed(_logger, job.Id, printer.Id, ex);
+            await BlockAsync(job, Truncate($"Send failed: {ex.Message}"), cancellationToken);
             return;
         }
 
+        job.ClearBlock();
+        await jobRepository.SaveChangesAsync(cancellationToken);
         await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
     }
+
+    private const string FeedMappingReason = "OpenFarm cannot map the filaments to the printer feed. Check the loaded spools.";
+
+    // Persists why an attempt failed through a fresh instance, so nothing half-prepared by this attempt is saved with it.
+    private async Task BlockAsync(PrintJob job, string reason, CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
+        if (await repository.GetByIdAsync(job.Id, cancellationToken) is not { Status: PrintJobStatus.Queued, DispatchedAtUtc: null } persisted)
+        {
+            return;
+        }
+
+        persisted.RecordBlock(Truncate(reason), DateTimeOffset.UtcNow);
+        await repository.SaveChangesAsync(cancellationToken);
+        LogJobBlocked(_logger, job.Id, persisted.BlockFailureCount, PrintJob.RetryDelay(persisted.BlockFailureCount), reason);
+    }
+
+    private static string Describe(Exception ex) => Truncate(ex is SlicingProfileUnconfiguredException or SlicerUnavailableException
+        or SlicingFailedException or ProductionSnapshotUnavailableException or JobNotEligibleForRemoteControlException
+        ? ex.Message : "Unexpected error while preparing the file. See the server log.");
+
+    private static string Truncate(string text) => text.Length > 500 ? text[..500] : text;
 
     private static async Task PublishDispatchedAsync(IServiceProvider services, PrintJob job, Guid printerId, CancellationToken cancellationToken)
     {
@@ -500,6 +546,12 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Resolving job {JobId}'s sliceable output failed.")]
     private static partial void LogFileResolutionFailed(ILogger logger, Guid jobId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Job {JobId} to printer {PrinterId} sliced with {Engine} {Version}: machine={Machine} process={Process} filament={Filament}")]
+    private static partial void LogSlicingProfilesUsed(ILogger logger, Guid jobId, Guid printerId, SlicerEngine engine, string version, OpenFarm.Application.Profiles.ResolvedPreset machine, OpenFarm.Application.Profiles.ResolvedPreset process, OpenFarm.Application.Profiles.ResolvedPreset filament);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Job {JobId} not sent (failed attempt {Attempts}, next try in {Delay}): {Reason}")]
+    private static partial void LogJobBlocked(ILogger logger, Guid jobId, int attempts, TimeSpan delay, string reason);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Sending job {JobId} to printer {PrinterId} failed — reverted to Queued/Unassigned.")]
     private static partial void LogStartJobFailed(ILogger logger, Guid jobId, Guid printerId, Exception exception);

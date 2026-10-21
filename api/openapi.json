@@ -470,6 +470,55 @@
         ]
       }
     },
+    "/api/v1/slicing/readiness": {
+      "get": {
+        "tags": [
+          "Slicing"
+        ],
+        "operationId": "OpenFarmApiEndpointsSlicingGetSlicingReadinessEndpoint",
+        "parameters": [
+          {
+            "name": "engine",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlicingReadinessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/settings/slicing-defaults": {
       "get": {
         "tags": [
@@ -3139,6 +3188,19 @@
             }
           }
         ],
+        "requestBody": {
+          "x-name": "ReprocessPartRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReprocessPartRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
         "responses": {
           "200": {
             "description": "Success",
@@ -5076,6 +5138,118 @@
           }
         }
       },
+      "SlicingReadinessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "isReady": {
+            "type": "boolean"
+          },
+          "printers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrinterReadinessResponse"
+            }
+          },
+          "filaments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentReadinessResponse"
+            }
+          }
+        }
+      },
+      "PrinterReadinessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "printerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "printerName": {
+            "type": "string"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadinessIssueResponse"
+            }
+          }
+        }
+      },
+      "ReadinessIssueResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          }
+        }
+      },
+      "FilamentReadinessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "filamentName": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "modelCode": {
+            "type": "string"
+          },
+          "nozzleDiameterMm": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "profileName": {
+            "type": "string"
+          },
+          "printerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadinessIssueResponse"
+            }
+          }
+        }
+      },
+      "GetSlicingReadinessRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "SlicingDefaultsResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -5478,6 +5652,10 @@
           "sourceFormat": {
             "type": "string"
           },
+          "sourceVersion": {
+            "type": "string",
+            "nullable": true
+          },
           "baseProfileId": {
             "type": "string",
             "format": "guid",
@@ -5584,6 +5762,10 @@
           "sourceFormat": {
             "type": "string"
           },
+          "sourceVersion": {
+            "type": "string",
+            "nullable": true
+          },
           "baseProfileId": {
             "type": "string",
             "format": "guid",
@@ -5680,6 +5862,10 @@
           },
           "sourceFormat": {
             "type": "string"
+          },
+          "sourceVersion": {
+            "type": "string",
+            "nullable": true
           },
           "baseProfileId": {
             "type": "string",
@@ -6425,6 +6611,23 @@
           },
           "name": {
             "type": "string"
+          },
+          "lastBlockReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastBlockedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "provenance": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DispatchProvenanceResponse"
+              }
+            ]
           }
         }
       },
@@ -6472,6 +6675,54 @@
           "toolIndex": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "DispatchProvenanceResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "atUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResolvedPresetResponse"
+            }
+          }
+        }
+      },
+      "ResolvedPresetResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "selectedName": {
+            "type": "string"
+          },
+          "resolvedName": {
+            "type": "string"
+          },
+          "settingId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "outcome": {
+            "type": "string"
           }
         }
       },
@@ -6683,6 +6934,10 @@
             "type": "string"
           },
           "snapshotRecoveryReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastBlockReason": {
             "type": "string",
             "nullable": true
           },
@@ -7862,6 +8117,20 @@
             "type": "string",
             "format": "binary"
           },
+          "slicerEngine": {
+            "type": "string",
+            "nullable": true
+          },
+          "slicerVersion": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ReprocessPartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
           "slicerEngine": {
             "type": "string",
             "nullable": true

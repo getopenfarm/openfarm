@@ -10,7 +10,8 @@ public sealed class MachineProfileConfiguration : IEntityTypeConfiguration<Machi
 {
     public void Configure(EntityTypeBuilder<MachineProfile> builder)
     {
-        builder.ToTable("MachineProfiles");
+        builder.ToTable("MachineProfiles", table => table.HasCheckConstraint(
+            "CK_MachineProfiles_SystemHasVersion", "(\"Origin\" = 'System') = (\"SourceVersion\" IS NOT NULL)"));
 
         builder.HasKey(p => p.Id);
 
@@ -36,6 +37,7 @@ public sealed class MachineProfileConfiguration : IEntityTypeConfiguration<Machi
 
         builder.Property(p => p.VendorName);
         builder.Property(p => p.ExternalId);
+        builder.Property(p => p.SourceVersion);
         builder.Property(p => p.IsCurrentlyOffered).IsRequired();
         builder.Property(p => p.IsSelectable).IsRequired();
         builder.Property(p => p.VendorMachineModelName);
@@ -59,11 +61,13 @@ public sealed class MachineProfileConfiguration : IEntityTypeConfiguration<Machi
 
         // Research.md §1 idempotency keys — leaf rows keyed by (VendorName, ExternalId), abstract
         // bases (no ExternalId) keyed by (VendorName, Name). Both partial, System-only.
-        builder.HasIndex(p => new { p.SourceFormat, p.VendorName, p.ExternalId })
+        // Per-version catalogs: a System row is unique per (engine, slicer version, vendor, identity). A System row
+        // always has a version (CK_*_SystemHasVersion), so the keys never contain NULL.
+        builder.HasIndex(p => new { p.SourceFormat, p.SourceVersion, p.VendorName, p.ExternalId })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NOT NULL");
 
-        builder.HasIndex(p => new { p.SourceFormat, p.VendorName, p.Name })
+        builder.HasIndex(p => new { p.SourceFormat, p.SourceVersion, p.VendorName, p.Name })
             .IsUnique()
             .HasFilter("\"Origin\" = 'System' AND \"ExternalId\" IS NULL");
 

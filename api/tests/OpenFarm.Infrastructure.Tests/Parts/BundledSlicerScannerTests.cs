@@ -144,6 +144,31 @@ public class BundledSlicerScannerTests : IDisposable
         result.Should().BeEmpty();
     }
 
+    [Fact]
+    public void ScanLeafDirectories_ReturnsOneLeafPerVersion_PreferringTheGivenPlatform()
+    {
+        CreateLeaf("orcaslicer", "2.3.1", "macos");
+        CreateLeaf("orcaslicer", "2.3.1", "linux");
+        CreateLeaf("orcaslicer", "2.4.2", "macos"); // no Linux copy of this version: falls back to what exists
+        CreateLeaf("bambustudio", "2.7.1", "linux");
+        var scanner = CreateScanner();
+
+        var leaves = scanner.ScanLeafDirectories(SlicerPlatform.Linux);
+
+        leaves.Select(leaf => Path.GetRelativePath(_root, leaf).Replace('\\', '/')).Should().Equal(
+            "bambustudio/2.7.1/linux", "orcaslicer/2.3.1/linux", "orcaslicer/2.4.2/macos");
+    }
+
+    [Fact]
+    public void ScanLeafDirectories_RootDoesNotExist_ReturnsNothing()
+    {
+        var scanner = new BundledSlicerScanner(
+            Options.Create(new SlicerBundleOptions { RootDirectory = Path.Combine(_root, "does-not-exist") }),
+            NullLogger<BundledSlicerScanner>.Instance);
+
+        scanner.ScanLeafDirectories(SlicerPlatform.Linux).Should().BeEmpty();
+    }
+
     private BundledSlicerScanner CreateScanner() =>
         new(Options.Create(new SlicerBundleOptions { RootDirectory = _root }), NullLogger<BundledSlicerScanner>.Instance);
 

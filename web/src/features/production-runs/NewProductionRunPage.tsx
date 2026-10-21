@@ -33,6 +33,7 @@ import {
   type EditableRunLine,
   RunLineEditor,
 } from './components/RunLineEditor';
+import { RunSlicerReadiness } from './components/RunSlicerReadiness';
 
 const schema = z.object({
   name: z.string().optional(),
@@ -200,6 +201,16 @@ export function NewProductionRunPage() {
                 <RunLineEditor lines={lines} onChange={setLines} />
               </CardContent>
             </Card>
+
+            <RunSlicerReadiness
+              partIds={[
+                ...new Set(
+                  lines
+                    .filter((line) => line.targetKind === 'Part')
+                    .map((line) => line.targetId),
+                ),
+              ]}
+            />
 
             <FormFooter
               end={

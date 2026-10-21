@@ -1,18 +1,15 @@
 using OpenFarm.Application.Parts;
-using OpenFarm.Application.Settings;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-public sealed class ProductionSnapshotFactory(ResolveSlicerSelection slicers, IFarmSettingsRepository farmSettings)
+public sealed class ProductionSnapshotFactory(ResolveSlicerSelection slicers)
 {
-    public async Task CaptureAsync(PrintJob job, Part part, CancellationToken ct)
+    public Task CaptureAsync(PrintJob job, Part part, CancellationToken ct)
     {
-        SlicerRef? slicer = null;
-        if (part.RequiresSlicing)
-            slicer = slicers.Resolve(part.SlicerEngineOverride, part.SlicerVersionUsed,
-                (await farmSettings.GetAsync(ct)).DefaultSlicer);
-        job.CaptureProductionSnapshot(part, slicer);
+        // The job keeps the part's own pin: a later change of the farm default never moves a queued job to another slicer.
+        job.CaptureProductionSnapshot(part, part.RequiresSlicing ? slicers.ResolvePinned(part.SlicerEngineOverride, part.SlicerVersionUsed) : null);
+        return Task.CompletedTask;
     }
 }

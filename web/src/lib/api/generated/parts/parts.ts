@@ -31,6 +31,7 @@ import type {
   PartProcessingJobSubmittedResponse,
   PartResponse,
   ReplacePartFileRequest,
+  ReprocessPartRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -1377,6 +1378,7 @@ export const getOpenFarmApiEndpointsPartsReprocessPartEndpointUrl = (
 
 export const openFarmApiEndpointsPartsReprocessPartEndpoint = async (
   id: string,
+  reprocessPartRequest: ReprocessPartRequest,
   options?: RequestInit,
 ): Promise<openFarmApiEndpointsPartsReprocessPartEndpointResponse> => {
   return httpClient<openFarmApiEndpointsPartsReprocessPartEndpointResponse>(
@@ -1384,6 +1386,8 @@ export const openFarmApiEndpointsPartsReprocessPartEndpoint = async (
     {
       ...options,
       method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(reprocessPartRequest),
     },
   );
 };
@@ -1395,13 +1399,13 @@ export const getOpenFarmApiEndpointsPartsReprocessPartEndpointMutationOptions =
         ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>
       >,
       TError,
-      { id: string },
+      { id: string; data: ReprocessPartRequest },
       TContext
     >;
   }): UseMutationOptions<
     Awaited<ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>>,
     TError,
-    { id: string },
+    { id: string; data: ReprocessPartRequest },
     TContext
   > => {
     const mutationKey = ['openFarmApiEndpointsPartsReprocessPartEndpoint'];
@@ -1417,11 +1421,11 @@ export const getOpenFarmApiEndpointsPartsReprocessPartEndpointMutationOptions =
       Awaited<
         ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>
       >,
-      { id: string }
+      { id: string; data: ReprocessPartRequest }
     > = (props) => {
-      const { id } = props ?? {};
+      const { id, data } = props ?? {};
 
-      return openFarmApiEndpointsPartsReprocessPartEndpoint(id);
+      return openFarmApiEndpointsPartsReprocessPartEndpoint(id, data);
     };
 
     return { mutationFn, ...mutationOptions };
@@ -1431,7 +1435,8 @@ export type OpenFarmApiEndpointsPartsReprocessPartEndpointMutationResult =
   NonNullable<
     Awaited<ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>>
   >;
-
+export type OpenFarmApiEndpointsPartsReprocessPartEndpointMutationBody =
+  ReprocessPartRequest;
 export type OpenFarmApiEndpointsPartsReprocessPartEndpointMutationError = void;
 
 export const useOpenFarmApiEndpointsPartsReprocessPartEndpoint = <
@@ -1444,7 +1449,7 @@ export const useOpenFarmApiEndpointsPartsReprocessPartEndpoint = <
         ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>
       >,
       TError,
-      { id: string },
+      { id: string; data: ReprocessPartRequest },
       TContext
     >;
   },
@@ -1452,7 +1457,7 @@ export const useOpenFarmApiEndpointsPartsReprocessPartEndpoint = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof openFarmApiEndpointsPartsReprocessPartEndpoint>>,
   TError,
-  { id: string },
+  { id: string; data: ReprocessPartRequest },
   TContext
 > => {
   return useMutation(

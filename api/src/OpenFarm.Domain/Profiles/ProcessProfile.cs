@@ -1,6 +1,6 @@
 namespace OpenFarm.Domain.Profiles;
 
-public sealed class ProcessProfile
+public sealed class ProcessProfile : ICatalogProfile
 {
     private ProcessProfile(
         Guid id,
@@ -13,6 +13,7 @@ public sealed class ProcessProfile
         string? externalId,
         bool isSelectable,
         IReadOnlyList<string>? compatibleMachineNames,
+        string? sourceVersion,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
@@ -27,6 +28,7 @@ public sealed class ProcessProfile
         IsCurrentlyOffered = true;
         IsSelectable = isSelectable;
         CompatibleMachineNames = compatibleMachineNames;
+        SourceVersion = sourceVersion;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -52,6 +54,9 @@ public sealed class ProcessProfile
     /// <summary>The vendor's <c>setting_id</c> for a selectable leaf; <c>null</c> for abstract-base rows (research.md §1 idempotency key).</summary>
     public string? ExternalId { get; private set; }
 
+    /// <summary>The slicer version (bundle leaf directory name, <c>SlicerRef.Version</c>) a System row was ingested from; always set for System rows, <c>null</c> for User rows.</summary>
+    public string? SourceVersion { get; private set; }
+
     /// <summary>Flips to <c>false</c> once a re-ingestion no longer contains this row's identity key (research.md §1).</summary>
     public bool IsCurrentlyOffered { get; private set; }
 
@@ -70,7 +75,8 @@ public sealed class ProcessProfile
         string vendorName,
         string? externalId,
         bool isSelectable,
-        IReadOnlyList<string>? compatibleMachineNames)
+        IReadOnlyList<string>? compatibleMachineNames,
+        string sourceVersion)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -87,6 +93,11 @@ public sealed class ProcessProfile
             throw new ArgumentException("Vendor name is required for a System profile.", nameof(vendorName));
         }
 
+        if (string.IsNullOrWhiteSpace(sourceVersion))
+        {
+            throw new ArgumentException("Source version is required for a System profile.", nameof(sourceVersion));
+        }
+
         return new ProcessProfile(
             Guid.NewGuid(),
             name,
@@ -98,12 +109,16 @@ public sealed class ProcessProfile
             externalId,
             isSelectable,
             compatibleMachineNames,
+            sourceVersion,
             DateTimeOffset.UtcNow);
     }
 
-    // Set only once, by ConfirmProfileImportCommandHandler's Pass 2 base resolution
-    // (research.md §3) — never revisited afterward, including by ReplaceRawData below.
+    // Set by ConfirmProfileImportCommandHandler's Pass 2 base resolution (research.md §3) and, for System
+    // rows, by every ingestion run's own Pass 2 — never touched by ReplaceRawData below.
     public void ResolveBaseProfile(Guid baseProfileId) => BaseProfileId = baseProfileId;
+
+    /// <summary>Ingestion only: the declared base is no longer in the catalog (or was dropped), so the stored link must not point at a stale parent.</summary>
+    public void ClearBaseProfile() => BaseProfileId = null;
 
     // Ingestion re-runs use this to refresh a System row's JSON on upsert (research.md §1). No
     // endpoint calls this for a User-initiated edit — process profiles have no raw-editor path (FR-011).
@@ -123,7 +138,7 @@ public sealed class ProcessProfile
     /// stays valid — and marks the row as currently offered again (it was just re-seen this run).
     /// </summary>
     public void RefreshFromSystemSource(
-        string name, string rawDataJson, bool isSelectable, IReadOnlyList<string>? compatibleMachineNames)
+        string name, string? baseProfileName, string rawDataJson, bool isSelectable, IReadOnlyList<string>? compatibleMachineNames)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -136,6 +151,7 @@ public sealed class ProcessProfile
         }
 
         Name = name;
+        BaseProfileName = baseProfileName;
         RawDataJson = rawDataJson;
         IsSelectable = isSelectable;
         CompatibleMachineNames = compatibleMachineNames;

@@ -41,8 +41,9 @@ public sealed class RecordingEstimator : ISlicerEngine
         if (Gate is { } gate) await gate.Task.WaitAsync(cancellationToken);
         return new SlicingResult(1, 42, 12m, [], []);
     }
-    public Task<SlicingResult> SliceAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType,
-        decimal nozzleDiameterMm, Guid? printerId, CancellationToken cancellationToken) => throw new InvalidOperationException("Library estimates must not call printer-targeted slicing.");
+    public Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType,
+        decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Library estimates must not call printer-targeted slicing.");
 }
 
 public sealed class FileBasedEstimationTests(EstimationTestFactory factory) : IClassFixture<EstimationTestFactory>
@@ -171,11 +172,11 @@ public sealed class FileBasedEstimationTests(EstimationTestFactory factory) : IC
         using var scope = factory.Services.CreateScope();
         var name = $"Estimation machine {Guid.NewGuid():N}";
         var machine = MachineProfile.CreateSystemProfile(name, ProfileSourceFormat.OrcaSlicer, null,
-            """{"type":"machine","nozzle_diameter":["0.6"],"printer_model":"Bambu Lab P1S"}""", "Test", Guid.NewGuid().ToString(), true, "Bambu Lab P1S", null);
+            """{"type":"machine","nozzle_diameter":["0.6"],"printer_model":"Bambu Lab P1S"}""", "Test", Guid.NewGuid().ToString(), true, "Bambu Lab P1S", null, sourceVersion: "2.2.0");
         var process = ProcessProfile.CreateSystemProfile($"Estimate process {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
-            """{"type":"process","layer_height":"0.3"}""", "Test", Guid.NewGuid().ToString(), true, [name]);
+            """{"type":"process","layer_height":"0.3"}""", "Test", Guid.NewGuid().ToString(), true, [name], sourceVersion: "2.2.0");
         var filament = FilamentProfile.CreateSystemProfile($"Estimate PETG {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
-            """{"type":"filament","filament_type":["PETG"],"textured_plate_temp":["70"]}""", "Test", Guid.NewGuid().ToString(), true, [name], "PETG", null);
+            """{"type":"filament","filament_type":["PETG"],"textured_plate_temp":["70"]}""", "Test", Guid.NewGuid().ToString(), true, [name], "PETG", null, sourceVersion: "2.2.0");
         await scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>().AddAsync(machine, CancellationToken.None);
         await scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>().AddAsync(process, CancellationToken.None);
         await scope.ServiceProvider.GetRequiredService<IFilamentProfileRepository>().AddAsync(filament, CancellationToken.None);

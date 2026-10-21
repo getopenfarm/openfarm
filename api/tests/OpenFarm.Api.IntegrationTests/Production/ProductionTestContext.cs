@@ -97,19 +97,27 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         return (await scope.ServiceProvider.GetRequiredService<IPrintJobRepository>().ListByProductionRunIdAsync(runId, default)).ToList();
     }
 
-    protected async Task<Printer> PrinterAsync(bool manual = false, string state = "IDLE")
+    /// <param name="machineProfile">Existing presets to point the printer (and its filament assignment) at; the default is a fresh imported machine and filament profile.</param>
+    protected async Task<Printer> PrinterAsync(bool manual = false, string state = "IDLE",
+        MachineProfile? machineProfile = null, ProcessProfile? processProfile = null, FilamentProfile? existingFilamentProfile = null)
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var profile = MachineProfile.Create($"Machine {Guid.NewGuid():N}",
+        var profile = machineProfile ?? MachineProfile.Create($"Machine {Guid.NewGuid():N}",
             ProfileSourceFormat.OrcaSlicer, null, "{\"nozzle_diameter\":[\"0.4\"]}");
-        db.MachineProfiles.Add(profile);
+        if (machineProfile is null) db.MachineProfiles.Add(profile);
         var printer = Printer.Create($"Printer {Guid.NewGuid():N}", "System", "Simulation", "127.0.0.1", $"SN{Guid.NewGuid():N}");
         printer.LinkMachineProfile(profile.Id);
+        if (processProfile is not null)
+        {
+            printer.LinkProcessProfile(processProfile.Id);
+            printer.SelectBuildPlate(BuildPlateType.HighTemp);
+        }
+
         printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
-        var filamentProfile = FilamentProfile.Create($"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+        var filamentProfile = existingFilamentProfile ?? FilamentProfile.Create($"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"],"hot_plate_temp":["55"]}""");
-        db.FilamentProfiles.Add(filamentProfile);
+        if (existingFilamentProfile is null) db.FilamentProfiles.Add(filamentProfile);
         var vendor = Vendor.Create($"Vendor {Guid.NewGuid():N}");
         db.Vendors.Add(vendor);
         var filament = Filament.Create(vendor.Id, "PLA", "PLA");

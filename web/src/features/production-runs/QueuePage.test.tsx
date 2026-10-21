@@ -482,4 +482,46 @@ describe('QueuePage', () => {
       screen.queryByRole('rowgroup', { name: 'Printer-started prints' }),
     ).not.toBeInTheDocument();
   });
+
+  it('says why a job is blocked right in its row, without the configuration sentence, and why its last attempt failed', async () => {
+    stub((params) =>
+      json({
+        totalCount: params.get('view') === 'queue' ? 2 : 0,
+        statusCounts: {},
+        items:
+          params.get('view') !== 'queue'
+            ? []
+            : [
+                {
+                  ...job('blocked', 'Blocked part'),
+                  isBlocked: true,
+                  blockingReason:
+                    "Printer A: Process profile '0.20mm Standard @BBL X1C' is not in Bambu Studio 2.7.1. Select another profile, or pin the part to another slicer. Configure in /printers/3f2a1b4c-0000-4000-8000-000000000001/edit.",
+                },
+                {
+                  ...job('failed', 'Failed part'),
+                  isBlocked: false,
+                  lastBlockReason: 'The slicer crashed.',
+                },
+              ],
+      }),
+    );
+    renderPage();
+
+    const blocked = (await screen.findByText('Blocked part')).closest(
+      '[role="row"]',
+    ) as HTMLElement;
+    expect(
+      within(blocked).getByText(
+        "Printer A: Process profile '0.20mm Standard @BBL X1C' is not in Bambu Studio 2.7.1. Select another profile, or pin the part to another slicer.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(blocked).queryByText(/Configure in/)).not.toBeInTheDocument();
+    const failed = screen
+      .getByText('Failed part')
+      .closest('[role="row"]') as HTMLElement;
+    expect(
+      within(failed).getByText('Last attempt failed: The slicer crashed.'),
+    ).toBeInTheDocument();
+  });
 });

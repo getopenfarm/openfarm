@@ -10,7 +10,8 @@ namespace OpenFarm.Application.Profiles;
 public sealed class PreviewProfileImportCommandHandler(
     IProfileBundleParser parser,
     IMachineProfileRepository machineProfileRepository,
-    IFilamentProfileRepository filamentProfileRepository)
+    IFilamentProfileRepository filamentProfileRepository,
+    ProfileCatalogVersions? catalogVersions = null)
     : ICommandHandler<PreviewProfileImportCommand, PreviewProfileImportResult>
 {
     private const int MaxChainDepth = 32;
@@ -19,12 +20,13 @@ public sealed class PreviewProfileImportCommandHandler(
     {
         var sourceFormat = ProfileBundleFormatResolver.Resolve(command.FileName);
         var bundle = await parser.ParseAsync(command.FileStream, sourceFormat, cancellationToken);
+        var catalogVersion = catalogVersions is null ? null : (await catalogVersions.GetScopeAsync(cancellationToken)).VersionFor(sourceFormat);
 
         var machineViews = new List<ParsedMachinePresetView>();
         foreach (var preset in bundle.MachinePresets)
         {
-            var isDuplicate = (await machineProfileRepository.FindByNameAsync(sourceFormat, preset.Name, cancellationToken)).Count > 0;
-            var (mergedJson, hasUnresolvedBase) = await ResolveMachineChainAsync(preset, bundle.MachinePresets, sourceFormat, cancellationToken);
+            var isDuplicate = (await machineProfileRepository.FindByNameAnyVersionAsync(sourceFormat, preset.Name, cancellationToken)).Count > 0;
+            var (mergedJson, hasUnresolvedBase) = await ResolveMachineChainAsync(preset, bundle.MachinePresets, sourceFormat, catalogVersion, cancellationToken);
             var fields = parser.ExtractMachineDisplayFields(mergedJson, sourceFormat);
 
             machineViews.Add(new ParsedMachinePresetView(
@@ -35,8 +37,8 @@ public sealed class PreviewProfileImportCommandHandler(
         var filamentViews = new List<ParsedFilamentPresetView>();
         foreach (var preset in bundle.FilamentPresets)
         {
-            var isDuplicate = (await filamentProfileRepository.FindByNameAsync(sourceFormat, preset.Name, cancellationToken)).Count > 0;
-            var (mergedJson, hasUnresolvedBase) = await ResolveFilamentChainAsync(preset, bundle.FilamentPresets, sourceFormat, cancellationToken);
+            var isDuplicate = (await filamentProfileRepository.FindByNameAnyVersionAsync(sourceFormat, preset.Name, cancellationToken)).Count > 0;
+            var (mergedJson, hasUnresolvedBase) = await ResolveFilamentChainAsync(preset, bundle.FilamentPresets, sourceFormat, catalogVersion, cancellationToken);
             var fields = parser.ExtractFilamentDisplayFields(mergedJson, sourceFormat, preset.Name, hasBaseProfileName: preset.BaseProfileName is not null);
 
             filamentViews.Add(new ParsedFilamentPresetView(
@@ -53,7 +55,7 @@ public sealed class PreviewProfileImportCommandHandler(
     // walked id-matched via ProfileChainWalker). Ambiguous or no match at either step stops the walk
     // and flags hasUnresolvedBaseInChain, mirroring Pass 2's "unresolved is a normal outcome" handling.
     private async Task<(string MergedJson, bool HasUnresolvedBase)> ResolveMachineChainAsync(
-        ParsedMachinePreset preset, IReadOnlyList<ParsedMachinePreset> batch, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken)
+        ParsedMachinePreset preset, IReadOnlyList<ParsedMachinePreset> batch, ProfileSourceFormat sourceFormat, string? catalogVersion, CancellationToken cancellationToken)
     {
         var ancestorsOldestFirst = new List<string>();
         var visited = new HashSet<string>(StringComparer.Ordinal);
@@ -83,7 +85,10 @@ public sealed class PreviewProfileImportCommandHandler(
                 break;
             }
 
-            var catalogMatches = await machineProfileRepository.FindByNameAsync(sourceFormat, baseName, cancellationToken);
+            var catalogMatches = await ProfileBaseLookup.FindAsync(catalogVersion,
+                version => machineProfileRepository.FindByNameInCatalogAsync(sourceFormat, version, baseName, cancellationToken),
+                () => machineProfileRepository.FindByNameAnyVersionAsync(sourceFormat, baseName, cancellationToken),
+                row => row.SourceVersion);
             if (catalogMatches.Count == 1)
             {
                 var (rowAncestors, rowUnresolved) = await ProfileChainWalker.WalkByIdAsync(
@@ -104,7 +109,7 @@ public sealed class PreviewProfileImportCommandHandler(
     }
 
     private async Task<(string MergedJson, bool HasUnresolvedBase)> ResolveFilamentChainAsync(
-        ParsedFilamentPreset preset, IReadOnlyList<ParsedFilamentPreset> batch, ProfileSourceFormat sourceFormat, CancellationToken cancellationToken)
+        ParsedFilamentPreset preset, IReadOnlyList<ParsedFilamentPreset> batch, ProfileSourceFormat sourceFormat, string? catalogVersion, CancellationToken cancellationToken)
     {
         var ancestorsOldestFirst = new List<string>();
         var visited = new HashSet<string>(StringComparer.Ordinal);
@@ -134,7 +139,10 @@ public sealed class PreviewProfileImportCommandHandler(
                 break;
             }
 
-            var catalogMatches = await filamentProfileRepository.FindByNameAsync(sourceFormat, baseName, cancellationToken);
+            var catalogMatches = await ProfileBaseLookup.FindAsync(catalogVersion,
+                version => filamentProfileRepository.FindByNameInCatalogAsync(sourceFormat, version, baseName, cancellationToken),
+                () => filamentProfileRepository.FindByNameAnyVersionAsync(sourceFormat, baseName, cancellationToken),
+                row => row.SourceVersion);
             if (catalogMatches.Count == 1)
             {
                 var (rowAncestors, rowUnresolved) = await ProfileChainWalker.WalkByIdAsync(

@@ -10,13 +10,11 @@ public class SlicerInvocationTests
     private static readonly AvailableSlicer Orca = new(SlicerEngine.OrcaSlicer, "2.2.0", SlicerPlatform.Linux, "/bundle/orcaslicer/2.2.0/linux/AppRun");
     private static readonly AvailableSlicer SuperSlicerBinary = new(SlicerEngine.SuperSlicer, "2.5.59.13", SlicerPlatform.Linux, "/bundle/superslicer/2.5.59.13/linux/AppRun");
 
-    private static readonly ResolvedSlicingProfiles ResolvedProfiles = new(
-        MachineSettingsJson: """{"type":"machine","name":"Test Machine","nozzle_diameter":["0.4"]}""",
-        ProcessSettingsJson: """{"type":"process","name":"0.20mm Standard","layer_height":"0.2"}""",
-        FilamentSettingsJson: """{"type":"filament","name":"Generic PETG","filament_type":["PETG"]}""",
-        MachineProfileName: "Test Machine",
-        ProcessProfileName: "0.20mm Standard",
-        FilamentProfileName: "Generic PETG");
+    private static readonly ResolvedSlicingProfiles ResolvedProfiles = TestResolvedProfiles.Create(
+        new SlicerRef(SlicerEngine.OrcaSlicer, "2.2.0"),
+        machineJson: """{"type":"machine","name":"Test Machine","nozzle_diameter":["0.4"]}""",
+        processJson: """{"type":"process","name":"0.20mm Standard","layer_height":"0.2"}""",
+        filamentJson: """{"type":"filament","name":"Generic PETG","filament_type":["PETG"]}""");
 
     [Fact]
     public void PrusaSliceFamilyInvocation_SupportsOrcaSlicerAndBambuStudioOnly()
@@ -46,9 +44,10 @@ public class SlicerInvocationTests
             var processSettingsPath = Path.Combine(workDirectory.FullName, "process_settings.json");
             var filamentSettingsPath = Path.Combine(workDirectory.FullName, "filament_settings.json");
 
+            // --allow-newer-file: foreign/older 3MFs would otherwise hit the CLI's version gate (exit -24).
+            // No --nozzle-diameter/--filament-type: the profiles are already validated against both.
             result.Arguments.Should().Be(
-                $"--slice 0 --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{filamentSettingsPath}\" " +
-                "--nozzle-diameter 0.4 --filament-type \"PETG\" " +
+                $"--slice 0 --allow-newer-file --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{filamentSettingsPath}\" " +
                 $"--export-3mf \"{result.OutputPath}\" \"/tmp/model.3mf\"");
 
             File.ReadAllText(machineSettingsPath).Should().Be(ResolvedProfiles.MachineSettingsJson);

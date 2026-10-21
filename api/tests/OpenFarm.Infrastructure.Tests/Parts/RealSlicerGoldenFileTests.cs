@@ -32,30 +32,26 @@ public class RealSlicerGoldenFileTests
     public Task OrcaSlicer231_Benchy_ProducesExpectedGCode() =>
         RunCaseAsync("orcaslicer-2.3.1-benchy-stl", SlicerEngine.OrcaSlicer, "2.3.1");
 
+    // 69 of Orca 2.3.1's selectable BBL filaments inherit a base that only OrcaFilamentLibrary ships; before the
+    // library bases were ingested every one of them failed at slice time with "unresolved ancestor".
     [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
-    public async Task OrcaSlicer231_ValidatesBambuStudioP1SFilamentSettings()
+    public async Task OrcaSlicer231_FilamentInheritingFromTheOrcaFilamentLibrary_SlicesWithItsFlattenedChain()
     {
         var (available, reason) = RealSlicerBundleLocator.TryResolve(SlicerEngine.OrcaSlicer, "2.3.1");
         available.Should().NotBeNull(reason);
-        // Both installed catalogs are resolved independently; templates remain in their source catalog.
-        var orca = await VendorProfileFixtureStaging.StageAndIngestAsync(SlicerEngine.OrcaSlicer, "2.3.1",
-            "Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C", "Bambu PLA Basic @BBL X1C", default);
-        var bambu = await VendorProfileFixtureStaging.StageAndIngestAsync(SlicerEngine.BambuStudio, "2.7.1",
-            "Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C", "Bambu PLA Basic @BBL P1S 0.4 nozzle", default);
-        var native = await orca.Resolver.ResolveProfilesAsync(orca.MachineProfileId, orca.ProcessProfileId,
-            orca.FilamentProfileId, BuildPlateType.TexturedPei, default);
-        var imported = await bambu.Resolver.ResolveProfilesAsync(bambu.MachineProfileId, bambu.ProcessProfileId,
-            bambu.FilamentProfileId, BuildPlateType.TexturedPei, default);
-        var mixed = native with
-        {
-            FilamentSettingsJson = imported.FilamentSettingsJson,
-            FilamentProfileName = imported.FilamentProfileName,
-            FilamentSourceFormat = ProfileSourceFormat.BambuStudio
-        };
-        var engine = new CliSlicerEngine(new SingleSlicerCatalog(available!), new FixedPlatform(available!.Platform),
-            [new PrusaSliceFamilyInvocation()], orca.Resolver, Options.Create(new SlicerOptions()), NullLogger<CliSlicerEngine>.Instance);
-        using var cache = new ProfileEngineValidationCache();
-        await new ProfileEngineValidator(engine, cache).ValidateAsync(available.ToSlicerRef(), mixed, "PLA", 0.4m, default);
+        var staging = await VendorProfileFixtureStaging.StageAndIngestAsync(SlicerEngine.OrcaSlicer, "2.3.1",
+            "Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C", "Overture Easy PLA @BBL X1C", CancellationToken.None);
+        var profiles = await staging.Resolver.ResolveProfilesAsync(
+            staging.MachineProfileId, staging.ProcessProfileId, staging.FilamentProfileId, BuildPlateType.TexturedPei, staging.Pin, use: null, CancellationToken.None);
+
+        var caseDir = Path.Combine(FixturesRoot, "orcaslicer-2.3.1-benchy-stl");
+        var model = await File.ReadAllBytesAsync(Path.Combine(caseDir, GoldenCaseManifest.Load(caseDir).ModelFileName));
+        var gcode = await RealSlicerProcessRunner.SliceAsync(
+            available!, new PrusaSliceFamilyInvocation(), model, PartFileFormat.Stl, "PLA", 0.4m, profiles, CancellationToken.None);
+
+        var values = GCodeMetadataHelper.ParseComments(gcode);
+        GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values).Should().BeGreaterThan(0);
+        GCodeMetadataHelper.ParseFilamentWeightGrams(values).Should().BeGreaterThan(0);
     }
 
     [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
@@ -68,7 +64,7 @@ public class RealSlicerGoldenFileTests
         var staging = await VendorProfileFixtureStaging.StageAndIngestAsync(SlicerEngine.OrcaSlicer, "2.3.1",
             "Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C", "Bambu PLA Basic @BBL X1C", CancellationToken.None);
         var engine = new CliSlicerEngine(new SingleSlicerCatalog(available!), new FixedPlatform(available!.Platform),
-            [new PrusaSliceFamilyInvocation()], staging.Resolver, Options.Create(new SlicerOptions()), NullLogger<CliSlicerEngine>.Instance);
+            [new PrusaSliceFamilyInvocation()], Options.Create(new SlicerOptions()), NullLogger<CliSlicerEngine>.Instance);
         using var input = new MemoryStream(bytes);
         var result = await engine.EstimateAsync(available.ToSlicerRef(), input, PartFileFormat.ThreeMf,
             new EstimationConfiguration(true, null, null, null), CancellationToken.None);
@@ -114,7 +110,7 @@ public class RealSlicerGoldenFileTests
                 engine, version, manifest.MachineProfileName, manifest.ProcessProfileName!, manifest.FilamentProfileName!,
                 CancellationToken.None);
             resolvedProfiles = await staging.Resolver.ResolveProfilesAsync(
-                staging.MachineProfileId, staging.ProcessProfileId, staging.FilamentProfileId, BuildPlateType.TexturedPei, CancellationToken.None);
+                staging.MachineProfileId, staging.ProcessProfileId, staging.FilamentProfileId, BuildPlateType.TexturedPei, staging.Pin, use: null, CancellationToken.None);
 
             if (manifest.BedType is not null)
             {

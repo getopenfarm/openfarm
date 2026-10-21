@@ -11,13 +11,15 @@ namespace OpenFarm.Application.Profiles;
 public sealed class ConfirmProfileImportCommandHandler(
     IProfileBundleParser parser,
     IMachineProfileRepository machineProfileRepository,
-    IFilamentProfileRepository filamentProfileRepository)
+    IFilamentProfileRepository filamentProfileRepository,
+    ProfileCatalogVersions? catalogVersions = null)
     : ICommandHandler<ConfirmProfileImportCommand, ConfirmProfileImportResult>
 {
     public async Task<ConfirmProfileImportResult> HandleAsync(ConfirmProfileImportCommand command, CancellationToken cancellationToken)
     {
         var sourceFormat = ProfileBundleFormatResolver.Resolve(command.FileName);
         var bundle = await parser.ParseAsync(command.FileStream, sourceFormat, cancellationToken);
+        var catalogVersion = catalogVersions is null ? null : (await catalogVersions.GetScopeAsync(cancellationToken)).VersionFor(sourceFormat);
 
         // Pass 1 — insert and index. A Dictionary<string, Guid?> can't just map name -> Id: a
         // second insert under the same name must overwrite the first with an ambiguous sentinel
@@ -76,7 +78,10 @@ public sealed class ConfirmProfileImportCommandHandler(
 
             var resolvedId = await ResolveBaseIdAsync(
                 machineBatchIndex, profile.BaseProfileName,
-                name => machineProfileRepository.FindByNameAsync(sourceFormat, name, cancellationToken));
+                name => ProfileBaseLookup.FindAsync(catalogVersion,
+                    version => machineProfileRepository.FindByNameInCatalogAsync(sourceFormat, version, name, cancellationToken),
+                    () => machineProfileRepository.FindByNameAnyVersionAsync(sourceFormat, name, cancellationToken),
+                    row => row.SourceVersion));
             if (resolvedId is not null)
             {
                 profile.ResolveBaseProfile(resolvedId.Value);
@@ -99,7 +104,10 @@ public sealed class ConfirmProfileImportCommandHandler(
 
             var resolvedId = await ResolveBaseIdAsync(
                 filamentBatchIndex, profile.BaseProfileName,
-                name => filamentProfileRepository.FindByNameAsync(sourceFormat, name, cancellationToken));
+                name => ProfileBaseLookup.FindAsync(catalogVersion,
+                    version => filamentProfileRepository.FindByNameInCatalogAsync(sourceFormat, version, name, cancellationToken),
+                    () => filamentProfileRepository.FindByNameAnyVersionAsync(sourceFormat, name, cancellationToken),
+                    row => row.SourceVersion));
             if (resolvedId is not null)
             {
                 profile.ResolveBaseProfile(resolvedId.Value);

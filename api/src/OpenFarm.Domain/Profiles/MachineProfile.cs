@@ -1,6 +1,6 @@
 namespace OpenFarm.Domain.Profiles;
 
-public sealed class MachineProfile
+public sealed class MachineProfile : ICatalogProfile
 {
     private MachineProfile(
         Guid id,
@@ -14,6 +14,7 @@ public sealed class MachineProfile
         bool isSelectable,
         string? vendorMachineModelName,
         IReadOnlyList<string>? includedTemplateNames,
+        string? sourceVersion,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
@@ -29,6 +30,7 @@ public sealed class MachineProfile
         IsSelectable = isSelectable;
         VendorMachineModelName = vendorMachineModelName;
         IncludedTemplateNames = includedTemplateNames;
+        SourceVersion = sourceVersion;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -53,6 +55,9 @@ public sealed class MachineProfile
 
     /// <summary>The vendor's <c>setting_id</c> for a selectable leaf; <c>null</c> for abstract-base System rows and all User rows (research.md §1 idempotency key).</summary>
     public string? ExternalId { get; private set; }
+
+    /// <summary>The slicer version (bundle leaf directory name, <c>SlicerRef.Version</c>) a System row was ingested from; always set for System rows, <c>null</c> for User rows.</summary>
+    public string? SourceVersion { get; private set; }
 
     /// <summary>Flips to <c>false</c> once a re-ingestion no longer contains this row's identity key (research.md §1). Always <c>true</c> for User rows.</summary>
     public bool IsCurrentlyOffered { get; private set; }
@@ -94,6 +99,7 @@ public sealed class MachineProfile
             isSelectable: true,
             vendorMachineModelName: null,
             includedTemplateNames: null,
+            sourceVersion: null,
             createdAtUtc: DateTimeOffset.UtcNow);
     }
 
@@ -107,7 +113,8 @@ public sealed class MachineProfile
         string? externalId,
         bool isSelectable,
         string? vendorMachineModelName,
-        IReadOnlyList<string>? includedTemplateNames)
+        IReadOnlyList<string>? includedTemplateNames,
+        string sourceVersion)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -124,6 +131,11 @@ public sealed class MachineProfile
             throw new ArgumentException("Vendor name is required for a System profile.", nameof(vendorName));
         }
 
+        if (string.IsNullOrWhiteSpace(sourceVersion))
+        {
+            throw new ArgumentException("Source version is required for a System profile.", nameof(sourceVersion));
+        }
+
         return new MachineProfile(
             Guid.NewGuid(),
             name,
@@ -136,12 +148,16 @@ public sealed class MachineProfile
             isSelectable,
             vendorMachineModelName,
             includedTemplateNames,
+            sourceVersion,
             DateTimeOffset.UtcNow);
     }
 
-    // Set only once, by ConfirmProfileImportCommandHandler's Pass 2 base resolution
-    // (research.md §3) — never revisited afterward, including by ReplaceRawData below.
+    // Set by ConfirmProfileImportCommandHandler's Pass 2 base resolution (research.md §3) and, for System
+    // rows, by every ingestion run's own Pass 2 — never touched by ReplaceRawData below.
     public void ResolveBaseProfile(Guid baseProfileId) => BaseProfileId = baseProfileId;
+
+    /// <summary>Ingestion only: the declared base is no longer in the catalog (or was dropped), so the stored link must not point at a stale parent.</summary>
+    public void ClearBaseProfile() => BaseProfileId = null;
 
     // FR-012 — overwrites RawDataJson only; every descriptive field is derived from this at read
     // time (data-model.md), so there is no cached column to keep in sync here.
@@ -161,7 +177,7 @@ public sealed class MachineProfile
     /// valid — and marks the row as currently offered again (it was just re-seen this run).
     /// </summary>
     public void RefreshFromSystemSource(
-        string name, string rawDataJson, bool isSelectable, string? vendorMachineModelName, IReadOnlyList<string>? includedTemplateNames)
+        string name, string? baseProfileName, string rawDataJson, bool isSelectable, string? vendorMachineModelName, IReadOnlyList<string>? includedTemplateNames)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -174,6 +190,7 @@ public sealed class MachineProfile
         }
 
         Name = name;
+        BaseProfileName = baseProfileName;
         RawDataJson = rawDataJson;
         IsSelectable = isSelectable;
         VendorMachineModelName = vendorMachineModelName;
