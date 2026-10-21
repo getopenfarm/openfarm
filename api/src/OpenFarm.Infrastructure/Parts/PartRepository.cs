@@ -123,5 +123,6 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         query
             .Include(p => p.FilamentRequirements)
             .Include(p => p.Thumbnails)
-            .Include(p => p.Tags);
+            .Include(p => p.Tags)
+            .AsSplitQuery();
 }

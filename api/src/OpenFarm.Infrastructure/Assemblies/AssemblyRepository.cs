@@ -16,14 +16,14 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
     }
 
     public Task<Assembly?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Assemblies.Include(a => a.Lines).Include(a => a.AdditionalCosts).FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        dbContext.Assemblies.Include(a => a.Lines).Include(a => a.AdditionalCosts).AsSplitQuery().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Assemblies.AnyAsync(a => a.Id == id, cancellationToken);
 
     public async Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
     {
-        var query = dbContext.Assemblies.Include(a => a.Lines).Include(a => a.AdditionalCosts).AsQueryable();
+        var query = dbContext.Assemblies.Include(a => a.Lines).Include(a => a.AdditionalCosts).AsSplitQuery();
 
         var totalCount = await query.CountAsync(cancellationToken);
         var ordered = sorting is null ? query.OrderByDescending(a => a.CreatedAtUtc)

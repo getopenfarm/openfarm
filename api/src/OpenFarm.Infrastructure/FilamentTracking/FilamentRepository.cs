@@ -14,10 +14,10 @@ public sealed class FilamentRepository(OpenFarmDbContext dbContext) : IFilamentR
     }
 
     public Task<Filament?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Filaments.Include(f => f.Variants).Include(f => f.ProfileAssignments).FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
+        dbContext.Filaments.Include(f => f.Variants).Include(f => f.ProfileAssignments).AsSplitQuery().FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Filament>> ListAsync(CancellationToken cancellationToken) =>
-        await dbContext.Filaments.AsNoTracking().Include(f => f.Variants).Include(f => f.ProfileAssignments).OrderBy(f => f.Material).ToListAsync(cancellationToken);
+        await dbContext.Filaments.AsNoTracking().Include(f => f.Variants).Include(f => f.ProfileAssignments).AsSplitQuery().OrderBy(f => f.Material).ToListAsync(cancellationToken);
 
     public Task<FilamentVariant?> FindVariantByIdAsync(Guid filamentVariantId, CancellationToken cancellationToken) =>
         dbContext.FilamentVariants.FirstOrDefaultAsync(v => v.Id == filamentVariantId, cancellationToken);
