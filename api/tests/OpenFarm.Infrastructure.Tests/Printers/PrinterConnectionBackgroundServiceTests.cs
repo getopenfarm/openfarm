@@ -398,6 +398,19 @@ public class PrinterConnectionBackgroundServiceTests
         }
     }
 
+    [Fact]
+    public async Task StopAsync_AfterDispose_DoesNotThrow()
+    {
+        // Host teardown can dispose the service before its StopAsync runs (e.g. WebApplicationFactory).
+        using var provider = new ServiceCollection().BuildServiceProvider();
+        var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance);
+        service.Dispose();
+
+        await service.Awaiting(s => s.StopAsync(CancellationToken.None)).Should().NotThrowAsync();
+    }
+
     /// <summary>
     /// A printer's first connection populates its MultiMaterialUnit/ExternalSpool FeedUnit/FeedSlot
     /// rows; a topology shrink (fewer reported trays) soft-deactivates the missing slot without

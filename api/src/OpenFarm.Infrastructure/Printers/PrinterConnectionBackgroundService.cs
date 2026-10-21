@@ -138,7 +138,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        await _lifetimeCts.CancelAsync();
+        try { await _lifetimeCts.CancelAsync(); }
+        catch (ObjectDisposedException) { /* Dispose() ran first; it cancels before disposing. */ }
         await base.StopAsync(cancellationToken);
         await Task.WhenAll(_connectionTasks.Values.ToArray()).WaitAsync(cancellationToken);
     }
