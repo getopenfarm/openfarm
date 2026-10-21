@@ -2,9 +2,16 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore: ["docs/**", "specs/**", ".specify/**", "**/*.md"]
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "specs/**", ".specify/**", "**/*.md"]
   workflow_call:
+
+# A new push to a PR cancels its superseded run; main and release-tag runs always finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -81,22 +88,13 @@ jobs:
     steps:
       - run: echo "Deferred until M1+ ships a real flow (create printer, etc.)"
 
+  # Dependency advisories land without a code change, so they run weekly in audit.yml, not on every PR.
   security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: api/global.json
-      - name: dotnet vulnerable packages
-        run: dotnet list api/OpenFarm.slnx package --vulnerable --include-transitive
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
-      - working-directory: web
-        run: bun install --frozen-lockfile && bun audit
       - name: Gitleaks
         # Pinned to the last MIT-licensed release before v2.0.0 introduced a GITLEAKS_LICENSE
         # requirement (org/user-detection call to gitleaks.io, which itself started failing here) —
