@@ -24,7 +24,8 @@ internal static class FilamentTrackingTestHelpers
         return client;
     }
 
-    public static async Task<Guid> CreateFilamentVariantAsync(HttpClient client, string colorName = "Black", string colorHex = "#18181b")
+    public static async Task<Guid> CreateFilamentVariantAsync(
+        HttpClient client, string colorName = "Black", string colorHex = "#18181b", string material = "PLA Basic")
     {
         var vendorResponse = await client.PostAsJsonAsync(new Uri("/api/v1/vendors", UriKind.Relative), new CreateVendorRequest { Name = $"Vendor {Guid.NewGuid():N}" });
         var vendor = await vendorResponse.Content.ReadFromJsonAsync<VendorResponse>();
@@ -32,7 +33,7 @@ internal static class FilamentTrackingTestHelpers
         var filamentResponse = await client.PostAsJsonAsync(new Uri("/api/v1/filaments", UriKind.Relative), new CreateFilamentRequest
         {
             VendorId = vendor!.Id,
-            Material = "PLA Basic",
+            Material = material,
             MaterialType = "PLA",
             Variants = [new CreateFilamentVariantRequest { ColorName = colorName, ColorHex = colorHex }],
         });

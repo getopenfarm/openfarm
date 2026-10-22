@@ -25,6 +25,24 @@ export function colorsDiffer(a?: string, b?: string): boolean {
   return Math.hypot(...x.map((v, i) => v - y[i])) > 64;
 }
 
+const words = (text: string) =>
+  new Set(text.toLowerCase().split(/\s+/).filter(Boolean));
+
+/**
+ * A tag's sub-brand ("PLA Basic") and a filament's name are one product line when all the words of one are in the other:
+ * "Basic PLA" and "PLA" fit "PLA Basic", "PLA Matte" does not. The server's load warning uses the same rule.
+ */
+export function sameLine(
+  subBrand?: string | null,
+  material?: string | null,
+): boolean {
+  if (!subBrand || !material) return true;
+  const [tag, name] = [words(subBrand), words(material)];
+  const within = (a: Set<string>, b: Set<string>) =>
+    [...a].every((word) => b.has(word));
+  return within(tag, name) || within(name, tag);
+}
+
 /** Printer sub-brands already name the type ("PLA Basic"), so never print both. */
 export function detectedName(
   material?: string | null,

@@ -16,7 +16,7 @@ public static class ToolTrayMatcher
 {
     // ponytail: a slicer colour and the colour the AMS reports for the same spool drift (#FB001C vs F72323), so match on RGB
     // distance. A tray must be this close, and this much closer than the runner-up; tune if real prints show misses or swaps.
-    private const double MaxDistance = 80;
+    public const double MaxDistance = 80;
     private const double MinMargin = 40;
 
     /// <summary>Tool index to tray id for every tool that has one clearly best tray.</summary>
@@ -44,6 +44,9 @@ public static class ToolTrayMatcher
 
         return matched;
     }
+
+    /// <summary>How far apart two colours are, as printers and the catalog write them (<c>RRGGBBAA</c>, <c>#RRGGBB</c>); null when either is unreadable.</summary>
+    public static double? ColorDistance(string? a, string? b) => Rgb(a) is { } x && Rgb(b) is { } y ? Distance(x, y) : null;
 
     private static (int R, int G, int B)? Rgb(string? colorHex) =>
         FilamentColor.Normalize(colorHex) is { } hex && int.TryParse(hex[1..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v)

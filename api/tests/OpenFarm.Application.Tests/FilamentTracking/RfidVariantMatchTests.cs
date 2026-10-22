@@ -37,6 +37,31 @@ public class RfidVariantMatchTests
     }
 
     [Fact]
+    public void Find_APlainerName_IsTheMatch_WhenNoFilamentIsNamedForTheLine()
+    {
+        var plain = Color("PLA", "Red", "#E53935");
+
+        RfidVariantMatch.Find([plain, Color("PLA Matte", "Red", "#E53935")], Tray("PLA Basic", "E53935FF")).Should().Be(plain);
+    }
+
+    [Fact]
+    public void Find_AFilamentNamedForTheLine_InAnyWordOrder_WinsOverAPlainerName()
+    {
+        var named = Color("Basic PLA", "Red", "#E53935");
+
+        RfidVariantMatch.Find([Color("PLA", "Red", "#E53935"), named], Tray("PLA Basic", "E53935FF")).Should().Be(named);
+    }
+
+    [Theory]
+    [InlineData("PLA Basic", "Bambu PLA Basic", true)]
+    [InlineData("PLA Basic", "basic pla", true)]
+    [InlineData("PLA Basic", "PLA", true)]
+    [InlineData("PLA Basic", "PLA Matte", false)]
+    [InlineData(null, "PLA Matte", true)]
+    public void SameLine_AllTheWordsOfOneNameAreInTheOther(string? subBrand, string material, bool same) =>
+        RfidVariantMatch.SameLine(subBrand, material).Should().Be(same);
+
+    [Fact]
     public void Find_ATagWithoutASubBrand_IsNoMatch()
     {
         RfidVariantMatch.Find([Color("PLA Matte", "Black", "#000000")], Tray(null, "000000FF")).Should().BeNull();

@@ -10,13 +10,16 @@ public class DetectedMaterialWarningTests(CustomWebApplicationFactory factory) :
 {
     private readonly HttpClient _client = factory.CreateClient();
 
-    [Fact]
-    public async Task Load_OntoSlotReportingMismatchedDetectedMaterial_ReturnsWarningTrueAndStillCompletes()
+    // The simulator's AMS slot 0 always reports PLA, #E53935, sub-brand "Generic" (SimulatedPrinterState). The sub-brand is
+    // the product line, compared with the filament's name; the colour may drift a little and still be the same.
+    [Theory]
+    [InlineData("Generic PLA", "#E33B37", false)]
+    [InlineData("Generic PLA", "#0000FF", true)]
+    [InlineData("PLA Matte", "#E53935", true)]
+    public async Task Load_WarnsOnlyWhenTheDetectedFilamentDiffers_AndAlwaysCompletes(string material, string colorHex, bool warns)
     {
         var client = await AuthenticatedClientAsync(_client);
-        // The simulator's AMS slot 0 always reports PLA/#E53935 (SimulatedPrinterState) — pick a
-        // deliberately different color so the comparison mismatches.
-        var variantId = await CreateFilamentVariantAsync(client, colorName: "Blue", colorHex: "#0000FF");
+        var variantId = await CreateFilamentVariantAsync(client, "Red", colorHex, material);
         var spoolId = await RegisterSpoolAsync(client, variantId);
         var printerId = await RegisterSimulatorPrinterAsync(client);
         var feedUnits = await WaitForFeedUnitsAsync(client, printerId);
@@ -26,7 +29,7 @@ public class DetectedMaterialWarningTests(CustomWebApplicationFactory factory) :
 
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<LoadSpoolResponse>();
-        body!.RfidMismatchWarning.Should().BeTrue();
+        body!.RfidMismatchWarning.Should().Be(warns);
         body.State.Should().Be("Using", "the load always completes regardless of the comparison's outcome");
     }
 }

@@ -106,10 +106,17 @@ the Bambu field names: the rest of the app sees `AmsTray.RfidId` and `RfidWeight
 - **Unregistered spools.** *Action required* lists each tagged spool a reachable printer reads that no active spool owns
   (`rfidSpools` on `GET /api/v1/notifications`), derived from the last readings with no table of its own, so an item clears
   once the tag is registered or linked, the tray changes, or the printer goes offline. **Register** opens the add-spool page
-  prefilled with the tag, the catalog color it most likely is (same material type, a filament named for the tag's sub-brand,
-  and the clearly nearest color), the tag's weight and the grams the reading implies; the spool loads at the next reading.
+  prefilled with the tag, the catalog color it most likely is, the tag's weight and the grams the reading implies; the spool
+  loads at the next reading. The color is of the same material type, of a filament of the tag's product line, and the clearly
+  nearest. Filaments named for the sub-brand ("Bambu PLA Basic", "Basic PLA") come first; a plainer name ("PLA") is used only
+  when none is.
   When an untagged spool is loaded in that slot, **Link** ties the tag to it instead. A finished spool's tag is listed only
   when the AMS reads filament on it (a refill or re-used tag), not for the empty spool still sitting in the AMS.
+- **Load warning.** Loading a spool into a slot that reads a tray warns, without blocking, when the reading differs from the
+  spool: another material type, a color the tray matcher would not pair (RGB distance over 80, so `E53935FF` and `#E33B37`
+  are the same), or a sub-brand of another product line. The sub-brand names the product line ("PLA Basic"), never the vendor,
+  and is compared with the filament's name: one line when all the words of one name are in the other. A value the slot does
+  not report is not compared. The printer page's Feed units card flags differences by the same rule.
 - **Weight drift.** For a loaded tagged spool, *Action required* asks when the AMS reading (`remain`, 1–100, of the
   spool's full weight) and the recorded weight differ by more than 10% of the full weight (`rfidDrift`). **Correct to N g**
   saves the reading as a weight correction with the reason "AMS reading", so it shows in the spool's history. It is never

@@ -36,6 +36,7 @@ import {
   detectedName,
   feedSlotView,
   normalizeFilamentColor,
+  sameLine,
 } from '../lib/feedSlotView';
 import { selectReloaderSlot } from '../lib/reloaderApi';
 import { AddFeedUnitDialog } from './AddFeedUnitDialog';
@@ -107,15 +108,13 @@ function FeedSlotRow({
     : view.empty
       ? 'Empty'
       : detected || 'No spool';
-  // Flag only what differs from the registered spool; a sub-brand that is already in its name is not a difference.
-  const registeredName =
-    `${filament?.vendorName} ${filament?.material}`.toLowerCase();
+  // Flag only what differs from the registered spool; a sub-brand of its own product line is not a difference.
   const materialDiffers =
     Boolean(spool && view.material) &&
     view.material?.toLowerCase() !== filament?.materialType?.toLowerCase();
   const subBrandDiffers =
     Boolean(spool && view.subBrand) &&
-    !registeredName.includes(view.subBrand?.toLowerCase() ?? '');
+    !sameLine(view.subBrand, filament?.material);
   const colorDiffers =
     Boolean(spool && view.color) &&
     colorsDiffer(view.color, normalizeFilamentColor(variant?.colorHex));

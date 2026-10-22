@@ -18,7 +18,6 @@ public sealed class LoadSpoolOntoFeedSlotCommandHandler(
     ISpoolRepository spoolRepository,
     IFeedUnitRepository feedUnitRepository,
     IFilamentRepository filamentRepository,
-    IVendorRepository vendorRepository,
     IPrinterRepository printerRepository, IProductionDispatcher? dispatcher = null) : ICommandHandler<LoadSpoolOntoFeedSlotCommand, LoadSpoolResult>
 {
     public async Task<LoadSpoolResult> HandleAsync(LoadSpoolOntoFeedSlotCommand command, CancellationToken cancellationToken)
@@ -77,15 +76,14 @@ public sealed class LoadSpoolOntoFeedSlotCommandHandler(
             return false;
         }
 
-        var vendor = await vendorRepository.GetByIdAsync(filament.VendorId, cancellationToken);
+        // A value the slot does not report is not compared. The sub-brand names the product line ("PLA Basic"), not the vendor,
+        // and printer colours drift from catalog ones, so only a colour the tray matcher would not pair counts as different.
+        var materialMismatch = !string.IsNullOrWhiteSpace(detectedTray.MaterialType)
+            && !string.Equals(detectedTray.MaterialType, filament.MaterialType, StringComparison.OrdinalIgnoreCase);
+        var colorMismatch = ToolTrayMatcher.ColorDistance(detectedTray.ColorHex, variant.ColorHex) > ToolTrayMatcher.MaxDistance;
+        var lineMismatch = !RfidVariantMatch.SameLine(detectedTray.SubBrand, filament.Material);
 
-        var materialMismatch = !string.Equals(detectedTray.MaterialType, filament.MaterialType, StringComparison.OrdinalIgnoreCase);
-        var colorMismatch = !string.Equals(detectedTray.ColorHex, variant.ColorHex, StringComparison.OrdinalIgnoreCase);
-        var subBrandMismatch = detectedTray.SubBrand is not null
-            && vendor is not null
-            && !string.Equals(detectedTray.SubBrand, vendor.Name, StringComparison.OrdinalIgnoreCase);
-
-        return materialMismatch || colorMismatch || subBrandMismatch;
+        return materialMismatch || colorMismatch || lineMismatch;
     }
 
     private async Task<string?> ResolvePortSharingNoteAsync(FeedUnit feedUnit, Printer printer, CancellationToken cancellationToken)

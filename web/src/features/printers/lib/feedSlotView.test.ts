@@ -5,6 +5,7 @@ import {
   detectedName,
   feedSlotView,
   normalizeFilamentColor,
+  sameLine,
 } from './feedSlotView';
 
 const unit = { kind: 'MultiMaterialUnit', unitIndex: 3 };
@@ -183,5 +184,15 @@ describe('colorsDiffer', () => {
     expect(colorsDiffer('#18181b', '#000000')).toBe(false);
     expect(colorsDiffer('#000000', '#ffffff')).toBe(true);
     expect(colorsDiffer(undefined, '#ffffff')).toBe(false);
+  });
+});
+
+describe('sameLine', () => {
+  it('matches a sub-brand to a filament name when all the words of one are in the other', () => {
+    expect(sameLine('PLA Basic', 'Bambu PLA Basic')).toBe(true);
+    expect(sameLine('PLA Basic', 'basic pla')).toBe(true);
+    expect(sameLine('PLA Basic', 'PLA')).toBe(true);
+    expect(sameLine('PLA Basic', 'PLA Matte')).toBe(false);
+    expect(sameLine(null, 'PLA Matte')).toBe(true);
   });
 });
