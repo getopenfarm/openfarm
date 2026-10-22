@@ -34,6 +34,10 @@ protection when changing these flows.
 - **Create buttons** on list pages read `Add X` with
   `PlusIcon data-icon="inline-start"`, primary, in the header `action`. Add-page
   titles read `Add X`.
+- **Batch entry**: an Add page for records that arrive in batches (spools from
+  one delivery) adds an outline `Save and add another` between Cancel and Save.
+  It keeps what the batch shares (supplier, order, date, spool weight), resets
+  the rest, and returns focus to the first field.
 - **Dialog footers**: `DialogFooter` with outline Cancel first, then the
   primary: `Save` when it persists form data, otherwise a specific verb
   (Remove, Load spool, Record usage, Send to queue, Mark ready).
@@ -59,6 +63,9 @@ footer must remain visible.
 - Use `FieldGroup` and `Field`; use `FieldSet` and `FieldLegend` for related
   controls. Labels must target the actual control. Descriptions and errors must
   be associated with it through `aria-describedby`.
+- Size a field to its value. A number or date holds a few characters, so keep
+  the input narrow, put the unit inside the box ("750 g"), and group short fields
+  on one row (two columns on phones) instead of stacking full-width inputs.
 - Put `data-invalid` on the Field and `aria-invalid` on its control. Pair
   `data-disabled` on the Field with `disabled` on the control.
 - Existing `FormField`, `FormItem`, `FormLabel`, and `FormMessage` exports remain

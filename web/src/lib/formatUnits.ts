@@ -3,6 +3,10 @@ const trim = (n: number, digits = 1) => String(Number(n.toFixed(digits)));
 /** 250 -> "250 g"; keeps up to 1 decimal, trims trailing ".0". */
 export const formatGrams = (n: number) => `${trim(n)} g`;
 
+/** 250 -> "250 g"; 1000 -> "1 kg"; 2500 -> "2.5 kg". For totals that grow past a spool. */
+export const formatWeight = (grams: number) =>
+  grams >= 1000 ? `${trim(grams / 1000, 2)} kg` : formatGrams(grams);
+
 /** 0.125 -> "0.13"; no currency symbol — the app has no currency setting. */
 export const formatCost = (n: number) => n.toFixed(2);
 

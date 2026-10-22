@@ -112,7 +112,7 @@ describe('SpoolDetailPage', () => {
     const save = screen.getByRole('button', { name: 'Save' });
     expect(save).toBeDisabled();
 
-    const weight = screen.getByLabelText('Remaining weight (g)');
+    const weight = screen.getByLabelText('Remaining weight');
     await user.clear(weight);
     await user.type(weight, '1200');
     await user.click(save);
@@ -155,7 +155,7 @@ describe('SpoolDetailPage', () => {
       screen.queryByLabelText('Reason (optional)'),
     ).not.toBeInTheDocument();
 
-    const weight = screen.getByLabelText('Remaining weight (g)');
+    const weight = screen.getByLabelText('Remaining weight');
     await user.clear(weight);
     await user.type(weight, '750');
     await user.type(
@@ -223,9 +223,7 @@ describe('SpoolDetailPage', () => {
     it('shows what was paid, the supplier, the order and the date, with the price per kg', async () => {
       renderPage(fakeApi({ spool: () => jsonResponse(pricedSpool) }));
 
-      expect(
-        await screen.findByLabelText('Price paid (per spool)'),
-      ).toHaveValue(18.5);
+      expect(await screen.findByLabelText('Price per spool')).toHaveValue(18.5);
       expect(screen.getByLabelText('Supplier')).toHaveValue('Filament Shop');
       expect(screen.getByLabelText('Order number')).toHaveValue('PO-1042');
       expect(screen.getByLabelText('Received on')).toHaveValue('2026-10-20');
@@ -261,7 +259,7 @@ describe('SpoolDetailPage', () => {
       const fetchMock = fakeApi({ spool: () => jsonResponse(pricedSpool) });
       renderPage(fetchMock);
 
-      await user.clear(await screen.findByLabelText('Price paid (per spool)'));
+      await user.clear(await screen.findByLabelText('Price per spool'));
       await user.clear(screen.getByLabelText('Supplier'));
       await user.clear(screen.getByLabelText('Order number'));
       fireEvent.change(screen.getByLabelText('Received on'), {
@@ -278,7 +276,7 @@ describe('SpoolDetailPage', () => {
       const fetchMock = fakeApi({ spool: () => jsonResponse(pricedSpool) });
       renderPage(fetchMock);
 
-      const price = await screen.findByLabelText('Price paid (per spool)');
+      const price = await screen.findByLabelText('Price per spool');
       await user.clear(price);
       await user.type(price, '-1');
       await user.click(screen.getByRole('button', { name: 'Save' }));
