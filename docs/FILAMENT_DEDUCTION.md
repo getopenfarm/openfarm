@@ -19,7 +19,8 @@ Job filament use is deducted automatically; operators never enter it. Manual spo
      curve, `layer_num / total_layer_num`, else `mc_percent`.
    - Manual-brand printer: Completed deducts in full; Failed has no progress, so nothing is deducted.
 3. Deduction applies only the difference from what the line already recorded, writes a
-   `SpoolUsageRecord` with source `Job` (see Spool history), and triggers auto-continuation when a spool hits zero.
+   `SpoolUsageRecord` with source `Job` (see Spool history), and triggers auto-continuation when a spool hits zero. The first
+   deduction of a line also writes its price per kg and where it came from (see Realized cost in `docs/FILAMENT_PRICING.md`).
 4. A line with no bound spool, no estimate, no progress, or a spool no longer Using is skipped, never
    thrown, and logged as `PrintJobFilamentDeductionSkipped` on the job. Correct with manual spool usage.
 

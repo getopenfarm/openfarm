@@ -63,6 +63,9 @@ public sealed class PrintFilamentConfiguration : IEntityTypeConfiguration<PrintF
         builder.Property(f => f.SkippedReason).HasConversion<string>();
         builder.Property(f => f.GramsConsumed).HasColumnType("numeric");
         builder.Property(f => f.EstimatedGrams).HasColumnType("numeric");
+        // The price the line was costed at when first deducted, and where it came from; Cost is derived from them and the grams.
+        builder.Property(f => f.PricePerKg).HasColumnType("numeric");
+        builder.Property(f => f.PriceSource).HasConversion<string>();
         builder.Property(f => f.UsageCurve).HasConversion(
             curve => curve == null ? null : curve.ToJson(), json => FilamentUsageCurve.FromJson(json));
 

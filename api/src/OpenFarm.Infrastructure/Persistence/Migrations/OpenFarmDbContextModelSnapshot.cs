@@ -1257,6 +1257,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("NarrowFilamentVariantId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("PricePerKg")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("PriceSource")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("PrintId")
                         .HasColumnType("uuid");
 

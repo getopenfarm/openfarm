@@ -1,11 +1,14 @@
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
 public sealed record GetPrintJobQuery(Guid JobId);
 
+/// <param name="PricePerKg">The price the line was costed at when first deducted; null while no price was known.</param>
+/// <param name="Cost">The grams deducted at that price, unrounded; null without a price or without grams.</param>
 public sealed record JobFilamentConsumptionDetail(Guid Id, string? MaterialType, string? DetectedColorHex, Guid? SpoolId, decimal? GramsConsumed, Guid? NarrowFilamentVariantId = null, Guid? NarrowFilamentProfileId = null,
-    int ToolIndex = 0, decimal? EstimatedGrams = null);
+    int ToolIndex = 0, decimal? EstimatedGrams = null, decimal? PricePerKg = null, FilamentPriceSource? PriceSource = null, decimal? Cost = null);
 
 public sealed record PrintJobDetail(
     Guid Id,

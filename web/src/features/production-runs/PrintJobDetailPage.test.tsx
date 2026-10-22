@@ -354,3 +354,144 @@ it('shows no slicing provenance for a job that was never sliced', async () => {
     screen.getByRole('button', { name: 'Download print file' }),
   ).not.toHaveAttribute('title');
 });
+
+/** A closed print whose filament lines carry what the server recorded about price and cost. */
+function renderCostedJob(
+  lines: Record<string, unknown>[],
+  status = 'Completed',
+) {
+  const job = {
+    id: 'job-1',
+    status,
+    snapshotState: 'Ready',
+    plateQuantity: 1,
+    fileRevisionNumber: 1,
+    filamentConsumption: lines,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      const body = url.includes('/printers')
+        ? { printers: [] }
+        : url.includes('/spools')
+          ? { spools: [] }
+          : url.includes('/filaments')
+            ? { filaments: [] }
+            : job;
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={['/jobs/job-1']}>
+        <Routes>
+          <Route path="/jobs/:id" element={<PrintJobDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const SPOOL_LINE = {
+  materialType: 'PLA',
+  detectedColorHex: '000000',
+  gramsConsumed: 50,
+  pricePerKg: 20,
+  priceSource: 'Spool',
+  cost: 1,
+  spoolId: 'spool-1',
+};
+const COLOR_LINE = {
+  materialType: 'PETG',
+  detectedColorHex: 'FFFFFF',
+  gramsConsumed: 30,
+  pricePerKg: 30,
+  priceSource: 'Variant',
+  cost: 0.9,
+  spoolId: 'spool-2',
+};
+
+it('shows each deducted line with its cost, price source and a link to its spool, and a total', async () => {
+  renderCostedJob([SPOOL_LINE, COLOR_LINE]);
+
+  expect(await screen.findByText('Filament consumed')).toBeInTheDocument();
+  expect(screen.getByText('50 g')).toBeInTheDocument();
+  expect(screen.getByText('1.00')).toBeInTheDocument();
+  expect(screen.getByText('20.00 per kg · spool price')).toBeInTheDocument();
+  expect(screen.getByText('30.00 per kg · color price')).toBeInTheDocument();
+  const links = screen.getAllByRole('link', { name: 'Spool' });
+  expect(links.map((link) => link.getAttribute('href'))).toEqual([
+    '/spools/spool-1',
+    '/spools/spool-2',
+  ]);
+  expect(screen.getByText('Filament cost')).toBeInTheDocument();
+  expect(screen.getByText('1.90')).toBeInTheDocument();
+  expect(screen.queryByText('Partial')).not.toBeInTheDocument();
+});
+
+it('marks the total partial when a line has no price or was not deducted, without counting it as zero', async () => {
+  renderCostedJob(
+    [
+      SPOOL_LINE,
+      {
+        materialType: 'ABS',
+        detectedColorHex: null,
+        gramsConsumed: 10,
+        pricePerKg: null,
+        cost: null,
+        spoolId: 'spool-3',
+      },
+      { materialType: 'TPU', detectedColorHex: null, gramsConsumed: null },
+    ],
+    'Failed',
+  );
+
+  expect(await screen.findByText('Filament cost')).toBeInTheDocument();
+  expect(screen.getByText('Partial')).toBeInTheDocument();
+  expect(screen.getByText('No price')).toBeInTheDocument();
+  expect(screen.getByText('Not deducted')).toBeInTheDocument();
+  // Only the priced line is added: the unpriced 10 g is not costed as free.
+  expect(screen.getAllByText('1.00')).toHaveLength(2);
+});
+
+it('shows no total when no line has a cost', async () => {
+  renderCostedJob([
+    {
+      materialType: 'PLA',
+      detectedColorHex: null,
+      gramsConsumed: 20,
+      cost: null,
+    },
+  ]);
+
+  expect(await screen.findByText('No price')).toBeInTheDocument();
+  expect(screen.queryByText('Filament cost')).not.toBeInTheDocument();
+});
+
+it('shows a spool priced at zero as a cost of 0.00, not as no price', async () => {
+  renderCostedJob([
+    { ...SPOOL_LINE, pricePerKg: 0, cost: 0, gramsConsumed: 50 },
+  ]);
+
+  expect(
+    await screen.findByText('0.00 per kg · spool price'),
+  ).toBeInTheDocument();
+  expect(screen.getAllByText('0.00')).toHaveLength(2);
+  expect(screen.queryByText('No price')).not.toBeInTheDocument();
+  expect(screen.queryByText('Partial')).not.toBeInTheDocument();
+});
+
+it('shows no cost while the print is still running', async () => {
+  renderCostedJob(
+    [{ materialType: 'PLA', detectedColorHex: null, estimatedGrams: 20 }],
+    'Printing',
+  );
+
+  expect(await screen.findByText('Filament requirements')).toBeInTheDocument();
+  expect(screen.getByText('Est. 20 g')).toBeInTheDocument();
+  expect(screen.queryByText('Filament cost')).not.toBeInTheDocument();
+});

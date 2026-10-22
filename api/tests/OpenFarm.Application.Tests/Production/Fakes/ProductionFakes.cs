@@ -320,6 +320,11 @@ public sealed class RecordingPrinterConnectorFactory(RecordingPrinterConnector c
 
 public static class ProductionTestFixtures
 {
+    /// <summary>Automatic deduction over empty in-memory stand-ins, for handlers whose tests do not look at filament.</summary>
+    public static JobFilamentAutoDeduction CreateDeduction() => new(
+        new InMemorySpoolRepository(), new InMemorySpoolUsageRecordRepository(), new NoopContinuationResolver(),
+        new RecordingActivityLogWriter(), new OpenFarm.Application.Tests.Profiles.Fakes.FakeFilamentRepository());
+
     /// <summary>
     /// Every registered (Brand, ModelCode) entry in PrinterModelCatalog is Bambu or System, both
     /// live-integrated (see its own remarks: "there is no non-live brand registrable today" until

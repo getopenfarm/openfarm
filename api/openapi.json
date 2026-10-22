@@ -6916,6 +6916,20 @@
           "toolIndex": {
             "type": "integer",
             "format": "int32"
+          },
+          "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "priceSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
           }
         }
       },

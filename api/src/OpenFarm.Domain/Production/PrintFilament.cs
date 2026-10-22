@@ -1,3 +1,5 @@
+using OpenFarm.Domain.FilamentTracking;
+
 namespace OpenFarm.Domain.Production;
 
 /// <summary>
@@ -45,6 +47,15 @@ public sealed class PrintFilament : IFilamentUsageLine
     /// <summary>Why automatic deduction left this line unrecorded; null once it is recorded or if nothing went wrong.</summary>
     public FilamentSkipReason? SkippedReason { get; private set; }
 
+    /// <summary>The price per kg this line is costed at, written once when it is first deducted; null while no price was known.</summary>
+    public decimal? PricePerKg { get; private set; }
+
+    /// <summary>Whether <see cref="PricePerKg"/> came from the spool, its colour or its filament; null with the price.</summary>
+    public FilamentPriceSource? PriceSource { get; private set; }
+
+    /// <summary>What the grams deducted so far cost at <see cref="PricePerKg"/>, unrounded; null when either is unknown. Round only for display.</summary>
+    public decimal? Cost => GramsConsumed is { } grams && PricePerKg is { } price ? grams * price / 1000m : null;
+
     internal static PrintFilament Create(Guid printId, int toolIndex, string? materialType, string? detectedColorHex) =>
         new(Guid.NewGuid(), printId, toolIndex, materialType, detectedColorHex);
 
@@ -72,6 +83,18 @@ public sealed class PrintFilament : IFilamentUsageLine
     }
 
     internal void Skip(FilamentSkipReason reason) => SkippedReason = reason;
+
+    /// <summary>Keeps the first price a line is costed at: a later one, from a price change or a re-run, never replaces it.</summary>
+    internal void SnapshotPrice(ResolvedFilamentPrice price)
+    {
+        if (PricePerKg is not null)
+        {
+            return;
+        }
+
+        PricePerKg = price.PricePerKg;
+        PriceSource = price.Source;
+    }
 
     internal void Record(Guid? spoolId, decimal gramsConsumed)
     {

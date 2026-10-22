@@ -727,6 +727,12 @@ export interface JobFilamentConsumptionResponse {
   /** @nullable */
   estimatedGrams?: number | null;
   toolIndex?: number;
+  /** @nullable */
+  pricePerKg?: number | null;
+  /** @nullable */
+  priceSource?: string | null;
+  /** @nullable */
+  cost?: number | null;
 }
 
 export interface ResolvedPresetResponse {

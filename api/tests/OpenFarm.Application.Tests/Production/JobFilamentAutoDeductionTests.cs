@@ -1,6 +1,7 @@
 using FluentAssertions;
 using OpenFarm.Application.Production;
 using OpenFarm.Application.Tests.Production.Fakes;
+using OpenFarm.Application.Tests.Profiles.Fakes;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Production;
 
@@ -10,9 +11,24 @@ public class JobFilamentAutoDeductionTests
 {
     private readonly InMemorySpoolUsageRecordRepository _usage = new();
     private readonly RecordingActivityLogWriter _log = new();
+    private readonly FakeFilamentRepository _filaments = new();
 
     private JobFilamentAutoDeduction Create(params Spool[] spools) =>
-        new(new InMemorySpoolRepository(spools), _usage, new NoopContinuationResolver(), _log);
+        new(new InMemorySpoolRepository(spools), _usage, new NoopContinuationResolver(), _log, _filaments);
+
+    /// <summary>A loaded spool of a catalogued colour, priced at the spool, colour and filament levels as given.</summary>
+    private async Task<Spool> PricedSpoolAsync(decimal? spoolPrice = null, decimal? variantPricePerKg = null, decimal? filamentPricePerKg = null)
+    {
+        var filament = Filament.Create(Guid.NewGuid(), "PLA Basic", "PLA");
+        var variant = filament.AddVariant("Black", "#000000");
+        filament.SetPricePerKg(filamentPricePerKg);
+        variant.SetPricePerKg(variantPricePerKg);
+        await _filaments.AddAsync(filament, CancellationToken.None);
+        var spool = Spool.Create(variant.Id, null, 1000, 1000);
+        spool.SetPurchase(spoolPrice, null, null, null);
+        spool.LoadOntoFeedSlot(Guid.NewGuid());
+        return spool;
+    }
 
     private static Spool UsingSpool(decimal remaining = 1000)
     {
@@ -280,5 +296,117 @@ public class JobFilamentAutoDeductionTests
         job.Filaments[0].SkippedReason.Should().BeNull();
         spool.RemainingWeightGrams.Should().Be(1000m);
         _usage.Records.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ADeductedLine_IsCostedAtThePricePaidForItsSpool()
+    {
+        var spool = await PricedSpoolAsync(spoolPrice: 20m, variantPricePerKg: 30m, filamentPricePerKg: 25m);
+        var job = JobWith(("PLA", "#000000"));
+        job.BindFilamentUsage([(spool.Id, 50m, null)]);
+
+        await Create(spool).ApplyAsync(job, Completed, CancellationToken.None);
+
+        var line = job.Filaments.Single();
+        line.PricePerKg.Should().Be(20m);
+        line.PriceSource.Should().Be(FilamentPriceSource.Spool);
+        line.Cost.Should().Be(1.00m);
+    }
+
+    [Theory]
+    [InlineData(null, 30.0, 25.0, 30.0, FilamentPriceSource.Variant)]
+    [InlineData(null, null, 25.0, 25.0, FilamentPriceSource.Filament)]
+    [InlineData(null, 0.0, 25.0, 0.0, FilamentPriceSource.Variant)]
+    public async Task WithoutASpoolPrice_TheColourThenTheFilamentPriceIsUsed(
+        double? spoolPrice, double? variantPrice, double? filamentPrice, double expectedPerKg, FilamentPriceSource expectedSource)
+    {
+        var spool = await PricedSpoolAsync((decimal?)spoolPrice, (decimal?)variantPrice, (decimal?)filamentPrice);
+        var job = JobWith(("PLA", "#000000"));
+        job.BindFilamentUsage([(spool.Id, 50m, null)]);
+
+        await Create(spool).ApplyAsync(job, Completed, CancellationToken.None);
+
+        var line = job.Filaments.Single();
+        line.PricePerKg.Should().Be((decimal)expectedPerKg);
+        line.PriceSource.Should().Be(expectedSource);
+        line.Cost.Should().Be((decimal)expectedPerKg * 50m / 1000m);
+    }
+
+    [Fact]
+    public async Task WithNoPriceAnywhere_TheLineHasNoCost()
+    {
+        var spool = await PricedSpoolAsync();
+        var job = JobWith(("PLA", "#000000"));
+        job.BindFilamentUsage([(spool.Id, 50m, null)]);
+
+        await Create(spool).ApplyAsync(job, Completed, CancellationToken.None);
+
+        var line = job.Filaments.Single();
+        line.GramsConsumed.Should().Be(50m);
+        line.PricePerKg.Should().BeNull();
+        line.Cost.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ASpoolMissingFromTheCatalog_LeavesTheLineUnpriced_WithoutFailingTheDeduction()
+    {
+        var spool = UsingSpool();
+        var job = JobWith(("PLA", "#000000"));
+        job.BindFilamentUsage([(spool.Id, 50m, null)]);
+
+        await Create(spool).ApplyAsync(job, Completed, CancellationToken.None);
+
+        job.Filaments.Single().GramsConsumed.Should().Be(50m);
+        job.Filaments.Single().Cost.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AFailedPrint_IsCostedOnlyForWhatWasDeducted()
+    {
+        var spool = await PricedSpoolAsync(spoolPrice: 25m);
+        var job = JobWith(("PLA", "#000000"));
+        job.BindFilamentUsage([(spool.Id, 20m, null)]);
+
+        await Create(spool).ApplyAsync(job, FailedAt(percent: 40), CancellationToken.None);
+
+        var line = job.Filaments.Single();
+        line.GramsConsumed.Should().Be(8m);
+        line.Cost.Should().Be(0.20m);
+    }
+
+    [Fact]
+    public async Task ALaterDeduction_AddsGramsAtTheFirstPrice_EvenAfterThePriceChanged()
+    {
+        var spool = await PricedSpoolAsync(spoolPrice: 20m);
+        var job = JobWith(("PLA", "#000000"));
+        job.BindFilamentUsage([(spool.Id, 20m, null)]);
+        var deduction = Create(spool);
+
+        await deduction.ApplyAsync(job, FailedAt(percent: 40), CancellationToken.None);
+        spool.SetPurchase(99m, null, null, null);
+        await deduction.ApplyAsync(job, FailedAt(percent: 80), CancellationToken.None);
+
+        var line = job.Filaments.Single();
+        line.GramsConsumed.Should().Be(16m);
+        line.PricePerKg.Should().Be(20m);
+        line.Cost.Should().Be(0.32m);
+    }
+
+    [Fact]
+    public async Task ALineWithoutAPrice_GainsOneWhenAPricedSpoolIsAssignedLater()
+    {
+        var pricedSpool = await PricedSpoolAsync(spoolPrice: 30m);
+        var job = ClosedJob(Completed, ("PLA", "#000000"));
+        job.BindFilamentUsage([(null, 20m, null)]);
+        var deduction = Create(pricedSpool);
+        await deduction.ApplyAsync(job, Completed, CancellationToken.None);
+        job.Filaments.Single().Cost.Should().BeNull();
+
+        job.BindLineSpool(job.Filaments.Single().Id, pricedSpool.Id);
+        await deduction.ApplyAsync(job, Completed, CancellationToken.None, logSkipped: false);
+
+        var line = job.Filaments.Single();
+        line.PriceSource.Should().Be(FilamentPriceSource.Spool);
+        line.Cost.Should().Be(0.60m);
     }
 }

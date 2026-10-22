@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using OpenFarm.Api.Endpoints.PrintJobs;
 using OpenFarm.Api.Endpoints.Spools;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.FilamentTracking;
@@ -81,6 +82,60 @@ public class AutoFilamentDeductionTests(ProductionTestFactory factory) : Product
         entry.PrintStatus.Should().Be("Completed");
         entry.ChangeGrams.Should().Be(-20m);
         entry.RemainingAfterGrams.Should().Be(980m);
+    }
+
+    private static async Task<JobFilamentConsumptionResponse> LineAsync(HttpClient client, Guid jobId) =>
+        (await client.GetFromJsonAsync<PrintJobResponse>($"/api/v1/print-jobs/{jobId}"))!.FilamentConsumption.Single();
+
+    [Fact]
+    public async Task Finish_CostsTheLineAtThePricePaidForTheSpool_AndTheCostSticksWhenThePriceChanges()
+    {
+        var (jobId, printerId, spoolId) = await PrintingJobAsync(20m);
+        var client = await ClientAsync();
+        (await client.PutAsJsonAsync($"/api/v1/spools/{spoolId}", new { remainingWeightGrams = 1000m, price = 20m })).EnsureSuccessStatusCode();
+
+        await ReplayAsync(printerId, "FINISH");
+
+        var line = await LineAsync(client, jobId);
+        line.GramsConsumed.Should().Be(20m);
+        line.PricePerKg.Should().Be(20m);
+        line.PriceSource.Should().Be("Spool");
+        line.Cost.Should().Be(0.4m);
+
+        // The spool is repriced afterwards; what the print cost does not move.
+        (await client.PutAsJsonAsync($"/api/v1/spools/{spoolId}", new { remainingWeightGrams = 980m, price = 99m })).EnsureSuccessStatusCode();
+        var after = await LineAsync(client, jobId);
+        after.PricePerKg.Should().Be(20m);
+        after.Cost.Should().Be(0.4m);
+    }
+
+    [Fact]
+    public async Task Finish_OfASpoolWithoutAPrice_HasNoCost()
+    {
+        var (jobId, printerId, _) = await PrintingJobAsync(20m);
+
+        await ReplayAsync(printerId, "FINISH");
+
+        var line = await LineAsync(await ClientAsync(), jobId);
+        line.GramsConsumed.Should().Be(20m);
+        line.PricePerKg.Should().BeNull();
+        line.PriceSource.Should().BeNull();
+        line.Cost.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Failed_CostsOnlyWhatWasDeducted()
+    {
+        var (jobId, printerId, spoolId) = await PrintingJobAsync(20m);
+        var client = await ClientAsync();
+        (await client.PutAsJsonAsync($"/api/v1/spools/{spoolId}", new { remainingWeightGrams = 1000m, price = 25m })).EnsureSuccessStatusCode();
+        await SetProgressAsync(printerId, percent: 50, layer: null, totalLayers: null);
+
+        await ReplayAsync(printerId, "FAILED");
+
+        var line = await LineAsync(client, jobId);
+        line.GramsConsumed.Should().Be(10m);
+        line.Cost.Should().Be(0.25m);
     }
 
     [Fact]

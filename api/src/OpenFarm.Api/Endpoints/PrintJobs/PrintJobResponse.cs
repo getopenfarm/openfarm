@@ -88,6 +88,15 @@ public sealed class JobFilamentConsumptionResponse
 
     public int ToolIndex { get; set; }
 
+    /// <summary>The price per kg the line was costed at, written when it was first deducted; null while no price was known.</summary>
+    public decimal? PricePerKg { get; set; }
+
+    /// <summary><c>Spool</c>, <c>Variant</c> (the colour) or <c>Filament</c>: where <see cref="PricePerKg"/> came from.</summary>
+    public string? PriceSource { get; set; }
+
+    /// <summary>The grams deducted at that price, unrounded; null without a price or without grams. Round only for display.</summary>
+    public decimal? Cost { get; set; }
+
     public static JobFilamentConsumptionResponse FromDetail(JobFilamentConsumptionDetail detail) => new()
     {
         Id = detail.Id,
@@ -99,6 +108,9 @@ public sealed class JobFilamentConsumptionResponse
         GramsConsumed = detail.GramsConsumed,
         EstimatedGrams = detail.EstimatedGrams,
         ToolIndex = detail.ToolIndex,
+        PricePerKg = detail.PricePerKg,
+        PriceSource = detail.PriceSource?.ToString(),
+        Cost = detail.Cost,
     };
 }
 

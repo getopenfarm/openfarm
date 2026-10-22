@@ -1,3 +1,5 @@
+using OpenFarm.Domain.FilamentTracking;
+
 namespace OpenFarm.Domain.Production;
 
 /// <summary>Where a print came from: queued and dispatched by OpenFarm, or started on the printer itself.</summary>
@@ -117,6 +119,15 @@ public abstract class Print
     public void RecordFilamentConsumption(Guid lineId, Guid? spoolId, decimal gramsConsumed)
     {
         Line(lineId).Record(spoolId, gramsConsumed);
+    }
+
+    /// <summary>Records the price a line is costed at. Only the first price sticks, and no price leaves the line unpriced.</summary>
+    public void SnapshotFilamentPrice(Guid lineId, ResolvedFilamentPrice? price)
+    {
+        if (price is { } resolved)
+        {
+            Line(lineId).SnapshotPrice(resolved);
+        }
     }
 
     public void RecordStopProgress(int? layer, int? totalLayers, int? percent)

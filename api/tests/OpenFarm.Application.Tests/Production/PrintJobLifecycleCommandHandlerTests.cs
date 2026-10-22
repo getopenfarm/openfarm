@@ -23,7 +23,7 @@ public class CompletePrintJobCommandHandlerTests
         var publisher = new RecordingProductionEventPublisher();
         var completionService = new ProductionRunCompletionService(runRepository, requirementRepository, jobRepository, publisher);
         var handler = new CompletePrintJobCommandHandler(
-            jobRepository, printerRepository, new JobFilamentAutoDeduction(new InMemorySpoolRepository(), new InMemorySpoolUsageRecordRepository(), new NoopContinuationResolver(), new RecordingActivityLogWriter()), publisher, completionService);
+            jobRepository, printerRepository, ProductionTestFixtures.CreateDeduction(), publisher, completionService);
 
         var act = () => handler.HandleAsync(new CompletePrintJobCommand(job.Id), CancellationToken.None);
         await act.Should().ThrowAsync<JobNotEligibleForRemoteControlException>();
@@ -41,7 +41,7 @@ public class CompletePrintJobCommandHandlerTests
         var publisher = new RecordingProductionEventPublisher();
         var completionService = new ProductionRunCompletionService(runRepository, requirementRepository, jobRepository, publisher);
         var handler = new CompletePrintJobCommandHandler(
-            jobRepository, new InMemoryPrinterRepository(), new JobFilamentAutoDeduction(new InMemorySpoolRepository(), new InMemorySpoolUsageRecordRepository(), new NoopContinuationResolver(), new RecordingActivityLogWriter()), publisher, completionService);
+            jobRepository, new InMemoryPrinterRepository(), ProductionTestFixtures.CreateDeduction(), publisher, completionService);
 
         var act = () => handler.HandleAsync(new CompletePrintJobCommand(job.Id), CancellationToken.None);
 
@@ -57,7 +57,7 @@ public class CompletePrintJobCommandHandlerTests
         var publisher = new RecordingProductionEventPublisher();
         var completionService = new ProductionRunCompletionService(runRepository, requirementRepository, jobRepository, publisher);
         var handler = new CompletePrintJobCommandHandler(
-            jobRepository, new InMemoryPrinterRepository(), new JobFilamentAutoDeduction(new InMemorySpoolRepository(), new InMemorySpoolUsageRecordRepository(), new NoopContinuationResolver(), new RecordingActivityLogWriter()), publisher, completionService);
+            jobRepository, new InMemoryPrinterRepository(), ProductionTestFixtures.CreateDeduction(), publisher, completionService);
 
         var act = () => handler.HandleAsync(new CompletePrintJobCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -78,7 +78,7 @@ public class FailPrintJobCommandHandlerTests
         var jobRepository = new InMemoryPrintJobRepository(job);
         var printerRepository = new InMemoryPrinterRepository(printer);
         var publisher = new RecordingProductionEventPublisher();
-        var handler = new FailPrintJobCommandHandler(jobRepository, printerRepository, new JobFilamentAutoDeduction(new InMemorySpoolRepository(), new InMemorySpoolUsageRecordRepository(), new NoopContinuationResolver(), new RecordingActivityLogWriter()), publisher);
+        var handler = new FailPrintJobCommandHandler(jobRepository, printerRepository, ProductionTestFixtures.CreateDeduction(), publisher);
 
         var act = () => handler.HandleAsync(new FailPrintJobCommand(job.Id), CancellationToken.None);
         await act.Should().ThrowAsync<JobNotEligibleForRemoteControlException>();
@@ -91,7 +91,7 @@ public class FailPrintJobCommandHandlerTests
         var job = ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
         var handler = new FailPrintJobCommandHandler(
             new InMemoryPrintJobRepository(job), new InMemoryPrinterRepository(),
-            new JobFilamentAutoDeduction(new InMemorySpoolRepository(), new InMemorySpoolUsageRecordRepository(), new NoopContinuationResolver(), new RecordingActivityLogWriter()),
+            ProductionTestFixtures.CreateDeduction(),
             new RecordingProductionEventPublisher());
 
         var act = () => handler.HandleAsync(new FailPrintJobCommand(job.Id), CancellationToken.None);

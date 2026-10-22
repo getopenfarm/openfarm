@@ -7,8 +7,9 @@ filament and hardware prices in the same currency; amounts have no currency symb
 
 Assembly Build panels use the catalog variant selected on each part's production
 filament requirement. Detected material/color alone does not select a price.
-Costs use current saved prices, rather than inventory purchase prices or historical
-snapshots:
+The panel's estimate is a forecast: it uses current saved catalog prices, rather than
+spool purchase prices or historical snapshots. What a finished print really cost is
+recorded separately (see [Realized cost of a print](#realized-cost-of-a-print)):
 
 `cost = estimated grams × required units / units per print / 1000 × price per kg`
 
@@ -46,7 +47,26 @@ A spool can also record what it cost, all optional:
   `SpoolRegistered` entry per spool.
 - `PUT /api/v1/spools/{id}` replaces the purchase fields together with the label and remaining weight; omitting one clears it.
 - The per-kg figure divides by the spool's full weight, not what is left, since the price paid covers the whole spool.
-- These fields do not change the Build panel: it keeps using the catalog price above. They only record what a spool cost.
+- These fields do not change the Build panel: it keeps using the catalog price above. A spool's price is what a print that
+  used the spool is costed at (next section).
+
+## Realized cost of a print
+
+When a print's filament is deducted, each line is also costed, once, and the cost is kept with the print.
+
+- **Price per kg**, most specific first: the price paid for the spool that fed the line (over the spool's full weight), else the
+  color's price, else the filament's. Zero is a price at every level; only a blank falls through to the next. No price at any
+  level leaves the line unpriced.
+- **Cost** = grams deducted × price per kg ÷ 1000, kept unrounded and shown to two decimals. A failed or cancelled print costs
+  only the grams deducted. A line with nothing deducted has no cost.
+- **The price is written once**, when the line is first deducted. Changing a spool, color, or filament price later does not change
+  what a print cost, and a repeated deduction adds its grams at the same price. A line left unpriced gains a price when the
+  operator assigns a priced spool to it (**Assign spool**).
+- **Total**: the job page adds the lines that have a cost and shows *Partial* when any line has none (no price, or not deducted).
+  A line without a price shows "No price", never zero. Prints that ended before this was recorded have no price or cost, and
+  are not back-filled.
+- `GET /api/v1/print-jobs/{id}` returns `pricePerKg`, `priceSource` (`Spool`, `Variant` for the color, or `Filament`) and `cost`
+  on each filament line. Printer-started prints are costed the same way.
 
 Physical material package rates, measured usage, labour, and shipping allowances
 are described in [Cost catalog](COST_CATALOG.md).

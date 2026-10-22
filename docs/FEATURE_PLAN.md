@@ -267,6 +267,7 @@ Split out from Phase 7 so the queue can ship and be used while unit-level outcom
 - Metrics available as cards: filament usage (by material, color, printer, or time period), printer utilization rate, total print time, idle time, cost per part/assembly/job.
 - Optional selling price per part/assembly, with margin (price minus estimated cost) surfaced next to the existing cost metrics. Estimated cost draws from filament cost-per-gram (from spool purchase price) and a configurable per-printer hourly machine rate, giving a quick quote for a given part and quantity without needing full order integration.
 - Because the underlying data (printer status history since Phase 1, per-job filament breakdown since Phase 7) has already been captured, this is mostly aggregation and UI work rather than a data model change.
+- Each print's filament cost is already recorded when the print ends (the spool's price paid, else the color's, else the filament's price — see `docs/FILAMENT_PRICING.md`), so cost per job, part and assembly aggregates recorded values instead of re-pricing with today's prices.
 
 ## Phase 20 — Public API / webhooks
 

@@ -21,7 +21,7 @@ public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository, I
             job.DispatchedAtUtc, job.StartedAtUtc, job.EndedAtUtc, job.ActualDurationMinutes,
             job.CancelRequestedAtUtc, job.RequeuedAsJobId,
             job.Filaments
-                .Select(c => new JobFilamentConsumptionDetail(c.Id, c.MaterialType, c.DetectedColorHex, c.SpoolId, c.GramsConsumed, c.NarrowFilamentVariantId, c.NarrowFilamentProfileId, c.ToolIndex, c.EstimatedGrams))
+                .Select(c => new JobFilamentConsumptionDetail(c.Id, c.MaterialType, c.DetectedColorHex, c.SpoolId, c.GramsConsumed, c.NarrowFilamentVariantId, c.NarrowFilamentProfileId, c.ToolIndex, c.EstimatedGrams, c.PricePerKg, c.PriceSource, c.Cost))
                 .ToList(),
             job.CreatedAtUtc, job.GetSnapshotState(), job.SnapshotRecoveryReason, job.Source, job.Name,
             job.LastBlockReason, job.LastBlockedAtUtc, DispatchProvenance.FromJson(job.DispatchProvenanceJson));
@@ -32,7 +32,7 @@ public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository, I
         print.Id, null, null, null, null, null, print.PrinterId, print.Status, null, null, null,
         print.StartedAtUtc, print.EndedAtUtc, print.ActualDurationMinutes, null, null,
         print.Filaments.OrderBy(f => f.ToolIndex)
-            .Select(f => new JobFilamentConsumptionDetail(f.Id, f.MaterialType, f.DetectedColorHex, f.SpoolId, f.GramsConsumed, null, null, f.ToolIndex, f.EstimatedGrams))
+            .Select(f => new JobFilamentConsumptionDetail(f.Id, f.MaterialType, f.DetectedColorHex, f.SpoolId, f.GramsConsumed, null, null, f.ToolIndex, f.EstimatedGrams, f.PricePerKg, f.PriceSource, f.Cost))
             .ToList(),
         print.CreatedAtUtc, "Ready", null, print.Source, print.Name);
 }

@@ -65,6 +65,22 @@ public class ExternalPrintHistoryTests(ProductionTestFactory factory) : Producti
     }
 
     [Fact]
+    public async Task Finish_CostsAPrinterStartedPrintLikeAQueuedOne()
+    {
+        var (printId, printerId, spoolId) = await StartExternalAsync(20m);
+        var client = await ClientAsync();
+        (await client.PutAsJsonAsync($"/api/v1/spools/{spoolId}", new { remainingWeightGrams = 1000m, price = 20m })).EnsureSuccessStatusCode();
+
+        await ReplayAsync(printerId, "FINISH");
+
+        var line = (await client.GetFromJsonAsync<PrintJobResponse>($"/api/v1/print-jobs/{printId}"))!.FilamentConsumption.Single();
+        line.GramsConsumed.Should().Be(20m);
+        line.PricePerKg.Should().Be(20m);
+        line.PriceSource.Should().Be("Spool");
+        line.Cost.Should().Be(0.4m);
+    }
+
+    [Fact]
     public async Task ExternalPrints_AreNeverInTheQueue_OrCandidatesForDispatchLookups()
     {
         var (printId, printerId, _) = await StartExternalAsync(20m);

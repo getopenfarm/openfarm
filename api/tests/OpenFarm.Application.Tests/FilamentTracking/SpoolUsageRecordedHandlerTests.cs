@@ -269,7 +269,8 @@ public class SpoolUsageRecordedHandlerTests
         var job = OpenFarm.Application.Tests.Production.Fakes.ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
         job.BindFilamentUsage([(first.Id, 1000m, null)]);
         var deduction = new OpenFarm.Application.Production.JobFilamentAutoDeduction(
-            _spoolRepository, new OpenFarm.Application.Tests.Production.Fakes.InMemorySpoolUsageRecordRepository(), CreateHandler(), _activityLogWriter);
+            _spoolRepository, new OpenFarm.Application.Tests.Production.Fakes.InMemorySpoolUsageRecordRepository(), CreateHandler(), _activityLogWriter,
+            new OpenFarm.Application.Tests.Profiles.Fakes.FakeFilamentRepository());
         await deduction.ApplyAsync(job, new OpenFarm.Application.Production.JobProgress(OpenFarm.Domain.Production.PrintJobStatus.Completed), CancellationToken.None);
         await deduction.ApplyAsync(job, new OpenFarm.Application.Production.JobProgress(OpenFarm.Domain.Production.PrintJobStatus.Completed), CancellationToken.None);
         first.State.Should().Be(SpoolState.Finished);

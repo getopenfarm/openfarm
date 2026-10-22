@@ -39,7 +39,7 @@ import {
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { getToken } from '@/lib/auth/tokenStorage';
 import { formatDateTime } from '@/lib/formatDateTime';
-import { formatGrams } from '@/lib/formatUnits';
+import { formatCost, formatGrams } from '@/lib/formatUnits';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
 import { JobRemoteControls } from './components/JobRemoteControls';
 import { RemoveJobButton } from './components/RemoveJobButton';
@@ -222,9 +222,19 @@ function JobFilamentForm({
   );
 }
 
+const PRICE_SOURCE_LABEL: Record<string, string> = {
+  Spool: 'spool price',
+  Variant: 'color price',
+  Filament: 'filament price',
+};
+
 function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
   const terminal = TERMINAL_STATUSES.includes(job.status ?? '');
   const lines = job.filamentConsumption ?? [];
+  // The total adds the lines that have a cost. It is partial while any line has none: no price, or nothing deducted.
+  const costs = lines.flatMap((line) => (line.cost != null ? [line.cost] : []));
+  const totalCost = costs.reduce((sum, cost) => sum + cost, 0);
+  const partial = costs.length < lines.length;
   return (
     <Card>
       <CardHeader>
@@ -261,11 +271,43 @@ function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
                 )}
               </span>
               {terminal ? (
-                <span className="text-muted-foreground">
-                  {line.gramsConsumed != null
-                    ? formatGrams(line.gramsConsumed)
-                    : 'Not deducted'}
-                </span>
+                line.gramsConsumed != null ? (
+                  <span className="flex flex-col items-end gap-0.5 text-right">
+                    <span className="flex items-center gap-2 tabular-nums">
+                      <span>{formatGrams(line.gramsConsumed)}</span>
+                      {line.cost != null ? (
+                        <span>{formatCost(line.cost)}</span>
+                      ) : (
+                        line.gramsConsumed > 0 && (
+                          <span className="text-muted-foreground">
+                            No price
+                          </span>
+                        )
+                      )}
+                    </span>
+                    {(line.pricePerKg != null || line.spoolId) && (
+                      <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {line.pricePerKg != null && (
+                          <span>
+                            {formatCost(line.pricePerKg)} per kg
+                            {line.priceSource &&
+                              ` · ${PRICE_SOURCE_LABEL[line.priceSource] ?? line.priceSource}`}
+                          </span>
+                        )}
+                        {line.spoolId && (
+                          <Link
+                            to={`/spools/${line.spoolId}`}
+                            className="underline-offset-4 hover:underline"
+                          >
+                            Spool
+                          </Link>
+                        )}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Not deducted</span>
+                )
               ) : (
                 line.estimatedGrams != null && (
                   <span className="text-muted-foreground">
@@ -275,6 +317,15 @@ function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
               )}
             </div>
           ))
+        )}
+        {terminal && costs.length > 0 && (
+          <div className="flex items-center justify-between gap-2 px-2 pt-1 text-sm font-medium">
+            <span className="flex items-center gap-2">
+              Filament cost
+              {partial && <Badge kind="amber">Partial</Badge>}
+            </span>
+            <span className="tabular-nums">{formatCost(totalCost)}</span>
+          </div>
         )}
       </CardContent>
     </Card>

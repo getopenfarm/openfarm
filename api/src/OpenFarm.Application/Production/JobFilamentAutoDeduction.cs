@@ -15,12 +15,15 @@ public sealed record JobProgress(PrintJobStatus Outcome, int? CurrentLayer = nul
 /// difference from what a line already recorded, so a repeated terminal event never double-deducts.
 /// A line without a bound spool or a known estimate is skipped and logged — never thrown — so telemetry
 /// handling can't be wedged by one bad spool; the operator adjusts through manual spool usage.
+/// The first time a line is deducted it is also costed: the price per kg of its spool, else its colour, else its filament, is
+/// written onto the line and kept (<see cref="FilamentPricing"/>).
 /// </summary>
 public sealed class JobFilamentAutoDeduction(
     ISpoolRepository spoolRepository,
     ISpoolUsageRecordRepository usageRecordRepository,
     IAutoContinuationResolver continuation,
-    IActivityLogWriter activityLogWriter)
+    IActivityLogWriter activityLogWriter,
+    IFilamentRepository filamentRepository)
 {
     /// <summary>
     /// Fraction of one line's filament consumed: all of it for a finished print. Otherwise what that colour had used by the
@@ -84,6 +87,12 @@ public sealed class JobFilamentAutoDeduction(
 
             spool.RecordUsage(delta);
             print.RecordFilamentConsumption(line.Id, spoolId, target);
+            // Costed at the price known now. The save inside AddAsync below carries it with the deduction.
+            if (line.PricePerKg is null)
+            {
+                print.SnapshotFilamentPrice(line.Id, await ResolvePriceAsync(spool, cancellationToken));
+            }
+
             await usageRecordRepository.AddAsync(
                 SpoolUsageRecord.Create(spoolId, delta, ownerId, SpoolUsageSource.Job, spool.RemainingWeightGrams), cancellationToken);
             if (spool.RemainingWeightGrams == 0) depleted.Add(spool);
@@ -96,5 +105,12 @@ public sealed class JobFilamentAutoDeduction(
             await activityLogWriter.WriteAsync(ActivityLogEntry.Create(
                 entityType, ownerId.ToString(), skippedEvent, null, ActorType.System), cancellationToken);
         }
+    }
+
+    private async Task<ResolvedFilamentPrice?> ResolvePriceAsync(Spool spool, CancellationToken cancellationToken)
+    {
+        var variant = await filamentRepository.FindVariantByIdAsync(spool.FilamentVariantId, cancellationToken);
+        var filament = variant is null ? null : await filamentRepository.GetByIdAsync(variant.FilamentId, cancellationToken);
+        return FilamentPricing.Resolve(spool, variant, filament);
     }
 }
