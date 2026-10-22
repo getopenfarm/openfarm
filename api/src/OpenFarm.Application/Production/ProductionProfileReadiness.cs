@@ -24,7 +24,15 @@ public sealed record ProductionResolution(IReadOnlyList<ProductionFilamentSelect
 public sealed record ReadinessIssue(string Message, FilamentShortfall? Shortfall = null);
 
 /// <summary>What the job takes of one filament against what the loaded spool, with continuation, can give.</summary>
-public sealed record FilamentShortfall(Guid SpoolId, string Label, decimal EstimatedGrams, decimal NeededGrams, decimal AvailableGrams);
+public sealed record FilamentShortfall(Guid SpoolId, string Label, decimal EstimatedGrams, decimal NeededGrams, decimal AvailableGrams)
+{
+    /// <summary>The need rounds up and the stock down, so a shortfall never reads "needs 120 g, has 120 g".</summary>
+    public static FilamentShortfall Of(ProductionFilamentSelection selection, decimal estimatedGrams, decimal neededGrams, decimal availableGrams) =>
+        new(selection.SpoolId, selection.Label, decimal.Round(estimatedGrams), decimal.Ceiling(neededGrams), decimal.Floor(availableGrams));
+
+    public string Describe(string printerName) =>
+        $"Needs {NeededGrams} g {Label} ({EstimatedGrams} g + 10%) · {printerName} has {AvailableGrams} g. Load more, or correct the weight in /spools/{SpoolId}.";
+}
 
 /// <summary>The loaded filament cannot cover a job: the printer is skipped for it, and a job pinned to it waits.</summary>
 public sealed class InsufficientFilamentException(FilamentShortfall shortfall, string message)
@@ -49,11 +57,12 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         return await ResolveAsync(printerId, part, specs, ct, revisionHash);
     }
 
+    /// <param name="job">The job being placed: grams it was already sliced to for this revision take precedence over the part's estimate.</param>
     public async Task<ProductionResolution> ResolveAsync(Guid printerId, Part part,
-        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null)
+        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null, PrintJob? job = null)
     {
         var requiresSlicing = await RequiresSlicingAsync(part, revisionHash, ct);
-        var estimates = requirements.Select(r => EstimatedGrams(part, r, requirements.Count)).ToList();
+        var estimates = requirements.Select(r => EstimatedGrams(part, r, requirements.Count, job, revisionHash)).ToList();
         var selections = new List<ProductionFilamentSelection>();
         for (var i = 0; i < requirements.Count; i++)
             selections.Add(await resolver.ResolveLoadedAsync(printerId, requirements[i].MaterialType,
@@ -73,9 +82,14 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         return new(selections, profiles);
     }
 
-    /// <summary>The grams the part's file says a colour takes; a one-colour part's total stands in for a missing figure. Null when unknown, and then nothing is checked.</summary>
-    private static decimal? EstimatedGrams(Part part, JobFilamentRequirementSpec requirement, int requirementCount) =>
-        part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == requirement.MaterialType && n.DetectedColorHex == requirement.DetectedColorHex)?.EstimatedGrams
+    /// <summary>
+    /// The grams a colour takes: what the job was already sliced to for this revision, else the part file's figure, else a
+    /// one-colour part's total. Null when unknown, and then nothing is checked.
+    /// </summary>
+    private static decimal? EstimatedGrams(Part part, JobFilamentRequirementSpec requirement, int requirementCount, PrintJob? job, string? revisionHash) =>
+        (job is not null && job.FileRevisionHash == (revisionHash ?? part.RevisionHash)
+            ? job.Filaments.FirstOrDefault(line => line.Requirement == requirement)?.EstimatedGrams : null)
+        ?? part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == requirement.MaterialType && n.DetectedColorHex == requirement.DetectedColorHex)?.EstimatedGrams
         ?? (requirementCount == 1 ? part.EstimatedFilamentWeightGrams : null);
 
     private async Task EnsureEnoughFilamentAsync(Guid printerId, List<ProductionFilamentSelection> selections,
@@ -83,14 +97,9 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
     {
         if (FilamentCover.FirstShortfall(selections.Select((s, i) => (s.FeedUnitId, s.FilamentVariantId, s.AvailableGrams, estimates[i])).ToList())
             is not { } shortfall) return;
-        var selection = selections[shortfall.Line];
+        var details = FilamentShortfall.Of(selections[shortfall.Line], shortfall.Estimated, shortfall.Needed, shortfall.Available);
         var printer = await printers.GetByIdAsync(printerId, ct);
-        // The need rounds up and the stock down, so the message never reads "needs 120 g, has 120 g".
-        var details = new FilamentShortfall(selection.SpoolId, selection.Label, decimal.Round(shortfall.Estimated),
-            decimal.Ceiling(shortfall.Needed), decimal.Floor(shortfall.Available));
-        throw new InsufficientFilamentException(details,
-            $"Needs {details.NeededGrams} g {details.Label} ({details.EstimatedGrams} g + 10%) · {printer?.Name ?? "Printer"} has {details.AvailableGrams} g. "
-            + $"Load more, or correct the weight in /spools/{details.SpoolId}.");
+        throw new InsufficientFilamentException(details, details.Describe(printer?.Name ?? "Printer"));
     }
 
     private async Task<bool> RequiresSlicingAsync(Part part, string? revisionHash, CancellationToken ct)
@@ -131,8 +140,8 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
             part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == r.MaterialType && n.DetectedColorHex == r.ColorHex)?.NarrowFilamentProfileId)).ToList(), ct, revisionHash);
 
     public async Task<string> GetConfigurationStampAsync(Guid printerId, Part part,
-        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null) =>
-        await StampAsync(printerId, await ResolveAsync(printerId, part, requirements, ct, revisionHash), ct);
+        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null, PrintJob? job = null) =>
+        await StampAsync(printerId, await ResolveAsync(printerId, part, requirements, ct, revisionHash, job), ct);
 
     /// <summary>
     /// A fingerprint of everything a production file depends on: the printer's confirmed configuration, the loaded
@@ -159,8 +168,8 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
     }
 
     public Task<ReadinessIssue?> GetIssueAsync(Guid printerId, Part part,
-        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null) =>
-        IssueAsync(printerId, () => ResolveAsync(printerId, part, requirements, ct, revisionHash));
+        IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null, PrintJob? job = null) =>
+        IssueAsync(printerId, () => ResolveAsync(printerId, part, requirements, ct, revisionHash, job));
 
     public Task<ReadinessIssue?> GetIssueAsync(Guid printerId, Part part,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, string? revisionHash = null) =>

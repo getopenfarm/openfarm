@@ -63,7 +63,7 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
         if (job is null) return await readiness.GetIssueAsync(printerId, part,
             OpenFarm.Application.Production.ProductionJobRequirements.FromPart(part), ct);
         var effective = await jobRequirements.ResolveAsync(job, part, ct);
-        return await readiness.GetIssueAsync(printerId, part, effective.Requirements, ct, effective.RevisionHash);
+        return await readiness.GetIssueAsync(printerId, part, effective.Requirements, ct, effective.RevisionHash, job);
     }
 
     public async Task<IReadOnlyList<DispatchCandidate>> FilterReadyAsync(Guid printerId, IReadOnlyList<DispatchCandidate> candidates, CancellationToken ct)

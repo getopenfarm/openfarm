@@ -32,7 +32,7 @@ public sealed class JobFileResolver(
         var effective = await jobRequirements.ResolveAsync(job, part, cancellationToken);
         // One resolution decides everything: the spools and presets that were checked are the ones the file is made
         // with, and the stamp of exactly that configuration travels with the file.
-        var resolution = await readiness.ResolveAsync(printerId, part, effective.Requirements, cancellationToken, effective.RevisionHash);
+        var resolution = await readiness.ResolveAsync(printerId, part, effective.Requirements, cancellationToken, effective.RevisionHash, job);
         var stamp = await readiness.StampAsync(printerId, resolution, cancellationToken);
         var selections = resolution.Selections;
         var storagePath = effective.RevisionHash == part.RevisionHash

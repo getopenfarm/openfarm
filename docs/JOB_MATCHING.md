@@ -35,6 +35,9 @@ requirements drawing on the same spools add up.
 - Among spools of the same filament, the emptiest that holds the job alone is used, then the emptiest that holds it with
   continuation, so part-used spools get used up without running out mid-print. Without an estimate the lowest slot is used,
   as before, and nothing is checked: an unknown need never blocks.
+- After slicing for the chosen printer, dispatch checks again with the file's exact grams. If they no longer fit, nothing is
+  sent: the job keeps the reason and those grams, and the next attempt checks them before slicing again, so a printer
+  that has enough takes it instead.
 - The check runs inside `ProductionProfileReadiness`, the one path behind matching, dispatch and diagnostics, after the
   profiles resolve. The margin is a fixed 10%; an AMS is assumed to switch to its backup spools, as the inventory
   bookkeeping already does.

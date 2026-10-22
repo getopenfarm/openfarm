@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Api.IntegrationTests.Production;
@@ -101,5 +103,50 @@ public class FilamentStockDispatchTests(ProductionTestFactory factory) : Product
             (await WaitForAssignmentAsync(run.Id)).PrinterId.Should().Be(printer.Id);
         }
         finally { await worker.StopAsync(default); }
+    }
+
+    private async Task<PrintJob> WaitForBlockAsync(Guid jobId)
+    {
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed < TimeSpan.FromSeconds(10))
+        {
+            using var scope = Factory.Services.CreateScope();
+            var job = await scope.ServiceProvider.GetRequiredService<IPrintJobRepository>().GetByIdAsync(jobId, default);
+            if (job?.LastBlockReason is not null) return job;
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException("The job was not blocked.");
+    }
+
+    [Fact]
+    public async Task WhenTheFileTakesMoreThanThePartSaid_NothingIsSent_AndTheReasonAndGramsAreKept()
+    {
+        var client = await ClientAsync();
+        // The part says 20 g; the file itself, read only at dispatch, takes 200 g.
+        var part = await PartAsync(grams: 20,
+            contents: "; filament_type = PLA\n; filament_colour = #FFFFFF\n; filament used [g] = 200\n");
+        var printer = await PrinterAsync();
+        await SetLoadedSpoolAsync(printer.Id, 100);
+        var run = await RunAsync(client, part.Id, pinned: printer.Id);
+        var jobId = (await JobsAsync(run.Id)).Single().Id;
+
+        PrintJob job;
+        using (var worker = Worker())
+        {
+            await worker.StartAsync(default);
+            try { job = await WaitForBlockAsync(jobId); }
+            finally { await worker.StopAsync(default); }
+        }
+
+        job.PrinterId.Should().BeNull();
+        job.DispatchedAtUtc.Should().BeNull();
+        job.LastBlockReason.Should().StartWith($"Needs 220 g White PLA (200 g + 10%) · {printer.Name} has 100 g.");
+        job.Filaments.Single().EstimatedGrams.Should().Be(200);
+
+        // The kept grams are what readiness checks now, before any slicing.
+        var diagnostics = await client.GetFromJsonAsync<JobMatchingDiagnostics>($"/api/v1/print-jobs/{jobId}/matching-diagnostics");
+        diagnostics!.Printers.Single(p => p.PrinterId == printer.Id).Checks.Single(c => c.Code == "filament-stock")
+            .Required.Should().Be("220 g White PLA (200 g + 10%)");
     }
 }

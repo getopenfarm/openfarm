@@ -11,6 +11,7 @@ using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Parts;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
 
@@ -284,7 +285,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var currentPrinter = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printer.Id, cancellationToken);
         if (currentPrinter is null || currentPrinter.Status != PrinterStatus.Idle || !currentPrinter.NozzleConfirmed
             || currentPrinter.ReportedNozzleDiameterMm != part.NozzleDiameterMm
-            || await services.GetRequiredService<ProductionProfileReadiness>().GetIssueAsync(printer.Id, part, effective.Requirements, cancellationToken, effective.RevisionHash) is not null) return;
+            || await services.GetRequiredService<ProductionProfileReadiness>().GetIssueAsync(printer.Id, part, effective.Requirements, cancellationToken, effective.RevisionHash, job) is not null) return;
         if (revisionMode == RevisionMode.FollowLatest && !job.HasFilamentRequirementOverride)
         {
             job.SetFilamentRequirements(effective.Requirements, false);
@@ -374,7 +375,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             // One resolution produces both the file and the stamp of the exact configuration it was made for.
             fileContent = await fileResolver.ResolveAsync(dispatchPart, job, printer.Id, nozzleDiameterMm, cancellationToken);
             configurationStamp = fileContent.ConfigurationStamp
-                ?? await profileReadiness.GetConfigurationStampAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash);
+                ?? await profileReadiness.GetConfigurationStampAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash, job);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -410,7 +411,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
             // The spools loaded right now are the ones this job draws from; deduction on the terminal transition uses them.
             var freshReadiness = freshScope.ServiceProvider.GetRequiredService<ProductionProfileReadiness>();
-            var fresh = await freshReadiness.ResolveAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash);
+            var fresh = await freshReadiness.ResolveAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash, job);
             if (configurationStamp != await freshReadiness.StampAsync(printer.Id, fresh, cancellationToken))
             {
                 // The printer, spools or presets changed while the file was being made: what was made is not what is current.
@@ -431,6 +432,18 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var fileUsage = JobFilamentUsageReader.Read(fileContent.Bytes);
         var lineUsage = JobFilamentUsageMatcher.Match(
             job.Filaments.Select(c => (c.MaterialType, c.DetectedColorHex)).ToList(), fileUsage.Usages);
+
+        // The exact grams exist only now, sliced for this printer. A job they no longer fit is not sent; its grams are kept, so
+        // the next attempt checks them before slicing again and a printer that has enough takes it.
+        if (FilamentCover.FirstShortfall(loadedSelections
+                .Select((s, i) => (s.FeedUnitId, s.FilamentVariantId, s.AvailableGrams, lineUsage[i].Grams)).ToList()) is { } shortfall)
+        {
+            job.RevertDispatch();
+            var reason = FilamentShortfall.Of(loadedSelections[shortfall.Line], shortfall.Estimated, shortfall.Needed, shortfall.Available)
+                .Describe(printer.Name);
+            await BlockAsync(job, reason, cancellationToken, lineUsage.Select(u => u.Grams).ToList());
+            return;
+        }
         job.BindFilamentUsage(loadedSelections.Select((s, i) => ((Guid?)s.SpoolId, lineUsage[i].Grams,
             FilamentUsageCurve.FromExtrusion(fileUsage.Extrusion.Marks,
                 lineUsage[i].Tools.Where(fileUsage.Extrusion.Tools.ContainsKey).Select(t => fileUsage.Extrusion.Tools[t])))).ToList());
@@ -497,7 +510,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     private const string FeedMappingReason = "OpenFarm cannot map the filaments to the printer feed. Check the loaded spools.";
 
     // Persists why an attempt failed through a fresh instance, so nothing half-prepared by this attempt is saved with it.
-    private async Task BlockAsync(PrintJob job, string reason, CancellationToken cancellationToken)
+    // `slicedGrams`, per line, are what the file for this revision takes: kept so readiness checks them next time.
+    private async Task BlockAsync(PrintJob job, string reason, CancellationToken cancellationToken, IReadOnlyList<decimal?>? slicedGrams = null)
     {
         using var scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
@@ -506,6 +520,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
+        if (slicedGrams is not null && persisted.FileRevisionHash == job.FileRevisionHash)
+            persisted.BindFilamentUsage(slicedGrams.Select(grams => ((Guid?)null, grams, (FilamentUsageCurve?)null)).ToList());
         persisted.RecordBlock(Truncate(reason), DateTimeOffset.UtcNow);
         await repository.SaveChangesAsync(cancellationToken);
         LogJobBlocked(_logger, job.Id, persisted.BlockFailureCount, PrintJob.RetryDelay(persisted.BlockFailureCount), reason);
