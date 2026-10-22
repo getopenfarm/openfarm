@@ -90,6 +90,15 @@ export interface SpoolHistoryEntryResponse {
   printName?: string | null;
   /** @nullable */
   printStatus?: string | null;
+  spoolId?: string;
+  /** @nullable */
+  spoolLabel?: string | null;
+  /** @nullable */
+  material?: string | null;
+  /** @nullable */
+  colorName?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
 }
 
 export interface SpoolHistoryResponse {
@@ -193,6 +202,52 @@ export interface RegisterSpoolRequest {
 
 export interface RestoreSpoolRequest {
   [key: string]: unknown;
+}
+
+export interface SpoolHistoryFilterRequest {
+  [key: string]: unknown;
+}
+
+export type ListSpoolHistoryRequest = SpoolHistoryFilterRequest & {
+  [key: string]: unknown;
+};
+
+/**
+ * the error details object
+ */
+export interface ProblemDetailsError {
+  /** the name of the error or property of the dto that caused the error */
+  name?: string;
+  /** the reason for the error */
+  reason?: string;
+  /**
+   * the code of the error
+   * @nullable
+   */
+  code?: string | null;
+  /**
+   * the severity of the error
+   * @nullable
+   */
+  severity?: string | null;
+}
+
+/**
+ * RFC9457 compatible problem details/ error response class. this can be used by configuring startup like so:
+ * app.UseFastEndpoints(c => c.Errors.UseProblemDetails())
+ */
+export interface ProblemDetails {
+  type?: string;
+  title?: string;
+  status?: number;
+  instance?: string;
+  traceId?: string;
+  /**
+   * the details of the error
+   * @nullable
+   */
+  detail?: string | null;
+  errors?: ProblemDetailsError[];
 }
 
 export interface UnloadSpoolRequest {
@@ -661,44 +716,6 @@ export interface RunLineBackfillLimitsRequest {
 
 export interface SetRunBackfillLimitsRequest {
   lines?: RunLineBackfillLimitsRequest[];
-}
-
-/**
- * the error details object
- */
-export interface ProblemDetailsError {
-  /** the name of the error or property of the dto that caused the error */
-  name?: string;
-  /** the reason for the error */
-  reason?: string;
-  /**
-   * the code of the error
-   * @nullable
-   */
-  code?: string | null;
-  /**
-   * the severity of the error
-   * @nullable
-   */
-  severity?: string | null;
-}
-
-/**
- * RFC9457 compatible problem details/ error response class. this can be used by configuring startup like so:
- * app.UseFastEndpoints(c => c.Errors.UseProblemDetails())
- */
-export interface ProblemDetails {
-  type?: string;
-  title?: string;
-  status?: number;
-  instance?: string;
-  traceId?: string;
-  /**
-   * the details of the error
-   * @nullable
-   */
-  detail?: string | null;
-  errors?: ProblemDetailsError[];
 }
 
 export interface RunLineRevisionModeResponse {
@@ -2061,6 +2078,52 @@ export type OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams = {
    * @nullable
    */
   pageSize?: number | null;
+};
+
+export type OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams = {
+  /**
+   * @nullable
+   */
+  page?: number | null;
+  /**
+   * @nullable
+   */
+  pageSize?: number | null;
+  /**
+   * @nullable
+   */
+  from?: string | null;
+  /**
+   * @nullable
+   */
+  to?: string | null;
+  /**
+   * @nullable
+   */
+  filamentVariantId?: string | null;
+  /**
+   * @nullable
+   */
+  source?: string | null;
+};
+
+export type OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams = {
+  /**
+   * @nullable
+   */
+  from?: string | null;
+  /**
+   * @nullable
+   */
+  to?: string | null;
+  /**
+   * @nullable
+   */
+  filamentVariantId?: string | null;
+  /**
+   * @nullable
+   */
+  source?: string | null;
 };
 
 export type OpenFarmApiEndpointsSlicingGetSlicingReadinessEndpointParams = {

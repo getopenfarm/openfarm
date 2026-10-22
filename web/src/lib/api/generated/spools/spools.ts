@@ -27,8 +27,11 @@ import type {
   ListSpoolsResponse,
   LoadSpoolRequest,
   LoadSpoolResponse,
+  OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
   OpenFarmApiEndpointsSpoolsGetSpoolHistoryEndpointParams,
+  OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
   OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams,
+  ProblemDetails,
   RecordSpoolUsageRequest,
   RecordSpoolUsageResponse,
   RegisterSpoolRequest,
@@ -1514,6 +1517,539 @@ export const useOpenFarmApiEndpointsSpoolsRestoreSpoolEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse200 = {
+  data: SpoolHistoryResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse400 = {
+  data: ProblemDetails;
+  status: 400;
+};
+
+export type openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponseSuccess =
+  openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponseError = (
+  | openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse400
+  | openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse401
+  | openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse =
+  | openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponseSuccess
+  | openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointUrl = (
+  params?: OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/spools/history?${stringifiedParams}`
+    : `/api/v1/spools/history`;
+};
+
+export const openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint = async (
+  params?: OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSpoolsListSpoolHistoryEndpointResponse>(
+    getOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointQueryKey = (
+  params?: OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
+) => {
+  return [`/api/v1/spools/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+    >,
+    TError = ProblemDetails | void,
+  >(
+    params?: OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointQueryKey(params);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint(params, { signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointQueryError =
+  ProblemDetails | void;
+
+export function useOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params: undefined | OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params?: OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params?: OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params?: OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSpoolsListSpoolHistoryEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointQueryOptions(
+      params,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse400 = {
+  data: ProblemDetails;
+  status: 400;
+};
+
+export type openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponseSuccess =
+  openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponseError =
+  (
+    | openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse400
+    | openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse401
+    | openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse =
+  | openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponseSuccess
+  | openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointUrl = (
+  params?: OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/spools/history.csv?${stringifiedParams}`
+    : `/api/v1/spools/history.csv`;
+};
+
+export const openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint = async (
+  params?: OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSpoolsExportSpoolHistoryEndpointResponse>(
+    getOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointQueryKey = (
+  params?: OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
+) => {
+  return [`/api/v1/spools/history.csv`, ...(params ? [params] : [])] as const;
+};
+
+export const getOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint>
+    >,
+    TError = ProblemDetails | void,
+  >(
+    params?: OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointQueryKey(params);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint(params, { signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointQueryError =
+  ProblemDetails | void;
+
+export function useOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params:
+    | undefined
+    | OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params?: OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params?: OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params?: OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointQueryOptions(
+      params,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export type openFarmApiEndpointsSpoolsUnloadSpoolEndpointResponse200 = {
   data: SpoolResponse;
   status: 200;

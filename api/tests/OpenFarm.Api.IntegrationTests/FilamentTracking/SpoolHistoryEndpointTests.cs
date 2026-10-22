@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using FluentAssertions;
 using OpenFarm.Api.Endpoints.Spools;
 using static OpenFarm.Api.IntegrationTests.FilamentTracking.FilamentTrackingTestHelpers;
@@ -7,7 +8,8 @@ using static OpenFarm.Api.IntegrationTests.FilamentTracking.FilamentTrackingTest
 namespace OpenFarm.Api.IntegrationTests.FilamentTracking;
 
 /// <summary>
-/// Test-after: GET /api/v1/spools/{id} and /history, and the entries a weight edit and a manual usage entry write.
+/// Test-after: GET /api/v1/spools/{id} and /history, the entries a weight edit and a manual usage entry write, and every spool's
+/// history as a page and as a CSV file.
 /// Requires Docker (Testcontainers.PostgreSql) — exercised by CI.
 /// </summary>
 public class SpoolHistoryEndpointTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
@@ -26,6 +28,9 @@ public class SpoolHistoryEndpointTests(CustomWebApplicationFactory factory) : IC
 
     private static async Task<SpoolHistoryResponse> HistoryAsync(HttpClient client, Guid id, string query = "") =>
         (await client.GetFromJsonAsync<SpoolHistoryResponse>($"/api/v1/spools/{id}/history{query}"))!;
+
+    private static async Task<SpoolHistoryResponse> AllHistoryAsync(HttpClient client, string query) =>
+        (await client.GetFromJsonAsync<SpoolHistoryResponse>($"/api/v1/spools/history{query}"))!;
 
     [Fact]
     public async Task GetSpool_ReturnsThatSpool_AndAnUnknownIdIs404()
@@ -138,5 +143,57 @@ public class SpoolHistoryEndpointTests(CustomWebApplicationFactory factory) : IC
         first.Entries.Select(e => e.RemainingAfterGrams).Should().Equal(700m, 800m);
         second.TotalCount.Should().Be(3);
         second.Entries.Select(e => e.RemainingAfterGrams).Should().Equal(900m);
+    }
+
+    [Fact]
+    public async Task EverySpoolsHistory_FiltersByColorSourceAndTime_AndSaysWhichSpool()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var redId = await CreateFilamentVariantAsync(client, "Red", "#ff0000");
+        var red = await RegisterSpoolAsync(client, redId);
+        var other = await RegisterSpoolAsync(client, await CreateFilamentVariantAsync(client));
+        await EditAsync(client, red, 900m, label: "Shelf A");
+        (await client.PutAsJsonAsync($"/api/v1/spools/{red}/unload", new { action = "MarkFinished", reason = "Wet" })).EnsureSuccessStatusCode();
+        await EditAsync(client, other, 800m);
+        var later = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddMinutes(1).ToString("O"));
+
+        var all = await AllHistoryAsync(client, $"?filamentVariantId={redId}");
+        var writeOffs = await AllHistoryAsync(client, $"?filamentVariantId={redId}&source=WriteOff");
+        var future = await AllHistoryAsync(client, $"?filamentVariantId={redId}&from={later}");
+        var unknownSource = await client.GetAsync("/api/v1/spools/history?source=Nope");
+
+        all.Entries.Select(e => e.Source).Should().Equal("WriteOff", "Correction");
+        all.Entries.Should().AllSatisfy(e =>
+        {
+            e.SpoolId.Should().Be(red);
+            e.SpoolLabel.Should().Be("Shelf A");
+            e.Material.Should().Be("PLA Basic");
+            e.ColorName.Should().Be("Red");
+        });
+        writeOffs.Entries.Should().ContainSingle().Which.ChangeGrams.Should().Be(-900m);
+        future.TotalCount.Should().Be(0);
+        unknownSource.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task HistoryCsv_QuotesFields_AndKeepsFormulasAsText()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var variantId = await CreateFilamentVariantAsync(client, "Red, dark");
+        var spoolId = await RegisterSpoolAsync(client, variantId);
+        await EditAsync(client, spoolId, 900m, "=HYPERLINK(\"x\")", "Shelf \"A\"");
+
+        var response = await client.GetAsync($"/api/v1/spools/history.csv?filamentVariantId={variantId}");
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        var lines = Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3).Split("\r\n");
+        var unknownSource = await client.GetAsync("/api/v1/spools/history.csv?source=3");
+
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/csv");
+        bytes.Take(3).Should().Equal(Encoding.UTF8.GetPreamble());
+        lines.Should().HaveCount(3).And.EndWith(string.Empty);
+        lines[0].Should().Be("Recorded (UTC),Spool,Spool id,Material,Color,Change (g),Remaining (g),Source,Reason,Print,Print status");
+        lines[1].Should().MatchRegex(@"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ,")
+            .And.EndWith($",\"Shelf \"\"A\"\"\",{spoolId},PLA Basic,\"Red, dark\",-100,900,Correction,\"'=HYPERLINK(\"\"x\"\")\",,");
+        unknownSource.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 }

@@ -26,8 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { PartFilamentRequirementsList } from '@/features/parts/components/PartFilamentRequirementsList';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
-import { apiUrl } from '@/lib/api/apiUrl';
-import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
+import { downloadFile } from '@/lib/api/downloadFile';
 import type { PrintJobResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   useOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpoint,
@@ -37,7 +36,6 @@ import {
   useOpenFarmApiEndpointsPrintJobsSetPrintJobFilamentRequirementsEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
-import { getToken } from '@/lib/auth/tokenStorage';
 import { formatDateTime } from '@/lib/formatDateTime';
 import { formatCost, formatGrams } from '@/lib/formatUnits';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
@@ -409,30 +407,12 @@ export function PrintJobDetailPage() {
   const complete =
     useOpenFarmApiEndpointsPrintJobsCompletePrintJobEndpoint(options);
   const fail = useOpenFarmApiEndpointsPrintJobsFailPrintJobEndpoint(options);
-  async function download() {
-    const token = getToken();
-    const response = await fetch(apiUrl(`/api/v1/print-jobs/${id}/file`), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      toast.error(
-        await extractErrorDetail(
-          response,
-          'Could not retrieve job file. Assign a printer before slicing.',
-        ),
-      );
-      return;
-    }
-    const url = URL.createObjectURL(await response.blob());
-    const link = document.createElement('a');
-    link.href = url;
-    link.download =
-      response.headers
-        .get('content-disposition')
-        ?.match(/filename="?([^";]+)/)?.[1] ?? 'print.gcode';
-    link.click();
-    URL.revokeObjectURL(url);
-  }
+  const download = () =>
+    downloadFile(
+      `/api/v1/print-jobs/${id}/file`,
+      'print.gcode',
+      'Could not retrieve job file. Assign a printer before slicing.',
+    );
   const backLink = (
     <BackLink to="/jobs" className="mb-1">
       Back to print queue

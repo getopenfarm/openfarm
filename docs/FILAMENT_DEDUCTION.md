@@ -121,6 +121,12 @@ Every change to a spool's remaining weight writes one append-only `SpoolUsageRec
 - `RemainingWeightGrams` stays the stored source of truth. The history is an audit trail; nothing sums it.
 - Read it with `GET /api/v1/spools/{id}/history?page&pageSize` (default 50, max 100). Each entry is left-joined to its `Print`,
   so an entry keeps showing after its print is deleted, without a link. `GET /api/v1/spools/{id}` returns the one spool.
+- **Every spool's history.** `GET /api/v1/spools/history?from&to&filamentVariantId&source&page&pageSize` returns the same entries for
+  all spools, each naming its spool, material and color; the Usage page (`/usage`) shows it. `from` is inclusive, `to`
+  exclusive, and the page sends local calendar days as UTC instants. `source` is a name (`WriteOff`), never the enum's number.
+  `GET /api/v1/spools/history.csv` takes the same filters and returns every match as a file. The CSV is RFC 4180 with CRLF
+  rows and a UTF-8 BOM, numbers in invariant culture and times in UTC ISO 8601. Text starting with `=`, `+`, `-`, `@`, tab or
+  CR gets a leading `'`, so a spreadsheet shows it instead of running it as a formula (`Endpoints/Csv.cs`).
 - **Live refresh.** A print closing (from telemetry, or Complete/Fail on a manual printer) publishes `NotificationsChanged`, and
   so does every successful spool or filament request (`ActivityLogPostProcessor`). The web refreshes spools and Feed units on
   it. The `SpoolStateChanged` hub event exists but is never raised.

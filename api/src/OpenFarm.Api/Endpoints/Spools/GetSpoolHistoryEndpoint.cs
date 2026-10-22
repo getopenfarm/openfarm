@@ -40,6 +40,16 @@ public sealed class SpoolHistoryEntryResponse
 
     public string? PrintStatus { get; set; }
 
+    public Guid SpoolId { get; set; }
+
+    public string? SpoolLabel { get; set; }
+
+    public string? Material { get; set; }
+
+    public string? ColorName { get; set; }
+
+    public string? ColorHex { get; set; }
+
     public static SpoolHistoryEntryResponse FromEntry(SpoolHistoryEntry entry) => new()
     {
         Id = entry.Id,
@@ -51,6 +61,11 @@ public sealed class SpoolHistoryEntryResponse
         PrintId = entry.PrintId,
         PrintName = entry.PrintName,
         PrintStatus = entry.PrintStatus?.ToString(),
+        SpoolId = entry.SpoolId,
+        SpoolLabel = entry.SpoolLabel,
+        Material = entry.Material,
+        ColorName = entry.ColorName,
+        ColorHex = entry.ColorHex,
     };
 }
 

@@ -33,6 +33,7 @@ import { SlicingDefaultsPage } from '../features/settings/SlicingDefaultsPage';
 import { SpoolDetailPage } from '../features/spools/SpoolDetailPage';
 import { SpoolFormPage } from '../features/spools/SpoolFormPage';
 import { SpoolsPage } from '../features/spools/SpoolsPage';
+import { UsagePage } from '../features/usage/UsagePage';
 import { AppShell } from './layout/AppShell';
 import { ProtectedRoute } from './layout/ProtectedRoute';
 
@@ -151,6 +152,11 @@ export const router = createBrowserRouter([
                 handle: { title: 'Spool' },
               },
             ],
+          },
+          {
+            path: '/usage',
+            element: <UsagePage />,
+            handle: { title: 'Usage' },
           },
           {
             path: '/parts',

@@ -611,6 +611,173 @@
         ]
       }
     },
+    "/api/v1/spools/history": {
+      "get": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpoint",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "filamentVariantId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpoolHistoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spools/history.csv": {
+      "get": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpoint",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "filamentVariantId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/spools/{id}/unload": {
       "put": {
         "tags": [
@@ -5279,6 +5446,26 @@
           "printStatus": {
             "type": "string",
             "nullable": true
+          },
+          "spoolId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "spoolLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "material": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -5514,6 +5701,87 @@
       "RestoreSpoolRequest": {
         "type": "object",
         "additionalProperties": false
+      },
+      "ListSpoolHistoryRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SpoolHistoryFilterRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false
+          }
+        ]
+      },
+      "SpoolHistoryFilterRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "description": "RFC9457 compatible problem details/ error response class. this can be used by configuring startup like so:\napp.UseFastEndpoints(c => c.Errors.UseProblemDetails())",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "default": "https://www.rfc-editor.org/rfc/rfc7231#section-6.5.1"
+          },
+          "title": {
+            "type": "string",
+            "default": "One or more validation errors occurred."
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "default": 400
+          },
+          "instance": {
+            "type": "string",
+            "default": "/api/route"
+          },
+          "traceId": {
+            "type": "string",
+            "default": "0HMPNHL0JHL76:00000001"
+          },
+          "detail": {
+            "type": "string",
+            "description": "the details of the error",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemDetails_Error"
+            }
+          }
+        }
+      },
+      "ProblemDetails_Error": {
+        "type": "object",
+        "description": "the error details object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "the name of the error or property of the dto that caused the error",
+            "default": "Error or field name"
+          },
+          "reason": {
+            "type": "string",
+            "description": "the reason for the error",
+            "default": "Error reason"
+          },
+          "code": {
+            "type": "string",
+            "description": "the code of the error",
+            "nullable": true
+          },
+          "severity": {
+            "type": "string",
+            "description": "the severity of the error",
+            "nullable": true
+          }
+        }
       },
       "UnloadSpoolRequest": {
         "type": "object",
@@ -6771,72 +7039,6 @@
           "backfillCumulativeUnitCeiling": {
             "type": "integer",
             "format": "int32",
-            "nullable": true
-          }
-        }
-      },
-      "ProblemDetails": {
-        "type": "object",
-        "description": "RFC9457 compatible problem details/ error response class. this can be used by configuring startup like so:\napp.UseFastEndpoints(c => c.Errors.UseProblemDetails())",
-        "additionalProperties": false,
-        "properties": {
-          "type": {
-            "type": "string",
-            "default": "https://www.rfc-editor.org/rfc/rfc7231#section-6.5.1"
-          },
-          "title": {
-            "type": "string",
-            "default": "One or more validation errors occurred."
-          },
-          "status": {
-            "type": "integer",
-            "format": "int32",
-            "default": 400
-          },
-          "instance": {
-            "type": "string",
-            "default": "/api/route"
-          },
-          "traceId": {
-            "type": "string",
-            "default": "0HMPNHL0JHL76:00000001"
-          },
-          "detail": {
-            "type": "string",
-            "description": "the details of the error",
-            "nullable": true
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProblemDetails_Error"
-            }
-          }
-        }
-      },
-      "ProblemDetails_Error": {
-        "type": "object",
-        "description": "the error details object",
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "the name of the error or property of the dto that caused the error",
-            "default": "Error or field name"
-          },
-          "reason": {
-            "type": "string",
-            "description": "the reason for the error",
-            "default": "Error reason"
-          },
-          "code": {
-            "type": "string",
-            "description": "the code of the error",
-            "nullable": true
-          },
-          "severity": {
-            "type": "string",
-            "description": "the severity of the error",
             "nullable": true
           }
         }

@@ -1,5 +1,6 @@
 import {
   BoxIcon,
+  ChartColumnIcon,
   ClipboardListIcon,
   ComponentIcon,
   HistoryIcon,
@@ -45,6 +46,11 @@ const spools: NavItem = {
   url: '/spools',
   icon: Package2Icon,
 };
+const usage: NavItem = {
+  title: 'Usage',
+  url: '/usage',
+  icon: ChartColumnIcon,
+};
 const parts: NavItem = { title: 'Parts', url: '/parts', icon: BoxIcon };
 const assemblies: NavItem = {
   title: 'Assemblies',
@@ -74,7 +80,7 @@ const activityLog: NavItem = {
 
 export const navSections: NavSection[] = [
   { label: 'Operate', items: [dashboard, printers, jobs] },
-  { label: 'Materials', items: [filament, spools] },
+  { label: 'Materials', items: [filament, spools, usage] },
   {
     label: 'Library',
     items: [parts, assemblies, nonPrintedComponents, profiles, maintenance],

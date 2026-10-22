@@ -169,33 +169,70 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
 
     public async Task<SpoolHistoryPage?> ListHistoryAsync(GetSpoolHistoryQuery query, CancellationToken cancellationToken)
     {
-        if (!await dbContext.Spools.AsNoTracking().AnyAsync(s => s.Id == query.SpoolId, cancellationToken))
+        if (query.SpoolId is { } spoolId && !await dbContext.Spools.AsNoTracking().AnyAsync(s => s.Id == spoolId, cancellationToken))
         {
             return null;
         }
 
-        var pageSize = Math.Clamp(query.PageSize, 1, GetSpoolHistoryQuery.MaxPageSize);
+        var pageSize = Math.Max(query.PageSize, 1);
         var page = Math.Max(query.Page, 1);
 
-        var records = dbContext.SpoolUsageRecords.AsNoTracking().Where(r => r.SpoolId == query.SpoolId);
+        // ponytail: every spool's history scans by time with only the (SpoolId, RecordedAtUtc) index; index RecordedAtUtc if it gets slow.
+        var records =
+            from record in dbContext.SpoolUsageRecords.AsNoTracking()
+            join spool in dbContext.Spools on record.SpoolId equals spool.Id
+            join variant in dbContext.FilamentVariants on spool.FilamentVariantId equals variant.Id
+            join filament in dbContext.Filaments on variant.FilamentId equals filament.Id
+            select new { record, spool, variant, filament };
+
+        if (query.SpoolId is { } id)
+        {
+            records = records.Where(x => x.record.SpoolId == id);
+        }
+
+        if (query.From is { } since)
+        {
+            records = records.Where(x => x.record.RecordedAtUtc >= since);
+        }
+
+        if (query.To is { } until)
+        {
+            records = records.Where(x => x.record.RecordedAtUtc < until);
+        }
+
+        if (query.FilamentVariantId is { } variantId)
+        {
+            records = records.Where(x => x.variant.Id == variantId);
+        }
+
+        if (query.Source is { } source)
+        {
+            records = records.Where(x => x.record.Source == source);
+        }
+
         var total = await records.CountAsync(cancellationToken);
 
         var rows = await (
-                from record in records
-                join print in dbContext.Prints.AsNoTracking() on record.JobId equals (Guid?)print.Id into prints
+                from x in records
+                join print in dbContext.Prints.AsNoTracking() on x.record.JobId equals (Guid?)print.Id into prints
                 from print in prints.DefaultIfEmpty()
-                orderby record.RecordedAtUtc descending, record.Id
+                orderby x.record.RecordedAtUtc descending, x.record.Id
                 select new
                 {
-                    record.Id,
-                    record.RecordedAtUtc,
-                    record.GramsConsumed,
-                    record.RemainingAfterGrams,
-                    record.Source,
-                    record.Reason,
+                    x.record.Id,
+                    x.record.RecordedAtUtc,
+                    x.record.GramsConsumed,
+                    x.record.RemainingAfterGrams,
+                    x.record.Source,
+                    x.record.Reason,
                     PrintId = (Guid?)print.Id,
                     PrintName = print.Name,
                     PrintStatus = (PrintJobStatus?)print.Status,
+                    SpoolId = x.spool.Id,
+                    SpoolLabel = x.spool.Label,
+                    x.filament.Material,
+                    x.variant.ColorName,
+                    x.variant.ColorHex,
                 })
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -203,7 +240,8 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
 
         return new SpoolHistoryPage(
             rows.Select(r => new SpoolHistoryEntry(
-                r.Id, r.RecordedAtUtc, r.GramsConsumed, r.RemainingAfterGrams, r.Source, r.Reason, r.PrintId, r.PrintName, r.PrintStatus)).ToList(),
+                r.Id, r.RecordedAtUtc, r.GramsConsumed, r.RemainingAfterGrams, r.Source, r.Reason, r.PrintId, r.PrintName, r.PrintStatus,
+                r.SpoolId, r.SpoolLabel, r.Material, r.ColorName, r.ColorHex)).ToList(),
             total);
     }
 
