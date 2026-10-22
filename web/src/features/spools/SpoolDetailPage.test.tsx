@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -289,5 +289,53 @@ describe('SpoolDetailPage', () => {
       expect(await screen.findByText('Spool saved.')).toBeInTheDocument();
       expect(putBodies(fetchMock)[0].price).toBe(0);
     });
+  });
+  it('finishes the spool from its page, writing off what is left', async () => {
+    const user = userEvent.setup();
+    const fetchMock = fakeApi();
+    renderPage(fetchMock);
+
+    await user.click(await screen.findByRole('button', { name: 'Finish' }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Finish Shelf A?');
+    expect(dialog).toHaveTextContent('Writes off 800 g.');
+    await user.type(within(dialog).getByRole('textbox'), 'tangled');
+    await user.click(within(dialog).getByRole('button', { name: 'Finish' }));
+
+    expect(await screen.findByText('Spool finished.')).toBeInTheDocument();
+    expect(putBodies(fetchMock)).toEqual([
+      { action: 'MarkFinished', reason: 'tangled' },
+    ]);
+  });
+
+  it('restores a finished spool instead of offering load or finish', async () => {
+    const user = userEvent.setup();
+    const fetchMock = fakeApi({
+      spool: () =>
+        jsonResponse({
+          ...spool,
+          state: 'Finished',
+          remainingWeightGrams: 0,
+          feedSlotLabel: null,
+        }),
+    });
+    renderPage(fetchMock);
+
+    await user.click(await screen.findByRole('button', { name: 'Restore' }));
+
+    expect(await screen.findByText('Spool restored.')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Finish' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Load' }),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          String(input).endsWith('/api/v1/spools/spool-1/restore') &&
+          (init as RequestInit | undefined)?.method === 'PUT',
+      ),
+    ).toBe(true);
   });
 });

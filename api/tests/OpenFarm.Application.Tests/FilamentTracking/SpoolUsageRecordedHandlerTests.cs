@@ -255,7 +255,8 @@ public class SpoolUsageRecordedHandlerTests
         var (unit, slots) = CreateFeedUnit(FeedUnitKindCatalog.AutomaticFilamentReloader, 2);
         var spool = CreateUsingSpool(Guid.NewGuid(), slots[0]);
         CreateUsingSpool(Guid.NewGuid(), slots[1]);
-        await new UnloadSpoolCommandHandler(_spoolRepository, _feedUnitRepository, _eventPublisher)
+        await new UnloadSpoolCommandHandler(_spoolRepository, _feedUnitRepository, _eventPublisher,
+                new OpenFarm.Application.Tests.Production.Fakes.InMemorySpoolUsageRecordRepository())
             .HandleAsync(new(spool.Id, UnloadSpoolAction.ReturnToStorage), CancellationToken.None);
         unit.FeedingSlotId.Should().BeNull();
     }

@@ -42,6 +42,7 @@ public sealed class FailPrintJobCommandHandler(
         await filamentDeduction.ApplyAsync(job, new JobProgress(job.Status), cancellationToken);
         await jobRepository.SaveChangesAsync(cancellationToken);
         await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
+        await publisher.NotificationsChangedAsync(cancellationToken); // spool weights and Action required changed with the close
 
         return job;
     }

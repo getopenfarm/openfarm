@@ -9,6 +9,8 @@ public class SpoolStateTransitionsTests
     [InlineData(SpoolState.InStorage, SpoolState.Using)]
     [InlineData(SpoolState.Using, SpoolState.InStorage)]
     [InlineData(SpoolState.Using, SpoolState.Finished)]
+    [InlineData(SpoolState.InStorage, SpoolState.Finished)]
+    [InlineData(SpoolState.Finished, SpoolState.InStorage)]
     public void EnsureValidTransition_WithLegalTransition_DoesNotThrow(SpoolState from, SpoolState to)
     {
         var act = () => SpoolStateTransitions.EnsureValidTransition(from, to);
@@ -17,8 +19,6 @@ public class SpoolStateTransitionsTests
     }
 
     [Theory]
-    [InlineData(SpoolState.InStorage, SpoolState.Finished)]
-    [InlineData(SpoolState.Finished, SpoolState.InStorage)]
     [InlineData(SpoolState.Finished, SpoolState.Using)]
     [InlineData(SpoolState.Finished, SpoolState.Finished)]
     [InlineData(SpoolState.InStorage, SpoolState.InStorage)]

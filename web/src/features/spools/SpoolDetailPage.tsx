@@ -33,6 +33,10 @@ import {
 } from '@/lib/api/generated/spools/spools';
 import { formatGrams } from '@/lib/formatUnits';
 import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
+import {
+  FinishSpoolsDialog,
+  type FinishTarget,
+} from './components/FinishSpoolsDialog';
 import { LoadSpoolDialog } from './components/LoadSpoolDialog';
 import {
   PurchaseFields,
@@ -41,9 +45,10 @@ import {
 } from './components/PurchaseFields';
 import { RecordUsageDialog } from './components/RecordUsageDialog';
 import { SpoolHistoryCard } from './components/SpoolHistoryCard';
-import { STATE_BADGE } from './components/SpoolsTable';
+import { finishTarget, STATE_BADGE } from './components/SpoolsTable';
 import { UnitInput } from './components/UnitInput';
 import { UnloadSpoolDialog } from './components/UnloadSpoolDialog';
+import { useRestoreSpool } from './hooks/useRestoreSpool';
 
 function spoolSchema(capacity: number) {
   return z.object({
@@ -83,6 +88,8 @@ export function SpoolDetailPage() {
   const [dialog, setDialog] = useState<'load' | 'unload' | 'usage' | null>(
     null,
   );
+  const [finishTargets, setFinishTargets] = useState<FinishTarget[]>([]);
+  const restoreMutation = useRestoreSpool();
 
   const spoolQuery = useOpenFarmApiEndpointsSpoolsGetSpoolEndpoint(id ?? '');
   const spool = spoolQuery.data?.data as SpoolResponse | undefined;
@@ -186,20 +193,41 @@ export function SpoolDetailPage() {
           </span>
         }
         action={
-          spool.state === 'InStorage' ? (
-            <Button variant="outline" onClick={() => setDialog('load')}>
-              Load
+          spool.state === 'Finished' ? (
+            <Button
+              variant="outline"
+              disabled={restoreMutation.isPending}
+              onClick={() => restoreMutation.mutate({ id: spoolId })}
+            >
+              {restoreMutation.isPending && (
+                <Spinner data-icon="inline-start" />
+              )}
+              {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
             </Button>
-          ) : spool.state === 'Using' ? (
+          ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={() => setDialog('usage')}>
-                Record usage
-              </Button>
-              <Button variant="outline" onClick={() => setDialog('unload')}>
-                Unload
+              {spool.state === 'InStorage' ? (
+                <Button variant="outline" onClick={() => setDialog('load')}>
+                  Load
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={() => setDialog('usage')}>
+                    Record usage
+                  </Button>
+                  <Button variant="outline" onClick={() => setDialog('unload')}>
+                    Unload
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setFinishTargets(finishTarget(spool))}
+              >
+                Finish
               </Button>
             </div>
-          ) : null
+          )
         }
       />
 
@@ -319,6 +347,12 @@ export function SpoolDetailPage() {
           onOpenChange={(open) => !open && setDialog(null)}
         />
       )}
+      <FinishSpoolsDialog
+        targets={finishTargets}
+        onOpenChange={(open) => {
+          if (!open) setFinishTargets([]);
+        }}
+      />
       <ConfirmLeaveDialog />
     </Page>
   );

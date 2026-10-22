@@ -92,6 +92,143 @@ public class SpoolTests
     }
 
     [Fact]
+    public void MarkFinished_FromStorage_WritesOffRemainingAndZeroesWeight()
+    {
+        var spool = NewSpool(1000, 340);
+
+        var writeOff = spool.MarkFinished("Damaged");
+
+        spool.State.Should().Be(SpoolState.Finished);
+        spool.RemainingWeightGrams.Should().Be(0);
+        writeOff.Should().NotBeNull();
+        writeOff!.SpoolId.Should().Be(spool.Id);
+        writeOff.Source.Should().Be(SpoolUsageSource.WriteOff);
+        writeOff.GramsConsumed.Should().Be(340);
+        writeOff.RemainingAfterGrams.Should().Be(0);
+        writeOff.Reason.Should().Be("Damaged");
+    }
+
+    [Fact]
+    public void MarkFinished_WithNothingLeft_ReturnsNoWriteOff()
+    {
+        var spool = NewSpool(1000);
+        spool.LoadOntoFeedSlot(Guid.NewGuid());
+        spool.RecordUsage(1000);
+
+        var writeOff = spool.MarkFinished();
+
+        writeOff.Should().BeNull();
+        spool.State.Should().Be(SpoolState.Finished);
+    }
+
+    [Fact]
+    public void MarkFinished_WhenFinished_Throws()
+    {
+        var spool = NewSpool();
+        spool.MarkFinished();
+
+        var act = () => spool.MarkFinished();
+
+        act.Should().Throw<InvalidSpoolStateTransitionException>();
+    }
+
+    [Fact]
+    public void ReturnToStorage_WhenFinished_Throws()
+    {
+        var spool = NewSpool();
+        spool.MarkFinished();
+
+        var act = () => spool.ReturnToStorage();
+
+        act.Should().Throw<InvalidSpoolStateTransitionException>();
+    }
+
+    [Fact]
+    public void Restore_PutsBackLatestWriteOff()
+    {
+        var spool = NewSpool(1000, 340);
+        var writeOff = spool.MarkFinished();
+
+        var restore = spool.Restore(writeOff);
+
+        spool.State.Should().Be(SpoolState.InStorage);
+        spool.FeedSlotId.Should().BeNull();
+        spool.RemainingWeightGrams.Should().Be(340);
+        restore.Should().NotBeNull();
+        restore!.Source.Should().Be(SpoolUsageSource.Restore);
+        restore.GramsConsumed.Should().Be(-340);
+        restore.RemainingAfterGrams.Should().Be(340);
+    }
+
+    [Fact]
+    public void Restore_AfterReweigh_KeepsCorrectedWeight()
+    {
+        var spool = NewSpool(1000, 340);
+        spool.MarkFinished();
+        spool.CorrectRemainingWeight(120);
+        var reweigh = SpoolUsageRecord.Correction(spool.Id, 0, 120, "weighed on scale");
+
+        var restore = spool.Restore(reweigh);
+
+        restore.Should().BeNull();
+        spool.State.Should().Be(SpoolState.InStorage);
+        spool.RemainingWeightGrams.Should().Be(120);
+    }
+
+    [Fact]
+    public void Restore_WithAnotherSpoolsWriteOff_PutsNothingBack()
+    {
+        var spool = NewSpool(1000, 340);
+        spool.MarkFinished();
+        var otherWriteOff = NewSpool(1000, 500).MarkFinished();
+
+        var restore = spool.Restore(otherWriteOff);
+
+        restore.Should().BeNull();
+        spool.RemainingWeightGrams.Should().Be(0);
+    }
+
+    [Fact]
+    public void Restore_WithNoHistory_KeepsWeight()
+    {
+        var spool = NewSpool(1000);
+        spool.LoadOntoFeedSlot(Guid.NewGuid());
+        spool.RecordUsage(1000);
+        spool.MarkFinished();
+
+        var restore = spool.Restore(null);
+
+        restore.Should().BeNull();
+        spool.State.Should().Be(SpoolState.InStorage);
+        spool.RemainingWeightGrams.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Restore_WhenNotFinished_Throws(bool loaded)
+    {
+        var spool = NewSpool();
+        if (loaded) spool.LoadOntoFeedSlot(Guid.NewGuid());
+
+        var act = () => spool.Restore(null);
+
+        act.Should().Throw<InvalidSpoolStateTransitionException>();
+    }
+
+    [Fact]
+    public void FinishThenRestore_LedgerBalances()
+    {
+        var spool = NewSpool(1000, 340);
+        var start = spool.RemainingWeightGrams;
+
+        var writeOff = spool.MarkFinished("Used up")!;
+        var restore = spool.Restore(writeOff)!;
+
+        (start - writeOff.GramsConsumed - restore.GramsConsumed).Should().Be(spool.RemainingWeightGrams);
+    }
+
+    [Fact]
     public void CorrectRemainingWeight_OverwritesEstimateAndClearsOverrun()
     {
         var spool = NewSpool(1000);

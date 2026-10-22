@@ -50,15 +50,11 @@ describe('UnloadSpoolDialog', () => {
     await waitFor(() => expect(putBody).toEqual({ action: 'ReturnToStorage' }));
   });
 
-  it('marks a spool finished', async () => {
-    const user = userEvent.setup();
-    let putBody: unknown;
-    renderDialog((body) => {
-      putBody = body;
-    });
+  it('leaves finishing to the Finish action', () => {
+    renderDialog(() => {});
 
-    await user.click(screen.getByRole('button', { name: 'Mark finished' }));
-
-    await waitFor(() => expect(putBody).toEqual({ action: 'MarkFinished' }));
+    expect(
+      screen.queryByRole('button', { name: 'Mark finished' }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -1260,6 +1260,127 @@ export const useOpenFarmApiEndpointsSpoolsRecordSpoolUsageEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse200 = {
+  data: SpoolResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponseSuccess =
+  openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponseError = (
+  | openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse401
+  | openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse =
+  | openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponseSuccess
+  | openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSpoolsRestoreSpoolEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/spools/${id}/restore`;
+};
+
+export const openFarmApiEndpointsSpoolsRestoreSpoolEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSpoolsRestoreSpoolEndpointResponse>(
+    getOpenFarmApiEndpointsSpoolsRestoreSpoolEndpointUrl(id),
+    {
+      ...options,
+      method: 'PUT',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSpoolsRestoreSpoolEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsRestoreSpoolEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsRestoreSpoolEndpoint>>,
+    TError,
+    { id: string },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsSpoolsRestoreSpoolEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsRestoreSpoolEndpoint>
+      >,
+      { id: string }
+    > = (props) => {
+      const { id } = props ?? {};
+
+      return openFarmApiEndpointsSpoolsRestoreSpoolEndpoint(id);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSpoolsRestoreSpoolEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsRestoreSpoolEndpoint>>
+  >;
+
+export type OpenFarmApiEndpointsSpoolsRestoreSpoolEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsSpoolsRestoreSpoolEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsRestoreSpoolEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsRestoreSpoolEndpoint>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSpoolsRestoreSpoolEndpointMutationOptions(options),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsSpoolsUnloadSpoolEndpointResponse200 = {
   data: SpoolResponse;
   status: 200;

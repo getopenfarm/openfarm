@@ -3,8 +3,13 @@ using OpenFarm.Domain.FilamentTracking;
 
 namespace OpenFarm.Application.FilamentTracking;
 
-/// <summary>FR-007 — return to storage (keeps RemainingWeightGrams) or mark finished. 409 on a concurrent conflicting change.</summary>
-public sealed class UnloadSpoolCommandHandler(ISpoolRepository spoolRepository, IFeedUnitRepository feedUnitRepository, IFilamentTrackingEventPublisher events) : ICommandHandler<UnloadSpoolCommand, Spool>
+/// <summary>
+/// FR-007 — return a loaded spool to storage (keeps RemainingWeightGrams), or finish one from a slot or from storage, writing off
+/// what is left. 409 on a concurrent conflicting change.
+/// </summary>
+public sealed class UnloadSpoolCommandHandler(
+    ISpoolRepository spoolRepository, IFeedUnitRepository feedUnitRepository, IFilamentTrackingEventPublisher events,
+    ISpoolUsageRecordRepository usageRecordRepository) : ICommandHandler<UnloadSpoolCommand, Spool>
 {
     public async Task<Spool> HandleAsync(UnloadSpoolCommand command, CancellationToken cancellationToken)
     {
@@ -22,7 +27,9 @@ public sealed class UnloadSpoolCommandHandler(ISpoolRepository spoolRepository, 
                 spool.ReturnToStorage();
                 break;
             case UnloadSpoolAction.MarkFinished:
-                spool.MarkFinished();
+                // Add, not AddAsync: the write-off commits with the spool below, so a stale row version is the spool's 409 and neither is saved.
+                if (spool.MarkFinished(command.Reason) is { } writeOff)
+                    usageRecordRepository.Add(writeOff);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(command));

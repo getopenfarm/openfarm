@@ -1,11 +1,14 @@
-import type { ColumnDef } from '@tanstack/react-table';
-import { useMemo, useRef, useState } from 'react';
+import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
+import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -13,6 +16,8 @@ import {
 import { Progress } from '@/components/ui/progress';
 import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatGrams } from '@/lib/formatUnits';
+import { useRestoreSpool } from '../hooks/useRestoreSpool';
+import { FinishSpoolsDialog, type FinishTarget } from './FinishSpoolsDialog';
 import { LoadSpoolDialog } from './LoadSpoolDialog';
 import { RecordUsageDialog } from './RecordUsageDialog';
 import { UnloadSpoolDialog } from './UnloadSpoolDialog';
@@ -33,20 +38,84 @@ function remainingIndicatorClass(fraction: number, hasOverrun?: boolean) {
   return 'bg-kind-green';
 }
 
-interface SpoolsTableProps {
-  spools: SpoolResponse[];
+export function spoolName(spool: SpoolResponse) {
+  return spool.label || spool.colorName || 'spool';
 }
 
-export function SpoolsTable({ spools }: SpoolsTableProps) {
+export function finishTarget(spool: SpoolResponse): FinishTarget[] {
+  return spool.id
+    ? [
+        {
+          id: spool.id,
+          name: spoolName(spool),
+          remainingGrams: spool.remainingWeightGrams ?? 0,
+        },
+      ]
+    : [];
+}
+
+const selectColumn: ColumnDef<SpoolResponse> = {
+  id: 'select',
+  enableSorting: false,
+  enableHiding: false,
+  header: ({ table }) => (
+    <Checkbox
+      aria-label="Select all spools on this page"
+      checked={
+        table.getIsAllPageRowsSelected() ||
+        (table.getIsSomePageRowsSelected() && 'indeterminate')
+      }
+      onCheckedChange={(checked) =>
+        table.toggleAllPageRowsSelected(checked === true)
+      }
+    />
+  ),
+  cell: ({ row }) => (
+    <Checkbox
+      aria-label={`Select ${spoolName(row.original)}`}
+      checked={row.getIsSelected()}
+      onCheckedChange={(checked) => row.toggleSelected(checked === true)}
+    />
+  ),
+};
+
+interface SpoolsTableProps {
+  spools: SpoolResponse[];
+  /** Row checkboxes and Finish selected; off for finished spools. */
+  selectable?: boolean;
+}
+
+export function SpoolsTable({ spools, selectable = false }: SpoolsTableProps) {
   const navigate = useNavigate();
   const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const bulkTriggerRef = useRef<HTMLButtonElement>(null);
+  const finishReturnRef = useRef<HTMLElement | null>(null);
   const [dialog, setDialog] = useState<{
     mode: 'load' | 'unload' | 'usage';
     spoolId: string;
   } | null>(null);
+  const [finishTargets, setFinishTargets] = useState<FinishTarget[]>([]);
+  const [selection, setSelection] = useState<RowSelectionState>({});
+  const { mutate: restoreSpool } = useRestoreSpool();
+
+  // Selection follows the rows on screen: ids that leave (finished, filtered out) drop out.
+  useEffect(() => {
+    const ids = new Set(selectable ? spools.map((spool) => spool.id) : []);
+    setSelection((previous) => {
+      const kept = Object.entries(previous).filter(
+        ([id, on]) => on && ids.has(id),
+      );
+      return kept.length === Object.keys(previous).length
+        ? previous
+        : Object.fromEntries(kept);
+    });
+  }, [spools, selectable]);
+
+  const selected = spools.filter((spool) => spool.id && selection[spool.id]);
 
   const columns = useMemo<ColumnDef<SpoolResponse>[]>(
     () => [
+      ...(selectable ? [selectColumn] : []),
       {
         id: 'spool',
         accessorKey: 'colorName',
@@ -144,35 +213,54 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
         cell: ({ row }) => {
           const spool = row.original;
           const id = spool.id;
-          if (!id || (spool.state !== 'InStorage' && spool.state !== 'Using'))
-            return null;
+          if (!id) return null;
           return (
             <DataTableRowActions
-              label={spool.label || spool.colorName || 'spool'}
+              label={spoolName(spool)}
               onOpen={(trigger) => {
                 dialogTriggerRef.current = trigger;
               }}
             >
               <DropdownMenuGroup>
-                {spool.state === 'InStorage' ? (
-                  <DropdownMenuItem
-                    onSelect={() => setDialog({ mode: 'load', spoolId: id })}
-                  >
-                    Load
+                {spool.state === 'Finished' ? (
+                  <DropdownMenuItem onSelect={() => restoreSpool({ id })}>
+                    Restore
                   </DropdownMenuItem>
                 ) : (
                   <>
+                    {spool.state === 'InStorage' ? (
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          setDialog({ mode: 'load', spoolId: id })
+                        }
+                      >
+                        Load
+                      </DropdownMenuItem>
+                    ) : (
+                      <>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            setDialog({ mode: 'usage', spoolId: id })
+                          }
+                        >
+                          Record usage
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            setDialog({ mode: 'unload', spoolId: id })
+                          }
+                        >
+                          Unload
+                        </DropdownMenuItem>
+                      </>
+                    )}
                     <DropdownMenuItem
-                      onSelect={() => setDialog({ mode: 'usage', spoolId: id })}
+                      onSelect={() => {
+                        finishReturnRef.current = dialogTriggerRef.current;
+                        setFinishTargets(finishTarget(spool));
+                      }}
                     >
-                      Record usage
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        setDialog({ mode: 'unload', spoolId: id })
-                      }
-                    >
-                      Unload
+                      Finish
                     </DropdownMenuItem>
                   </>
                 )}
@@ -182,7 +270,7 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
         },
       },
     ],
-    [],
+    [selectable, restoreSpool],
   );
 
   return (
@@ -191,8 +279,47 @@ export function SpoolsTable({ spools }: SpoolsTableProps) {
         pageSize={25}
         columns={columns}
         data={spools}
-        toolbar={null}
+        getRowId={(spool, index) => spool.id ?? `missing-${index}`}
+        rowSelection={selection}
+        onRowSelectionChange={setSelection}
+        enableRowSelection={selectable}
+        toolbar={
+          selectable ? (
+            <DataTableSelectionBar
+              selectedCount={selected.length}
+              label="Spools actions"
+              onClear={() => setSelection({})}
+            >
+              <Button
+                ref={bulkTriggerRef}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  finishReturnRef.current = bulkTriggerRef.current;
+                  setFinishTargets(selected.flatMap(finishTarget));
+                }}
+              >
+                Finish selected
+              </Button>
+            </DataTableSelectionBar>
+          ) : null
+        }
         onRowClick={(spool) => navigate(`/spools/${spool.id}`)}
+      />
+      <FinishSpoolsDialog
+        targets={finishTargets}
+        returnFocusRef={finishReturnRef}
+        onOpenChange={(open) => {
+          if (!open) setFinishTargets([]);
+        }}
+        onFinished={(ids) =>
+          setSelection((previous) =>
+            Object.fromEntries(
+              Object.entries(previous).filter(([id]) => !ids.includes(id)),
+            ),
+          )
+        }
       />
       {dialog?.mode === 'load' ? (
         <LoadSpoolDialog

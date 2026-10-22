@@ -20,7 +20,7 @@ import { formatGrams } from '@/lib/formatUnits';
 
 const HISTORY_PAGE_SIZE = 50;
 
-/** -12.4 g when filament was used, +30 g when a correction put some back. */
+/** -12.4 g when filament was used or written off, +30 g when a correction or a restore put some back. */
 function formatChange(grams: number) {
   return `${grams < 0 ? '−' : '+'}${formatGrams(Math.abs(grams))}`;
 }
@@ -28,6 +28,8 @@ function formatChange(grams: number) {
 function SourceCell({ entry }: { entry: SpoolHistoryEntryResponse }) {
   if (entry.source === 'Correction') return <>Weight correction</>;
   if (entry.source === 'Manual') return <>Manual usage</>;
+  if (entry.source === 'WriteOff') return <>Finished</>;
+  if (entry.source === 'Restore') return <>Restored</>;
   if (!entry.printId) {
     return <span className="text-muted-foreground">Print removed</span>;
   }
@@ -48,7 +50,7 @@ function SourceCell({ entry }: { entry: SpoolHistoryEntryResponse }) {
   );
 }
 
-/** Every change to a spool's remaining weight, newest first: prints, manual usage and weight corrections. */
+/** Every change to a spool's remaining weight, newest first: prints, manual usage, weight corrections, finishing and restoring. */
 export function SpoolHistoryCard({ spoolId }: { spoolId: string }) {
   const query = useOpenFarmApiEndpointsSpoolsGetSpoolHistoryEndpoint(spoolId, {
     pageSize: HISTORY_PAGE_SIZE,

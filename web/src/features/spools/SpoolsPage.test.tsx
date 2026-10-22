@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -93,21 +94,53 @@ describe('SpoolsPage', () => {
     expect(await screen.findByText(/3 spools/)).toBeInTheDocument();
   });
 
-  it('renders spool rows with vendor names and materials', async () => {
+  it('lists active spools, and finished ones only in the Finished view', async () => {
+    const user = userEvent.setup();
     renderPage();
 
     expect(await screen.findByText('Bambu')).toBeInTheDocument();
     expect(screen.getByText('Polymaker')).toBeInTheDocument();
-    expect(screen.getByText('eSUN')).toBeInTheDocument();
     expect(screen.getByText(/PLA Basic/)).toBeInTheDocument();
+    expect(screen.queryByText('eSUN')).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^Active/ })).toBeChecked();
+
+    await user.click(screen.getByRole('radio', { name: /^Finished/ }));
+
+    expect(screen.getByText('eSUN')).toBeInTheDocument();
+    expect(screen.queryByText('Bambu')).not.toBeInTheDocument();
   });
 
-  it('renders state badges for using, storage, and finished spools', async () => {
+  it('renders state badges for using and storage spools', async () => {
     renderPage();
 
-    expect(await screen.findByText('In use')).toBeInTheDocument();
-    expect(screen.getByText('In storage')).toBeInTheDocument();
-    expect(screen.getByText('Finished')).toBeInTheDocument();
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText('In use')).toBeInTheDocument();
+    expect(within(table).getByText('In storage')).toBeInTheDocument();
+  });
+
+  it('searches by label, vendor, material or color, every term matching', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Bambu');
+
+    await user.type(
+      screen.getByRole('textbox', {
+        name: 'Search spools by label, vendor, material or color',
+      }),
+      'matte grey',
+    );
+
+    expect(screen.getByText('Polymaker')).toBeInTheDocument();
+    expect(screen.queryByText('Bambu')).not.toBeInTheDocument();
+
+    await user.type(
+      screen.getByRole('textbox', {
+        name: 'Search spools by label, vendor, material or color',
+      }),
+      ' nothing',
+    );
+
+    expect(screen.getByText('No spools match')).toBeInTheDocument();
   });
 
   it('shows an em-dash for spools without a location', async () => {

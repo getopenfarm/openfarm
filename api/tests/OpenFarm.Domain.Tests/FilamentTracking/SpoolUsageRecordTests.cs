@@ -40,6 +40,60 @@ public class SpoolUsageRecordTests
         create.Should().Throw<ArgumentException>().WithMessage("*Correction*");
     }
 
+    [Theory]
+    [InlineData(SpoolUsageSource.WriteOff)]
+    [InlineData(SpoolUsageSource.Restore)]
+    public void Create_WithWriteOffOrRestoreSource_Throws(SpoolUsageSource source)
+    {
+        var create = () => SpoolUsageRecord.Create(SpoolId, 5m, null, source, 95m);
+
+        create.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void WriteOff_LeavesNothingAndKeepsTheTrimmedReason()
+    {
+        var record = SpoolUsageRecord.WriteOff(SpoolId, 340m, "  Wet ");
+
+        record.SpoolId.Should().Be(SpoolId);
+        record.GramsConsumed.Should().Be(340m);
+        record.RemainingAfterGrams.Should().Be(0m);
+        record.Source.Should().Be(SpoolUsageSource.WriteOff);
+        record.JobId.Should().BeNull();
+        record.Reason.Should().Be("Wet");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void WriteOff_WithNonPositiveGrams_Throws(double grams)
+    {
+        var writeOff = () => SpoolUsageRecord.WriteOff(SpoolId, (decimal)grams, null);
+
+        writeOff.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void WriteOff_WithAReasonLongerThanTheLimit_Throws()
+    {
+        var tooLong = new string('x', SpoolUsageRecord.MaxReasonLength + 1);
+
+        var writeOff = () => SpoolUsageRecord.WriteOff(SpoolId, 340m, tooLong);
+
+        writeOff.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Restore_PutsTheGramsBack()
+    {
+        var record = SpoolUsageRecord.Restore(SpoolId, 340m, remainingAfterGrams: 340m);
+
+        record.GramsConsumed.Should().Be(-340m);
+        record.RemainingAfterGrams.Should().Be(340m);
+        record.Source.Should().Be(SpoolUsageSource.Restore);
+        record.Reason.Should().BeNull();
+    }
+
     [Fact]
     public void Correction_ThatLowersTheWeight_RecordsTheGramsRemoved()
     {

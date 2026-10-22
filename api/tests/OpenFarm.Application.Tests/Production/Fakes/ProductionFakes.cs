@@ -365,6 +365,9 @@ public sealed class InMemorySpoolUsageRecordRepository : ISpoolUsageRecordReposi
     }
 
     public void Add(SpoolUsageRecord record) => Records.Add(record);
+
+    public Task<SpoolUsageRecord?> GetLatestAsync(Guid spoolId, CancellationToken cancellationToken) =>
+        Task.FromResult(Records.LastOrDefault(r => r.SpoolId == spoolId));
 }
 
 public sealed class RecordingActivityLogWriter : IActivityLogWriter

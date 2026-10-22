@@ -9,4 +9,7 @@ public interface ISpoolUsageRecordRepository
 
     /// <summary>Tracks the entry without saving, so it commits with the caller's own save (and that save's conflict handling).</summary>
     void Add(SpoolUsageRecord record);
+
+    /// <summary>The spool's newest entry; null when it has none.</summary>
+    Task<SpoolUsageRecord?> GetLatestAsync(Guid spoolId, CancellationToken cancellationToken);
 }

@@ -185,8 +185,14 @@ export interface RegisterSpoolRequest {
   receivedOn?: string | null;
 }
 
+export interface RestoreSpoolRequest {
+  [key: string]: unknown;
+}
+
 export interface UnloadSpoolRequest {
   action?: string;
+  /** @nullable */
+  reason?: string | null;
 }
 
 export interface ReadinessIssueResponse {

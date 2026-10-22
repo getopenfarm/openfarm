@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Infrastructure.Persistence;
@@ -13,4 +14,10 @@ public sealed class SpoolUsageRecordRepository(OpenFarmDbContext dbContext) : IS
     }
 
     public void Add(SpoolUsageRecord record) => dbContext.SpoolUsageRecords.Add(record);
+
+    public Task<SpoolUsageRecord?> GetLatestAsync(Guid spoolId, CancellationToken cancellationToken) =>
+        dbContext.SpoolUsageRecords.AsNoTracking()
+            .Where(r => r.SpoolId == spoolId)
+            .OrderByDescending(r => r.RecordedAtUtc).ThenByDescending(r => r.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 }

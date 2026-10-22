@@ -3,6 +3,7 @@ using System.Security.Claims;
 using FastEndpoints;
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Printers;
+using OpenFarm.Application.Production;
 using OpenFarm.Domain.ActivityLog;
 
 namespace OpenFarm.Api.Processors;
@@ -41,6 +42,7 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
                 await NotifyPrinterActivityAsync(httpContext, bulkEntry, ct);
             }
 
+            await NotifyInventoryChangedAsync(httpContext, loggable, ct);
             return;
         }
 
@@ -59,7 +61,14 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
 
         await writer.WriteAsync(entry, ct);
         await NotifyPrinterActivityAsync(httpContext, entry, ct);
+        await NotifyInventoryChangedAsync(httpContext, loggable, ct);
     }
+
+    // A spool or filament change moves stock and what Action required lists; every open view refreshes on this one event.
+    private static Task NotifyInventoryChangedAsync(HttpContext context, IActivityLoggable loggable, CancellationToken ct) =>
+        loggable.EntityType is "Spool" or "Filament"
+            ? context.RequestServices.GetRequiredService<IProductionEventPublisher>().NotificationsChangedAsync(ct)
+            : Task.CompletedTask;
 
     private static Task NotifyPrinterActivityAsync(HttpContext context, ActivityLogEntry entry, CancellationToken ct) =>
         entry.EntityType == "Printer" && Guid.TryParse(entry.EntityId, out var printerId)

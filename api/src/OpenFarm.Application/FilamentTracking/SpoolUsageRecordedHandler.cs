@@ -33,7 +33,7 @@ public sealed class SpoolUsageRecordedHandler(
 
         var isReloader = feedUnit.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader;
         var wasFeeding = feedUnit.FeedingSlotId == feedSlotId;
-        depletedSpool.MarkFinished();
+        _ = depletedSpool.MarkFinished(); // at 0 g there is nothing to write off
         if (isReloader && (!wasFeeding || feedUnit.ArchivedAtUtc is not null))
         {
             await spoolRepository.SaveChangesAsync(cancellationToken);

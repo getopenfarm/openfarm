@@ -105,17 +105,25 @@ Every change to a spool's remaining weight writes one append-only `SpoolUsageRec
 | `Job` | `JobFilamentAutoDeduction`, one row per deduction | the `Print` id | none |
 | `Manual` | `POST /api/v1/spools/{id}/usage` | whatever the client sent, unvalidated | none |
 | `Correction` | `PUT /api/v1/spools/{id}` when the remaining weight changes | none | optional, up to 200 characters |
+| `WriteOff` | finishing a spool (`PUT /api/v1/spools/{id}/unload`, `MarkFinished`) that still had grams left | none | optional, up to 200 characters |
+| `Restore` | `PUT /api/v1/spools/{id}/restore` when the spool's latest entry is its `WriteOff` | none | none |
 
-- `GramsConsumed` is grams taken off the spool, so it is negative when a correction puts filament back. `RemainingAfterGrams` is
+- `GramsConsumed` is grams taken off the spool, so it is negative when a correction or a restore puts filament back. `RemainingAfterGrams` is
   the weight once the entry applied; it is null on rows written before that column existed. A deduction larger than what was
   left keeps the full grams and records 0 g remaining (the spool's weight stops at zero and `HasUsageOverrun` is set).
 - A weight edit and its `Correction` row commit in one save (`ISpoolUsageRecordRepository.Add` tracks the row without saving), so a
   stale row version is the spool's 409 and neither is written. Saving the same weight, or only the label, writes nothing.
+- **Finishing and restoring.** A spool finishes from a slot or from storage. Whatever is left is written off: the spool goes to
+  0 g with a `WriteOff` row, so the history still balances. Continuation finishes a spool at 0 g, which writes no row. Restore
+  brings a finished spool back to storage (never into a slot) and puts back the grams of its `WriteOff`, but only when that
+  write-off is still its latest entry: a weight corrected after finishing is kept. A spool finished before write-offs existed
+  kept its grams, and restores with them.
 - `RemainingWeightGrams` stays the stored source of truth. The history is an audit trail; nothing sums it.
 - Read it with `GET /api/v1/spools/{id}/history?page&pageSize` (default 50, max 100). Each entry is left-joined to its `Print`,
   so an entry keeps showing after its print is deleted, without a link. `GET /api/v1/spools/{id}` returns the one spool.
-- **Live refresh.** A print closing publishes `NotificationsChanged`, and the web refreshes spools and Feed units on it. The
-  `SpoolStateChanged` hub event exists but is never raised.
+- **Live refresh.** A print closing (from telemetry, or Complete/Fail on a manual printer) publishes `NotificationsChanged`, and
+  so does every successful spool or filament request (`ActivityLogPostProcessor`). The web refreshes spools and Feed units on
+  it. The `SpoolStateChanged` hub event exists but is never raised.
 
 ## Known limits
 - Spool binding follows the feed mapping in `docs/BAMBU_LAN_PRINTING.md`: on an AMS printer only the AMS or only the external

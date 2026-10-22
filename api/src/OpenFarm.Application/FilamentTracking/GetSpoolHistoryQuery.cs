@@ -14,7 +14,7 @@ public sealed record GetSpoolHistoryQuery(Guid SpoolId, int Page = 1, int PageSi
 
 /// <summary>
 /// One change to a spool's remaining weight. <see cref="GramsConsumed"/> is grams taken off the spool (negative when a
-/// correction put filament back); <see cref="RemainingAfterGrams"/> is null on entries older than the ledger's weight column.
+/// correction or a restore put filament back); <see cref="RemainingAfterGrams"/> is null on entries older than the ledger's weight column.
 /// The print columns are null when the entry has no print, or the print is gone.
 /// </summary>
 public sealed record SpoolHistoryEntry(

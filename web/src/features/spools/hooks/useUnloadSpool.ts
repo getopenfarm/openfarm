@@ -12,7 +12,7 @@ export function useUnloadSpool(printerId: string, onUnloaded?: () => void) {
       onSuccess: (_response, variables) => {
         toast.success(
           variables.data.action === 'MarkFinished'
-            ? 'Spool marked finished.'
+            ? 'Spool finished.'
             : 'Spool returned to storage.',
         );
         onUnloaded?.();

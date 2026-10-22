@@ -42,22 +42,10 @@ export function UnloadSpoolDialog({
     },
   });
 
-  const pendingAction = unloadMutation.isPending
-    ? unloadMutation.variables?.data.action
-    : undefined;
-
-  function handleAction(action: 'ReturnToStorage' | 'MarkFinished') {
+  function returnToStorage() {
     unloadMutation.mutate(
-      { id: spoolId, data: { action } },
-      {
-        onSuccess: () => {
-          toast.success(
-            action === 'MarkFinished'
-              ? 'Spool marked finished.'
-              : 'Spool returned to storage.',
-          );
-        },
-      },
+      { id: spoolId, data: { action: 'ReturnToStorage' } },
+      { onSuccess: () => toast.success('Spool returned to storage.') },
     );
   }
 
@@ -73,9 +61,7 @@ export function UnloadSpoolDialog({
       >
         <DialogHeader>
           <DialogTitle>Unload spool from feed slot</DialogTitle>
-          <DialogDescription>
-            Return the spool to storage, or mark it finished if it is empty.
-          </DialogDescription>
+          <DialogDescription>Return the spool to storage.</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
@@ -85,26 +71,11 @@ export function UnloadSpoolDialog({
           </DialogClose>
           <Button
             type="button"
-            variant="outline"
             disabled={unloadMutation.isPending}
-            onClick={() => handleAction('ReturnToStorage')}
+            onClick={returnToStorage}
           >
-            {pendingAction === 'ReturnToStorage' && (
-              <Spinner data-icon="inline-start" />
-            )}
-            {pendingAction === 'ReturnToStorage'
-              ? 'Returning…'
-              : 'Return to storage'}
-          </Button>
-          <Button
-            type="button"
-            disabled={unloadMutation.isPending}
-            onClick={() => handleAction('MarkFinished')}
-          >
-            {pendingAction === 'MarkFinished' && (
-              <Spinner data-icon="inline-start" />
-            )}
-            {pendingAction === 'MarkFinished' ? 'Finishing…' : 'Mark finished'}
+            {unloadMutation.isPending && <Spinner data-icon="inline-start" />}
+            {unloadMutation.isPending ? 'Returning…' : 'Return to storage'}
           </Button>
         </DialogFooter>
       </DialogContent>

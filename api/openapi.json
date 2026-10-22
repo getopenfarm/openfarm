@@ -514,6 +514,48 @@
         ]
       }
     },
+    "/api/v1/spools/{id}/restore": {
+      "put": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsRestoreSpoolEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpoolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/spools/{id}/unload": {
       "put": {
         "tags": [
@@ -5370,12 +5412,20 @@
           }
         }
       },
+      "RestoreSpoolRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "UnloadSpoolRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "action": {
             "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

@@ -107,6 +107,39 @@ describe('SpoolHistoryCard', () => {
     );
   });
 
+  it('shows finishing as a write-off and restoring as putting it back', async () => {
+    renderCard(
+      jsonResponse({
+        totalCount: 2,
+        entries: [
+          {
+            id: 'e2',
+            recordedAtUtc: '2026-10-22T11:00:00Z',
+            changeGrams: 340,
+            remainingAfterGrams: 340,
+            source: 'Restore',
+          },
+          {
+            id: 'e1',
+            recordedAtUtc: '2026-10-22T10:00:00Z',
+            changeGrams: -340,
+            remainingAfterGrams: 0,
+            source: 'WriteOff',
+            reason: 'Wet',
+          },
+        ],
+      }),
+    );
+
+    const table = await screen.findByRole('table', { name: 'Spool history' });
+    const [restore, writeOff] = within(table).getAllByRole('row').slice(1);
+    expect(within(restore).getByText('Restored')).toBeInTheDocument();
+    expect(within(restore).getByText('+340 g')).toBeInTheDocument();
+    expect(within(writeOff).getByText('Finished')).toBeInTheDocument();
+    expect(within(writeOff).getByText('−340 g')).toBeInTheDocument();
+    expect(within(writeOff).getByText('Wet')).toBeInTheDocument();
+  });
+
   it('says nothing has been recorded when the history is empty', async () => {
     renderCard(jsonResponse({ entries: [], totalCount: 0 }));
     expect(

@@ -22,13 +22,13 @@ public sealed class SpoolHistoryEntryResponse
 
     public DateTimeOffset RecordedAtUtc { get; set; }
 
-    /// <summary>Change to the remaining weight in grams: negative when filament was used, positive when a correction added some.</summary>
+    /// <summary>Change to the remaining weight in grams: negative when filament was used or written off, positive when a correction or a restore added some.</summary>
     public decimal ChangeGrams { get; set; }
 
     /// <summary>Null on entries recorded before the history kept it.</summary>
     public decimal? RemainingAfterGrams { get; set; }
 
-    /// <summary><c>Job</c> (a print's deduction), <c>Manual</c> (a usage entry) or <c>Correction</c> (a weight edit).</summary>
+    /// <summary><c>Job</c> (a print's deduction), <c>Manual</c> (a usage entry), <c>Correction</c> (a weight edit), <c>WriteOff</c> (what was left when the spool was finished) or <c>Restore</c> (a finished spool brought back).</summary>
     public string Source { get; set; } = string.Empty;
 
     public string? Reason { get; set; }

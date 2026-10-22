@@ -86,20 +86,51 @@ public sealed class Spool
         FeedSlotId = feedSlotId;
     }
 
-    /// <summary>Retains <see cref="RemainingWeightGrams"/> — FR-007's "return to storage" branch.</summary>
+    /// <summary>Retains <see cref="RemainingWeightGrams"/> — FR-007's "return to storage" branch. Only a loaded spool returns; a finished one comes back through <see cref="Restore"/>.</summary>
     public void ReturnToStorage()
     {
-        SpoolStateTransitions.EnsureValidTransition(State, SpoolState.InStorage);
+        if (State != SpoolState.Using)
+        {
+            throw new InvalidSpoolStateTransitionException(State, SpoolState.InStorage);
+        }
+
         State = SpoolState.InStorage;
         FeedSlotId = null;
     }
 
-    /// <summary>Manual (FR-008) or automatic-continuation-driven (FR-009) depletion — either way clears <see cref="FeedSlotId"/>.</summary>
-    public void MarkFinished()
+    /// <summary>
+    /// Manual (FR-008), from storage or a slot, or automatic-continuation-driven (FR-009) depletion — either way clears
+    /// <see cref="FeedSlotId"/>. Whatever is left is written off, so the returned history entry is null only when nothing was.
+    /// </summary>
+    public SpoolUsageRecord? MarkFinished(string? reason = null)
     {
         SpoolStateTransitions.EnsureValidTransition(State, SpoolState.Finished);
+        var writeOff = RemainingWeightGrams > 0 ? SpoolUsageRecord.WriteOff(Id, RemainingWeightGrams, reason) : null;
         State = SpoolState.Finished;
         FeedSlotId = null;
+        RemainingWeightGrams = 0;
+        return writeOff;
+    }
+
+    /// <summary>
+    /// Back to storage, never into a slot. The grams come back only when <paramref name="latest"/>, the spool's newest history
+    /// entry, is the write-off that finished it: a weight corrected since then is kept as it is.
+    /// </summary>
+    public SpoolUsageRecord? Restore(SpoolUsageRecord? latest)
+    {
+        if (State != SpoolState.Finished)
+        {
+            throw new InvalidSpoolStateTransitionException(State, SpoolState.InStorage);
+        }
+
+        State = SpoolState.InStorage;
+        if (latest is not { Source: SpoolUsageSource.WriteOff } || latest.SpoolId != Id)
+        {
+            return null;
+        }
+
+        RemainingWeightGrams += latest.GramsConsumed;
+        return SpoolUsageRecord.Restore(Id, latest.GramsConsumed, RemainingWeightGrams);
     }
 
     /// <summary>Decrements <see cref="RemainingWeightGrams"/>, flooring at zero and flagging <see cref="HasUsageOverrun"/> rather than going negative (spec.md's Edge Case).</summary>

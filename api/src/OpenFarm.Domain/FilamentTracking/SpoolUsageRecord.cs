@@ -5,11 +5,13 @@ public enum SpoolUsageSource
     Job,
     Manual,
     Correction,
+    WriteOff,
+    Restore,
 }
 
 /// <summary>
-/// Append-only ledger entry for one change to a spool's remaining weight: a print's deduction, a manual usage entry, or a
-/// manual weight correction. For a job entry <see cref="JobId"/> is the <c>Print</c> id; a manual entry carries whatever the
+/// Append-only ledger entry for one change to a spool's remaining weight: a print's deduction, a manual usage entry, a
+/// manual weight correction, or the write-off and restore of finishing a spool and bringing it back. For a job entry <see cref="JobId"/> is the <c>Print</c> id; a manual entry carries whatever the
 /// operator sent, unvalidated.
 /// </summary>
 public sealed class SpoolUsageRecord
@@ -40,7 +42,7 @@ public sealed class SpoolUsageRecord
 
     public Guid SpoolId { get; }
 
-    /// <summary>Grams taken off the spool; negative when a correction put filament back.</summary>
+    /// <summary>Grams taken off the spool; negative when a correction or a restore put filament back.</summary>
     public decimal GramsConsumed { get; }
 
     public DateTimeOffset RecordedAtUtc { get; }
@@ -52,7 +54,7 @@ public sealed class SpoolUsageRecord
     /// <summary>The spool's remaining weight once this entry applied; null on rows written before the ledger kept it.</summary>
     public decimal? RemainingAfterGrams { get; }
 
-    /// <summary>Why the weight was corrected; only a correction carries one.</summary>
+    /// <summary>Why the weight was corrected or written off; only a correction or a write-off carries one.</summary>
     public string? Reason { get; }
 
     /// <summary>A print's deduction or a manual usage entry; <paramref name="remainingAfterGrams"/> is the spool's weight after it applied.</summary>
@@ -63,9 +65,9 @@ public sealed class SpoolUsageRecord
             throw new ArgumentException("Grams consumed must be positive.", nameof(gramsConsumed));
         }
 
-        if (source == SpoolUsageSource.Correction)
+        if (source is not (SpoolUsageSource.Job or SpoolUsageSource.Manual))
         {
-            throw new ArgumentException("A weight correction is recorded with Correction().", nameof(source));
+            throw new ArgumentException($"A {source} entry is recorded with {source}().", nameof(source));
         }
 
         return new SpoolUsageRecord(Guid.NewGuid(), spoolId, gramsConsumed, DateTimeOffset.UtcNow, jobId, source, remainingAfterGrams, null);
@@ -79,13 +81,37 @@ public sealed class SpoolUsageRecord
             throw new ArgumentException("A correction must change the weight.", nameof(afterGrams));
         }
 
-        var trimmed = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-        if (trimmed is { Length: > MaxReasonLength })
+        return new SpoolUsageRecord(
+            Guid.NewGuid(), spoolId, beforeGrams - afterGrams, DateTimeOffset.UtcNow, null, SpoolUsageSource.Correction, afterGrams, CleanReason(reason));
+    }
+
+    /// <summary>Finishing a spool writes off the <paramref name="grams"/> still on it, leaving nothing.</summary>
+    public static SpoolUsageRecord WriteOff(Guid spoolId, decimal grams, string? reason)
+    {
+        if (grams <= 0)
         {
-            throw new ArgumentException($"Reason cannot exceed {MaxReasonLength} characters.", nameof(reason));
+            throw new ArgumentException("Grams written off must be positive.", nameof(grams));
         }
 
-        return new SpoolUsageRecord(
-            Guid.NewGuid(), spoolId, beforeGrams - afterGrams, DateTimeOffset.UtcNow, null, SpoolUsageSource.Correction, afterGrams, trimmed);
+        return new SpoolUsageRecord(Guid.NewGuid(), spoolId, grams, DateTimeOffset.UtcNow, null, SpoolUsageSource.WriteOff, 0m, CleanReason(reason));
+    }
+
+    /// <summary>Restoring a finished spool puts back the <paramref name="grams"/> its write-off took.</summary>
+    public static SpoolUsageRecord Restore(Guid spoolId, decimal grams, decimal remainingAfterGrams)
+    {
+        if (grams <= 0)
+        {
+            throw new ArgumentException("Grams restored must be positive.", nameof(grams));
+        }
+
+        return new SpoolUsageRecord(Guid.NewGuid(), spoolId, -grams, DateTimeOffset.UtcNow, null, SpoolUsageSource.Restore, remainingAfterGrams, null);
+    }
+
+    private static string? CleanReason(string? reason)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        return trimmed is { Length: > MaxReasonLength }
+            ? throw new ArgumentException($"Reason cannot exceed {MaxReasonLength} characters.", nameof(reason))
+            : trimmed;
     }
 }

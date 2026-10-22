@@ -10,6 +10,8 @@ public static class SpoolStateTransitions
             (SpoolState.InStorage, SpoolState.Using) => true,
             (SpoolState.Using, SpoolState.InStorage) => true,
             (SpoolState.Using, SpoolState.Finished) => true,
+            (SpoolState.InStorage, SpoolState.Finished) => true,
+            (SpoolState.Finished, SpoolState.InStorage) => true,
             _ => false,
         };
 
