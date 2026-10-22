@@ -60,7 +60,7 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
     }
 
     protected async Task<Part> PartAsync(int units = 1, string contents = "; revision one\n", string fileName = "part.gcode", bool legacy = false,
-        decimal? grams = 20)
+        decimal? grams = 20, FilamentRequirementSpec? requirement = null)
     {
         using var scope = Factory.Services.CreateScope();
         var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
@@ -71,7 +71,7 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         if (legacy) hash = new string('a', 32);
         var part = Part.Create($"Part {Guid.NewGuid():N}", PartFileFormat.GCode,
             false, fileName, path, bytes.Length, 0.4m, null, null, EstimateStatus.Available,
-            60, grams, 1, units, hash, [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
+            60, grams, 1, units, hash, [requirement ?? new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
         await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
         return part;
     }

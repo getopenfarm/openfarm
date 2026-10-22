@@ -15,6 +15,7 @@ public sealed record VariantStock(
     Guid FilamentId,
     string VendorName,
     string Material,
+    string MaterialType,
     string ColorName,
     string ColorHex,
     FilamentStock Stock,

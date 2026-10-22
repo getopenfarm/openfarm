@@ -7,10 +7,14 @@ import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type {
+  ListFilamentShortagesResponse,
   ListFilamentsResponse,
   ListVendorsResponse,
 } from '@/lib/api/generated/endpoints.schemas';
-import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
+import {
+  useOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpoint,
+  useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint,
+} from '@/lib/api/generated/filaments/filaments';
 import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
 import { pluralize } from '@/lib/pluralize';
 import { FilamentCatalogTable } from './components/FilamentCatalogTable';
@@ -20,6 +24,10 @@ export function FilamentPage() {
   const filamentsQuery =
     useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
   const list = filamentsQuery.data?.data as ListFilamentsResponse | undefined;
+  const shortages = (
+    useOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpoint().data
+      ?.data as ListFilamentShortagesResponse | undefined
+  )?.shortages;
   const filaments = list?.filaments ?? [];
 
   const vendorsQuery = useOpenFarmApiEndpointsVendorsListVendorsEndpoint();
@@ -67,7 +75,11 @@ export function FilamentPage() {
           }
         />
       ) : (
-        <FilamentCatalogTable filaments={filaments} stock={list?.stock ?? []} />
+        <FilamentCatalogTable
+          filaments={filaments}
+          stock={list?.stock ?? []}
+          shortages={shortages ?? []}
+        />
       )}
     </Page>
   );

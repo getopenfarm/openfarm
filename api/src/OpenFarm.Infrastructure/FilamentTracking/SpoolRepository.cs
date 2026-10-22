@@ -220,6 +220,7 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                     FilamentId = filament.Id,
                     VendorName = (string?)vendor.Name,
                     filament.Material,
+                    filament.MaterialType,
                     variant.ColorName,
                     variant.ColorHex,
                     VariantPrice = variant.PricePerKg,
@@ -253,7 +254,7 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                     FilamentPricing.Resolve(s.Price, s.SpoolWeightGrams, v.VariantPrice, v.FilamentPrice)?.PricePerKg)),
                 used.GetValueOrDefault(v.VariantId));
             return new VariantStock(
-                v.VariantId, v.FilamentId, v.VendorName ?? string.Empty, v.Material, v.ColorName, v.ColorHex, stock,
+                v.VariantId, v.FilamentId, v.VendorName ?? string.Empty, v.Material, v.MaterialType, v.ColorName, v.ColorHex, stock,
                 FilamentStock.Threshold(v.VariantThreshold, v.FilamentThreshold, everStocked: all.Any()));
         }).ToList();
     }

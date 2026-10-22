@@ -58,6 +58,12 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             .Where(j => j.DispatchedAtUtc != null && j.Status == PrintJobStatus.Queued)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<PrintJob>> ListUnfinishedFiniteAsync(CancellationToken cancellationToken) =>
+        await dbContext.PrintJobs.AsNoTracking().Include(j => j.Filaments)
+            .Where(j => j.Status == PrintJobStatus.Queued || j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused)
+            .Where(j => dbContext.PartRequirements.Any(r => r.Id == j.PartRequirementId && r.Quantity != null))
+            .ToListAsync(cancellationToken);
+
     /// <summary>research.md R3 — new/requeued jobs are pre-spaced past the current top of the queue.</summary>
     public async Task<double?> GetMaxQueuePositionAsync(CancellationToken cancellationToken) =>
         await dbContext.PrintJobs.AnyAsync(cancellationToken)

@@ -3965,6 +3965,37 @@
         ]
       }
     },
+    "/api/v1/filaments/shortages": {
+      "get": {
+        "tags": [
+          "Filaments"
+        ],
+        "operationId": "OpenFarmApiEndpointsFilamentsListFilamentShortagesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListFilamentShortagesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/printers/{printerId}/feed-units": {
       "post": {
         "tags": [
@@ -9187,6 +9218,36 @@
           },
           "isLow": {
             "type": "boolean"
+          }
+        }
+      },
+      "ListFilamentShortagesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "shortages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilamentShortageResponse"
+            }
+          }
+        }
+      },
+      "FilamentShortageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "queuedGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "onHandGrams": {
+            "type": "number",
+            "format": "decimal"
           }
         }
       },

@@ -80,4 +80,30 @@ describe('FilamentCatalogTable actions', () => {
     expect(row).toHaveTextContent('Partial');
     expect(row).toHaveTextContent('100 g');
   });
+  it('flags a filament whose queued work needs more than is on hand', () => {
+    render(
+      <MemoryRouter>
+        <FilamentCatalogTable
+          filaments={[
+            {
+              id: 'f1',
+              vendorName: 'Vendor',
+              material: 'PLA',
+              variants: [{ id: 'teal' }],
+            },
+          ]}
+          stock={[{ filamentVariantId: 'teal', onHandGrams: 100 }]}
+          shortages={[
+            { filamentVariantId: 'teal', queuedGrams: 1300, onHandGrams: 100 },
+          ]}
+        />
+      </MemoryRouter>,
+    );
+
+    const badge = screen.getByText('Short 1.2 kg');
+    expect(badge.closest('[title]')).toHaveAttribute(
+      'title',
+      'Queued 1.3 kg · on hand 100 g',
+    );
+  });
 });

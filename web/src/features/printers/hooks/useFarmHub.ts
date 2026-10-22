@@ -9,6 +9,7 @@ import type {
   PrinterDetailResponse,
   PrinterDetailTelemetryResponse,
 } from '@/lib/api/generated/endpoints.schemas';
+import { getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryKey } from '@/lib/api/generated/filaments/filaments';
 import { getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey } from '@/lib/api/generated/notifications/notifications';
 import {
   getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey,
@@ -309,6 +310,14 @@ export function useFarmHub() {
     connection.on('NotificationsChanged', () => {
       invalidateNotificationQueries(queryClient);
       invalidateFilamentTrackingQueries(queryClient);
+    });
+
+    // Queued work moves the filament shortages shown on the catalog, wherever the operator is.
+    connection.on('PrintJobStatusChanged', () => {
+      queryClient.invalidateQueries({
+        queryKey:
+          getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryKey(),
+      });
     });
 
     connection.on('SpoolStateChanged', () => {

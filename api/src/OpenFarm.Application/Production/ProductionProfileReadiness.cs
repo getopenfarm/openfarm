@@ -62,7 +62,7 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null, PrintJob? job = null)
     {
         var requiresSlicing = await RequiresSlicingAsync(part, revisionHash, ct);
-        var estimates = requirements.Select(r => EstimatedGrams(part, r, requirements.Count, job, revisionHash)).ToList();
+        var estimates = requirements.Select(r => ProductionJobRequirements.EstimatedGrams(part, r, requirements.Count, job, revisionHash)).ToList();
         var selections = new List<ProductionFilamentSelection>();
         for (var i = 0; i < requirements.Count; i++)
             selections.Add(await resolver.ResolveLoadedAsync(printerId, requirements[i].MaterialType,
@@ -81,16 +81,6 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         await EnsureEnoughFilamentAsync(printerId, selections, estimates, ct);
         return new(selections, profiles);
     }
-
-    /// <summary>
-    /// The grams a colour takes: what the job was already sliced to for this revision, else the part file's figure, else a
-    /// one-colour part's total. Null when unknown, and then nothing is checked.
-    /// </summary>
-    private static decimal? EstimatedGrams(Part part, JobFilamentRequirementSpec requirement, int requirementCount, PrintJob? job, string? revisionHash) =>
-        (job is not null && job.FileRevisionHash == (revisionHash ?? part.RevisionHash)
-            ? job.Filaments.FirstOrDefault(line => line.Requirement == requirement)?.EstimatedGrams : null)
-        ?? part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == requirement.MaterialType && n.DetectedColorHex == requirement.DetectedColorHex)?.EstimatedGrams
-        ?? (requirementCount == 1 ? part.EstimatedFilamentWeightGrams : null);
 
     private async Task EnsureEnoughFilamentAsync(Guid printerId, List<ProductionFilamentSelection> selections,
         List<decimal?> estimates, CancellationToken ct)

@@ -27,6 +27,7 @@ import type {
   FilamentAssignmentFleet,
   FilamentProfileAssignmentsResponse,
   FilamentResponse,
+  ListFilamentShortagesResponse,
   ListFilamentsResponse,
 } from '../endpoints.schemas';
 
@@ -1070,6 +1071,267 @@ export function useOpenFarmApiEndpointsFilamentsGetFilamentProfileAssignmentsEnd
   const queryOptions =
     getOpenFarmApiEndpointsFilamentsGetFilamentProfileAssignmentsEndpointQueryOptions(
       id,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse200 =
+  {
+    data: ListFilamentShortagesResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponseSuccess =
+  openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponseError =
+  (
+    | openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse401
+    | openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse =
+  | openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponseSuccess
+  | openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponseError;
+
+export const getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointUrl =
+  () => {
+    return `/api/v1/filaments/shortages`;
+  };
+
+export const openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint =
+  async (
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsFilamentsListFilamentShortagesEndpointResponse>(
+      getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointUrl(),
+      {
+        ...options,
+        method: 'GET',
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryKey =
+  () => {
+    return [`/api/v1/filaments/shortages`] as const;
+  };
+
+export const getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+      >
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+        >
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+    >
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+    >
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+    >
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpoint<
+  TData = Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+    >
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsFilamentsListFilamentShortagesEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryOptions(
       options,
     );
 

@@ -1630,6 +1630,16 @@ export interface ListFilamentsResponse {
   stock?: VariantStockResponse[];
 }
 
+export interface FilamentShortageResponse {
+  filamentVariantId?: string;
+  queuedGrams?: number;
+  onHandGrams?: number;
+}
+
+export interface ListFilamentShortagesResponse {
+  shortages?: FilamentShortageResponse[];
+}
+
 export interface CurrentSpoolResponse {
   id?: string;
   filamentVariantId?: string;

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type {
   FilamentResponse,
+  FilamentShortageResponse,
   VariantStockResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { formatCost, formatWeight } from '@/lib/formatUnits';
@@ -23,14 +24,29 @@ interface FilamentCatalogTableProps {
   filaments: FilamentResponse[];
   /** Per-colour stock from the same list response. */
   stock: VariantStockResponse[];
+  /** Colours queued finite work needs more of than is on hand. */
+  shortages?: FilamentShortageResponse[];
 }
 
 export function FilamentCatalogTable({
   filaments,
   stock,
+  shortages = [],
 }: FilamentCatalogTableProps) {
   const navigate = useNavigate();
   const byVariant = new Map(stock.map((row) => [row.filamentVariantId, row]));
+  const shortOf = (filament: FilamentResponse) => {
+    const ids = new Set((filament.variants ?? []).map((variant) => variant.id));
+    return shortages
+      .filter((short) => ids.has(short.filamentVariantId))
+      .reduce(
+        (sum, short) => ({
+          queued: sum.queued + (short.queuedGrams ?? 0),
+          onHand: sum.onHand + (short.onHandGrams ?? 0),
+        }),
+        { queued: 0, onHand: 0 },
+      );
+  };
   const totals = (filament: FilamentResponse): StockTotals =>
     sumStock(
       (filament.variants ?? []).flatMap((variant) => {
@@ -85,11 +101,22 @@ export function FilamentCatalogTable({
       ),
       cell: ({ row }) => {
         const { onHandGrams, lowColors } = totals(row.original);
+        const short = shortOf(row.original);
         return (
           <span className="flex items-center gap-2 whitespace-nowrap">
             <span className="tabular-nums">{formatWeight(onHandGrams)}</span>
             {lowColors > 0 && (
               <StatusBadge kind="amber" label={`${lowColors} low`} />
+            )}
+            {short.queued > 0 && (
+              <span
+                title={`Queued ${formatWeight(short.queued)} · on hand ${formatWeight(short.onHand)}`}
+              >
+                <StatusBadge
+                  kind="amber"
+                  label={`Short ${formatWeight(short.queued - short.onHand)}`}
+                />
+              </span>
             )}
           </span>
         );

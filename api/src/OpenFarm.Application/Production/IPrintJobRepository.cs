@@ -22,6 +22,9 @@ public interface IPrintJobRepository
     /// <summary>Constitution Durable Recovery guardrail — jobs left dispatch-in-flight (DispatchedAtUtc set, still Queued) from a prior process lifetime.</summary>
     Task<IReadOnlyList<PrintJob>> ListDispatchInFlightAsync(CancellationToken cancellationToken);
 
+    /// <summary>Queued, printing and paused jobs of finite lines, with their filament lines: the filament work still to come.</summary>
+    Task<IReadOnlyList<PrintJob>> ListUnfinishedFiniteAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<PrintJob>>([]);
+
     /// <summary>research.md R3 — new/requeued jobs are pre-spaced past the current top of a queue scope; null if the scope has no jobs yet.</summary>
     Task<double?> GetMaxQueuePositionAsync(CancellationToken cancellationToken);
 

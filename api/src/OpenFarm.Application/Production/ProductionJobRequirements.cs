@@ -10,6 +10,16 @@ public sealed class ProductionJobRequirements(IProductionRunRepository runs, IPa
         requirement is not null && requirement.Quantity is null && job.DispatchedAtUtc is null
             ? libraryPart : job.GetProductionPart();
 
+    /// <summary>
+    /// The grams one filament line of a print takes: what the job was already sliced to for this revision, else the part
+    /// file's figure for that colour, else a one-colour part's total. Null when unknown.
+    /// </summary>
+    public static decimal? EstimatedGrams(Part part, JobFilamentRequirementSpec requirement, int requirementCount, PrintJob? job, string? revisionHash) =>
+        (job is not null && job.FileRevisionHash == (revisionHash ?? part.RevisionHash)
+            ? job.Filaments.FirstOrDefault(line => line.Requirement == requirement)?.EstimatedGrams : null)
+        ?? part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == requirement.MaterialType && n.DetectedColorHex == requirement.DetectedColorHex)?.EstimatedGrams
+        ?? (requirementCount == 1 ? part.EstimatedFilamentWeightGrams : null);
+
     public static IReadOnlyList<JobFilamentRequirementSpec> FromPart(Part part) => part.FilamentRequirements
         .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex,
             r.NarrowFilamentVariantId, r.NarrowFilamentProfileId)).ToList();

@@ -90,3 +90,8 @@ save, which returns only the filament, cannot reset it in the client cache.
   once restocked. Every spool or filament change publishes `NotificationsChanged`, so open views refresh.
 - The spools page shows the totals as tiles (On hand, Value, Active spools, Used 30 d); the filament catalog shows them per
   filament, and the filament page per color.
+- **Short**: `GET /api/v1/filaments/shortages` lists colors that finite jobs still to print (queued, printing or paused;
+  nothing is deducted until a print ends) need more of than is on hand. A job line counts its sliced grams, else the part's
+  estimate for that color. A line narrowed to a color counts against it; otherwise against every color of the same
+  material and hex, so a shortage may be over-reported but is never missed. Unlimited work is not counted. The catalog
+  shows an amber *Short* badge per filament.
