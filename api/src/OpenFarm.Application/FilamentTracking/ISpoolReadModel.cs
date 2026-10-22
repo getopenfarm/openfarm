@@ -20,4 +20,10 @@ public interface ISpoolReadModel
     /// grams prints and manual usage took since <paramref name="usedSince"/>, and the low-stock threshold that applies.
     /// </summary>
     Task<IReadOnlyList<VariantStock>> ListStockAsync(DateTimeOffset usedSince, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <see cref="MaterialsReport"/> over the query's range: the lines of prints that closed in it once deduction ran on them (a
+    /// print cancelled before it started has none), and the write-offs and restores recorded in it.
+    /// </summary>
+    Task<MaterialsReport> GetMaterialsReportAsync(GetMaterialsReportQuery query, CancellationToken cancellationToken);
 }

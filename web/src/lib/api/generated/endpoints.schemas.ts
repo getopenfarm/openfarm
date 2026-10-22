@@ -327,6 +327,37 @@ export interface UpdateSlicingDefaultsRequest {
   estimationProfiles?: EstimationProfilesRequest | null;
 }
 
+export interface MaterialsReportRowResponse {
+  /** @nullable */
+  filamentVariantId?: string | null;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  material?: string | null;
+  /** @nullable */
+  colorName?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  usedGrams?: number;
+  wasteGrams?: number;
+  /** @nullable */
+  wasteShare?: number | null;
+  writtenOffGrams?: number;
+  cost?: number;
+  unpricedGrams?: number;
+  printCount?: number;
+  notDeductedCount?: number;
+}
+
+export interface MaterialsReportResponse {
+  rows?: MaterialsReportRowResponse[];
+  total?: MaterialsReportRowResponse;
+}
+
+export interface MaterialsReportRequest {
+  [key: string]: unknown;
+}
+
 export interface CreatedProfileItem {
   id?: string;
   name?: string;
@@ -2135,6 +2166,28 @@ export type OpenFarmApiEndpointsSlicingGetSlicingReadinessEndpointParams = {
    * @nullable
    */
   version?: string | null;
+};
+
+export type OpenFarmApiEndpointsReportsGetMaterialsReportEndpointParams = {
+  /**
+   * @nullable
+   */
+  from?: string | null;
+  /**
+   * @nullable
+   */
+  to?: string | null;
+};
+
+export type OpenFarmApiEndpointsReportsExportMaterialsReportEndpointParams = {
+  /**
+   * @nullable
+   */
+  from?: string | null;
+  /**
+   * @nullable
+   */
+  to?: string | null;
 };
 
 export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {

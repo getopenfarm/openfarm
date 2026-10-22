@@ -245,6 +245,63 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
             total);
     }
 
+    public async Task<MaterialsReport> GetMaterialsReportAsync(GetMaterialsReportQuery query, CancellationToken cancellationToken)
+    {
+        var prints = dbContext.Prints.AsNoTracking().Where(p => p.EndedAtUtc != null);
+        if (query.From is { } since)
+        {
+            prints = prints.Where(p => p.EndedAtUtc >= since);
+        }
+
+        if (query.To is { } until)
+        {
+            prints = prints.Where(p => p.EndedAtUtc < until);
+        }
+
+        var records = dbContext.SpoolUsageRecords.AsNoTracking()
+            .Where(r => r.Source == SpoolUsageSource.WriteOff || r.Source == SpoolUsageSource.Restore);
+        if (query.From is { } recordedSince)
+        {
+            records = records.Where(r => r.RecordedAtUtc >= recordedSince);
+        }
+
+        if (query.To is { } recordedUntil)
+        {
+            records = records.Where(r => r.RecordedAtUtc < recordedUntil);
+        }
+
+        // ponytail: every line in the range comes back and is grouped in memory; group in SQL past ~100k lines.
+        var lines = await (
+                from line in dbContext.PrintFilaments.AsNoTracking()
+                where line.GramsConsumed != null || line.SkippedReason != null
+                join print in prints on line.PrintId equals print.Id
+                join spool in dbContext.Spools.AsNoTracking() on line.SpoolId equals (Guid?)spool.Id into spools
+                from spool in spools.DefaultIfEmpty()
+                select new MaterialsReportLine(
+                    line.PrintId, print.Status, (Guid?)spool.FilamentVariantId, line.GramsConsumed, line.PricePerKg,
+                    line.SkippedReason != null))
+            .ToListAsync(cancellationToken);
+
+        var writtenOff = await (
+                from record in records
+                join spool in dbContext.Spools.AsNoTracking() on record.SpoolId equals spool.Id
+                group record.GramsConsumed by spool.FilamentVariantId into byVariant
+                select new { VariantId = byVariant.Key, Grams = byVariant.Sum() })
+            .ToDictionaryAsync(x => x.VariantId, x => x.Grams, cancellationToken);
+
+        var variantIds = lines.Select(l => l.FilamentVariantId).OfType<Guid>().Concat(writtenOff.Keys).Distinct().ToList();
+        var colors = await (
+                from variant in dbContext.FilamentVariants.AsNoTracking()
+                where variantIds.Contains(variant.Id)
+                join filament in dbContext.Filaments.AsNoTracking() on variant.FilamentId equals filament.Id
+                join vendor in dbContext.Vendors.AsNoTracking() on filament.VendorId equals vendor.Id into vendors
+                from vendor in vendors.DefaultIfEmpty()
+                select new MaterialsReportColor(variant.Id, vendor.Name ?? string.Empty, filament.Material, variant.ColorName, variant.ColorHex))
+            .ToDictionaryAsync(c => c.FilamentVariantId, cancellationToken);
+
+        return MaterialsReport.Of(lines, writtenOff, colors);
+    }
+
     public async Task<IReadOnlyList<VariantStock>> ListStockAsync(DateTimeOffset usedSince, CancellationToken cancellationToken)
     {
         var variants = await (

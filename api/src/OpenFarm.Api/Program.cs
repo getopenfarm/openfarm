@@ -285,6 +285,7 @@ builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler
 builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>>, GetSpoolsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, SpoolSummaryPage>, GetSpoolsPageQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSpoolHistoryQuery, SpoolHistoryPage>, GetSpoolHistoryQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetMaterialsReportQuery, MaterialsReport>, GetMaterialsReportQueryHandler>();
 builder.Services.AddScoped<LoadSpoolHandlerType, LoadSpoolOntoFeedSlotCommandHandler>();
 builder.Services.AddScoped<UnloadSpoolHandlerType, UnloadSpoolCommandHandler>();
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<RestoreSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>, RestoreSpoolCommandHandler>();

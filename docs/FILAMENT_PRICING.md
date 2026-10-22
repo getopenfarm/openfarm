@@ -95,3 +95,20 @@ save, which returns only the filament, cannot reset it in the client cache.
   estimate for that color. A line narrowed to a color counts against it; otherwise against every color of the same
   material and hex, so a shortage may be over-reported but is never missed. Unlimited work is not counted. The catalog
   shows an amber *Short* badge per filament.
+
+## Materials report
+
+`GET /api/v1/reports/materials?from&to` (and `.csv`) sums filament per color over a range, shown on the Usage page's
+*By material* tab. `from` is inclusive and `to` exclusive; the page sends local calendar days as UTC instants.
+
+- **Rows** are the color of the spool a print line was deducted from, plus a *No spool* row for lines with none. A print counts
+  when it ended in the range. A line counts once deduction ran on it: grams recorded, or skipped with a reason. Lines of a
+  print cancelled before it started have neither, so they are left out.
+- **Used**: grams completed prints took. **Waste**: grams failed and cancelled prints took. **Waste %** is waste over both.
+- **Written off**: what finishing spools wrote off in the range, net of restores in it (ledger `WriteOff` and `Restore`).
+- **Cost** adds only lines with a recorded price (see Realized cost). Grams with no price are listed as unpriced, and make the
+  cost *Partial*.
+- **Prints** counts each print once per row; the total counts a print that used several colors once. **Not deducted** counts
+  lines skipped without grams; fix them from the bell.
+- Manual usage and weight corrections are not in the report; they show in the History tab.
+- Rows come most grams first. The lines are grouped in memory, which is fine for a farm's range of prints.

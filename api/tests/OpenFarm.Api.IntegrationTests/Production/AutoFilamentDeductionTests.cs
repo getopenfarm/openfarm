@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.PrintJobs;
+using OpenFarm.Api.Endpoints.Reports;
 using OpenFarm.Api.Endpoints.Spools;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.FilamentTracking;
@@ -182,5 +184,39 @@ public class AutoFilamentDeductionTests(ProductionTestFactory factory) : Product
         (await SpoolAsync(spoolId)).Remaining.Should().Be(1000m);
         var client = await ClientAsync();
         (await ActivityEventTypesAsync(client, jobId)).Should().Contain("PrintJobFilamentDeductionSkipped");
+    }
+
+    [Fact]
+    public async Task MaterialsReport_CountsFinishedAsUsed_FailedAsWaste_AndWriteOffs_PerColour()
+    {
+        var range = $"?from={Uri.EscapeDataString(DateTimeOffset.UtcNow.ToString("O"))}&to={Uri.EscapeDataString(DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"))}";
+        var client = await ClientAsync();
+        var (_, finishedPrinter, finishedSpool) = await PrintingJobAsync(20m);
+        (await client.PutAsJsonAsync($"/api/v1/spools/{finishedSpool}", new { remainingWeightGrams = 1000m, price = 20m })).EnsureSuccessStatusCode();
+        await ReplayAsync(finishedPrinter, "FINISH");
+        (await client.PutAsJsonAsync($"/api/v1/spools/{finishedSpool}/unload", new { action = "MarkFinished" })).EnsureSuccessStatusCode();
+        var (_, failedPrinter, failedSpool) = await PrintingJobAsync(20m);
+        await SetProgressAsync(failedPrinter, percent: 50, layer: null, totalLayers: null);
+        await ReplayAsync(failedPrinter, "FAILED");
+
+        var report = (await client.GetFromJsonAsync<MaterialsReportResponse>($"/api/v1/reports/materials{range}"))!;
+        var csv = await client.GetStringAsync($"/api/v1/reports/materials.csv{range}");
+
+        var spoolsVariants = await SpoolVariantsAsync(finishedSpool, failedSpool);
+        report.Rows.Select(r => r.FilamentVariantId).Should().Equal(spoolsVariants);
+        report.Rows[0].Should().BeEquivalentTo(new { UsedGrams = 20m, WasteGrams = 0m, WrittenOffGrams = 980m, Cost = 0.4m, UnpricedGrams = 0m, PrintCount = 1 });
+        report.Rows[1].Should().BeEquivalentTo(new { UsedGrams = 0m, WasteGrams = 10m, WasteShare = 1m, Cost = 0m, UnpricedGrams = 10m, PrintCount = 1 });
+        report.Total.Should().BeEquivalentTo(new { UsedGrams = 20m, WasteGrams = 10m, WrittenOffGrams = 980m, Cost = 0.4m, PrintCount = 2 });
+        var total = csv.Split("\r\n")[^2].Split(',');
+        total[1].Should().Be("Total");
+        total[3..].Select(field => decimal.Parse(field, CultureInfo.InvariantCulture)).Should().Equal(20m, 10m, 33.3m, 980m, 0.4m, 10m, 2m, 0m);
+    }
+
+    private async Task<Guid?[]> SpoolVariantsAsync(params Guid[] spoolIds)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var variants = await db.Spools.Where(s => spoolIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.FilamentVariantId);
+        return spoolIds.Select(id => (Guid?)variants[id]).ToArray();
     }
 }

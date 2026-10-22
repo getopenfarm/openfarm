@@ -955,6 +955,101 @@
         ]
       }
     },
+    "/api/v1/reports/materials": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "OpenFarmApiEndpointsReportsGetMaterialsReportEndpoint",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialsReportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/reports/materials.csv": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "OpenFarmApiEndpointsReportsExportMaterialsReportEndpoint",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/profiles/imports/confirm": {
       "post": {
         "tags": [
@@ -6010,6 +6105,85 @@
             ]
           }
         }
+      },
+      "MaterialsReportResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaterialsReportRowResponse"
+            }
+          },
+          "total": {
+            "$ref": "#/components/schemas/MaterialsReportRowResponse"
+          }
+        }
+      },
+      "MaterialsReportRowResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "vendorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "material": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "usedGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "wasteGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "wasteShare": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "writtenOffGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "cost": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "unpricedGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "printCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notDeductedCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MaterialsReportRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "ConfirmProfileImportResponse": {
         "type": "object",
