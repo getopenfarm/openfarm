@@ -51,6 +51,36 @@ public class EditSpoolCommandHandlerTests
     }
 
     [Fact]
+    public async Task PurchaseInfo_IsReplaced_AndNeedsNoWeightChangeOrEntry()
+    {
+        var spool = NewSpool(800);
+
+        await Handler(spool).HandleAsync(
+            new EditSpoolCommand(spool.Id, "Shelf B", 800, Price: 18.5m, Supplier: " Filament Shop ", OrderNumber: "PO-1042", ReceivedOn: new DateOnly(2026, 10, 20)),
+            CancellationToken.None);
+
+        spool.Price.Should().Be(18.5m);
+        spool.Supplier.Should().Be("Filament Shop");
+        spool.OrderNumber.Should().Be("PO-1042");
+        spool.ReceivedOn.Should().Be(new DateOnly(2026, 10, 20));
+        _usage.Records.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OmittingThePurchaseInfo_ClearsIt()
+    {
+        var spool = NewSpool(800);
+        spool.SetPurchase(18.5m, "Filament Shop", "PO-1042", new DateOnly(2026, 10, 20));
+
+        await Handler(spool).HandleAsync(new EditSpoolCommand(spool.Id, "Shelf B", 800), CancellationToken.None);
+
+        spool.Price.Should().BeNull();
+        spool.Supplier.Should().BeNull();
+        spool.OrderNumber.Should().BeNull();
+        spool.ReceivedOn.Should().BeNull();
+    }
+
+    [Fact]
     public async Task AWeightAboveTheSpoolCapacity_Throws_AndAddsNoEntry()
     {
         var spool = NewSpool(800);

@@ -31,6 +31,7 @@ import type {
   RecordSpoolUsageRequest,
   RecordSpoolUsageResponse,
   RegisterSpoolRequest,
+  RegisterSpoolsResponse,
   SpoolHistoryResponse,
   SpoolResponse,
   UnloadSpoolRequest,
@@ -883,7 +884,7 @@ export function useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint<
 }
 
 export type openFarmApiEndpointsSpoolsRegisterSpoolEndpointResponse200 = {
-  data: SpoolResponse;
+  data: RegisterSpoolsResponse;
   status: 200;
 };
 

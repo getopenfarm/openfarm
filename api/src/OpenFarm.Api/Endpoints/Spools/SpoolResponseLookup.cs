@@ -11,4 +11,11 @@ internal static class SpoolResponseLookup
         var spools = await spoolsQuery.HandleAsync(new GetSpoolsQuery(null, null, null, null, SpoolId: spoolId), cancellationToken);
         return spools.Count == 0 ? throw new SpoolNotFoundException(spoolId) : SpoolResponse.FromSummary(spools[0]);
     }
+
+    /// <summary>The same read for several spools in one query, such as the ones a single registration added.</summary>
+    public static async Task<IReadOnlyList<SpoolResponse>> ResolveManyAsync(IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>> spoolsQuery, IReadOnlyCollection<Guid> spoolIds, CancellationToken cancellationToken)
+    {
+        var spools = await spoolsQuery.HandleAsync(new GetSpoolsQuery(null, null, null, null, SpoolIds: spoolIds), cancellationToken);
+        return spools.Select(SpoolResponse.FromSummary).ToList();
+    }
 }

@@ -385,7 +385,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SpoolResponse"
+                  "$ref": "#/components/schemas/RegisterSpoolsResponse"
                 }
               }
             }
@@ -5024,6 +5024,29 @@
           },
           "hasUsageOverrun": {
             "type": "boolean"
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "supplier": {
+            "type": "string",
+            "nullable": true
+          },
+          "orderNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
           }
         }
       },
@@ -5041,6 +5064,24 @@
           },
           "reason": {
             "type": "string",
+            "nullable": true
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "supplier": {
+            "type": "string",
+            "nullable": true
+          },
+          "orderNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date",
             "nullable": true
           }
         }
@@ -5272,6 +5313,18 @@
           }
         }
       },
+      "RegisterSpoolsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "spools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpoolResponse"
+            }
+          }
+        }
+      },
       "RegisterSpoolRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -5291,6 +5344,28 @@
           "remainingWeightGrams": {
             "type": "number",
             "format": "decimal",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "supplier": {
+            "type": "string",
+            "nullable": true
+          },
+          "orderNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date",
             "nullable": true
           }
         }

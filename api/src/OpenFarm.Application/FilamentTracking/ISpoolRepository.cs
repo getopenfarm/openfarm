@@ -6,6 +6,15 @@ public interface ISpoolRepository
 {
     Task AddAsync(Spool spool, CancellationToken cancellationToken);
 
+    /// <summary>Adds every spool in one save, so all are kept or none. The default adds them one at a time, which suits in-memory stand-ins.</summary>
+    async Task AddRangeAsync(IReadOnlyList<Spool> spools, CancellationToken cancellationToken)
+    {
+        foreach (var spool in spools)
+        {
+            await AddAsync(spool, cancellationToken);
+        }
+    }
+
     Task<Spool?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Spool>> ListAsync(SpoolState? state, Guid? filamentVariantId, CancellationToken cancellationToken);

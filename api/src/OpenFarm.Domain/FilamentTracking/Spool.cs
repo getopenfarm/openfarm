@@ -2,6 +2,9 @@ namespace OpenFarm.Domain.FilamentTracking;
 
 public sealed class Spool
 {
+    /// <summary>Longest supplier or order number kept.</summary>
+    public const int MaxPurchaseTextLength = 100;
+
     private Spool(
         Guid id,
         Guid filamentVariantId,
@@ -38,6 +41,23 @@ public sealed class Spool
     public Guid? FeedSlotId { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; }
+
+    /// <summary>What was paid for the whole spool; null when unknown. Zero is a real price (a free spool), not unknown.</summary>
+    public decimal? Price { get; private set; }
+
+    public string? Supplier { get; private set; }
+
+    public string? OrderNumber { get; private set; }
+
+    /// <summary>The day the spool arrived: a calendar date, with no time or zone.</summary>
+    public DateOnly? ReceivedOn { get; private set; }
+
+    /// <summary><see cref="Price"/> over the spool's full weight in kilograms — what was paid covers the whole spool, not what is left of it.</summary>
+    public decimal? PricePerKg => PricePerKgOf(Price, SpoolWeightGrams);
+
+    /// <summary>The price paid for a spool of <paramref name="spoolWeightGrams"/> as a price per kilogram; null when the price is unknown.</summary>
+    public static decimal? PricePerKgOf(decimal? price, decimal spoolWeightGrams) =>
+        price is { } paid ? paid / (spoolWeightGrams / 1000m) : null;
 
     public static Spool Create(Guid filamentVariantId, string? label, decimal spoolWeightGrams, decimal remainingWeightGrams)
     {
@@ -123,4 +143,29 @@ public sealed class Spool
 
     /// <summary>Free-text shelf label; blank clears it.</summary>
     public void Relabel(string? label) => Label = string.IsNullOrWhiteSpace(label) ? null : label.Trim();
+
+    /// <summary>Replaces the purchase info; blank text is cleared. When any value is invalid nothing changes.</summary>
+    public void SetPurchase(decimal? price, string? supplier, string? orderNumber, DateOnly? receivedOn)
+    {
+        if (price < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(price), "Price cannot be negative.");
+        }
+
+        var cleanSupplier = CleanPurchaseText(supplier, nameof(supplier));
+        var cleanOrderNumber = CleanPurchaseText(orderNumber, nameof(orderNumber));
+
+        Price = price;
+        Supplier = cleanSupplier;
+        OrderNumber = cleanOrderNumber;
+        ReceivedOn = receivedOn;
+    }
+
+    private static string? CleanPurchaseText(string? text, string parameterName)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        return trimmed is { Length: > MaxPurchaseTextLength }
+            ? throw new ArgumentException($"Cannot exceed {MaxPurchaseTextLength} characters.", parameterName)
+            : trimmed;
+    }
 }

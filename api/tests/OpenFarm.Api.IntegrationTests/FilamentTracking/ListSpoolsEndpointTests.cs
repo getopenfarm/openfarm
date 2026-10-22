@@ -72,9 +72,9 @@ public class ListSpoolsEndpointTests(CustomWebApplicationFactory factory) : ICla
             Label = $"Shelf-{seeded.Tag}",
             SpoolWeightGrams = 1000,
         });
-        var spool = await registered.Content.ReadFromJsonAsync<SpoolResponse>();
+        var spool = (await registered.Content.ReadFromJsonAsync<RegisterSpoolsResponse>())!.Spools.Single();
 
-        (await ListAsync(client, $"search=shelf-{seeded.Tag}")).Select(s => s.Id).Should().Equal(spool!.Id);
+        (await ListAsync(client, $"search=shelf-{seeded.Tag}")).Select(s => s.Id).Should().Equal(spool.Id);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class ListSpoolsEndpointTests(CustomWebApplicationFactory factory) : ICla
             Label = $"zq{seeded.Tag}%x",
             SpoolWeightGrams = 1000,
         });
-        var literalSpool = await literal.Content.ReadFromJsonAsync<SpoolResponse>();
+        var literalSpool = (await literal.Content.ReadFromJsonAsync<RegisterSpoolsResponse>())!.Spools.Single();
         await client.PostAsJsonAsync(new Uri("/api/v1/spools", UriKind.Relative), new RegisterSpoolRequest
         {
             FilamentVariantId = seeded.VariantId,
@@ -98,7 +98,7 @@ public class ListSpoolsEndpointTests(CustomWebApplicationFactory factory) : ICla
 
         // An unescaped % would also match the second label.
         var results = await ListAsync(client, $"search=zq{seeded.Tag}%25");
-        results.Select(s => s.Id).Should().Equal(literalSpool!.Id);
+        results.Select(s => s.Id).Should().Equal(literalSpool.Id);
     }
 
     [Fact]

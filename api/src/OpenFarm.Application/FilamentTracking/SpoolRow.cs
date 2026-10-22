@@ -16,6 +16,10 @@ public sealed record SpoolRow(
     SpoolState State,
     Guid? FeedSlotId,
     bool HasUsageOverrun,
+    decimal? Price,
+    string? Supplier,
+    string? OrderNumber,
+    DateOnly? ReceivedOn,
     SpoolSlotPlacement? Placement);
 
 /// <summary>The columns <see cref="FeedUnitDisplay.SlotLabel(string, int, string?, int, string)"/> reads for a loaded spool, plus the printer's name — a spool's location must say which printer.</summary>
@@ -41,5 +45,10 @@ internal static class SpoolRowMapping
         row.Placement is { } placement
             ? $"{placement.PrinterName} · {FeedUnitDisplay.SlotLabel(placement.UnitKind, placement.UnitIndex, placement.UnitName, placement.SlotPosition, placement.PrinterBrand)}"
             : null,
-        row.HasUsageOverrun);
+        row.HasUsageOverrun,
+        row.Price,
+        Spool.PricePerKgOf(row.Price, row.SpoolWeightGrams),
+        row.Supplier,
+        row.OrderNumber,
+        row.ReceivedOn);
 }

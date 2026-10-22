@@ -43,6 +43,16 @@ export interface SpoolResponse {
   /** @nullable */
   feedSlotLabel?: string | null;
   hasUsageOverrun?: boolean;
+  /** @nullable */
+  price?: number | null;
+  /** @nullable */
+  pricePerKg?: number | null;
+  /** @nullable */
+  supplier?: string | null;
+  /** @nullable */
+  orderNumber?: string | null;
+  /** @nullable */
+  receivedOn?: string | null;
 }
 
 export interface EditSpoolRequest {
@@ -51,6 +61,14 @@ export interface EditSpoolRequest {
   remainingWeightGrams?: number;
   /** @nullable */
   reason?: string | null;
+  /** @nullable */
+  price?: number | null;
+  /** @nullable */
+  supplier?: string | null;
+  /** @nullable */
+  orderNumber?: string | null;
+  /** @nullable */
+  receivedOn?: string | null;
 }
 
 export interface SpoolHistoryEntryResponse {
@@ -145,6 +163,10 @@ export interface RecordSpoolUsageRequest {
   jobId?: string | null;
 }
 
+export interface RegisterSpoolsResponse {
+  spools?: SpoolResponse[];
+}
+
 export interface RegisterSpoolRequest {
   filamentVariantId?: string;
   /** @nullable */
@@ -152,6 +174,15 @@ export interface RegisterSpoolRequest {
   spoolWeightGrams?: number;
   /** @nullable */
   remainingWeightGrams?: number | null;
+  quantity?: number;
+  /** @nullable */
+  price?: number | null;
+  /** @nullable */
+  supplier?: string | null;
+  /** @nullable */
+  orderNumber?: string | null;
+  /** @nullable */
+  receivedOn?: string | null;
 }
 
 export interface UnloadSpoolRequest {

@@ -5,21 +5,29 @@ namespace OpenFarm.Application.FilamentTracking;
 
 public sealed class RegisterSpoolCommandHandler(
     ISpoolRepository spoolRepository,
-    IFilamentRepository filamentRepository) : ICommandHandler<RegisterSpoolCommand, Spool>
+    IFilamentRepository filamentRepository) : ICommandHandler<RegisterSpoolCommand, IReadOnlyList<Spool>>
 {
-    public async Task<Spool> HandleAsync(RegisterSpoolCommand command, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Spool>> HandleAsync(RegisterSpoolCommand command, CancellationToken cancellationToken)
     {
         var variant = await filamentRepository.FindVariantByIdAsync(command.FilamentVariantId, cancellationToken)
             ?? throw new FilamentVariantNotFoundException(command.FilamentVariantId);
 
+        // Built before anything is saved, so one invalid value adds none of them.
+        var spools = Enumerable.Range(0, command.Quantity).Select(_ => NewSpool(variant.Id, command)).ToList();
+
+        await spoolRepository.AddRangeAsync(spools, cancellationToken);
+
+        return spools;
+    }
+
+    private static Spool NewSpool(Guid filamentVariantId, RegisterSpoolCommand command)
+    {
         var spool = Spool.Create(
-            variant.Id,
+            filamentVariantId,
             command.Label,
             command.SpoolWeightGrams,
             command.RemainingWeightGrams ?? command.SpoolWeightGrams);
-
-        await spoolRepository.AddAsync(spool, cancellationToken);
-
+        spool.SetPurchase(command.Price, command.Supplier, command.OrderNumber, command.ReceivedOn);
         return spool;
     }
 }

@@ -14,6 +14,7 @@ import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -35,6 +36,11 @@ import {
   getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey,
   useOpenFarmApiEndpointsSpoolsRegisterSpoolEndpoint,
 } from '@/lib/api/generated/spools/spools';
+import { formatCost } from '@/lib/formatUnits';
+import { pluralize } from '@/lib/pluralize';
+
+const MAX_QUANTITY = 50;
+const MAX_TEXT_LENGTH = 100;
 
 const schema = z
   .object({
@@ -44,6 +50,25 @@ const schema = z
       .string()
       .refine((value) => Number(value) > 0, 'Must be greater than 0'),
     remainingWeightGrams: z.string(),
+    quantity: z
+      .string()
+      .refine(
+        (value) =>
+          value.trim() === '' ||
+          (Number.isInteger(Number(value)) &&
+            Number(value) >= 1 &&
+            Number(value) <= MAX_QUANTITY),
+        `Enter a whole number from 1 to ${MAX_QUANTITY}`,
+      ),
+    price: z
+      .string()
+      .refine(
+        (value) => value.trim() === '' || Number(value) >= 0,
+        'Must be 0 or more',
+      ),
+    supplier: z.string().max(MAX_TEXT_LENGTH, 'Up to 100 characters'),
+    orderNumber: z.string().max(MAX_TEXT_LENGTH, 'Up to 100 characters'),
+    receivedOn: z.string(),
   })
   .refine(
     (values) =>
@@ -56,6 +81,13 @@ const schema = z
   );
 
 type FormValues = z.infer<typeof schema>;
+
+/** Today as yyyy-mm-dd in the operator's own time zone, for a date input. */
+function todayAsDateInput() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
 
 export function SpoolFormPage() {
   const navigate = useNavigate();
@@ -76,6 +108,11 @@ export function SpoolFormPage() {
       label: '',
       spoolWeightGrams: '1000',
       remainingWeightGrams: '',
+      quantity: '1',
+      price: '',
+      supplier: '',
+      orderNumber: '',
+      receivedOn: todayAsDateInput(),
     },
   });
 
@@ -83,10 +120,21 @@ export function SpoolFormPage() {
     form.formState.isDirty,
   );
 
+  const [price, spoolWeight] = form.watch(['price', 'spoolWeightGrams']);
+  const pricePerKg =
+    price.trim() !== '' && Number(price) >= 0 && Number(spoolWeight) > 0
+      ? Number(price) / (Number(spoolWeight) / 1000)
+      : null;
+
   const registerMutation = useOpenFarmApiEndpointsSpoolsRegisterSpoolEndpoint({
     mutation: {
-      onSuccess: () => {
-        toast.success('Spool added.');
+      onSuccess: (_response, variables) => {
+        const quantity = variables.data.quantity ?? 1;
+        toast.success(
+          quantity === 1
+            ? 'Spool added.'
+            : `${pluralize(quantity, 'spool')} added.`,
+        );
         queryClient.invalidateQueries({
           queryKey: getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey(),
         });
@@ -109,6 +157,11 @@ export function SpoolFormPage() {
           values.remainingWeightGrams === ''
             ? null
             : Number(values.remainingWeightGrams),
+        quantity: values.quantity.trim() === '' ? 1 : Number(values.quantity),
+        price: values.price.trim() === '' ? null : Number(values.price),
+        supplier: values.supplier.trim() || null,
+        orderNumber: values.orderNumber.trim() || null,
+        receivedOn: values.receivedOn || null,
       },
     });
   }
@@ -203,6 +256,88 @@ export function SpoolFormPage() {
                           placeholder="Defaults to full spool weight"
                           {...field}
                         />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quantity</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        1 to {MAX_QUANTITY} identical spools. Label, weights and
+                        purchase info apply to each.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Purchase</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price paid (per spool, optional)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" {...field} />
+                      </FormControl>
+                      {pricePerKg !== null && (
+                        <FormDescription>
+                          {formatCost(pricePerKg)} per kg
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="supplier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="orderNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Order number (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="receivedOn"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Received on (optional)</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

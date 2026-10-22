@@ -14,6 +14,12 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task AddRangeAsync(IReadOnlyList<Spool> spools, CancellationToken cancellationToken)
+    {
+        dbContext.Spools.AddRange(spools);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public Task<Spool?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Spools.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
@@ -60,6 +66,11 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
         if (query.SpoolId is { } spoolId)
         {
             rows = rows.Where(x => x.spool.Id == spoolId);
+        }
+
+        if (query.SpoolIds is { } spoolIds)
+        {
+            rows = rows.Where(x => spoolIds.Contains(x.spool.Id));
         }
 
         if (query.State is { } state)
@@ -117,6 +128,10 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                 x.spool.State,
                 x.spool.FeedSlotId,
                 x.spool.HasUsageOverrun,
+                x.spool.Price,
+                x.spool.Supplier,
+                x.spool.OrderNumber,
+                x.spool.ReceivedOn,
                 UnitKind = x.unit.Kind,
                 UnitIndex = (int?)x.unit.UnitIndex,
                 UnitName = x.unit.Name,
@@ -140,6 +155,10 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                 r.State,
                 r.FeedSlotId,
                 r.HasUsageOverrun,
+                r.Price,
+                r.Supplier,
+                r.OrderNumber,
+                r.ReceivedOn,
                 r is { UnitKind: not null, UnitIndex: { } unitIndex, SlotPosition: { } slotPosition }
                     ? new SpoolSlotPlacement(r.UnitKind, unitIndex, r.UnitName, slotPosition, r.PrinterBrand ?? string.Empty, r.PrinterName ?? string.Empty)
                     : null))

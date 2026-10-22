@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -31,7 +32,7 @@ import {
   useOpenFarmApiEndpointsSpoolsEditSpoolEndpoint,
   useOpenFarmApiEndpointsSpoolsGetSpoolEndpoint,
 } from '@/lib/api/generated/spools/spools';
-import { formatGrams } from '@/lib/formatUnits';
+import { formatCost, formatGrams } from '@/lib/formatUnits';
 import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { LoadSpoolDialog } from './components/LoadSpoolDialog';
 import { RecordUsageDialog } from './components/RecordUsageDialog';
@@ -52,6 +53,15 @@ function spoolSchema(capacity: number) {
         `Cannot exceed the spool capacity (${capacity} g).`,
       ),
     reason: z.string().max(200, 'Up to 200 characters'),
+    price: z
+      .string()
+      .refine(
+        (value) => value.trim() === '' || Number(value) >= 0,
+        'Must be 0 or more',
+      ),
+    supplier: z.string().max(100, 'Up to 100 characters'),
+    orderNumber: z.string().max(100, 'Up to 100 characters'),
+    receivedOn: z.string(),
   });
 }
 
@@ -62,6 +72,10 @@ function toFormValues(spool: SpoolResponse | undefined): FormValues {
     label: spool?.label ?? '',
     remainingWeightGrams: String(spool?.remainingWeightGrams ?? ''),
     reason: '',
+    price: spool?.price != null ? String(spool.price) : '',
+    supplier: spool?.supplier ?? '',
+    orderNumber: spool?.orderNumber ?? '',
+    receivedOn: spool?.receivedOn ?? '',
   };
 }
 
@@ -92,6 +106,13 @@ export function SpoolDetailPage() {
   const weightChanged =
     draftWeight !== '' && Number(draftWeight) !== spool?.remainingWeightGrams;
 
+  // The price is for the whole spool, so a per-kg figure beside it is what compares with the catalog's price per kg.
+  const draftPrice = form.watch('price').trim();
+  const pricePerKg =
+    draftPrice !== '' && Number(draftPrice) >= 0 && capacity > 0
+      ? Number(draftPrice) / (capacity / 1000)
+      : null;
+
   const editMutation = useOpenFarmApiEndpointsSpoolsEditSpoolEndpoint({
     mutation: {
       onSuccess: (response) => {
@@ -112,6 +133,10 @@ export function SpoolDetailPage() {
         label: values.label.trim() || null,
         remainingWeightGrams: Number(values.remainingWeightGrams),
         reason: weightChanged ? values.reason.trim() || null : null,
+        price: values.price.trim() === '' ? null : Number(values.price),
+        supplier: values.supplier.trim() || null,
+        orderNumber: values.orderNumber.trim() || null,
+        receivedOn: values.receivedOn || null,
       },
     });
   }
@@ -246,6 +271,71 @@ export function SpoolDetailPage() {
                     )}
                   />
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Purchase</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price paid (per spool)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" {...field} />
+                      </FormControl>
+                      {pricePerKg !== null && (
+                        <FormDescription>
+                          {formatCost(pricePerKg)} per kg
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="supplier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="orderNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Order number</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="receivedOn"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Received on</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </CardContent>
             </Card>
 

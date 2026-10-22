@@ -30,5 +30,23 @@ prices. Omitting the filament `pricePerKg` preserves its price; explicit null
 clears it. Price changes, new variants, details, and profile assignments share one
 atomic save. Existing variant identity and colors remain immutable.
 
+## Spool purchase info
+
+A spool can also record what it cost, all optional:
+
+| Field | Meaning |
+|---|---|
+| `price` | What was paid for the whole spool. Blank is unknown; zero is a real price |
+| `pricePerKg` | Derived, read-only: `price / (spoolWeightGrams / 1000)`. A spool bought as 750 g for 18.50 is 24.67 per kg |
+| `supplier`, `orderNumber` | Free text, up to 100 characters each |
+| `receivedOn` | The day it arrived, a calendar date with no time or zone |
+
+- `POST /api/v1/spools` takes `quantity` (1 to 50, default 1) and adds that many identical spools in one save, all or none.
+  The label, weights, and purchase fields apply to each. The response is `{ spools: [...] }`, and the activity log gets one
+  `SpoolRegistered` entry per spool.
+- `PUT /api/v1/spools/{id}` replaces the purchase fields together with the label and remaining weight; omitting one clears it.
+- The per-kg figure divides by the spool's full weight, not what is left, since the price paid covers the whole spool.
+- These fields do not change the Build panel: it keeps using the catalog price above. They only record what a spool cost.
+
 Physical material package rates, measured usage, labour, and shipping allowances
 are described in [Cost catalog](COST_CATALOG.md).

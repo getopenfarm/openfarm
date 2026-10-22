@@ -33,6 +33,17 @@ public sealed class SpoolConfiguration : IEntityTypeConfiguration<Spool>
         builder.Property(s => s.CreatedAtUtc)
             .IsRequired();
 
+        // Purchase info, all optional: what was paid for the whole spool, who sold it, which order, and the day it arrived.
+        builder.Property(s => s.Price);
+
+        builder.Property(s => s.Supplier)
+            .HasMaxLength(Spool.MaxPurchaseTextLength);
+
+        builder.Property(s => s.OrderNumber)
+            .HasMaxLength(Spool.MaxPurchaseTextLength);
+
+        builder.Property(s => s.ReceivedOn);
+
         builder.HasOne<FilamentVariant>()
             .WithMany()
             .HasForeignKey(s => s.FilamentVariantId)

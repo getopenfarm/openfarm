@@ -30,6 +30,19 @@ public sealed class SpoolResponse
 
     public bool HasUsageOverrun { get; set; }
 
+    /// <summary>What was paid for the whole spool; null when unknown (zero is a real price).</summary>
+    public decimal? Price { get; set; }
+
+    /// <summary><see cref="Price"/> over the spool's full weight in kilograms; null when the price is unknown.</summary>
+    public decimal? PricePerKg { get; set; }
+
+    public string? Supplier { get; set; }
+
+    public string? OrderNumber { get; set; }
+
+    /// <summary>The day the spool arrived, as a calendar date.</summary>
+    public DateOnly? ReceivedOn { get; set; }
+
     public static SpoolResponse FromSummary(SpoolSummary summary) => new()
     {
         Id = summary.Id,
@@ -45,5 +58,10 @@ public sealed class SpoolResponse
         FeedSlotId = summary.FeedSlotId,
         FeedSlotLabel = summary.FeedSlotLabel,
         HasUsageOverrun = summary.HasUsageOverrun,
+        Price = summary.Price,
+        PricePerKg = summary.PricePerKg,
+        Supplier = summary.Supplier,
+        OrderNumber = summary.OrderNumber,
+        ReceivedOn = summary.ReceivedOn,
     };
 }

@@ -614,6 +614,16 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("Label")
                         .HasColumnType("text");
 
+                    b.Property<string>("OrderNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal?>("Price")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateOnly?>("ReceivedOn")
+                        .HasColumnType("date");
+
                     b.Property<decimal>("RemainingWeightGrams")
                         .HasColumnType("numeric");
 
@@ -623,6 +633,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("State")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()

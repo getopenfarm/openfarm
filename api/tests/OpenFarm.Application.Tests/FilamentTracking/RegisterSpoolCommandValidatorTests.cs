@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Domain.FilamentTracking;
 
 namespace OpenFarm.Application.Tests.FilamentTracking;
 
@@ -75,5 +76,50 @@ public class RegisterSpoolCommandValidatorTests
         var result = _validator.Validate(ValidCommand() with { RemainingWeightGrams = null });
 
         result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(50)]
+    public void Validate_WithAQuantityFromOneToFifty_IsValid(int quantity)
+    {
+        _validator.Validate(ValidCommand() with { Quantity = quantity }).IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(51)]
+    public void Validate_WithAQuantityOutOfRange_IsInvalid(int quantity)
+    {
+        var result = _validator.Validate(ValidCommand() with { Quantity = quantity });
+
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterSpoolCommand.Quantity));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(18.5)]
+    public void Validate_WithAPriceOfZeroOrMore_IsValid(double price)
+    {
+        _validator.Validate(ValidCommand() with { Price = (decimal)price }).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validate_WithANegativePrice_IsInvalid()
+    {
+        var result = _validator.Validate(ValidCommand() with { Price = -0.01m });
+
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterSpoolCommand.Price));
+    }
+
+    [Fact]
+    public void Validate_WithSupplierOrOrderNumberOverTheLimit_IsInvalid()
+    {
+        var tooLong = new string('x', Spool.MaxPurchaseTextLength + 1);
+
+        var result = _validator.Validate(ValidCommand() with { Supplier = tooLong, OrderNumber = tooLong });
+
+        result.Errors.Select(e => e.PropertyName).Should().Contain([nameof(RegisterSpoolCommand.Supplier), nameof(RegisterSpoolCommand.OrderNumber)]);
     }
 }

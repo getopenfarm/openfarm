@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +23,14 @@ const spool = {
   remainingWeightGrams: 800,
   state: 'Using',
   feedSlotLabel: 'AMS 1 · A1',
+};
+
+/** What the page sends for the purchase fields when a spool has none. */
+const NO_PURCHASE_INFO = {
+  price: null,
+  supplier: null,
+  orderNumber: null,
+  receivedOn: null,
 };
 
 interface FakeApi {
@@ -124,7 +132,12 @@ describe('SpoolDetailPage', () => {
     );
     expect(urls.some((url) => url.endsWith('/api/v1/spools'))).toBe(false);
     expect(putBodies(fetchMock)).toEqual([
-      { label: null, remainingWeightGrams: 650, reason: null },
+      {
+        label: null,
+        remainingWeightGrams: 650,
+        reason: null,
+        ...NO_PURCHASE_INFO,
+      },
     ]);
   });
 
@@ -157,6 +170,7 @@ describe('SpoolDetailPage', () => {
         label: 'Shelf A 2',
         remainingWeightGrams: 750,
         reason: 'weighed on scale',
+        ...NO_PURCHASE_INFO,
       },
     ]);
   });
@@ -194,5 +208,88 @@ describe('SpoolDetailPage', () => {
   it('shows a retryable error when the spool cannot be loaded', async () => {
     renderPage(fakeApi({ spool: () => new Response(null, { status: 500 }) }));
     expect(await screen.findByText('Could not load spool')).toBeInTheDocument();
+  });
+
+  describe('purchase info', () => {
+    const pricedSpool = {
+      ...spool,
+      price: 18.5,
+      pricePerKg: 18.5,
+      supplier: 'Filament Shop',
+      orderNumber: 'PO-1042',
+      receivedOn: '2026-10-20',
+    };
+
+    it('shows what was paid, the supplier, the order and the date, with the price per kg', async () => {
+      renderPage(fakeApi({ spool: () => jsonResponse(pricedSpool) }));
+
+      expect(
+        await screen.findByLabelText('Price paid (per spool)'),
+      ).toHaveValue(18.5);
+      expect(screen.getByLabelText('Supplier')).toHaveValue('Filament Shop');
+      expect(screen.getByLabelText('Order number')).toHaveValue('PO-1042');
+      expect(screen.getByLabelText('Received on')).toHaveValue('2026-10-20');
+      expect(screen.getByText('18.50 per kg')).toBeInTheDocument();
+    });
+
+    it('saves a changed supplier with the label and weight in one PUT', async () => {
+      const user = userEvent.setup();
+      const fetchMock = fakeApi({ spool: () => jsonResponse(pricedSpool) });
+      renderPage(fetchMock);
+
+      const supplier = await screen.findByLabelText('Supplier');
+      await user.clear(supplier);
+      await user.type(supplier, 'Other Shop');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(await screen.findByText('Spool saved.')).toBeInTheDocument();
+      expect(putBodies(fetchMock)).toEqual([
+        {
+          label: 'Shelf A',
+          remainingWeightGrams: 800,
+          reason: null,
+          price: 18.5,
+          supplier: 'Other Shop',
+          orderNumber: 'PO-1042',
+          receivedOn: '2026-10-20',
+        },
+      ]);
+    });
+
+    it('clears the purchase info when the fields are emptied', async () => {
+      const user = userEvent.setup();
+      const fetchMock = fakeApi({ spool: () => jsonResponse(pricedSpool) });
+      renderPage(fetchMock);
+
+      await user.clear(await screen.findByLabelText('Price paid (per spool)'));
+      await user.clear(screen.getByLabelText('Supplier'));
+      await user.clear(screen.getByLabelText('Order number'));
+      fireEvent.change(screen.getByLabelText('Received on'), {
+        target: { value: '' },
+      });
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(await screen.findByText('Spool saved.')).toBeInTheDocument();
+      expect(putBodies(fetchMock)[0]).toMatchObject(NO_PURCHASE_INFO);
+    });
+
+    it('keeps a price of 0 as 0, and refuses a negative price', async () => {
+      const user = userEvent.setup();
+      const fetchMock = fakeApi({ spool: () => jsonResponse(pricedSpool) });
+      renderPage(fetchMock);
+
+      const price = await screen.findByLabelText('Price paid (per spool)');
+      await user.clear(price);
+      await user.type(price, '-1');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText('Must be 0 or more')).toBeInTheDocument();
+      expect(putBodies(fetchMock)).toHaveLength(0);
+
+      await user.clear(price);
+      await user.type(price, '0');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText('Spool saved.')).toBeInTheDocument();
+      expect(putBodies(fetchMock)[0].price).toBe(0);
+    });
   });
 });

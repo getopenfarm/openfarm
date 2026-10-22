@@ -83,7 +83,7 @@ internal static class FilamentTrackingTestHelpers
             FilamentVariantId = filamentVariantId,
             SpoolWeightGrams = spoolWeightGrams,
         });
-        var spool = await response.Content.ReadFromJsonAsync<SpoolResponse>();
-        return spool!.Id;
+        var registered = await response.Content.ReadFromJsonAsync<RegisterSpoolsResponse>();
+        return registered!.Spools.Single().Id;
     }
 }
