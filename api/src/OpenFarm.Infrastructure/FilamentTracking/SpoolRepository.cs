@@ -284,9 +284,9 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
     public Task<Spool?> FindUsingFeedSlotAsync(Guid feedSlotId, CancellationToken cancellationToken) =>
         dbContext.Spools.FirstOrDefaultAsync(s => s.State == SpoolState.Using && s.FeedSlotId == feedSlotId, cancellationToken);
 
-    public async Task<IReadOnlyList<Spool>> FindByRfidIdsAsync(IReadOnlyCollection<string> rfidIds, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<Spool>> FindByRfidIdsAsync(IReadOnlyCollection<string> rfidIds, CancellationToken cancellationToken, bool includeFinished = false) =>
         rfidIds.Count == 0 ? [] : await dbContext.Spools
-            .Where(s => s.RfidId != null && rfidIds.Contains(s.RfidId) && s.State != SpoolState.Finished)
+            .Where(s => s.RfidId != null && rfidIds.Contains(s.RfidId) && (includeFinished || s.State != SpoolState.Finished))
             .ToListAsync(cancellationToken);
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)

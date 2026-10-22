@@ -1071,6 +1071,8 @@ export interface AmsTrayResponse {
   /** @nullable */
   remainPercent?: number | null;
   active?: boolean;
+  /** @nullable */
+  rfidId?: string | null;
 }
 
 export interface AmsUnitResponse {
@@ -1484,10 +1486,39 @@ export interface LowStockNotificationResponse {
   thresholdGrams?: number;
 }
 
+export interface UnregisteredRfidSpoolResponse {
+  printerId?: string;
+  printerName?: string;
+  feedSlotId?: string;
+  slotLabel?: string;
+  rfidId?: string;
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  subBrand?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  remainPercent?: number | null;
+  /** @nullable */
+  rfidWeightGrams?: number | null;
+  /** @nullable */
+  remainingGrams?: number | null;
+  /** @nullable */
+  filamentVariantId?: string | null;
+  /** @nullable */
+  variantName?: string | null;
+  /** @nullable */
+  loadedSpoolId?: string | null;
+  /** @nullable */
+  loadedSpoolName?: string | null;
+}
+
 export interface ListNotificationsResponse {
   items?: NotificationItemResponse[];
   totalCount?: number;
   lowStock?: LowStockNotificationResponse[];
+  rfidSpools?: UnregisteredRfidSpoolResponse[];
 }
 
 export interface NonPrintedComponentResponse {

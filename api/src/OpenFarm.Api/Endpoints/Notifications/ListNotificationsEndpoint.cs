@@ -63,6 +63,46 @@ public sealed class LowStockNotificationResponse
     public decimal ThresholdGrams { get; set; }
 }
 
+public sealed class UnregisteredRfidSpoolResponse
+{
+    public Guid PrinterId { get; set; }
+
+    public string PrinterName { get; set; } = string.Empty;
+
+    public Guid FeedSlotId { get; set; }
+
+    /// <summary>e.g. "AMS 1 · Slot 2".</summary>
+    public string SlotLabel { get; set; } = string.Empty;
+
+    public string RfidId { get; set; } = string.Empty;
+
+    public string? MaterialType { get; set; }
+
+    public string? SubBrand { get; set; }
+
+    public string? ColorHex { get; set; }
+
+    /// <summary>The AMS's remaining-percent reading; null until it has measured the spool.</summary>
+    public int? RemainPercent { get; set; }
+
+    /// <summary>The spool's full filament weight as its tag states it.</summary>
+    public int? RfidWeightGrams { get; set; }
+
+    /// <summary>The grams the reading implies, to prefill a registration.</summary>
+    public decimal? RemainingGrams { get; set; }
+
+    /// <summary>The catalog colour it most likely is; null when none, or several, fit.</summary>
+    public Guid? FilamentVariantId { get; set; }
+
+    /// <summary>e.g. "PLA Matte Charcoal".</summary>
+    public string? VariantName { get; set; }
+
+    /// <summary>An untagged spool loaded in this slot, which Link can tie the tag to.</summary>
+    public Guid? LoadedSpoolId { get; set; }
+
+    public string? LoadedSpoolName { get; set; }
+}
+
 public sealed class ListNotificationsResponse
 {
     public List<NotificationItemResponse> Items { get; set; } = [];
@@ -72,6 +112,9 @@ public sealed class ListNotificationsResponse
 
     /// <summary>Colours whose grams on hand dropped under their threshold; each clears once restocked.</summary>
     public List<LowStockNotificationResponse> LowStock { get; set; } = [];
+
+    /// <summary>Tagged spools printers read that no active spool owns; each clears once registered or linked.</summary>
+    public List<UnregisteredRfidSpoolResponse> RfidSpools { get; set; } = [];
 }
 
 /// <summary>GET /api/v1/notifications — action-required items, newest first; the 50 newest, with the total count.</summary>
@@ -121,6 +164,24 @@ public sealed class ListNotificationsEndpoint(IQueryHandler<ListNotificationsQue
                 ColorHex = item.ColorHex,
                 OnHandGrams = item.OnHandGrams,
                 ThresholdGrams = item.ThresholdGrams,
+            }).ToList(),
+            RfidSpools = page.RfidSpools.Select(item => new UnregisteredRfidSpoolResponse
+            {
+                PrinterId = item.PrinterId,
+                PrinterName = item.PrinterName,
+                FeedSlotId = item.FeedSlotId,
+                SlotLabel = item.SlotLabel,
+                RfidId = item.RfidId,
+                MaterialType = item.MaterialType,
+                SubBrand = item.SubBrand,
+                ColorHex = item.ColorHex,
+                RemainPercent = item.RemainPercent,
+                RfidWeightGrams = item.RfidWeightGrams,
+                RemainingGrams = item.RemainingGrams,
+                FilamentVariantId = item.Match?.FilamentVariantId,
+                VariantName = item.Match is { } match ? $"{match.Material} {match.ColorName}" : null,
+                LoadedSpoolId = item.LoadedSpoolId,
+                LoadedSpoolName = item.LoadedSpoolName,
             }).ToList(),
         };
     }

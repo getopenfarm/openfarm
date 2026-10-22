@@ -22,9 +22,15 @@ import {
   useOpenFarmApiEndpointsNotificationsListNotificationsEndpoint,
 } from '@/lib/api/generated/notifications/notifications';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
+import { useOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint } from '@/lib/api/generated/spools/spools';
+import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { badgeText, bellLabel, findLine } from '../lib/notifications';
 import { AssignSpoolDialog } from './AssignSpoolDialog';
-import { LowStockNotification, NotificationItem } from './NotificationItem';
+import {
+  LowStockNotification,
+  NotificationItem,
+  UnregisteredRfidSpoolNotification,
+} from './NotificationItem';
 
 /** Header bell: a count of what needs the operator, and a popover listing it with the action to settle each. */
 export function NotificationsBell() {
@@ -39,7 +45,9 @@ export function NotificationsBell() {
   const data = query.data?.data as ListNotificationsResponse | undefined;
   const items = data?.items ?? [];
   const lowStock = data?.lowStock ?? [];
-  const count = (data?.totalCount ?? items.length) + lowStock.length;
+  const rfidSpools = data?.rfidSpools ?? [];
+  const count =
+    (data?.totalCount ?? items.length) + lowStock.length + rfidSpools.length;
 
   const fleet = useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data as
     | ListFleetResponse
@@ -62,6 +70,22 @@ export function NotificationsBell() {
         },
       },
     });
+
+  const link = useOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Spool linked.');
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey(),
+        });
+        invalidateFilamentTrackingQueries(queryClient);
+      },
+      onError: async (error) => {
+        toast.error(await extractErrorDetail(error, 'Could not link spool.'));
+      },
+    },
+  });
 
   const target = assigning
     ? findLine(items, assigning.printId, assigning.lineId)
@@ -106,7 +130,9 @@ export function NotificationsBell() {
                 title="Could not load notifications"
                 onRetry={() => query.refetch()}
               />
-            ) : items.length === 0 && lowStock.length === 0 ? (
+            ) : items.length === 0 &&
+              lowStock.length === 0 &&
+              rfidSpools.length === 0 ? (
               <EmptyState
                 size="sm"
                 bordered={false}
@@ -133,6 +159,22 @@ export function NotificationsBell() {
                       });
                     }}
                     onDismiss={() => dismiss.mutate({ id: item.printId ?? '' })}
+                  />
+                ))}
+                {rfidSpools.map((item) => (
+                  <UnregisteredRfidSpoolNotification
+                    key={`${item.feedSlotId}-${item.rfidId}`}
+                    item={item}
+                    linking={
+                      link.isPending &&
+                      link.variables?.id === item.loadedSpoolId
+                    }
+                    onLink={() =>
+                      link.mutate({
+                        id: item.loadedSpoolId ?? '',
+                        data: { rfidId: item.rfidId ?? '' },
+                      })
+                    }
                   />
                 ))}
                 {lowStock.map((item) => (

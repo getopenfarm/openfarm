@@ -44,6 +44,9 @@ public sealed class AmsTrayResponse
     public int? RemainPercent { get; set; }
 
     public bool Active { get; set; }
+
+    /// <summary>The spool's RFID tag id; null without one.</summary>
+    public string? RfidId { get; set; }
 }
 
 public sealed class AmsUnitResponse
@@ -160,6 +163,7 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                 SubBrand = external.SubBrand,
                 RemainPercent = external.RemainPercent,
                 Active = external.Active,
+                RfidId = external.RfidId,
             } : null,
             AmsUnits = detail.AmsUnits
                 .Select(unit => new AmsUnitResponse
@@ -175,6 +179,7 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                             SubBrand = tray.SubBrand,
                             RemainPercent = tray.RemainPercent,
                             Active = tray.Active,
+                            RfidId = tray.RfidId,
                         })
                         .ToList(),
                 })

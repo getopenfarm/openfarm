@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
@@ -25,6 +25,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
+import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey,
   useOpenFarmApiEndpointsSpoolsRegisterSpoolEndpoint,
@@ -101,10 +102,28 @@ function emptyForm(): FormValues {
   };
 }
 
+/** Register in Action required opens this page with what the printer reads: the tag, the likely color, its weights. */
+function rfidPrefill(params: URLSearchParams): Partial<FormValues> {
+  const weight = params.get('spoolWeightGrams');
+  const remaining = params.get('remainingWeightGrams');
+  return {
+    ...(params.get('variantId')
+      ? { filamentVariantId: params.get('variantId') ?? '' }
+      : {}),
+    ...(weight ? { spoolWeightGrams: weight } : {}),
+    ...(weight && remaining && Number(remaining) < Number(weight)
+      ? { partlyUsed: true, remainingWeightGrams: remaining }
+      : {}),
+  };
+}
+
 export function SpoolFormPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const filaments = useFilamentCatalog();
+  const [searchParams] = useSearchParams();
+  const rfidId = searchParams.get('rfidId');
+  const rfidSlot = searchParams.get('slot');
 
   const options: FilamentOption[] = filaments.flatMap((filament) =>
     (filament.variants ?? []).map((variant) => ({
@@ -118,7 +137,7 @@ export function SpoolFormPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: emptyForm(),
+    defaultValues: { ...emptyForm(), ...rfidPrefill(searchParams) },
   });
 
   const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
@@ -181,8 +200,8 @@ export function SpoolFormPage() {
           queryKey: getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey(),
         });
       },
-      onError: () => {
-        toast.error('Could not add spool.');
+      onError: async (error) => {
+        toast.error(await extractErrorDetail(error, 'Could not add spool.'));
       },
     },
   });
@@ -198,7 +217,12 @@ export function SpoolFormPage() {
           remainingWeightGrams: values.partlyUsed
             ? Number(values.remainingWeightGrams)
             : null,
-          quantity: values.quantity.trim() === '' ? 1 : Number(values.quantity),
+          quantity: rfidId
+            ? 1
+            : values.quantity.trim() === ''
+              ? 1
+              : Number(values.quantity),
+          rfidId,
           ...purchaseRequest(values),
         },
       },
@@ -233,6 +257,11 @@ export function SpoolFormPage() {
           </BackLink>
         }
         title="Add spool"
+        description={
+          rfidId && rfidSlot
+            ? `Loads into ${rfidSlot} automatically.`
+            : undefined
+        }
       />
 
       <Form {...form}>
@@ -270,28 +299,37 @@ export function SpoolFormPage() {
               <Separator />
 
               <div className="flex flex-col gap-5 p-5">
-                <div className="grid grid-cols-2 items-start gap-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)]">
-                  <FormField
-                    control={form.control}
-                    name="quantity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Quantity</FormLabel>
-                        <FormControl>
-                          <QuantityStepper
-                            ref={field.ref}
-                            name={field.name}
-                            onBlur={field.onBlur}
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            min={1}
-                            max={MAX_QUANTITY}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <div
+                  className={
+                    rfidId
+                      ? 'grid grid-cols-2 items-start gap-4 sm:grid-cols-[9rem_minmax(0,1fr)]'
+                      : 'grid grid-cols-2 items-start gap-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)]'
+                  }
+                >
+                  {/* One tag is one spool. */}
+                  {!rfidId && (
+                    <FormField
+                      control={form.control}
+                      name="quantity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Quantity</FormLabel>
+                          <FormControl>
+                            <QuantityStepper
+                              ref={field.ref}
+                              name={field.name}
+                              onBlur={field.onBlur}
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              min={1}
+                              max={MAX_QUANTITY}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <FormField
                     control={form.control}
                     name="spoolWeightGrams"
@@ -390,16 +428,18 @@ export function SpoolFormPage() {
                   >
                     Cancel
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={registerMutation.isPending}
-                    onClick={form.handleSubmit((values) =>
-                      submit(values, true),
-                    )}
-                  >
-                    Save and add another
-                  </Button>
+                  {!rfidId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={registerMutation.isPending}
+                      onClick={form.handleSubmit((values) =>
+                        submit(values, true),
+                      )}
+                    >
+                      Save and add another
+                    </Button>
+                  )}
                   <Button type="submit" disabled={registerMutation.isPending}>
                     {registerMutation.isPending && (
                       <Spinner data-icon="inline-start" />

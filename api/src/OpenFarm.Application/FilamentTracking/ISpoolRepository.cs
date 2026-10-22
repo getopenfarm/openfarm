@@ -25,8 +25,8 @@ public interface ISpoolRepository
     /// <summary>The <see cref="Spool"/> (if any) currently <see cref="SpoolState.Using"/> a given <see cref="FeedSlot"/> — the load pre-check ahead of the partial unique index.</summary>
     Task<Spool?> FindUsingFeedSlotAsync(Guid feedSlotId, CancellationToken cancellationToken);
 
-    /// <summary>The unfinished spools whose RFID tag is one of <paramref name="rfidIds"/>, tracked.</summary>
-    Task<IReadOnlyList<Spool>> FindByRfidIdsAsync(IReadOnlyCollection<string> rfidIds, CancellationToken cancellationToken) =>
+    /// <summary>The spools whose RFID tag is one of <paramref name="rfidIds"/>, tracked; finished ones only when asked.</summary>
+    Task<IReadOnlyList<Spool>> FindByRfidIdsAsync(IReadOnlyCollection<string> rfidIds, CancellationToken cancellationToken, bool includeFinished = false) =>
         Task.FromResult<IReadOnlyList<Spool>>([]);
 
     /// <summary>

@@ -600,4 +600,40 @@ describe('SpoolFormPage', () => {
       expect(onPost).not.toHaveBeenCalled();
     });
   });
+  describe('registering an RFID spool from Action required', () => {
+    it('prefills what the printer read, adds one tagged spool, and offers no quantity', async () => {
+      const user = userEvent.setup();
+      let postedBody: unknown;
+      stubFetch((_url, body) => {
+        postedBody = body;
+      });
+
+      renderRoute(
+        '/spools/new?rfidId=TAG-1&slot=P01%20%C2%B7%20AMS%201%20%C2%B7%20Slot%202&variantId=var-1&spoolWeightGrams=1000&remainingWeightGrams=870',
+      );
+
+      expect(
+        await screen.findByText(
+          'Loads into P01 · AMS 1 · Slot 2 automatically.',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Quantity')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Save and add another' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Remaining weight')).toHaveValue(870);
+
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() =>
+        expect(postedBody).toMatchObject({
+          filamentVariantId: 'var-1',
+          spoolWeightGrams: 1000,
+          remainingWeightGrams: 870,
+          quantity: 1,
+          rfidId: 'TAG-1',
+        }),
+      );
+    });
+  });
 });

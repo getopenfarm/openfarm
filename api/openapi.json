@@ -7825,6 +7825,10 @@
           },
           "active": {
             "type": "boolean"
+          },
+          "rfidId": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -8766,6 +8770,12 @@
             "items": {
               "$ref": "#/components/schemas/LowStockNotificationResponse"
             }
+          },
+          "rfidSpools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnregisteredRfidSpoolResponse"
+            }
           }
         }
       },
@@ -8873,6 +8883,74 @@
           "thresholdGrams": {
             "type": "number",
             "format": "decimal"
+          }
+        }
+      },
+      "UnregisteredRfidSpoolResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "printerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "printerName": {
+            "type": "string"
+          },
+          "feedSlotId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "slotLabel": {
+            "type": "string"
+          },
+          "rfidId": {
+            "type": "string"
+          },
+          "materialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "subBrand": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "remainPercent": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "rfidWeightGrams": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "remainingGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "variantName": {
+            "type": "string",
+            "nullable": true
+          },
+          "loadedSpoolId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "loadedSpoolName": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

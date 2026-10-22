@@ -34,7 +34,11 @@ const ITEM = {
   ],
 };
 
-function stubFetch(items: unknown[], lowStock: unknown[] = []) {
+function stubFetch(
+  items: unknown[],
+  lowStock: unknown[] = [],
+  rfidSpools: unknown[] = [],
+) {
   const requests: { url: string; method?: string }[] = [];
   vi.stubGlobal(
     'fetch',
@@ -49,8 +53,9 @@ function stubFetch(items: unknown[], lowStock: unknown[] = []) {
           }),
         );
       if (url.includes('/dismiss')) return json({ id: 'print-1' });
+      if (url.includes('/rfid')) return json({ id: 'spool-untagged' });
       if (url.includes('/api/v1/notifications'))
-        return json({ items, totalCount: items.length, lowStock });
+        return json({ items, totalCount: items.length, lowStock, rfidSpools });
       if (url.includes('/api/v1/printers'))
         return json({ printers: [{ id: 'printer-1', name: 'Bambu A1' }] });
       if (url.includes('/api/v1/spools'))
@@ -207,5 +212,67 @@ describe('NotificationsBell', () => {
     expect(
       screen.queryByRole('button', { name: /Dismiss Bambu/ }),
     ).not.toBeInTheDocument();
+  });
+  it('lists an unregistered RFID spool with Register prefilled, and links its tag to the untagged spool in the slot', async () => {
+    const requests = stubFetch(
+      [],
+      [],
+      [
+        {
+          printerId: 'printer-1',
+          printerName: 'P01',
+          feedSlotId: 'slot-2',
+          slotLabel: 'AMS 1 · Slot 2',
+          rfidId: 'TAG-1',
+          materialType: 'PLA',
+          subBrand: 'PLA Matte',
+          colorHex: '080808FF',
+          remainPercent: 87,
+          rfidWeightGrams: 1000,
+          remainingGrams: 870,
+          filamentVariantId: 'var-1',
+          variantName: 'PLA Matte Charcoal',
+          loadedSpoolId: 'spool-untagged',
+          loadedSpoolName: 'Shelf B',
+        },
+      ],
+    );
+    renderBell();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Notifications, 1 need action',
+      }),
+    );
+
+    expect(
+      await screen.findByText('Unregistered RFID spool'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('P01 · AMS 1 · Slot 2')).toBeInTheDocument();
+    expect(screen.getByText('PLA Matte Charcoal · 87%')).toBeInTheDocument();
+    const register = new URL(
+      screen.getByRole('link', { name: 'Register' }).getAttribute('href') ?? '',
+      'http://localhost',
+    );
+    expect(register.pathname).toBe('/spools/new');
+    expect(Object.fromEntries(register.searchParams)).toEqual({
+      rfidId: 'TAG-1',
+      slot: 'P01 · AMS 1 · Slot 2',
+      variantId: 'var-1',
+      spoolWeightGrams: '1000',
+      remainingWeightGrams: '870',
+    });
+
+    expect(screen.getByText('Loaded without tag: Shelf B')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Link' }));
+
+    await waitFor(() =>
+      expect(requests).toContainEqual({
+        url: expect.stringContaining('/api/v1/spools/spool-untagged/rfid'),
+        method: 'PUT',
+      }),
+    );
+    expect(await screen.findByText('Spool linked.')).toBeInTheDocument();
   });
 });

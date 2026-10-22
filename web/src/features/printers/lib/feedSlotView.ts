@@ -91,6 +91,27 @@ export function feedSlotView(
 }
 
 /** Sorting makes response reordering irrelevant to topology refreshes. */
+/** The RFID tags a printer reads and how full each tagged spool reads; changes when a tagged spool comes, goes or is measured. */
+export function amsRfidKey(
+  units: AmsUnitResponse[],
+  external: AmsTrayResponse | null | undefined,
+): string {
+  const trays = [
+    ...units.flatMap((unit) =>
+      (unit.trays ?? []).map((tray) => [unit.unitIndex, tray] as const),
+    ),
+    ...(external ? [['external', external] as const] : []),
+  ];
+  return trays
+    .filter(([, tray]) => tray.rfidId)
+    .map(
+      ([unit, tray]) =>
+        `${unit}:${tray.slotIndex}:${tray.rfidId}:${tray.remainPercent ?? ''}`,
+    )
+    .sort()
+    .join('|');
+}
+
 export function amsTopologyKey(units: AmsUnitResponse[]): string {
   return JSON.stringify(
     units

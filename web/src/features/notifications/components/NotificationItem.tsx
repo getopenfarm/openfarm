@@ -1,10 +1,12 @@
 import { Link } from 'react-router';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
+import { normalizeFilamentColor } from '@/features/printers/lib/feedSlotView';
 import type {
   LowStockNotificationResponse,
   NotificationItemResponse,
   NotificationLineResponse,
+  UnregisteredRfidSpoolResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { formatRelativeTime } from '@/lib/formatRelativeTime';
 import { formatGrams, formatWeight } from '@/lib/formatUnits';
@@ -108,6 +110,73 @@ export function LowStockNotification({
           {formatWeight(item.thresholdGrams ?? 0)}
         </p>
       </div>
+    </li>
+  );
+}
+
+/** The add-spool page, prefilled from what the printer reads: the tag, the likely color, and its weights. */
+export function registerRfidSpoolUrl(item: UnregisteredRfidSpoolResponse) {
+  const params = new URLSearchParams({
+    rfidId: item.rfidId ?? '',
+    slot: `${item.printerName} · ${item.slotLabel}`,
+  });
+  if (item.filamentVariantId) params.set('variantId', item.filamentVariantId);
+  if (item.rfidWeightGrams)
+    params.set('spoolWeightGrams', String(item.rfidWeightGrams));
+  if (item.remainingGrams != null)
+    params.set('remainingWeightGrams', String(item.remainingGrams));
+  return `/spools/new?${params}`;
+}
+
+/** A tagged spool a printer reads that no spool owns: register it, or link the tag to the untagged spool in that slot. */
+export function UnregisteredRfidSpoolNotification({
+  item,
+  linking,
+  onLink,
+}: {
+  item: UnregisteredRfidSpoolResponse;
+  linking: boolean;
+  onLink: () => void;
+}) {
+  const name =
+    item.variantName ??
+    item.subBrand ??
+    item.materialType ??
+    'Unknown filament';
+  return (
+    <li className="flex flex-col gap-2 px-3 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">Unregistered RFID spool</p>
+        <p className="text-xs text-muted-foreground">
+          {item.printerName} · {item.slotLabel}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Swatch colorHex={normalizeFilamentColor(item.colorHex)} size="md" />
+        <span className="min-w-0 flex-1 truncate text-sm">
+          {name}
+          {item.remainPercent != null && ` · ${item.remainPercent}%`}
+        </span>
+        <Button asChild type="button" variant="outline" size="xs">
+          <Link to={registerRfidSpoolUrl(item)}>Register</Link>
+        </Button>
+      </div>
+      {item.loadedSpoolId && (
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            Loaded without tag: {item.loadedSpoolName ?? 'spool'}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            disabled={linking}
+            onClick={onLink}
+          >
+            {linking ? 'Linking…' : 'Link'}
+          </Button>
+        </div>
+      )}
     </li>
   );
 }

@@ -103,3 +103,10 @@ the Bambu field names: the rest of the app sees `AmsTray.RfidId` and `RfidWeight
 - Reloader slots are never linked: their feeding slot can be an estimate.
 - Spools are never created from a tag: a created spool would have no price, could get a guessed color, and would duplicate an
   untagged spool already in inventory.
+- **Unregistered spools.** *Action required* lists each tagged spool a reachable printer reads that no active spool owns
+  (`rfidSpools` on `GET /api/v1/notifications`), derived from the last readings with no table of its own, so an item clears
+  once the tag is registered or linked, the tray changes, or the printer goes offline. **Register** opens the add-spool page
+  prefilled with the tag, the catalog color it most likely is (same material type, a filament named for the tag's sub-brand,
+  and the clearly nearest color), the tag's weight and the grams the reading implies; the spool loads at the next reading.
+  When an untagged spool is loaded in that slot, **Link** ties the tag to it instead. A finished spool's tag is listed only
+  when the AMS reads filament on it (a refill or re-used tag), not for the empty spool still sitting in the AMS.

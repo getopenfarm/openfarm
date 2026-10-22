@@ -18,7 +18,7 @@ import {
 } from '@/lib/api/generated/printers/printers';
 import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
-import { amsTopologyKey } from '../lib/feedSlotView';
+import { amsRfidKey, amsTopologyKey } from '../lib/feedSlotView';
 import { filamentColorFromAms } from '../lib/filamentColor';
 
 interface PrinterStatusChangedPayload {
@@ -110,6 +110,7 @@ export function useFarmHub() {
 
   useEffect(() => {
     const topologyByPrinter = new Map<string, string>();
+    const rfidByPrinter = new Map<string, string>();
     const nozzleByPrinter = new Map<string, string>();
     const setConnectionStatus = (status: FarmConnectionStatus) =>
       queryClient.setQueryData(farmConnectionQueryKey, status);
@@ -139,6 +140,8 @@ export function useFarmHub() {
     connection.on(
       'PrinterStatusChanged',
       (payload: PrinterStatusChangedPayload) => {
+        // RFID items in Action required list only reachable printers.
+        invalidateNotificationQueries(queryClient);
         queryClient.setQueryData<FleetQueryData | undefined>(
           getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
           (current) => {
@@ -213,6 +216,13 @@ export function useFarmHub() {
                   ),
               ),
           });
+        }
+        // Unregistered RFID spools in Action required are derived from the tags printers read.
+        const rfid = amsRfidKey(payload.amsUnits, payload.externalSpoolTray);
+        const previousRfid = rfidByPrinter.get(payload.printerId);
+        rfidByPrinter.set(payload.printerId, rfid);
+        if (previousRfid !== undefined && previousRfid !== rfid) {
+          invalidateNotificationQueries(queryClient);
         }
         const topology = `${amsTopologyKey(payload.amsUnits)}:${payload.externalSpoolTray == null ? 'no-external' : 'external'}`;
         if (topologyByPrinter.get(payload.printerId) !== topology) {

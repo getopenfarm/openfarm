@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using OpenFarm.Api.Endpoints.Notifications;
 using OpenFarm.Api.Endpoints.Spools;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Printers;
@@ -31,16 +32,22 @@ public class RfidAssistTests(ProductionTestFactory factory) : ProductionTestCont
         return (printer.Id, slots.Select(s => s.Id).ToArray());
     }
 
+    /// <summary>What an AMS slot reads: a tagged PLA Matte spool, nearly black, 90% left; or empty when <paramref name="tag"/> is null.</summary>
+    private static AmsTray TrayOf(int slot, string? tag, int remain = 90) => tag is null
+        ? new AmsTray(slot, true, null, null, null, null, false)
+        : new AmsTray(slot, false, "PLA", "080808FF", "PLA Matte", remain, false, tag, 1000);
+
     /// <summary>Records what the AMS reads in each listed slot (null: empty), then runs the linker as a telemetry flush would.</summary>
-    private async Task ReadAsync(Guid printerId, params (int Slot, string? Tag)[] trays)
+    private Task ReadAsync(Guid printerId, params (int Slot, string? Tag)[] trays) =>
+        ReadTraysAsync(printerId, trays.Select(t => TrayOf(t.Slot, t.Tag)).ToArray());
+
+    private async Task ReadTraysAsync(Guid printerId, params AmsTray[] trays)
     {
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var printer = await db.Printers.SingleAsync(p => p.Id == printerId);
-            printer.RecordTelemetry(null, null, null, null, null, null,
-                [new AmsUnit(0, trays.Select(t => new AmsTray(t.Slot, t.Tag is null, t.Tag is null ? null : "PLA",
-                    t.Tag is null ? null : "000000FF", null, 90, false, t.Tag, t.Tag is null ? null : 1000)).ToList())], null);
+            printer.RecordTelemetry(null, null, null, null, null, null, [new AmsUnit(0, trays)], null);
             await db.SaveChangesAsync();
         }
 
@@ -163,5 +170,93 @@ public class RfidAssistTests(ProductionTestFactory factory) : ProductionTestCont
             new { filamentVariantId = variant, spoolWeightGrams = 1000, quantity = 2, rfidId = NewTag() });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private static async Task<List<UnregisteredRfidSpoolResponse>> UnregisteredAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<ListNotificationsResponse>("/api/v1/notifications"))!.RfidSpools;
+
+    [Fact]
+    public async Task AnUnregisteredTag_IsListed_WithItsLikelyColorAndTheGramsTheReadingImplies()
+    {
+        var client = await ClientAsync();
+        var charcoal = await CreateFilamentVariantAsync(client, "Charcoal", "#000000");
+        await RenameFilamentAsync(charcoal, "PLA Matte");
+        var (printerId, slots) = await AmsPrinterAsync();
+        var tag = NewTag();
+
+        await ReadAsync(printerId, (0, tag));
+
+        var item = (await UnregisteredAsync(client)).Single(i => i.RfidId == tag);
+        item.PrinterId.Should().Be(printerId);
+        item.FeedSlotId.Should().Be(slots[0]);
+        item.SlotLabel.Should().Be("Multi-Material Unit 1 · Slot 1"); // a simulator, not a Bambu, so no "AMS"
+        item.RemainPercent.Should().Be(90);
+        item.RfidWeightGrams.Should().Be(1000);
+        item.RemainingGrams.Should().Be(900);
+        item.FilamentVariantId.Should().Be(charcoal);
+        item.VariantName.Should().Be("PLA Matte Charcoal");
+        item.LoadedSpoolId.Should().BeNull();
+
+        await RegisteredAsync(client, charcoal, tag);
+        (await UnregisteredAsync(client)).Should().NotContain(i => i.RfidId == tag);
+    }
+
+    [Fact]
+    public async Task AnUntaggedSpoolInTheSlot_IsOfferedForLinking()
+    {
+        var client = await ClientAsync();
+        var variant = await CreateFilamentVariantAsync(client);
+        var (printerId, slots) = await AmsPrinterAsync();
+        var untagged = await RegisteredAsync(client, variant);
+        await client.PutAsJsonAsync($"/api/v1/spools/{untagged}/load", new { feedSlotId = slots[1] });
+        var tag = NewTag();
+
+        await ReadAsync(printerId, (1, tag));
+
+        (await UnregisteredAsync(client)).Single(i => i.RfidId == tag).LoadedSpoolId.Should().Be(untagged);
+    }
+
+    [Fact]
+    public async Task AnOfflinePrinter_ListsNothing()
+    {
+        var client = await ClientAsync();
+        var (printerId, _) = await AmsPrinterAsync();
+        var tag = NewTag();
+        await ReadAsync(printerId, (0, tag));
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            (await db.Printers.SingleAsync(p => p.Id == printerId)).MarkUnreachable();
+            await db.SaveChangesAsync();
+        }
+
+        (await UnregisteredAsync(client)).Should().NotContain(i => i.RfidId == tag);
+    }
+
+    [Fact]
+    public async Task AFinishedSpoolsTag_IsNews_OnlyWithFilamentOnIt()
+    {
+        var client = await ClientAsync();
+        var variant = await CreateFilamentVariantAsync(client);
+        var (printerId, _) = await AmsPrinterAsync();
+        var tag = NewTag();
+        var spool = await RegisteredAsync(client, variant, tag);
+        await client.PutAsJsonAsync($"/api/v1/spools/{spool}/unload", new { action = "MarkFinished" });
+
+        await ReadTraysAsync(printerId, TrayOf(0, tag, remain: 0));
+        (await UnregisteredAsync(client)).Should().NotContain(i => i.RfidId == tag);
+
+        await ReadTraysAsync(printerId, TrayOf(0, tag, remain: 100));
+        (await UnregisteredAsync(client)).Should().Contain(i => i.RfidId == tag);
+    }
+
+    private async Task RenameFilamentAsync(Guid variantId, string material)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var variant = await db.FilamentVariants.SingleAsync(v => v.Id == variantId);
+        var filament = await db.Filaments.SingleAsync(f => f.Id == variant.FilamentId);
+        filament.UpdateDetails(filament.VendorId, material, filament.MaterialType);
+        await db.SaveChangesAsync();
     }
 }
