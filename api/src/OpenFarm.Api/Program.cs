@@ -282,6 +282,7 @@ builder.Services.AddScoped<IQueryHandler<GetFeedUnitsQuery, IReadOnlyList<FeedUn
 builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>>, GetSpoolsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, SpoolSummaryPage>, GetSpoolsPageQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetSpoolHistoryQuery, SpoolHistoryPage>, GetSpoolHistoryQueryHandler>();
 builder.Services.AddScoped<LoadSpoolHandlerType, LoadSpoolOntoFeedSlotCommandHandler>();
 builder.Services.AddScoped<UnloadSpoolHandlerType, UnloadSpoolCommandHandler>();
 builder.Services.AddScoped<ISpoolUsageRecordRepository, SpoolUsageRecordRepository>();

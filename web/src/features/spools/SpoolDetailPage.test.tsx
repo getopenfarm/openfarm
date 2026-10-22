@@ -25,6 +25,34 @@ const spool = {
   feedSlotLabel: 'AMS 1 · A1',
 };
 
+interface FakeApi {
+  /** Answers the PUT; defaults to echoing the saved label and weight. */
+  put?: (body: Record<string, unknown>) => Response;
+  /** Answers GET /api/v1/spools/spool-1; defaults to the spool. */
+  spool?: () => Response;
+}
+
+/** Routes the page's three calls: the spool, its history (always empty here) and the save. */
+function fakeApi({ put, spool: getSpool }: FakeApi = {}) {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'PUT') {
+      const body = JSON.parse(init.body as string);
+      return Promise.resolve(
+        put?.(body) ??
+          jsonResponse({
+            ...spool,
+            label: body.label,
+            remainingWeightGrams: body.remainingWeightGrams,
+          }),
+      );
+    }
+    if (input.toString().endsWith('/history')) {
+      return Promise.resolve(jsonResponse({ entries: [], totalCount: 0 }));
+    }
+    return Promise.resolve(getSpool?.() ?? jsonResponse(spool));
+  });
+}
+
 function renderPage(fetchMock: ReturnType<typeof vi.fn>) {
   vi.stubGlobal('fetch', fetchMock);
   const router = createMemoryRouter(
@@ -51,24 +79,18 @@ function renderPage(fetchMock: ReturnType<typeof vi.fn>) {
   );
 }
 
+function putBodies(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls
+    .filter(([, init]) => (init as RequestInit | undefined)?.method === 'PUT')
+    .map(([, init]) => JSON.parse((init as RequestInit).body as string));
+}
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('SpoolDetailPage', () => {
-  it('saves label and remaining weight in one PUT', async () => {
+  it('loads the one spool by id and saves label and remaining weight in one PUT', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === 'PUT') {
-        const body = JSON.parse(init.body as string);
-        return Promise.resolve(
-          jsonResponse({
-            ...spool,
-            label: body.label,
-            remainingWeightGrams: body.remainingWeightGrams,
-          }),
-        );
-      }
-      return Promise.resolve(jsonResponse({ spools: [spool] }));
-    });
+    const fetchMock = fakeApi();
     renderPage(fetchMock);
 
     expect(
@@ -96,27 +118,66 @@ describe('SpoolDetailPage', () => {
     await user.click(save);
 
     expect(await screen.findByText('Spool saved.')).toBeInTheDocument();
-    const puts = fetchMock.mock.calls.filter(
-      ([, init]) => (init as RequestInit | undefined)?.method === 'PUT',
+    const urls = fetchMock.mock.calls.map(([input]) => input.toString());
+    expect(urls.some((url) => url.endsWith('/api/v1/spools/spool-1'))).toBe(
+      true,
     );
-    expect(puts).toHaveLength(1);
-    expect(puts[0][0].toString()).toContain('/api/v1/spools/spool-1');
-    expect(JSON.parse((puts[0][1] as RequestInit).body as string)).toEqual({
-      label: null,
-      remainingWeightGrams: 650,
-    });
+    expect(urls.some((url) => url.endsWith('/api/v1/spools'))).toBe(false);
+    expect(putBodies(fetchMock)).toEqual([
+      { label: null, remainingWeightGrams: 650, reason: null },
+    ]);
+  });
+
+  it('asks for a reason only once the weight changes, and sends it with the save', async () => {
+    const user = userEvent.setup();
+    const fetchMock = fakeApi();
+    renderPage(fetchMock);
+    await screen.findByRole('heading', { name: 'Shelf A' });
+
+    expect(
+      screen.queryByLabelText('Reason (optional)'),
+    ).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Label'), ' 2');
+    expect(
+      screen.queryByLabelText('Reason (optional)'),
+    ).not.toBeInTheDocument();
+
+    const weight = screen.getByLabelText('Remaining weight (g)');
+    await user.clear(weight);
+    await user.type(weight, '750');
+    await user.type(
+      await screen.findByLabelText('Reason (optional)'),
+      'weighed on scale',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Spool saved.')).toBeInTheDocument();
+    expect(putBodies(fetchMock)).toEqual([
+      {
+        label: 'Shelf A 2',
+        remainingWeightGrams: 750,
+        reason: 'weighed on scale',
+      },
+    ]);
+  });
+
+  it('does not send a reason when only the label changes', async () => {
+    const user = userEvent.setup();
+    const fetchMock = fakeApi();
+    renderPage(fetchMock);
+    await user.type(await screen.findByLabelText('Label'), 'x');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Spool saved.')).toBeInTheDocument();
+    expect(putBodies(fetchMock)[0].reason).toBeNull();
   });
 
   it('shows the server problem detail when the save is rejected', async () => {
     const user = userEvent.setup();
     renderPage(
-      vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
-        Promise.resolve(
-          init?.method === 'PUT'
-            ? jsonResponse({ detail: 'Weight exceeds capacity.' }, 422)
-            : jsonResponse({ spools: [spool] }),
-        ),
-      ),
+      fakeApi({
+        put: () => jsonResponse({ detail: 'Weight exceeds capacity.' }, 422),
+      }),
     );
     await user.type(await screen.findByLabelText('Label'), 'x');
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -126,7 +187,12 @@ describe('SpoolDetailPage', () => {
   });
 
   it('shows not found for an unknown spool', async () => {
-    renderPage(vi.fn(() => Promise.resolve(jsonResponse({ spools: [] }))));
+    renderPage(fakeApi({ spool: () => new Response(null, { status: 404 }) }));
     expect(await screen.findByText('Spool not found')).toBeInTheDocument();
+  });
+
+  it('shows a retryable error when the spool cannot be loaded', async () => {
+    renderPage(fakeApi({ spool: () => new Response(null, { status: 500 }) }));
+    expect(await screen.findByText('Could not load spool')).toBeInTheDocument();
   });
 });

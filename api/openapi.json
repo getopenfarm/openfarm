@@ -163,6 +163,105 @@
             "JWTBearerAuth": []
           }
         ]
+      },
+      "get": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsGetSpoolEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpoolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spools/{id}/history": {
+      "get": {
+        "tags": [
+          "Spools"
+        ],
+        "operationId": "OpenFarmApiEndpointsSpoolsGetSpoolHistoryEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpoolHistoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/spools": {
@@ -4939,8 +5038,75 @@
           "remainingWeightGrams": {
             "type": "number",
             "format": "decimal"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
           }
         }
+      },
+      "SpoolHistoryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpoolHistoryEntryResponse"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SpoolHistoryEntryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "recordedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "changeGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "remainingAfterGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "printId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "printName": {
+            "type": "string",
+            "nullable": true
+          },
+          "printStatus": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "GetSpoolHistoryRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "ListSpoolsResponse": {
         "type": "object",

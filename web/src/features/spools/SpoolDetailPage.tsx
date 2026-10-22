@@ -26,18 +26,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
-import type {
-  ListSpoolsResponse,
-  SpoolResponse,
-} from '@/lib/api/generated/endpoints.schemas';
+import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
-  getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey,
   useOpenFarmApiEndpointsSpoolsEditSpoolEndpoint,
-  useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint,
+  useOpenFarmApiEndpointsSpoolsGetSpoolEndpoint,
 } from '@/lib/api/generated/spools/spools';
 import { formatGrams } from '@/lib/formatUnits';
+import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { LoadSpoolDialog } from './components/LoadSpoolDialog';
 import { RecordUsageDialog } from './components/RecordUsageDialog';
+import { SpoolHistoryCard } from './components/SpoolHistoryCard';
 import { STATE_BADGE } from './components/SpoolsTable';
 import { UnloadSpoolDialog } from './components/UnloadSpoolDialog';
 
@@ -53,6 +51,7 @@ function spoolSchema(capacity: number) {
         (value) => Number(value) <= capacity,
         `Cannot exceed the spool capacity (${capacity} g).`,
       ),
+    reason: z.string().max(200, 'Up to 200 characters'),
   });
 }
 
@@ -62,6 +61,7 @@ function toFormValues(spool: SpoolResponse | undefined): FormValues {
   return {
     label: spool?.label ?? '',
     remainingWeightGrams: String(spool?.remainingWeightGrams ?? ''),
+    reason: '',
   };
 }
 
@@ -73,14 +73,11 @@ export function SpoolDetailPage() {
     null,
   );
 
-  // ponytail: no GET /spools/{id} endpoint — the detail reads from the (unpaged) list query.
-  const spoolsQuery = useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint();
-  const spool = (
-    spoolsQuery.data?.data as ListSpoolsResponse | undefined
-  )?.spools?.find((candidate) => candidate.id === id);
+  const spoolQuery = useOpenFarmApiEndpointsSpoolsGetSpoolEndpoint(id ?? '');
+  const spool = spoolQuery.data?.data as SpoolResponse | undefined;
   const capacity = spool?.spoolWeightGrams ?? 0;
 
-  // `values` re-syncs the draft when Load/Unload/Record usage refetch the list; keepDirtyValues
+  // `values` re-syncs the draft when Load/Unload/Record usage refetch the spool; keepDirtyValues
   // keeps whatever the operator is mid-way through editing.
   const form = useForm<FormValues>({
     resolver: zodResolver(spoolSchema(capacity)),
@@ -90,13 +87,16 @@ export function SpoolDetailPage() {
   const { isDirty } = form.formState;
   const { ConfirmLeaveDialog } = useUnsavedChangesPrompt(isDirty);
 
+  // A reason only means something for a weight change, so the field appears once the draft weight differs.
+  const draftWeight = form.watch('remainingWeightGrams').trim();
+  const weightChanged =
+    draftWeight !== '' && Number(draftWeight) !== spool?.remainingWeightGrams;
+
   const editMutation = useOpenFarmApiEndpointsSpoolsEditSpoolEndpoint({
     mutation: {
       onSuccess: (response) => {
         form.reset(toFormValues(response.data as SpoolResponse));
-        queryClient.invalidateQueries({
-          queryKey: getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey(),
-        });
+        invalidateFilamentTrackingQueries(queryClient);
         toast.success('Spool saved.');
       },
       onError: async (error) =>
@@ -111,6 +111,7 @@ export function SpoolDetailPage() {
       data: {
         label: values.label.trim() || null,
         remainingWeightGrams: Number(values.remainingWeightGrams),
+        reason: weightChanged ? values.reason.trim() || null : null,
       },
     });
   }
@@ -121,16 +122,20 @@ export function SpoolDetailPage() {
     </BackLink>
   );
 
-  if (spoolsQuery.isLoading || spoolsQuery.isError || !spool) {
+  const queryError: unknown = spoolQuery.error;
+  const loadFailed =
+    spoolQuery.isError &&
+    !(queryError instanceof Response && queryError.status === 404);
+  if (spoolQuery.isLoading || loadFailed || !spool) {
     return (
       <Page>
         <PageHeader above={backLink} title="Spool" />
-        {spoolsQuery.isLoading ? (
+        {spoolQuery.isLoading ? (
           <Skeleton className="h-64 w-full" />
-        ) : spoolsQuery.isError ? (
+        ) : loadFailed ? (
           <ErrorState
             title="Could not load spool"
-            onRetry={() => spoolsQuery.refetch()}
+            onRetry={() => spoolQuery.refetch()}
           />
         ) : (
           <EmptyState
@@ -223,8 +228,28 @@ export function SpoolDetailPage() {
                     </FormItem>
                   )}
                 />
+                {weightChanged && (
+                  <FormField
+                    control={form.control}
+                    name="reason"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Reason (optional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. weighed on scale"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </CardContent>
             </Card>
+
+            <SpoolHistoryCard spoolId={spoolId} />
 
             <FormFooter
               end={

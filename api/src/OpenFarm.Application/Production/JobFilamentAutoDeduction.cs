@@ -85,7 +85,7 @@ public sealed class JobFilamentAutoDeduction(
             spool.RecordUsage(delta);
             print.RecordFilamentConsumption(line.Id, spoolId, target);
             await usageRecordRepository.AddAsync(
-                SpoolUsageRecord.Create(spoolId, delta, ownerId, SpoolUsageSource.Job), cancellationToken);
+                SpoolUsageRecord.Create(spoolId, delta, ownerId, SpoolUsageSource.Job, spool.RemainingWeightGrams), cancellationToken);
             if (spool.RemainingWeightGrams == 0) depleted.Add(spool);
         }
 

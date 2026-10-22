@@ -8,4 +8,10 @@ public interface ISpoolReadModel
     /// in one SQL statement, ordered by creation time, so only the requested page of matching rows leaves the database.
     /// </summary>
     Task<SpoolRowPage> ListRowsAsync(GetSpoolsQuery query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A spool's weight history, newest first, each entry joined to the print it came from (left join: a manual entry's print id
+    /// is unvalidated and a print may be gone). Null when the spool does not exist.
+    /// </summary>
+    Task<SpoolHistoryPage?> ListHistoryAsync(GetSpoolHistoryQuery query, CancellationToken cancellationToken);
 }

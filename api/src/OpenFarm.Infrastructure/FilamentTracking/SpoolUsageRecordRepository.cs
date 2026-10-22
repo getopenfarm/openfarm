@@ -11,4 +11,6 @@ public sealed class SpoolUsageRecordRepository(OpenFarmDbContext dbContext) : IS
         dbContext.SpoolUsageRecords.Add(record);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public void Add(SpoolUsageRecord record) => dbContext.SpoolUsageRecords.Add(record);
 }

@@ -49,6 +49,34 @@ export interface EditSpoolRequest {
   /** @nullable */
   label?: string | null;
   remainingWeightGrams?: number;
+  /** @nullable */
+  reason?: string | null;
+}
+
+export interface SpoolHistoryEntryResponse {
+  id?: string;
+  recordedAtUtc?: string;
+  changeGrams?: number;
+  /** @nullable */
+  remainingAfterGrams?: number | null;
+  source?: string;
+  /** @nullable */
+  reason?: string | null;
+  /** @nullable */
+  printId?: string | null;
+  /** @nullable */
+  printName?: string | null;
+  /** @nullable */
+  printStatus?: string | null;
+}
+
+export interface SpoolHistoryResponse {
+  entries?: SpoolHistoryEntryResponse[];
+  totalCount?: number;
+}
+
+export interface GetSpoolHistoryRequest {
+  [key: string]: unknown;
 }
 
 export interface ListSpoolsResponse {
@@ -1855,6 +1883,17 @@ export interface ActivityLogPageResponse {
 export interface GetActivityLogRequest {
   [key: string]: unknown;
 }
+
+export type OpenFarmApiEndpointsSpoolsGetSpoolHistoryEndpointParams = {
+  /**
+   * @nullable
+   */
+  page?: number | null;
+  /**
+   * @nullable
+   */
+  pageSize?: number | null;
+};
 
 export type OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams = {
   state?: SpoolState | null;

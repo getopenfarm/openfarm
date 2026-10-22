@@ -59,6 +59,33 @@ describe('Printer activity live updates', () => {
   });
 });
 
+describe('Spool weight live updates', () => {
+  beforeEach(() => hub.handlers.clear());
+  it('refreshes spools and Feed units, and nothing else, when a print closes', () => {
+    const client = new QueryClient();
+    const spoolKeys = [
+      ['/api/v1/spools'],
+      ['/api/v1/spools/spool-1'],
+      ['/api/v1/spools/spool-1/history', { pageSize: 50 }],
+      getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryKey('p1'),
+    ];
+    const unrelated = ['/api/v1/parts'];
+    for (const key of [...spoolKeys, unrelated]) client.setQueryData(key, {});
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    act(() => hub.handlers.get('NotificationsChanged')?.({}));
+
+    for (const key of spoolKeys)
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
+    unmount();
+  });
+});
+
 describe('Feed units live updates', () => {
   beforeEach(() => hub.handlers.clear());
   it('refreshes only the affected topology on first event and position changes while updating live contents', () => {

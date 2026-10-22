@@ -25,10 +25,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey,
-  useOpenFarmApiEndpointsSpoolsRecordSpoolUsageEndpoint,
-} from '@/lib/api/generated/spools/spools';
+import { useOpenFarmApiEndpointsSpoolsRecordSpoolUsageEndpoint } from '@/lib/api/generated/spools/spools';
+import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 
 const schema = z.object({
   gramsConsumed: z
@@ -74,9 +72,7 @@ export function RecordUsageDialog({
           }
           form.reset();
           onOpenChange(false);
-          queryClient.invalidateQueries({
-            queryKey: getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey(),
-          });
+          invalidateFilamentTrackingQueries(queryClient);
         },
         onError: () => {
           toast.error('Could not record usage.');

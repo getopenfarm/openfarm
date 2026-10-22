@@ -19,7 +19,7 @@ Job filament use is deducted automatically; operators never enter it. Manual spo
      curve, `layer_num / total_layer_num`, else `mc_percent`.
    - Manual-brand printer: Completed deducts in full; Failed has no progress, so nothing is deducted.
 3. Deduction applies only the difference from what the line already recorded, writes a
-   `SpoolUsageRecord` with source `Job`, and triggers auto-continuation when a spool hits zero.
+   `SpoolUsageRecord` with source `Job` (see Spool history), and triggers auto-continuation when a spool hits zero.
 4. A line with no bound spool, no estimate, no progress, or a spool no longer Using is skipped, never
    thrown, and logged as `PrintJobFilamentDeductionSkipped` on the job. Correct with manual spool usage.
 
@@ -95,6 +95,27 @@ hub event). Dispatched jobs and prints started on the printer are treated the sa
 - The reasons a spool cannot fix take priority when several apply, so an operator is never offered a spool choice that cannot work.
 - Prints that closed before the reason was stored do not appear.
 
+## Spool history
+
+Every change to a spool's remaining weight writes one append-only `SpoolUsageRecord`; the spool page shows them newest first.
+
+| Source | Written by | `JobId` | Reason |
+|---|---|---|---|
+| `Job` | `JobFilamentAutoDeduction`, one row per deduction | the `Print` id | none |
+| `Manual` | `POST /api/v1/spools/{id}/usage` | whatever the client sent, unvalidated | none |
+| `Correction` | `PUT /api/v1/spools/{id}` when the remaining weight changes | none | optional, up to 200 characters |
+
+- `GramsConsumed` is grams taken off the spool, so it is negative when a correction puts filament back. `RemainingAfterGrams` is
+  the weight once the entry applied; it is null on rows written before that column existed. A deduction larger than what was
+  left keeps the full grams and records 0 g remaining (the spool's weight stops at zero and `HasUsageOverrun` is set).
+- A weight edit and its `Correction` row commit in one save (`ISpoolUsageRecordRepository.Add` tracks the row without saving), so a
+  stale row version is the spool's 409 and neither is written. Saving the same weight, or only the label, writes nothing.
+- `RemainingWeightGrams` stays the stored source of truth. The history is an audit trail; nothing sums it.
+- Read it with `GET /api/v1/spools/{id}/history?page&pageSize` (default 50, max 100). Each entry is left-joined to its `Print`,
+  so an entry keeps showing after its print is deleted, without a link. `GET /api/v1/spools/{id}` returns the one spool.
+- **Live refresh.** A print closing publishes `NotificationsChanged`, and the web refreshes spools and Feed units on it. The
+  `SpoolStateChanged` hub event exists but is never raised.
+
 ## Known limits
 - Spool binding follows the feed mapping in `docs/BAMBU_LAN_PRINTING.md`: on an AMS printer only the AMS or only the external
   spool is a usable feed at a time, so a spool on the other one is never bound.
@@ -114,12 +135,12 @@ Found while making the estimate more exact. Neither is a bug today; both matter 
 - **If plate selection is added:** change `BambuPrintFile`, `CliSlicerEngine`, and `JobFilamentUsageReader.Read` (take a plate
   number: `plate_<n>.gcode` and the `slice_info.config` `<plate>` with `index = n`) together.
 
-### 2. Manual Fail/Cancel deducts nothing
+### 2. Manual Fail deducts nothing
 - `FailPrintJobCommandHandler.cs:42` and `CompletePrintJobCommandHandler.cs:47` pass `new JobProgress(job.Status)` with no layer
-  or percent, so every line is skipped and logged as `PrintJobFilamentDeductionSkipped`. Manual Complete deducts in full.
-  This applies to any printer brand, not just manual-brand printers.
-- Bambu (P1S) normal failures and cancels go through `JobTelemetrySync` with `layer_num` / `mc_percent`, so they are fine.
-  It hits: manual-brand printers (no telemetry), and a Bambu job an operator fails by hand.
+  or percent, so a manual Fail skips every line (logged as `PrintJobFilamentDeductionSkipped`). A manual Complete deducts in full.
+- Both handlers reject a job on a live-integrated brand (`PrinterModelCatalog.SupportsLiveIntegration`: Bambu and System, every
+  brand registrable today). They are reachable only for a job whose printer was deleted, or once a manual brand exists (Phase 15).
+- Bambu (P1S) failures and cancels go through `JobTelemetrySync` with `layer_num` / `mc_percent`, so they are fine.
 - **Not verified:** what happens if OpenFarm or the printer is offline when the print ends, so no terminal event arrives.
 - **Fix options:** ask for "stopped at layer N / percent" on the Fail/Cancel dialog and feed it into `JobProgress`
   (the curve lookup then works unchanged); or keep manual spool usage (`POST /api/v1/spools/{id}/usage`) as the fallback.

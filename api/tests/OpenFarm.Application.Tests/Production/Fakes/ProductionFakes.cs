@@ -358,6 +358,8 @@ public sealed class InMemorySpoolUsageRecordRepository : ISpoolUsageRecordReposi
         Records.Add(record);
         return Task.CompletedTask;
     }
+
+    public void Add(SpoolUsageRecord record) => Records.Add(record);
 }
 
 public sealed class RecordingActivityLogWriter : IActivityLogWriter

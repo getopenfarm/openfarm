@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.FilamentTracking;
@@ -145,6 +146,46 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
             .ToList();
 
         return new SpoolRowPage(spoolRows, paged ? total : spoolRows.Count);
+    }
+
+    public async Task<SpoolHistoryPage?> ListHistoryAsync(GetSpoolHistoryQuery query, CancellationToken cancellationToken)
+    {
+        if (!await dbContext.Spools.AsNoTracking().AnyAsync(s => s.Id == query.SpoolId, cancellationToken))
+        {
+            return null;
+        }
+
+        var pageSize = Math.Clamp(query.PageSize, 1, GetSpoolHistoryQuery.MaxPageSize);
+        var page = Math.Max(query.Page, 1);
+
+        var records = dbContext.SpoolUsageRecords.AsNoTracking().Where(r => r.SpoolId == query.SpoolId);
+        var total = await records.CountAsync(cancellationToken);
+
+        var rows = await (
+                from record in records
+                join print in dbContext.Prints.AsNoTracking() on record.JobId equals (Guid?)print.Id into prints
+                from print in prints.DefaultIfEmpty()
+                orderby record.RecordedAtUtc descending, record.Id
+                select new
+                {
+                    record.Id,
+                    record.RecordedAtUtc,
+                    record.GramsConsumed,
+                    record.RemainingAfterGrams,
+                    record.Source,
+                    record.Reason,
+                    PrintId = (Guid?)print.Id,
+                    PrintName = print.Name,
+                    PrintStatus = (PrintJobStatus?)print.Status,
+                })
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new SpoolHistoryPage(
+            rows.Select(r => new SpoolHistoryEntry(
+                r.Id, r.RecordedAtUtc, r.GramsConsumed, r.RemainingAfterGrams, r.Source, r.Reason, r.PrintId, r.PrintName, r.PrintStatus)).ToList(),
+            total);
     }
 
     /// <summary>Trimmed, bounded, LIKE-escaped terms; a bounded term count keeps a pasted paragraph from becoming a huge predicate.</summary>

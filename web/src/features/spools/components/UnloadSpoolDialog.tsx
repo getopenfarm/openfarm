@@ -12,10 +12,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey,
-  useOpenFarmApiEndpointsSpoolsUnloadSpoolEndpoint,
-} from '@/lib/api/generated/spools/spools';
+import { useOpenFarmApiEndpointsSpoolsUnloadSpoolEndpoint } from '@/lib/api/generated/spools/spools';
+import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 
 interface UnloadSpoolDialogProps {
   spoolId: string;
@@ -36,9 +34,7 @@ export function UnloadSpoolDialog({
     mutation: {
       onSuccess: () => {
         onOpenChange(false);
-        queryClient.invalidateQueries({
-          queryKey: getOpenFarmApiEndpointsSpoolsListSpoolsEndpointQueryKey(),
-        });
+        invalidateFilamentTrackingQueries(queryClient);
       },
       onError: () => {
         toast.error('Could not unload spool.');

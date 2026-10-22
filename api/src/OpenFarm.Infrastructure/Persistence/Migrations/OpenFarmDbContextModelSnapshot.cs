@@ -655,8 +655,15 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("JobId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTimeOffset>("RecordedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("RemainingAfterGrams")
+                        .HasColumnType("numeric");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -667,7 +674,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SpoolId");
+                    b.HasIndex("SpoolId", "RecordedAtUtc");
 
                     b.ToTable("SpoolUsageRecords", (string)null);
                 });

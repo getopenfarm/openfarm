@@ -15,6 +15,7 @@ import {
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
 } from '@/lib/api/generated/printers/printers';
+import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
 import { amsTopologyKey } from '../lib/feedSlotView';
 import { filamentColorFromAms } from '../lib/filamentColor';
@@ -93,20 +94,6 @@ function invalidateNotificationQueries(
   queryClient.invalidateQueries({
     queryKey:
       getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey(),
-  });
-}
-
-/** Matches both the printer-scoped feed-units list (/api/v1/printers/{id}/feed-units) and the
- * global spools list (/api/v1/spools) — spool state and Feed unit topology are shown together
- * on FeedUnitsCard/SpoolsTable, so either changing invalidates both. */
-function invalidateFilamentTrackingQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-) {
-  queryClient.invalidateQueries({
-    predicate: (query) =>
-      typeof query.queryKey[0] === 'string' &&
-      (query.queryKey[0].includes('/feed-units') ||
-        query.queryKey[0].startsWith('/api/v1/spools')),
   });
 }
 
@@ -317,8 +304,11 @@ export function useFarmHub() {
       },
     );
 
+    // Fires when a print closes, which is when automatic deduction changes spool weights.
+    // Nothing else pushes those weights (SpoolStateChanged is never raised), so refresh them here.
     connection.on('NotificationsChanged', () => {
       invalidateNotificationQueries(queryClient);
+      invalidateFilamentTrackingQueries(queryClient);
     });
 
     connection.on('SpoolStateChanged', () => {

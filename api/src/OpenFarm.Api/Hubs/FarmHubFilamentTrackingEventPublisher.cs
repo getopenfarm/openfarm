@@ -6,6 +6,9 @@ namespace OpenFarm.Api.Hubs;
 
 public sealed class FarmHubFilamentTrackingEventPublisher(IHubContext<FarmHub> hubContext) : IFilamentTrackingEventPublisher
 {
+    // ponytail: nothing raises this today. The web refreshes spool weights on NotificationsChanged (a print closing is
+    // what changes them) and each mutating screen refreshes itself. Raise it per handler (register, edit, load,
+    // unload, usage) if multi-operator sessions need live cross-tab updates.
     public Task SpoolStateChangedAsync(
         Guid spoolId,
         SpoolState state,

@@ -98,6 +98,30 @@ public class JobFilamentAutoDeductionTests
     }
 
     [Fact]
+    public async Task Deduction_RecordsWhatIsLeftOnTheSpoolAfterEachEntry()
+    {
+        var spool = UsingSpool();
+        var job = JobWith(("PLA", "#FF0000"));
+        job.BindFilamentUsage([(spool.Id, 12.5m, null)]);
+
+        await Create(spool).ApplyAsync(job, Completed, CancellationToken.None);
+
+        _usage.Records.Should().ContainSingle(r => r.GramsConsumed == 12.5m && r.RemainingAfterGrams == 987.5m);
+    }
+
+    [Fact]
+    public async Task Deduction_BeyondWhatTheSpoolHeld_KeepsTheGramsUsedAndStopsTheWeightAtZero()
+    {
+        var spool = UsingSpool(remaining: 10);
+        var job = JobWith(("PLA", "#FF0000"));
+        job.BindFilamentUsage([(spool.Id, 12.5m, null)]);
+
+        await Create(spool).ApplyAsync(job, Completed, CancellationToken.None);
+
+        _usage.Records.Should().ContainSingle(r => r.GramsConsumed == 12.5m && r.RemainingAfterGrams == 0m);
+    }
+
+    [Fact]
     public async Task Failed_MultiColour_EachColourDeductsWhatItUsedByTheLayerReached()
     {
         var red = UsingSpool();

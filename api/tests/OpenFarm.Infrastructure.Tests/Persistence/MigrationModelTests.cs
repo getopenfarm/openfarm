@@ -11,6 +11,7 @@ public class MigrationModelTests
     {
         using var db = new OpenFarmDbContextFactory().CreateDbContext([]);
         db.Database.HasPendingModelChanges().Should().BeFalse();
-        db.Database.GetMigrations().Should().ContainSingle().Which.Should().EndWith("_InitialCreate");
+        // The history starts at the one InitialCreate; each later schema change adds a single migration of its own.
+        db.Database.GetMigrations().First().Should().EndWith("_InitialCreate");
     }
 }

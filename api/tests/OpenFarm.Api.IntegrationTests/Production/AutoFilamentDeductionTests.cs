@@ -1,6 +1,8 @@
+using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using OpenFarm.Api.Endpoints.Spools;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Production;
@@ -61,6 +63,24 @@ public class AutoFilamentDeductionTests(ProductionTestFactory factory) : Product
         var (remaining, records) = await SpoolAsync(spoolId);
         remaining.Should().Be(980m);
         records.Should().ContainSingle(r => r.Source == SpoolUsageSource.Job && r.JobId == jobId && r.GramsConsumed == 20m);
+    }
+
+    [Fact]
+    public async Task Finish_ShowsOnTheSpoolHistory_WithThePrintAndWhatIsLeft()
+    {
+        var (jobId, printerId, spoolId) = await PrintingJobAsync(20m);
+
+        await ReplayAsync(printerId, "FINISH");
+
+        var client = await ClientAsync();
+        var history = (await client.GetFromJsonAsync<SpoolHistoryResponse>($"/api/v1/spools/{spoolId}/history"))!;
+        var entry = history.Entries.Should().ContainSingle().Subject;
+        entry.Source.Should().Be("Job");
+        entry.PrintId.Should().Be(jobId);
+        entry.PrintName.Should().NotBeNullOrEmpty();
+        entry.PrintStatus.Should().Be("Completed");
+        entry.ChangeGrams.Should().Be(-20m);
+        entry.RemainingAfterGrams.Should().Be(980m);
     }
 
     [Fact]

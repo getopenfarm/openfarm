@@ -4,6 +4,7 @@ using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Domain.FilamentTracking;
 using EditSpoolHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.EditSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>;
 
 namespace OpenFarm.Api.Endpoints.Spools;
@@ -16,6 +17,9 @@ public sealed class EditSpoolRequest : IActivityLoggable
 
     public decimal RemainingWeightGrams { get; set; }
 
+    /// <summary>Why the weight changed (up to 200 characters); kept in the spool's history, and only when the weight changed.</summary>
+    public string? Reason { get; set; }
+
     public string EntityType => "Spool";
 
     public string EventType => "SpoolEdited";
@@ -23,7 +27,11 @@ public sealed class EditSpoolRequest : IActivityLoggable
 
 public sealed class EditSpoolRequestValidator : AbstractValidator<EditSpoolRequest>
 {
-    public EditSpoolRequestValidator() => RuleFor(x => x.RemainingWeightGrams).GreaterThanOrEqualTo(0);
+    public EditSpoolRequestValidator()
+    {
+        RuleFor(x => x.RemainingWeightGrams).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Reason).MaximumLength(SpoolUsageRecord.MaxReasonLength);
+    }
 }
 
 /// <summary>PUT /api/v1/spools/{id} — label and remaining weight in one save. 422 when the weight exceeds the spool's capacity.</summary>
@@ -40,7 +48,7 @@ public sealed class EditSpoolEndpoint(EditSpoolHandler handler, IQueryHandler<Ge
     public override async Task HandleAsync(EditSpoolRequest req, CancellationToken ct)
     {
         req.Id = Route<Guid>("id");
-        var spool = await handler.HandleAsync(new EditSpoolCommand(req.Id, req.Label, req.RemainingWeightGrams), ct);
+        var spool = await handler.HandleAsync(new EditSpoolCommand(req.Id, req.Label, req.RemainingWeightGrams, req.Reason), ct);
 
         Response = await SpoolResponseLookup.ResolveAsync(spoolsQuery, spool.Id, ct);
     }
