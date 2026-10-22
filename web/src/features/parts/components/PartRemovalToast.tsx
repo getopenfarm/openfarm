@@ -100,71 +100,83 @@ export function PartRemovalToast({
 }) {
   useEffect(() => {
     if (!notice) return;
-    const notificationIds: Array<string | number> = [];
-    const persistent = {
-      duration: Number.POSITIVE_INFINITY,
-      closeButton: true,
-      dismissible: true,
-    };
-    if (notice.checking) {
-      notificationIds.push(
-        toast.loading(notice.title, {
-          duration: Number.POSITIVE_INFINITY,
-          dismissible: false,
-        }),
-      );
-    } else {
-      if (notice.removedCount) {
-        const notify = notice.message ? toast.warning : toast.success;
-        notificationIds.push(
-          notify(
-            `${notice.removedCount} ${notice.removedCount === 1 ? 'part removed' : 'parts removed'}`,
-            {
-              description: notice.message,
-              closeButton: true,
-              duration: notice.message ? Number.POSITIVE_INFINITY : 5000,
-            },
-          ),
-        );
-      }
-      for (const row of notice.rows ?? []) {
-        const status = row.outcome?.status ?? row.eligibility?.status;
-        const notify =
-          status === 'Blocked' || status === 'Recheck'
-            ? toast.warning
-            : status === 'Absent'
-              ? toast.info
-              : toast.error;
-        notificationIds.push(
-          notify(
-            `${status === 'Absent' ? 'Already removed' : 'Cannot remove'} ${row.name}`,
-            {
-              ...persistent,
-              description: (
-                <div className="flex max-h-64 flex-col gap-3 overflow-y-auto">
-                  {!notice.removedCount && notice.message && (
-                    <p>{notice.message}</p>
-                  )}
-                  <PartRemovalDetails rows={[row]} showNames={false} />
-                </div>
-              ),
-            },
-          ),
-        );
-      }
-      if (!notice.rows?.length && !notice.removedCount) {
-        notificationIds.push(
-          toast.warning(notice.title, {
-            ...persistent,
-            description: notice.message,
-          }),
-        );
-      }
-    }
+    // Sonner's Toaster re-subscribes in an effect of its own. When both re-run in one commit, every cleanup runs before any
+    // setup, so a toast created here would reach no subscriber and never show. Creating it after the commit avoids that.
+    let notificationIds: Array<string | number> = [];
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) notificationIds = show(notice);
+    });
     return () => {
+      cancelled = true;
       for (const notificationId of notificationIds)
         toast.dismiss(notificationId);
     };
   }, [notice]);
   return null;
+}
+
+/** Shows a notice as toasts and returns their ids. */
+function show(notice: PartRemovalNoticeData): Array<string | number> {
+  if (notice.checking) {
+    return [
+      toast.loading(notice.title, {
+        duration: Number.POSITIVE_INFINITY,
+        dismissible: false,
+      }),
+    ];
+  }
+  const persistent = {
+    duration: Number.POSITIVE_INFINITY,
+    closeButton: true,
+    dismissible: true,
+  };
+  const notificationIds: Array<string | number> = [];
+  if (notice.removedCount) {
+    const notify = notice.message ? toast.warning : toast.success;
+    notificationIds.push(
+      notify(
+        `${notice.removedCount} ${notice.removedCount === 1 ? 'part removed' : 'parts removed'}`,
+        {
+          description: notice.message,
+          closeButton: true,
+          duration: notice.message ? Number.POSITIVE_INFINITY : 5000,
+        },
+      ),
+    );
+  }
+  for (const row of notice.rows ?? []) {
+    const status = row.outcome?.status ?? row.eligibility?.status;
+    const notify =
+      status === 'Blocked' || status === 'Recheck'
+        ? toast.warning
+        : status === 'Absent'
+          ? toast.info
+          : toast.error;
+    notificationIds.push(
+      notify(
+        `${status === 'Absent' ? 'Already removed' : 'Cannot remove'} ${row.name}`,
+        {
+          ...persistent,
+          description: (
+            <div className="flex max-h-64 flex-col gap-3 overflow-y-auto">
+              {!notice.removedCount && notice.message && (
+                <p>{notice.message}</p>
+              )}
+              <PartRemovalDetails rows={[row]} showNames={false} />
+            </div>
+          ),
+        },
+      ),
+    );
+  }
+  if (!notice.rows?.length && !notice.removedCount) {
+    notificationIds.push(
+      toast.warning(notice.title, {
+        ...persistent,
+        description: notice.message,
+      }),
+    );
+  }
+  return notificationIds;
 }
