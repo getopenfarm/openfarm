@@ -1,4 +1,5 @@
 using OpenFarm.Application.Common;
+using OpenFarm.Application.Production;
 using OpenFarm.Domain.FilamentTracking;
 
 namespace OpenFarm.Application.FilamentTracking;
@@ -22,7 +23,8 @@ public sealed record EditSpoolCommand(
 /// PUT /api/v1/spools/{id} — label, purchase info and remaining weight in one save. Weight is corrected only when it changed,
 /// since a correction clears HasUsageOverrun; a change also writes a history entry, committed in the same save.
 /// </summary>
-public sealed class EditSpoolCommandHandler(ISpoolRepository spoolRepository, ISpoolUsageRecordRepository usageRecordRepository)
+public sealed class EditSpoolCommandHandler(ISpoolRepository spoolRepository, ISpoolUsageRecordRepository usageRecordRepository,
+    IFeedUnitRepository feedUnitRepository, IProductionDispatcher dispatcher)
     : ICommandHandler<EditSpoolCommand, Spool>
 {
     public async Task<Spool> HandleAsync(EditSpoolCommand command, CancellationToken cancellationToken)
@@ -32,7 +34,8 @@ public sealed class EditSpoolCommandHandler(ISpoolRepository spoolRepository, IS
 
         spool.Relabel(command.Label);
         spool.SetPurchase(command.Price, command.Supplier, command.OrderNumber, command.ReceivedOn);
-        if (command.RemainingWeightGrams != spool.RemainingWeightGrams)
+        var weightChanged = command.RemainingWeightGrams != spool.RemainingWeightGrams;
+        if (weightChanged)
         {
             var before = spool.RemainingWeightGrams;
             spool.CorrectRemainingWeight(command.RemainingWeightGrams);
@@ -42,6 +45,11 @@ public sealed class EditSpoolCommandHandler(ISpoolRepository spoolRepository, IS
         }
 
         await spoolRepository.SaveChangesAsync(cancellationToken);
+
+        // A corrected weight can make a waiting job fit; an idle printer may otherwise not look again for a while.
+        if (weightChanged && spool.FeedSlotId is { } slotId
+            && await feedUnitRepository.GetByFeedSlotIdAsync(slotId, cancellationToken) is { } unit)
+            dispatcher.RequestDispatchAttempt(unit.PrinterId);
 
         return spool;
     }

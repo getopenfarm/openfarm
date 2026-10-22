@@ -6,6 +6,7 @@ using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.Profiles;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
@@ -18,6 +19,19 @@ namespace OpenFarm.Application.Production;
 /// what was checked is what runs.
 /// </summary>
 public sealed record ProductionResolution(IReadOnlyList<ProductionFilamentSelection> Selections, ResolvedSlicingProfiles? Profiles);
+
+/// <summary>Why a job cannot go to a printer. <see cref="Shortfall"/> is set when the reason is too little loaded filament.</summary>
+public sealed record ReadinessIssue(string Message, FilamentShortfall? Shortfall = null);
+
+/// <summary>What the job takes of one filament against what the loaded spool, with continuation, can give.</summary>
+public sealed record FilamentShortfall(Guid SpoolId, string Label, decimal EstimatedGrams, decimal NeededGrams, decimal AvailableGrams);
+
+/// <summary>The loaded filament cannot cover a job: the printer is skipped for it, and a job pinned to it waits.</summary>
+public sealed class InsufficientFilamentException(FilamentShortfall shortfall, string message)
+    : SlicingProfileUnconfiguredException(message, "InsufficientFilament")
+{
+    public FilamentShortfall Shortfall { get; } = shortfall;
+}
 
 public sealed partial class ProductionProfileReadiness(RepresentativeFilamentResolver resolver, IPrinterRepository printers,
     ResolveSlicingProfileSelection profileSelection, ProfileCompatibility compatibility,
@@ -39,11 +53,12 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null)
     {
         var requiresSlicing = await RequiresSlicingAsync(part, revisionHash, ct);
+        var estimates = requirements.Select(r => EstimatedGrams(part, r, requirements.Count)).ToList();
         var selections = new List<ProductionFilamentSelection>();
-        foreach (var requirement in requirements)
-            selections.Add(await resolver.ResolveLoadedAsync(printerId, requirement.MaterialType,
-                requirement.NarrowFilamentVariantId is null ? requirement.DetectedColorHex : null,
-                requirement.NarrowFilamentVariantId, requirement.NarrowFilamentProfileId, ct));
+        for (var i = 0; i < requirements.Count; i++)
+            selections.Add(await resolver.ResolveLoadedAsync(printerId, requirements[i].MaterialType,
+                requirements[i].NarrowFilamentVariantId is null ? requirements[i].DetectedColorHex : null,
+                requirements[i].NarrowFilamentVariantId, requirements[i].NarrowFilamentProfileId, ct, estimates[i]));
         if (selections.Count == 0) throw new SlicingProfileUnconfiguredException("No production filament requirements are available.");
         var feeds = new List<FeedPlacement>();
         foreach (var selection in selections)
@@ -52,7 +67,30 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
             throw new SlicingProfileUnconfiguredException("One job can't draw from the AMS and the reloader at once. Load all colours in the AMS, or all in the reloader.");
         if (requiresSlicing && selections.Select(s => ProfileIdentity.Key(s.Profile)).Distinct().Count() > 1)
             throw new SlicingProfileUnconfiguredException("Production slicing with multiple filament profiles is not supported. Use a pre-sliced file.");
-        return new(selections, requiresSlicing ? await ResolveSettingsAsync(printerId, part, selections[0], ct) : null);
+        var profiles = requiresSlicing ? await ResolveSettingsAsync(printerId, part, selections[0], ct) : null;
+        // Last, so a printer short of filament has everything else in order: loading or re-weighing a spool is all it needs.
+        await EnsureEnoughFilamentAsync(printerId, selections, estimates, ct);
+        return new(selections, profiles);
+    }
+
+    /// <summary>The grams the part's file says a colour takes; a one-colour part's total stands in for a missing figure. Null when unknown, and then nothing is checked.</summary>
+    private static decimal? EstimatedGrams(Part part, JobFilamentRequirementSpec requirement, int requirementCount) =>
+        part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == requirement.MaterialType && n.DetectedColorHex == requirement.DetectedColorHex)?.EstimatedGrams
+        ?? (requirementCount == 1 ? part.EstimatedFilamentWeightGrams : null);
+
+    private async Task EnsureEnoughFilamentAsync(Guid printerId, List<ProductionFilamentSelection> selections,
+        List<decimal?> estimates, CancellationToken ct)
+    {
+        if (FilamentCover.FirstShortfall(selections.Select((s, i) => (s.FeedUnitId, s.FilamentVariantId, s.AvailableGrams, estimates[i])).ToList())
+            is not { } shortfall) return;
+        var selection = selections[shortfall.Line];
+        var printer = await printers.GetByIdAsync(printerId, ct);
+        // The need rounds up and the stock down, so the message never reads "needs 120 g, has 120 g".
+        var details = new FilamentShortfall(selection.SpoolId, selection.Label, decimal.Round(shortfall.Estimated),
+            decimal.Ceiling(shortfall.Needed), decimal.Floor(shortfall.Available));
+        throw new InsufficientFilamentException(details,
+            $"Needs {details.NeededGrams} g {details.Label} ({details.EstimatedGrams} g + 10%) · {printer?.Name ?? "Printer"} has {details.AvailableGrams} g. "
+            + $"Load more, or correct the weight in /spools/{details.SpoolId}.");
     }
 
     private async Task<bool> RequiresSlicingAsync(Part part, string? revisionHash, CancellationToken ct)
@@ -120,27 +158,28 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
     }
 
-    public Task<string?> GetIssueAsync(Guid printerId, Part part,
+    public Task<ReadinessIssue?> GetIssueAsync(Guid printerId, Part part,
         IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null) =>
         IssueAsync(printerId, () => ResolveAsync(printerId, part, requirements, ct, revisionHash));
 
-    public Task<string?> GetIssueAsync(Guid printerId, Part part,
+    public Task<ReadinessIssue?> GetIssueAsync(Guid printerId, Part part,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, string? revisionHash = null) =>
         IssueAsync(printerId, () => ResolveAsync(printerId, part, requirements, ct, revisionHash));
 
     // Whatever goes wrong while checking is a reason this job cannot go to this printer — never an unhandled error that
     // takes the queue page down or stops the dispatcher from looking at the jobs behind this one.
-    private async Task<string?> IssueAsync(Guid printerId, Func<Task<ProductionResolution>> resolve)
+    private async Task<ReadinessIssue?> IssueAsync(Guid printerId, Func<Task<ProductionResolution>> resolve)
     {
         try { await resolve(); return null; }
-        catch (SlicingProfileUnconfiguredException ex) { return ex.Message; }
-        catch (SlicerUnavailableException ex) { return ex.Message; }
-        catch (UnsupportedPartFileFormatException ex) { return ex.Message; }
-        catch (IOException) { return "The retained job file is unavailable. Review or replace the part file."; }
+        catch (InsufficientFilamentException ex) { return new(ex.Message, ex.Shortfall); }
+        catch (SlicingProfileUnconfiguredException ex) { return new(ex.Message); }
+        catch (SlicerUnavailableException ex) { return new(ex.Message); }
+        catch (UnsupportedPartFileFormatException ex) { return new(ex.Message); }
+        catch (IOException) { return new("The retained job file is unavailable. Review or replace the part file."); }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogReadinessCheckFailed(logger, printerId, ex);
-            return "Production settings check failed. See the server log.";
+            return new("Production settings check failed. See the server log.");
         }
     }
 

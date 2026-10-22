@@ -1,6 +1,8 @@
 using FluentAssertions;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Application.Production;
 using OpenFarm.Application.Tests.Production.Fakes;
+using OpenFarm.Application.Tests.Profiles.Fakes;
 using OpenFarm.Domain.FilamentTracking;
 
 namespace OpenFarm.Application.Tests.FilamentTracking;
@@ -8,10 +10,46 @@ namespace OpenFarm.Application.Tests.FilamentTracking;
 public class EditSpoolCommandHandlerTests
 {
     private readonly InMemorySpoolUsageRecordRepository _usage = new();
+    private readonly FakeFeedUnitRepository _feedUnits = new();
+    private readonly RecordingDispatcher _dispatcher = new();
+
+    private sealed class RecordingDispatcher : IProductionDispatcher
+    {
+        public List<Guid> Requested { get; } = [];
+
+        public void RequestDispatchAttempt(Guid printerId) => Requested.Add(printerId);
+    }
 
     private static Spool NewSpool(decimal remaining = 800) => Spool.Create(Guid.NewGuid(), "Shelf B", 1000, remaining);
 
-    private EditSpoolCommandHandler Handler(params Spool[] spools) => new(new InMemorySpoolRepository(spools), _usage);
+    private EditSpoolCommandHandler Handler(params Spool[] spools) =>
+        new(new InMemorySpoolRepository(spools), _usage, _feedUnits, _dispatcher);
+
+    [Fact]
+    public async Task ReweighingALoadedSpool_AsksItsPrinterToLookAtTheQueueAgain()
+    {
+        var printerId = Guid.NewGuid();
+        var unit = FeedUnit.CreateConnectorDerived(printerId, FeedUnitKindCatalog.MultiMaterialUnit, 0);
+        var slot = unit.AddFeedSlot(0);
+        await _feedUnits.AddAsync(unit, CancellationToken.None);
+        var loaded = NewSpool(50);
+        loaded.LoadOntoFeedSlot(slot.Id);
+
+        await Handler(loaded).HandleAsync(new EditSpoolCommand(loaded.Id, "Shelf B", 500), CancellationToken.None);
+        await Handler(loaded).HandleAsync(new EditSpoolCommand(loaded.Id, "Shelf C", 500), CancellationToken.None);
+
+        _dispatcher.Requested.Should().Equal(printerId);
+    }
+
+    [Fact]
+    public async Task ReweighingASpoolOnTheShelf_WakesNoPrinter()
+    {
+        var spool = NewSpool(800);
+
+        await Handler(spool).HandleAsync(new EditSpoolCommand(spool.Id, "Shelf B", 700), CancellationToken.None);
+
+        _dispatcher.Requested.Should().BeEmpty();
+    }
 
     [Fact]
     public async Task ALowerWeight_AddsOneCorrectionEntryWithTheReason()

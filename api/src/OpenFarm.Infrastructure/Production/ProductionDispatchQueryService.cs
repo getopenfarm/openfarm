@@ -50,7 +50,7 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
                           filament.MaterialType, variant.ColorHex, variant.ColorName, spool.FeedSlotId!.Value)).ToListAsync(cancellationToken);
     }
 
-    public async Task<string?> GetReadinessIssueAsync(Guid printerId, Guid partId,
+    public async Task<OpenFarm.Application.Production.ReadinessIssue?> GetReadinessIssueAsync(Guid printerId, Guid partId,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, Guid? jobId = null)
     {
         var job = jobId is null ? null : await dbContext.PrintJobs.Include(j => j.Filaments).FirstAsync(j => j.Id == jobId, ct);
@@ -58,8 +58,8 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
         var libraryPart = job is null || requirement?.Quantity is null && job.DispatchedAtUtc is null
             ? await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == partId, ct) : null;
         var part = job is null ? libraryPart : OpenFarm.Application.Production.ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
-        if (job is not null && part is null) return job.SnapshotRecoveryReason ?? "Production snapshot needs recovery.";
-        if (part is null) return "Part not found.";
+        if (job is not null && part is null) return new(job.SnapshotRecoveryReason ?? "Production snapshot needs recovery.");
+        if (part is null) return new("Part not found.");
         if (job is null) return await readiness.GetIssueAsync(printerId, part,
             OpenFarm.Application.Production.ProductionJobRequirements.FromPart(part), ct);
         var effective = await jobRequirements.ResolveAsync(job, part, ct);

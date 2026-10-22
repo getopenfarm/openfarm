@@ -24,7 +24,7 @@ public class ProductionProfileReadinessIssueTests
         public Task SaveChangesAsync(CancellationToken cancellationToken) => throw failure;
     }
 
-    private static Task<string?> IssueWhenCheckingFailsWithAsync(Exception failure, CancellationToken ct = default)
+    private static async Task<string?> IssueWhenCheckingFailsWithAsync(Exception failure, CancellationToken ct = default)
     {
         var catalog = new TwoEngineCatalog();
         var printers = new FailingPrinterRepository(failure);
@@ -37,7 +37,7 @@ public class ProductionProfileReadinessIssueTests
             10, 0.4m, null, null, EstimateStatus.Available, 10, 10, 1, 1, new string('a', 64),
             [new("PLA", "#000000", null, null, null)], [], []);
 
-        return readiness.GetIssueAsync(Guid.NewGuid(), part, [new JobFilamentRequirementSpec("PLA", "#000000")], ct);
+        return (await readiness.GetIssueAsync(Guid.NewGuid(), part, [new JobFilamentRequirementSpec("PLA", "#000000")], ct))?.Message;
     }
 
     [Fact]

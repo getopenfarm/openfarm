@@ -20,6 +20,25 @@ historical catalog choices are not guessed from the current part. The additive
 JobFilamentIdentity migration preserves older explicit overrides recorded in the
 activity log.
 
+## Enough filament
+
+A printer is only a candidate when its loaded filament covers the job. For each requirement the job needs its estimate
+from the part's file (per colour, or the part's total for a one-colour part) plus 10%. What a spool covers is its own
+remaining weight plus what continuation would feed after it: every loaded spool of the same colour in the same AMS, or a
+reloader's loaded slots in slot order up to the first other colour. An external spool covers only itself. Two
+requirements drawing on the same spools add up.
+
+- A printer that falls short is skipped: an unassigned job goes to one that has enough, and a pinned job waits. Its
+  diagnostics show a `filament-stock` check, e.g. **Needs 132 g White PLA (120 g + 10%) · P01 has 50 g**, with a link to
+  the spool. Load more, or correct the spool's weight; a corrected weight on a loaded spool asks its printer to look at
+  the queue again.
+- Among spools of the same filament, the emptiest that holds the job alone is used, then the emptiest that holds it with
+  continuation, so part-used spools get used up without running out mid-print. Without an estimate the lowest slot is used,
+  as before, and nothing is checked: an unknown need never blocks.
+- The check runs inside `ProductionProfileReadiness`, the one path behind matching, dispatch and diagnostics, after the
+  profiles resolve. The margin is a fixed 10%; an AMS is assumed to switch to its backup spools, as the inventory
+  bookkeeping already does.
+
 ## Operator workflow
 
 Use the same Production filament selector when adding a part, reviewing a file

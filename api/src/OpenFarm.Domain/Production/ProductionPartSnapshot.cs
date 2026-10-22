@@ -18,5 +18,5 @@ public sealed record ProductionPartSnapshot(
         slicer?.Version ?? part.SlicerVersionUsed, part.EstimateStatus, part.EstimatedPrintTimeMinutes,
         part.EstimatedFilamentWeightGrams, part.PlateCount, part.UnitsPerPrint, part.RevisionHash,
         part.RevisionNumber, part.FilamentRequirements.Select(r => new FilamentRequirementSpec(
-            r.MaterialType, r.DetectedColorHex, r.DetectedSubBrand, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId)).ToArray());
+            r.MaterialType, r.DetectedColorHex, r.DetectedSubBrand, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, r.EstimatedGrams)).ToArray());
 }

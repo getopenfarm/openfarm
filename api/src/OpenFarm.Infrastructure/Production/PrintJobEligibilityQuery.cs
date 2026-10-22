@@ -126,10 +126,16 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
             {
                 var issue = await dispatchQuery.GetReadinessIssueAsync(printer.Id, part.Id,
                     effective.Requirements.Select(r => r.MatchingValues).ToList(), ct, job.Id);
-                var url = issue is null ? null : System.Text.RegularExpressions.Regex.Match(issue, @"/(?:filament|printers)/[a-fA-F0-9-]+/edit").Value;
-                checks.Add(new("profiles", "Production profile readiness", issue is null ? "Passed" : "Failed",
+                // A shortfall is checked last, so the profiles behind it passed.
+                var configIssue = issue is { Shortfall: null } ? issue.Message : null;
+                var url = configIssue is null ? null : System.Text.RegularExpressions.Regex.Match(configIssue, @"/(?:filament|printers)/[a-fA-F0-9-]+/edit").Value;
+                checks.Add(new("profiles", "Production profile readiness", configIssue is null ? "Passed" : "Failed",
                     "Compatible machine and filament assignments; slicing settings when needed",
-                    issue is null ? "Ready" : "Needs configuration", issue, string.IsNullOrEmpty(url) ? null : url));
+                    configIssue is null ? "Ready" : "Needs configuration", configIssue, string.IsNullOrEmpty(url) ? null : url));
+                if (issue?.Shortfall is { } shortfall)
+                    checks.Add(new("filament-stock", "Loaded filament weight", "Failed",
+                        $"{shortfall.NeededGrams} g {shortfall.Label} ({shortfall.EstimatedGrams} g + 10%)",
+                        $"{shortfall.AvailableGrams} g", issue.Message, $"/spools/{shortfall.SpoolId}"));
             }
             else checks.Add(new("profiles", "Production profile readiness", "NotEvaluated", null, null,
                 "Requires complete part requirements and a matching confirmed nozzle."));

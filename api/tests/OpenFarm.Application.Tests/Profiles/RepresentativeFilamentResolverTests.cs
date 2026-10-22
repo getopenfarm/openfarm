@@ -188,6 +188,48 @@ public sealed class RepresentativeFilamentResolverTests
     }
 
 
+    private static async Task<(FeedUnit Unit, List<Spool> Spools)> LoadAmsAsync(Fixture f, params decimal[] remainingGrams)
+    {
+        var unit = FeedUnit.CreateConnectorDerived(f.Printer.Id, FeedUnitKindCatalog.MultiMaterialUnit, 0);
+        var spools = new List<Spool>();
+        for (var slot = 0; slot < remainingGrams.Length; slot++)
+        {
+            var spool = Spool.Create(f.Black.Id, null, 1000, remainingGrams[slot]);
+            spool.LoadOntoFeedSlot(unit.AddFeedSlot(slot).Id);
+            await f.Spools.AddAsync(spool, default);
+            spools.Add(spool);
+        }
+
+        await f.Units.AddAsync(unit, default);
+        return (unit, spools);
+    }
+
+    [Fact]
+    public async Task WithAnEstimate_TakesTheEmptiestSpoolThatHoldsTheJob()
+    {
+        var f = new Fixture(); await f.AssignAsync();
+        var (unit, spools) = await LoadAmsAsync(f, 1000, 200, 100);
+
+        var chosen = await f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, f.Black.Id, null, default, estimatedGrams: 150);
+
+        // 200 g holds 150 g + 10% on its own; the 100 g spool would need the AMS to continue onto another.
+        chosen.SpoolId.Should().Be(spools[1].Id);
+        chosen.AvailableGrams.Should().Be(1300);
+        chosen.FeedUnitId.Should().Be(unit.Id);
+        chosen.Label.Should().Be("Black PLA");
+    }
+
+    [Fact]
+    public async Task WithoutAnEstimate_KeepsTheLowestSlot()
+    {
+        var f = new Fixture(); await f.AssignAsync();
+        var (_, spools) = await LoadAmsAsync(f, 1000, 200, 100);
+
+        var chosen = await f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, f.Black.Id, null, default);
+
+        chosen.SpoolId.Should().Be(spools[0].Id);
+    }
+
     private static FilamentProfile SystemPla(string version, string externalId = "GFSA00") => FilamentProfile.CreateSystemProfile(
         "Bambu PLA Basic @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, """{"filament_type":["PLA"]}""",
         "Bambu Lab", externalId, isSelectable: true, compatibleMachineNames: null, materialType: "PLA", includedTemplateNames: null,
