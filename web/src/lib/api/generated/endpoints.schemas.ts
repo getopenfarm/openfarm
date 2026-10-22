@@ -1572,6 +1572,10 @@ export interface RfidWeightDriftResponse {
   spoolLabel?: string | null;
   inventoryGrams?: number;
   readGrams?: number;
+  /** @nullable */
+  material?: string | null;
+  /** @nullable */
+  colorName?: string | null;
 }
 
 export interface ListNotificationsResponse {

@@ -16,7 +16,7 @@ public sealed record UnregisteredRfidSpool(
 /// <summary>A loaded tagged spool whose AMS reading and recorded weight differ by more than <see cref="SpoolReading.DriftShare"/> of its full weight.</summary>
 public sealed record RfidWeightDrift(
     Guid PrinterId, string PrinterName, Guid FeedSlotId, string SlotLabel, Guid SpoolId, string? SpoolLabel,
-    decimal InventoryGrams, decimal ReadGrams);
+    decimal InventoryGrams, decimal ReadGrams, string? Material, string? ColorName);
 
 public sealed record RfidItems(IReadOnlyList<UnregisteredRfidSpool> Unregistered, IReadOnlyList<RfidWeightDrift> Drift);
 
@@ -46,8 +46,12 @@ public sealed class RfidNotifications(IPrinterRepository printers, IFeedUnitRepo
                     if (active.FeedSlotId == slot.Id && printer.Status != PrinterStatus.Printing
                         && SpoolReading.Grams(tray.RemainPercent, active.SpoolWeightGrams) is { } read
                         && SpoolReading.Drifted(active.RemainingWeightGrams, read, active.SpoolWeightGrams))
+                    {
+                        var color = colors.FirstOrDefault(c => c.FilamentVariantId == active.FilamentVariantId);
                         drift.Add(new(printer.Id, printer.Name, slot.Id, FeedUnitDisplay.SlotLabel(unit, slot, printer.Brand),
-                            active.Id, active.Label, active.RemainingWeightGrams, read));
+                            active.Id, active.Label, active.RemainingWeightGrams, read, color?.Material, color?.ColorName));
+                    }
+
                     continue;
                 }
 

@@ -278,6 +278,7 @@ public class RfidAssistTests(ProductionTestFactory factory) : ProductionTestCont
         drift.FeedSlotId.Should().Be(slots[0]);
         drift.InventoryGrams.Should().Be(1000);
         drift.ReadGrams.Should().Be(420);
+        (drift.Material, drift.ColorName).Should().Be(("PLA Basic", "Black"));
 
         (await client.PutAsJsonAsync($"/api/v1/spools/{spool}", new { remainingWeightGrams = 420, reason = "AMS reading" }))
             .EnsureSuccessStatusCode();

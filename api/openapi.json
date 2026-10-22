@@ -9369,6 +9369,14 @@
           "readGrams": {
             "type": "number",
             "format": "decimal"
+          },
+          "material": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorName": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

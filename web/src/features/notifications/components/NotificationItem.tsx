@@ -200,7 +200,9 @@ export function RfidWeightDriftNotification({
           to={`/spools/${item.spoolId}`}
           className="block truncate text-sm font-medium hover:underline"
         >
-          {item.spoolLabel ?? 'Spool'}
+          {item.spoolLabel ??
+            ([item.material, item.colorName].filter(Boolean).join(' · ') ||
+              'Spool')}
         </Link>
         <p className="text-xs text-muted-foreground">
           {item.printerName} · {item.slotLabel}

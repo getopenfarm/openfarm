@@ -122,6 +122,11 @@ public sealed class RfidWeightDriftResponse
 
     /// <summary>What the AMS reading implies, to whole grams.</summary>
     public decimal ReadGrams { get; set; }
+
+    /// <summary>The spool's filament and colour, to name a spool with no label.</summary>
+    public string? Material { get; set; }
+
+    public string? ColorName { get; set; }
 }
 
 public sealed class ListNotificationsResponse
@@ -217,6 +222,8 @@ public sealed class ListNotificationsEndpoint(IQueryHandler<ListNotificationsQue
                 SpoolLabel = item.SpoolLabel,
                 InventoryGrams = item.InventoryGrams,
                 ReadGrams = item.ReadGrams,
+                Material = item.Material,
+                ColorName = item.ColorName,
             }).ToList(),
         };
     }

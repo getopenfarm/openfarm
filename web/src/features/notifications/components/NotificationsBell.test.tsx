@@ -347,4 +347,37 @@ describe('NotificationsBell', () => {
     );
     expect(await screen.findByText('Spool corrected.')).toBeInTheDocument();
   });
+  it('names a drifting spool with no label by its filament and color', async () => {
+    stubFetch(
+      [],
+      [],
+      [],
+      [
+        {
+          printerId: 'printer-1',
+          printerName: 'P01',
+          feedSlotId: 'slot-1',
+          slotLabel: 'AMS 1 · Slot 1',
+          spoolId: 'spool-drift',
+          spoolLabel: null,
+          material: 'PLA Basic',
+          colorName: 'Red',
+          inventoryGrams: 640,
+          readGrams: 420,
+        },
+      ],
+    );
+    renderBell();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Notifications, 1 need action',
+      }),
+    );
+
+    expect(
+      await screen.findByRole('link', { name: 'PLA Basic · Red' }),
+    ).toHaveAttribute('href', '/spools/spool-drift');
+  });
 });
