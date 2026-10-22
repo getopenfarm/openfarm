@@ -20,6 +20,13 @@ historical catalog choices are not guessed from the current part. The additive
 JobFilamentIdentity migration preserves older explicit overrides recorded in the
 activity log.
 
+## Which idle printer takes an unassigned job
+
+When several idle printers qualify for the same unassigned job, the simplest one takes it: fewest AMS trays, then the lowest
+id. The others leave it to that printer and wake it. That printer may take an earlier job of its own instead (pinned or not).
+Once it holds a job, the printers that left the match to it are woken again, so the job does not wait for their next status
+report. A manual printer sends no status reports.
+
 ## Enough filament
 
 A printer is only a candidate when its loaded filament covers the job. For each requirement the job needs its estimate

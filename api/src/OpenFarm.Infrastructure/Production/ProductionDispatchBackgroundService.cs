@@ -34,6 +34,9 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 {
     private readonly Channel<Guid> _channel;
     private readonly ConcurrentDictionary<Guid, byte> _pending = new();
+
+    // Printers that deferred an unassigned match, keyed by the printer they deferred to. Only the worker loop touches it.
+    private readonly Dictionary<Guid, HashSet<Guid>> _deferredTo = [];
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ProductionDispatchBackgroundService> _logger;
 
@@ -71,6 +74,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                     try
                     {
                         await ProcessDispatchAttemptAsync(printerId, stoppingToken);
+                        await WakeDeferredAsync(printerId, stoppingToken);
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                     {
@@ -165,7 +169,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         // printer (a Pinned match has exactly one eligible printer by construction). If a simpler
         // idle printer also qualifies for this exact job, defer to it: skip dispatching here and
         // proactively wake that printer's own attempt instead, rather than leaving nothing to ever
-        // trigger it.
+        // trigger it. That printer may take an earlier job of its own instead; WakeDeferredAsync
+        // then wakes this one again.
         var unassignedMatch = candidates.FirstOrDefault(c => c.JobId == jobId.Value);
         if (unassignedMatch is not null)
         {
@@ -178,6 +183,12 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 foreach (var (otherPrinterId, _) in otherQualifying)
                 {
                     RequestDispatchAttempt(otherPrinterId);
+                    if (!_deferredTo.TryGetValue(otherPrinterId, out var deferring))
+                    {
+                        _deferredTo[otherPrinterId] = deferring = [];
+                    }
+
+                    deferring.Add(printer.Id);
                 }
 
                 return;
@@ -214,6 +225,32 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         }
 
         await DispatchJobAsync(services, printer, job, part, nozzleDiameterMm.Value, runLine.RevisionMode, jobRepository, cancellationToken);
+    }
+
+    /// <summary>
+    /// Once a printer that others deferred a match to holds a job, wakes them: the match may still be waiting (that printer took
+    /// an earlier job of its own), and a manual printer gets no telemetry to wake it. Waking only once it holds a job means it
+    /// no longer contends, so two printers never keep waking each other.
+    /// </summary>
+    private async Task WakeDeferredAsync(Guid printerId, CancellationToken cancellationToken)
+    {
+        if (!_deferredTo.TryGetValue(printerId, out var deferring))
+        {
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var jobs = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
+        if (await jobs.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken) is null)
+        {
+            return;
+        }
+
+        _deferredTo.Remove(printerId);
+        foreach (var deferringPrinterId in deferring)
+        {
+            RequestDispatchAttempt(deferringPrinterId);
+        }
     }
 
     /// <summary>

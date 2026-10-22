@@ -24,8 +24,7 @@ public class FilamentStockDispatchTests(ProductionTestFactory factory) : Product
         return spool.Id;
     }
 
-    // Printers left idle by other tests in this class would compete for an unassigned job: a printer defers to a preferred
-    // idle one, and without telemetry nothing wakes it again.
+    // Printers left idle by other tests in this class load the same filament, so they would compete for an unassigned job.
     private async Task ParkOtherPrintersAsync(params Guid[] keep)
     {
         using var scope = Factory.Services.CreateScope();
