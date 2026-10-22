@@ -401,6 +401,9 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
         var feedSlotTelemetrySync = services.GetRequiredService<IFeedSlotTelemetrySync>();
         await feedSlotTelemetrySync.SyncAsync(printer.Id, printer.Brand, printer.AmsUnits, printer.ExternalSpoolTray, cancellationToken);
+        // After topology sync (a slot may be new) and before the idle dispatch request below (it may load a spool a job needs).
+        if (services.GetService<RfidSpoolLinker>() is { } rfidSpoolLinker)
+            await rfidSpoolLinker.LinkAsync(printer, cancellationToken);
 
         var publisher = services.GetRequiredService<IPrinterEventPublisher>();
 

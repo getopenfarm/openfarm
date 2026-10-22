@@ -56,6 +56,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             SpoolConcurrencyConflictException => (StatusCodes.Status409Conflict, "Spool was concurrently modified"),
             FeedSlotOccupiedException => (StatusCodes.Status409Conflict, "Feed slot already occupied"),
             InvalidSpoolStateTransitionException => (StatusCodes.Status422UnprocessableEntity, "Invalid spool state transition"),
+            SpoolRfidConflictException => (StatusCodes.Status409Conflict, "RFID tag in use"),
             FeedSlotDeactivatedException => (StatusCodes.Status422UnprocessableEntity, "Feed slot is deactivated"),
             NotAnAutomaticFilamentReloaderException => (StatusCodes.Status422UnprocessableEntity, "Feed unit cannot be manually removed"),
             PartPrintRequirementsIncompleteException => (StatusCodes.Status422UnprocessableEntity, "Incomplete print requirements"),

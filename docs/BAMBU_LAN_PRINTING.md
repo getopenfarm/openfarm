@@ -81,3 +81,25 @@ extruder, so it is usable on either path. A job whose colours would need both th
 `tray_now` meanings come from community sources (Home Assistant `ha-bambulab`, OpenBambuAPI), not Bambu documentation.
 Unverified on hardware: `254` while idle with external filament hand-loaded, `255` on A1 / AMS Lite printers, the
 `ams_id` used for the external feed in `ams_mapping2`, and printer acceptance of both arrays.
+
+## RFID spools
+
+A Bambu spool's two RFID tags carry the same spool id (`tray_uuid`); OpenFarm stores it as the spool's `RfidId`. An all-zero
+id (an untagged spool, or a printer without a reader, such as the A1's external holder) means no tag. Only the parser knows
+the Bambu field names: the rest of the app sees `AmsTray.RfidId` and `RfidWeightGrams` (`tray_weight`).
+
+- **Register or link.** `POST /api/v1/spools` takes `rfidId` (quantity 1). `PUT /api/v1/spools/{id}/rfid` ties a spool already
+  in inventory to its tag, so a spool registered before RFID assist is not registered twice. One active spool per tag: a
+  finished spool keeps its tag for history and frees it, so a refill or re-used tag can be registered again, and restoring
+  the old spool is then refused (409).
+- **Auto-load.** After each telemetry flush, `RfidSpoolLinker` loads a registered spool into the AMS slot (or unreplaced
+  external holder) whose tray reads its tag. The registered spool that sat there goes back to storage, and the tagged spool
+  leaves any other slot it was in, clearing a reloader's feeding slot when it was that one. It runs under the printer's
+  feed-path lock and retries at the next flush when another change wins the race.
+- **Only when the tag is new to the slot.** `FeedSlot.LinkedRfidId` remembers the tag a slot last loaded by, across restarts
+  and reconnects. The same tag still being read does nothing, so an operator who unloads a spool that stays in the AMS is not
+  overruled; an empty reading forgets it, so re-inserting the spool loads it again. A tray holding a spool but reporting no tag
+  is skipped, not read as empty. A tag read in two slots at once loads neither. A finished spool's tag loads nothing.
+- Reloader slots are never linked: their feeding slot can be an estimate.
+- Spools are never created from a tag: a created spool would have no price, could get a guessed color, and would duplicate an
+  untagged spool already in inventory.

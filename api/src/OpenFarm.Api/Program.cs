@@ -328,6 +328,8 @@ builder.Services.AddScoped<IExternalPrintRepository, ExternalPrintRepository>();
 builder.Services.AddScoped<IPrintRepository, PrintRepository>();
 builder.Services.AddScoped<FeedTrayResolver>();
 builder.Services.AddScoped<ExternalPrintSync>();
+builder.Services.AddScoped<RfidSpoolLinker>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<AttachSpoolRfidCommand, OpenFarm.Domain.FilamentTracking.Spool>, AttachSpoolRfidCommandHandler>();
 builder.Services.AddScoped<IProductionEventPublisher, FarmHubProductionEventPublisher>();
 
 builder.Services.AddSingleton<ProductionDispatchBackgroundService>();

@@ -25,6 +25,10 @@ public interface ISpoolRepository
     /// <summary>The <see cref="Spool"/> (if any) currently <see cref="SpoolState.Using"/> a given <see cref="FeedSlot"/> — the load pre-check ahead of the partial unique index.</summary>
     Task<Spool?> FindUsingFeedSlotAsync(Guid feedSlotId, CancellationToken cancellationToken);
 
+    /// <summary>The unfinished spools whose RFID tag is one of <paramref name="rfidIds"/>, tracked.</summary>
+    Task<IReadOnlyList<Spool>> FindByRfidIdsAsync(IReadOnlyCollection<string> rfidIds, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Spool>>([]);
+
     /// <summary>
     /// Persists pending changes to a tracked <see cref="Spool"/>. A concurrency conflict — either the
     /// partial unique index (two loads racing for the same feed slot) or the <c>xmin</c> optimistic

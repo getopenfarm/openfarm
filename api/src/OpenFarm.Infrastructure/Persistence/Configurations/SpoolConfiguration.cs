@@ -44,6 +44,14 @@ public sealed class SpoolConfiguration : IEntityTypeConfiguration<Spool>
 
         builder.Property(s => s.ReceivedOn);
 
+        builder.Property(s => s.RfidId)
+            .HasMaxLength(Spool.MaxRfidIdLength);
+
+        // One active spool per tag; a finished spool keeps its tag for history, so a refill or re-used tag can be registered again.
+        builder.HasIndex(s => s.RfidId)
+            .IsUnique()
+            .HasFilter("\"RfidId\" IS NOT NULL AND \"State\" <> 'Finished'");
+
         builder.HasOne<FilamentVariant>()
             .WithMany()
             .HasForeignKey(s => s.FilamentVariantId)

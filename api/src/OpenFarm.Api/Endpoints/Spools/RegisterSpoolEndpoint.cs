@@ -32,6 +32,9 @@ public sealed class RegisterSpoolRequest : IActivityLoggable
 
     public DateOnly? ReceivedOn { get; set; }
 
+    /// <summary>The spool's RFID tag as a printer reads it; a printer that reads it loads the spool. Quantity must be 1.</summary>
+    public string? RfidId { get; set; }
+
     public string EntityType => "Spool";
 
     public string EventType => "SpoolRegistered";
@@ -52,6 +55,8 @@ public sealed class RegisterSpoolRequestValidator : AbstractValidator<RegisterSp
         RuleFor(x => x.Price).GreaterThanOrEqualTo(0).When(x => x.Price is not null);
         RuleFor(x => x.Supplier).MaximumLength(Spool.MaxPurchaseTextLength);
         RuleFor(x => x.OrderNumber).MaximumLength(Spool.MaxPurchaseTextLength);
+        RuleFor(x => x.RfidId).MaximumLength(Spool.MaxRfidIdLength);
+        RuleFor(x => x.Quantity).Equal(1).When(x => x.RfidId is not null).WithMessage("A tagged spool is added one at a time.");
     }
 }
 
@@ -65,7 +70,7 @@ public sealed class RegisterSpoolsResponse : IHasEntityIds
     public IReadOnlyList<string> EntityIds => Spools.Select(s => s.Id.ToString()).ToList();
 }
 
-/// <summary>FR-001/FR-002. Adds <c>quantity</c> identical spools in one save. 404 on an unresolvable filamentVariantId; 400 or 422 on validation failures.</summary>
+/// <summary>FR-001/FR-002. Adds <c>quantity</c> identical spools in one save. 404 on an unresolvable filamentVariantId; 400 or 422 on validation failures; 409 when the RFID tag is already registered.</summary>
 [Permission("spools:register")]
 public sealed class RegisterSpoolEndpoint(RegisterSpoolHandler handler, IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>> spoolsQuery)
     : Endpoint<RegisterSpoolRequest, RegisterSpoolsResponse>
@@ -80,7 +85,7 @@ public sealed class RegisterSpoolEndpoint(RegisterSpoolHandler handler, IQueryHa
     {
         var command = new RegisterSpoolCommand(
             req.FilamentVariantId, req.Label, req.SpoolWeightGrams, req.RemainingWeightGrams,
-            req.Quantity, req.Price, req.Supplier, req.OrderNumber, req.ReceivedOn);
+            req.Quantity, req.Price, req.Supplier, req.OrderNumber, req.ReceivedOn, req.RfidId);
         var spools = await handler.HandleAsync(command, ct);
 
         Response = new RegisterSpoolsResponse

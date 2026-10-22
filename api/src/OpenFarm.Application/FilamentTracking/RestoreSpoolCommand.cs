@@ -16,6 +16,9 @@ public sealed class RestoreSpoolCommandHandler(ISpoolRepository spoolRepository,
     {
         var spool = await spoolRepository.GetByIdAsync(command.SpoolId, cancellationToken)
             ?? throw new SpoolNotFoundException(command.SpoolId);
+        // Finishing freed its tag; a spool registered with it since keeps it.
+        if (spool.RfidId is { } tag && (await spoolRepository.FindByRfidIdsAsync([tag], cancellationToken)).Any(s => s.Id != spool.Id))
+            throw new SpoolRfidConflictException("Another spool now has this RFID tag.");
 
         // Add, not AddAsync: the entry commits with the spool below, so a re-weigh that raced the read is the spool's 409.
         if (spool.Restore(await usageRecordRepository.GetLatestAsync(spool.Id, cancellationToken)) is { } restore)

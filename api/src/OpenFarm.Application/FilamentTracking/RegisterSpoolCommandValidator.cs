@@ -18,5 +18,7 @@ public sealed class RegisterSpoolCommandValidator : AbstractValidator<RegisterSp
         RuleFor(x => x.Price).GreaterThanOrEqualTo(0).When(x => x.Price is not null);
         RuleFor(x => x.Supplier).MaximumLength(Spool.MaxPurchaseTextLength);
         RuleFor(x => x.OrderNumber).MaximumLength(Spool.MaxPurchaseTextLength);
+        RuleFor(x => x.RfidId).MaximumLength(Spool.MaxRfidIdLength);
+        RuleFor(x => x.Quantity).Equal(1).When(x => x.RfidId is not null).WithMessage("A tagged spool is added one at a time.");
     }
 }

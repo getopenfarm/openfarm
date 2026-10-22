@@ -55,6 +55,10 @@ export interface SpoolResponse {
   receivedOn?: string | null;
 }
 
+export interface AttachSpoolRfidRequest {
+  rfidId?: string;
+}
+
 export interface EditSpoolRequest {
   /** @nullable */
   label?: string | null;
@@ -183,6 +187,8 @@ export interface RegisterSpoolRequest {
   orderNumber?: string | null;
   /** @nullable */
   receivedOn?: string | null;
+  /** @nullable */
+  rfidId?: string | null;
 }
 
 export interface RestoreSpoolRequest {

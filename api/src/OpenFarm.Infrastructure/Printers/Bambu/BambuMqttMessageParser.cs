@@ -252,6 +252,9 @@ public static class BambuMqttMessageParser
         var colorHex = GetString(trayElement, "tray_color");
         var subBrand = GetString(trayElement, "tray_sub_brands");
         var remainPercent = TryGetInt(trayElement, "remain");
+        // A tray without a tagged spool reports an all-zero uuid and weight "0".
+        var rfidId = GetString(trayElement, "tray_uuid") is { } uuid && uuid.Trim('0').Length > 0 ? uuid : null;
+        var rfidWeight = TryGetDecimal(trayElement, "tray_weight") is > 0 and var weight ? (int)weight : (int?)null;
 
         // pybambu's AMSTray defaults color to "00000000" and type to empty when no spool is
         // loaded (research.md §3) — there's no explicit "empty" flag on the wire.
@@ -264,7 +267,9 @@ public static class BambuMqttMessageParser
             empty ? null : colorHex,
             empty ? null : subBrand,
             remainPercent is null or < 0 ? null : remainPercent,
-            Active: false); // Derived from tray_now in Printer.RecordTelemetry — the parser has no view across deltas.
+            Active: false, // Derived from tray_now in Printer.RecordTelemetry — the parser has no view across deltas.
+            RfidId: empty ? null : rfidId,
+            RfidWeightGrams: empty || rfidId is null ? null : rfidWeight);
     }
 
     private static string? GetString(JsonElement element, string propertyName) =>

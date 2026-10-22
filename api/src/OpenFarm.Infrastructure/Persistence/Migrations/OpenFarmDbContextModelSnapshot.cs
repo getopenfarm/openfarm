@@ -419,6 +419,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("FeedUnitId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("LinkedRfidId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<int>("SlotPosition")
                         .HasColumnType("integer");
 
@@ -633,6 +637,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("RemainingWeightGrams")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("RfidId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<decimal>("SpoolWeightGrams")
                         .HasColumnType("numeric");
 
@@ -657,6 +665,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasFilter("\"State\" = 'Using'");
 
                     b.HasIndex("FilamentVariantId");
+
+                    b.HasIndex("RfidId")
+                        .IsUnique()
+                        .HasFilter("\"RfidId\" IS NOT NULL AND \"State\" <> 'Finished'");
 
                     b.HasIndex("State", "CreatedAtUtc");
 

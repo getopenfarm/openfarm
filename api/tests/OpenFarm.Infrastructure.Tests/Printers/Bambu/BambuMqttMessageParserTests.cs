@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Printers.Bambu;
 
 namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
@@ -306,6 +307,61 @@ public class BambuMqttMessageParserTests
         telemetry!.ExternalSpoolTray.Should().NotBeNull();
         telemetry.ExternalSpoolTray!.Empty.Should().BeTrue();
         telemetry.ExternalSpoolTray.MaterialType.Should().BeNull();
+    }
+
+    private static AmsTray Tray(string fixtureFile, int unitIndex, int slotIndex) =>
+        BambuMqttMessageParser.TryParseTelemetry(LoadSection(fixtureFile, "pushall"))!
+            .AmsUnits.Single(u => u.UnitIndex == unitIndex).Trays.Single(t => t.SlotIndex == slotIndex);
+
+    [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_ReadsEachSpoolsRfidIdAndWeight()
+    {
+        var tray = Tray("awaiting-clear-x1c-multi-ams.json", 0, 0);
+
+        tray.RfidId.Should().Be("5F3D8925633343C29FB9A97FA9125971");
+        tray.RfidWeightGrams.Should().Be(1000);
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_ReadsTheAmsHtTag() =>
+        Tray("awaiting-clear-x1c-multi-ams.json", 128, 0).RfidId.Should().Be("3912400D8BFC4A4D9578E9E643162E10");
+
+    [Fact]
+    public void TryParseTelemetry_WithMultiAmsFixture_AnEmptyTrayHasNoTag()
+    {
+        var tray = Tray("awaiting-clear-x1c-multi-ams.json", 2, 0);
+
+        tray.RfidId.Should().BeNull();
+        tray.RfidWeightGrams.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryParseTelemetry_WithA1Fixture_AnAllZeroTrayUuidIsNoTag()
+    {
+        var tray = Tray("idle-a1.json", 0, 0);
+
+        tray.Empty.Should().BeFalse();
+        tray.RfidId.Should().BeNull();
+        tray.RfidWeightGrams.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryParseTelemetry_ExternalSpoolWithAnAllZeroUuid_HasNoTag() =>
+        BambuMqttMessageParser.TryParseTelemetry(LoadSection("awaiting-clear-p1p-no-ams.json", "pushall"))!
+            .ExternalSpoolTray!.RfidId.Should().BeNull();
+
+    [Theory]
+    [InlineData("\"1000\"", 1000)]
+    [InlineData("750", 750)]
+    [InlineData("\"0\"", null)]
+    public void TrayWeight_AcceptsAStringOrANumber(string weight, int? expected)
+    {
+        var payload = """
+            {"print":{"ams":{"ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"FFFFFFFF",
+            "tray_uuid":"5F3D8925633343C29FB9A97FA9125971","tray_weight":WEIGHT}]}]}}}
+            """.Replace("WEIGHT", weight, StringComparison.Ordinal);
+
+        BambuMqttMessageParser.TryParseTelemetry(payload)!.AmsUnits.Single().Trays.Single().RfidWeightGrams.Should().Be(expected);
     }
 
     private static string LoadSection(string fixtureFile, string sectionName)

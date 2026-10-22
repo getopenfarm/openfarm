@@ -22,6 +22,7 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
+  AttachSpoolRfidRequest,
   EditSpoolRequest,
   ListSpoolsResponse,
   LoadSpoolRequest,
@@ -55,6 +56,138 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
+export type openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse200 = {
+  data: SpoolResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponseSuccess =
+  openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponseError = (
+  | openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse401
+  | openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse =
+  | openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponseSuccess
+  | openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/spools/${id}/rfid`;
+};
+
+export const openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint = async (
+  id: string,
+  attachSpoolRfidRequest: AttachSpoolRfidRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSpoolsAttachSpoolRfidEndpointResponse>(
+    getOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpointUrl(id),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(attachSpoolRfidRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint>
+      >,
+      TError,
+      { id: string; data: AttachSpoolRfidRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint>
+    >,
+    TError,
+    { id: string; data: AttachSpoolRfidRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint>
+      >,
+      { id: string; data: AttachSpoolRfidRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpointMutationBody =
+  AttachSpoolRfidRequest;
+export type OpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint>
+      >,
+      TError,
+      { id: string; data: AttachSpoolRfidRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint>>,
+  TError,
+  { id: string; data: AttachSpoolRfidRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsSpoolsEditSpoolEndpointResponse200 = {
   data: SpoolResponse;
   status: 200;

@@ -5,6 +5,8 @@ public sealed class Spool
     /// <summary>Longest supplier or order number kept.</summary>
     public const int MaxPurchaseTextLength = 100;
 
+    public const int MaxRfidIdLength = 64;
+
     private Spool(
         Guid id,
         Guid filamentVariantId,
@@ -51,6 +53,9 @@ public sealed class Spool
 
     /// <summary>The day the spool arrived: a calendar date, with no time or zone.</summary>
     public DateOnly? ReceivedOn { get; private set; }
+
+    /// <summary>The id its RFID tag carries, so a printer that reads the tag loads it; null when untagged. A finished spool keeps it for history.</summary>
+    public string? RfidId { get; private set; }
 
     /// <summary><see cref="Price"/> over the spool's full weight in kilograms — what was paid covers the whole spool, not what is left of it.</summary>
     public decimal? PricePerKg => PricePerKgOf(Price, SpoolWeightGrams);
@@ -170,6 +175,23 @@ public sealed class Spool
 
         RemainingWeightGrams = remainingWeightGrams;
         HasUsageOverrun = false;
+    }
+
+    /// <summary>Ties the spool to the tag a printer reads. The same id again does nothing; a spool keeps the first tag it got.</summary>
+    public void AttachRfid(string rfidId)
+    {
+        var id = rfidId.Trim();
+        if (id.Length == 0 || id.Length > MaxRfidIdLength)
+        {
+            throw new ArgumentException($"An RFID id is 1 to {MaxRfidIdLength} characters.", nameof(rfidId));
+        }
+
+        if (RfidId == id)
+        {
+            return;
+        }
+
+        RfidId = RfidId is null ? id : throw new SpoolRfidConflictException("The spool already has another RFID tag.");
     }
 
     /// <summary>Free-text shelf label; blank clears it.</summary>

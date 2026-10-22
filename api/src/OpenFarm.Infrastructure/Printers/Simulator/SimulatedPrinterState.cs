@@ -56,14 +56,17 @@ public sealed class SimulatedPrinterState
     /// <summary>
     /// Fixed illustrative default fixture (data-model.md's AMS default content table) — same static
     /// material/color/remaining-% shape for the life of the connection; only the printing tray's
-    /// <c>Active</c> flag reflects current status.
+    /// <c>Active</c> flag reflects current status. Slots 1 and 2 (indexes 0 and 1) hold RFID-tagged spools, tagged per printer so two simulated
+    /// printers never read the same spool.
     /// </summary>
     public IReadOnlyList<AmsUnit> AmsUnits =>
     [
         new AmsUnit(0,
         [
-            new AmsTray(0, Empty: false, MaterialType: "PLA", ColorHex: "#E53935", SubBrand: "Generic", RemainPercent: 82, Active: Status == PrinterStatus.Printing),
-            new AmsTray(1, Empty: false, MaterialType: "PETG", ColorHex: "#1E88E5", SubBrand: "Generic", RemainPercent: 45, Active: false),
+            new AmsTray(0, Empty: false, MaterialType: "PLA", ColorHex: "#E53935", SubBrand: "Generic", RemainPercent: 82, Active: Status == PrinterStatus.Printing,
+                RfidId: $"{SerialNumber}-0", RfidWeightGrams: 1000),
+            new AmsTray(1, Empty: false, MaterialType: "PETG", ColorHex: "#1E88E5", SubBrand: "Generic", RemainPercent: 45, Active: false,
+                RfidId: $"{SerialNumber}-1", RfidWeightGrams: 1000),
             new AmsTray(2, Empty: false, MaterialType: "ABS", ColorHex: "#43A047", SubBrand: "Generic", RemainPercent: 90, Active: false),
             new AmsTray(3, Empty: false, MaterialType: "TPU", ColorHex: "#FDD835", SubBrand: "Generic", RemainPercent: 12, Active: false),
         ]),

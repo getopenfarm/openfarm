@@ -3,7 +3,10 @@ import { reportedStateLabel } from '@/features/printers/lib/reportedState';
 import type { ActivityLogDetails } from '@/lib/api/generated/endpoints.schemas';
 
 function humanizeIdentifier(value: string): string {
-  return value.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .replace(/\brfid\b/g, 'RFID');
 }
 
 function capitalize(value: string): string {

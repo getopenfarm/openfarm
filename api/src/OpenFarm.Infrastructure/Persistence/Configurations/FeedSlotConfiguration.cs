@@ -15,6 +15,9 @@ public sealed class FeedSlotConfiguration : IEntityTypeConfiguration<FeedSlot>
         builder.Property(s => s.SlotPosition)
             .IsRequired();
 
+        builder.Property(s => s.LinkedRfidId)
+            .HasMaxLength(Spool.MaxRfidIdLength);
+
         builder.Property(s => s.CreatedAtUtc)
             .IsRequired();
 

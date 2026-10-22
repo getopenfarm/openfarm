@@ -22,10 +22,35 @@ public sealed class FeedSlot
 
     public DateTimeOffset? DeactivatedAtUtc { get; private set; }
 
+    /// <summary>The RFID tag this slot last loaded a spool by: how auto-load tells a tag just read from one still sitting there.</summary>
+    public string? LinkedRfidId { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     internal static FeedSlot Create(Guid feedUnitId, int slotPosition) =>
         new(Guid.NewGuid(), feedUnitId, slotPosition, DateTimeOffset.UtcNow);
+
+    /// <summary>
+    /// Takes one reading of the slot's tag. True when the spool with <paramref name="rfidId"/> should be loaded here now: a
+    /// registered tag new to the slot. The same tag still read does nothing, so a manual unload is never undone; an empty slot
+    /// or an unregistered tag is forgotten, so re-inserting the spool, or registering it later, loads it.
+    /// </summary>
+    public bool ObserveRfid(string? rfidId, bool registered)
+    {
+        if (rfidId is null || !registered)
+        {
+            LinkedRfidId = null;
+            return false;
+        }
+
+        if (rfidId == LinkedRfidId)
+        {
+            return false;
+        }
+
+        LinkedRfidId = rfidId;
+        return true;
+    }
 
     /// <summary>Idempotent — a no-op if already deactivated.</summary>
     public void Deactivate() => DeactivatedAtUtc ??= DateTimeOffset.UtcNow;

@@ -117,8 +117,10 @@ public class SimulatorPrinterConnectorTests
 
         var expectedTrays = new[]
         {
-            new AmsTray(0, Empty: false, MaterialType: "PLA", ColorHex: "#E53935", SubBrand: "Generic", RemainPercent: 82, Active: false),
-            new AmsTray(1, Empty: false, MaterialType: "PETG", ColorHex: "#1E88E5", SubBrand: "Generic", RemainPercent: 45, Active: false),
+            new AmsTray(0, Empty: false, MaterialType: "PLA", ColorHex: "#E53935", SubBrand: "Generic", RemainPercent: 82, Active: false,
+                RfidId: "SN-5-0", RfidWeightGrams: 1000),
+            new AmsTray(1, Empty: false, MaterialType: "PETG", ColorHex: "#1E88E5", SubBrand: "Generic", RemainPercent: 45, Active: false,
+                RfidId: "SN-5-1", RfidWeightGrams: 1000),
             new AmsTray(2, Empty: false, MaterialType: "ABS", ColorHex: "#43A047", SubBrand: "Generic", RemainPercent: 90, Active: false),
             new AmsTray(3, Empty: false, MaterialType: "TPU", ColorHex: "#FDD835", SubBrand: "Generic", RemainPercent: 12, Active: false),
         };
