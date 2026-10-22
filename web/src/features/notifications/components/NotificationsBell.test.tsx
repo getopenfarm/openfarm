@@ -38,13 +38,20 @@ function stubFetch(
   items: unknown[],
   lowStock: unknown[] = [],
   rfidSpools: unknown[] = [],
+  rfidDrift: unknown[] = [],
 ) {
-  const requests: { url: string; method?: string }[] = [];
+  const requests: { url: string; method?: string; body?: unknown }[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
-      requests.push({ url, method: init?.method });
+      requests.push({
+        url,
+        method: init?.method,
+        ...(init?.method === 'PUT'
+          ? { body: JSON.parse(init.body as string) }
+          : {}),
+      });
       const json = (body: unknown) =>
         Promise.resolve(
           new Response(JSON.stringify(body), {
@@ -54,8 +61,23 @@ function stubFetch(
         );
       if (url.includes('/dismiss')) return json({ id: 'print-1' });
       if (url.includes('/rfid')) return json({ id: 'spool-untagged' });
+      if (url.endsWith('/api/v1/spools/spool-drift'))
+        return json({
+          id: 'spool-drift',
+          label: 'Shelf C',
+          price: 18.5,
+          supplier: 'Bambu',
+          orderNumber: 'A-1',
+          receivedOn: '2026-10-01',
+        });
       if (url.includes('/api/v1/notifications'))
-        return json({ items, totalCount: items.length, lowStock, rfidSpools });
+        return json({
+          items,
+          totalCount: items.length,
+          lowStock,
+          rfidSpools,
+          rfidDrift,
+        });
       if (url.includes('/api/v1/printers'))
         return json({ printers: [{ id: 'printer-1', name: 'Bambu A1' }] });
       if (url.includes('/api/v1/spools'))
@@ -268,11 +290,61 @@ describe('NotificationsBell', () => {
     await user.click(screen.getByRole('button', { name: 'Link' }));
 
     await waitFor(() =>
-      expect(requests).toContainEqual({
-        url: expect.stringContaining('/api/v1/spools/spool-untagged/rfid'),
-        method: 'PUT',
-      }),
+      expect(requests).toContainEqual(
+        expect.objectContaining({
+          url: expect.stringContaining('/api/v1/spools/spool-untagged/rfid'),
+          method: 'PUT',
+        }),
+      ),
     );
     expect(await screen.findByText('Spool linked.')).toBeInTheDocument();
+  });
+  it('corrects a drifting spool to the AMS reading, keeping its label and purchase info', async () => {
+    const requests = stubFetch(
+      [],
+      [],
+      [],
+      [
+        {
+          printerId: 'printer-1',
+          printerName: 'P01',
+          feedSlotId: 'slot-1',
+          slotLabel: 'AMS 1 · Slot 1',
+          spoolId: 'spool-drift',
+          spoolLabel: 'Shelf C',
+          inventoryGrams: 640,
+          readGrams: 420,
+        },
+      ],
+    );
+    renderBell();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Notifications, 1 need action',
+      }),
+    );
+    expect(
+      await screen.findByText('AMS reads ~420 g · inventory 640 g'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Correct to 420 g' }));
+
+    await waitFor(() =>
+      expect(requests).toContainEqual({
+        url: expect.stringMatching(/\/api\/v1\/spools\/spool-drift$/),
+        method: 'PUT',
+        body: {
+          label: 'Shelf C',
+          remainingWeightGrams: 420,
+          reason: 'AMS reading',
+          price: 18.5,
+          supplier: 'Bambu',
+          orderNumber: 'A-1',
+          receivedOn: '2026-10-01',
+        },
+      }),
+    );
+    expect(await screen.findByText('Spool corrected.')).toBeInTheDocument();
   });
 });

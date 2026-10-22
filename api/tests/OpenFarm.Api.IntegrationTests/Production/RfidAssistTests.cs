@@ -259,4 +259,51 @@ public class RfidAssistTests(ProductionTestFactory factory) : ProductionTestCont
         filament.UpdateDetails(filament.VendorId, material, filament.MaterialType);
         await db.SaveChangesAsync();
     }
+
+    private static async Task<List<RfidWeightDriftResponse>> DriftAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<ListNotificationsResponse>("/api/v1/notifications"))!.RfidDrift;
+
+    [Fact]
+    public async Task AReadingWellOffTheRecordedWeight_IsListed_AndCorrectingItWritesAnAmsReadingEntry()
+    {
+        var client = await ClientAsync();
+        var variant = await CreateFilamentVariantAsync(client);
+        var (printerId, slots) = await AmsPrinterAsync();
+        var tag = NewTag();
+        var spool = await RegisteredAsync(client, variant, tag);
+
+        await ReadTraysAsync(printerId, TrayOf(0, tag, remain: 42));
+
+        var drift = (await DriftAsync(client)).Single(d => d.SpoolId == spool);
+        drift.FeedSlotId.Should().Be(slots[0]);
+        drift.InventoryGrams.Should().Be(1000);
+        drift.ReadGrams.Should().Be(420);
+
+        (await client.PutAsJsonAsync($"/api/v1/spools/{spool}", new { remainingWeightGrams = 420, reason = "AMS reading" }))
+            .EnsureSuccessStatusCode();
+        (await DriftAsync(client)).Should().NotContain(d => d.SpoolId == spool);
+        var latest = (await client.GetFromJsonAsync<SpoolHistoryResponse>($"/api/v1/spools/{spool}/history"))!.Entries[0];
+        latest.Source.Should().Be("Correction");
+        latest.Reason.Should().Be("AMS reading");
+        latest.RemainingAfterGrams.Should().Be(420);
+    }
+
+    [Fact]
+    public async Task WhileThePrinterPrints_DriftIsNotListed()
+    {
+        var client = await ClientAsync();
+        var variant = await CreateFilamentVariantAsync(client);
+        var (printerId, _) = await AmsPrinterAsync();
+        var tag = NewTag();
+        var spool = await RegisteredAsync(client, variant, tag);
+        await ReadTraysAsync(printerId, TrayOf(0, tag, remain: 42));
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            (await db.Printers.SingleAsync(p => p.Id == printerId)).ObserveStatus("RUNNING");
+            await db.SaveChangesAsync();
+        }
+
+        (await DriftAsync(client)).Should().NotContain(d => d.SpoolId == spool);
+    }
 }

@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BellIcon, CheckIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -15,6 +15,8 @@ import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
   ListFleetResponse,
   ListNotificationsResponse,
+  RfidWeightDriftResponse,
+  SpoolResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey,
@@ -22,13 +24,18 @@ import {
   useOpenFarmApiEndpointsNotificationsListNotificationsEndpoint,
 } from '@/lib/api/generated/notifications/notifications';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
-import { useOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint } from '@/lib/api/generated/spools/spools';
+import {
+  openFarmApiEndpointsSpoolsEditSpoolEndpoint,
+  openFarmApiEndpointsSpoolsGetSpoolEndpoint,
+  useOpenFarmApiEndpointsSpoolsAttachSpoolRfidEndpoint,
+} from '@/lib/api/generated/spools/spools';
 import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { badgeText, bellLabel, findLine } from '../lib/notifications';
 import { AssignSpoolDialog } from './AssignSpoolDialog';
 import {
   LowStockNotification,
   NotificationItem,
+  RfidWeightDriftNotification,
   UnregisteredRfidSpoolNotification,
 } from './NotificationItem';
 
@@ -46,8 +53,12 @@ export function NotificationsBell() {
   const items = data?.items ?? [];
   const lowStock = data?.lowStock ?? [];
   const rfidSpools = data?.rfidSpools ?? [];
+  const rfidDrift = data?.rfidDrift ?? [];
   const count =
-    (data?.totalCount ?? items.length) + lowStock.length + rfidSpools.length;
+    (data?.totalCount ?? items.length) +
+    lowStock.length +
+    rfidSpools.length +
+    rfidDrift.length;
 
   const fleet = useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data as
     | ListFleetResponse
@@ -84,6 +95,35 @@ export function NotificationsBell() {
       onError: async (error) => {
         toast.error(await extractErrorDetail(error, 'Could not link spool.'));
       },
+    },
+  });
+
+  // The spool edit replaces label and purchase info too, so they are read back first and kept as they are.
+  const correct = useMutation({
+    mutationFn: async (item: RfidWeightDriftResponse) => {
+      const id = item.spoolId ?? '';
+      const spool = (await openFarmApiEndpointsSpoolsGetSpoolEndpoint(id))
+        .data as SpoolResponse;
+      await openFarmApiEndpointsSpoolsEditSpoolEndpoint(id, {
+        label: spool.label ?? null,
+        remainingWeightGrams: item.readGrams ?? 0,
+        reason: 'AMS reading',
+        price: spool.price ?? null,
+        supplier: spool.supplier ?? null,
+        orderNumber: spool.orderNumber ?? null,
+        receivedOn: spool.receivedOn ?? null,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Spool corrected.');
+      queryClient.invalidateQueries({
+        queryKey:
+          getOpenFarmApiEndpointsNotificationsListNotificationsEndpointQueryKey(),
+      });
+      invalidateFilamentTrackingQueries(queryClient);
+    },
+    onError: async (error) => {
+      toast.error(await extractErrorDetail(error, 'Could not correct spool.'));
     },
   });
 
@@ -132,7 +172,8 @@ export function NotificationsBell() {
               />
             ) : items.length === 0 &&
               lowStock.length === 0 &&
-              rfidSpools.length === 0 ? (
+              rfidSpools.length === 0 &&
+              rfidDrift.length === 0 ? (
               <EmptyState
                 size="sm"
                 bordered={false}
@@ -175,6 +216,17 @@ export function NotificationsBell() {
                         data: { rfidId: item.rfidId ?? '' },
                       })
                     }
+                  />
+                ))}
+                {rfidDrift.map((item) => (
+                  <RfidWeightDriftNotification
+                    key={item.spoolId}
+                    item={item}
+                    correcting={
+                      correct.isPending &&
+                      correct.variables?.spoolId === item.spoolId
+                    }
+                    onCorrect={() => correct.mutate(item)}
                   />
                 ))}
                 {lowStock.map((item) => (

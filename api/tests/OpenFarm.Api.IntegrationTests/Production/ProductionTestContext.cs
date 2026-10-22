@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using OpenFarm.Domain.FilamentTracking;
 using System.Net;
 using System.Diagnostics;
@@ -44,18 +45,22 @@ public class ProductionTestFactory : CustomWebApplicationFactory
 public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
 {
     protected CustomWebApplicationFactory Factory { get; } = factory;
-    private string? _token;
+
+    // One login per factory, not per test: xUnit builds a new context for every test, and a class with more tests than the
+    // login rate limit allows per minute would otherwise get 429.
+    private static readonly ConditionalWeakTable<CustomWebApplicationFactory, string> Tokens = new();
 
     protected async Task<HttpClient> ClientAsync()
     {
         var client = Factory.CreateClient();
-        if (_token is null)
+        if (!Tokens.TryGetValue(Factory, out var token))
         {
             var login = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand("admin", "admin-openfarm"));
             login.EnsureSuccessStatusCode();
-            _token = (await login.Content.ReadFromJsonAsync<LoginResponse>())!.Token;
+            token = (await login.Content.ReadFromJsonAsync<LoginResponse>())!.Token;
+            Tokens.AddOrUpdate(Factory, token);
         }
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }
 

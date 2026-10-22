@@ -1514,11 +1514,24 @@ export interface UnregisteredRfidSpoolResponse {
   loadedSpoolName?: string | null;
 }
 
+export interface RfidWeightDriftResponse {
+  printerId?: string;
+  printerName?: string;
+  feedSlotId?: string;
+  slotLabel?: string;
+  spoolId?: string;
+  /** @nullable */
+  spoolLabel?: string | null;
+  inventoryGrams?: number;
+  readGrams?: number;
+}
+
 export interface ListNotificationsResponse {
   items?: NotificationItemResponse[];
   totalCount?: number;
   lowStock?: LowStockNotificationResponse[];
   rfidSpools?: UnregisteredRfidSpoolResponse[];
+  rfidDrift?: RfidWeightDriftResponse[];
 }
 
 export interface NonPrintedComponentResponse {

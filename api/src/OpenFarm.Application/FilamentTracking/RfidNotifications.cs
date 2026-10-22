@@ -1,5 +1,6 @@
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Application.FilamentTracking;
 
@@ -12,15 +13,23 @@ public sealed record UnregisteredRfidSpool(
     string? MaterialType, string? SubBrand, string? ColorHex, int? RemainPercent, int? RfidWeightGrams, decimal? RemainingGrams,
     VariantStock? Match, Guid? LoadedSpoolId, string? LoadedSpoolName);
 
+/// <summary>A loaded tagged spool whose AMS reading and recorded weight differ by more than <see cref="SpoolReading.DriftShare"/> of its full weight.</summary>
+public sealed record RfidWeightDrift(
+    Guid PrinterId, string PrinterName, Guid FeedSlotId, string SlotLabel, Guid SpoolId, string? SpoolLabel,
+    decimal InventoryGrams, decimal ReadGrams);
+
+public sealed record RfidItems(IReadOnlyList<UnregisteredRfidSpool> Unregistered, IReadOnlyList<RfidWeightDrift> Drift);
+
 /// <summary>
 /// The RFID items of Action required, derived from what reachable printers read now, so they clear by themselves once the
-/// tag is registered or linked, the tray changes, or the printer goes offline.
+/// tag is registered or linked, the weight is corrected, the tray changes, or the printer goes offline.
 /// </summary>
 public sealed class RfidNotifications(IPrinterRepository printers, IFeedUnitRepository feedUnits, ISpoolRepository spools)
 {
-    public async Task<IReadOnlyList<UnregisteredRfidSpool>> ListAsync(IReadOnlyList<VariantStock> colors, CancellationToken cancellationToken)
+    public async Task<RfidItems> ListAsync(IReadOnlyList<VariantStock> colors, CancellationToken cancellationToken)
     {
         var items = new List<UnregisteredRfidSpool>();
+        var drift = new List<RfidWeightDrift>();
         foreach (var printer in (await printers.ListAsync(cancellationToken)).Where(p => p.IsReachable))
         {
             var units = await feedUnits.GetByPrinterIdAsync(printer.Id, cancellationToken);
@@ -31,7 +40,17 @@ public sealed class RfidNotifications(IPrinterRepository printers, IFeedUnitRepo
             foreach (var (unit, slot, tray) in readings)
             {
                 var owned = owners.Where(s => s.RfidId == tray.RfidId).ToList();
-                if (owned.Any(s => s.State != SpoolState.Finished)) continue;
+                if (owned.FirstOrDefault(s => s.State != SpoolState.Finished) is { } active)
+                {
+                    // Inventory is deducted when a print closes, so a printing printer's reading runs ahead of it.
+                    if (active.FeedSlotId == slot.Id && printer.Status != PrinterStatus.Printing
+                        && SpoolReading.Grams(tray.RemainPercent, active.SpoolWeightGrams) is { } read
+                        && SpoolReading.Drifted(active.RemainingWeightGrams, read, active.SpoolWeightGrams))
+                        drift.Add(new(printer.Id, printer.Name, slot.Id, FeedUnitDisplay.SlotLabel(unit, slot, printer.Brand),
+                            active.Id, active.Label, active.RemainingWeightGrams, read));
+                    continue;
+                }
+
                 // A finished spool's tag is usually that empty spool, still in the AMS: only a reading with filament on it is news.
                 if (owned.Count > 0 && tray.RemainPercent is not (>= 1 and <= 100)) continue;
                 var loaded = await spools.FindUsingFeedSlotAsync(slot.Id, cancellationToken);
@@ -43,6 +62,6 @@ public sealed class RfidNotifications(IPrinterRepository printers, IFeedUnitRepo
             }
         }
 
-        return items;
+        return new RfidItems(items, drift);
     }
 }

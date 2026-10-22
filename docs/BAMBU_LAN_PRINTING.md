@@ -110,3 +110,8 @@ the Bambu field names: the rest of the app sees `AmsTray.RfidId` and `RfidWeight
   and the clearly nearest color), the tag's weight and the grams the reading implies; the spool loads at the next reading.
   When an untagged spool is loaded in that slot, **Link** ties the tag to it instead. A finished spool's tag is listed only
   when the AMS reads filament on it (a refill or re-used tag), not for the empty spool still sitting in the AMS.
+- **Weight drift.** For a loaded tagged spool, *Action required* asks when the AMS reading (`remain`, 1–100, of the
+  spool's full weight) and the recorded weight differ by more than 10% of the full weight (`rfidDrift`). **Correct to N g**
+  saves the reading as a weight correction with the reason "AMS reading", so it shows in the spool's history. It is never
+  applied by itself (the AMS percent is an estimate), and it is not asked while the printer prints, since inventory is
+  deducted only when a print ends.

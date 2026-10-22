@@ -25,4 +25,14 @@ public class SpoolReadingTests
         // The AMS reports -1 or 0 until it has measured a spool, and nothing when remaining tracking is off.
         SpoolReading.Grams(percent, 1000).Should().BeNull();
     }
+
+    [Theory]
+    [InlineData(640, 420, 1000, true)]
+    [InlineData(420, 640, 1000, true)]
+    [InlineData(520, 420, 1000, false)] // exactly a tenth apart is still in line
+    [InlineData(500, 480, 1000, false)]
+    public void Drifted_OnlyPastATenthOfTheFullWeight_EitherWay(int inventory, int read, int full, bool drifted)
+    {
+        SpoolReading.Drifted(inventory, read, full).Should().Be(drifted);
+    }
 }

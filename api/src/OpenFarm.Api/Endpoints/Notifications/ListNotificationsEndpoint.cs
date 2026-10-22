@@ -103,6 +103,27 @@ public sealed class UnregisteredRfidSpoolResponse
     public string? LoadedSpoolName { get; set; }
 }
 
+public sealed class RfidWeightDriftResponse
+{
+    public Guid PrinterId { get; set; }
+
+    public string PrinterName { get; set; } = string.Empty;
+
+    public Guid FeedSlotId { get; set; }
+
+    public string SlotLabel { get; set; } = string.Empty;
+
+    public Guid SpoolId { get; set; }
+
+    public string? SpoolLabel { get; set; }
+
+    /// <summary>The spool's recorded remaining weight.</summary>
+    public decimal InventoryGrams { get; set; }
+
+    /// <summary>What the AMS reading implies, to whole grams.</summary>
+    public decimal ReadGrams { get; set; }
+}
+
 public sealed class ListNotificationsResponse
 {
     public List<NotificationItemResponse> Items { get; set; } = [];
@@ -115,6 +136,9 @@ public sealed class ListNotificationsResponse
 
     /// <summary>Tagged spools printers read that no active spool owns; each clears once registered or linked.</summary>
     public List<UnregisteredRfidSpoolResponse> RfidSpools { get; set; } = [];
+
+    /// <summary>Loaded tagged spools the AMS reads well off their recorded weight; each clears once corrected or back in line.</summary>
+    public List<RfidWeightDriftResponse> RfidDrift { get; set; } = [];
 }
 
 /// <summary>GET /api/v1/notifications — action-required items, newest first; the 50 newest, with the total count.</summary>
@@ -182,6 +206,17 @@ public sealed class ListNotificationsEndpoint(IQueryHandler<ListNotificationsQue
                 VariantName = item.Match is { } match ? $"{match.Material} {match.ColorName}" : null,
                 LoadedSpoolId = item.LoadedSpoolId,
                 LoadedSpoolName = item.LoadedSpoolName,
+            }).ToList(),
+            RfidDrift = page.RfidDrift.Select(item => new RfidWeightDriftResponse
+            {
+                PrinterId = item.PrinterId,
+                PrinterName = item.PrinterName,
+                FeedSlotId = item.FeedSlotId,
+                SlotLabel = item.SlotLabel,
+                SpoolId = item.SpoolId,
+                SpoolLabel = item.SpoolLabel,
+                InventoryGrams = item.InventoryGrams,
+                ReadGrams = item.ReadGrams,
             }).ToList(),
         };
     }

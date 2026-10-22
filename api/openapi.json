@@ -8776,6 +8776,12 @@
             "items": {
               "$ref": "#/components/schemas/UnregisteredRfidSpoolResponse"
             }
+          },
+          "rfidDrift": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RfidWeightDriftResponse"
+            }
           }
         }
       },
@@ -8951,6 +8957,42 @@
           "loadedSpoolName": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "RfidWeightDriftResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "printerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "printerName": {
+            "type": "string"
+          },
+          "feedSlotId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "slotLabel": {
+            "type": "string"
+          },
+          "spoolId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "spoolLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "inventoryGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "readGrams": {
+            "type": "number",
+            "format": "decimal"
           }
         }
       },

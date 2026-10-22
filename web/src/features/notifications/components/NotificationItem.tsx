@@ -6,6 +6,7 @@ import type {
   LowStockNotificationResponse,
   NotificationItemResponse,
   NotificationLineResponse,
+  RfidWeightDriftResponse,
   UnregisteredRfidSpoolResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { formatRelativeTime } from '@/lib/formatRelativeTime';
@@ -177,6 +178,48 @@ export function UnregisteredRfidSpoolNotification({
           </Button>
         </div>
       )}
+    </li>
+  );
+}
+
+/** A loaded tagged spool the AMS reads well off its recorded weight: one click sets it to the reading, as a correction. */
+export function RfidWeightDriftNotification({
+  item,
+  correcting,
+  onCorrect,
+}: {
+  item: RfidWeightDriftResponse;
+  correcting: boolean;
+  onCorrect: () => void;
+}) {
+  const read = formatWeight(item.readGrams ?? 0);
+  return (
+    <li className="flex flex-col gap-2 px-3 py-3">
+      <div className="min-w-0">
+        <Link
+          to={`/spools/${item.spoolId}`}
+          className="block truncate text-sm font-medium hover:underline"
+        >
+          {item.spoolLabel ?? 'Spool'}
+        </Link>
+        <p className="text-xs text-muted-foreground">
+          {item.printerName} · {item.slotLabel}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 text-xs text-kind-amber tabular-nums">
+          AMS reads ~{read} · inventory {formatWeight(item.inventoryGrams ?? 0)}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          disabled={correcting}
+          onClick={onCorrect}
+        >
+          {correcting ? 'Correcting…' : `Correct to ${read}`}
+        </Button>
+      </div>
     </li>
   );
 }
