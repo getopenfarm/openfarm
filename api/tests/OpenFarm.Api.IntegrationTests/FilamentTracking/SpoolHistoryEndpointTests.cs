@@ -196,4 +196,17 @@ public class SpoolHistoryEndpointTests(CustomWebApplicationFactory factory) : IC
             .And.EndWith($",\"Shelf \"\"A\"\"\",{spoolId},PLA Basic,\"Red, dark\",-100,900,Correction,\"'=HYPERLINK(\"\"x\"\")\",,");
         unknownSource.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    [Fact]
+    public async Task HistoryCsv_NamesTheFile_AndAPageOnAnotherOriginCanReadTheName()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/spools/history.csv");
+        request.Headers.Add("Origin", "http://localhost:5173");
+
+        using var response = await client.SendAsync(request);
+
+        response.Content.Headers.ContentDisposition!.FileName.Should().Be("spool-history.csv");
+        response.Headers.GetValues("Access-Control-Expose-Headers").Should().ContainSingle(v => v.Contains("Content-Disposition"));
+    }
 }

@@ -13,11 +13,18 @@ namespace OpenFarm.Api.IntegrationTests.FilamentTracking;
 /// <summary>Shared setup helpers for filament-tracking integration tests — a simulator printer's Feed Slots populate within a couple of seconds of registration.</summary>
 internal static class FilamentTrackingTestHelpers
 {
+    private static int _logins;
+
     public static async Task<HttpClient> AuthenticatedClientAsync(HttpClient client)
     {
-        var loginResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
-            new LoginCommand("admin", "admin-openfarm"));
+        // Login is throttled per client address (10 a minute); each test logs in, so each login comes from its own address.
+        var login = Interlocked.Increment(ref _logins);
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/api/v1/auth/login", UriKind.Relative))
+        {
+            Content = JsonContent.Create(new LoginCommand("admin", "admin-openfarm")),
+        };
+        request.Headers.Add("X-Forwarded-For", $"10.0.{login / 256 % 256}.{login % 256}");
+        using var loginResponse = await client.SendAsync(request);
         var body = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);

@@ -196,7 +196,9 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy => policy
         .WithOrigins(corsAllowedOrigins)
         .AllowAnyHeader()
-        .AllowAnyMethod()));
+        .AllowAnyMethod()
+        // A page on another origin (VITE_API_BASE_URL) reads a download's file name from it.
+        .WithExposedHeaders("Content-Disposition")));
 
 builder.Services.AddValidatorsFromAssemblyContaining<ISecretProtector>();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
