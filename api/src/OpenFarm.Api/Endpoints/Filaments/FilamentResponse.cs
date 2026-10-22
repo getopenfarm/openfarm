@@ -7,6 +7,9 @@ public sealed class FilamentVariantResponse
 {
     public decimal? PricePerKg { get; set; }
 
+    /// <summary>This colour's own low-stock threshold; null when it uses the filament's default.</summary>
+    public decimal? LowStockGrams { get; set; }
+
     public Guid Id { get; set; }
 
     public string ColorName { get; set; } = string.Empty;
@@ -14,15 +17,18 @@ public sealed class FilamentVariantResponse
     public string ColorHex { get; set; } = string.Empty;
 
     public static FilamentVariantResponse FromDomain(FilamentVariant variant) =>
-        new() { Id = variant.Id, ColorName = variant.ColorName, ColorHex = variant.ColorHex, PricePerKg = variant.PricePerKg };
+        new() { Id = variant.Id, ColorName = variant.ColorName, ColorHex = variant.ColorHex, PricePerKg = variant.PricePerKg, LowStockGrams = variant.LowStockGrams };
 
     public static FilamentVariantResponse FromSummary(FilamentVariantSummary summary) =>
-        new() { Id = summary.Id, ColorName = summary.ColorName, ColorHex = summary.ColorHex, PricePerKg = summary.PricePerKg };
+        new() { Id = summary.Id, ColorName = summary.ColorName, ColorHex = summary.ColorHex, PricePerKg = summary.PricePerKg, LowStockGrams = summary.LowStockGrams };
 }
 
 public sealed class FilamentResponse
 {
     public decimal? PricePerKg { get; set; }
+
+    /// <summary>Default low-stock threshold for this filament's colours that have been stocked; null for no alert.</summary>
+    public decimal? LowStockGrams { get; set; }
 
     public Guid Id { get; set; }
 
@@ -42,6 +48,7 @@ public sealed class FilamentResponse
     {
         Id = filament.Id,
         PricePerKg = filament.PricePerKg,
+        LowStockGrams = filament.LowStockGrams,
         VendorId = filament.VendorId,
         VendorName = vendorName,
         Material = filament.Material,
@@ -54,6 +61,7 @@ public sealed class FilamentResponse
     {
         Id = summary.Id,
         PricePerKg = summary.PricePerKg,
+        LowStockGrams = summary.LowStockGrams,
         VendorId = summary.VendorId,
         VendorName = summary.VendorName,
         Material = summary.Material,

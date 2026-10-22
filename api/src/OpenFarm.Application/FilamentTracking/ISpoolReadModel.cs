@@ -14,4 +14,10 @@ public interface ISpoolReadModel
     /// is unvalidated and a print may be gone). Null when the spool does not exist.
     /// </summary>
     Task<SpoolHistoryPage?> ListHistoryAsync(GetSpoolHistoryQuery query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every colour's stock: its unfinished spools valued through <see cref="Domain.FilamentTracking.FilamentPricing"/>, the
+    /// grams prints and manual usage took since <paramref name="usedSince"/>, and the low-stock threshold that applies.
+    /// </summary>
+    Task<IReadOnlyList<VariantStock>> ListStockAsync(DateTimeOffset usedSince, CancellationToken cancellationToken);
 }

@@ -44,11 +44,34 @@ public sealed class NotificationItemResponse
     public List<NotificationLineResponse> Lines { get; set; } = [];
 }
 
+public sealed class LowStockNotificationResponse
+{
+    public Guid FilamentId { get; set; }
+
+    public Guid FilamentVariantId { get; set; }
+
+    public string VendorName { get; set; } = string.Empty;
+
+    public string Material { get; set; } = string.Empty;
+
+    public string ColorName { get; set; } = string.Empty;
+
+    public string ColorHex { get; set; } = string.Empty;
+
+    public decimal OnHandGrams { get; set; }
+
+    public decimal ThresholdGrams { get; set; }
+}
+
 public sealed class ListNotificationsResponse
 {
     public List<NotificationItemResponse> Items { get; set; } = [];
 
+    /// <summary>Print items across all pages; <see cref="LowStock"/> is listed whole and not counted here.</summary>
     public int TotalCount { get; set; }
+
+    /// <summary>Colours whose grams on hand dropped under their threshold; each clears once restocked.</summary>
+    public List<LowStockNotificationResponse> LowStock { get; set; } = [];
 }
 
 /// <summary>GET /api/v1/notifications — action-required items, newest first; the 50 newest, with the total count.</summary>
@@ -87,6 +110,17 @@ public sealed class ListNotificationsEndpoint(IQueryHandler<ListNotificationsQue
                     SpoolId = line.SpoolId,
                     Reason = line.Reason.ToString(),
                 }).ToList(),
+            }).ToList(),
+            LowStock = page.LowStock.Select(item => new LowStockNotificationResponse
+            {
+                FilamentId = item.FilamentId,
+                FilamentVariantId = item.FilamentVariantId,
+                VendorName = item.VendorName,
+                Material = item.Material,
+                ColorName = item.ColorName,
+                ColorHex = item.ColorHex,
+                OnHandGrams = item.OnHandGrams,
+                ThresholdGrams = item.ThresholdGrams,
             }).ToList(),
         };
     }

@@ -63,6 +63,7 @@ const SAVED_BLACK = {
   colorName: 'Galaxy Black',
   colorHex: '#18181b',
   pricePerKg: null,
+  lowStockGrams: null,
 };
 
 function renderDialog(
@@ -75,6 +76,7 @@ function renderDialog(
       open
       onOpenChange={onOpenChange}
       inheritedPrice={25.5}
+      inheritedLowStock={null}
       materialType="PLA"
       assignments={[P1S_DEFAULT]}
       onSave={onSave}
@@ -156,7 +158,12 @@ describe('VariantDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Add variant' }));
 
     expect(onSave).toHaveBeenCalledWith({
-      variant: { colorName: 'Red', colorHex: '#ef4444', pricePerKg: null },
+      variant: {
+        colorName: 'Red',
+        colorHex: '#ef4444',
+        pricePerKg: null,
+        lowStockGrams: null,
+      },
       overrides: [],
     });
   });
@@ -175,6 +182,8 @@ describe('VariantDialog', () => {
     await user.click(price);
     await user.keyboard('30');
     await user.tab();
+    expect(screen.getByLabelText('Low stock below')).toHaveFocus();
+    await user.tab();
     expect(screen.getByLabelText('P1S · 0.4 mm profile')).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Add variant' }));
 
@@ -187,7 +196,12 @@ describe('VariantDialog', () => {
 
   it('shows existing overrides for a staged variant', () => {
     renderDialog({
-      variant: { colorName: 'Red', colorHex: '#ef4444', pricePerKg: 28 },
+      variant: {
+        colorName: 'Red',
+        colorHex: '#ef4444',
+        pricePerKg: 28,
+        lowStockGrams: null,
+      },
     });
 
     expect(screen.getByLabelText('Price per kg')).toHaveValue(28);
@@ -214,6 +228,37 @@ describe('VariantDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+  it('saves its own low-stock threshold, showing the filament default as the hint', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderDialog({
+      variant: SAVED_BLACK,
+      inheritedLowStock: 1500,
+    });
+
+    const lowStock = screen.getByLabelText('Low stock below');
+    expect(lowStock).toHaveAttribute('placeholder', 'Default: 1.5 kg');
+    await user.type(lowStock, '250');
+    await user.click(screen.getByRole('button', { name: 'Update variant' }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: expect.objectContaining({ lowStockGrams: 250 }),
+      }),
+    );
+  });
+
+  it('blocks a negative low-stock threshold', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderDialog({ variant: SAVED_BLACK });
+
+    await user.type(screen.getByLabelText('Low stock below'), '-1');
+
+    expect(screen.getByText('Must be 0 or more')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Update variant' }),
+    ).toBeDisabled();
     expect(onSave).not.toHaveBeenCalled();
   });
 });

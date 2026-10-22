@@ -8661,6 +8661,12 @@
           "totalCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "lowStock": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LowStockNotificationResponse"
+            }
           }
         }
       },
@@ -8734,6 +8740,40 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "LowStockNotificationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "vendorName": {
+            "type": "string"
+          },
+          "material": {
+            "type": "string"
+          },
+          "colorName": {
+            "type": "string"
+          },
+          "colorHex": {
+            "type": "string"
+          },
+          "onHandGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "thresholdGrams": {
+            "type": "number",
+            "format": "decimal"
           }
         }
       },
@@ -8816,6 +8856,11 @@
             "format": "decimal",
             "nullable": true
           },
+          "lowStockGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8880,6 +8925,11 @@
             "format": "decimal",
             "nullable": true
           },
+          "lowStockGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8897,6 +8947,11 @@
         "additionalProperties": false,
         "properties": {
           "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lowStockGrams": {
             "type": "number",
             "format": "decimal",
             "nullable": true
@@ -8934,6 +8989,11 @@
             "format": "decimal",
             "nullable": true
           },
+          "lowStockGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "colorName": {
             "type": "string"
           },
@@ -8947,6 +9007,11 @@
         "additionalProperties": false,
         "properties": {
           "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lowStockGrams": {
             "type": "number",
             "format": "decimal",
             "nullable": true
@@ -8990,6 +9055,11 @@
             "format": "guid"
           },
           "pricePerKg": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lowStockGrams": {
             "type": "number",
             "format": "decimal",
             "nullable": true
@@ -9073,6 +9143,50 @@
             "items": {
               "$ref": "#/components/schemas/FilamentResponse"
             }
+          },
+          "stock": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantStockResponse"
+            }
+          }
+        }
+      },
+      "VariantStockResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "onHandGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "activeSpoolCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stockValue": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "unpricedSpoolCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "usedLast30DaysGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "thresholdGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "isLow": {
+            "type": "boolean"
           }
         }
       },

@@ -19,9 +19,8 @@ export function FilamentPage() {
   const navigate = useNavigate();
   const filamentsQuery =
     useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
-  const filaments =
-    (filamentsQuery.data?.data as ListFilamentsResponse | undefined)
-      ?.filaments ?? [];
+  const list = filamentsQuery.data?.data as ListFilamentsResponse | undefined;
+  const filaments = list?.filaments ?? [];
 
   const vendorsQuery = useOpenFarmApiEndpointsVendorsListVendorsEndpoint();
   const vendors =
@@ -68,7 +67,7 @@ export function FilamentPage() {
           }
         />
       ) : (
-        <FilamentCatalogTable filaments={filaments} />
+        <FilamentCatalogTable filaments={filaments} stock={list?.stock ?? []} />
       )}
     </Page>
   );

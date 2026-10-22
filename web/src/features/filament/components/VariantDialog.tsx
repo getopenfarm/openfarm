@@ -18,8 +18,9 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
+import { UnitInput } from '@/features/spools/components/UnitInput';
 import type { FilamentProfileAssignmentInput } from '@/lib/api/generated/endpoints.schemas';
-import { formatCost } from '@/lib/formatUnits';
+import { formatCost, formatWeight } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import { NAMED_COLOR_SWATCHES } from '../lib/colorSwatches';
 import {
@@ -35,6 +36,7 @@ export interface FilamentVariantDraft {
   colorName: string;
   colorHex: string;
   pricePerKg: number | null;
+  lowStockGrams: number | null;
 }
 
 export interface VariantDialogResult {
@@ -45,7 +47,12 @@ export interface VariantDialogResult {
 
 function emptyVariant(): FilamentVariantDraft {
   const [first] = NAMED_COLOR_SWATCHES;
-  return { colorName: first.name, colorHex: first.hex, pricePerKg: null };
+  return {
+    colorName: first.name,
+    colorHex: first.hex,
+    pricePerKg: null,
+    lowStockGrams: null,
+  };
 }
 
 const rowKey = (
@@ -59,6 +66,8 @@ interface VariantDialogProps {
   variant?: FilamentVariantDraft;
   /** The filament's price per kg, used when the variant has no price of its own. */
   inheritedPrice: number | null;
+  /** The filament's low-stock threshold, used when the variant has none of its own. */
+  inheritedLowStock: number | null;
   materialType: string;
   /** Every assignment in the draft: defaults (no color) and all color overrides. */
   assignments: FilamentProfileAssignmentInput[];
@@ -70,6 +79,7 @@ export function VariantDialog({
   onOpenChange,
   variant,
   inheritedPrice,
+  inheritedLowStock,
   materialType,
   assignments,
   onSave,
@@ -96,7 +106,10 @@ export function VariantDialog({
 
   const isSaved = Boolean(draft.id);
   const priceInvalid = draft.pricePerKg != null && draft.pricePerKg < 0;
-  const canSave = draft.colorName.trim().length > 0 && !priceInvalid;
+  const lowStockInvalid =
+    draft.lowStockGrams != null && draft.lowStockGrams < 0;
+  const canSave =
+    draft.colorName.trim().length > 0 && !priceInvalid && !lowStockInvalid;
 
   function setOverride(row: AssignmentRow, profileId: string | null) {
     setOverrides((prev) => {
@@ -251,6 +264,41 @@ export function VariantDialog({
                 {priceInvalid && (
                   <FieldError id="variant-price-error">
                     Price must be non-negative
+                  </FieldError>
+                )}
+              </Field>
+
+              <Field data-invalid={lowStockInvalid || undefined}>
+                <FieldLabel htmlFor="variant-low-stock">
+                  Low stock below
+                </FieldLabel>
+                <UnitInput
+                  id="variant-low-stock"
+                  unit="g"
+                  min="0"
+                  aria-invalid={lowStockInvalid || undefined}
+                  aria-describedby={
+                    lowStockInvalid ? 'variant-low-stock-error' : undefined
+                  }
+                  placeholder={
+                    inheritedLowStock == null
+                      ? 'No default'
+                      : `Default: ${formatWeight(inheritedLowStock)}`
+                  }
+                  value={draft.lowStockGrams ?? ''}
+                  onChange={(event) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      lowStockGrams:
+                        event.target.value === ''
+                          ? null
+                          : Number(event.target.value),
+                    }))
+                  }
+                />
+                {lowStockInvalid && (
+                  <FieldError id="variant-low-stock-error">
+                    Must be 0 or more
                   </FieldError>
                 )}
               </Field>

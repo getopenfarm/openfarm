@@ -11,6 +11,9 @@ public sealed class CreateFilamentVariantRequest
 {
     public decimal? PricePerKg { get; set; }
 
+    /// <summary>Grams on hand below which this colour shows as low; null falls back to the filament's default.</summary>
+    public decimal? LowStockGrams { get; set; }
+
     public string ColorName { get; set; } = string.Empty;
 
     public string ColorHex { get; set; } = string.Empty;
@@ -19,6 +22,9 @@ public sealed class CreateFilamentVariantRequest
 public sealed class CreateFilamentRequest : IActivityLoggable
 {
     public decimal? PricePerKg { get; set; }
+
+    /// <summary>Default low-stock threshold, in grams on hand, for colours that have been stocked; null for no alert.</summary>
+    public decimal? LowStockGrams { get; set; }
 
     public Guid VendorId { get; set; }
 
@@ -42,6 +48,7 @@ public sealed class CreateFilamentRequestValidator : AbstractValidator<CreateFil
         RuleFor(x => x.VendorId).NotEmpty();
         RuleFor(x => x.Material).NotEmpty();
         RuleFor(x => x.PricePerKg).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.LowStockGrams).GreaterThanOrEqualTo(0);
         RuleFor(x => x.MaterialType).NotEmpty();
         RuleFor(x => x.Variants).NotEmpty();
         RuleForEach(x => x.Variants).ChildRules(variant =>
@@ -49,6 +56,7 @@ public sealed class CreateFilamentRequestValidator : AbstractValidator<CreateFil
             variant.RuleFor(v => v.ColorName).NotEmpty();
             variant.RuleFor(v => v.ColorHex).NotEmpty();
             variant.RuleFor(v => v.PricePerKg).GreaterThanOrEqualTo(0);
+            variant.RuleFor(v => v.LowStockGrams).GreaterThanOrEqualTo(0);
         });
     }
 }
@@ -70,7 +78,8 @@ public sealed class CreateFilamentEndpoint(CreateFilamentHandler handler, IVendo
             req.VendorId,
             req.Material,
             req.MaterialType,
-            req.Variants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex, v.PricePerKg)).ToList(), req.ProfileAssignments, req.PricePerKg);
+            req.Variants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex, v.PricePerKg, v.LowStockGrams)).ToList(),
+            req.ProfileAssignments, req.PricePerKg, req.LowStockGrams);
 
         var filament = await handler.HandleAsync(command, ct);
         var vendor = await vendorRepository.GetByIdAsync(filament.VendorId, ct);

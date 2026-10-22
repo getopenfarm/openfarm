@@ -35,4 +35,35 @@ public class FilamentPriceTests
         filament.PricePerKg.Should().Be(20);
         variant.PricePerKg.Should().Be(30);
     }
+
+    [Fact]
+    public void LowStockThresholds_StartUnset_AndAllowZeroAndClearing()
+    {
+        var filament = Filament.Create(Guid.NewGuid(), "PLA Basic", "PLA");
+        var variant = filament.AddVariant("Black", "#000000");
+        filament.LowStockGrams.Should().BeNull();
+        variant.LowStockGrams.Should().BeNull();
+        filament.SetLowStockGrams(500m);
+        variant.SetLowStockGrams(0m);
+        variant.LowStockGrams.Should().Be(0m);
+        variant.SetLowStockGrams(null);
+        filament.SetLowStockGrams(null);
+        filament.LowStockGrams.Should().BeNull();
+        variant.LowStockGrams.Should().BeNull();
+    }
+
+    [Fact]
+    public void NegativeLowStockThresholds_AreRejected_WithoutChangingTheExistingOne()
+    {
+        var filament = Filament.Create(Guid.NewGuid(), "PLA", "PLA");
+        var variant = filament.AddVariant("Black", "#000000");
+        filament.SetLowStockGrams(500m);
+        variant.SetLowStockGrams(250m);
+        var updateFilament = () => filament.SetLowStockGrams(-1);
+        var updateVariant = () => variant.SetLowStockGrams(-1);
+        updateFilament.Should().Throw<ArgumentOutOfRangeException>();
+        updateVariant.Should().Throw<ArgumentOutOfRangeException>();
+        filament.LowStockGrams.Should().Be(500m);
+        variant.LowStockGrams.Should().Be(250m);
+    }
 }

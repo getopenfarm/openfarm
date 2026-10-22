@@ -24,7 +24,7 @@ import {
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { badgeText, bellLabel, findLine } from '../lib/notifications';
 import { AssignSpoolDialog } from './AssignSpoolDialog';
-import { NotificationItem } from './NotificationItem';
+import { LowStockNotification, NotificationItem } from './NotificationItem';
 
 /** Header bell: a count of what needs the operator, and a popover listing it with the action to settle each. */
 export function NotificationsBell() {
@@ -38,7 +38,8 @@ export function NotificationsBell() {
   const query = useOpenFarmApiEndpointsNotificationsListNotificationsEndpoint();
   const data = query.data?.data as ListNotificationsResponse | undefined;
   const items = data?.items ?? [];
-  const count = data?.totalCount ?? items.length;
+  const lowStock = data?.lowStock ?? [];
+  const count = (data?.totalCount ?? items.length) + lowStock.length;
 
   const fleet = useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data as
     | ListFleetResponse
@@ -105,7 +106,7 @@ export function NotificationsBell() {
                 title="Could not load notifications"
                 onRetry={() => query.refetch()}
               />
-            ) : items.length === 0 ? (
+            ) : items.length === 0 && lowStock.length === 0 ? (
               <EmptyState
                 size="sm"
                 bordered={false}
@@ -132,6 +133,12 @@ export function NotificationsBell() {
                       });
                     }}
                     onDismiss={() => dismiss.mutate({ id: item.printId ?? '' })}
+                  />
+                ))}
+                {lowStock.map((item) => (
+                  <LowStockNotification
+                    key={item.filamentVariantId}
+                    item={item}
                   />
                 ))}
               </ul>

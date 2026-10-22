@@ -207,6 +207,57 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
             total);
     }
 
+    public async Task<IReadOnlyList<VariantStock>> ListStockAsync(DateTimeOffset usedSince, CancellationToken cancellationToken)
+    {
+        var variants = await (
+                from variant in dbContext.FilamentVariants.AsNoTracking()
+                join filament in dbContext.Filaments.AsNoTracking() on variant.FilamentId equals filament.Id
+                join vendor in dbContext.Vendors.AsNoTracking() on filament.VendorId equals vendor.Id into vendors
+                from vendor in vendors.DefaultIfEmpty()
+                select new
+                {
+                    VariantId = variant.Id,
+                    FilamentId = filament.Id,
+                    VendorName = (string?)vendor.Name,
+                    filament.Material,
+                    variant.ColorName,
+                    variant.ColorHex,
+                    VariantPrice = variant.PricePerKg,
+                    FilamentPrice = filament.PricePerKg,
+                    VariantThreshold = variant.LowStockGrams,
+                    FilamentThreshold = filament.LowStockGrams,
+                })
+            .ToListAsync(cancellationToken);
+
+        // ponytail: every spool's four columns in memory; group in SQL if a farm ever keeps tens of thousands of spools.
+        var spools = (await dbContext.Spools.AsNoTracking()
+                .Select(s => new { s.FilamentVariantId, s.State, s.RemainingWeightGrams, s.Price, s.SpoolWeightGrams })
+                .ToListAsync(cancellationToken))
+            .ToLookup(s => s.FilamentVariantId);
+
+        var used = await (
+                from record in dbContext.SpoolUsageRecords.AsNoTracking()
+                where record.RecordedAtUtc >= usedSince
+                    && (record.Source == SpoolUsageSource.Job || record.Source == SpoolUsageSource.Manual)
+                join spool in dbContext.Spools.AsNoTracking() on record.SpoolId equals spool.Id
+                group record.GramsConsumed by spool.FilamentVariantId into byVariant
+                select new { VariantId = byVariant.Key, Grams = byVariant.Sum() })
+            .ToDictionaryAsync(x => x.VariantId, x => x.Grams, cancellationToken);
+
+        return variants.Select(v =>
+        {
+            var all = spools[v.VariantId];
+            var stock = FilamentStock.Of(
+                all.Where(s => s.State != SpoolState.Finished).Select(s => (
+                    s.RemainingWeightGrams,
+                    FilamentPricing.Resolve(s.Price, s.SpoolWeightGrams, v.VariantPrice, v.FilamentPrice)?.PricePerKg)),
+                used.GetValueOrDefault(v.VariantId));
+            return new VariantStock(
+                v.VariantId, v.FilamentId, v.VendorName ?? string.Empty, v.Material, v.ColorName, v.ColorHex, stock,
+                FilamentStock.Threshold(v.VariantThreshold, v.FilamentThreshold, everStocked: all.Any()));
+        }).ToList();
+    }
+
     /// <summary>Trimmed, bounded, LIKE-escaped terms; a bounded term count keeps a pasted paragraph from becoming a huge predicate.</summary>
     private static IEnumerable<string> SearchTerms(string? search) =>
         (search ?? string.Empty)

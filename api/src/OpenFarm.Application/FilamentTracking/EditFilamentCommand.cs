@@ -13,9 +13,11 @@ public sealed record EditFilamentCommand(
     IReadOnlyList<CreateFilamentVariantInput> NewVariants,
     IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments,
     decimal? PricePerKg = null, bool UpdatePrice = false,
-    IReadOnlyList<FilamentVariantPriceInput>? VariantPrices = null);
+    IReadOnlyList<FilamentVariantPriceInput>? VariantPrices = null,
+    decimal? LowStockGrams = null, bool UpdateLowStock = false);
 
-public sealed record FilamentVariantPriceInput(Guid VariantId, decimal? PricePerKg);
+/// <summary>A colour's own price and low-stock threshold; a listed colour gets both values, null clearing either.</summary>
+public sealed record FilamentVariantPriceInput(Guid VariantId, decimal? PricePerKg, decimal? LowStockGrams = null);
 
 /// <summary>
 /// PUT /api/v1/filaments/{id} — updates vendor/material/type, adds colour variants and replaces profile
@@ -37,12 +39,19 @@ public sealed class EditFilamentCommandHandler(IFilamentRepository filaments, IV
         var prices = command.VariantPrices ?? [];
         if (command.PricePerKg < 0 || prices.Any(p => p.PricePerKg < 0) || command.NewVariants.Any(v => v.PricePerKg < 0))
             throw new ArgumentOutOfRangeException(nameof(command), "Price must be non-negative.");
+        if (command.LowStockGrams < 0 || prices.Any(p => p.LowStockGrams < 0) || command.NewVariants.Any(v => v.LowStockGrams < 0))
+            throw new ArgumentOutOfRangeException(nameof(command), "Low stock threshold must be non-negative.");
         foreach (var price in prices)
             if (!filament.Variants.Any(v => v.Id == price.VariantId))
                 throw new FilamentVariantNotFoundException(price.VariantId);
         if (command.UpdatePrice) filament.SetPricePerKg(command.PricePerKg);
+        if (command.UpdateLowStock) filament.SetLowStockGrams(command.LowStockGrams);
         foreach (var price in prices)
-            filament.Variants.Single(v => v.Id == price.VariantId).SetPricePerKg(price.PricePerKg);
+        {
+            var listed = filament.Variants.Single(v => v.Id == price.VariantId);
+            listed.SetPricePerKg(price.PricePerKg);
+            listed.SetLowStockGrams(price.LowStockGrams);
+        }
 
         // Before ReplaceAsync: assignments are validated against the (possibly new) material type.
         filament.UpdateDetails(vendor.Id, command.Material, command.MaterialType);
@@ -56,7 +65,9 @@ public sealed class EditFilamentCommandHandler(IFilamentRepository filaments, IV
                 throw new DuplicateFilamentVariantColorException(command.FilamentId, variant.ColorName);
             }
 
-            filament.AddVariant(variant.ColorName, variant.ColorHex).SetPricePerKg(variant.PricePerKg);
+            var added = filament.AddVariant(variant.ColorName, variant.ColorHex);
+            added.SetPricePerKg(variant.PricePerKg);
+            added.SetLowStockGrams(variant.LowStockGrams);
         }
 
         await assignments.ReplaceAsync(filament, command.ProfileAssignments, cancellationToken);

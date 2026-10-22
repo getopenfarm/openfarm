@@ -14,8 +14,10 @@ import {
 import type {
   FilamentProfileAssignmentInput,
   FilamentProfileAssignmentIssue,
+  VariantStockResponse,
 } from '@/lib/api/generated/endpoints.schemas';
-import { formatCost } from '@/lib/formatUnits';
+import { formatCost, formatWeight } from '@/lib/formatUnits';
+import { pluralize } from '@/lib/pluralize';
 import {
   type FilamentVariantDraft,
   VariantDialog,
@@ -26,6 +28,10 @@ interface VariantsCardProps {
   variants: FilamentVariantDraft[];
   /** The filament's price per kg, used by variants without their own. */
   inheritedPrice: number | null;
+  /** The filament's low-stock threshold, used by stocked variants without their own. */
+  inheritedLowStock: number | null;
+  /** Saved variants' stock; staged ones have none yet. */
+  stock?: VariantStockResponse[];
   materialType: string;
   assignments: FilamentProfileAssignmentInput[];
   issues?: FilamentProfileAssignmentIssue[];
@@ -52,9 +58,23 @@ function VariantPrice({
   );
 }
 
+function VariantStock({ stock }: { stock: VariantStockResponse }) {
+  const used = stock.usedLast30DaysGrams ?? 0;
+  return (
+    <span className="w-full pl-8 text-xs text-muted-foreground tabular-nums">
+      {stock.activeSpoolCount
+        ? `${formatWeight(stock.onHandGrams ?? 0)} in ${pluralize(stock.activeSpoolCount, 'spool')}`
+        : 'No spools'}
+      {used > 0 && ` · ${formatWeight(used)} used in 30 d`}
+    </span>
+  );
+}
+
 export function VariantsCard({
   variants,
   inheritedPrice,
+  inheritedLowStock,
+  stock = [],
   materialType,
   assignments,
   issues = [],
@@ -101,6 +121,9 @@ export function VariantsCard({
               const hasIssue = issues.some(
                 (issue) => issue.assignment?.colorHex === variant.colorHex,
               );
+              const variantStock = stock.find(
+                (row) => row.filamentVariantId === variant.id,
+              );
               return (
                 <li
                   key={variant.id ?? `${variant.colorName}-${index}`}
@@ -111,6 +134,7 @@ export function VariantsCard({
                     {variant.colorName}
                   </span>
                   {hasIssue && <Badge kind="red">Invalid assignment</Badge>}
+                  {variantStock?.isLow && <Badge kind="amber">Low</Badge>}
                   {overrideCount > 0 && (
                     <span className="text-muted-foreground">
                       {overrideCount} profile override
@@ -145,6 +169,7 @@ export function VariantsCard({
                       </Button>
                     ) : null}
                   </div>
+                  {variantStock && <VariantStock stock={variantStock} />}
                 </li>
               );
             })}
@@ -157,6 +182,7 @@ export function VariantsCard({
         onOpenChange={setDialogOpen}
         variant={editIndex == null ? undefined : variants[editIndex]}
         inheritedPrice={inheritedPrice}
+        inheritedLowStock={inheritedLowStock}
         materialType={materialType}
         assignments={assignments}
         onSave={(result) => {

@@ -19,6 +19,19 @@ public sealed class EditFilamentRequest : IActivityLoggable
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasPricePerKg { get; private set; }
 
+    private decimal? _lowStockGrams;
+
+    /// <summary>Default low-stock threshold for colours that have been stocked. Omit to keep it; null clears it.</summary>
+    public decimal? LowStockGrams
+    {
+        get => _lowStockGrams;
+        set { _lowStockGrams = value; HasLowStockGrams = true; }
+    }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasLowStockGrams { get; private set; }
+
+    /// <summary>Each listed colour's own price and low-stock threshold; both are replaced, null clearing either.</summary>
     public IReadOnlyList<FilamentVariantPriceInput> VariantPrices { get; set; } = [];
 
     public Guid Id { get; set; }
@@ -45,6 +58,7 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
         RuleFor(x => x.VendorId).NotEmpty();
         RuleFor(x => x.Material).NotEmpty();
         RuleFor(x => x.PricePerKg).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.LowStockGrams).GreaterThanOrEqualTo(0);
         RuleFor(x => x.VariantPrices).NotNull();
         RuleFor(x => x.VariantPrices).Must(p => p.Select(v => v.VariantId).Distinct().Count() == p.Count)
             .When(x => x.VariantPrices is not null);
@@ -52,6 +66,7 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
         {
             price.RuleFor(p => p.VariantId).NotEmpty();
             price.RuleFor(p => p.PricePerKg).GreaterThanOrEqualTo(0);
+            price.RuleFor(p => p.LowStockGrams).GreaterThanOrEqualTo(0);
         });
         RuleFor(x => x.MaterialType).NotEmpty();
         RuleFor(x => x.NewVariants).NotNull();
@@ -61,6 +76,7 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
             variant.RuleFor(v => v.ColorName).NotEmpty();
             variant.RuleFor(v => v.ColorHex).NotEmpty();
             variant.RuleFor(v => v.PricePerKg).GreaterThanOrEqualTo(0);
+            variant.RuleFor(v => v.LowStockGrams).GreaterThanOrEqualTo(0);
         });
     }
 }
@@ -84,8 +100,8 @@ public sealed class EditFilamentEndpoint(EditFilamentHandler handler, IVendorRep
             req.VendorId,
             req.Material,
             req.MaterialType,
-            req.NewVariants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex, v.PricePerKg)).ToList(),
-            req.ProfileAssignments, req.PricePerKg, req.HasPricePerKg, req.VariantPrices);
+            req.NewVariants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex, v.PricePerKg, v.LowStockGrams)).ToList(),
+            req.ProfileAssignments, req.PricePerKg, req.HasPricePerKg, req.VariantPrices, req.LowStockGrams, req.HasLowStockGrams);
 
         var filament = await handler.HandleAsync(command, ct);
         var vendor = await vendorRepository.GetByIdAsync(filament.VendorId, ct);

@@ -5,7 +5,10 @@ import type { ReactNode } from 'react';
 import { createMemoryRouter, Link, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
-import type { FilamentResponse } from '@/lib/api/generated/endpoints.schemas';
+import type {
+  FilamentResponse,
+  VariantStockResponse,
+} from '@/lib/api/generated/endpoints.schemas';
 import { FilamentFormPage } from './FilamentFormPage';
 
 const FILAMENTS: FilamentResponse[] = [
@@ -16,6 +19,19 @@ const FILAMENTS: FilamentResponse[] = [
     material: 'PLA',
     materialType: 'PLA',
     variants: [{ id: 'var-1', colorName: 'Galaxy Black', colorHex: '#18181b' }],
+  },
+];
+
+const STOCK: VariantStockResponse[] = [
+  {
+    filamentVariantId: 'var-1',
+    onHandGrams: 1200,
+    activeSpoolCount: 3,
+    stockValue: 30,
+    unpricedSpoolCount: 0,
+    usedLast30DaysGrams: 410,
+    thresholdGrams: 1500,
+    isLow: true,
   },
 ];
 
@@ -39,7 +55,7 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
 
       if (method === 'GET' && url.endsWith('/api/v1/filaments')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ filaments: FILAMENTS }), {
+          new Response(JSON.stringify({ filaments: FILAMENTS, stock: STOCK }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           }),
@@ -534,7 +550,11 @@ describe('FilamentFormPage', () => {
       name: 'Price per kg',
     });
     // Variant prices are not inline form fields; they live in the variant dialog.
-    expect(screen.getAllByRole('spinbutton')).toHaveLength(1);
+    expect(
+      screen
+        .getAllByRole('spinbutton')
+        .map((input) => input.getAttribute('name')),
+    ).toEqual(['pricePerKg', 'lowStockGrams']);
     expect(screen.getByText('No price')).toBeInTheDocument();
     await user.type(price, '25.5');
     expect(screen.getByText('25.50/kg default')).toBeInTheDocument();
@@ -623,5 +643,37 @@ describe('FilamentFormPage', () => {
       await screen.findByText('Price must be non-negative'),
     ).toBeInTheDocument();
     expect(price).toBeInvalid();
+  });
+  it("shows each saved color's stock and saves low-stock thresholds with the prices", async () => {
+    const user = userEvent.setup();
+    const writes: Record<string, unknown>[] = [];
+    renderEditPage('f-1', (_url, init) => {
+      if (init?.method === 'PUT') writes.push(JSON.parse(init.body as string));
+    });
+
+    expect(
+      await screen.findByText('1.2 kg in 3 spools · 410 g used in 30 d'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Low')).toBeInTheDocument();
+
+    await user.type(
+      screen.getByRole('spinbutton', { name: 'Low stock below' }),
+      '1500',
+    );
+    await user.click(screen.getByRole('button', { name: 'Edit Galaxy Black' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByLabelText('Low stock below')).toHaveAttribute(
+      'placeholder',
+      'Default: 1.5 kg',
+    );
+    await user.type(dialog.getByLabelText('Low stock below'), '0');
+    await user.click(dialog.getByRole('button', { name: 'Update variant' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      lowStockGrams: 1500,
+      variantPrices: [{ variantId: 'var-1', lowStockGrams: 0 }],
+    });
   });
 });

@@ -3,7 +3,10 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
+import type {
+  SpoolResponse,
+  VariantStockResponse,
+} from '@/lib/api/generated/endpoints.schemas';
 import { SpoolsPage } from './SpoolsPage';
 
 const SPOOLS: SpoolResponse[] = [
@@ -51,15 +54,40 @@ const SPOOLS: SpoolResponse[] = [
   },
 ];
 
+const STOCK: VariantStockResponse[] = [
+  {
+    filamentVariantId: 'black',
+    onHandGrams: 1820,
+    activeSpoolCount: 2,
+    stockValue: 36.4,
+    unpricedSpoolCount: 1,
+    usedLast30DaysGrams: 180,
+    isLow: false,
+  },
+  {
+    filamentVariantId: 'red',
+    onHandGrams: 0,
+    activeSpoolCount: 0,
+    stockValue: 0,
+    unpricedSpoolCount: 0,
+    usedLast30DaysGrams: 0,
+    isLow: true,
+  },
+];
+
 function stubFetch() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() =>
+    vi.fn((input: RequestInfo | URL) =>
       Promise.resolve(
-        new Response(JSON.stringify({ spools: SPOOLS }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify(
+            input.toString().endsWith('/api/v1/filaments')
+              ? { filaments: [], stock: STOCK }
+              : { spools: SPOOLS },
+          ),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
       ),
     ),
   );
@@ -87,11 +115,16 @@ describe('SpoolsPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders the page heading and subtitle counts', async () => {
+  it('sums the stock into on hand, value, active spools and used tiles', async () => {
     renderPage();
 
     expect(screen.getByRole('heading', { name: 'Spools' })).toBeInTheDocument();
-    expect(await screen.findByText(/3 spools/)).toBeInTheDocument();
+    expect(await screen.findByText('1.82 kg')).toBeInTheDocument();
+    expect(screen.getByText('1 color low')).toBeInTheDocument();
+    expect(screen.getByText('36.40')).toBeInTheDocument();
+    expect(screen.getByText('Partial · 1 spool unpriced')).toBeInTheDocument();
+    expect(screen.getByText('1 in use')).toBeInTheDocument();
+    expect(screen.getByText('180 g')).toBeInTheDocument();
   });
 
   it('lists active spools, and finished ones only in the Finished view', async () => {

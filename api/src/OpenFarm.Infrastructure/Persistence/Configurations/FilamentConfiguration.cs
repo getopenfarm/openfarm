@@ -11,6 +11,7 @@ public sealed class FilamentConfiguration : IEntityTypeConfiguration<Filament>
         builder.ToTable("Filaments");
 
         builder.Property(f => f.PricePerKg);
+        builder.Property(f => f.LowStockGrams);
 
         builder.HasKey(f => f.Id);
 

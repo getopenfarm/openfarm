@@ -278,6 +278,7 @@ builder.Services.AddScoped<CreateVendorHandlerType, CreateVendorCommandHandler>(
 builder.Services.AddScoped<IQueryHandler<GetVendorsQuery, IReadOnlyList<VendorSummary>>, GetVendorsQueryHandler>();
 builder.Services.AddScoped<CreateFilamentHandlerType, CreateFilamentCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentsQuery, IReadOnlyList<FilamentSummary>>, GetFilamentsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFilamentStockQuery, IReadOnlyList<VariantStock>>, GetFilamentStockQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFeedUnitsQuery, IReadOnlyList<FeedUnitDetail>>, GetFeedUnitsQueryHandler>();
 builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>>, GetSpoolsQueryHandler>();

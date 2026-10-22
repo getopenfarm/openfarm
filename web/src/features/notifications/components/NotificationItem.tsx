@@ -2,11 +2,12 @@ import { Link } from 'react-router';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Button } from '@/components/ui/button';
 import type {
+  LowStockNotificationResponse,
   NotificationItemResponse,
   NotificationLineResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { formatRelativeTime } from '@/lib/formatRelativeTime';
-import { formatGrams } from '@/lib/formatUnits';
+import { formatGrams, formatWeight } from '@/lib/formatUnits';
 import { canAssignSpool, lineLabel, reasonLabel } from '../lib/notifications';
 
 interface NotificationItemProps {
@@ -82,6 +83,31 @@ export function NotificationItem({
           </li>
         ))}
       </ul>
+    </li>
+  );
+}
+
+/** A color under its low-stock threshold; it clears once restocked, so there is nothing to dismiss. */
+export function LowStockNotification({
+  item,
+}: {
+  item: LowStockNotificationResponse;
+}) {
+  return (
+    <li className="flex items-center gap-2 px-3 py-3">
+      <Swatch colorHex={item.colorHex ?? undefined} size="md" />
+      <div className="min-w-0 flex-1">
+        <Link
+          to={`/filament/${item.filamentId}/edit`}
+          className="block truncate text-sm font-medium hover:underline"
+        >
+          {item.vendorName} · {item.material} · {item.colorName}
+        </Link>
+        <p className="text-xs text-kind-amber tabular-nums">
+          {formatWeight(item.onHandGrams ?? 0)} on hand · below{' '}
+          {formatWeight(item.thresholdGrams ?? 0)}
+        </p>
+      </div>
     </li>
   );
 }

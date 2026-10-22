@@ -34,6 +34,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { invalidateSlicingChecks } from '@/features/slicing/invalidateSlicingChecks';
+import { UnitInput } from '@/features/spools/components/UnitInput';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
@@ -42,6 +43,7 @@ import type {
   FilamentProfileAssignmentsResponse,
   FilamentResponse,
   ListFilamentsResponse,
+  VariantStockResponse,
   VendorResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
@@ -68,8 +70,15 @@ const priceSchema = z
   .nonnegative('Price must be non-negative')
   .nullable();
 
+const gramsSchema = z
+  .number()
+  .finite()
+  .nonnegative('Must be 0 or more')
+  .nullable();
+
 const schema = z.object({
   pricePerKg: priceSchema,
+  lowStockGrams: gramsSchema,
   // Nested so its refine runs even when sibling fields fail.
   vendor: z
     .object({ vendorId: z.string(), newVendorName: z.string().optional() })
@@ -90,6 +99,7 @@ const schema = z.object({
       z.object({
         id: z.string().optional(),
         pricePerKg: priceSchema,
+        lowStockGrams: gramsSchema,
         colorName: z.string(),
         colorHex: z.string(),
       }),
@@ -119,6 +129,7 @@ function toEditValues(
     vendor: { vendorId: filament.vendorId ?? '' },
     material: filament.material ?? '',
     pricePerKg: filament.pricePerKg ?? null,
+    lowStockGrams: filament.lowStockGrams ?? null,
     materialType:
       MATERIAL_TYPES.find((type) => type === filament.materialType) ??
       MATERIAL_TYPES[0],
@@ -126,6 +137,7 @@ function toEditValues(
     variants: (filament.variants ?? []).map((variant) => ({
       id: variant.id,
       pricePerKg: variant.pricePerKg ?? null,
+      lowStockGrams: variant.lowStockGrams ?? null,
       colorName: variant.colorName ?? '',
       colorHex: variant.colorHex ?? '',
     })),
@@ -302,6 +314,36 @@ function MaterialFields({
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="lowStockGrams"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Low stock below</FormLabel>
+              <FormControl>
+                <UnitInput
+                  unit="g"
+                  min="0"
+                  value={field.value ?? ''}
+                  onChange={(event) =>
+                    field.onChange(
+                      event.target.value === ''
+                        ? null
+                        : Number(event.target.value),
+                    )
+                  }
+                  onBlur={field.onBlur}
+                  name={field.name}
+                  ref={field.ref}
+                />
+              </FormControl>
+              <FormDescription>
+                Default for stocked variants. Blank for no alert.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </CardContent>
     </Card>
   );
@@ -356,6 +398,7 @@ function AddFilamentForm() {
       vendor: { vendorId: '' },
       material: '',
       pricePerKg: null,
+      lowStockGrams: null,
       materialType: MATERIAL_TYPES[0],
       profileAssignments: [],
       variants: [],
@@ -393,6 +436,7 @@ function AddFilamentForm() {
   const materialType = form.watch('materialType');
   const variants = form.watch('variants');
   const pricePerKg = form.watch('pricePerKg');
+  const lowStockGrams = form.watch('lowStockGrams');
   const profileAssignments = form.watch('profileAssignments');
 
   async function onSubmit(values: FormValues) {
@@ -403,10 +447,12 @@ function AddFilamentForm() {
         vendorId,
         material: values.material.trim(),
         pricePerKg: values.pricePerKg,
+        lowStockGrams: values.lowStockGrams,
         materialType: values.materialType,
         profileAssignments: values.profileAssignments,
         variants: values.variants.map((variant) => ({
           pricePerKg: variant.pricePerKg,
+          lowStockGrams: variant.lowStockGrams,
           colorName: variant.colorName,
           colorHex: variant.colorHex,
         })),
@@ -443,6 +489,7 @@ function AddFilamentForm() {
                     <VariantsCard
                       variants={variants}
                       inheritedPrice={pricePerKg}
+                      inheritedLowStock={lowStockGrams}
                       materialType={materialType}
                       assignments={profileAssignments}
                       onSave={(index, result) =>
@@ -514,10 +561,8 @@ function FilamentVariantsPage() {
     useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
   const assignmentsQuery =
     useOpenFarmApiEndpointsFilamentsGetFilamentProfileAssignmentsEndpoint(id);
-  const filaments =
-    (filamentsQuery.data?.data as ListFilamentsResponse | undefined)
-      ?.filaments ?? [];
-  const existing = filaments.find((entry) => entry.id === id);
+  const list = filamentsQuery.data?.data as ListFilamentsResponse | undefined;
+  const existing = list?.filaments?.find((entry) => entry.id === id);
   const assignments = assignmentsQuery.data?.data as
     | FilamentProfileAssignmentsResponse
     | undefined;
@@ -573,6 +618,7 @@ function FilamentVariantsPage() {
   return (
     <EditFilamentForm
       filament={existing}
+      stock={list?.stock ?? []}
       assignments={assignments?.assignments ?? []}
       issues={assignments?.issues}
       backLink={backLink}
@@ -582,11 +628,13 @@ function FilamentVariantsPage() {
 
 function EditFilamentForm({
   filament,
+  stock,
   assignments,
   issues,
   backLink,
 }: {
   filament: FilamentResponse;
+  stock: VariantStockResponse[];
   assignments: FilamentProfileAssignmentInput[];
   issues?: FilamentProfileAssignmentIssue[];
   backLink: ReactNode;
@@ -646,6 +694,7 @@ function EditFilamentForm({
   const materialType = form.watch('materialType');
   const variants = form.watch('variants');
   const pricePerKg = form.watch('pricePerKg');
+  const lowStockGrams = form.watch('lowStockGrams');
   const profileAssignments = form.watch('profileAssignments');
 
   async function onSubmit(values: FormValues) {
@@ -657,11 +706,13 @@ function EditFilamentForm({
         vendorId,
         material: values.material.trim(),
         pricePerKg: values.pricePerKg,
+        lowStockGrams: values.lowStockGrams,
         materialType: values.materialType,
         newVariants: values.variants
           .filter((variant) => !variant.id)
           .map((variant) => ({
             pricePerKg: variant.pricePerKg,
+            lowStockGrams: variant.lowStockGrams,
             colorName: variant.colorName,
             colorHex: variant.colorHex,
           })),
@@ -672,6 +723,7 @@ function EditFilamentForm({
           .map((variant) => ({
             variantId: variant.id,
             pricePerKg: variant.pricePerKg,
+            lowStockGrams: variant.lowStockGrams,
           })),
         // Full replace: always send the whole current list, or the server wipes assignments.
         profileAssignments: values.profileAssignments,
@@ -699,6 +751,8 @@ function EditFilamentForm({
             <VariantsCard
               variants={variants}
               inheritedPrice={pricePerKg}
+              inheritedLowStock={lowStockGrams}
+              stock={stock}
               materialType={materialType}
               assignments={profileAssignments}
               issues={issues}

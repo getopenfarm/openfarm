@@ -27,6 +27,15 @@ public sealed class Filament
         PricePerKg = price;
     }
 
+    /// <summary>Grams on hand below which this filament's colours show as low, unless a colour sets its own; null for no alert.</summary>
+    public decimal? LowStockGrams { get; private set; }
+
+    public void SetLowStockGrams(decimal? grams)
+    {
+        if (grams < 0) throw new ArgumentOutOfRangeException(nameof(grams), "Low stock threshold must be non-negative.");
+        LowStockGrams = grams;
+    }
+
     public Guid Id { get; }
 
     public Guid VendorId { get; private set; }

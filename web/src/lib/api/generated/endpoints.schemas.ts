@@ -1467,9 +1467,21 @@ export interface NotificationItemResponse {
   lines?: NotificationLineResponse[];
 }
 
+export interface LowStockNotificationResponse {
+  filamentId?: string;
+  filamentVariantId?: string;
+  vendorName?: string;
+  material?: string;
+  colorName?: string;
+  colorHex?: string;
+  onHandGrams?: number;
+  thresholdGrams?: number;
+}
+
 export interface ListNotificationsResponse {
   items?: NotificationItemResponse[];
   totalCount?: number;
+  lowStock?: LowStockNotificationResponse[];
 }
 
 export interface NonPrintedComponentResponse {
@@ -1516,6 +1528,8 @@ export interface FilamentProfileAssignmentInput {
 export interface FilamentVariantResponse {
   /** @nullable */
   pricePerKg?: number | null;
+  /** @nullable */
+  lowStockGrams?: number | null;
   id?: string;
   colorName?: string;
   colorHex?: string;
@@ -1524,6 +1538,8 @@ export interface FilamentVariantResponse {
 export interface FilamentResponse {
   /** @nullable */
   pricePerKg?: number | null;
+  /** @nullable */
+  lowStockGrams?: number | null;
   id?: string;
   vendorId?: string;
   vendorName?: string;
@@ -1536,6 +1552,8 @@ export interface FilamentResponse {
 export interface CreateFilamentVariantRequest {
   /** @nullable */
   pricePerKg?: number | null;
+  /** @nullable */
+  lowStockGrams?: number | null;
   colorName?: string;
   colorHex?: string;
 }
@@ -1543,6 +1561,8 @@ export interface CreateFilamentVariantRequest {
 export interface CreateFilamentRequest {
   /** @nullable */
   pricePerKg?: number | null;
+  /** @nullable */
+  lowStockGrams?: number | null;
   vendorId?: string;
   material?: string;
   materialType?: string;
@@ -1554,11 +1574,15 @@ export interface FilamentVariantPriceInput {
   variantId?: string;
   /** @nullable */
   pricePerKg?: number | null;
+  /** @nullable */
+  lowStockGrams?: number | null;
 }
 
 export interface EditFilamentRequest {
   /** @nullable */
   pricePerKg?: number | null;
+  /** @nullable */
+  lowStockGrams?: number | null;
   variantPrices?: FilamentVariantPriceInput[];
   vendorId?: string;
   material?: string;
@@ -1589,8 +1613,21 @@ export interface FilamentProfileAssignmentsResponse {
   issues?: FilamentProfileAssignmentIssue[];
 }
 
+export interface VariantStockResponse {
+  filamentVariantId?: string;
+  onHandGrams?: number;
+  activeSpoolCount?: number;
+  stockValue?: number;
+  unpricedSpoolCount?: number;
+  usedLast30DaysGrams?: number;
+  /** @nullable */
+  thresholdGrams?: number | null;
+  isLow?: boolean;
+}
+
 export interface ListFilamentsResponse {
   filaments?: FilamentResponse[];
+  stock?: VariantStockResponse[];
 }
 
 export interface CurrentSpoolResponse {

@@ -19,7 +19,8 @@ public sealed class GetFilamentsQueryHandler(
                 f.Material,
                 f.MaterialType,
                 f.ProfileAssignments.Select(a => new FilamentProfileAssignmentInput(a.Brand, a.ModelCode, a.NozzleDiameterMm, a.FilamentProfileId, f.Variants.FirstOrDefault(v => v.Id == a.FilamentVariantId)?.ColorHex)).ToList(),
-                f.Variants.Select(v => new FilamentVariantSummary(v.Id, v.ColorName, v.ColorHex, v.PricePerKg)).ToList(), f.PricePerKg))
+                f.Variants.Select(v => new FilamentVariantSummary(v.Id, v.ColorName, v.ColorHex, v.PricePerKg, v.LowStockGrams)).ToList(),
+                f.PricePerKg, f.LowStockGrams))
             .ToList();
     }
 }

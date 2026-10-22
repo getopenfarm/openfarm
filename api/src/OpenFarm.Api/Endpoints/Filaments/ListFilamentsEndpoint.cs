@@ -5,13 +5,54 @@ using OpenFarm.Application.FilamentTracking;
 
 namespace OpenFarm.Api.Endpoints.Filaments;
 
+public sealed class VariantStockResponse
+{
+    public Guid FilamentVariantId { get; set; }
+
+    /// <summary>Grams left on the colour's unfinished spools.</summary>
+    public decimal OnHandGrams { get; set; }
+
+    public int ActiveSpoolCount { get; set; }
+
+    /// <summary>What those spools are worth at each one's own price; partial while <see cref="UnpricedSpoolCount"/> is above 0.</summary>
+    public decimal StockValue { get; set; }
+
+    /// <summary>Spools with grams left and no price at any level, left out of <see cref="StockValue"/> rather than counted as free.</summary>
+    public int UnpricedSpoolCount { get; set; }
+
+    /// <summary>Grams prints and manual usage took from the colour's spools in the last 30 days.</summary>
+    public decimal UsedLast30DaysGrams { get; set; }
+
+    /// <summary>The threshold that applies: the colour's own, else the filament's default once the colour has been stocked.</summary>
+    public decimal? ThresholdGrams { get; set; }
+
+    public bool IsLow { get; set; }
+
+    public static VariantStockResponse From(VariantStock stock) => new()
+    {
+        FilamentVariantId = stock.FilamentVariantId,
+        OnHandGrams = stock.Stock.OnHandGrams,
+        ActiveSpoolCount = stock.Stock.ActiveSpools,
+        StockValue = stock.Stock.StockValue,
+        UnpricedSpoolCount = stock.Stock.UnpricedSpools,
+        UsedLast30DaysGrams = stock.Stock.UsedGrams,
+        ThresholdGrams = stock.ThresholdGrams,
+        IsLow = stock.IsLow,
+    };
+}
+
 public sealed class ListFilamentsResponse
 {
     public IReadOnlyList<FilamentResponse> Filaments { get; set; } = [];
+
+    /// <summary>One entry per colour of every filament listed, apart from the filaments so a save's response cannot reset it.</summary>
+    public IReadOnlyList<VariantStockResponse> Stock { get; set; } = [];
 }
 
 [Permission("filaments:list")]
-public sealed class ListFilamentsEndpoint(IQueryHandler<GetFilamentsQuery, IReadOnlyList<FilamentSummary>> handler)
+public sealed class ListFilamentsEndpoint(
+    IQueryHandler<GetFilamentsQuery, IReadOnlyList<FilamentSummary>> handler,
+    IQueryHandler<GetFilamentStockQuery, IReadOnlyList<VariantStock>> stockHandler)
     : EndpointWithoutRequest<ListFilamentsResponse>
 {
     public override void Configure()
@@ -23,10 +64,12 @@ public sealed class ListFilamentsEndpoint(IQueryHandler<GetFilamentsQuery, IRead
     public override async Task HandleAsync(CancellationToken ct)
     {
         var filaments = await handler.HandleAsync(new GetFilamentsQuery(), ct);
+        var stock = await stockHandler.HandleAsync(new GetFilamentStockQuery(), ct);
 
         Response = new ListFilamentsResponse
         {
             Filaments = filaments.Select(FilamentResponse.FromSummary).ToList(),
+            Stock = stock.Select(VariantStockResponse.From).ToList(),
         };
     }
 }

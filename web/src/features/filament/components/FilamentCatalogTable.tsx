@@ -10,18 +10,34 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import type { FilamentResponse } from '@/lib/api/generated/endpoints.schemas';
-
-import { formatCost } from '@/lib/formatUnits';
+import type {
+  FilamentResponse,
+  VariantStockResponse,
+} from '@/lib/api/generated/endpoints.schemas';
+import { formatCost, formatWeight } from '@/lib/formatUnits';
+import { type StockTotals, sumStock } from '../lib/stock';
 
 const MAX_VISIBLE_SWATCHES = 4;
 
 interface FilamentCatalogTableProps {
   filaments: FilamentResponse[];
+  /** Per-colour stock from the same list response. */
+  stock: VariantStockResponse[];
 }
 
-export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
+export function FilamentCatalogTable({
+  filaments,
+  stock,
+}: FilamentCatalogTableProps) {
   const navigate = useNavigate();
+  const byVariant = new Map(stock.map((row) => [row.filamentVariantId, row]));
+  const totals = (filament: FilamentResponse): StockTotals =>
+    sumStock(
+      (filament.variants ?? []).flatMap((variant) => {
+        const row = byVariant.get(variant.id);
+        return row ? [row] : [];
+      }),
+    );
 
   const columns: ColumnDef<FilamentResponse>[] = [
     {
@@ -59,6 +75,56 @@ export function FilamentCatalogTable({ filaments }: FilamentCatalogTableProps) {
         row.original.pricePerKg == null
           ? '—'
           : formatCost(row.original.pricePerKg),
+    },
+    {
+      id: 'onHand',
+      accessorFn: (row) => totals(row).onHandGrams,
+      meta: { label: 'On hand' },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="On hand" />
+      ),
+      cell: ({ row }) => {
+        const { onHandGrams, lowColors } = totals(row.original);
+        return (
+          <span className="flex items-center gap-2 whitespace-nowrap">
+            <span className="tabular-nums">{formatWeight(onHandGrams)}</span>
+            {lowColors > 0 && (
+              <StatusBadge kind="amber" label={`${lowColors} low`} />
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'value',
+      accessorFn: (row) => totals(row).value,
+      meta: { label: 'Value' },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Value" />
+      ),
+      cell: ({ row }) => {
+        const { activeSpools, value, unpricedSpools } = totals(row.original);
+        if (activeSpools === 0) return '—';
+        return (
+          <span className="flex items-center gap-2 whitespace-nowrap">
+            <span className="tabular-nums">{formatCost(value)}</span>
+            {unpricedSpools > 0 && <StatusBadge kind="amber" label="Partial" />}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'used',
+      accessorFn: (row) => totals(row).usedGrams,
+      meta: { label: 'Used 30 d' },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Used 30 d" />
+      ),
+      cell: ({ row }) => (
+        <span className="tabular-nums">
+          {formatWeight(totals(row.original).usedGrams)}
+        </span>
+      ),
     },
     {
       id: 'colors',

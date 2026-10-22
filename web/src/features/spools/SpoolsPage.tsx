@@ -4,20 +4,23 @@ import { useNavigate } from 'react-router';
 import { DataTableSearch } from '@/components/data-table/DataTableSearch';
 import { DataTableToolbar } from '@/components/data-table/DataTableToolbar';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { KpiCard } from '@/components/kpi-card/KpiCard';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { sumStock } from '@/features/filament/lib/stock';
 import type {
+  ListFilamentsResponse,
   ListSpoolsResponse,
   SpoolResponse,
 } from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
 import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
+import { formatCost, formatWeight } from '@/lib/formatUnits';
 import { pluralize } from '@/lib/pluralize';
 import { SpoolsTable } from './components/SpoolsTable';
-
-const LOW_REMAINING_FRACTION = 0.25;
 
 type SpoolView = 'active' | 'finished';
 
@@ -40,6 +43,12 @@ export function SpoolsPage() {
   const spools =
     (spoolsQuery.data?.data as ListSpoolsResponse | undefined)?.spools ?? [];
   const finishedCount = spools.filter((s) => s.state === 'Finished').length;
+  const filamentsQuery =
+    useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
+  const stock = sumStock(
+    (filamentsQuery.data?.data as ListFilamentsResponse | undefined)?.stock ??
+      [],
+  );
   const visible = spools.filter(
     (spool) =>
       (spool.state === 'Finished') === (view === 'finished') &&
@@ -47,26 +56,12 @@ export function SpoolsPage() {
   );
 
   const inUseCount = spools.filter((spool) => spool.state === 'Using').length;
-  const lowCount = spools.filter(
-    (spool) =>
-      spool.state === 'Using' &&
-      (spool.remainingWeightGrams ?? 0) / (spool.spoolWeightGrams || 1) <
-        LOW_REMAINING_FRACTION,
-  ).length;
 
   return (
     <Page>
       <PageHeader
         title="Spools"
-        description={
-          <>
-            Physical inventory · {pluralize(spools.length, 'spool')} ·{' '}
-            <span className="text-kind-green font-medium">
-              {inUseCount} in use
-            </span>{' '}
-            · <span className="text-kind-red font-medium">{lowCount} low</span>
-          </>
-        }
+        description="Physical inventory"
         action={
           <Button onClick={() => navigate('/spools/new')}>
             <PlusIcon data-icon="inline-start" />
@@ -92,6 +87,33 @@ export function SpoolsPage() {
         />
       ) : (
         <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <KpiCard
+              label="On hand"
+              value={formatWeight(stock.onHandGrams)}
+              dotClassName={stock.lowColors > 0 ? 'bg-kind-amber' : undefined}
+              sub={
+                stock.lowColors > 0
+                  ? `${pluralize(stock.lowColors, 'color')} low`
+                  : undefined
+              }
+            />
+            <KpiCard
+              label="Value"
+              value={formatCost(stock.value)}
+              sub={
+                stock.unpricedSpools > 0
+                  ? `Partial · ${pluralize(stock.unpricedSpools, 'spool')} unpriced`
+                  : undefined
+              }
+            />
+            <KpiCard
+              label="Active spools"
+              value={stock.activeSpools}
+              sub={`${inUseCount} in use`}
+            />
+            <KpiCard label="Used 30 d" value={formatWeight(stock.usedGrams)} />
+          </div>
           <DataTableToolbar
             search={
               <DataTableSearch

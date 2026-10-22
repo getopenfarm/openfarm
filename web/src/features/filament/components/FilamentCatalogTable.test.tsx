@@ -16,6 +16,7 @@ describe('FilamentCatalogTable actions', () => {
                 filaments={[
                   { id: 'f1', vendorName: 'Vendor', material: 'PLA' },
                 ]}
+                stock={[]}
               />
             }
           />
@@ -35,5 +36,48 @@ describe('FilamentCatalogTable actions', () => {
     expect(
       screen.getByRole('heading', { name: 'Variant editor' }),
     ).toBeInTheDocument();
+  });
+  it("adds up each filament's colors into on hand, value and used", () => {
+    render(
+      <MemoryRouter>
+        <FilamentCatalogTable
+          filaments={[
+            {
+              id: 'f1',
+              vendorName: 'Vendor',
+              material: 'PLA',
+              variants: [{ id: 'black' }, { id: 'red' }],
+            },
+          ]}
+          stock={[
+            {
+              filamentVariantId: 'black',
+              onHandGrams: 900,
+              activeSpoolCount: 1,
+              stockValue: 18,
+              unpricedSpoolCount: 0,
+              usedLast30DaysGrams: 100,
+              isLow: false,
+            },
+            {
+              filamentVariantId: 'red',
+              onHandGrams: 300,
+              activeSpoolCount: 1,
+              stockValue: 0,
+              unpricedSpoolCount: 1,
+              usedLast30DaysGrams: 0,
+              isLow: true,
+            },
+          ]}
+        />
+      </MemoryRouter>,
+    );
+
+    const row = screen.getAllByRole('row')[1];
+    expect(row).toHaveTextContent('1.2 kg');
+    expect(row).toHaveTextContent('1 low');
+    expect(row).toHaveTextContent('18.00');
+    expect(row).toHaveTextContent('Partial');
+    expect(row).toHaveTextContent('100 g');
   });
 });

@@ -34,7 +34,7 @@ const ITEM = {
   ],
 };
 
-function stubFetch(items: unknown[]) {
+function stubFetch(items: unknown[], lowStock: unknown[] = []) {
   const requests: { url: string; method?: string }[] = [];
   vi.stubGlobal(
     'fetch',
@@ -50,7 +50,7 @@ function stubFetch(items: unknown[]) {
         );
       if (url.includes('/dismiss')) return json({ id: 'print-1' });
       if (url.includes('/api/v1/notifications'))
-        return json({ items, totalCount: items.length });
+        return json({ items, totalCount: items.length, lowStock });
       if (url.includes('/api/v1/printers'))
         return json({ printers: [{ id: 'printer-1', name: 'Bambu A1' }] });
       if (url.includes('/api/v1/spools'))
@@ -172,5 +172,40 @@ describe('NotificationsBell', () => {
       ).toBe(true),
     );
     expect(await screen.findByText('Dismissed.')).toBeInTheDocument();
+  });
+  it('counts and lists colors low on stock, linking to their filament', async () => {
+    stubFetch(
+      [ITEM],
+      [
+        {
+          filamentId: 'f-1',
+          filamentVariantId: 'var-red',
+          vendorName: 'Bambu',
+          material: 'PLA Basic',
+          colorName: 'Red',
+          colorHex: '#ff0000',
+          onHandGrams: 320,
+          thresholdGrams: 1500,
+        },
+      ],
+    );
+    renderBell();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Notifications, 2 need action',
+      }),
+    );
+
+    expect(
+      await screen.findByRole('link', { name: 'Bambu · PLA Basic · Red' }),
+    ).toHaveAttribute('href', '/filament/f-1/edit');
+    expect(
+      screen.getByText('320 g on hand · below 1.5 kg'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Dismiss Bambu/ }),
+    ).not.toBeInTheDocument();
   });
 });
