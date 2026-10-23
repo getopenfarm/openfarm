@@ -88,8 +88,7 @@ internal static class FilamentTrackingTestHelpers
     {
         var response = await client.PostAsJsonAsync(new Uri("/api/v1/spools", UriKind.Relative), new RegisterSpoolRequest
         {
-            FilamentVariantId = filamentVariantId,
-            SpoolWeightGrams = spoolWeightGrams,
+            Lines = [new RegisterSpoolLineRequest { FilamentVariantId = filamentVariantId, SpoolWeightGrams = spoolWeightGrams }],
         });
         var registered = await response.Content.ReadFromJsonAsync<RegisterSpoolsResponse>();
         return registered!.Spools.Single().Id;

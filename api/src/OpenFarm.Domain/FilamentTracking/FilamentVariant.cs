@@ -28,6 +28,16 @@ public sealed class FilamentVariant
         LowStockGrams = grams;
     }
 
+    /// <summary>Days left below which this colour shows as low; null falls back to the filament's default.</summary>
+    public int? LowStockDays { get; private set; }
+
+    public void SetLowStockDays(int? days)
+    {
+        if (days is < 0 or > Filament.MaxLowStockDays)
+            throw new ArgumentOutOfRangeException(nameof(days), $"Low stock days must be 0 to {Filament.MaxLowStockDays}.");
+        LowStockDays = days;
+    }
+
     public Guid Id { get; }
 
     public Guid FilamentId { get; }

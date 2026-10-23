@@ -37,10 +37,7 @@ public class FilamentStockTests(CustomWebApplicationFactory factory) : IClassFix
     {
         var response = await client.PostAsJsonAsync(new Uri("/api/v1/spools", UriKind.Relative), new RegisterSpoolRequest
         {
-            FilamentVariantId = variantId,
-            SpoolWeightGrams = 1000,
-            RemainingWeightGrams = remaining,
-            Price = price,
+            Lines = [new RegisterSpoolLineRequest { FilamentVariantId = variantId, SpoolWeightGrams = 1000, RemainingWeightGrams = remaining, Price = price }],
         });
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<RegisterSpoolsResponse>())!.Spools.Single().Id;
@@ -174,6 +171,114 @@ public class FilamentStockTests(CustomWebApplicationFactory factory) : IClassFix
         var clearedBody = await cleared.Content.ReadFromJsonAsync<FilamentResponse>();
         clearedBody!.LowStockGrams.Should().BeNull();
         clearedBody.Variants.Single().LowStockGrams.Should().BeNull();
+    }
+
+    private static async Task<FilamentResponse> CreateWithDaysAsync(HttpClient client, int? lowStockDays, int? colorDays)
+    {
+        var vendorResponse = await client.PostAsJsonAsync(
+            new Uri("/api/v1/vendors", UriKind.Relative), new CreateVendorRequest { Name = $"Vendor {Guid.NewGuid():N}" });
+        var vendor = await vendorResponse.Content.ReadFromJsonAsync<VendorResponse>();
+        var response = await client.PostAsJsonAsync(new Uri("/api/v1/filaments", UriKind.Relative), new CreateFilamentRequest
+        {
+            VendorId = vendor!.Id,
+            Material = "PLA Basic",
+            MaterialType = "PLA",
+            LowStockDays = lowStockDays,
+            Variants = [new CreateFilamentVariantRequest { ColorName = "Black", ColorHex = "#000000", LowStockDays = colorDays }],
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        return (await response.Content.ReadFromJsonAsync<FilamentResponse>())!;
+    }
+
+    [Fact]
+    public async Task DaysLeft_FollowsTheLast30DaysPace_AndAColorLowByDaysAloneIsListedInTheBell()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var filament = await CreateWithDaysAsync(client, lowStockDays: 30, colorDays: null);
+        var black = filament.Variants.Single().Id;
+        var spool = await RegisterAsync(client, black);
+        var printerId = await RegisterSimulatorPrinterAsync(client);
+        var feedUnits = await WaitForFeedUnitsAsync(client, printerId);
+        await client.PutAsJsonAsync(
+            new Uri($"/api/v1/spools/{spool}/load", UriKind.Relative), new { feedSlotId = feedUnits.FeedUnits[0].FeedSlots[0].Id });
+        (await client.PostAsJsonAsync(new Uri($"/api/v1/spools/{spool}/usage", UriKind.Relative), new { gramsConsumed = 600 }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var stock = (await StockAsync(client)).Single(s => s.FilamentVariantId == black);
+        var notifications = await client.GetAsync(new Uri("/api/v1/notifications", UriKind.Relative));
+
+        // 400 g left after 600 g in 30 days: 20 days, under the filament's 30.
+        stock.DaysLeft.Should().Be(20);
+        stock.ThresholdDays.Should().Be(30);
+        stock.ThresholdGrams.Should().BeNull();
+        stock.IsLow.Should().BeTrue();
+        notifications.StatusCode.Should().Be(HttpStatusCode.OK);
+        var low = (await notifications.Content.ReadFromJsonAsync<ListNotificationsResponse>())!.LowStock
+            .Single(item => item.FilamentVariantId == black);
+        low.ThresholdGrams.Should().BeNull();
+        low.DaysLeft.Should().Be(20);
+        low.ThresholdDays.Should().Be(30);
+    }
+
+    [Fact]
+    public async Task Edit_KeepsTheDaysThresholdWhenOmitted_AndAColorListedWithoutDaysLosesItsOverride()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var filament = await CreateWithDaysAsync(client, lowStockDays: 14, colorDays: 7);
+        var variantId = filament.Variants.Single().Id;
+        var uri = new Uri($"/api/v1/filaments/{filament.Id}", UriKind.Relative);
+        object Edit(object variantPrices, bool clearDefault) => clearDefault
+            ? new
+            {
+                vendorId = filament.VendorId,
+                material = filament.Material,
+                materialType = filament.MaterialType,
+                newVariants = Array.Empty<object>(),
+                profileAssignments = Array.Empty<object>(),
+                variantPrices,
+                lowStockDays = (int?)null,
+            }
+            : new
+            {
+                vendorId = filament.VendorId,
+                material = filament.Material,
+                materialType = filament.MaterialType,
+                newVariants = Array.Empty<object>(),
+                profileAssignments = Array.Empty<object>(),
+                variantPrices,
+            };
+
+        (await client.PutAsJsonAsync(uri, Edit(Array.Empty<object>(), clearDefault: false))).EnsureSuccessStatusCode();
+        var listed = (await client.GetFromJsonAsync<ListFilamentsResponse>(new Uri("/api/v1/filaments", UriKind.Relative)))!
+            .Filaments.Single(f => f.Id == filament.Id);
+        var cleared = await client.PutAsJsonAsync(
+            uri, Edit(new[] { new { variantId, pricePerKg = (decimal?)null, lowStockGrams = (decimal?)null } }, clearDefault: true));
+
+        listed.LowStockDays.Should().Be(14);
+        listed.Variants.Single().LowStockDays.Should().Be(7);
+        var clearedBody = (await cleared.Content.ReadFromJsonAsync<FilamentResponse>())!;
+        clearedBody.LowStockDays.Should().BeNull();
+        clearedBody.Variants.Single().LowStockDays.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ADaysThresholdOverAYear_IsRefused()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var vendorResponse = await client.PostAsJsonAsync(
+            new Uri("/api/v1/vendors", UriKind.Relative), new CreateVendorRequest { Name = $"Vendor {Guid.NewGuid():N}" });
+        var vendor = await vendorResponse.Content.ReadFromJsonAsync<VendorResponse>();
+
+        var response = await client.PostAsJsonAsync(new Uri("/api/v1/filaments", UriKind.Relative), new CreateFilamentRequest
+        {
+            VendorId = vendor!.Id,
+            Material = "PLA",
+            MaterialType = "PLA",
+            LowStockDays = 366,
+            Variants = [new CreateFilamentVariantRequest { ColorName = "Black", ColorHex = "#000000" }],
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]

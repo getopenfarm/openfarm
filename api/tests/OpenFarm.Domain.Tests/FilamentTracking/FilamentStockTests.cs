@@ -65,6 +65,43 @@ public class FilamentStockTests
         FilamentStock.Of([]).IsBelow(null).Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(900, 300, 90)]
+    [InlineData(0, 300, 0)]
+    [InlineData(150, 300, 15)]
+    public void DaysLeft_IsOnHandOverTheDailyUseInTheWindow(decimal onHand, decimal used, decimal days)
+    {
+        FilamentStock.Of([(onHand, null)], usedGrams: used).DaysLeft(windowDays: 30).Should().Be(days);
+    }
+
+    [Fact]
+    public void DaysLeft_WithoutUse_IsUnknown()
+    {
+        FilamentStock.Of([(900m, null)]).DaysLeft(windowDays: 30).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(600, 300, 500, null, false)] // 600 g, 60 days: neither rule
+    [InlineData(400, 300, 500, null, true)] // grams rule
+    [InlineData(600, 300, null, 90, true)] // days rule: 60 days < 90
+    [InlineData(600, 300, null, 60, false)] // exactly at the threshold is not under it
+    [InlineData(600, 300, null, 0, false)] // a days threshold of 0 never fires
+    [InlineData(600, 0, null, 90, false)] // no use, no days left, so the days rule cannot fire
+    public void IsLow_IsTheGramsRuleOrTheDaysRule(decimal onHand, decimal used, int? thresholdGrams, int? thresholdDays, bool low)
+    {
+        FilamentStock.Of([(onHand, null)], usedGrams: used)
+            .IsLow(thresholdGrams, thresholdDays, windowDays: 30)
+            .Should().Be(low);
+    }
+
+    [Fact]
+    public void Threshold_InDays_FollowsTheSameRulesAsGrams()
+    {
+        FilamentStock.Threshold(variantDays: 7, filamentDays: 14, everStocked: false).Should().Be(7);
+        FilamentStock.Threshold(variantDays: null, filamentDays: 14, everStocked: true).Should().Be(14);
+        FilamentStock.Threshold(variantDays: null, filamentDays: 14, everStocked: false).Should().BeNull();
+    }
+
     [Fact]
     public void Threshold_TheColorsOwnWinsOverTheFilamentDefault()
     {

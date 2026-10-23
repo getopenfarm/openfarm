@@ -73,7 +73,7 @@ public class FilamentStockDispatchTests(ProductionTestFactory factory) : Product
         stock.Required.Should().Be("132 g White PLA (120 g + 10%)");
         stock.Actual.Should().Be("50 g");
         stock.Message.Should().StartWith($"Needs 132 g White PLA (120 g + 10%) · {printer.Name} has 50 g.");
-        stock.ConfigurationUrl.Should().Be($"/spools/{spoolId}");
+        stock.ConfigurationUrl.Should().Be($"/filament/spools/{spoolId}");
 
         (await client.PutAsJsonAsync($"/api/v1/spools/{spoolId}", new { remainingWeightGrams = 500 })).EnsureSuccessStatusCode();
 

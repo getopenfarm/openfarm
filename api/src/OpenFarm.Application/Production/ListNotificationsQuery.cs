@@ -15,10 +15,13 @@ public sealed record NotificationItem(
     string Type, Guid PrintId, string Name, PrintSource Source, PrintJobStatus Status, Guid? PrinterId,
     DateTimeOffset? EndedAtUtc, IReadOnlyList<NotificationLine> Lines);
 
-/// <summary>A colour whose grams on hand dropped under its low-stock threshold; it clears itself once restocked.</summary>
+/// <summary>
+/// A colour under its low-stock threshold, in grams on hand or in days left; it clears itself once restocked. A colour low by
+/// days alone has no <see cref="ThresholdGrams"/>.
+/// </summary>
 public sealed record LowStockItem(
     Guid FilamentId, Guid FilamentVariantId, string VendorName, string Material, string ColorName, string ColorHex,
-    decimal OnHandGrams, decimal ThresholdGrams);
+    decimal OnHandGrams, decimal? ThresholdGrams, decimal? DaysLeft, int? ThresholdDays);
 
 /// <summary><see cref="TotalCount"/> counts <see cref="Items"/> across pages; the other lists are listed whole.</summary>
 public sealed record NotificationsPage(
@@ -46,7 +49,16 @@ public sealed class ListNotificationsQueryHandler(
             .Where(s => s.IsLow)
             .OrderBy(s => s.VendorName).ThenBy(s => s.Material).ThenBy(s => s.ColorName)
             .Select(s => new LowStockItem(
-                s.FilamentId, s.FilamentVariantId, s.VendorName, s.Material, s.ColorName, s.ColorHex, s.Stock.OnHandGrams, s.ThresholdGrams!.Value))
+                FilamentId: s.FilamentId,
+                FilamentVariantId: s.FilamentVariantId,
+                VendorName: s.VendorName,
+                Material: s.Material,
+                ColorName: s.ColorName,
+                ColorHex: s.ColorHex,
+                OnHandGrams: s.Stock.OnHandGrams,
+                ThresholdGrams: s.ThresholdGrams,
+                DaysLeft: s.DaysLeft,
+                ThresholdDays: s.ThresholdDays))
             .ToList();
         var tagged = await rfid.ListAsync(colors, cancellationToken);
         return new NotificationsPage(items, total, lowStock, tagged.Unregistered, tagged.Drift);

@@ -37,6 +37,7 @@ export interface FilamentVariantDraft {
   colorHex: string;
   pricePerKg: number | null;
   lowStockGrams: number | null;
+  lowStockDays: number | null;
 }
 
 export interface VariantDialogResult {
@@ -52,6 +53,7 @@ function emptyVariant(): FilamentVariantDraft {
     colorHex: first.hex,
     pricePerKg: null,
     lowStockGrams: null,
+    lowStockDays: null,
   };
 }
 
@@ -68,6 +70,8 @@ interface VariantDialogProps {
   inheritedPrice: number | null;
   /** The filament's low-stock threshold, used when the variant has none of its own. */
   inheritedLowStock: number | null;
+  /** The filament's days-left threshold, used when the variant has none of its own. */
+  inheritedLowStockDays: number | null;
   materialType: string;
   /** Every assignment in the draft: defaults (no color) and all color overrides. */
   assignments: FilamentProfileAssignmentInput[];
@@ -80,6 +84,7 @@ export function VariantDialog({
   variant,
   inheritedPrice,
   inheritedLowStock,
+  inheritedLowStockDays,
   materialType,
   assignments,
   onSave,
@@ -108,8 +113,18 @@ export function VariantDialog({
   const priceInvalid = draft.pricePerKg != null && draft.pricePerKg < 0;
   const lowStockInvalid =
     draft.lowStockGrams != null && draft.lowStockGrams < 0;
+  const lowStockDaysInvalid =
+    draft.lowStockDays != null &&
+    !(
+      Number.isInteger(draft.lowStockDays) &&
+      draft.lowStockDays >= 0 &&
+      draft.lowStockDays <= 365
+    );
   const canSave =
-    draft.colorName.trim().length > 0 && !priceInvalid && !lowStockInvalid;
+    draft.colorName.trim().length > 0 &&
+    !priceInvalid &&
+    !lowStockInvalid &&
+    !lowStockDaysInvalid;
 
   function setOverride(row: AssignmentRow, profileId: string | null) {
     setOverrides((prev) => {
@@ -299,6 +314,46 @@ export function VariantDialog({
                 {lowStockInvalid && (
                   <FieldError id="variant-low-stock-error">
                     Must be 0 or more
+                  </FieldError>
+                )}
+              </Field>
+
+              <Field data-invalid={lowStockDaysInvalid || undefined}>
+                <FieldLabel htmlFor="variant-low-stock-days">
+                  Days left below
+                </FieldLabel>
+                <UnitInput
+                  id="variant-low-stock-days"
+                  unit="d"
+                  min="0"
+                  max="365"
+                  step="1"
+                  inputMode="numeric"
+                  aria-invalid={lowStockDaysInvalid || undefined}
+                  aria-describedby={
+                    lowStockDaysInvalid
+                      ? 'variant-low-stock-days-error'
+                      : undefined
+                  }
+                  placeholder={
+                    inheritedLowStockDays == null
+                      ? 'No default'
+                      : `Default: ${inheritedLowStockDays} d`
+                  }
+                  value={draft.lowStockDays ?? ''}
+                  onChange={(event) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      lowStockDays:
+                        event.target.value === ''
+                          ? null
+                          : Number(event.target.value),
+                    }))
+                  }
+                />
+                {lowStockDaysInvalid && (
+                  <FieldError id="variant-low-stock-days-error">
+                    Whole days, 0 to 365
                   </FieldError>
                 )}
               </Field>

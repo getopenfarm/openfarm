@@ -10,7 +10,7 @@ import type {
   UnregisteredRfidSpoolResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { formatRelativeTime } from '@/lib/formatRelativeTime';
-import { formatGrams, formatWeight } from '@/lib/formatUnits';
+import { formatDays, formatGrams, formatWeight } from '@/lib/formatUnits';
 import { canAssignSpool, lineLabel, reasonLabel } from '../lib/notifications';
 
 interface NotificationItemProps {
@@ -90,26 +90,40 @@ export function NotificationItem({
   );
 }
 
-/** A color under its low-stock threshold; it clears once restocked, so there is nothing to dismiss. */
+/** A color under its low-stock threshold, in grams or in days left; it clears once restocked, so there is nothing to dismiss. */
 export function LowStockNotification({
   item,
 }: {
   item: LowStockNotificationResponse;
 }) {
+  const onHand = item.onHandGrams ?? 0;
+  const lowByGrams =
+    item.thresholdGrams != null && onHand < item.thresholdGrams;
+  const lowByDays =
+    item.thresholdDays != null &&
+    item.daysLeft != null &&
+    item.daysLeft < item.thresholdDays;
   return (
     <li className="flex items-center gap-2 px-3 py-3">
       <Swatch colorHex={item.colorHex ?? undefined} size="md" />
       <div className="min-w-0 flex-1">
         <Link
-          to={`/filament/${item.filamentId}/edit`}
+          to={`/filament/${item.filamentId}`}
           className="block truncate text-sm font-medium hover:underline"
         >
           {item.vendorName} · {item.material} · {item.colorName}
         </Link>
-        <p className="text-xs text-kind-amber tabular-nums">
-          {formatWeight(item.onHandGrams ?? 0)} on hand · below{' '}
-          {formatWeight(item.thresholdGrams ?? 0)}
-        </p>
+        {lowByDays && (
+          <p className="text-xs text-kind-amber tabular-nums">
+            {formatDays(item.daysLeft ?? 0)} left · below {item.thresholdDays} d
+          </p>
+        )}
+        {(lowByGrams || !lowByDays) && (
+          <p className="text-xs text-kind-amber tabular-nums">
+            {formatWeight(onHand)} on hand
+            {lowByGrams && ` · below ${formatWeight(item.thresholdGrams ?? 0)}`}
+          </p>
+        )}
       </div>
     </li>
   );
@@ -126,7 +140,7 @@ export function registerRfidSpoolUrl(item: UnregisteredRfidSpoolResponse) {
     params.set('spoolWeightGrams', String(item.rfidWeightGrams));
   if (item.remainingGrams != null)
     params.set('remainingWeightGrams', String(item.remainingGrams));
-  return `/spools/new?${params}`;
+  return `/filament/spools/new?${params}`;
 }
 
 /** A tagged spool a printer reads that no spool owns: register it, or link the tag to the untagged spool in that slot. */
@@ -197,7 +211,7 @@ export function RfidWeightDriftNotification({
     <li className="flex flex-col gap-2 px-3 py-3">
       <div className="min-w-0">
         <Link
-          to={`/spools/${item.spoolId}`}
+          to={`/filament/spools/${item.spoolId}`}
           className="block truncate text-sm font-medium hover:underline"
         >
           {item.spoolLabel ??

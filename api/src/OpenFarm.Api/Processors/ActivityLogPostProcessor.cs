@@ -34,13 +34,11 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
 
         if (context.Response is IHasEntityIds hasEntityIds)
         {
-            foreach (var entityId in hasEntityIds.EntityIds)
-            {
-                var bulkEntry = ActivityLogEntry.Create(
-                    loggable.EntityType, entityId, loggable.EventType, actorId, actorType);
-                await writer.WriteAsync(bulkEntry, ct);
-                await NotifyPrinterActivityAsync(httpContext, bulkEntry, ct);
-            }
+            var bulkEntries = hasEntityIds.EntityIds
+                .Select(entityId => ActivityLogEntry.Create(loggable.EntityType, entityId, loggable.EventType, actorId, actorType))
+                .ToList();
+            await writer.WriteRangeAsync(bulkEntries, ct);
+            foreach (var bulkEntry in bulkEntries) await NotifyPrinterActivityAsync(httpContext, bulkEntry, ct);
 
             await NotifyInventoryChangedAsync(httpContext, loggable, ct);
             return;

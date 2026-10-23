@@ -70,7 +70,7 @@ function setup(
     }
     if (url.endsWith('/feed-units'))
       return respond({ feedUnits: options.feeds ?? [] });
-    if (url.endsWith('/spools'))
+    if (url.includes('/api/v1/spools?'))
       return respond({ spools: options.spools ?? [] });
     if (url.endsWith('/filaments')) return respond({ filaments: [] });
     const detail = printers.find((printer) =>

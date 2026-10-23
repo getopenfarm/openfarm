@@ -14,10 +14,11 @@ public sealed record EditFilamentCommand(
     IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments,
     decimal? PricePerKg = null, bool UpdatePrice = false,
     IReadOnlyList<FilamentVariantPriceInput>? VariantPrices = null,
-    decimal? LowStockGrams = null, bool UpdateLowStock = false);
+    decimal? LowStockGrams = null, bool UpdateLowStock = false,
+    int? LowStockDays = null, bool UpdateLowStockDays = false);
 
-/// <summary>A colour's own price and low-stock threshold; a listed colour gets both values, null clearing either.</summary>
-public sealed record FilamentVariantPriceInput(Guid VariantId, decimal? PricePerKg, decimal? LowStockGrams = null);
+/// <summary>A colour's own price and low-stock thresholds; a listed colour gets every value, null clearing it.</summary>
+public sealed record FilamentVariantPriceInput(Guid VariantId, decimal? PricePerKg, decimal? LowStockGrams = null, int? LowStockDays = null);
 
 /// <summary>
 /// PUT /api/v1/filaments/{id} — updates vendor/material/type, adds colour variants and replaces profile
@@ -41,16 +42,20 @@ public sealed class EditFilamentCommandHandler(IFilamentRepository filaments, IV
             throw new ArgumentOutOfRangeException(nameof(command), "Price must be non-negative.");
         if (command.LowStockGrams < 0 || prices.Any(p => p.LowStockGrams < 0) || command.NewVariants.Any(v => v.LowStockGrams < 0))
             throw new ArgumentOutOfRangeException(nameof(command), "Low stock threshold must be non-negative.");
+        if (OutOfRange(command.LowStockDays) || prices.Any(p => OutOfRange(p.LowStockDays)) || command.NewVariants.Any(v => OutOfRange(v.LowStockDays)))
+            throw new ArgumentOutOfRangeException(nameof(command), $"Low stock days must be 0 to {Filament.MaxLowStockDays}.");
         foreach (var price in prices)
             if (!filament.Variants.Any(v => v.Id == price.VariantId))
                 throw new FilamentVariantNotFoundException(price.VariantId);
         if (command.UpdatePrice) filament.SetPricePerKg(command.PricePerKg);
         if (command.UpdateLowStock) filament.SetLowStockGrams(command.LowStockGrams);
+        if (command.UpdateLowStockDays) filament.SetLowStockDays(command.LowStockDays);
         foreach (var price in prices)
         {
             var listed = filament.Variants.Single(v => v.Id == price.VariantId);
             listed.SetPricePerKg(price.PricePerKg);
             listed.SetLowStockGrams(price.LowStockGrams);
+            listed.SetLowStockDays(price.LowStockDays);
         }
 
         // Before ReplaceAsync: assignments are validated against the (possibly new) material type.
@@ -68,6 +73,7 @@ public sealed class EditFilamentCommandHandler(IFilamentRepository filaments, IV
             var added = filament.AddVariant(variant.ColorName, variant.ColorHex);
             added.SetPricePerKg(variant.PricePerKg);
             added.SetLowStockGrams(variant.LowStockGrams);
+            added.SetLowStockDays(variant.LowStockDays);
         }
 
         await assignments.ReplaceAsync(filament, command.ProfileAssignments, cancellationToken);
@@ -75,4 +81,6 @@ public sealed class EditFilamentCommandHandler(IFilamentRepository filaments, IV
         foreach (var printer in await printers.ListAsync(cancellationToken)) dispatcher.RequestDispatchAttempt(printer.Id);
         return filament;
     }
+
+    private static bool OutOfRange(int? days) => days is < 0 or > Filament.MaxLowStockDays;
 }

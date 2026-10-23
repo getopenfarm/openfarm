@@ -1,11 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { FilamentCatalogTable } from './FilamentCatalogTable';
 
+function Search() {
+  return <h1>{useLocation().search}</h1>;
+}
+
 describe('FilamentCatalogTable actions', () => {
-  it('opens the existing variant editor from the row menu', async () => {
+  function renderRows() {
     render(
       <MemoryRouter>
         <Routes>
@@ -14,29 +18,59 @@ describe('FilamentCatalogTable actions', () => {
             element={
               <FilamentCatalogTable
                 filaments={[
-                  { id: 'f1', vendorName: 'Vendor', material: 'PLA' },
+                  {
+                    id: 'f1',
+                    vendorName: 'Vendor',
+                    material: 'PLA',
+                    variants: [{ id: 'v1' }],
+                  },
                 ]}
                 stock={[]}
               />
             }
           />
-          <Route path="/filament/:id/edit" element={<h1>Variant editor</h1>} />
+          <Route path="/filament/:id/edit" element={<h1>Filament editor</h1>} />
+          <Route path="/filament/spools/new" element={<Search />} />
         </Routes>
       </MemoryRouter>,
     );
-    expect(
-      screen.queryByRole('button', { name: 'Add variant' }),
-    ).not.toBeInTheDocument();
+  }
+
+  it('links each filament to its page', () => {
+    renderRows();
+
+    expect(screen.getByRole('link', { name: 'Vendor · PLA' })).toHaveAttribute(
+      'href',
+      '/filament/f1',
+    );
+  });
+
+  it('adds a spool of its only color from the row menu', async () => {
+    renderRows();
+
     await userEvent.click(
       screen.getByRole('button', { name: 'Actions for Vendor PLA' }),
     );
-    await userEvent.click(
-      screen.getByRole('menuitem', { name: 'Add variant' }),
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Add spools' }));
+
+    expect(screen.getByRole('heading')).toHaveTextContent(
+      '?filamentId=f1&variantId=v1',
     );
+  });
+
+  it('opens the editor from the row menu', async () => {
+    renderRows();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Actions for Vendor PLA' }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+
     expect(
-      screen.getByRole('heading', { name: 'Variant editor' }),
+      screen.getByRole('heading', { name: 'Filament editor' }),
     ).toBeInTheDocument();
   });
+
   it("adds up each filament's colors into on hand, value and used", () => {
     render(
       <MemoryRouter>

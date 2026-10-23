@@ -18,7 +18,9 @@ export const canAssignSpool = (line: NotificationLineResponse) =>
   line.reason === 'NoSpool' || line.reason === 'SpoolNotLoaded';
 
 export const bellLabel = (count: number) =>
-  count > 0 ? `Notifications, ${count} need action` : 'Notifications';
+  count > 0
+    ? `Notifications, ${count} ${count === 1 ? 'needs' : 'need'} action`
+    : 'Notifications';
 
 export const badgeText = (count: number) => (count > 9 ? '9+' : String(count));
 

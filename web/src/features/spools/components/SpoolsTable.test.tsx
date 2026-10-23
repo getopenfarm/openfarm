@@ -57,7 +57,7 @@ describe('SpoolsTable actions', () => {
     ]);
     expect(screen.getByRole('link', { name: 'Stored spool' })).toHaveAttribute(
       'href',
-      '/spools/stored',
+      '/filament/spools/stored',
     );
     expect(
       screen.queryByRole('button', { name: 'Load' }),

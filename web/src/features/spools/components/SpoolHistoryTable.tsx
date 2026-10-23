@@ -20,10 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  formatChange,
-  SourceCell,
-} from '@/features/spools/components/SpoolHistoryCard';
 import type {
   OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams,
   SpoolHistoryEntryResponse,
@@ -31,27 +27,27 @@ import type {
 import { useOpenFarmApiEndpointsSpoolsListSpoolHistoryEndpoint } from '@/lib/api/generated/spools/spools';
 import { formatDateTime } from '@/lib/formatDateTime';
 import { formatGrams } from '@/lib/formatUnits';
+import { formatChange, SourceCell } from './SpoolHistoryCard';
 
+/** The spool, named by its label or else its color; a labeled spool shows its color under it. The material is the page's. */
 function SpoolCell({ entry }: { entry: SpoolHistoryEntryResponse }) {
   return (
     <div className="flex flex-col">
       <Link
-        to={`/spools/${entry.spoolId}`}
+        to={`/filament/spools/${entry.spoolId}`}
         className="flex items-center gap-2 font-medium underline-offset-4 hover:underline"
       >
         <Swatch colorHex={entry.colorHex ?? undefined} size="sm" />
         {entry.spoolLabel || entry.colorName || 'Spool'}
       </Link>
-      <span className="text-xs text-muted-foreground">
-        {[entry.material, entry.spoolLabel ? entry.colorName : null]
-          .filter(Boolean)
-          .join(' · ')}
-      </span>
+      {entry.spoolLabel && (
+        <span className="text-xs text-muted-foreground">{entry.colorName}</span>
+      )}
     </div>
   );
 }
 
-/** Every spool's weight changes in the filter, newest first, a page at a time. A new filter starts again at page 1. */
+/** One filament's spool weight changes in the filter, newest first, a page at a time. A new filter starts again at page 1. */
 export function SpoolHistoryTable({
   filter,
 }: {

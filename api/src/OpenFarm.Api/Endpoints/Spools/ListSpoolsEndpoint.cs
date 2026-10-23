@@ -24,6 +24,9 @@ public sealed class ListSpoolsRequest
 
     /// <summary>1–100; an out-of-range value falls back to 25.</summary>
     public int? PageSize { get; set; }
+
+    /// <summary>Newest registered first, instead of oldest first.</summary>
+    public bool? NewestFirst { get; set; }
 }
 
 public sealed class ListSpoolsResponse
@@ -52,7 +55,9 @@ public sealed class ListSpoolsEndpoint(IQueryHandler<GetSpoolsQuery, SpoolSummar
         var pageSize = paged ? (req.PageSize is < 1 or > 100 or null ? 25 : req.PageSize) : null;
 
         var result = await handler.HandleAsync(
-            new GetSpoolsQuery(req.State, req.FilamentId, req.FilamentVariantId, req.VendorId, req.Search, Page: page, PageSize: pageSize), ct);
+            new GetSpoolsQuery(
+                req.State, req.FilamentId, req.FilamentVariantId, req.VendorId, req.Search, Page: page, PageSize: pageSize,
+                NewestFirst: req.NewestFirst ?? false), ct);
 
         Response = new ListSpoolsResponse
         {

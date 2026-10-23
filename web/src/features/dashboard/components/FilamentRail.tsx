@@ -7,9 +7,10 @@ import {
 } from '@/components/ui/popover';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import { ManageSlotDialog } from '@/features/spools/components/ManageSlotDialog';
-import type {
-  ListFeedUnitsResponse,
-  ListSpoolsResponse,
+import {
+  type ListFeedUnitsResponse,
+  type ListSpoolsResponse,
+  SpoolState,
 } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint } from '@/lib/api/generated/printers/printers';
 import { useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint } from '@/lib/api/generated/spools/spools';
@@ -184,7 +185,10 @@ export function FilamentRail({ printer }: { printer: MonitoredPrinter }) {
     undefined,
     { query: { enabled: Boolean(printer.id) } },
   );
-  const spoolQuery = useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint();
+  // Only loaded spools fill meters; a farm finishes thousands, and this refetches on every print close.
+  const spoolQuery = useOpenFarmApiEndpointsSpoolsListSpoolsEndpoint({
+    state: SpoolState.Using,
+  });
   const catalog = useFilamentCatalog();
   const units =
     (feedQuery.data?.data as ListFeedUnitsResponse | undefined)?.feedUnits ??

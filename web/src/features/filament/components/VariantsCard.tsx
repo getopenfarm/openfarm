@@ -30,6 +30,8 @@ interface VariantsCardProps {
   inheritedPrice: number | null;
   /** The filament's low-stock threshold, used by stocked variants without their own. */
   inheritedLowStock: number | null;
+  /** The filament's days-left threshold, used by variants without their own. */
+  inheritedLowStockDays: number | null;
   /** Saved variants' stock; staged ones have none yet. */
   stock?: VariantStockResponse[];
   materialType: string;
@@ -74,6 +76,7 @@ export function VariantsCard({
   variants,
   inheritedPrice,
   inheritedLowStock,
+  inheritedLowStockDays,
   stock = [],
   materialType,
   assignments,
@@ -183,6 +186,7 @@ export function VariantsCard({
         variant={editIndex == null ? undefined : variants[editIndex]}
         inheritedPrice={inheritedPrice}
         inheritedLowStock={inheritedLowStock}
+        inheritedLowStockDays={inheritedLowStockDays}
         materialType={materialType}
         assignments={assignments}
         onSave={(result) => {

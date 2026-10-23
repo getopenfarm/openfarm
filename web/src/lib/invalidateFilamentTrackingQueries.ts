@@ -4,7 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
  * Refetches everything that shows spool state or Feed unit topology: the spools list (/api/v1/spools), one spool and its
  * history (/api/v1/spools/{id}…), the printer-scoped Feed units (/api/v1/printers/{id}/feed-units) and the filament list,
  * whose stock totals follow spool weights, the shortages measured against them, and the usage reports (/api/v1/reports…). They are shown together on FeedUnitsCard,
- * SpoolsTable, the spool page, the filament catalog and the Usage page, and the by-id keys do not share the list key's prefix, so one predicate covers them all.
+ * the filament list and page, the spool page and the Stats page, and the by-id keys do not share the list key's prefix, so one predicate covers them all.
  */
 export function invalidateFilamentTrackingQueries(queryClient: QueryClient) {
   return queryClient.invalidateQueries({

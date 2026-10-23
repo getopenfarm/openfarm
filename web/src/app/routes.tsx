@@ -10,6 +10,7 @@ import { CostCatalogPage } from '../features/cost-catalog/CostCatalogPage';
 import { CostItemFormPage } from '../features/cost-catalog/CostItemFormPage';
 import { LegacyCostCatalogRedirect } from '../features/cost-catalog/LegacyCostCatalogRedirect';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
+import { FilamentDetailPage } from '../features/filament/FilamentDetailPage';
 import { FilamentFormPage } from '../features/filament/FilamentFormPage';
 import { FilamentPage } from '../features/filament/FilamentPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
@@ -32,8 +33,7 @@ import { SettingsLayout } from '../features/settings/SettingsLayout';
 import { SlicingDefaultsPage } from '../features/settings/SlicingDefaultsPage';
 import { SpoolDetailPage } from '../features/spools/SpoolDetailPage';
 import { SpoolFormPage } from '../features/spools/SpoolFormPage';
-import { SpoolsPage } from '../features/spools/SpoolsPage';
-import { UsagePage } from '../features/usage/UsagePage';
+import { StatsPage } from '../features/stats/StatsPage';
 import { AppShell } from './layout/AppShell';
 import { ProtectedRoute } from './layout/ProtectedRoute';
 
@@ -89,6 +89,11 @@ export const router = createBrowserRouter([
             handle: { title: 'Print job' },
           },
           {
+            path: '/stats',
+            element: <StatsPage />,
+            handle: { title: 'Stats' },
+          },
+          {
             path: '/production-runs',
             handle: { title: 'Production runs' },
             children: [
@@ -126,37 +131,33 @@ export const router = createBrowserRouter([
                 element: <FilamentFormPage mode="add" />,
                 handle: { title: 'Add filament' },
               },
+              // Static, so they rank above ':id'; no titled 'spools' parent, whose crumb would link to a filament named "spools".
               {
-                path: ':id/edit',
-                element: <FilamentFormPage mode="edit" />,
-                handle: { title: 'Edit filament' },
-              },
-            ],
-          },
-          {
-            path: '/spools',
-            handle: { title: 'Spools' },
-            children: [
-              {
-                index: true,
-                element: <SpoolsPage />,
-              },
-              {
-                path: 'new',
+                path: 'spools/new',
                 element: <SpoolFormPage />,
-                handle: { title: 'Add spool' },
+                handle: { title: 'Add spools' },
               },
               {
-                path: ':id',
+                path: 'spools/:id',
                 element: <SpoolDetailPage />,
                 handle: { title: 'Spool' },
               },
+              {
+                path: ':id',
+                handle: { title: 'Filament detail' },
+                children: [
+                  {
+                    index: true,
+                    element: <FilamentDetailPage />,
+                  },
+                  {
+                    path: 'edit',
+                    element: <FilamentFormPage mode="edit" />,
+                    handle: { title: 'Edit filament' },
+                  },
+                ],
+              },
             ],
-          },
-          {
-            path: '/usage',
-            element: <UsagePage />,
-            handle: { title: 'Usage' },
           },
           {
             path: '/parts',

@@ -31,6 +31,7 @@ export interface SpoolResponse {
   /** @nullable */
   label?: string | null;
   filamentVariantId?: string;
+  filamentId?: string;
   colorName?: string;
   colorHex?: string;
   material?: string;
@@ -180,16 +181,20 @@ export interface RegisterSpoolsResponse {
   spools?: SpoolResponse[];
 }
 
-export interface RegisterSpoolRequest {
+export interface RegisterSpoolLineRequest {
   filamentVariantId?: string;
-  /** @nullable */
-  label?: string | null;
   spoolWeightGrams?: number;
-  /** @nullable */
-  remainingWeightGrams?: number | null;
   quantity?: number;
   /** @nullable */
+  remainingWeightGrams?: number | null;
+  /** @nullable */
   price?: number | null;
+  /** @nullable */
+  label?: string | null;
+}
+
+export interface RegisterSpoolRequest {
+  lines?: RegisterSpoolLineRequest[];
   /** @nullable */
   supplier?: string | null;
   /** @nullable */
@@ -325,6 +330,21 @@ export interface UpdateSlicingDefaultsRequest {
   engine?: string;
   version?: string;
   estimationProfiles?: EstimationProfilesRequest | null;
+}
+
+export interface ColorDailyUsageResponse {
+  filamentVariantId?: string;
+  drawnGrams?: number[];
+  wasteGrams?: number[];
+}
+
+export interface DailyUsageResponse {
+  days?: string[];
+  colors?: ColorDailyUsageResponse[];
+}
+
+export interface DailyUsageRequest {
+  [key: string]: unknown;
 }
 
 export interface MaterialsReportRowResponse {
@@ -1531,7 +1551,12 @@ export interface LowStockNotificationResponse {
   colorName?: string;
   colorHex?: string;
   onHandGrams?: number;
-  thresholdGrams?: number;
+  /** @nullable */
+  thresholdGrams?: number | null;
+  /** @nullable */
+  daysLeft?: number | null;
+  /** @nullable */
+  thresholdDays?: number | null;
 }
 
 export interface UnregisteredRfidSpoolResponse {
@@ -1632,6 +1657,8 @@ export interface FilamentVariantResponse {
   pricePerKg?: number | null;
   /** @nullable */
   lowStockGrams?: number | null;
+  /** @nullable */
+  lowStockDays?: number | null;
   id?: string;
   colorName?: string;
   colorHex?: string;
@@ -1642,6 +1669,8 @@ export interface FilamentResponse {
   pricePerKg?: number | null;
   /** @nullable */
   lowStockGrams?: number | null;
+  /** @nullable */
+  lowStockDays?: number | null;
   id?: string;
   vendorId?: string;
   vendorName?: string;
@@ -1656,6 +1685,8 @@ export interface CreateFilamentVariantRequest {
   pricePerKg?: number | null;
   /** @nullable */
   lowStockGrams?: number | null;
+  /** @nullable */
+  lowStockDays?: number | null;
   colorName?: string;
   colorHex?: string;
 }
@@ -1665,6 +1696,8 @@ export interface CreateFilamentRequest {
   pricePerKg?: number | null;
   /** @nullable */
   lowStockGrams?: number | null;
+  /** @nullable */
+  lowStockDays?: number | null;
   vendorId?: string;
   material?: string;
   materialType?: string;
@@ -1678,6 +1711,8 @@ export interface FilamentVariantPriceInput {
   pricePerKg?: number | null;
   /** @nullable */
   lowStockGrams?: number | null;
+  /** @nullable */
+  lowStockDays?: number | null;
 }
 
 export interface EditFilamentRequest {
@@ -1685,6 +1720,8 @@ export interface EditFilamentRequest {
   pricePerKg?: number | null;
   /** @nullable */
   lowStockGrams?: number | null;
+  /** @nullable */
+  lowStockDays?: number | null;
   variantPrices?: FilamentVariantPriceInput[];
   vendorId?: string;
   material?: string;
@@ -1724,6 +1761,10 @@ export interface VariantStockResponse {
   usedLast30DaysGrams?: number;
   /** @nullable */
   thresholdGrams?: number | null;
+  /** @nullable */
+  daysLeft?: number | null;
+  /** @nullable */
+  thresholdDays?: number | null;
   isLow?: boolean;
 }
 
@@ -2113,6 +2154,10 @@ export type OpenFarmApiEndpointsSpoolsListSpoolsEndpointParams = {
    * @nullable
    */
   pageSize?: number | null;
+  /**
+   * @nullable
+   */
+  newestFirst?: boolean | null;
 };
 
 export type OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams = {
@@ -2139,6 +2184,10 @@ export type OpenFarmApiEndpointsSpoolsListSpoolHistoryEndpointParams = {
   /**
    * @nullable
    */
+  filamentId?: string | null;
+  /**
+   * @nullable
+   */
   source?: string | null;
 };
 
@@ -2158,6 +2207,10 @@ export type OpenFarmApiEndpointsSpoolsExportSpoolHistoryEndpointParams = {
   /**
    * @nullable
    */
+  filamentId?: string | null;
+  /**
+   * @nullable
+   */
   source?: string | null;
 };
 
@@ -2172,6 +2225,11 @@ export type OpenFarmApiEndpointsSlicingGetSlicingReadinessEndpointParams = {
   version?: string | null;
 };
 
+export type OpenFarmApiEndpointsReportsDailyUsageEndpointParams = {
+  filamentId: string;
+  timeZone: string;
+};
+
 export type OpenFarmApiEndpointsReportsGetMaterialsReportEndpointParams = {
   /**
    * @nullable
@@ -2181,6 +2239,10 @@ export type OpenFarmApiEndpointsReportsGetMaterialsReportEndpointParams = {
    * @nullable
    */
   to?: string | null;
+  /**
+   * @nullable
+   */
+  filamentId?: string | null;
 };
 
 export type OpenFarmApiEndpointsReportsExportMaterialsReportEndpointParams = {
@@ -2192,6 +2254,10 @@ export type OpenFarmApiEndpointsReportsExportMaterialsReportEndpointParams = {
    * @nullable
    */
   to?: string | null;
+  /**
+   * @nullable
+   */
+  filamentId?: string | null;
 };
 
 export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {

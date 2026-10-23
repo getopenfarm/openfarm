@@ -64,6 +64,7 @@ const SAVED_BLACK = {
   colorHex: '#18181b',
   pricePerKg: null,
   lowStockGrams: null,
+  lowStockDays: null,
 };
 
 function renderDialog(
@@ -77,6 +78,7 @@ function renderDialog(
       onOpenChange={onOpenChange}
       inheritedPrice={25.5}
       inheritedLowStock={null}
+      inheritedLowStockDays={null}
       materialType="PLA"
       assignments={[P1S_DEFAULT]}
       onSave={onSave}
@@ -163,6 +165,7 @@ describe('VariantDialog', () => {
         colorHex: '#ef4444',
         pricePerKg: null,
         lowStockGrams: null,
+        lowStockDays: null,
       },
       overrides: [],
     });
@@ -184,6 +187,8 @@ describe('VariantDialog', () => {
     await user.tab();
     expect(screen.getByLabelText('Low stock below')).toHaveFocus();
     await user.tab();
+    expect(screen.getByLabelText('Days left below')).toHaveFocus();
+    await user.tab();
     expect(screen.getByLabelText('P1S · 0.4 mm profile')).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Add variant' }));
 
@@ -201,6 +206,7 @@ describe('VariantDialog', () => {
         colorHex: '#ef4444',
         pricePerKg: 28,
         lowStockGrams: null,
+        lowStockDays: null,
       },
     });
 
@@ -256,6 +262,38 @@ describe('VariantDialog', () => {
     await user.type(screen.getByLabelText('Low stock below'), '-1');
 
     expect(screen.getByText('Must be 0 or more')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Update variant' }),
+    ).toBeDisabled();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('saves its own days threshold, showing the filament default as the hint', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderDialog({
+      variant: SAVED_BLACK,
+      inheritedLowStockDays: 14,
+    });
+
+    const days = screen.getByLabelText('Days left below');
+    expect(days).toHaveAttribute('placeholder', 'Default: 14 d');
+    await user.type(days, '7');
+    await user.click(screen.getByRole('button', { name: 'Update variant' }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: expect.objectContaining({ lowStockDays: 7 }),
+      }),
+    );
+  });
+
+  it('blocks a days threshold over a year', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderDialog({ variant: SAVED_BLACK });
+
+    await user.type(screen.getByLabelText('Days left below'), '366');
+
+    expect(screen.getByText('Whole days, 0 to 365')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Update variant' }),
     ).toBeDisabled();

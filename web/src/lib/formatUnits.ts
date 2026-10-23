@@ -7,6 +7,10 @@ export const formatGrams = (n: number) => `${trim(n)} g`;
 export const formatWeight = (grams: number) =>
   grams >= 1000 ? `${trim(grams / 1000, 2)} kg` : formatGrams(grams);
 
+/** Days left, an estimate rounded down (the last day is not covered): 6.8 -> "~6 d"; under 1 -> "< 1 d"; from `cap` on -> "60+ d". */
+export const formatDays = (days: number, cap = 60) =>
+  days >= cap ? `${cap}+ d` : days < 1 ? '< 1 d' : `~${Math.floor(days)} d`;
+
 /** 0.125 -> "0.13"; no currency symbol — the app has no currency setting. */
 export const formatCost = (n: number) => n.toFixed(2);
 

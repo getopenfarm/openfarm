@@ -294,7 +294,7 @@ function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
                         )}
                         {line.spoolId && (
                           <Link
-                            to={`/spools/${line.spoolId}`}
+                            to={`/filament/spools/${line.spoolId}`}
                             className="underline-offset-4 hover:underline"
                           >
                             Spool

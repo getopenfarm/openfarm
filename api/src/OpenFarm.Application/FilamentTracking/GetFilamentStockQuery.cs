@@ -9,7 +9,7 @@ public sealed record GetFilamentStockQuery
     public const int UsedDays = 30;
 }
 
-/// <summary>One colour's <see cref="FilamentStock"/>, the low-stock threshold that applies to it, and the names to show it by.</summary>
+/// <summary>One colour's <see cref="FilamentStock"/>, the low-stock thresholds that apply to it, and the names to show it by.</summary>
 public sealed record VariantStock(
     Guid FilamentVariantId,
     Guid FilamentId,
@@ -19,9 +19,13 @@ public sealed record VariantStock(
     string ColorName,
     string ColorHex,
     FilamentStock Stock,
-    decimal? ThresholdGrams)
+    decimal? ThresholdGrams,
+    int? ThresholdDays = null)
 {
-    public bool IsLow => Stock.IsBelow(ThresholdGrams);
+    /// <summary>How long the stock lasts at the pace of the last <see cref="GetFilamentStockQuery.UsedDays"/> days; null without use.</summary>
+    public decimal? DaysLeft => Stock.DaysLeft(GetFilamentStockQuery.UsedDays);
+
+    public bool IsLow => Stock.IsLow(ThresholdGrams, ThresholdDays, GetFilamentStockQuery.UsedDays);
 }
 
 public sealed class GetFilamentStockQueryHandler(ISpoolReadModel spoolReadModel)

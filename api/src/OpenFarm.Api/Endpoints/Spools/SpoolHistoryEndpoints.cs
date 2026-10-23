@@ -18,12 +18,15 @@ public class SpoolHistoryFilterRequest
     /// <summary>Only spools of this color.</summary>
     public Guid? FilamentVariantId { get; set; }
 
+    /// <summary>Only spools of this filament's colors.</summary>
+    public Guid? FilamentId { get; set; }
+
     /// <summary><c>Job</c>, <c>Manual</c>, <c>Correction</c>, <c>WriteOff</c> or <c>Restore</c>.</summary>
     public string? Source { get; set; }
 
     internal GetSpoolHistoryQuery ToQuery(int page, int pageSize) =>
         new(null, page, pageSize, From?.ToUniversalTime(), To?.ToUniversalTime(), FilamentVariantId,
-            Source is null ? null : Enum.Parse<SpoolUsageSource>(Source, ignoreCase: true));
+            Source is null ? null : Enum.Parse<SpoolUsageSource>(Source, ignoreCase: true), FilamentId);
 }
 
 public sealed class SpoolHistoryFilterValidator : Validator<SpoolHistoryFilterRequest>
@@ -48,7 +51,7 @@ public sealed class ListSpoolHistoryValidator : Validator<ListSpoolHistoryReques
     public ListSpoolHistoryValidator() => Include(new SpoolHistoryFilterValidator());
 }
 
-/// <summary>GET /api/v1/spools/history — every spool's weight changes, newest first, filtered by time, color and source.</summary>
+/// <summary>GET /api/v1/spools/history — every spool's weight changes, newest first, filtered by time, filament, color and source.</summary>
 [Permission("spools:list")]
 public sealed class ListSpoolHistoryEndpoint(IQueryHandler<GetSpoolHistoryQuery, SpoolHistoryPage> handler)
     : Endpoint<ListSpoolHistoryRequest, SpoolHistoryResponse>

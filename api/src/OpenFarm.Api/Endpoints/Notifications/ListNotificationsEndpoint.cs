@@ -60,7 +60,13 @@ public sealed class LowStockNotificationResponse
 
     public decimal OnHandGrams { get; set; }
 
-    public decimal ThresholdGrams { get; set; }
+    /// <summary>The grams threshold; null when only the days threshold applies.</summary>
+    public decimal? ThresholdGrams { get; set; }
+
+    /// <summary>Days the stock lasts at the last 30 days' pace; null when the colour was not used.</summary>
+    public decimal? DaysLeft { get; set; }
+
+    public int? ThresholdDays { get; set; }
 }
 
 public sealed class UnregisteredRfidSpoolResponse
@@ -193,6 +199,8 @@ public sealed class ListNotificationsEndpoint(IQueryHandler<ListNotificationsQue
                 ColorHex = item.ColorHex,
                 OnHandGrams = item.OnHandGrams,
                 ThresholdGrams = item.ThresholdGrams,
+                DaysLeft = item.DaysLeft,
+                ThresholdDays = item.ThresholdDays,
             }).ToList(),
             RfidSpools = page.RfidSpools.Select(item => new UnregisteredRfidSpoolResponse
             {

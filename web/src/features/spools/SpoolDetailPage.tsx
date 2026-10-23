@@ -135,8 +135,12 @@ export function SpoolDetailPage() {
     });
   }
 
+  // Its filament's Spools tab; the link renders before the spool loads.
+  const spoolsUrl = spool?.filamentId
+    ? `/filament/${spool.filamentId}?tab=spools`
+    : '/filament';
   const backLink = (
-    <BackLink to="/spools" className="mb-1">
+    <BackLink to={spoolsUrl} className="mb-1">
       Back to spools
     </BackLink>
   );
@@ -161,8 +165,8 @@ export function SpoolDetailPage() {
             title="Spool not found"
             description="Removed or invalid link."
             action={
-              <Button variant="outline" onClick={() => navigate('/spools')}>
-                Back to spools
+              <Button variant="outline" onClick={() => navigate('/filament')}>
+                Back to filament
               </Button>
             }
           />
@@ -306,7 +310,7 @@ export function SpoolDetailPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => navigate('/spools')}
+                    onClick={() => navigate(spoolsUrl)}
                   >
                     Cancel
                   </Button>

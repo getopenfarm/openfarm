@@ -390,6 +390,14 @@
               "format": "int32",
               "nullable": true
             }
+          },
+          {
+            "name": "newestFirst",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "nullable": true
+            }
           }
         ],
         "responses": {
@@ -664,6 +672,15 @@
             }
           },
           {
+            "name": "filamentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
             "name": "source",
             "in": "query",
             "schema": {
@@ -734,6 +751,15 @@
           },
           {
             "name": "filamentVariantId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "filamentId",
             "in": "query",
             "schema": {
               "type": "string",
@@ -955,6 +981,66 @@
         ]
       }
     },
+    "/api/v1/reports/daily-usage": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "OpenFarmApiEndpointsReportsDailyUsageEndpoint",
+        "parameters": [
+          {
+            "name": "filamentId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyUsageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/reports/materials": {
       "get": {
         "tags": [
@@ -977,6 +1063,15 @@
             "schema": {
               "type": "string",
               "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "filamentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
               "nullable": true
             }
           }
@@ -1028,6 +1123,15 @@
             "schema": {
               "type": "string",
               "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "filamentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
               "nullable": true
             }
           }
@@ -5380,6 +5484,10 @@
             "type": "string",
             "format": "guid"
           },
+          "filamentId": {
+            "type": "string",
+            "format": "guid"
+          },
           "colorName": {
             "type": "string"
           },
@@ -5748,31 +5856,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "filamentVariantId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "label": {
-            "type": "string",
-            "nullable": true
-          },
-          "spoolWeightGrams": {
-            "type": "number",
-            "format": "decimal"
-          },
-          "remainingWeightGrams": {
-            "type": "number",
-            "format": "decimal",
-            "nullable": true
-          },
-          "quantity": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "price": {
-            "type": "number",
-            "format": "decimal",
-            "nullable": true
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegisterSpoolLineRequest"
+            }
           },
           "supplier": {
             "type": "string",
@@ -5788,6 +5876,38 @@
             "nullable": true
           },
           "rfidId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RegisterSpoolLineRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "spoolWeightGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remainingWeightGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "label": {
             "type": "string",
             "nullable": true
           }
@@ -6105,6 +6225,53 @@
             ]
           }
         }
+      },
+      "DailyUsageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ColorDailyUsageResponse"
+            }
+          }
+        }
+      },
+      "ColorDailyUsageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filamentVariantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "drawnGrams": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "decimal"
+            }
+          },
+          "wasteGrams": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "decimal"
+            }
+          }
+        }
+      },
+      "DailyUsageRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "MaterialsReportResponse": {
         "type": "object",
@@ -9264,7 +9431,18 @@
           },
           "thresholdGrams": {
             "type": "number",
-            "format": "decimal"
+            "format": "decimal",
+            "nullable": true
+          },
+          "daysLeft": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "thresholdDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },
@@ -9464,6 +9642,11 @@
             "format": "decimal",
             "nullable": true
           },
+          "lowStockDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -9533,6 +9716,11 @@
             "format": "decimal",
             "nullable": true
           },
+          "lowStockDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -9557,6 +9745,11 @@
           "lowStockGrams": {
             "type": "number",
             "format": "decimal",
+            "nullable": true
+          },
+          "lowStockDays": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "vendorId": {
@@ -9597,6 +9790,11 @@
             "format": "decimal",
             "nullable": true
           },
+          "lowStockDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "colorName": {
             "type": "string"
           },
@@ -9617,6 +9815,11 @@
           "lowStockGrams": {
             "type": "number",
             "format": "decimal",
+            "nullable": true
+          },
+          "lowStockDays": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "variantPrices": {
@@ -9665,6 +9868,11 @@
           "lowStockGrams": {
             "type": "number",
             "format": "decimal",
+            "nullable": true
+          },
+          "lowStockDays": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           }
         }
@@ -9786,6 +9994,16 @@
           "thresholdGrams": {
             "type": "number",
             "format": "decimal",
+            "nullable": true
+          },
+          "daysLeft": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "thresholdDays": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "isLow": {

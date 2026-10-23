@@ -2,7 +2,8 @@ namespace OpenFarm.Application.FilamentTracking;
 
 public sealed record GetFilamentsQuery;
 
-public sealed record FilamentVariantSummary(Guid Id, string ColorName, string ColorHex, decimal? PricePerKg = null, decimal? LowStockGrams = null);
+public sealed record FilamentVariantSummary(
+    Guid Id, string ColorName, string ColorHex, decimal? PricePerKg = null, decimal? LowStockGrams = null, int? LowStockDays = null);
 
 public sealed record FilamentSummary(
     Guid Id,
@@ -11,4 +12,4 @@ public sealed record FilamentSummary(
     string Material,
     string MaterialType,
     IReadOnlyList<FilamentProfileAssignmentInput> ProfileAssignments,
-    IReadOnlyList<FilamentVariantSummary> Variants, decimal? PricePerKg = null, decimal? LowStockGrams = null);
+    IReadOnlyList<FilamentVariantSummary> Variants, decimal? PricePerKg = null, decimal? LowStockGrams = null, int? LowStockDays = null);

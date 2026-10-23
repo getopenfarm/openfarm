@@ -18,6 +18,7 @@ import {
 import { useOpenFarmApiEndpointsVendorsListVendorsEndpoint } from '@/lib/api/generated/vendors/vendors';
 import { pluralize } from '@/lib/pluralize';
 import { FilamentCatalogTable } from './components/FilamentCatalogTable';
+import { StockTiles } from './components/StockTiles';
 
 export function FilamentPage() {
   const navigate = useNavigate();
@@ -55,10 +56,19 @@ export function FilamentPage() {
           </>
         }
         action={
-          <Button onClick={() => navigate('/filament/new')}>
-            <PlusIcon data-icon="inline-start" />
-            Add filament
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/filament/spools/new')}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add spools
+            </Button>
+            <Button onClick={() => navigate('/filament/new')}>
+              <PlusIcon data-icon="inline-start" />
+              Add filament
+            </Button>
+          </div>
         }
       />
       {filamentsQuery.isLoading ? (
@@ -75,11 +85,14 @@ export function FilamentPage() {
           }
         />
       ) : (
-        <FilamentCatalogTable
-          filaments={filaments}
-          stock={list?.stock ?? []}
-          shortages={shortages ?? []}
-        />
+        <div className="flex flex-col gap-4">
+          <StockTiles stock={list?.stock ?? []} />
+          <FilamentCatalogTable
+            filaments={filaments}
+            stock={list?.stock ?? []}
+            shortages={shortages ?? []}
+          />
+        </div>
       )}
     </Page>
   );

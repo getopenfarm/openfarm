@@ -9,11 +9,16 @@ public sealed class RegisterSpoolCommandHandler(
 {
     public async Task<IReadOnlyList<Spool>> HandleAsync(RegisterSpoolCommand command, CancellationToken cancellationToken)
     {
-        var variant = await filamentRepository.FindVariantByIdAsync(command.FilamentVariantId, cancellationToken)
-            ?? throw new FilamentVariantNotFoundException(command.FilamentVariantId);
+        foreach (var variantId in command.Lines.Select(l => l.FilamentVariantId).Distinct())
+        {
+            _ = await filamentRepository.FindVariantByIdAsync(variantId, cancellationToken)
+                ?? throw new FilamentVariantNotFoundException(variantId);
+        }
 
         // Built before anything is saved, so one invalid value adds none of them.
-        var spools = Enumerable.Range(0, command.Quantity).Select(_ => NewSpool(variant.Id, command)).ToList();
+        var spools = command.Lines
+            .SelectMany(line => Enumerable.Range(0, line.Quantity).Select(_ => NewSpool(line, command)))
+            .ToList();
         if (command.RfidId is { } rfidId)
         {
             if ((await spoolRepository.FindByRfidIdsAsync([rfidId.Trim()], cancellationToken)).Count > 0)
@@ -26,14 +31,10 @@ public sealed class RegisterSpoolCommandHandler(
         return spools;
     }
 
-    private static Spool NewSpool(Guid filamentVariantId, RegisterSpoolCommand command)
+    private static Spool NewSpool(RegisterSpoolLine line, RegisterSpoolCommand command)
     {
-        var spool = Spool.Create(
-            filamentVariantId,
-            command.Label,
-            command.SpoolWeightGrams,
-            command.RemainingWeightGrams ?? command.SpoolWeightGrams);
-        spool.SetPurchase(command.Price, command.Supplier, command.OrderNumber, command.ReceivedOn);
+        var spool = Spool.Create(line.FilamentVariantId, line.Label, line.SpoolWeightGrams, line.RemainingWeightGrams ?? line.SpoolWeightGrams);
+        spool.SetPurchase(line.Price, command.Supplier, command.OrderNumber, command.ReceivedOn);
         return spool;
     }
 }

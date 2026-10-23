@@ -66,4 +66,37 @@ public class FilamentPriceTests
         filament.LowStockGrams.Should().Be(500m);
         variant.LowStockGrams.Should().Be(250m);
     }
+
+    [Fact]
+    public void DaysThresholds_StartUnset_AndAllowZeroAndClearing()
+    {
+        var filament = Filament.Create(Guid.NewGuid(), "PLA Basic", "PLA");
+        var variant = filament.AddVariant("Black", "#000000");
+        filament.LowStockDays.Should().BeNull();
+        variant.LowStockDays.Should().BeNull();
+        filament.SetLowStockDays(14);
+        variant.SetLowStockDays(0);
+        variant.LowStockDays.Should().Be(0);
+        variant.SetLowStockDays(null);
+        filament.SetLowStockDays(null);
+        filament.LowStockDays.Should().BeNull();
+        variant.LowStockDays.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(366)]
+    public void DaysThresholds_OutsideAYear_AreRejected_WithoutChangingTheExistingOne(int days)
+    {
+        var filament = Filament.Create(Guid.NewGuid(), "PLA", "PLA");
+        var variant = filament.AddVariant("Black", "#000000");
+        filament.SetLowStockDays(14);
+        variant.SetLowStockDays(7);
+        var updateFilament = () => filament.SetLowStockDays(days);
+        var updateVariant = () => variant.SetLowStockDays(days);
+        updateFilament.Should().Throw<ArgumentOutOfRangeException>();
+        updateVariant.Should().Throw<ArgumentOutOfRangeException>();
+        filament.LowStockDays.Should().Be(14);
+        variant.LowStockDays.Should().Be(7);
+    }
 }

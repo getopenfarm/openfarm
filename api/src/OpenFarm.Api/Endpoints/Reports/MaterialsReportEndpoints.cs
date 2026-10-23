@@ -13,7 +13,10 @@ public sealed class MaterialsReportRequest
     /// <summary>…and before this instant.</summary>
     public DateTimeOffset? To { get; set; }
 
-    internal GetMaterialsReportQuery ToQuery() => new(From?.ToUniversalTime(), To?.ToUniversalTime());
+    /// <summary>Only this filament's colours; the row for lines with no spool drops out.</summary>
+    public Guid? FilamentId { get; set; }
+
+    internal GetMaterialsReportQuery ToQuery() => new(From?.ToUniversalTime(), To?.ToUniversalTime(), FilamentId);
 }
 
 public sealed class MaterialsReportRowResponse

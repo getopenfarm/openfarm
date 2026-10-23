@@ -15,6 +15,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 const spool = {
   id: 'spool-1',
+  filamentId: 'f-1',
   label: 'Shelf A',
   colorName: 'Jade White',
   material: 'PLA',
@@ -65,10 +66,11 @@ function renderPage(fetchMock: ReturnType<typeof vi.fn>) {
   vi.stubGlobal('fetch', fetchMock);
   const router = createMemoryRouter(
     [
-      { path: '/spools/:id', element: <SpoolDetailPage /> },
-      { path: '/spools', element: <div>Spools list page</div> },
+      { path: '/filament/spools/:id', element: <SpoolDetailPage /> },
+      { path: '/filament/:id', element: <div>Filament page</div> },
+      { path: '/filament', element: <div>Filament list page</div> },
     ],
-    { initialEntries: ['/spools/spool-1'] },
+    { initialEntries: ['/filament/spools/spool-1'] },
   );
   render(
     <QueryClientProvider
@@ -96,6 +98,16 @@ function putBodies(fetchMock: ReturnType<typeof vi.fn>) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('SpoolDetailPage', () => {
+  it("links back to its filament's spools", async () => {
+    renderPage(fakeApi());
+
+    // Before the spool loads, the link can only go to the filament list.
+    await screen.findByRole('heading', { name: 'Shelf A' });
+    expect(
+      screen.getByRole('link', { name: 'Back to spools' }),
+    ).toHaveAttribute('href', '/filament/f-1?tab=spools');
+  });
+
   it('loads the one spool by id and saves label and remaining weight in one PUT', async () => {
     const user = userEvent.setup();
     const fetchMock = fakeApi();

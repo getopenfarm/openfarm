@@ -10,6 +10,9 @@ public sealed class SpoolResponse
 
     public Guid FilamentVariantId { get; set; }
 
+    /// <summary>The filament the color belongs to: the spool's page links back to it.</summary>
+    public Guid FilamentId { get; set; }
+
     public string ColorName { get; set; } = string.Empty;
 
     public string ColorHex { get; set; } = string.Empty;
@@ -48,6 +51,7 @@ public sealed class SpoolResponse
         Id = summary.Id,
         Label = summary.Label,
         FilamentVariantId = summary.FilamentVariantId,
+        FilamentId = summary.FilamentId,
         ColorName = summary.ColorName,
         ColorHex = summary.ColorHex,
         Material = summary.Material,

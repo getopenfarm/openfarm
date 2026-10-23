@@ -5,7 +5,8 @@ public interface ISpoolReadModel
 {
     /// <summary>
     /// The joined spool read behind <see cref="GetSpoolsQuery"/>: filters, search and the catalog/vendor/slot joins all run
-    /// in one SQL statement, ordered by creation time, so only the requested page of matching rows leaves the database.
+    /// in one SQL statement, ordered by registration time (oldest first unless <see cref="GetSpoolsQuery.NewestFirst"/>), so only the
+    /// requested page of matching rows leaves the database.
     /// </summary>
     Task<SpoolRowPage> ListRowsAsync(GetSpoolsQuery query, CancellationToken cancellationToken);
 
@@ -26,4 +27,10 @@ public interface ISpoolReadModel
     /// print cancelled before it started has none), and the write-offs and restores recorded in it.
     /// </summary>
     Task<MaterialsReport> GetMaterialsReportAsync(GetMaterialsReportQuery query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The print and manual draws (ledger <c>Job</c> and <c>Manual</c>) from one filament's spools since <paramref name="since"/>,
+    /// each marked waste when its print failed or was cancelled.
+    /// </summary>
+    Task<IReadOnlyList<UsageEntry>> ListUsageEntriesAsync(Guid filamentId, DateTimeOffset since, CancellationToken cancellationToken);
 }

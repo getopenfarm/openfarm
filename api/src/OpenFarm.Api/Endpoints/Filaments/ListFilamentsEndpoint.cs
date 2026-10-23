@@ -26,6 +26,13 @@ public sealed class VariantStockResponse
     /// <summary>The threshold that applies: the colour's own, else the filament's default once the colour has been stocked.</summary>
     public decimal? ThresholdGrams { get; set; }
 
+    /// <summary>How many days the grams on hand last at the last 30 days' pace; null when the colour was not used.</summary>
+    public decimal? DaysLeft { get; set; }
+
+    /// <summary>The days-left threshold that applies, by the same rule as <see cref="ThresholdGrams"/>.</summary>
+    public int? ThresholdDays { get; set; }
+
+    /// <summary>Under either threshold.</summary>
     public bool IsLow { get; set; }
 
     public static VariantStockResponse From(VariantStock stock) => new()
@@ -37,6 +44,8 @@ public sealed class VariantStockResponse
         UnpricedSpoolCount = stock.Stock.UnpricedSpools,
         UsedLast30DaysGrams = stock.Stock.UsedGrams,
         ThresholdGrams = stock.ThresholdGrams,
+        DaysLeft = stock.DaysLeft,
+        ThresholdDays = stock.ThresholdDays,
         IsLow = stock.IsLow,
     };
 }

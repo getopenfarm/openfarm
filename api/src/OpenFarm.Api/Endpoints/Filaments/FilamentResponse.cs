@@ -10,6 +10,9 @@ public sealed class FilamentVariantResponse
     /// <summary>This colour's own low-stock threshold; null when it uses the filament's default.</summary>
     public decimal? LowStockGrams { get; set; }
 
+    /// <summary>This colour's own threshold in days left; null when it uses the filament's default.</summary>
+    public int? LowStockDays { get; set; }
+
     public Guid Id { get; set; }
 
     public string ColorName { get; set; } = string.Empty;
@@ -17,10 +20,26 @@ public sealed class FilamentVariantResponse
     public string ColorHex { get; set; } = string.Empty;
 
     public static FilamentVariantResponse FromDomain(FilamentVariant variant) =>
-        new() { Id = variant.Id, ColorName = variant.ColorName, ColorHex = variant.ColorHex, PricePerKg = variant.PricePerKg, LowStockGrams = variant.LowStockGrams };
+        new()
+        {
+            Id = variant.Id,
+            ColorName = variant.ColorName,
+            ColorHex = variant.ColorHex,
+            PricePerKg = variant.PricePerKg,
+            LowStockGrams = variant.LowStockGrams,
+            LowStockDays = variant.LowStockDays,
+        };
 
     public static FilamentVariantResponse FromSummary(FilamentVariantSummary summary) =>
-        new() { Id = summary.Id, ColorName = summary.ColorName, ColorHex = summary.ColorHex, PricePerKg = summary.PricePerKg, LowStockGrams = summary.LowStockGrams };
+        new()
+        {
+            Id = summary.Id,
+            ColorName = summary.ColorName,
+            ColorHex = summary.ColorHex,
+            PricePerKg = summary.PricePerKg,
+            LowStockGrams = summary.LowStockGrams,
+            LowStockDays = summary.LowStockDays,
+        };
 }
 
 public sealed class FilamentResponse
@@ -29,6 +48,9 @@ public sealed class FilamentResponse
 
     /// <summary>Default low-stock threshold for this filament's colours that have been stocked; null for no alert.</summary>
     public decimal? LowStockGrams { get; set; }
+
+    /// <summary>Default threshold in days left at the last 30 days' pace; null for no alert by days.</summary>
+    public int? LowStockDays { get; set; }
 
     public Guid Id { get; set; }
 
@@ -49,6 +71,7 @@ public sealed class FilamentResponse
         Id = filament.Id,
         PricePerKg = filament.PricePerKg,
         LowStockGrams = filament.LowStockGrams,
+        LowStockDays = filament.LowStockDays,
         VendorId = filament.VendorId,
         VendorName = vendorName,
         Material = filament.Material,
@@ -62,6 +85,7 @@ public sealed class FilamentResponse
         Id = summary.Id,
         PricePerKg = summary.PricePerKg,
         LowStockGrams = summary.LowStockGrams,
+        LowStockDays = summary.LowStockDays,
         VendorId = summary.VendorId,
         VendorName = summary.VendorName,
         Material = summary.Material,

@@ -20,7 +20,8 @@ public sealed record SpoolRow(
     string? Supplier,
     string? OrderNumber,
     DateOnly? ReceivedOn,
-    SpoolSlotPlacement? Placement);
+    SpoolSlotPlacement? Placement,
+    Guid FilamentId);
 
 /// <summary>The columns <see cref="FeedUnitDisplay.SlotLabel(string, int, string?, int, string)"/> reads for a loaded spool, plus the printer's name — a spool's location must say which printer.</summary>
 public sealed record SpoolSlotPlacement(string UnitKind, int UnitIndex, string? UnitName, int SlotPosition, string PrinterBrand, string PrinterName);
@@ -50,5 +51,6 @@ internal static class SpoolRowMapping
         Spool.PricePerKgOf(row.Price, row.SpoolWeightGrams),
         row.Supplier,
         row.OrderNumber,
-        row.ReceivedOn);
+        row.ReceivedOn,
+        row.FilamentId);
 }

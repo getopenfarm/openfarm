@@ -15,11 +15,13 @@ public sealed class CreateFilamentCommandHandler(
         var filament = Filament.Create(vendor.Id, command.Material, command.MaterialType);
         filament.SetPricePerKg(command.PricePerKg);
         filament.SetLowStockGrams(command.LowStockGrams);
+        filament.SetLowStockDays(command.LowStockDays);
         foreach (var input in command.Variants)
         {
             var variant = filament.AddVariant(input.ColorName, input.ColorHex);
             variant.SetPricePerKg(input.PricePerKg);
             variant.SetLowStockGrams(input.LowStockGrams);
+            variant.SetLowStockDays(input.LowStockDays);
         }
 
         await assignments.ReplaceAsync(filament, command.ProfileAssignments ?? [], cancellationToken);

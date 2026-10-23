@@ -119,11 +119,14 @@ Every change to a spool's remaining weight writes one append-only `SpoolUsageRec
   write-off is still its latest entry: a weight corrected after finishing is kept. A spool finished before write-offs existed
   kept its grams, and restores with them.
 - `RemainingWeightGrams` stays the stored source of truth. The history is an audit trail; nothing sums it.
+- `GET /api/v1/spools` lists spools oldest registered first; `newestFirst=true` reverses it, which is how a filament's
+  finished spools page (there is no finish time, so newest registered stands in for newest finished).
 - Read it with `GET /api/v1/spools/{id}/history?page&pageSize` (default 50, max 100). Each entry is left-joined to its `Print`,
   so an entry keeps showing after its print is deleted, without a link. `GET /api/v1/spools/{id}` returns the one spool.
-- **Every spool's history.** `GET /api/v1/spools/history?from&to&filamentVariantId&source&page&pageSize` returns the same entries for
-  all spools, each naming its spool, material and color; the Usage page (`/usage`) shows it. `from` is inclusive, `to`
-  exclusive, and the page sends local calendar days as UTC instants. `source` is a name (`WriteOff`), never the enum's number.
+- **Every spool's history.** `GET /api/v1/spools/history?from&to&filamentId&filamentVariantId&source&page&pageSize` returns the
+  same entries across spools, each naming its spool, material and color; a filament's *History* tab (`/filament/{id}?tab=history`)
+  shows its spools' entries with `filamentId`. `from` is inclusive, `to` exclusive, and the page sends local calendar days as
+  UTC instants. `source` is a name (`WriteOff`), never the enum's number.
   `GET /api/v1/spools/history.csv` takes the same filters and returns every match as a file. The CSV is RFC 4180 with CRLF
   rows and a UTF-8 BOM, numbers in invariant culture and times in UTC ISO 8601. Text starting with `=`, `+`, `-`, `@`, tab or
   CR gets a leading `'`, so a spreadsheet shows it instead of running it as a formula (`Endpoints/Csv.cs`).

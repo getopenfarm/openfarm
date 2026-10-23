@@ -3,6 +3,7 @@ using FluentValidation;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Domain.FilamentTracking;
 using EditFilamentHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.FilamentTracking.EditFilamentCommand, OpenFarm.Domain.FilamentTracking.Filament>;
 
 namespace OpenFarm.Api.Endpoints.Filaments;
@@ -31,7 +32,19 @@ public sealed class EditFilamentRequest : IActivityLoggable
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasLowStockGrams { get; private set; }
 
-    /// <summary>Each listed colour's own price and low-stock threshold; both are replaced, null clearing either.</summary>
+    private int? _lowStockDays;
+
+    /// <summary>Default low-stock threshold in days left, 0–365. Omit to keep it; null clears it.</summary>
+    public int? LowStockDays
+    {
+        get => _lowStockDays;
+        set { _lowStockDays = value; HasLowStockDays = true; }
+    }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasLowStockDays { get; private set; }
+
+    /// <summary>Each listed colour's own price and low-stock thresholds; every value is replaced, null clearing it.</summary>
     public IReadOnlyList<FilamentVariantPriceInput> VariantPrices { get; set; } = [];
 
     public Guid Id { get; set; }
@@ -59,6 +72,7 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
         RuleFor(x => x.Material).NotEmpty();
         RuleFor(x => x.PricePerKg).GreaterThanOrEqualTo(0);
         RuleFor(x => x.LowStockGrams).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.LowStockDays).InclusiveBetween(0, Filament.MaxLowStockDays).When(x => x.LowStockDays is not null);
         RuleFor(x => x.VariantPrices).NotNull();
         RuleFor(x => x.VariantPrices).Must(p => p.Select(v => v.VariantId).Distinct().Count() == p.Count)
             .When(x => x.VariantPrices is not null);
@@ -67,6 +81,7 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
             price.RuleFor(p => p.VariantId).NotEmpty();
             price.RuleFor(p => p.PricePerKg).GreaterThanOrEqualTo(0);
             price.RuleFor(p => p.LowStockGrams).GreaterThanOrEqualTo(0);
+            price.RuleFor(p => p.LowStockDays).InclusiveBetween(0, Filament.MaxLowStockDays).When(p => p.LowStockDays is not null);
         });
         RuleFor(x => x.MaterialType).NotEmpty();
         RuleFor(x => x.NewVariants).NotNull();
@@ -77,6 +92,7 @@ public sealed class EditFilamentRequestValidator : AbstractValidator<EditFilamen
             variant.RuleFor(v => v.ColorHex).NotEmpty();
             variant.RuleFor(v => v.PricePerKg).GreaterThanOrEqualTo(0);
             variant.RuleFor(v => v.LowStockGrams).GreaterThanOrEqualTo(0);
+            variant.RuleFor(v => v.LowStockDays).InclusiveBetween(0, Filament.MaxLowStockDays).When(v => v.LowStockDays is not null);
         });
     }
 }
@@ -100,8 +116,9 @@ public sealed class EditFilamentEndpoint(EditFilamentHandler handler, IVendorRep
             req.VendorId,
             req.Material,
             req.MaterialType,
-            req.NewVariants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex, v.PricePerKg, v.LowStockGrams)).ToList(),
-            req.ProfileAssignments, req.PricePerKg, req.HasPricePerKg, req.VariantPrices, req.LowStockGrams, req.HasLowStockGrams);
+            req.NewVariants.Select(v => new CreateFilamentVariantInput(v.ColorName, v.ColorHex, v.PricePerKg, v.LowStockGrams, v.LowStockDays)).ToList(),
+            req.ProfileAssignments, req.PricePerKg, req.HasPricePerKg, req.VariantPrices, req.LowStockGrams, req.HasLowStockGrams,
+            req.LowStockDays, req.HasLowStockDays);
 
         var filament = await handler.HandleAsync(command, ct);
         var vendor = await vendorRepository.GetByIdAsync(filament.VendorId, ct);

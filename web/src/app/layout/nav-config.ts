@@ -7,7 +7,6 @@ import {
   LayersIcon,
   LayoutDashboardIcon,
   type LucideIcon,
-  Package2Icon,
   PackageIcon,
   PrinterIcon,
   SlidersHorizontalIcon,
@@ -36,20 +35,11 @@ const printers: NavItem = {
   icon: PrinterIcon,
 };
 const jobs: NavItem = { title: 'Jobs', url: '/jobs', icon: ClipboardListIcon };
+const stats: NavItem = { title: 'Stats', url: '/stats', icon: ChartColumnIcon };
 const filament: NavItem = {
   title: 'Filament',
   url: '/filament',
   icon: LayersIcon,
-};
-const spools: NavItem = {
-  title: 'Spools',
-  url: '/spools',
-  icon: Package2Icon,
-};
-const usage: NavItem = {
-  title: 'Usage',
-  url: '/usage',
-  icon: ChartColumnIcon,
 };
 const parts: NavItem = { title: 'Parts', url: '/parts', icon: BoxIcon };
 const assemblies: NavItem = {
@@ -79,8 +69,8 @@ const activityLog: NavItem = {
 };
 
 export const navSections: NavSection[] = [
-  { label: 'Operate', items: [dashboard, printers, jobs] },
-  { label: 'Materials', items: [filament, spools, usage] },
+  { label: 'Operate', items: [dashboard, printers, jobs, stats] },
+  { label: 'Materials', items: [filament] },
   {
     label: 'Library',
     items: [parts, assemblies, nonPrintedComponents, profiles, maintenance],

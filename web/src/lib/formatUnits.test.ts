@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatCelsius,
+  formatDays,
   formatFileSize,
   formatGrams,
   formatMm,
@@ -19,6 +20,13 @@ describe('formatUnits', () => {
     expect(formatWeight(1000)).toBe('1 kg');
     expect(formatWeight(2500)).toBe('2.5 kg');
     expect(formatWeight(3333)).toBe('3.33 kg');
+  });
+  it('formats days left as an estimate, capped', () => {
+    expect(formatDays(6.4)).toBe('~6 d');
+    expect(formatDays(20.8)).toBe('~20 d');
+    expect(formatDays(0.4)).toBe('< 1 d');
+    expect(formatDays(60)).toBe('60+ d');
+    expect(formatDays(400, 365)).toBe('365+ d');
   });
   it('formats mm and celsius', () => {
     expect(formatMm(0.4)).toBe('0.4 mm');

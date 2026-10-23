@@ -1,0 +1,81 @@
+import { KpiCard } from '@/components/kpi-card/KpiCard';
+import type { VariantStockResponse } from '@/lib/api/generated/endpoints.schemas';
+import { formatCost, formatWeight } from '@/lib/formatUnits';
+import { pluralize } from '@/lib/pluralize';
+import { cn } from '@/lib/utils';
+import { sumStock } from '../lib/stock';
+
+/**
+ * On hand, value, active spools and grams used in 30 days, over the given colors' stock rows. `compact` is one bordered strip, for a
+ * page whose own content leads (a filament's colors), instead of four tiles.
+ */
+export function StockTiles({
+  stock,
+  size = 'default',
+}: {
+  stock: VariantStockResponse[];
+  size?: 'default' | 'compact';
+}) {
+  const totals = sumStock(stock);
+  const cells = [
+    {
+      label: 'On hand',
+      value: formatWeight(totals.onHandGrams),
+      dotClassName: totals.lowColors > 0 ? 'bg-kind-amber' : undefined,
+      sub:
+        totals.lowColors > 0
+          ? `${pluralize(totals.lowColors, 'color')} low`
+          : undefined,
+    },
+    {
+      label: 'Value',
+      value: formatCost(totals.value),
+      sub:
+        totals.unpricedSpools > 0
+          ? `Partial · ${pluralize(totals.unpricedSpools, 'spool')} unpriced`
+          : undefined,
+    },
+    { label: 'Active spools', value: String(totals.activeSpools) },
+    { label: 'Used 30 d', value: formatWeight(totals.usedGrams) },
+  ];
+
+  if (size === 'compact') {
+    return (
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border lg:grid-cols-4">
+        {cells.map((cell) => (
+          <div key={cell.label} className="bg-card px-4 py-2.5">
+            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span
+                className={cn(
+                  'size-1.5 shrink-0 rounded-full',
+                  cell.dotClassName ?? 'bg-muted-foreground',
+                )}
+              />
+              {cell.label}
+            </dt>
+            <dd className="mt-0.5 text-base font-semibold tabular-nums">
+              {cell.value}
+            </dd>
+            {cell.sub && (
+              <dd className="text-xs text-muted-foreground">{cell.sub}</dd>
+            )}
+          </div>
+        ))}
+      </dl>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {cells.map((cell) => (
+        <KpiCard
+          key={cell.label}
+          label={cell.label}
+          value={cell.value}
+          dotClassName={cell.dotClassName}
+          sub={cell.sub}
+        />
+      ))}
+    </div>
+  );
+}

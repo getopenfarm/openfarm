@@ -19,9 +19,12 @@ import type {
 import { useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
+  DailyUsageResponse,
   MaterialsReportResponse,
+  OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
   OpenFarmApiEndpointsReportsExportMaterialsReportEndpointParams,
   OpenFarmApiEndpointsReportsGetMaterialsReportEndpointParams,
+  ProblemDetails,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -41,6 +44,250 @@ const withQueryKey = <T extends object, K>(
   }
   return result;
 };
+
+export type openFarmApiEndpointsReportsDailyUsageEndpointResponse200 = {
+  data: DailyUsageResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsReportsDailyUsageEndpointResponse400 = {
+  data: ProblemDetails;
+  status: 400;
+};
+
+export type openFarmApiEndpointsReportsDailyUsageEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsReportsDailyUsageEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsReportsDailyUsageEndpointResponseSuccess =
+  openFarmApiEndpointsReportsDailyUsageEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsReportsDailyUsageEndpointResponseError = (
+  | openFarmApiEndpointsReportsDailyUsageEndpointResponse400
+  | openFarmApiEndpointsReportsDailyUsageEndpointResponse401
+  | openFarmApiEndpointsReportsDailyUsageEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsReportsDailyUsageEndpointResponse =
+  | openFarmApiEndpointsReportsDailyUsageEndpointResponseSuccess
+  | openFarmApiEndpointsReportsDailyUsageEndpointResponseError;
+
+export const getOpenFarmApiEndpointsReportsDailyUsageEndpointUrl = (
+  params: OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/reports/daily-usage?${stringifiedParams}`
+    : `/api/v1/reports/daily-usage`;
+};
+
+export const openFarmApiEndpointsReportsDailyUsageEndpoint = async (
+  params: OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsReportsDailyUsageEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsReportsDailyUsageEndpointResponse>(
+    getOpenFarmApiEndpointsReportsDailyUsageEndpointUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsReportsDailyUsageEndpointQueryKey = (
+  params?: OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
+) => {
+  return [`/api/v1/reports/daily-usage`, ...(params ? [params] : [])] as const;
+};
+
+export const getOpenFarmApiEndpointsReportsDailyUsageEndpointQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getOpenFarmApiEndpointsReportsDailyUsageEndpointQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>>
+  > = ({ signal }) =>
+    openFarmApiEndpointsReportsDailyUsageEndpoint(params, { signal });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type OpenFarmApiEndpointsReportsDailyUsageEndpointQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>>
+  >;
+export type OpenFarmApiEndpointsReportsDailyUsageEndpointQueryError =
+  ProblemDetails | void;
+
+export function useOpenFarmApiEndpointsReportsDailyUsageEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsReportsDailyUsageEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsReportsDailyUsageEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsReportsDailyUsageEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+  >,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsReportsDailyUsageEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsReportsDailyUsageEndpointQueryOptions(
+      params,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 export type openFarmApiEndpointsReportsGetMaterialsReportEndpointResponse200 = {
   data: MaterialsReportResponse;

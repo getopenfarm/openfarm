@@ -3,8 +3,11 @@ using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.FilamentTracking;
 
-/// <summary>Filament by colour over [<see cref="From"/>, <see cref="To"/>): prints that closed in it, spools written off in it. Null is open-ended.</summary>
-public sealed record GetMaterialsReportQuery(DateTimeOffset? From, DateTimeOffset? To);
+/// <summary>
+/// Filament by colour over [<see cref="From"/>, <see cref="To"/>): prints that closed in it, spools written off in it. Null is open-ended.
+/// With <see cref="FilamentId"/>, only that filament's colours, so lines no spool was deducted from drop out.
+/// </summary>
+public sealed record GetMaterialsReportQuery(DateTimeOffset? From, DateTimeOffset? To, Guid? FilamentId = null);
 
 /// <summary>
 /// One print line deduction ran on: grams recorded, or <see cref="Skipped"/> with none. <see cref="FilamentVariantId"/> is the

@@ -21,23 +21,25 @@ protection when changing these flows.
 - **Whole-page edit** uses `FormFooter` (page root, `form`, and `FieldGroup`
   take `flex-1`): outline Cancel, then primary `Save`. No footer on pages with
   nothing to save, and never Remove in it.
-- **Library and material records** (parts, filament, assemblies, components,
-  spools, profiles) edit in place on their page: one react-hook-form draft, one
+- **Library and material records** (parts, assemblies, components, spools,
+  profiles) edit in place on their page: one react-hook-form draft, one
   `FormFooter` Save (disabled until dirty), `useUnsavedChangesPrompt`. No
   section saves on its own.
 - **Operational actions** stay immediate, outside the draft: reprocess, replace
   file, load/unload spool, record usage, reorder/pin, feed units, mark ready.
-- **Operate records**: production runs edit on `/production-runs/:id/edit`;
-  print jobs edit through header-triggered dialogs.
+- **Records with an operational page** edit on a separate page with the same
+  single-draft rules: production runs on `/production-runs/:id/edit`, filament
+  on `/filament/:id/edit` (its page holds stock, spools, usage and history).
+  Print jobs edit through header-triggered dialogs.
 - **Pending state**: `<Spinner data-icon="inline-start" />` plus an ellipsis
   label (`Saving…`, `Removing…`, `Importing…`).
 - **Create buttons** on list pages read `Add X` with
   `PlusIcon data-icon="inline-start"`, primary, in the header `action`. Add-page
   titles read `Add X`.
-- **Batch entry**: an Add page for records that arrive in batches (spools from
-  one delivery) adds an outline `Save and add another` between Cancel and Save.
-  It keeps what the batch shares (supplier, order, date, spool weight), resets
-  the rest, and returns focus to the first field.
+- **Batch entry**: records that arrive in batches (spools from one delivery)
+  are added as lines on one page: each line its own item and quantity, the
+  fields the batch shares (supplier, order, date) once below them, and one
+  primary action that names the total (`Add 200 spools`).
 - **Dialog footers**: `DialogFooter` with outline Cancel first, then the
   primary: `Save` when it persists form data, otherwise a specific verb
   (Remove, Load spool, Record usage, Send to queue, Mark ready).
@@ -97,6 +99,9 @@ footer must remain visible.
   tinted badges. Verify focus indicators and controls in both themes.
 - Use CardHeader, CardTitle, and CardDescription for section headings; reserve
   CardContent for the body and CardFooter for actions when appropriate.
+- KPI tiles (`KpiCard`) lead a list page. A detail page whose own content leads
+  (a filament's color rows) shows the same figures as one compact bordered strip
+  (`StockTiles size="compact"`), so the totals do not compete with it.
 - Use shared EmptyState/ErrorState, which compose shadcn Empty. Distinguish initial
   loading, request failure with Retry, no resources with an Add action, and no
   filter matches. Use Skeleton for loading, Alert for callouts, and Sonner for toasts.
@@ -116,7 +121,12 @@ endpoints and client pagination for complete collections. The queue retains its
 specialized independent scroll regions and default 50 rows per section.
 Embedded form/review tables remain content-sized.
 
-Use the shared DataTable and DataTableRowActions for resource lists. Row operations
+Use the shared DataTable and DataTableRowActions for resource lists. Two lists are
+deliberately not tables: a filament's color rows, whose cells are charts (days
+left, daily use), and the shelf's groups of identical full rolls (`1 kg · full
+× 166`), which count instead of listing. Group identical items like that whenever
+a list would otherwise repeat the same row dozens of times; Show expands a group
+to its rows. Row operations
 belong in accessible trailing ellipsis menus. Tables with bulk operations use
 DataTableSelectionBar, which floats at the bottom of the viewport when one or more
 rows are selected and shows the count, actions, and Clear selection. Reserve page
@@ -134,7 +144,9 @@ wide. Let controls wrap when space runs out without clipping labels or focus
 rings. Keep DOM order consistent with the visible order.
 
 Use `DataTableTabsList` inside Tabs for switching content panels, preserving the
-default segmented appearance and keyboard navigation. Use outlined ToggleGroups
+default segmented appearance and keyboard navigation. A detail page with several
+views (the filament page) keeps one tab list above the panels, never inside one,
+and the active tab in `?tab=` so links can open it. Use outlined ToggleGroups
 for row filters: single selection for printer status and multiple selection for
 part tags. Preserve each feature's filtering, counts, pagination, selection, and
 pending behavior. Do not add search to pages without it simply for consistency.

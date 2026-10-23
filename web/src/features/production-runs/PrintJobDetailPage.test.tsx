@@ -425,8 +425,8 @@ it('shows each deducted line with its cost, price source and a link to its spool
   expect(screen.getByText('30.00 per kg · color price')).toBeInTheDocument();
   const links = screen.getAllByRole('link', { name: 'Spool' });
   expect(links.map((link) => link.getAttribute('href'))).toEqual([
-    '/spools/spool-1',
-    '/spools/spool-2',
+    '/filament/spools/spool-1',
+    '/filament/spools/spool-2',
   ]);
   expect(screen.getByText('Filament cost')).toBeInTheDocument();
   expect(screen.getByText('1.90')).toBeInTheDocument();

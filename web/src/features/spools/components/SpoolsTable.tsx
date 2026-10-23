@@ -1,7 +1,10 @@
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { DataTable } from '@/components/data-table/DataTable';
+import {
+  DataTable,
+  type ServerTablePagination,
+} from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
@@ -83,9 +86,15 @@ interface SpoolsTableProps {
   spools: SpoolResponse[];
   /** Row checkboxes and Finish selected; off for finished spools. */
   selectable?: boolean;
+  /** Pages from the server instead of 25 rows a page in the browser, for a list too long to load whole. */
+  serverPagination?: ServerTablePagination;
 }
 
-export function SpoolsTable({ spools, selectable = false }: SpoolsTableProps) {
+export function SpoolsTable({
+  spools,
+  selectable = false,
+  serverPagination,
+}: SpoolsTableProps) {
   const navigate = useNavigate();
   const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const bulkTriggerRef = useRef<HTMLButtonElement>(null);
@@ -130,25 +139,20 @@ export function SpoolsTable({ spools, selectable = false }: SpoolsTableProps) {
               <Swatch colorHex={spool.colorHex} size="md" />
               <div className="flex flex-col">
                 <Link
-                  to={`/spools/${spool.id}`}
+                  to={`/filament/spools/${spool.id}`}
                   className="font-medium hover:underline"
                 >
                   {spool.label || spool.colorName}
                 </Link>
-                <span className="text-xs text-muted-foreground">
-                  {spool.material} · {spool.colorName}
-                </span>
+                {spool.label && (
+                  <span className="text-xs text-muted-foreground">
+                    {spool.colorName}
+                  </span>
+                )}
               </div>
             </div>
           );
         },
-      },
-      {
-        accessorKey: 'vendorName',
-        meta: { label: 'Vendor' },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Vendor" />
-        ),
       },
       {
         id: 'remaining',
@@ -276,7 +280,8 @@ export function SpoolsTable({ spools, selectable = false }: SpoolsTableProps) {
   return (
     <>
       <DataTable
-        pageSize={25}
+        pageSize={serverPagination ? undefined : 25}
+        serverPagination={serverPagination}
         columns={columns}
         data={spools}
         getRowId={(spool, index) => spool.id ?? `missing-${index}`}
@@ -305,7 +310,7 @@ export function SpoolsTable({ spools, selectable = false }: SpoolsTableProps) {
             </DataTableSelectionBar>
           ) : null
         }
-        onRowClick={(spool) => navigate(`/spools/${spool.id}`)}
+        onRowClick={(spool) => navigate(`/filament/spools/${spool.id}`)}
       />
       <FinishSpoolsDialog
         targets={finishTargets}

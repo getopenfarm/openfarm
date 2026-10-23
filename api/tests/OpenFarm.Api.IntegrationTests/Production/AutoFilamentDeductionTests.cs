@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -210,6 +211,72 @@ public class AutoFilamentDeductionTests(ProductionTestFactory factory) : Product
         var total = csv.Split("\r\n")[^2].Split(',');
         total[1].Should().Be("Total");
         total[3..].Select(field => decimal.Parse(field, CultureInfo.InvariantCulture)).Should().Equal(20m, 10m, 33.3m, 980m, 0.4m, 10m, 2m, 0m);
+    }
+
+    [Fact]
+    public async Task MaterialsReport_ScopedToAFilament_KeepsOnlyItsColours_AndDropsTheNoSpoolRow()
+    {
+        var range = $"?from={Uri.EscapeDataString(DateTimeOffset.UtcNow.ToString("O"))}&to={Uri.EscapeDataString(DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"))}";
+        var client = await ClientAsync();
+        var (_, minePrinter, mineSpool) = await PrintingJobAsync(20m);
+        await ReplayAsync(minePrinter, "FINISH");
+        var (_, otherPrinter, _) = await PrintingJobAsync(30m);
+        await ReplayAsync(otherPrinter, "FINISH");
+        // Never bound to a spool: its line is skipped, so it lands on the no-spool row.
+        var unbound = await PrinterAsync();
+        var run = await RunAsync(client, (await PartAsync()).Id);
+        await AssignAsync((await JobsAsync(run.Id)).Single().Id, unbound.Id);
+        await ReplayAsync(unbound.Id, "FINISH");
+        var filamentId = (await client.GetFromJsonAsync<SpoolResponse>($"/api/v1/spools/{mineSpool}"))!.FilamentId;
+
+        var everything = (await client.GetFromJsonAsync<MaterialsReportResponse>($"/api/v1/reports/materials{range}"))!;
+        var scoped = (await client.GetFromJsonAsync<MaterialsReportResponse>($"/api/v1/reports/materials{range}&filamentId={filamentId}"))!;
+        var csv = await client.GetStringAsync($"/api/v1/reports/materials.csv{range}&filamentId={filamentId}");
+
+        everything.Rows.Select(r => r.FilamentVariantId).Should().Contain((Guid?)null);
+        scoped.Rows.Select(r => r.FilamentVariantId).Should().Equal(await SpoolVariantsAsync(mineSpool));
+        scoped.Total.Should().BeEquivalentTo(new { UsedGrams = 20m, WasteGrams = 0m, PrintCount = 1, NotDeductedCount = 0 });
+        csv.Split("\r\n").Should().HaveCount(4, "a header, the one color, the total and the closing line break");
+    }
+
+    [Fact]
+    public async Task DailyUsage_CountsEachFilamentsUseAndWaste_OnTheirLocalDays_AndRefusesAnUnknownZone()
+    {
+        var client = await ClientAsync();
+        var (_, finishedPrinter, finishedSpool) = await PrintingJobAsync(20m);
+        await ReplayAsync(finishedPrinter, "FINISH");
+        var (_, failedPrinter, failedSpool) = await PrintingJobAsync(20m);
+        await SetProgressAsync(failedPrinter, percent: 50, layer: null, totalLayers: null);
+        await ReplayAsync(failedPrinter, "FAILED");
+        await BackdateLedgerAsync(finishedSpool, TimeSpan.FromDays(3));
+        async Task<DailyUsageResponse> UsageOfAsync(Guid spoolId)
+        {
+            var filamentId = (await client.GetFromJsonAsync<SpoolResponse>($"/api/v1/spools/{spoolId}"))!.FilamentId;
+            return (await client.GetFromJsonAsync<DailyUsageResponse>(
+                $"/api/v1/reports/daily-usage?filamentId={filamentId}&timeZone=Asia/Kuala_Lumpur"))!;
+        }
+
+        var finished = await UsageOfAsync(finishedSpool);
+        var failed = await UsageOfAsync(failedSpool);
+        var unknownZone = await client.GetAsync($"/api/v1/reports/daily-usage?filamentId={Guid.NewGuid()}&timeZone=Mars/Olympus_Mons");
+
+        finished.Days.Should().HaveCount(30);
+        var used = finished.Colors.Should().ContainSingle().Subject;
+        used.DrawnGrams[^4].Should().Be(20m); // three days back
+        used.DrawnGrams.Sum().Should().Be(20m);
+        used.WasteGrams.Sum().Should().Be(0m);
+        var wasted = failed.Colors.Should().ContainSingle().Subject; // the other filament's print is not in it
+        wasted.DrawnGrams[^1].Should().Be(10m);
+        wasted.WasteGrams[^1].Should().Be(10m);
+        unknownZone.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private async Task BackdateLedgerAsync(Guid spoolId, TimeSpan by)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "SpoolUsageRecords" SET "RecordedAtUtc" = "RecordedAtUtc" - {by} WHERE "SpoolId" = {spoolId}""");
     }
 
     private async Task<Guid?[]> SpoolVariantsAsync(params Guid[] spoolIds)

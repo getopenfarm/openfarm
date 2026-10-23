@@ -50,14 +50,19 @@ function Figures({ row }: { row: MaterialsReportRowResponse }) {
   );
 }
 
-/** Filament used, wasted and written off per color in the range, then the lines no spool was deducted from, and a total. */
+/**
+ * Filament used, wasted and written off per color in the range, then the lines no spool was deducted from, and a total.
+ * With `filamentId`, only that filament's colors: rows name just the color, and there is no no-spool row.
+ */
 export function MaterialsReportTable({
   range,
+  filamentId,
 }: {
   range: { from: string; to: string };
+  filamentId?: string;
 }) {
   const query = useOpenFarmApiEndpointsReportsGetMaterialsReportEndpoint(
-    range,
+    filamentId ? { ...range, filamentId } : range,
     { query: serverListQueryOptions },
   );
   const report = query.data?.status === 200 ? query.data.data : undefined;
@@ -86,10 +91,12 @@ export function MaterialsReportTable({
       aria-busy={query.isFetching || undefined}
     >
       <div className="overflow-hidden rounded-md border">
-        <Table aria-label="Filament by material">
+        <Table
+          aria-label={filamentId ? 'Filament by color' : 'Filament by material'}
+        >
           <TableHeader>
             <TableRow>
-              <TableHead>Material</TableHead>
+              <TableHead>{filamentId ? 'Color' : 'Material'}</TableHead>
               <TableHead className="text-right">Used</TableHead>
               <TableHead className="text-right">Waste</TableHead>
               <TableHead className="text-right">Waste %</TableHead>
@@ -106,7 +113,9 @@ export function MaterialsReportTable({
                   {row.filamentVariantId ? (
                     <span className="flex items-center gap-2">
                       <Swatch colorHex={row.colorHex ?? undefined} size="sm" />
-                      {row.vendorName} {row.material} · {row.colorName}
+                      {filamentId
+                        ? row.colorName
+                        : `${row.vendorName} ${row.material} · ${row.colorName}`}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">No spool</span>

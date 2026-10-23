@@ -31,7 +31,7 @@ public sealed record FilamentShortfall(Guid SpoolId, string Label, decimal Estim
         new(selection.SpoolId, selection.Label, decimal.Round(estimatedGrams), decimal.Ceiling(neededGrams), decimal.Floor(availableGrams));
 
     public string Describe(string printerName) =>
-        $"Needs {NeededGrams} g {Label} ({EstimatedGrams} g + 10%) · {printerName} has {AvailableGrams} g. Load more, or correct the weight in /spools/{SpoolId}.";
+        $"Needs {NeededGrams} g {Label} ({EstimatedGrams} g + 10%) · {printerName} has {AvailableGrams} g. Load more, or correct the weight in /filament/spools/{SpoolId}.";
 }
 
 /// <summary>The loaded filament cannot cover a job: the printer is skipped for it, and a job pinned to it waits.</summary>

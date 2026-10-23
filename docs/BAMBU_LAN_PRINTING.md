@@ -88,7 +88,7 @@ A Bambu spool's two RFID tags carry the same spool id (`tray_uuid`); OpenFarm st
 id (an untagged spool, or a printer without a reader, such as the A1's external holder) means no tag. Only the parser knows
 the Bambu field names: the rest of the app sees `AmsTray.RfidId` and `RfidWeightGrams` (`tray_weight`).
 
-- **Register or link.** `POST /api/v1/spools` takes `rfidId` (quantity 1). `PUT /api/v1/spools/{id}/rfid` ties a spool already
+- **Register or link.** `POST /api/v1/spools` takes `rfidId` (one line of one spool). `PUT /api/v1/spools/{id}/rfid` ties a spool already
   in inventory to its tag, so a spool registered before RFID assist is not registered twice. One active spool per tag: a
   finished spool keeps its tag for history and frees it, so a refill or re-used tag can be registered again, and restoring
   the old spool is then refused (409).

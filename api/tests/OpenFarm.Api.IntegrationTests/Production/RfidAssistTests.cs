@@ -57,7 +57,7 @@ public class RfidAssistTests(ProductionTestFactory factory) : ProductionTestCont
     }
 
     private static async Task<HttpResponseMessage> RegisterAsync(HttpClient client, Guid variantId, string? tag) =>
-        await client.PostAsJsonAsync("/api/v1/spools", new { filamentVariantId = variantId, spoolWeightGrams = 1000, rfidId = tag });
+        await client.PostAsJsonAsync("/api/v1/spools", new { lines = new[] { new { filamentVariantId = variantId, spoolWeightGrams = 1000 } }, rfidId = tag });
 
     private static async Task<Guid> RegisteredAsync(HttpClient client, Guid variantId, string? tag = null)
     {
@@ -166,10 +166,18 @@ public class RfidAssistTests(ProductionTestFactory factory) : ProductionTestCont
         var client = await ClientAsync();
         var variant = await CreateFilamentVariantAsync(client);
 
-        var response = await client.PostAsJsonAsync("/api/v1/spools",
-            new { filamentVariantId = variant, spoolWeightGrams = 1000, quantity = 2, rfidId = NewTag() });
+        var twoOfThem = await client.PostAsJsonAsync("/api/v1/spools",
+            new { lines = new[] { new { filamentVariantId = variant, spoolWeightGrams = 1000, quantity = 2 } }, rfidId = NewTag() });
+        var twoLines = await client.PostAsJsonAsync("/api/v1/spools",
+            new
+            {
+                lines = new[] { new { filamentVariantId = variant, spoolWeightGrams = 1000, quantity = 1 }, new { filamentVariantId = variant, spoolWeightGrams = 1000, quantity = 1 } },
+                rfidId = NewTag(),
+            });
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        twoOfThem.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        twoLines.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await client.GetFromJsonAsync<ListSpoolsResponse>($"/api/v1/spools?filamentVariantId={variant}"))!.Spools.Should().BeEmpty();
     }
 
     private static async Task<List<UnregisteredRfidSpoolResponse>> UnregisteredAsync(HttpClient client) =>

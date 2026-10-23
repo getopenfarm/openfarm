@@ -131,7 +131,7 @@ describe('NotificationsBell', () => {
     const user = userEvent.setup();
 
     const bell = await screen.findByRole('button', {
-      name: 'Notifications, 1 need action',
+      name: 'Notifications, 1 needs action',
     });
     expect(bell).toHaveTextContent('1');
     await user.click(bell);
@@ -227,13 +227,45 @@ describe('NotificationsBell', () => {
 
     expect(
       await screen.findByRole('link', { name: 'Bambu · PLA Basic · Red' }),
-    ).toHaveAttribute('href', '/filament/f-1/edit');
+    ).toHaveAttribute('href', '/filament/f-1');
     expect(
       screen.getByText('320 g on hand · below 1.5 kg'),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Dismiss Bambu/ }),
     ).not.toBeInTheDocument();
+  });
+  it('says how many days a color low by days alone has left, without a grams threshold', async () => {
+    stubFetch(
+      [],
+      [
+        {
+          filamentId: 'f-1',
+          filamentVariantId: 'var-black',
+          vendorName: 'Bambu',
+          material: 'PLA Basic',
+          colorName: 'Black',
+          colorHex: '#000000',
+          onHandGrams: 4000,
+          thresholdGrams: null,
+          daysLeft: 6.4,
+          thresholdDays: 14,
+        },
+      ],
+    );
+    renderBell();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Notifications, 1 needs action',
+      }),
+    );
+
+    expect(
+      await screen.findByText('~6 d left · below 14 d'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/on hand · below/)).not.toBeInTheDocument();
   });
   it('lists an unregistered RFID spool with Register prefilled, and links its tag to the untagged spool in the slot', async () => {
     const requests = stubFetch(
@@ -264,7 +296,7 @@ describe('NotificationsBell', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'Notifications, 1 need action',
+        name: 'Notifications, 1 needs action',
       }),
     );
 
@@ -277,7 +309,7 @@ describe('NotificationsBell', () => {
       screen.getByRole('link', { name: 'Register' }).getAttribute('href') ?? '',
       'http://localhost',
     );
-    expect(register.pathname).toBe('/spools/new');
+    expect(register.pathname).toBe('/filament/spools/new');
     expect(Object.fromEntries(register.searchParams)).toEqual({
       rfidId: 'TAG-1',
       slot: 'P01 · AMS 1 · Slot 2',
@@ -322,7 +354,7 @@ describe('NotificationsBell', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'Notifications, 1 need action',
+        name: 'Notifications, 1 needs action',
       }),
     );
     expect(
@@ -372,12 +404,12 @@ describe('NotificationsBell', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'Notifications, 1 need action',
+        name: 'Notifications, 1 needs action',
       }),
     );
 
     expect(
       await screen.findByRole('link', { name: 'PLA Basic · Red' }),
-    ).toHaveAttribute('href', '/spools/spool-drift');
+    ).toHaveAttribute('href', '/filament/spools/spool-drift');
   });
 });

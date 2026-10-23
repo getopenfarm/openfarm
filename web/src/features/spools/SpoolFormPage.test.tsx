@@ -8,7 +8,14 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { createMemoryRouter, Link, Outlet, RouterProvider } from 'react-router';
+import {
+  createMemoryRouter,
+  Link,
+  Outlet,
+  RouterProvider,
+  useLocation,
+  useParams,
+} from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { SpoolFormPage } from './SpoolFormPage';
@@ -50,13 +57,22 @@ const FILAMENTS_RESPONSE = {
 function TestLayout() {
   return (
     <div>
-      <Link to="/spools">Nav away</Link>
+      <Link to="/filament">Nav away</Link>
       <Outlet />
     </div>
   );
 }
 
-function renderRoute(initialPath = '/spools/new') {
+function FilamentPage() {
+  return (
+    <div>
+      Filament page {useParams().id}
+      {useLocation().search}
+    </div>
+  );
+}
+
+function renderRoute(initialPath = '/filament/spools/new') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -75,8 +91,9 @@ function renderRoute(initialPath = '/spools/new') {
       {
         element: <TestLayout />,
         children: [
-          { path: '/spools/new', element: <SpoolFormPage /> },
-          { path: '/spools', element: <div>Spools list page</div> },
+          { path: '/filament/spools/new', element: <SpoolFormPage /> },
+          { path: '/filament/:id', element: <FilamentPage /> },
+          { path: '/filament', element: <div>Filament list page</div> },
         ],
       },
     ],
@@ -86,9 +103,13 @@ function renderRoute(initialPath = '/spools/new') {
   render(<RouterProvider router={router} />, { wrapper: Wrapper });
 }
 
+/** Answers the catalog, and the POST with the saved spools (one spool of filament f-1 unless told otherwise). */
 function stubFetch(
   onPost?: (url: string, body: unknown) => void,
-  catalog: unknown = FILAMENTS_RESPONSE,
+  {
+    catalog = FILAMENTS_RESPONSE,
+    saved = [{ id: 'spool-new', filamentId: 'f-1' }],
+  }: { catalog?: unknown; saved?: unknown[] } = {},
 ) {
   vi.stubGlobal(
     'fetch',
@@ -96,7 +117,7 @@ function stubFetch(
       const url = input.toString();
       if (init?.method === 'POST') {
         onPost?.(url, JSON.parse(init.body as string));
-        return Promise.resolve(jsonResponse({ spools: [{ id: 'spool-new' }] }));
+        return Promise.resolve(jsonResponse({ spools: saved }, 201));
       }
       if (url.includes('/api/v1/filaments')) {
         return Promise.resolve(jsonResponse(catalog));
@@ -108,19 +129,33 @@ function stubFetch(
 
 type User = ReturnType<typeof userEvent.setup>;
 
+const line = (n: number) => screen.getByRole('group', { name: `Line ${n}` });
+
 const filamentPicker = () =>
   screen.findByRole('combobox', { name: 'Filament' });
 
-async function chooseFilament(user: User, colorName = 'Black') {
-  await user.click(await filamentPicker());
+/** Chooses a color on a line's picker (the first line by default). */
+async function chooseFilament(user: User, colorName = 'Black', lineNumber = 1) {
+  await screen.findAllByRole('combobox', { name: 'Filament' });
+  await user.click(
+    within(line(lineNumber)).getByRole('combobox', { name: 'Filament' }),
+  );
   await user.click(await screen.findByRole('option', { name: colorName }));
 }
 
-async function setField(user: User, label: string, value: string) {
-  const field = screen.getByLabelText(label);
+async function setField(
+  user: User,
+  label: string,
+  value: string,
+  scope: HTMLElement = document.body,
+) {
+  const field = within(scope).getByLabelText(label);
   await user.clear(field);
   if (value) await user.type(field, value);
 }
+
+const addButton = (name: string | RegExp = /^Add \d+ spools?$/) =>
+  screen.getByRole('button', { name });
 
 /** What the ring's arc covers of a full turn, 0 to 1; null when no color is chosen so there is no arc. */
 function arcShare() {
@@ -154,7 +189,8 @@ describe('SpoolFormPage', () => {
 
     renderRoute();
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await filamentPicker();
+    await user.click(addButton('Add 1 spool'));
 
     expect(
       await screen.findByText('Choose a color', {
@@ -163,28 +199,270 @@ describe('SpoolFormPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('registers a spool for the selected filament variant, shows a toast, and navigates to /spools', async () => {
+  it("adds one spool for the chosen color, shows a toast, and opens its filament's spools", async () => {
     const user = userEvent.setup();
-    let postedBody: unknown;
+    let postedBody: Record<string, unknown> | undefined;
     stubFetch((_url, body) => {
-      postedBody = body;
+      postedBody = body as Record<string, unknown>;
     });
 
     renderRoute();
 
     await chooseFilament(user);
+    await user.click(addButton('Add 1 spool'));
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(postedBody).toBeDefined());
+    expect(postedBody).toMatchObject({
+      lines: [
+        {
+          filamentVariantId: 'var-1',
+          spoolWeightGrams: 1000,
+          quantity: 1,
+          remainingWeightGrams: null,
+          price: null,
+        },
+      ],
+      supplier: null,
+      orderNumber: null,
+      rfidId: null,
+    });
+    // The received date proposes today; the price lives on the lines only.
+    expect(postedBody?.receivedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(postedBody).not.toHaveProperty('price');
+    expect(await screen.findByText('Spool added.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Filament page f-1?tab=spools'),
+    ).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
+  it('adds a delivery of several lines in one save, with the purchase details they share', async () => {
+    const user = userEvent.setup();
+    let postedBody: unknown;
+    let posts = 0;
+    stubFetch(
+      (_url, body) => {
+        postedBody = body;
+        posts += 1;
+      },
+      {
+        saved: [
+          { id: 's-1', filamentId: 'f-1' },
+          { id: 's-2', filamentId: 'f-3' },
+        ],
+      },
+    );
+    renderRoute();
+
+    await chooseFilament(user);
+    await setField(user, 'Quantity', '180', line(1));
+    await setField(user, 'Price per spool', '24', line(1));
+    await user.click(screen.getByRole('button', { name: 'Add line' }));
+    await chooseFilament(user, 'Jade White', 2);
+    await setField(user, 'Quantity', '20', line(2));
+    await setField(user, 'Supplier', ' Filament Shop ');
+    await setField(user, 'Order number', 'PO-1042');
+    fireEvent.change(screen.getByLabelText('Received on'), {
+      target: { value: '2026-10-20' },
+    });
+
+    // The new line takes the delivery's spool weight and price.
+    expect(within(line(2)).getByLabelText('Price per spool')).toHaveValue(24);
+    expect(screen.getByText('200 spools · 200 kg · 4800.00')).toBeVisible();
+    await user.click(addButton('Add 200 spools'));
+
+    await waitFor(() => expect(postedBody).toBeDefined());
+    expect(posts).toBe(1);
+    expect(postedBody).toMatchObject({
+      lines: [
+        { filamentVariantId: 'var-1', quantity: 180, price: 24 },
+        { filamentVariantId: 'var-3', quantity: 20, price: 24 },
+      ],
+      supplier: 'Filament Shop',
+      orderNumber: 'PO-1042',
+      receivedOn: '2026-10-20',
+    });
+    expect(await screen.findByText('200 spools added.')).toBeInTheDocument();
+    // Two filaments: back to the list rather than one filament's page.
+    expect(await screen.findByText('Filament list page')).toBeInTheDocument();
+  });
+
+  it('focuses the picker of a line it adds, and removes a line', async () => {
+    const user = userEvent.setup();
+    stubFetch();
+    renderRoute();
+    await filamentPicker();
+
+    expect(
+      screen.queryByRole('button', { name: /^Remove line/ }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add line' }));
+
+    await waitFor(() =>
+      expect(
+        within(line(2)).getByRole('combobox', { name: 'Filament' }),
+      ).toHaveFocus(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Remove line 2' }));
+    expect(
+      screen.queryByRole('group', { name: 'Line 2' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(['0', '501', '2.5'])(
+    'refuses a quantity of %s and sends nothing',
+    async (quantity) => {
+      const user = userEvent.setup();
+      const onPost = vi.fn();
+      stubFetch(onPost);
+      renderRoute();
+
+      await chooseFilament(user);
+      await setField(user, 'Quantity', quantity);
+      await user.click(addButton('Add spools'));
+
+      expect(
+        await screen.findByText('Enter a whole number from 1 to 500'),
+      ).toBeInTheDocument();
+      expect(onPost).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses more than 1000 spools in one delivery', async () => {
+    const user = userEvent.setup();
+    const onPost = vi.fn();
+    stubFetch(onPost);
+    renderRoute();
+
+    await chooseFilament(user);
+    await setField(user, 'Quantity', '400', line(1));
+    for (const n of [2, 3]) {
+      await user.click(screen.getByRole('button', { name: 'Add line' }));
+      await chooseFilament(user, 'Black', n);
+      await setField(user, 'Quantity', '400', line(n));
+    }
+    await user.click(addButton('Add 1200 spools'));
+
+    expect(
+      await screen.findByText('Up to 1000 spools per delivery'),
+    ).toBeInTheDocument();
+    expect(onPost).not.toHaveBeenCalled();
+  });
+
+  it('treats a blank quantity as one spool, and keeps a price of 0 as 0', async () => {
+    const user = userEvent.setup();
+    let postedBody: unknown;
+    stubFetch((_url, body) => {
+      postedBody = body;
+    });
+    renderRoute();
+
+    await chooseFilament(user);
+    await user.clear(screen.getByLabelText('Quantity'));
+    await setField(user, 'Price per spool', '0');
+    await user.click(addButton('Add 1 spool'));
+
+    await waitFor(() => expect(postedBody).toBeDefined());
+    expect(postedBody).toMatchObject({ lines: [{ quantity: 1, price: 0 }] });
+  });
+
+  it('refuses a negative price and sends nothing', async () => {
+    const user = userEvent.setup();
+    const onPost = vi.fn();
+    stubFetch(onPost);
+    renderRoute();
+
+    await chooseFilament(user);
+    await setField(user, 'Price per spool', '-1');
+    await user.click(addButton('Add 1 spool'));
+
+    expect(await screen.findByText('Must be 0 or more')).toBeInTheDocument();
+    expect(onPost).not.toHaveBeenCalled();
+  });
+
+  describe('left', () => {
+    it('sends what is left of each spool, and nothing for a full one', async () => {
+      const user = userEvent.setup();
+      let postedBody: unknown;
+      stubFetch((_url, body) => {
+        postedBody = body;
+      });
+      renderRoute();
+      await chooseFilament(user);
+
+      expect(screen.getByLabelText('Left')).toHaveAttribute(
+        'placeholder',
+        'Full',
+      );
+      await setField(user, 'Left', '400');
+      await user.click(addButton('Add 1 spool'));
+
+      await waitFor(() => expect(postedBody).toBeDefined());
       expect(postedBody).toMatchObject({
-        filamentVariantId: 'var-1',
-        spoolWeightGrams: 1000,
-        remainingWeightGrams: null,
+        lines: [{ spoolWeightGrams: 1000, remainingWeightGrams: 400 }],
       });
     });
 
-    expect(await screen.findByText('Spools list page')).toBeInTheDocument();
+    it.each([
+      ['0', 'Must be greater than 0'],
+      ['1200', 'Exceeds spool weight'],
+    ])('refuses %s g left and sends nothing', async (left, message) => {
+      const user = userEvent.setup();
+      const onPost = vi.fn();
+      stubFetch(onPost);
+      renderRoute();
+      await chooseFilament(user);
+
+      await setField(user, 'Left', left);
+      await user.click(addButton('Add 1 spool'));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(onPost).not.toHaveBeenCalled();
+    });
+
+    it('draws the chosen color on the ring, filled to what is left', async () => {
+      const user = userEvent.setup();
+      stubFetch();
+      renderRoute();
+
+      await filamentPicker();
+      expect(arcShare()).toBeNull();
+      await chooseFilament(user);
+      expect(
+        document.querySelector('[data-slot="spool-ring-fill"]'),
+      ).toHaveAttribute('stroke', '#18181b');
+      expect(arcShare()).toBeCloseTo(1);
+
+      await setField(user, 'Left', '250');
+      expect(arcShare()).toBeCloseTo(0.25);
+    });
+  });
+
+  it('offers only the colors of the filament it was opened from, and goes back to its spools', async () => {
+    const user = userEvent.setup();
+    stubFetch();
+
+    renderRoute('/filament/spools/new?filamentId=f-3');
+
+    expect(
+      await screen.findByRole('link', { name: 'Back to spools' }),
+    ).toHaveAttribute('href', '/filament/f-3?tab=spools');
+    await user.click(await filamentPicker());
+    expect(
+      await screen.findByRole('option', { name: 'Jade White' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'Black' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('presets the color it is given', async () => {
+    stubFetch();
+
+    renderRoute('/filament/spools/new?filamentId=f-3&variantId=var-3');
+
+    await waitFor(async () =>
+      expect(await filamentPicker()).toHaveTextContent('Jade White'),
+    );
   });
 
   it('blocks in-app navigation away while the form has unsaved changes', async () => {
@@ -259,7 +537,7 @@ describe('SpoolFormPage', () => {
 
     it('points to Add filament when the catalog is empty', async () => {
       const user = userEvent.setup();
-      stubFetch(undefined, { filaments: [] });
+      stubFetch(undefined, { catalog: { filaments: [] } });
       renderRoute();
 
       await user.click(await filamentPicker());
@@ -272,7 +550,7 @@ describe('SpoolFormPage', () => {
   });
 
   describe('quantity', () => {
-    it('steps up and down with the buttons, and stops at 1', async () => {
+    it('steps up and down with the buttons, stops at 1, and counts on the add button', async () => {
       const user = userEvent.setup();
       stubFetch();
       renderRoute();
@@ -287,6 +565,7 @@ describe('SpoolFormPage', () => {
       await user.click(screen.getByRole('button', { name: 'More' }));
       await user.click(screen.getByRole('button', { name: 'More' }));
       expect(quantity).toHaveValue(3);
+      expect(addButton('Add 3 spools')).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: 'Fewer' }));
       await user.click(screen.getByRole('button', { name: 'Fewer' }));
@@ -295,313 +574,8 @@ describe('SpoolFormPage', () => {
     });
   });
 
-  describe('partly used', () => {
-    it('asks for the remaining weight only when switched on, and sends it with the spool', async () => {
-      const user = userEvent.setup();
-      let postedBody: unknown;
-      stubFetch((_url, body) => {
-        postedBody = body;
-      });
-      renderRoute();
-      await chooseFilament(user);
-
-      expect(
-        screen.queryByLabelText('Remaining weight'),
-      ).not.toBeInTheDocument();
-      await user.click(screen.getByRole('switch', { name: 'Partly used' }));
-      await setField(user, 'Remaining weight', '400');
-      await user.click(screen.getByRole('button', { name: 'Save' }));
-
-      await waitFor(() => expect(postedBody).toBeDefined());
-      expect(postedBody).toMatchObject({
-        spoolWeightGrams: 1000,
-        remainingWeightGrams: 400,
-      });
-    });
-
-    it('sends no remaining weight once switched off again', async () => {
-      const user = userEvent.setup();
-      let postedBody: unknown;
-      stubFetch((_url, body) => {
-        postedBody = body;
-      });
-      renderRoute();
-      await chooseFilament(user);
-
-      await user.click(screen.getByRole('switch', { name: 'Partly used' }));
-      await setField(user, 'Remaining weight', '400');
-      await user.click(screen.getByRole('switch', { name: 'Partly used' }));
-      await user.click(screen.getByRole('button', { name: 'Save' }));
-
-      await waitFor(() => expect(postedBody).toBeDefined());
-      expect(postedBody).toMatchObject({ remainingWeightGrams: null });
-    });
-
-    it.each([
-      ['', 'Enter the remaining weight'],
-      ['0', 'Must be greater than 0'],
-      ['1200', 'Exceeds spool weight'],
-    ])(
-      'refuses a remaining weight of "%s" and sends nothing',
-      async (remaining, message) => {
-        const user = userEvent.setup();
-        const onPost = vi.fn();
-        stubFetch(onPost);
-        renderRoute();
-        await chooseFilament(user);
-
-        await user.click(screen.getByRole('switch', { name: 'Partly used' }));
-        await setField(user, 'Remaining weight', remaining);
-        await user.click(screen.getByRole('button', { name: 'Save' }));
-
-        expect(await screen.findByText(message)).toBeInTheDocument();
-        expect(onPost).not.toHaveBeenCalled();
-      },
-    );
-  });
-
-  describe('label recap', () => {
-    it('stays empty until a color is chosen', async () => {
-      stubFetch();
-      renderRoute();
-
-      await filamentPicker();
-
-      expect(screen.queryByText('1 spool · 1 kg')).not.toBeInTheDocument();
-      expect(arcShare()).toBeNull();
-    });
-
-    it('recaps the spools, their weight and their price', async () => {
-      const user = userEvent.setup();
-      stubFetch();
-      renderRoute();
-
-      await chooseFilament(user);
-      expect(screen.getByText('1 spool · 1 kg')).toBeInTheDocument();
-
-      await user.click(screen.getByRole('button', { name: 'More' }));
-      await user.click(screen.getByRole('button', { name: 'More' }));
-      await setField(user, 'Price per spool', '18.5');
-
-      expect(
-        screen.getByText('3 spools · 1 kg each · 3 kg total'),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText('18.50 per spool · 55.50 total'),
-      ).toBeInTheDocument();
-
-      await user.click(screen.getByRole('switch', { name: 'Partly used' }));
-      await setField(user, 'Remaining weight', '400');
-
-      expect(
-        screen.getByText('3 spools · 400 g left of 1 kg each'),
-      ).toBeInTheDocument();
-    });
-
-    it('draws the chosen color on the ring, filled to what is left', async () => {
-      const user = userEvent.setup();
-      stubFetch();
-      renderRoute();
-
-      await chooseFilament(user);
-      expect(
-        document.querySelector('[data-slot="spool-ring-fill"]'),
-      ).toHaveAttribute('stroke', '#18181b');
-      expect(arcShare()).toBeCloseTo(1);
-
-      await user.click(screen.getByRole('switch', { name: 'Partly used' }));
-      await setField(user, 'Remaining weight', '250');
-      expect(arcShare()).toBeCloseTo(0.25);
-    });
-  });
-
-  describe('quantity and purchase info', () => {
-    it('adds one spool with no purchase info by default', async () => {
-      const user = userEvent.setup();
-      let postedBody: Record<string, unknown> | undefined;
-      stubFetch((_url, body) => {
-        postedBody = body as Record<string, unknown>;
-      });
-      renderRoute();
-
-      await chooseFilament(user);
-      await user.click(screen.getByRole('button', { name: 'Save' }));
-
-      await waitFor(() => expect(postedBody).toBeDefined());
-      expect(postedBody).toMatchObject({
-        quantity: 1,
-        price: null,
-        supplier: null,
-        orderNumber: null,
-      });
-      // The received date proposes today.
-      expect(postedBody?.receivedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      expect(await screen.findByText('Spool added.')).toBeInTheDocument();
-    });
-
-    it('adds several identical spools with their purchase info in one save', async () => {
-      const user = userEvent.setup();
-      let postedBody: unknown;
-      let posts = 0;
-      stubFetch((_url, body) => {
-        postedBody = body;
-        posts += 1;
-      });
-      renderRoute();
-
-      await chooseFilament(user);
-      await setField(user, 'Quantity', '4');
-      await setField(user, 'Price per spool', '18.5');
-      await setField(user, 'Supplier', ' Filament Shop ');
-      await setField(user, 'Order number', 'PO-1042');
-      fireEvent.change(screen.getByLabelText('Received on'), {
-        target: { value: '2026-10-20' },
-      });
-      await user.click(screen.getByRole('button', { name: 'Save' }));
-
-      await waitFor(() => expect(postedBody).toBeDefined());
-      expect(posts).toBe(1);
-      expect(postedBody).toMatchObject({
-        filamentVariantId: 'var-1',
-        quantity: 4,
-        price: 18.5,
-        supplier: 'Filament Shop',
-        orderNumber: 'PO-1042',
-        receivedOn: '2026-10-20',
-      });
-      expect(await screen.findByText('4 spools added.')).toBeInTheDocument();
-    });
-
-    it('treats a blank quantity as one spool, and keeps a price of 0 as 0', async () => {
-      const user = userEvent.setup();
-      let postedBody: unknown;
-      stubFetch((_url, body) => {
-        postedBody = body;
-      });
-      renderRoute();
-
-      await chooseFilament(user);
-      await user.clear(screen.getByLabelText('Quantity'));
-      await setField(user, 'Price per spool', '0');
-      await user.click(screen.getByRole('button', { name: 'Save' }));
-
-      await waitFor(() => expect(postedBody).toBeDefined());
-      expect(postedBody).toMatchObject({ quantity: 1, price: 0 });
-    });
-
-    it.each(['0', '51', '2.5'])(
-      'refuses a quantity of %s and sends nothing',
-      async (quantity) => {
-        const user = userEvent.setup();
-        const onPost = vi.fn();
-        stubFetch(onPost);
-        renderRoute();
-
-        await chooseFilament(user);
-        await setField(user, 'Quantity', quantity);
-        await user.click(screen.getByRole('button', { name: 'Save' }));
-
-        expect(
-          await screen.findByText('Enter a whole number from 1 to 50'),
-        ).toBeInTheDocument();
-        expect(onPost).not.toHaveBeenCalled();
-      },
-    );
-
-    it('refuses a negative price and sends nothing', async () => {
-      const user = userEvent.setup();
-      const onPost = vi.fn();
-      stubFetch(onPost);
-      renderRoute();
-
-      await chooseFilament(user);
-      await setField(user, 'Price per spool', '-1');
-      await user.click(screen.getByRole('button', { name: 'Save' }));
-
-      expect(await screen.findByText('Must be 0 or more')).toBeInTheDocument();
-      expect(onPost).not.toHaveBeenCalled();
-    });
-
-    it('shows the price per kg beside the price paid', async () => {
-      const user = userEvent.setup();
-      stubFetch();
-      renderRoute();
-
-      await setField(user, 'Price per spool', '18.5');
-      expect(await screen.findByText('18.50 per kg')).toBeInTheDocument();
-
-      await setField(user, 'Spool weight', '750');
-      expect(await screen.findByText('24.67 per kg')).toBeInTheDocument();
-    });
-  });
-
-  describe('save and add another', () => {
-    it('saves, stays on the page, and keeps what a delivery shares for the next color', async () => {
-      const user = userEvent.setup();
-      let postedBody: unknown;
-      let posts = 0;
-      stubFetch((_url, body) => {
-        postedBody = body;
-        posts += 1;
-      });
-      renderRoute();
-
-      await chooseFilament(user);
-      await user.click(screen.getByRole('button', { name: 'More' }));
-      await setField(user, 'Spool weight', '750');
-      await setField(user, 'Label', 'Shelf B');
-      await setField(user, 'Price per spool', '18.5');
-      await setField(user, 'Supplier', 'Filament Shop');
-      await setField(user, 'Order number', 'PO-1042');
-      fireEvent.change(screen.getByLabelText('Received on'), {
-        target: { value: '2026-10-20' },
-      });
-      await user.click(
-        screen.getByRole('button', { name: 'Save and add another' }),
-      );
-
-      expect(await screen.findByText('2 spools added.')).toBeInTheDocument();
-      expect(posts).toBe(1);
-      expect(postedBody).toMatchObject({
-        filamentVariantId: 'var-1',
-        quantity: 2,
-        spoolWeightGrams: 750,
-        label: 'Shelf B',
-        price: 18.5,
-      });
-      expect(screen.queryByText('Spools list page')).not.toBeInTheDocument();
-
-      // What the delivery shares stays; what differs per color starts again.
-      expect(screen.getByLabelText('Spool weight')).toHaveValue(750);
-      expect(screen.getByLabelText('Supplier')).toHaveValue('Filament Shop');
-      expect(screen.getByLabelText('Order number')).toHaveValue('PO-1042');
-      expect(screen.getByLabelText('Received on')).toHaveValue('2026-10-20');
-      const picker = await filamentPicker();
-      expect(picker).toHaveTextContent('Choose a filament');
-      expect(screen.getByLabelText('Quantity')).toHaveValue(1);
-      expect(screen.getByLabelText('Label')).toHaveValue('');
-      expect(screen.getByLabelText('Price per spool')).toHaveValue(null);
-      await waitFor(() => expect(picker).toHaveFocus());
-    });
-
-    it('asks for a color first, and sends nothing', async () => {
-      const user = userEvent.setup();
-      const onPost = vi.fn();
-      stubFetch(onPost);
-      renderRoute();
-
-      await user.click(
-        await screen.findByRole('button', { name: 'Save and add another' }),
-      );
-
-      expect(
-        await screen.findByText('Choose a color', { selector: '[role=alert]' }),
-      ).toBeInTheDocument();
-      expect(onPost).not.toHaveBeenCalled();
-    });
-  });
   describe('registering an RFID spool from Action required', () => {
-    it('prefills what the printer read, adds one tagged spool, and offers no quantity', async () => {
+    it('prefills what the printer read on one locked line, and adds one tagged spool', async () => {
       const user = userEvent.setup();
       let postedBody: unknown;
       stubFetch((_url, body) => {
@@ -609,7 +583,7 @@ describe('SpoolFormPage', () => {
       });
 
       renderRoute(
-        '/spools/new?rfidId=TAG-1&slot=P01%20%C2%B7%20AMS%201%20%C2%B7%20Slot%202&variantId=var-1&spoolWeightGrams=1000&remainingWeightGrams=870',
+        '/filament/spools/new?rfidId=TAG-1&slot=P01%20%C2%B7%20AMS%201%20%C2%B7%20Slot%202&variantId=var-1&spoolWeightGrams=1000&remainingWeightGrams=870',
       );
 
       expect(
@@ -619,18 +593,22 @@ describe('SpoolFormPage', () => {
       ).toBeInTheDocument();
       expect(screen.queryByText('Quantity')).not.toBeInTheDocument();
       expect(
-        screen.queryByRole('button', { name: 'Save and add another' }),
+        screen.queryByRole('button', { name: 'Add line' }),
       ).not.toBeInTheDocument();
-      expect(screen.getByLabelText('Remaining weight')).toHaveValue(870);
+      expect(screen.getByLabelText('Left')).toHaveValue(870);
 
-      await user.click(screen.getByRole('button', { name: 'Save' }));
+      await user.click(addButton('Add 1 spool'));
 
       await waitFor(() =>
         expect(postedBody).toMatchObject({
-          filamentVariantId: 'var-1',
-          spoolWeightGrams: 1000,
-          remainingWeightGrams: 870,
-          quantity: 1,
+          lines: [
+            {
+              filamentVariantId: 'var-1',
+              spoolWeightGrams: 1000,
+              remainingWeightGrams: 870,
+              quantity: 1,
+            },
+          ],
           rfidId: 'TAG-1',
         }),
       );

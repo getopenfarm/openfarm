@@ -108,8 +108,9 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
         var pageSize = Math.Clamp(query.PageSize ?? DefaultPageSize, 1, MaxPageSize);
         var total = paged ? await rows.CountAsync(cancellationToken) : 0;
 
-        var ordered = rows
-            .OrderBy(x => x.spool.CreatedAtUtc)
+        var ordered = (query.NewestFirst
+                ? rows.OrderByDescending(x => x.spool.CreatedAtUtc)
+                : rows.OrderBy(x => x.spool.CreatedAtUtc))
             .ThenBy(x => x.spool.Id);
         var window = paged ? ordered.Skip((Math.Max(query.Page ?? 1, 1) - 1) * pageSize).Take(pageSize) : ordered;
 
@@ -119,6 +120,7 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                 x.spool.Id,
                 x.spool.Label,
                 x.spool.FilamentVariantId,
+                FilamentId = x.filament.Id,
                 x.variant.ColorName,
                 x.variant.ColorHex,
                 x.filament.Material,
@@ -161,7 +163,8 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                 r.ReceivedOn,
                 r is { UnitKind: not null, UnitIndex: { } unitIndex, SlotPosition: { } slotPosition }
                     ? new SpoolSlotPlacement(r.UnitKind, unitIndex, r.UnitName, slotPosition, r.PrinterBrand ?? string.Empty, r.PrinterName ?? string.Empty)
-                    : null))
+                    : null,
+                r.FilamentId))
             .ToList();
 
         return new SpoolRowPage(spoolRows, paged ? total : spoolRows.Count);
@@ -203,6 +206,11 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
         if (query.FilamentVariantId is { } variantId)
         {
             records = records.Where(x => x.variant.Id == variantId);
+        }
+
+        if (query.FilamentId is { } filamentId)
+        {
+            records = records.Where(x => x.filament.Id == filamentId);
         }
 
         if (query.Source is { } source)
@@ -289,6 +297,17 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                 select new { VariantId = byVariant.Key, Grams = byVariant.Sum() })
             .ToDictionaryAsync(x => x.VariantId, x => x.Grams, cancellationToken);
 
+        if (query.FilamentId is { } filamentId)
+        {
+            // After loading: filtering the left-joined spools in SQL would turn other filaments' lines into the no-spool row.
+            var ids = (await dbContext.FilamentVariants.AsNoTracking()
+                .Where(v => v.FilamentId == filamentId)
+                .Select(v => v.Id)
+                .ToListAsync(cancellationToken)).ToHashSet();
+            lines = lines.Where(l => l.FilamentVariantId is { } id && ids.Contains(id)).ToList();
+            writtenOff = writtenOff.Where(w => ids.Contains(w.Key)).ToDictionary();
+        }
+
         var variantIds = lines.Select(l => l.FilamentVariantId).OfType<Guid>().Concat(writtenOff.Keys).Distinct().ToList();
         var colors = await (
                 from variant in dbContext.FilamentVariants.AsNoTracking()
@@ -300,6 +319,25 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
             .ToDictionaryAsync(c => c.FilamentVariantId, cancellationToken);
 
         return MaterialsReport.Of(lines, writtenOff, colors);
+    }
+
+    public async Task<IReadOnlyList<UsageEntry>> ListUsageEntriesAsync(Guid filamentId, DateTimeOffset since, CancellationToken cancellationToken)
+    {
+        var rows = await (
+                from record in dbContext.SpoolUsageRecords.AsNoTracking()
+                where record.RecordedAtUtc >= since
+                    && (record.Source == SpoolUsageSource.Job || record.Source == SpoolUsageSource.Manual)
+                join spool in dbContext.Spools.AsNoTracking() on record.SpoolId equals spool.Id
+                join variant in dbContext.FilamentVariants.AsNoTracking() on spool.FilamentVariantId equals variant.Id
+                where variant.FilamentId == filamentId
+                join print in dbContext.Prints.AsNoTracking() on record.JobId equals (Guid?)print.Id into prints
+                from print in prints.DefaultIfEmpty()
+                select new { spool.FilamentVariantId, record.RecordedAtUtc, record.GramsConsumed, Status = (PrintJobStatus?)print.Status })
+            .ToListAsync(cancellationToken);
+        return rows
+            .Select(r => new UsageEntry(
+                r.FilamentVariantId, r.RecordedAtUtc, r.GramsConsumed, r.Status is PrintJobStatus.Failed or PrintJobStatus.Cancelled))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<VariantStock>> ListStockAsync(DateTimeOffset usedSince, CancellationToken cancellationToken)
@@ -322,6 +360,8 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                     FilamentPrice = filament.PricePerKg,
                     VariantThreshold = variant.LowStockGrams,
                     FilamentThreshold = filament.LowStockGrams,
+                    VariantDays = variant.LowStockDays,
+                    FilamentDays = filament.LowStockDays,
                 })
             .ToListAsync(cancellationToken);
 
@@ -348,9 +388,11 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
                     s.RemainingWeightGrams,
                     FilamentPricing.Resolve(s.Price, s.SpoolWeightGrams, v.VariantPrice, v.FilamentPrice)?.PricePerKg)),
                 used.GetValueOrDefault(v.VariantId));
+            var everStocked = all.Any();
             return new VariantStock(
                 v.VariantId, v.FilamentId, v.VendorName ?? string.Empty, v.Material, v.MaterialType, v.ColorName, v.ColorHex, stock,
-                FilamentStock.Threshold(v.VariantThreshold, v.FilamentThreshold, everStocked: all.Any()));
+                FilamentStock.Threshold(variantGrams: v.VariantThreshold, filamentGrams: v.FilamentThreshold, everStocked: everStocked),
+                ThresholdDays: FilamentStock.Threshold(variantDays: v.VariantDays, filamentDays: v.FilamentDays, everStocked: everStocked));
         }).ToList();
     }
 

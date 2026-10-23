@@ -2,7 +2,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { createMemoryRouter, Link, Outlet, RouterProvider } from 'react-router';
+import {
+  createMemoryRouter,
+  Link,
+  Outlet,
+  RouterProvider,
+  useParams,
+} from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import type {
@@ -160,7 +166,7 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
       if (method === 'POST' && url.endsWith('/api/v1/filaments')) {
         return Promise.resolve(
           new Response(JSON.stringify({ id: 'f-new' }), {
-            status: 200,
+            status: 201,
             headers: { 'Content-Type': 'application/json' },
           }),
         );
@@ -173,6 +179,10 @@ function stubFetch(onRequest?: (url: string, init?: RequestInit) => void) {
       );
     }),
   );
+}
+
+function FilamentIdProbe() {
+  return <div>Filament page {useParams().id}</div>;
 }
 
 function TestLayout() {
@@ -207,6 +217,7 @@ function renderAddPage(onRequest?: (url: string, init?: RequestInit) => void) {
             element: <FilamentFormPage mode="add" />,
           },
           { path: '/filament', element: <div>Filament catalog page</div> },
+          { path: '/filament/:id', element: <FilamentIdProbe /> },
         ],
       },
     ],
@@ -266,7 +277,7 @@ describe('FilamentFormPage', () => {
     expect(screen.getByText('Add at least one variant')).toBeInTheDocument();
   });
 
-  it('adds a new filament with a variant, shows a toast, and navigates to /filament', async () => {
+  it('adds a new filament with a variant, shows a toast, and opens its page', async () => {
     const user = userEvent.setup();
     let createBody: unknown;
     renderAddPage((url, init) => {
@@ -295,12 +306,11 @@ describe('FilamentFormPage', () => {
       expect(createBody).toMatchObject({
         vendorId: 'v-1',
         material: 'PETG',
-        variants: [{ colorName: 'Galaxy Black' }],
+        lowStockDays: null,
+        variants: [{ colorName: 'Galaxy Black', lowStockDays: null }],
       });
     });
-    expect(
-      await screen.findByText('Filament catalog page'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Filament page f-new')).toBeInTheDocument();
   });
 
   it('creates a typed new vendor on save, then the filament with its id', async () => {
@@ -554,7 +564,7 @@ describe('FilamentFormPage', () => {
       screen
         .getAllByRole('spinbutton')
         .map((input) => input.getAttribute('name')),
-    ).toEqual(['pricePerKg', 'lowStockGrams']);
+    ).toEqual(['pricePerKg', 'lowStockGrams', 'lowStockDays']);
     expect(screen.getByText('No price')).toBeInTheDocument();
     await user.type(price, '25.5');
     expect(screen.getByText('25.50/kg default')).toBeInTheDocument();
@@ -675,5 +685,50 @@ describe('FilamentFormPage', () => {
       lowStockGrams: 1500,
       variantPrices: [{ variantId: 'var-1', lowStockGrams: 0 }],
     });
+  });
+
+  it('saves days thresholds with the rest, and keeps a saved one when only the price changes', async () => {
+    const user = userEvent.setup();
+    const writes: Record<string, unknown>[] = [];
+    FILAMENTS[0] = {
+      ...FILAMENTS[0],
+      lowStockDays: 14,
+      variants: [{ ...FILAMENTS[0].variants?.[0], lowStockDays: 7 }],
+    };
+    try {
+      renderEditPage('f-1', (_url, init) => {
+        if (init?.method === 'PUT')
+          writes.push(JSON.parse(init.body as string));
+      });
+
+      expect(
+        await screen.findByRole('spinbutton', { name: 'Days left below' }),
+      ).toHaveValue(14);
+      await user.click(
+        screen.getByRole('button', { name: 'Edit Galaxy Black' }),
+      );
+      const dialog = within(screen.getByRole('dialog'));
+      expect(dialog.getByLabelText('Days left below')).toHaveValue(7);
+      await user.type(dialog.getByLabelText('Price per kg'), '30');
+      await user.click(dialog.getByRole('button', { name: 'Update variant' }));
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      // Each listed variant gets every value: an omitted days threshold would clear the saved 7.
+      await waitFor(() => expect(writes).toHaveLength(1));
+      expect(writes[0]).toMatchObject({
+        lowStockDays: 14,
+        variantPrices: [
+          { variantId: 'var-1', pricePerKg: 30, lowStockDays: 7 },
+        ],
+      });
+    } finally {
+      FILAMENTS[0] = {
+        ...FILAMENTS[0],
+        lowStockDays: undefined,
+        variants: [
+          { id: 'var-1', colorName: 'Galaxy Black', colorHex: '#18181b' },
+        ],
+      };
+    }
   });
 });

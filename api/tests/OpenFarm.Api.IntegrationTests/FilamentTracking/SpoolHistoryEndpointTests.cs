@@ -176,6 +176,24 @@ public class SpoolHistoryEndpointTests(CustomWebApplicationFactory factory) : IC
     }
 
     [Fact]
+    public async Task EverySpoolsHistory_FiltersByFilament_AsAPageAndAsCsv()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var mine = await RegisterSpoolAsync(client, await CreateFilamentVariantAsync(client, "Teal", "#008080"));
+        var other = await RegisterSpoolAsync(client, await CreateFilamentVariantAsync(client));
+        await EditAsync(client, mine, 900m);
+        await EditAsync(client, other, 800m);
+        var filamentId = (await client.GetFromJsonAsync<SpoolResponse>($"/api/v1/spools/{mine}"))!.FilamentId;
+
+        var page = await AllHistoryAsync(client, $"?filamentId={filamentId}");
+        var csv = await client.GetStringAsync($"/api/v1/spools/history.csv?filamentId={filamentId}");
+
+        page.TotalCount.Should().Be(1);
+        page.Entries.Should().ContainSingle().Which.SpoolId.Should().Be(mine);
+        csv.Should().Contain(mine.ToString()).And.NotContain(other.ToString());
+    }
+
+    [Fact]
     public async Task HistoryCsv_QuotesFields_AndKeepsFormulasAsText()
     {
         var client = await AuthenticatedClientAsync(_client);

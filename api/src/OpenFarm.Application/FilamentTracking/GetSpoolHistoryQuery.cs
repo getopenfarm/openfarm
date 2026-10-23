@@ -9,9 +9,11 @@ namespace OpenFarm.Application.FilamentTracking;
 /// <param name="PageSize">Entries per page; endpoints bound it (<see cref="MaxPageSize"/> for a page, all for a CSV).</param>
 /// <param name="From">Entries recorded at or after this instant.</param>
 /// <param name="To">Entries recorded before this instant.</param>
+/// <param name="FilamentId">Only spools of this filament's colors.</param>
 public sealed record GetSpoolHistoryQuery(
     Guid? SpoolId, int Page = 1, int PageSize = GetSpoolHistoryQuery.DefaultPageSize,
-    DateTimeOffset? From = null, DateTimeOffset? To = null, Guid? FilamentVariantId = null, SpoolUsageSource? Source = null)
+    DateTimeOffset? From = null, DateTimeOffset? To = null, Guid? FilamentVariantId = null, SpoolUsageSource? Source = null,
+    Guid? FilamentId = null)
 {
     public const int DefaultPageSize = 50;
     public const int MaxPageSize = 100;

@@ -29,10 +29,24 @@ public sealed record FilamentStock(decimal OnHandGrams, int ActiveSpools, decima
     /// <summary>Low once the grams on hand drop under the threshold. No threshold never alerts, and a threshold of 0 never fires.</summary>
     public bool IsBelow(decimal? thresholdGrams) => thresholdGrams is { } threshold && OnHandGrams < threshold;
 
+    /// <summary>How long the grams on hand last at the pace of <see cref="UsedGrams"/> over <paramref name="windowDays"/>; null without use.</summary>
+    public decimal? DaysLeft(int windowDays) => UsedGrams > 0 ? OnHandGrams * windowDays / UsedGrams : null;
+
+    /// <summary>
+    /// Low by grams (<see cref="IsBelow"/>) or by days: fewer days left than <paramref name="thresholdDays"/>. A days threshold of 0
+    /// never fires, and a colour without use has no days left to compare.
+    /// </summary>
+    public bool IsLow(decimal? thresholdGrams, int? thresholdDays, int windowDays) =>
+        IsBelow(thresholdGrams) || (thresholdDays is > 0 and var days && DaysLeft(windowDays) is { } left && left < days);
+
     /// <summary>
     /// The colour's own threshold, else its filament's default. The default covers only colours stocked at least once, so a
     /// colour the farm never kept does not show as low.
     /// </summary>
     public static decimal? Threshold(decimal? variantGrams, decimal? filamentGrams, bool everStocked) =>
         variantGrams ?? (everStocked ? filamentGrams : null);
+
+    /// <summary>The same rule for a threshold in days left.</summary>
+    public static int? Threshold(int? variantDays, int? filamentDays, bool everStocked) =>
+        variantDays ?? (everStocked ? filamentDays : null);
 }

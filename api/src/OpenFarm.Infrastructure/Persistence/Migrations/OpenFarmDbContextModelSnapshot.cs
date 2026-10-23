@@ -498,6 +498,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("LowStockDays")
+                        .HasColumnType("integer");
+
                     b.Property<decimal?>("LowStockGrams")
                         .HasColumnType("numeric");
 
@@ -588,6 +591,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("FilamentId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("LowStockDays")
+                        .HasColumnType("integer");
 
                     b.Property<decimal?>("LowStockGrams")
                         .HasColumnType("numeric");

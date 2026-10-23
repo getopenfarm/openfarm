@@ -68,9 +68,7 @@ public class ListSpoolsEndpointTests(CustomWebApplicationFactory factory) : ICla
         var seeded = await SeedAsync(client, "Matte", $"TYPE{Guid.NewGuid():N}"[..14], "Olive");
         var registered = await client.PostAsJsonAsync(new Uri("/api/v1/spools", UriKind.Relative), new RegisterSpoolRequest
         {
-            FilamentVariantId = seeded.VariantId,
-            Label = $"Shelf-{seeded.Tag}",
-            SpoolWeightGrams = 1000,
+            Lines = [new RegisterSpoolLineRequest { FilamentVariantId = seeded.VariantId, Label = $"Shelf-{seeded.Tag}", SpoolWeightGrams = 1000 }],
         });
         var spool = (await registered.Content.ReadFromJsonAsync<RegisterSpoolsResponse>())!.Spools.Single();
 
@@ -84,16 +82,12 @@ public class ListSpoolsEndpointTests(CustomWebApplicationFactory factory) : ICla
         var seeded = await SeedAsync(client, "Wild", "PLA", "Grey");
         var literal = await client.PostAsJsonAsync(new Uri("/api/v1/spools", UriKind.Relative), new RegisterSpoolRequest
         {
-            FilamentVariantId = seeded.VariantId,
-            Label = $"zq{seeded.Tag}%x",
-            SpoolWeightGrams = 1000,
+            Lines = [new RegisterSpoolLineRequest { FilamentVariantId = seeded.VariantId, Label = $"zq{seeded.Tag}%x", SpoolWeightGrams = 1000 }],
         });
         var literalSpool = (await literal.Content.ReadFromJsonAsync<RegisterSpoolsResponse>())!.Spools.Single();
         await client.PostAsJsonAsync(new Uri("/api/v1/spools", UriKind.Relative), new RegisterSpoolRequest
         {
-            FilamentVariantId = seeded.VariantId,
-            Label = $"zq{seeded.Tag}abc",
-            SpoolWeightGrams = 1000,
+            Lines = [new RegisterSpoolLineRequest { FilamentVariantId = seeded.VariantId, Label = $"zq{seeded.Tag}abc", SpoolWeightGrams = 1000 }],
         });
 
         // An unescaped % would also match the second label.
@@ -122,6 +116,35 @@ public class ListSpoolsEndpointTests(CustomWebApplicationFactory factory) : ICla
         var using_ = (await ListAsync(client, $"vendorId={seeded.VendorId}&state=Using")).Single();
         using_.FeedSlotLabel.Should().Be($"{printerName} · {slot.DisplayLabel}");
         (await ListAsync(client, $"vendorId={seeded.VendorId}&state=InStorage")).Single().FeedSlotLabel.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task NewestFirst_ListsTheLatestRegisteredFirst_AndPagesThatWay()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var seeded = await SeedAsync(client, "Order", "PLA", "Lime");
+        var first = await RegisterSpoolAsync(client, seeded.VariantId);
+        var second = await RegisterSpoolAsync(client, seeded.VariantId);
+        var third = await RegisterSpoolAsync(client, seeded.VariantId);
+
+        var newest = await ListPageAsync(client, $"filamentId={seeded.FilamentId}&newestFirst=true&page=1&pageSize=2");
+
+        newest.Spools.Select(s => s.Id).Should().Equal(third, second);
+        newest.TotalCount.Should().Be(3);
+        (await ListAsync(client, $"filamentId={seeded.FilamentId}")).Select(s => s.Id).Should().Equal(first, second, third);
+    }
+
+    [Fact]
+    public async Task Spools_SayWhichFilamentTheirColorBelongsTo()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var seeded = await SeedAsync(client, "Owner", "PLA", "Amber");
+        var spoolId = await RegisterSpoolAsync(client, seeded.VariantId);
+
+        var spool = (await ListAsync(client, $"filamentId={seeded.FilamentId}")).Single();
+
+        spool.Id.Should().Be(spoolId);
+        spool.FilamentId.Should().Be(seeded.FilamentId).And.NotBe(seeded.VariantId);
     }
 
     [Fact]

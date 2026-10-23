@@ -135,7 +135,7 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
                 if (issue?.Shortfall is { } shortfall)
                     checks.Add(new("filament-stock", "Loaded filament weight", "Failed",
                         $"{shortfall.NeededGrams} g {shortfall.Label} ({shortfall.EstimatedGrams} g + 10%)",
-                        $"{shortfall.AvailableGrams} g", issue.Message, $"/spools/{shortfall.SpoolId}"));
+                        $"{shortfall.AvailableGrams} g", issue.Message, $"/filament/spools/{shortfall.SpoolId}"));
             }
             else checks.Add(new("profiles", "Production profile readiness", "NotEvaluated", null, null,
                 "Requires complete part requirements and a matching confirmed nozzle."));

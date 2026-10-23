@@ -36,6 +36,19 @@ public sealed class Filament
         LowStockGrams = grams;
     }
 
+    /// <summary>The highest days threshold, on a filament or a colour.</summary>
+    public const int MaxLowStockDays = 365;
+
+    /// <summary>Days left below which this filament's colours show as low, unless a colour sets its own; null for no alert by days.</summary>
+    public int? LowStockDays { get; private set; }
+
+    public void SetLowStockDays(int? days)
+    {
+        if (days is < 0 or > MaxLowStockDays)
+            throw new ArgumentOutOfRangeException(nameof(days), $"Low stock days must be 0 to {MaxLowStockDays}.");
+        LowStockDays = days;
+    }
+
     public Guid Id { get; }
 
     public Guid VendorId { get; private set; }

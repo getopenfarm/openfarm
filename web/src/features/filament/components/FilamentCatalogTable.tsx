@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import { PlusIcon } from 'lucide-react';
+import { PencilIcon, PlusIcon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
@@ -16,6 +16,7 @@ import type {
   VariantStockResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { formatCost, formatWeight } from '@/lib/formatUnits';
+import { addSpoolUrl } from '../lib/addSpoolUrl';
 import { type StockTotals, sumStock } from '../lib/stock';
 
 const MAX_VISIBLE_SWATCHES = 4;
@@ -65,7 +66,7 @@ export function FilamentCatalogTable({
       ),
       cell: ({ row }) => (
         <Link
-          to={`/filament/${row.original.id}/edit`}
+          to={`/filament/${row.original.id}`}
           className="font-medium hover:underline"
         >
           {row.original.vendorName} · {row.original.material}
@@ -183,9 +184,14 @@ export function FilamentCatalogTable({
         >
           <DropdownMenuGroup>
             <DropdownMenuItem
+              onSelect={() => navigate(addSpoolUrl(row.original))}
+            >
+              <PlusIcon /> Add spools
+            </DropdownMenuItem>
+            <DropdownMenuItem
               onSelect={() => navigate(`/filament/${row.original.id}/edit`)}
             >
-              <PlusIcon /> Add variant
+              <PencilIcon /> Edit
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DataTableRowActions>
@@ -199,7 +205,7 @@ export function FilamentCatalogTable({
       columns={columns}
       data={filaments}
       toolbar={null}
-      onRowClick={(row) => navigate(`/filament/${row.id}/edit`)}
+      onRowClick={(row) => navigate(`/filament/${row.id}`)}
     />
   );
 }

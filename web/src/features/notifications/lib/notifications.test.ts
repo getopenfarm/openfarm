@@ -24,6 +24,7 @@ describe('notifications helpers', () => {
   it('labels the bell with the count and caps the badge', () => {
     expect(bellLabel(0)).toBe('Notifications');
     expect(bellLabel(2)).toBe('Notifications, 2 need action');
+    expect(bellLabel(1)).toBe('Notifications, 1 needs action');
     expect(badgeText(9)).toBe('9');
     expect(badgeText(12)).toBe('9+');
   });

@@ -11,4 +11,10 @@ public sealed class EfActivityLogWriter(OpenFarmDbContext dbContext) : IActivity
         dbContext.ActivityLogEntries.Add(entry);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task WriteRangeAsync(IReadOnlyCollection<ActivityLogEntry> entries, CancellationToken cancellationToken)
+    {
+        dbContext.ActivityLogEntries.AddRange(entries);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 }
