@@ -20,7 +20,18 @@ Production resolves tracked spools on the destination printer's active feed slot
 
 Queue eligibility and file generation use the same readiness checks, resolved once per dispatch. Blocked rows expose an actionable configuration reason. Pinned jobs can generate files against their configured target. Before sending a sliced file, dispatch resolves again and compares the fingerprint with the one the file was generated from; a mismatch sends nothing.
 
-Library estimation continues to use explicit estimation configuration, independently of fleet and inventory. Production slicing supports one distinct filament profile per slice; pre-sliced files can validate multiple required spool assignments. This change does not add printer models or multi-tool slicing support.
+Library estimation continues to use explicit estimation configuration, independently of fleet and inventory.
+
+**Multi-colour production slicing.** Every job line resolves its own filament profile against the part's pin, with the
+same checks as a single-colour slice (compatibility with the printer, material, plate temperature); every problem is
+reported, each with the page that fixes it. The file is then sliced with one `--load-filaments` file per filament slot
+of the project, in slot order: a slot's material and colour name its line — the key the part's requirements were
+grouped by — and the slot's colour is written into its file, so the output's filaments match the lines again at
+dispatch (AMS trays, or the Snapmaker U1's tool→head map). A blank slot is unused and gets the first line's filament;
+a slot no line claims, or a file without project slots that has several lines, blocks the job instead of guessing.
+Measured with Orca 2.3.1: a single loaded file sliced slot 1 with it and every other slot with the preset embedded in
+the project, unresolved against the pin — which per-slot files replace. Pre-sliced files run as they are and only go
+to the model they were sliced for. SuperSlicer slices one filament.
 
 ## Contracts and schema
 
@@ -49,7 +60,7 @@ Where it shows: the queue row (reason and link to the page that fixes it), job d
 
 Pickers list only the farm default engine's own catalog: System rows of its version and User rows of its format. The imports page still lists every format. Filament assignments are validated against the farm default; parts pinned to another slicer are checked by the readiness report and at dispatch.
 
-Dispatch resolves once. The configuration stamp contains the pin and the resolved profiles (name, id, `setting_id`, version, outcome). The resolved profiles are stored on the job and the last block reason is kept; a blocked job is retried with a growing delay (1, 2, 4, then 5 minutes).
+Dispatch resolves once. The configuration stamp contains the pin and the resolved profiles (name, id, `setting_id`, version, outcome), every line's filament included. The resolved profiles are stored on the job and the last block reason is kept; a blocked job is retried with a growing delay (1, 2, 4, then 5 minutes).
 
 Pins change only by an explicit operator action. Replace file and Reprocess keep the current pin unless another slicer is chosen. A farm default change or a slicer upgrade never touches existing parts.
 

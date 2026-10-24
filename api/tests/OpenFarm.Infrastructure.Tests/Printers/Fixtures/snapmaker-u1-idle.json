@@ -1,0 +1,23 @@
+{
+  "print_stats": {
+    "state": "standby",
+    "filename": "",
+    "print_duration": 0.0,
+    "info": { "current_layer": null, "total_layer": null }
+  },
+  "virtual_sdcard": { "progress": 0.0 },
+  "display_status": { "progress": 0.0 },
+  "heater_bed": { "temperature": 24.6 },
+  "extruder": { "temperature": 31.4, "nozzle_diameter": 0.4, "state": "PARKED" },
+  "extruder1": { "temperature": 27.2, "nozzle_diameter": 0.4, "state": "PARKED" },
+  "extruder2": { "temperature": 25.0, "nozzle_diameter": 0.4, "state": "PARKED" },
+  "extruder3": { "temperature": 24.8, "nozzle_diameter": 0.4, "state": "PARKED" },
+  "toolhead": { "extruder": "extruder" },
+  "webhooks": { "state": "ready" },
+  "print_task_config": {
+    "filament_type": ["PLA", "PETG", "NONE", "PLA"],
+    "filament_sub_type": ["Basic", "NONE", "NONE", "Matte"],
+    "filament_color_rgba": ["ff0000ff", "00FF00FF", "FFFFFFFF", "0000FFFF"],
+    "filament_exist": [true, true, false, true]
+  }
+}

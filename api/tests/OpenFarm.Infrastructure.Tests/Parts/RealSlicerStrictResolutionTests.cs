@@ -103,16 +103,19 @@ public class RealSlicerStrictResolutionTests(ITestOutputHelper output)
         lines.Should().Equal(ExpectedCoverage, "the real catalogs' cross-engine coverage changed — review what that means for pinned parts");
     }
 
-    // Measured with the OrcaSlicer 2.3.1 and Bambu Studio 2.7.1 bundles of slicers.manifest.json. Every selectable Orca machine and
-    // all but one Orca process has a Bambu Studio twin; 275 Orca filaments have none. The other way round, Bambu Studio ships
-    // 28 machines, 113 processes and 1202 filaments that Orca's catalog lacks — a part pinned to Orca cannot use those.
+    // Measured with the OrcaSlicer 2.3.1 and Bambu Studio 2.7.1 bundles of slicers.manifest.json. Every selectable Orca Bambu
+    // machine and all but one Orca Bambu process has a Bambu Studio twin; 275 Orca Bambu filaments have none. The Snapmaker vendor
+    // (ingested for the U1) is Orca-only: its 73 machines, 83 processes and 114 filaments have no Bambu Studio twin, so a U1 part
+    // must stay pinned to Orca. The other way round, Bambu Studio ships 28 machines, 113 processes and 1202 filaments that Orca's
+    // catalog lacks — a part pinned to Orca cannot use those.
     private static readonly string[] ExpectedCoverage =
     [
         "Machine OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: MappedEngine 28",
+        "Machine OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 73",
         "Process OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: MappedEngine 118",
-        "Process OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 1",
+        "Process OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 84",
         "Filament OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: MappedEngine 552",
-        "Filament OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 275",
+        "Filament OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 389",
         "Machine BambuStudio 2.7.1 -> OrcaSlicer 2.3.1: MappedEngine 28",
         "Machine BambuStudio 2.7.1 -> OrcaSlicer 2.3.1: Missing 28",
         "Process BambuStudio 2.7.1 -> OrcaSlicer 2.3.1: MappedEngine 118",

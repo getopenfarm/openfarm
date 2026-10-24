@@ -42,6 +42,9 @@ public class GetPrinterCatalogEndpointTests(CustomWebApplicationFactory factory)
 
         var system = body.Brands.Should().ContainSingle(b => b.Brand == "System").Which;
         system.Models.Should().BeEquivalentTo(["Simulation"]);
+
+        var snapmaker = body.Brands.Should().ContainSingle(b => b.Brand == "Snapmaker").Which;
+        snapmaker.Models.Should().BeEquivalentTo(["U1"]);
     }
 
     [Fact]

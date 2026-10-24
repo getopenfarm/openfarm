@@ -235,7 +235,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
         using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(connectionToken);
         var cameraTask = PrinterModelCatalog.TryResolve(details.Brand, details.ModelCode, out var model)
-            && model!.CameraTransport == CameraTransport.BinaryImage
+            && model!.CameraTransport is CameraTransport.BinaryImage or CameraTransport.HttpSnapshot
                 ? RunCameraLoopAsync(printerId, details, attemptCts.Token)
                 : Task.CompletedTask;
         try

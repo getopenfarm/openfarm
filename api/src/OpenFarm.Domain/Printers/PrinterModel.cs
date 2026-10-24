@@ -4,6 +4,7 @@ public enum PrinterBrand
 {
     Bambu,
     System,
+    Snapmaker,
 }
 
 public enum CameraTransport
@@ -11,6 +12,9 @@ public enum CameraTransport
     None,
     Rtsp,
     BinaryImage,
+
+    /// <summary>A JPEG snapshot fetched over HTTP, refreshed by polling (the Snapmaker U1's Moonraker camera).</summary>
+    HttpSnapshot,
 }
 
 /// <summary>

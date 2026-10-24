@@ -159,6 +159,31 @@ describe('Compact filament rail model', () => {
       rail.meters.every((meter) => !meter.active && meter.source === 'unknown'),
     ).toBe(true);
   });
+  it("labels a Snapmaker's unit as its toolheads, persisted or not", () => {
+    const synthesized = buildFilamentRail(
+      { ...online, brand: 'Snapmaker', amsUnits: [{ unitIndex: 0 }] },
+      [],
+      [],
+      [],
+    );
+    expect(synthesized.label).toBe('Toolheads');
+
+    const persisted = buildFilamentRail(
+      { ...online, brand: 'Snapmaker' },
+      [
+        {
+          id: 'heads',
+          kind: 'MultiMaterialUnit',
+          unitIndex: 0,
+          displayLabel: 'Toolheads',
+          feedSlots: [{ id: 'h1', slotPosition: 0, displayLabel: 'T1' }],
+        },
+      ],
+      [],
+      [],
+    );
+    expect(persisted.label).toBe('Toolheads');
+  });
   it('matches persisted slots by hardware position, retains empty slots, and separates zero from unknown', () => {
     const rail = buildFilamentRail(
       {

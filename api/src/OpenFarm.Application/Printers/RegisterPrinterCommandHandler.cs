@@ -14,18 +14,32 @@ public sealed class RegisterPrinterCommandHandler(
 {
     public async Task<Printer> HandleAsync(RegisterPrinterCommand command, CancellationToken cancellationToken)
     {
-        var existing = await printerRepository.GetBySerialNumberAsync(command.SerialNumber, cancellationToken);
-        if (existing is not null)
+        var typedSerial = !string.IsNullOrWhiteSpace(command.SerialNumber);
+        if (typedSerial)
         {
-            throw new DuplicatePrinterSerialNumberException(command.SerialNumber, existing.Name);
+            await EnsureNotRegisteredAsync(command.SerialNumber, cancellationToken);
         }
 
         // FR-001a: never trust only the client's earlier verify-connection call — re-run it here.
         var details = new PrinterConnectionDetails(command.Brand, command.ModelCode, command.IpAddress, command.SerialNumber, command.AccessCode);
-        var verified = await connectorFactory.CreateConnector(details).VerifyAsync(details, cancellationToken);
+        var connector = connectorFactory.CreateConnector(details);
+        var verified = await connector.VerifyAsync(details, cancellationToken);
         if (!verified)
         {
             throw new PrinterConnectionVerificationFailedException(command.IpAddress);
+        }
+
+        // A printer that reports its own serial (Snapmaker) is registered under it; the form never asks for it.
+        var serialNumber = command.SerialNumber;
+        if (!typedSerial)
+        {
+            serialNumber = await connector.ReadSerialNumberAsync(details, cancellationToken);
+            if (string.IsNullOrWhiteSpace(serialNumber))
+            {
+                throw new PrinterConnectionVerificationFailedException(command.IpAddress);
+            }
+
+            await EnsureNotRegisteredAsync(serialNumber, cancellationToken);
         }
 
         var printer = Printer.Create(
@@ -33,16 +47,25 @@ public sealed class RegisterPrinterCommandHandler(
             command.Brand,
             command.ModelCode,
             command.IpAddress,
-            command.SerialNumber);
+            serialNumber);
 
         await printerRepository.AddAsync(printer, cancellationToken);
 
         var encryptedAccessCode = secretProtector.Protect(command.AccessCode);
-        var secret = ConnectionSecret.Create(command.SerialNumber, encryptedAccessCode);
+        var secret = ConnectionSecret.Create(serialNumber, encryptedAccessCode);
         await connectionSecretRepository.AddAsync(secret, cancellationToken);
 
         connectionManager.StartConnection(printer.Id, CancellationToken.None);
 
         return printer;
+    }
+
+    private async Task EnsureNotRegisteredAsync(string serialNumber, CancellationToken cancellationToken)
+    {
+        var existing = await printerRepository.GetBySerialNumberAsync(serialNumber, cancellationToken);
+        if (existing is not null)
+        {
+            throw new DuplicatePrinterSerialNumberException(serialNumber, existing.Name);
+        }
     }
 }

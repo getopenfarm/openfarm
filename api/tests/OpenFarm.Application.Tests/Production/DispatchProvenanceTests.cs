@@ -32,6 +32,26 @@ public class DispatchProvenanceTests
             (ProfileKind.Filament, "Bambu PLA Basic @BBL X1C", ProfileResolutionOutcome.MappedEngine));
     }
 
+    [Fact]
+    public void ListsEachDistinctFilamentOfAMultiFilamentSlice()
+    {
+        var pin = new SlicerRef(SlicerEngine.OrcaSlicer, "2.3.1");
+        ResolvedPreset Preset(ProfileKind kind, string name) =>
+            new(kind, Guid.Empty, name, Guid.Empty, name, ProfileSourceFormat.OrcaSlicer, "2.3.1", null, "Snapmaker", ProfileResolutionOutcome.Exact);
+        var pla = Preset(ProfileKind.Filament, "Snapmaker PLA @U1");
+        var petg = Preset(ProfileKind.Filament, "Snapmaker PETG @U1");
+        var profiles = new ResolvedSlicingProfiles(pin, "{}", "{}", "{}",
+            Preset(ProfileKind.Machine, "Snapmaker U1 (0.4 nozzle)"), Preset(ProfileKind.Process, "0.20 Standard @Snapmaker U1 (0.4 nozzle)"), pla)
+        {
+            Filaments = [new("{}", pla), new("{}", petg), new("{}", pla)],
+        };
+
+        var provenance = DispatchProvenance.From(profiles, "STAMP", DateTimeOffset.UnixEpoch);
+
+        provenance.Presets.Select(p => p.ResolvedName).Should().Equal(
+            "Snapmaker U1 (0.4 nozzle)", "0.20 Standard @Snapmaker U1 (0.4 nozzle)", "Snapmaker PLA @U1", "Snapmaker PETG @U1");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

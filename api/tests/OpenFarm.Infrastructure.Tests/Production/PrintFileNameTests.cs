@@ -17,16 +17,16 @@ public class PrintFileNameTests
     [InlineData("Bracket_PLA_1h20m.gcode.3mf", "Bracket_PLA_1h20m")]
     [InlineData("../part....gcode\r\nDELE other", "part_gcode_DELE_other")]
     [InlineData("雪.stl", "Print")]
-    public void ForBambu_RemovesExtensionsAndUnsafeCharacters(string input, string stem)
+    public void ForUpload_RemovesExtensionsAndUnsafeCharacters(string input, string stem)
     {
-        PrintFileName.ForBambu(input).Should().MatchRegex($@"^{stem}_\d{{8}}-\d{{9}}\.gcode\.3mf$");
+        PrintFileName.ForUpload(input).Should().MatchRegex($@"^{stem}_\d{{8}}-\d{{9}}\.gcode\.3mf$");
     }
 
     [Fact]
-    public void ForBambu_LimitsLengthAndKeepsConcurrentUploadsDistinct()
+    public void ForUpload_LimitsLengthAndKeepsConcurrentUploadsDistinct()
     {
         var names = new System.Collections.Concurrent.ConcurrentBag<string>();
-        Parallel.For(0, 100, _ => names.Add(PrintFileName.ForBambu(new string('a', 500))));
+        Parallel.For(0, 100, _ => names.Add(PrintFileName.ForUpload(new string('a', 500))));
         names.Should().OnlyHaveUniqueItems();
         names.Should().OnlyContain(n => n.Length <= 130 && n.EndsWith(".gcode.3mf", StringComparison.Ordinal));
     }

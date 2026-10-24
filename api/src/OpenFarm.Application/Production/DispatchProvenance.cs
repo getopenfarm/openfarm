@@ -12,7 +12,11 @@ public sealed record DispatchProvenance(SlicerRef Pin, IReadOnlyList<ResolvedPre
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
     public static DispatchProvenance From(ResolvedSlicingProfiles profiles, string configurationStamp, DateTimeOffset atUtc) =>
-        new(profiles.Pin, [profiles.Machine, profiles.Process, profiles.Filament], configurationStamp, atUtc);
+        new(profiles.Pin, [profiles.Machine, profiles.Process, .. FilamentPresets(profiles)], configurationStamp, atUtc);
+
+    // Each distinct filament once: two lines sharing a preset sliced with one.
+    private static IEnumerable<ResolvedPreset> FilamentPresets(ResolvedSlicingProfiles profiles) =>
+        profiles.Filaments.Count == 0 ? [profiles.Filament] : profiles.Filaments.Select(f => f.Preset).Distinct();
 
     public string ToJson() => JsonSerializer.Serialize(this, Options);
 

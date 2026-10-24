@@ -38,6 +38,14 @@ export interface FilamentRail {
   additionalSlots: number;
 }
 
+/** The backend's FeedUnitDisplay label, for a unit seen in telemetry before it is persisted: a Snapmaker's unit is its toolheads. */
+function multiMaterialLabel(
+  brand: string | null | undefined,
+  unitIndex: number | null | undefined,
+) {
+  return brand === 'Snapmaker' ? 'Toolheads' : `AMS ${(unitIndex ?? 0) + 1}`;
+}
+
 /** Feed equipment is identified by topology, never material/color or array position. */
 export function buildFilamentRail(
   printer: MonitoredPrinter,
@@ -67,7 +75,7 @@ export function buildFilamentRail(
       units.push({
         kind: 'MultiMaterialUnit',
         unitIndex: ams.unitIndex,
-        displayLabel: `AMS ${(ams.unitIndex ?? 0) + 1}`,
+        displayLabel: multiMaterialLabel(printer.brand, ams.unitIndex),
       });
     }
   }
@@ -91,7 +99,8 @@ export function buildFilamentRail(
             : 'external';
       const label =
         kind === 'ams'
-          ? `AMS ${(unit.unitIndex ?? 0) + 1}`
+          ? unit.displayLabel ||
+            multiMaterialLabel(printer.brand, unit.unitIndex)
           : unit.displayLabel ||
             (kind === 'reloader' ? 'Reloader' : 'External spool');
       const slots: FeedSlotResponse[] = [...(unit.feedSlots ?? [])].filter(

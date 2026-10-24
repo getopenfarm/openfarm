@@ -40,6 +40,18 @@ public sealed class PrinterCameraSnapshotStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task AnExifJpeg_IsKeptLikeAJfifOne()
+    {
+        // A Snapmaker U1 snapshot need not start with Bambu's JFIF APP0 segment.
+        var printer = Guid.NewGuid();
+        var exif = new PrinterCameraSnapshot(Convert.ToBase64String([0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x10, 0xFF, 0xD9]), DateTimeOffset.UtcNow);
+
+        await Store().SaveAsync(printer, exif, default);
+
+        Assert.Equal(exif, await Store().GetAsync(printer, default));
+    }
+
+    [Fact]
     public async Task DeletionPreventsLateWritesAndSurvivesRestart()
     {
         var printer = Guid.NewGuid(); var store = Store();

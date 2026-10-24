@@ -24,9 +24,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # Linux only: Bambu printer discovery uses LAN broadcast/multicast (UDP 2021/1990), which a
-    # bridged container never receives. To enable it, uncomment `network_mode: host`, drop `ports`,
-    # and change `Host=postgres` below to `Host=localhost` (and publish postgres on 5432).
+    # Linux only: printer discovery uses LAN broadcast/multicast (Bambu: UDP 2021/1990; Snapmaker U1:
+    # mDNS, UDP 5353), which a bridged container never receives. To enable it, uncomment
+    # `network_mode: host`, drop `ports`, and change `Host=postgres` below to `Host=localhost` (and
+    # publish postgres on 5432).
     # network_mode: host
     ports:
       - "8888:8888"

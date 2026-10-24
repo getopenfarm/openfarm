@@ -42,7 +42,7 @@ public class ProductionConfigurationStampTests
     private async Task<string> StampAsync(ResolvedSlicingProfiles? profiles)
     {
         var readiness = new ProductionProfileReadiness(null!, new FakePrinterRepository(_printer), null!,
-            new ProfileCompatibility(_catalog.Machines, _catalog.Filaments), null!, null!, null!, null!, NullLogger<ProductionProfileReadiness>.Instance);
+            new ProfileCompatibility(_catalog.Machines, _catalog.Filaments), null!, null!, null!, null!, null!, NullLogger<ProductionProfileReadiness>.Instance);
         var selections = new[] { new ProductionFilamentSelection(Guid.Parse("00000000-0000-0000-0000-0000000000c1"), Guid.Parse("00000000-0000-0000-0000-0000000000c2"),
             Guid.Parse("00000000-0000-0000-0000-0000000000c3"), "PLA", _filament) };
 

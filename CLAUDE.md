@@ -73,7 +73,7 @@ Monorepo: `api/` (ASP.NET Core solution) + `web/` (React SPA) + `infra/` (docker
 
 - **`OpenFarm.Domain`** — entities, value objects, domain events, state machines. Framework-agnostic, no FastEndpoints references.
 - **`OpenFarm.Application`** — commands/queries, handlers, validators, DTOs. Also framework-agnostic.
-- **`OpenFarm.Infrastructure`** — EF Core (`OpenFarmDbContext`), repositories, the Bambu printer client, encryption, background jobs. Business logic (`Domain`/`Application`) never depends on this layer directly — it's the swappable edge (e.g. printer connectivity is defined as an `IPrinterConnector` contract so a future "local agent" relay can replace the direct-LAN implementation without touching `Application`/`Domain`).
+- **`OpenFarm.Infrastructure`** — EF Core (`OpenFarmDbContext`), repositories, the printer clients (Bambu LAN; Snapmaker U1 over Moonraker, `docs/SNAPMAKER_U1.md`), encryption, background jobs. Business logic (`Domain`/`Application`) never depends on this layer directly — it's the swappable edge (e.g. printer connectivity is defined as an `IPrinterConnector` contract so a future "local agent" relay can replace the direct-LAN implementation without touching `Application`/`Domain`).
 - **`OpenFarm.Api`** — the web host: FastEndpoints endpoints, SignalR hubs, composition root. Endpoints are a thin adapter over `Application` commands/queries — HTTP concerns never leak into business logic.
 
 Key backend decisions (rationale in `docs/TECH_STACKS.md` § Key technical decisions):

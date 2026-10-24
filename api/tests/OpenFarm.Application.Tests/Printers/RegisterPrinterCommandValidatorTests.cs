@@ -68,6 +68,15 @@ public class RegisterPrinterCommandValidatorTests
     }
 
     [Fact]
+    public void Validate_SnapmakerWithoutSerialOrApiKey_IsValid()
+    {
+        // The U1 reports its own serial and its Moonraker API key is optional.
+        var result = _validator.Validate(ValidCommand() with { Brand = "Snapmaker", ModelCode = "U1", SerialNumber = "", AccessCode = "" });
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
     public void Validate_WithUnknownModel_IsInvalid()
     {
         var result = _validator.Validate(ValidCommand() with { ModelCode = "NotAModel" });

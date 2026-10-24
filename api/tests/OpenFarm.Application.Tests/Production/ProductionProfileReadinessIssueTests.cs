@@ -32,7 +32,7 @@ public class ProductionProfileReadinessIssueTests
         var readiness = new ProductionProfileReadiness(
             new RepresentativeFilamentResolver(catalog.Filaments, new FakeSpoolRepository(), new FakeFilamentRepository(), new FakeFeedUnitRepository(),
                 printers, catalog.Machines, compatibility),
-            printers, null!, compatibility, null!, null!, null!, null!, NullLogger<ProductionProfileReadiness>.Instance);
+            printers, null!, compatibility, null!, null!, null!, null!, null!, NullLogger<ProductionProfileReadiness>.Instance);
         var part = Part.Create("Part", PartFileFormat.GCode, false, "part.gcode", "/part.gcode",
             10, 0.4m, null, null, EstimateStatus.Available, 10, 10, 1, 1, new string('a', 64),
             [new("PLA", "#000000", null, null, null)], [], []);

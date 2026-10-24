@@ -29,6 +29,10 @@ const CATALOG_RESPONSE = {
   ],
 };
 
+const CATALOG_WITH_SNAPMAKER = {
+  brands: [...CATALOG_RESPONSE.brands, { brand: 'Snapmaker', models: ['U1'] }],
+};
+
 function printerDetailBody(overrides?: Record<string, unknown>) {
   return {
     id: PRINTER_ID,
@@ -276,6 +280,74 @@ describe('PrinterFormPage add mode — discovery', () => {
     await user.click(screen.getByRole('button', { name: 'Add by IP' }));
     expect(await screen.findByLabelText('Serial number')).toBeInTheDocument();
   });
+
+  it('adds a discovered Snapmaker with no API key, checking the discovered SN', async () => {
+    const user = userEvent.setup();
+    const bodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/printers/discovered')) {
+        return Promise.resolve(
+          jsonResponse([
+            {
+              serialNumber: 'SNU1TEST0001',
+              name: 'Bay 4',
+              brand: 'Snapmaker',
+              modelCode: 'U1',
+              rawModel: 'Snapmaker U1',
+              ipAddress: '10.0.0.9',
+              lastSeenAt: '2026-10-24T00:00:00Z',
+              alreadyRegistered: false,
+            },
+          ]),
+        );
+      }
+      if (url.includes('/printers/catalog')) {
+        return Promise.resolve(jsonResponse(CATALOG_WITH_SNAPMAKER));
+      }
+      if (url.includes('verify-connection')) {
+        bodies.push(JSON.parse(String(init?.body)));
+        // The first attempt fails, to show the Snapmaker error.
+        return Promise.resolve(
+          bodies.length === 1
+            ? jsonResponse({ title: 'Unreachable' }, 422)
+            : jsonResponse({ verified: true }),
+        );
+      }
+      if (url.endsWith('/api/v1/printers') && init?.method === 'POST') {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Promise.resolve(jsonResponse({ id: 'new-id' }, 201));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderRoute('/printers/new');
+
+    expect(
+      await screen.findByText('Snapmaker U1 · 10.0.0.9'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Select Bay 4' }));
+    expect(screen.queryByLabelText('IP address')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('API key')).toHaveValue('');
+
+    await user.click(screen.getByRole('button', { name: 'Add printer' }));
+    expect(
+      await screen.findByText('Connection failed. Check API key.'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add printer' }));
+
+    expect(await screen.findByText('Printer added.')).toBeInTheDocument();
+    expect(bodies).toHaveLength(3);
+    for (const body of bodies)
+      expect(body).toMatchObject({
+        brand: 'Snapmaker',
+        modelCode: 'U1',
+        ipAddress: '10.0.0.9',
+        serialNumber: 'SNU1TEST0001',
+        accessCode: '',
+      });
+  });
 });
 
 describe('PrinterFormPage add mode', () => {
@@ -371,6 +443,55 @@ describe('PrinterFormPage add mode', () => {
     expect(await screen.findByText('Printers list page')).toBeInTheDocument();
   });
 
+  it('adds a Snapmaker by IP alone: no serial field, optional API key', async () => {
+    const user = userEvent.setup();
+    const bodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/printers/catalog')) {
+        return Promise.resolve(jsonResponse(CATALOG_WITH_SNAPMAKER));
+      }
+      if (url.includes('verify-connection')) {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Promise.resolve(jsonResponse({ verified: true }));
+      }
+      if (url.endsWith('/api/v1/printers') && init?.method === 'POST') {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Promise.resolve(jsonResponse({ id: 'new-id' }, 201));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderRoute('/printers/new');
+    await openManualEntry();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('combobox', { name: 'Brand' }),
+      ).not.toBeDisabled(),
+    );
+    await user.click(screen.getByRole('combobox', { name: 'Brand' }));
+    await user.click(screen.getByRole('option', { name: 'Snapmaker' }));
+
+    expect(screen.queryByLabelText('Serial number')).not.toBeInTheDocument();
+    expect(screen.queryByText(/LAN mode disconnects/)).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Name'), 'U1-Bay1');
+    await user.type(screen.getByLabelText('IP address'), '10.0.0.77');
+    expect(screen.getByLabelText('API key')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: 'Add printer' }));
+
+    expect(await screen.findByText('Printers list page')).toBeInTheDocument();
+    expect(bodies).toHaveLength(2);
+    for (const body of bodies)
+      expect(body).toMatchObject({
+        brand: 'Snapmaker',
+        modelCode: 'U1',
+        ipAddress: '10.0.0.77',
+        serialNumber: '',
+        accessCode: '',
+      });
+  });
+
   it('blocks in-app navigation away while the form has unsaved changes', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -459,12 +580,14 @@ describe('PrinterFormPage edit mode', () => {
 
   it('requires a successful verify before enabling Save when connection fields change', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const verifyBodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes(`/api/v1/printers/${PRINTER_ID}`)) {
         return Promise.resolve(jsonResponse(printerDetailBody()));
       }
       if (url.includes('verify-connection')) {
+        verifyBodies.push(JSON.parse(String(init?.body)));
         return Promise.resolve(jsonResponse({ verified: true }));
       }
       return Promise.resolve(jsonResponse({}));
@@ -487,6 +610,61 @@ describe('PrinterFormPage edit mode', () => {
     expect(saveButton).toBeDisabled();
 
     await waitFor(() => expect(saveButton).not.toBeDisabled());
+    // The endpoint requires the brand and model to pick the printer's connector.
+    expect(verifyBodies.at(-1)).toMatchObject({
+      brand: 'Bambu',
+      modelCode: 'P1S',
+      ipAddress: '10.0.0.51',
+      serialNumber: 'SN-0001',
+      accessCode: '12345678',
+    });
+  });
+
+  it('moves a Snapmaker without an API key: verifies the new IP with none', async () => {
+    const user = userEvent.setup();
+    const verifyBodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes(`/api/v1/printers/${PRINTER_ID}`)) {
+        return Promise.resolve(
+          jsonResponse(
+            printerDetailBody({
+              brand: 'Snapmaker',
+              modelCode: 'U1',
+              serialNumber: 'U1SN0001',
+            }),
+          ),
+        );
+      }
+      if (url.includes('verify-connection')) {
+        verifyBodies.push(JSON.parse(String(init?.body)));
+        return Promise.resolve(jsonResponse({ verified: true }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderRoute(`/printers/${PRINTER_ID}/edit`);
+
+    const ipInput = await screen.findByLabelText('IP address');
+    const keyInput = screen.getByLabelText('API key');
+    expect(keyInput).toHaveAttribute('placeholder', 'Blank = keep current');
+    await user.clear(ipInput);
+    await user.type(ipInput, '10.0.0.52');
+    fireEvent.blur(ipInput);
+
+    expect(keyInput).toHaveAttribute('placeholder', 'Blank = none');
+    const saveButton = screen.getByRole('button', { name: 'Save' });
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
+    expect(verifyBodies).toEqual([
+      {
+        brand: 'Snapmaker',
+        modelCode: 'U1',
+        ipAddress: '10.0.0.52',
+        serialNumber: 'U1SN0001',
+        accessCode: '',
+      },
+    ]);
   });
 
   it('blocks in-app navigation away while the form has unsaved changes', async () => {

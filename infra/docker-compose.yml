@@ -16,8 +16,9 @@ services:
       retries: 10
 
   api:
-    # Linux only: printer discovery listens for LAN broadcast/multicast (UDP 2021/1990), which a bridged
-    # container never receives (Docker Desktop on macOS/Windows cannot do this at all).
+    # Linux only: printer discovery listens for LAN broadcast/multicast (Bambu: UDP 2021/1990; Snapmaker U1:
+    # mDNS, UDP 5353), which a bridged container never receives (Docker Desktop on macOS/Windows cannot do
+    # this at all).
     # network_mode: host
     build:
       # Repo root, not api/ — the build now also needs tools/provision-slicers and the root

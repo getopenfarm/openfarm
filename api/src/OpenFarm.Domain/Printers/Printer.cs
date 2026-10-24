@@ -52,10 +52,11 @@ public sealed class Printer
         return changed;
     }
 
-    // Null means absent from a delta; an empty list explicitly clears that source.
+    // Null means absent from a delta; an empty list explicitly clears that source. The first list is the printer's
+    // device alerts (Bambu HMS, Snapmaker exceptions), so every source except PrintError belongs to it.
     public bool ObserveAlerts(IReadOnlyList<PrinterAlert>? hms, IReadOnlyList<PrinterAlert>? printErrors)
     {
-        var merged = (hms ?? ActiveAlerts.Where(a => a.Source == "Hms").ToArray())
+        var merged = (hms ?? ActiveAlerts.Where(a => a.Source != "PrintError").ToArray())
             .Concat(printErrors ?? ActiveAlerts.Where(a => a.Source == "PrintError").ToArray())
             .Distinct().OrderBy(a => a.Source, StringComparer.Ordinal).ThenBy(a => a.Code, StringComparer.Ordinal).ToArray();
         if (ActiveAlerts.SequenceEqual(merged)) return false;

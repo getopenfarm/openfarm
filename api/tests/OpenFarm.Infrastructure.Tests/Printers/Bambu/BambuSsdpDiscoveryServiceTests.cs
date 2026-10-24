@@ -24,6 +24,7 @@ public class BambuSsdpDiscoveryServiceTests
         printer.Should().NotBeNull();
         printer!.SerialNumber.Should().Be("01P00A123456789");
         printer.Name.Should().Be("P1S-Bay3");
+        printer.Brand.Should().Be("Bambu");
         printer.ModelCode.Should().Be("P1S");
         printer.RawModel.Should().Be("C12");
         printer.IpAddress.Should().Be("192.168.1.42");

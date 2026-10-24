@@ -60,5 +60,19 @@ public class PrinterReportedStateTests
         printer.ActiveAlerts.Should().BeEmpty();
     }
 
+    [Fact]
+    public void DeviceAlertsOfAnySource_SurviveADeltaWithoutThem()
+    {
+        // A Snapmaker's exceptions ride in the device-alert list like Bambu HMS codes; a delta without that list keeps them.
+        var printer = Create();
+        var exception = new PrinterAlert("Exception", "2:1:523", "Error", "Filament runout");
+        printer.ObserveAlerts([exception], null).Should().BeTrue();
+
+        printer.ObserveAlerts(null, null).Should().BeFalse();
+        printer.ObserveAlerts(null, []).Should().BeFalse();
+
+        printer.ActiveAlerts.Should().Equal(exception);
+    }
+
     private static Printer Create() => Printer.Create("Printer", "Bambu", "P1S", "10.0.0.1", "SN");
 }

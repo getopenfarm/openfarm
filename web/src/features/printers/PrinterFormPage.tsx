@@ -72,23 +72,45 @@ export function PrinterFormPage({ mode }: PrinterFormPageProps) {
   return <EditPrinterForm />;
 }
 
+// Mirrors PrinterModelCatalog.UsesAccessCode: a Snapmaker reports its own SN and its Moonraker API key is optional.
+function usesAccessCode(brand: string) {
+  return brand !== 'Snapmaker';
+}
+
 // FR-007/FR-008 (US3): brand/model options come from the backend catalog, not a hardcoded list —
 // adding a brand/model to PrinterModelCatalog now requires zero frontend code change. A compile-time
 // z.enum can no longer describe a server-driven list, so brand/modelCode are validated via a
 // runtime .refine() closed over the fetched catalog (research.md §5) instead.
-const addSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  brand: z.string().min(1, 'Brand is required'),
-  modelCode: z.string().min(1, 'Model is required'),
-  ipAddress: z.string().min(1, 'IP address is required'),
-  serialNumber: z.string().min(1, 'Serial number is required'),
-  accessCode: z.string().min(1, 'Access code is required'),
-});
+const addSchema = z
+  .object({
+    name: z.string().min(1, 'Name is required'),
+    brand: z.string().min(1, 'Brand is required'),
+    modelCode: z.string().min(1, 'Model is required'),
+    ipAddress: z.string().min(1, 'IP address is required'),
+    serialNumber: z.string(),
+    accessCode: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    if (!usesAccessCode(values.brand)) return;
+    if (!values.serialNumber)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['serialNumber'],
+        message: 'Serial number is required',
+      });
+    if (!values.accessCode)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['accessCode'],
+        message: 'Access code is required',
+      });
+  });
 
 type AddFormValues = z.infer<typeof addSchema>;
 
 // Discovery-first: the scan list is the page. A discovered printer only needs a name and its access
-// code; manual entry is the fallback for printers discovery can't see (another subnet, LAN mode off).
+// code (a Snapmaker: its API key, if set); manual entry is the fallback for printers discovery can't
+// see (another subnet, Bambu LAN mode off).
 function AddPrinterPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<DiscoveredPrinterResponse | 'manual'>();
@@ -204,6 +226,7 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
   const selectedBrand = form.watch('brand');
   const modelsForBrand =
     catalog?.brands?.find((b) => b.brand === selectedBrand)?.models ?? [];
+  const accessCodeBrand = usesAccessCode(selectedBrand);
 
   // Discovery already knows brand/model, unless the printer reported a model the catalog can't map.
   const showModelPickers =
@@ -244,6 +267,8 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
     // Radix's hidden form control can emit an empty value while options mount.
     if (!newBrand) return;
     form.setValue('brand', newBrand);
+    // A hidden serial typed for another brand must not reach a printer that reports its own.
+    if (!usesAccessCode(newBrand)) form.setValue('serialNumber', '');
     const models = catalog?.brands?.find((b) => b.brand === newBrand)?.models;
     form.setValue('modelCode', models?.[0] ?? '');
   }
@@ -406,19 +431,21 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                         </FormItem>
                       )}
                     />
-                    <FormField
-                      control={form.control}
-                      name="serialNumber"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Serial number</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {accessCodeBrand && (
+                      <FormField
+                        control={form.control}
+                        name="serialNumber"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Serial number</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                   </>
                 )}
                 <FormField
@@ -426,12 +453,16 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                   name="accessCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Access code</FormLabel>
+                      <FormLabel>
+                        {accessCodeBrand ? 'Access code' : 'API key'}
+                      </FormLabel>
                       <FormControl>
                         <Input type="password" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Printer screen → Settings → Network.
+                        {accessCodeBrand
+                          ? 'Printer screen → Settings → Network.'
+                          : 'Moonraker. Blank = none.'}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -445,13 +476,19 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                 {verifyMutation.isError && !adding && (
                   <p className="text-sm text-destructive sm:col-span-2">
                     {prefill
-                      ? 'Connection failed. Check access code.'
-                      : 'Connection failed. Check IP, serial, access code.'}
+                      ? accessCodeBrand
+                        ? 'Connection failed. Check access code.'
+                        : 'Connection failed. Check API key.'
+                      : accessCodeBrand
+                        ? 'Connection failed. Check IP, serial, access code.'
+                        : 'Connection failed. Check IP, API key.'}
                   </p>
                 )}
-                <p className="text-sm text-muted-foreground sm:col-span-2">
-                  LAN mode disconnects Bambu Cloud and Bambu Handy.
-                </p>
+                {selectedBrand === 'Bambu' && (
+                  <p className="text-sm text-muted-foreground sm:col-span-2">
+                    LAN mode disconnects Bambu Cloud and Bambu Handy.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -631,6 +668,7 @@ function EditPrinterFormLoaded({
   // connection fields — a name-only change never triggers the verify-before-save flow (FR-003).
   const connectionChanged =
     ipAddress !== currentIpAddress || accessCode.length > 0;
+  const accessCodeBrand = usesAccessCode(brand);
 
   const verifyMutation =
     useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint({
@@ -678,11 +716,14 @@ function EditPrinterFormLoaded({
     ) {
       return;
     }
-    if (!values.ipAddress || !values.accessCode) {
+    // A Snapmaker without an API key moves to a new IP with an empty one.
+    if (!values.ipAddress || (accessCodeBrand && !values.accessCode)) {
       return;
     }
     verifyMutation.mutate({
       data: {
+        brand,
+        modelCode,
         ipAddress: values.ipAddress,
         serialNumber,
         accessCode: values.accessCode,
@@ -787,11 +828,18 @@ function EditPrinterFormLoaded({
                   name="accessCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Access code</FormLabel>
+                      <FormLabel>
+                        {accessCodeBrand ? 'Access code' : 'API key'}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           type="password"
-                          placeholder="Blank = keep current"
+                          // A stored key never goes to a new address, so a key-optional printer that moves gets none.
+                          placeholder={
+                            accessCodeBrand || ipAddress === currentIpAddress
+                              ? 'Blank = keep current'
+                              : 'Blank = none'
+                          }
                           {...field}
                           onBlur={() => {
                             field.onBlur();
@@ -812,7 +860,9 @@ function EditPrinterFormLoaded({
                   verifyMutation.isError &&
                   !verifyMutation.isPending && (
                     <p className="text-sm text-destructive">
-                      Connection failed. Check IP, access code.
+                      {accessCodeBrand
+                        ? 'Connection failed. Check IP, access code.'
+                        : 'Connection failed. Check IP, API key.'}
                     </p>
                   )}
                 {connectionChanged && verified && !verifyMutation.isPending && (

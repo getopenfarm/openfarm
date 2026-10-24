@@ -1,7 +1,9 @@
+using System.IO.Compression;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
+using OpenFarm.Infrastructure.Parts;
 
 namespace OpenFarm.Infrastructure.Production;
 
@@ -55,11 +57,54 @@ public sealed class JobFileResolver(
         // A file that needs slicing never reaches the slicer without the presets that were resolved for the pin.
         var profiles = resolution.Profiles
             ?? throw new SlicingProfileUnconfiguredException("The file needs slicing, but the part has no slicing settings. Reprocess the part.");
+        var projectSlots = classification.Format == PartFileFormat.ThreeMf ? await ProjectSlotsAsync(stored, cancellationToken) : [];
+        stored.Position = 0;
+        profiles = profiles with { Slots = FilamentSlots(projectSlots, effective.Requirements) };
         var result = await slicerEngine.SliceConfiguredAsync(profiles.Pin, stored, classification.Format, selections[0].MaterialType,
             nozzleDiameterMm, printerId, profiles, cancellationToken);
 
         var extension = result.OutputFileFormat == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
         var slicedDescription = PrintFileName.Describe(part.Name, selections.Select(s => s.MaterialType), result.EstimatedPrintTimeMinutes);
         return new JobFileContent(result.OutputFileBytes, $"{slicedDescription}{extension}") { ConfigurationStamp = stamp, Profiles = profiles };
+    }
+
+    /// <summary>
+    /// Which line's filament each project slot loads. A slot's material and colour name its line — the key the part's
+    /// requirements were grouped by. A blank slot is unused and takes the first filament; a slot no line claims blocks the
+    /// job rather than guess. A file without project slots (STL, a geometry-only 3MF) slices with its one line's filament.
+    /// </summary>
+    internal static IReadOnlyList<SlotFilament> FilamentSlots(IReadOnlyList<DetectedFilamentSlot?> projectSlots, IReadOnlyList<JobFilamentRequirementSpec> lines)
+    {
+        if (projectSlots.Count == 0)
+            return lines.Count <= 1 ? [] : throw new SlicingProfileUnconfiguredException("The file has no filament slots for its colours. Upload it as a 3MF project.");
+
+        return projectSlots.Select((slot, index) =>
+        {
+            if (slot is null) return new SlotFilament(0, null);
+            for (var line = 0; line < lines.Count; line++)
+            {
+                if (string.Equals(lines[line].MaterialType, slot.MaterialType, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(lines[line].DetectedColorHex, slot.DetectedColorHex, StringComparison.OrdinalIgnoreCase))
+                    return new SlotFilament(line, slot.DetectedColorHex);
+            }
+
+            throw new SlicingProfileUnconfiguredException(
+                $"Filament {index + 1} of the file ({slot.MaterialType} {slot.DetectedColorHex}) matches no job line. Reprocess the part.");
+        }).ToList();
+    }
+
+    private static async Task<IReadOnlyList<DetectedFilamentSlot?>> ProjectSlotsAsync(Stream stored, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var archive = new ZipArchive(stored, ZipArchiveMode.Read, leaveOpen: true);
+            if (SlicedPlateMetadata.Find(archive, "Metadata/project_settings.config") is not { } settings) return [];
+            using var reader = new StreamReader(settings.Open());
+            return ProjectSettingsMetadata.ReadAllSlots(await reader.ReadToEndAsync(cancellationToken));
+        }
+        catch (InvalidDataException)
+        {
+            return [];
+        }
     }
 }

@@ -41,6 +41,7 @@ using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Bambu;
 using OpenFarm.Infrastructure.Printers.Simulator;
+using OpenFarm.Infrastructure.Printers.Snapmaker;
 using OpenFarm.Infrastructure.Production;
 using OpenFarm.Infrastructure.Profiles;
 using OpenFarm.Infrastructure.Security;
@@ -241,6 +242,9 @@ builder.Services.AddSingleton<IPrinterConnectionManager>(sp => sp.GetRequiredSer
 builder.Services.AddSingleton<BambuSsdpDiscoveryService>();
 if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<BambuSsdpDiscoveryService>());
 builder.Services.AddSingleton<IPrinterDiscovery>(sp => sp.GetRequiredService<BambuSsdpDiscoveryService>());
+builder.Services.AddSingleton<SnapmakerMdnsDiscoveryService>();
+if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<SnapmakerMdnsDiscoveryService>());
+builder.Services.AddSingleton<IPrinterDiscovery>(sp => sp.GetRequiredService<SnapmakerMdnsDiscoveryService>());
 
 builder.Services.AddScoped<RegisterPrinterHandlerType, RegisterPrinterCommandHandler>();
 builder.Services.AddScoped<EditPrinterHandlerType, EditPrinterCommandHandler>();

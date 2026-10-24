@@ -394,8 +394,11 @@ export function PrintJobDetailPage() {
     [];
   const printer = fleet.find((p) => p.id === job?.dispatchedPrinterId);
   const external = job?.source === 'External';
+  // Mirrors PrinterModelCatalog.LiveIntegratedBrands: these printers report and take jobs themselves.
   const manual =
-    !external && printer && !['Bambu', 'System'].includes(printer.brand ?? '');
+    !external &&
+    printer &&
+    !['Bambu', 'System', 'Snapmaker'].includes(printer.brand ?? '');
   const options = {
     mutation: {
       onSuccess: () => queryClient.invalidateQueries(),
@@ -552,7 +555,10 @@ export function PrintJobDetailPage() {
               <AlertDescription>
                 <ul>
                   {(job.provenance.presets ?? []).map((preset) => (
-                    <li key={`${preset.kind}:${preset.resolvedName}`}>
+                    // A multi-colour slice lists several filaments, which may share a resolved name.
+                    <li
+                      key={`${preset.kind}:${preset.selectedName}:${preset.resolvedName}:${preset.outcome}`}
+                    >
                       {preset.kind}: {preset.resolvedName}
                       {preset.selectedName !== preset.resolvedName
                         ? ` (selected: ${preset.selectedName})`

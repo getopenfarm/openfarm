@@ -63,7 +63,55 @@ public class PrinterModelCatalogTests
             .Which.Models.Should().BeEquivalentTo(["X1", "X1C", "X1E", "P1P", "P1S", "A1", "A1MINI"]);
         all.Should().ContainSingle(g => g.Brand == PrinterBrand.System)
             .Which.Models.Should().BeEquivalentTo(["Simulation"]);
+        all.Should().ContainSingle(g => g.Brand == PrinterBrand.Snapmaker)
+            .Which.Models.Should().BeEquivalentTo(["U1"]);
     }
+
+    [Fact]
+    public void Resolve_SnapmakerU1_IsLiveOnTheHighTempPlateWithItsOrcaMachineModel()
+    {
+        var model = PrinterModelCatalog.Resolve("Snapmaker", "U1");
+
+        model.Brand.Should().Be(PrinterBrand.Snapmaker);
+        model.CameraTransport.Should().Be(CameraTransport.HttpSnapshot);
+        model.CompatiblePlateTypes.Should().BeEquivalentTo([BuildPlateType.HighTemp]);
+        // OrcaSlicer's Snapmaker vendor index names the model this way; ingestion pulls the vendor in through it.
+        model.VendorMachineModelName.Should().Be("Snapmaker U1");
+        PrinterModelCatalog.AllVendorMachineModelNames.Should().Contain("Snapmaker U1");
+        PrinterModelCatalog.SupportsLiveIntegration("Snapmaker").Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("Bambu Lab P1S", "Bambu", "P1S")]
+    [InlineData("bambu lab x1 carbon", "Bambu", "X1C")]
+    [InlineData("C12", "Bambu", "P1S")]
+    [InlineData("Snapmaker U1", "Snapmaker", "U1")]
+    [InlineData(" Snapmaker U1 ", "Snapmaker", "U1")]
+    public void TryResolveSlicedModel_MapsWhatASlicedFileDeclares(string declared, string brand, string modelCode)
+    {
+        var model = PrinterModelCatalog.TryResolveSlicedModel(declared);
+
+        model.Should().NotBeNull();
+        model!.Brand.ToString().Should().Be(brand);
+        model.ModelCode.Should().Be(modelCode);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("Original Prusa MK4")]
+    [InlineData("MK4")]
+    public void TryResolveSlicedModel_UnknownOrMissing_IsNull(string? declared) =>
+        PrinterModelCatalog.TryResolveSlicedModel(declared).Should().BeNull();
+
+    [Theory]
+    [InlineData("Bambu", true)]
+    [InlineData("System", true)]
+    [InlineData("Unknown", true)]
+    [InlineData("Snapmaker", false)]
+    [InlineData("snapmaker", false)]
+    public void UsesAccessCode_IsFalseOnlyForSnapmaker(string brand, bool expected) =>
+        PrinterModelCatalog.UsesAccessCode(brand).Should().Be(expected);
 
     [Fact]
     public void All_EveryEntryResolvesViaResolve()

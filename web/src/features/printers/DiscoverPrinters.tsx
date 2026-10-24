@@ -23,7 +23,8 @@ export function DiscoverPrinters({
   onSelect,
   onManual,
 }: DiscoverPrintersProps) {
-  // Printers re-announce every few seconds; polling keeps the list live without a hub event.
+  // Polling keeps the list live without a hub event: Bambu printers re-announce every few seconds,
+  // and each read keeps the API's mDNS browse for Snapmaker printers going.
   const query = useOpenFarmApiEndpointsPrintersGetDiscoveredPrintersEndpoint({
     query: { refetchInterval: 3000 },
   });
@@ -58,7 +59,7 @@ export function DiscoverPrinters({
       <EmptyState
         icon={<RadarIcon className="size-8 text-muted-foreground" />}
         title="No printers found"
-        description="Check: powered on, same subnet, LAN mode on."
+        description="Check: powered on, same subnet, Bambu LAN mode on."
         action={<Button onClick={onManual}>{manualLabel}</Button>}
       />
     );
@@ -82,7 +83,7 @@ export function DiscoverPrinters({
       <CardContent className="flex flex-col gap-4">
         <ul className="-mx-2 flex flex-col">
           {printers.map((printer) => {
-            const summary = `${printer.modelCode ?? printer.rawModel} · ${printer.ipAddress}`;
+            const summary = `${printer.brand} ${printer.modelCode ?? printer.rawModel} · ${printer.ipAddress}`;
             return (
               <li key={printer.serialNumber}>
                 {printer.alreadyRegistered ? (

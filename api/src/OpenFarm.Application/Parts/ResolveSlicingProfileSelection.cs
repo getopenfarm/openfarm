@@ -23,7 +23,25 @@ public sealed record ResolvedSlicingProfiles(
     public ProfileSourceFormat MachineSourceFormat => Machine.Format;
     public ProfileSourceFormat ProcessSourceFormat => Process.Format;
     public ProfileSourceFormat FilamentSourceFormat => Filament.Format;
+
+    /// <summary>
+    /// Production only: the filament of each job line, in line order (the first is <see cref="FilamentSettingsJson"/>).
+    /// Empty for a library estimate, which slices with <see cref="FilamentSettingsJson"/> alone.
+    /// </summary>
+    public IReadOnlyList<ResolvedFilament> Filaments { get; init; } = [];
+
+    /// <summary>
+    /// The slicer's filament slots in project order — which of <see cref="Filaments"/> each loads, and its colour — so a
+    /// multi-colour project slices each slot with its own line's preset. Empty slices with <see cref="FilamentSettingsJson"/>.
+    /// </summary>
+    public IReadOnlyList<SlotFilament> Slots { get; init; } = [];
 }
+
+/// <summary>One job line's filament preset, flattened, and what it was resolved to.</summary>
+public sealed record ResolvedFilament(string SettingsJson, ResolvedPreset Preset);
+
+/// <summary>One project filament slot: the index of its line's <see cref="ResolvedFilament"/>, and the slot's colour.</summary>
+public sealed record SlotFilament(int Filament, string? ColorHex);
 
 /// <summary>The three selected presets, each resolved to the pin's own catalog — rows and provenance, before any merging.</summary>
 public sealed record ResolvedPresetSet(

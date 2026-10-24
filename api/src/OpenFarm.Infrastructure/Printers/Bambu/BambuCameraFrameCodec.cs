@@ -25,9 +25,6 @@ public static class BambuCameraFrameCodec
     /// </summary>
     public const int MaxPayloadSize = 4 * 1024 * 1024;
 
-    private static readonly byte[] JpegStart = [0xFF, 0xD8, 0xFF, 0xE0];
-    private static readonly byte[] JpegEnd = [0xFF, 0xD9];
-
     /// <summary>
     /// 4× little-endian <c>uint32</c> (<c>0x40</c>, <c>0x3000</c>, <c>0</c>, <c>0</c>) + <c>"bblp"</c>
     /// NUL-padded to 32 bytes + the LAN access code NUL-padded to 32 bytes (research.md §4).
@@ -50,9 +47,6 @@ public static class BambuCameraFrameCodec
     public static int ParsePayloadSize(ReadOnlySpan<byte> header) =>
         header[0] | (header[1] << 8) | (header[2] << 16);
 
-    /// <summary>Validates the payload starts with the JPEG SOI/APP0 marker and ends with the EOI marker.</summary>
-    public static bool IsValidJpegFrame(ReadOnlySpan<byte> payload) =>
-        payload.Length >= JpegStart.Length + JpegEnd.Length
-        && payload[..JpegStart.Length].SequenceEqual(JpegStart)
-        && payload[^JpegEnd.Length..].SequenceEqual(JpegEnd);
+    /// <summary>Validates the payload is a whole JPEG (<see cref="JpegFrame"/>).</summary>
+    public static bool IsValidJpegFrame(ReadOnlySpan<byte> payload) => JpegFrame.IsValid(payload);
 }

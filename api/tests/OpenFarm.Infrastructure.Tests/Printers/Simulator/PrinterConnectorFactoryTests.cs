@@ -4,6 +4,7 @@ using OpenFarm.Application.Printers;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Bambu;
 using OpenFarm.Infrastructure.Printers.Simulator;
+using OpenFarm.Infrastructure.Printers.Snapmaker;
 
 namespace OpenFarm.Infrastructure.Tests.Printers.Simulator;
 
@@ -74,6 +75,22 @@ public class PrinterConnectorFactoryTests
 
         first.Should().BeOfType<BambuCameraRelay>();
         second.Should().BeOfType<BambuCameraRelay>();
+        first.Should().NotBeSameAs(second);
+    }
+
+    [Theory]
+    [InlineData("Snapmaker")]
+    [InlineData("snapmaker")]
+    public void CreateConnector_SnapmakerBrand_ReturnsFreshSnapmakerU1ConnectorEachCall(string brand)
+    {
+        var factory = CreateFactory(out _, out _);
+        var details = new PrinterConnectionDetails(brand, "U1", "10.0.0.60", "SN-4", "");
+
+        var first = factory.CreateConnector(details);
+        var second = factory.CreateConnector(details);
+
+        first.Should().BeOfType<SnapmakerU1Connector>();
+        second.Should().BeOfType<SnapmakerU1Connector>();
         first.Should().NotBeSameAs(second);
     }
 

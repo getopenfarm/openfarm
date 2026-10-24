@@ -97,4 +97,11 @@ public interface IPrinterConnector
     /// </summary>
     Task<byte[]?> FetchPrintFileAsync(PrinterConnectionDetails details, string? jobName, string? gcodeFile, CancellationToken cancellationToken) =>
         Task.FromResult<byte[]?>(null);
+
+    /// <summary>
+    /// The serial number the printer reports about itself, so registration can derive it instead of asking for it.
+    /// Null when the brand's serial must be typed (Bambu addresses its MQTT topics by it) or the printer gives none.
+    /// </summary>
+    Task<string?> ReadSerialNumberAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>(null);
 }

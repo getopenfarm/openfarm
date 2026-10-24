@@ -16,6 +16,7 @@ using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Tests.Printers.Bambu;
+using OpenFarm.Infrastructure.Tests.Printers.Snapmaker;
 
 namespace OpenFarm.Infrastructure.Tests.Printers;
 
@@ -99,6 +100,55 @@ public class PrinterConnectionBackgroundServiceTests
         {
             await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
             await BambuLanProtocolTests.WaitUntilAsync(() => harness.ActiveConnections == 0);
+        }
+    }
+
+    [Fact]
+    public async Task RealMoonrakerStatus_MarkReadyHolds_AlertsDontFlap_AndAFastResetStillFinishesTheJob()
+    {
+        await using var harness = new MoonrakerHarness();
+        harness.Status["print_stats"]!["state"] = "complete";
+        var printer = Printer.Create("U1", "Snapmaker", "U1", harness.Details().IpAddress, harness.SerialNumber);
+        // Passthrough protector: this is the API key the connector sends, and the harness requires none.
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "no-key");
+        var jobSync = new RecordingJobTelemetrySync();
+        using var provider = BuildServiceProvider(printer, secret, harness.CreateConnector(), out var activityLog, jobTelemetrySync: jobSync);
+        using var service = new PrinterConnectionBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance,
+            SweepInterval,
+            TimeSpan.FromSeconds(10),
+            NoFlushThrottling);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitUntilAsync(() => printer.Status == PrinterStatus.AwaitingClear && printer.NozzleConfirmed, TimeSpan.FromSeconds(3));
+            printer.TransitionTo(PrinterStatus.Idle);
+
+            await harness.PushStatusAsync("""{"heater_bed":{"temperature":40.0}}""");
+            await WaitUntilAsync(() => printer.BedTempC == 40, TimeSpan.FromSeconds(3));
+            await Task.Delay(300);
+            printer.Status.Should().Be(PrinterStatus.Idle, "the U1 still reports complete, but that was already observed");
+
+            await harness.NotifyAsync("notify_exception_status",
+                """[{"exceptions":[{"id":2,"index":1,"code":523,"level":3,"message":"Filament runout","timestamp":1.0}]}]""");
+            await WaitUntilAsync(() => printer.ActiveAlerts.Count == 1, TimeSpan.FromSeconds(3));
+            await harness.PushStatusAsync("""{"heater_bed":{"temperature":41.0}}""");
+            await WaitUntilAsync(() => printer.BedTempC == 41, TimeSpan.FromSeconds(3));
+            await Task.Delay(300);
+            activityLog.Entries.ToArray().Count(e => e.EventType == "PrinterAlertsChanged").Should().Be(1);
+
+            // PRINT_END may reset to standby right after complete; the job still finishes.
+            await harness.PushStatusAsync("""{"print_stats":{"state":"printing"},"display_status":{"progress":0.99}}""");
+            await WaitUntilAsync(() => printer.Status == PrinterStatus.Printing, TimeSpan.FromSeconds(3));
+            await harness.PushStatusAsync("""{"print_stats":{"state":"complete"},"display_status":{"progress":1.0}}""");
+            await harness.PushStatusAsync("""{"print_stats":{"state":"standby"}}""");
+            await WaitUntilAsync(() => jobSync.States.Contains("FINISH"), TimeSpan.FromSeconds(3));
+            await WaitUntilAsync(() => printer.Status == PrinterStatus.AwaitingClear, TimeSpan.FromSeconds(3));
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
         }
     }
 
@@ -514,7 +564,8 @@ public class PrinterConnectionBackgroundServiceTests
         IPrinterEventPublisher? publisher = null,
         IPrinterRepository? repository = null,
         IPrinterCameraRelay? cameraRelay = null,
-        IFeedSlotTelemetrySync? feedSlotTelemetrySync = null)
+        IFeedSlotTelemetrySync? feedSlotTelemetrySync = null,
+        IJobTelemetrySync? jobTelemetrySync = null)
     {
         var writer = new RecordingActivityLogWriter();
         activityLogWriter = writer;
@@ -526,7 +577,7 @@ public class PrinterConnectionBackgroundServiceTests
         services.AddSingleton<IActivityLogWriter>(writer);
         services.AddSingleton<IPrinterEventPublisher>(publisher ?? new NoOpPrinterEventPublisher());
         services.AddSingleton<IFeedSlotTelemetrySync>(feedSlotTelemetrySync ?? new NoOpFeedSlotTelemetrySync());
-        services.AddSingleton<IJobTelemetrySync>(new NoOpJobTelemetrySync());
+        services.AddSingleton<IJobTelemetrySync>(jobTelemetrySync ?? new NoOpJobTelemetrySync());
         services.AddSingleton<IProductionDispatcher>(new NoOpProductionDispatcher());
         // Test printers use BinaryImage-camera models (e.g. P1S), so RunConnectionLoopAsync always
         // starts a concurrent camera loop too — the stub factory below hands out a relay that never
@@ -849,6 +900,17 @@ public class PrinterConnectionBackgroundServiceTests
     private sealed class NoOpJobTelemetrySync : IJobTelemetrySync
     {
         public Task ObserveAsync(Guid printerId, string gcodeState, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingJobTelemetrySync : IJobTelemetrySync
+    {
+        public ConcurrentQueue<string> States { get; } = new();
+
+        public Task ObserveAsync(Guid printerId, string gcodeState, CancellationToken cancellationToken)
+        {
+            States.Enqueue(gcodeState);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class NoOpProductionDispatcher : IProductionDispatcher

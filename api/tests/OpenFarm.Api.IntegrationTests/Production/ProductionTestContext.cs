@@ -105,14 +105,17 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
 
     /// <param name="machineProfile">Existing presets to point the printer (and its filament assignment) at; the default is a fresh imported machine and filament profile.</param>
     protected async Task<Printer> PrinterAsync(bool manual = false, string state = "IDLE",
-        MachineProfile? machineProfile = null, ProcessProfile? processProfile = null, FilamentProfile? existingFilamentProfile = null)
+        MachineProfile? machineProfile = null, ProcessProfile? processProfile = null, FilamentProfile? existingFilamentProfile = null,
+        string brand = "System", string modelCode = "Simulation")
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var profile = machineProfile ?? MachineProfile.Create($"Machine {Guid.NewGuid():N}",
-            ProfileSourceFormat.OrcaSlicer, null, "{\"nozzle_diameter\":[\"0.4\"]}");
+        // A vendor's machine preset names its model; the simulator's names none.
+        var vendorModel = PrinterModelCatalog.Resolve(brand, modelCode).VendorMachineModelName;
+        var profile = machineProfile ?? MachineProfile.Create($"Machine {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
+            vendorModel is null ? "{\"nozzle_diameter\":[\"0.4\"]}" : $$"""{"nozzle_diameter":["0.4"],"printer_model":"{{vendorModel}}"}""");
         if (machineProfile is null) db.MachineProfiles.Add(profile);
-        var printer = Printer.Create($"Printer {Guid.NewGuid():N}", "System", "Simulation", "127.0.0.1", $"SN{Guid.NewGuid():N}");
+        var printer = Printer.Create($"Printer {Guid.NewGuid():N}", brand, modelCode, "127.0.0.1", $"SN{Guid.NewGuid():N}");
         printer.LinkMachineProfile(profile.Id);
         if (processProfile is not null)
         {
@@ -127,7 +130,7 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         var vendor = Vendor.Create($"Vendor {Guid.NewGuid():N}");
         db.Vendors.Add(vendor);
         var filament = Filament.Create(vendor.Id, "PLA", "PLA");
-        filament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(filament.Id, "System", "Simulation", 0.4m, filamentProfile.Id)]);
+        filament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(filament.Id, brand, modelCode, 0.4m, filamentProfile.Id)]);
         var variant = filament.AddVariant("White", "FFFFFF");
         db.Filaments.Add(filament);
         var feedUnit = FeedUnit.CreateConnectorDerived(printer.Id, FeedUnitKindCatalog.ExternalSpool, 0);

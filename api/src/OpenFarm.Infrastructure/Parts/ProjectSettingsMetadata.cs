@@ -35,6 +35,25 @@ internal sealed record ProjectSettingsMetadata(decimal? Nozzle, IReadOnlyList<De
         }
     }
 
+    /// <summary>Every filament slot of the project in order, a blank one (no type) as null, so a slot's index is its tool.</summary>
+    internal static IReadOnlyList<DetectedFilamentSlot?> ReadAllSlots(string content)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(content);
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return [];
+            var types = ResolveEstimationProfiles.ReadStrings(document.RootElement, "filament_type");
+            var colors = ResolveEstimationProfiles.ReadStrings(document.RootElement, "filament_colour");
+            return types.Select((type, i) => string.IsNullOrWhiteSpace(type)
+                ? null
+                : new DetectedFilamentSlot(type, i < colors.Count ? SlicedPlateMetadata.NormalizeColor(colors[i]) : null, null)).ToList();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return [];
+        }
+    }
+
     private static ProjectSettingsMetadata Invalid() => new(null, [], new("EmbeddedProject"), false,
         "Estimation unavailable: embedded project settings could not be read.");
 }

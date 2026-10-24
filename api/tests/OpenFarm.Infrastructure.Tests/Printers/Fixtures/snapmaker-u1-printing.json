@@ -1,0 +1,23 @@
+{
+  "print_stats": {
+    "state": "printing",
+    "filename": "openfarm/Bracket_PLA_2h.gcode",
+    "print_duration": 1260.0,
+    "info": { "current_layer": 12, "total_layer": 80 }
+  },
+  "virtual_sdcard": { "progress": 0.37 },
+  "display_status": { "progress": 0.42 },
+  "heater_bed": { "temperature": 60.2 },
+  "extruder": { "temperature": 140.0, "nozzle_diameter": 0.4, "state": "PARKED" },
+  "extruder1": { "temperature": 219.6, "nozzle_diameter": 0.4, "state": "ACTIVATE" },
+  "extruder2": { "temperature": 25.0, "nozzle_diameter": 0.4, "state": "PARKED" },
+  "extruder3": { "temperature": 24.8, "nozzle_diameter": 0.4, "state": "PARKED" },
+  "toolhead": { "extruder": "extruder1" },
+  "webhooks": { "state": "ready" },
+  "print_task_config": {
+    "filament_type": ["PLA", "PETG", "NONE", "PLA"],
+    "filament_sub_type": ["Basic", "NONE", "NONE", "Matte"],
+    "filament_color_rgba": ["FF0000FF", "00FF00FF", "FFFFFFFF", "0000FFFF"],
+    "filament_exist": [true, true, false, true]
+  }
+}

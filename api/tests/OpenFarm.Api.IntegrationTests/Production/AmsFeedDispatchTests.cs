@@ -111,6 +111,40 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
     }
 
     [Fact]
+    public async Task SnapmakerU1_SpoolOnAToolhead_IsDispatchedToThatHead()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\nG28\n");
+        var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
+        // The U1's four heads are one four-slot unit; slot 2 is T3.
+        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, activeTrayId: 255);
+
+        var mapping = await DispatchedMappingAsync(printer, async () => (await RunAsync(client, part.Id, pinned: printer.Id)).Id);
+
+        // The connector sends this to the firmware as map_table [[0, 2]].
+        mapping!.UseAms.Should().BeTrue();
+        mapping.Trays.Should().Equal(2);
+    }
+
+    [Fact]
+    public async Task SnapmakerU1_FileSlicedForAnotherModel_IsNotSent()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync(contents: "; printer_model = Bambu Lab P1S\nG28\n");
+        var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
+        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, activeTrayId: 255);
+        var run = await RunAsync(client, part.Id, pinned: printer.Id);
+
+        using var worker = Worker();
+        await worker.StartAsync(default);
+        try { await Task.Delay(1500); }
+        finally { await worker.StopAsync(default); }
+
+        (await JobsAsync(run.Id)).Single().PrinterId.Should().BeNull();
+        SentTo(printer).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task ExternalSpoolLoadedIntoTheExtruderOfAnAmsPrinter_IsDispatchedAsExternal()
     {
         var client = await ClientAsync();

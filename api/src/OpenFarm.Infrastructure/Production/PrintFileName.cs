@@ -21,7 +21,8 @@ internal static class PrintFileName
         return string.Join('_', components);
     }
 
-    internal static string ForBambu(string jobName)
+    /// <summary>A readable, timestamped name for an upload to a printer; <paramref name="extension"/> is what the printer prints.</summary>
+    internal static string ForUpload(string jobName, string extension = ".gcode.3mf")
     {
         // Millisecond timestamps stay distinct even for concurrent uploads or a clock adjustment.
         long timestamp;
@@ -40,7 +41,7 @@ internal static class PrintFileName
         var safeName = stem.ToString().Trim('_', '-');
         if (safeName.Length == 0) safeName = "Print";
         var suffix = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
-        return $"{safeName}_{suffix}.gcode.3mf";
+        return $"{safeName}_{suffix}{extension}";
     }
 
     private static string WithoutExtension(string name)

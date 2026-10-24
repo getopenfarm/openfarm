@@ -90,7 +90,7 @@ public sealed partial class LocalDiskPrinterCameraSnapshotStore(
     {
         if (snapshot.ReceivedAtUtc == default || string.IsNullOrEmpty(snapshot.FrameJpegBase64)
             || snapshot.FrameJpegBase64.Length > BambuCameraFrameCodec.MaxPayloadSize * 4 / 3 + 4) return false;
-        try { return BambuCameraFrameCodec.IsValidJpegFrame(Convert.FromBase64String(snapshot.FrameJpegBase64)); }
+        try { return JpegFrame.IsValid(Convert.FromBase64String(snapshot.FrameJpegBase64)); }
         catch (FormatException) { return false; }
     }
 

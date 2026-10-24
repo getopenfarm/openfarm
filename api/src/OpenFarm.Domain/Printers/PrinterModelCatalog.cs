@@ -1,8 +1,8 @@
 namespace OpenFarm.Domain.Printers;
 
 /// <summary>
-/// Compile-time (Brand, ModelCode) -&gt; PrinterModel lookup. Scoped to Bambu X1/P1/A1-series
-/// this phase; adding a brand/model is a new entry here, never a rewrite (data-model.md).
+/// Compile-time (Brand, ModelCode) -&gt; PrinterModel lookup. Scoped to Bambu X1/P1/A1-series and the
+/// Snapmaker U1; adding a brand/model is a new entry here, never a rewrite (data-model.md).
 /// </summary>
 public static class PrinterModelCatalog
 {
@@ -36,13 +36,16 @@ public static class PrinterModelCatalog
                 CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.TexturedPei, BuildPlateType.HighTemp }),
             [(PrinterBrand.System, "Simulation")] = new PrinterModel(PrinterBrand.System, "Simulation", CameraTransport.BinaryImage,
                 CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.Cool, BuildPlateType.Engineering, BuildPlateType.HighTemp, BuildPlateType.TexturedPei, BuildPlateType.TexturedCool, BuildPlateType.Supertack }),
+            // Plates per 012 research.md R9: the vendor's filament presets leave only hot_plate_temp non-zero.
+            [(PrinterBrand.Snapmaker, "U1")] = new PrinterModel(PrinterBrand.Snapmaker, "U1", CameraTransport.HttpSnapshot,
+                VendorMachineModelName: "Snapmaker U1",
+                CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.HighTemp }),
         };
 
-    // Both current brands (Bambu, the real integration; System, its Simulator stand-in) have live
-    // status/dispatch integration — there is no non-live brand registrable today. Phase 15 (Expanded
-    // live printer integration) is what would ever add one; this is the one place that check extends,
-    // never a restructure of the dispatcher/command-handler branches that already read it (FR-012/FR-024b).
-    private static readonly HashSet<PrinterBrand> LiveIntegratedBrands = new() { PrinterBrand.Bambu, PrinterBrand.System };
+    // Every current brand (Bambu and the Snapmaker U1, the real integrations; System, the Simulator stand-in) has live
+    // status/dispatch integration — there is no non-live brand registrable today. This is the one place that check
+    // extends, never a restructure of the dispatcher/command-handler branches that already read it (FR-012/FR-024b).
+    private static readonly HashSet<PrinterBrand> LiveIntegratedBrands = new() { PrinterBrand.Bambu, PrinterBrand.System, PrinterBrand.Snapmaker };
 
     // Bambu SSDP DevModel.bambu.com codes -> catalog ModelCode, for LAN discovery prefill.
     // ponytail: C11/C12/N2S/N1 confirmed via ha-bambulab pybambu/utils.py; the X-series codes are
@@ -61,8 +64,27 @@ public static class PrinterModelCatalog
     public static string? TryMapBambuDeviceModel(string deviceModel) =>
         BambuDeviceModelCodes.GetValueOrDefault(deviceModel.Trim());
 
+    /// <summary>
+    /// The model a sliced file says it was made for — a vendor machine model name ("Bambu Lab P1S", "Snapmaker U1", the
+    /// G-code's <c>printer_model</c>) or a Bambu device code ("C12", from <c>slice_info.config</c>). Null when unknown.
+    /// </summary>
+    public static PrinterModel? TryResolveSlicedModel(string? declaredModel)
+    {
+        if (string.IsNullOrWhiteSpace(declaredModel)) return null;
+        var name = declaredModel.Trim();
+        return Entries.Values.FirstOrDefault(m => string.Equals(m.VendorMachineModelName, name, StringComparison.OrdinalIgnoreCase))
+            ?? (TryMapBambuDeviceModel(name) is { } code ? Entries[(PrinterBrand.Bambu, code)] : null);
+    }
+
     public static bool SupportsLiveIntegration(string brand) =>
         Enum.TryParse<PrinterBrand>(brand, ignoreCase: true, out var parsedBrand) && LiveIntegratedBrands.Contains(parsedBrand);
+
+    /// <summary>
+    /// Whether registering needs an operator-typed serial and access code. Bambu addresses MQTT by serial and
+    /// authenticates with the LAN access code; a Snapmaker reports its own serial and its Moonraker API key is optional.
+    /// </summary>
+    public static bool UsesAccessCode(string brand) =>
+        !Enum.TryParse<PrinterBrand>(brand, ignoreCase: true, out var parsedBrand) || parsedBrand != PrinterBrand.Snapmaker;
 
     public static PrinterModel Resolve(string brand, string modelCode)
     {

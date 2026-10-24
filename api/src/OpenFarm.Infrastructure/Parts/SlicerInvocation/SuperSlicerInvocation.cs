@@ -23,6 +23,8 @@ public sealed class SuperSlicerInvocation : ISlicerInvocation
     {
         // SuperSlicer is a real classic-PrusaSlicer-CLI fork and already accepts plain scalar flags
         // directly — it has no use for the complete flattened presets OrcaSlicer/Bambu Studio need.
+        if (resolvedProfiles?.Slots.Count > 1)
+            throw new SlicingFailedException("SuperSlicer slices one filament. Pin the part to OrcaSlicer or Bambu Studio for more.");
         var outputPath = Path.Combine(workDirectoryPath, "output.gcode");
 
         var arguments = $"--slice --filament-type \"{EscapeMaterial(materialType)}\" " +

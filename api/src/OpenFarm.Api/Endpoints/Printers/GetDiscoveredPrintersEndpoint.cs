@@ -49,7 +49,7 @@ public sealed class GetDiscoveredPrintersEndpoint(
             {
                 SerialNumber = r.Printer.SerialNumber,
                 Name = r.Printer.Name,
-                Brand = "Bambu",
+                Brand = r.Printer.Brand,
                 ModelCode = r.Printer.ModelCode,
                 RawModel = r.Printer.RawModel,
                 IpAddress = r.Printer.IpAddress,

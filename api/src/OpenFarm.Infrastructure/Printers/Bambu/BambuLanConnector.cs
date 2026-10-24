@@ -190,7 +190,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 #pragma warning restore CA5351
         project.Position = 0;
 
-        var remoteFileName = PrintFileName.ForBambu(jobName);
+        var remoteFileName = PrintFileName.ForUpload(jobName);
         var remotePath = $"{FtpsCacheDirectory}/{remoteFileName}";
         var uploadStatus = await (_options.UploadFileAsync ?? UploadFileAsync)(
             details, project, remotePath, cancellationToken);

@@ -107,7 +107,7 @@ public sealed partial class BambuSsdpDiscoveryService(ILogger<BambuSsdpDiscovery
 
         var name = headers.TryGetValue("DevName.bambu.com", out var devName) && devName.Length > 0 ? devName : serial;
 
-        return new DiscoveredPrinter(serial, name, PrinterModelCatalog.TryMapBambuDeviceModel(rawModel), rawModel, ip.ToString(), now);
+        return new DiscoveredPrinter(serial, name, "Bambu", PrinterModelCatalog.TryMapBambuDeviceModel(rawModel), rawModel, ip.ToString(), now);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Printer discovery could not listen on UDP {Port}; relying on the other discovery port.")]

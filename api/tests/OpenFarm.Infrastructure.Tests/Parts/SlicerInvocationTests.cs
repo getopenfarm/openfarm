@@ -61,6 +61,45 @@ public class SlicerInvocationTests
     }
 
     [Fact]
+    public void PrusaSliceFamilyInvocation_BuildInvocation_LoadsOneFilamentFilePerProjectSlotWithItsColour()
+    {
+        var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");
+        try
+        {
+            var white = new ResolvedFilament("""{"type":"filament","name":"PLA White","filament_colour":["#F2754E"]}""", ResolvedProfiles.Filament);
+            var black = new ResolvedFilament("""{"type":"filament","name":"PLA Matte","filament_type":["PLA"]}""", ResolvedProfiles.Filament);
+            // Slot 3 reuses line 1's preset in another colour; slot 2 is blank in the project.
+            var profiles = ResolvedProfiles with
+            {
+                Filaments = [white, black],
+                Slots = [new SlotFilament(0, "#FFFFFF"), new SlotFilament(0, null), new SlotFilament(1, "#000000")],
+            };
+
+            var result = new PrusaSliceFamilyInvocation().BuildInvocation(Orca, "/tmp/model.3mf", "PLA", 0.4m, workDirectory.FullName, profiles);
+
+            var files = Enumerable.Range(0, 3).Select(i => Path.Combine(workDirectory.FullName, $"filament_settings_{i}.json")).ToList();
+            result.Arguments.Should().Contain($"--load-filaments \"{string.Join(';', files)}\"");
+            File.ReadAllText(files[0]).Should().Contain("\"name\":\"PLA White\"").And.Contain("\"filament_colour\":[\"#FFFFFF\"]");
+            File.ReadAllText(files[1]).Should().Contain("\"filament_colour\":[\"#F2754E\"]", "a blank slot keeps its preset as it is");
+            File.ReadAllText(files[2]).Should().Contain("\"name\":\"PLA Matte\"").And.Contain("\"filament_colour\":[\"#000000\"]");
+        }
+        finally
+        {
+            workDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SuperSlicerInvocation_MoreThanOneFilamentSlot_IsRefused()
+    {
+        var profiles = ResolvedProfiles with { Slots = [new SlotFilament(0, null), new SlotFilament(0, null)] };
+
+        var act = () => new SuperSlicerInvocation().BuildInvocation(SuperSlicerBinary, "/tmp/model.3mf", "PLA", 0.4m, "/tmp", profiles);
+
+        act.Should().Throw<SlicingFailedException>();
+    }
+
+    [Fact]
     public void PrusaSliceFamilyInvocation_BuildInvocation_NullResolvedProfiles_ThrowsSlicingFailedException()
     {
         var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");

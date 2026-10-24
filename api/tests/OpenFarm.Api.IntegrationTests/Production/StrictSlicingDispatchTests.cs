@@ -13,6 +13,7 @@ using OpenFarm.Api.Endpoints.PrintJobs;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
@@ -216,6 +217,70 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         return part;
     }
 
+    private async Task<FilamentProfile> SeedFilamentAsync(string vendor, SlicerRef catalog, string name, string settingId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var filament = FilamentProfile.CreateSystemProfile(name, FormatOf(catalog), null,
+            $$"""{"type":"filament","filament_type":["PLA"],"hot_plate_temp":["55"],"compatible_printers":["{{MachineName}}"],"marker":"{{Marker(settingId, catalog)}}"}""",
+            vendor, settingId, isSelectable: true, compatibleMachineNames: [MachineName], materialType: "PLA", includedTemplateNames: null,
+            sourceVersion: catalog.Version);
+        db.FilamentProfiles.Add(filament);
+        await db.SaveChangesAsync();
+        return filament;
+    }
+
+    /// <summary>Replaces the printer's one external spool with an AMS holding one tracked spool per colour, each assigned its own profile.</summary>
+    private async Task LoadAmsAsync(Guid printerId, params (string ColorHex, FilamentProfile Profile)[] colours)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        foreach (var spool in await db.Spools.Where(s => s.State == SpoolState.Using).ToListAsync())
+            if (await db.FeedUnits.AnyAsync(u => u.PrinterId == printerId && u.FeedSlots.Any(f => f.Id == spool.FeedSlotId)))
+                spool.ReturnToStorage();
+        var ams = FeedUnit.CreateConnectorDerived(printerId, FeedUnitKindCatalog.MultiMaterialUnit, 0);
+        db.FeedUnits.Add(ams);
+        var vendor = Vendor.Create($"Vendor {Guid.NewGuid():N}");
+        db.Vendors.Add(vendor);
+        foreach (var (colorHex, profile) in colours)
+        {
+            var filament = Filament.Create(vendor.Id, $"PLA {colorHex}", "PLA");
+            var variant = filament.AddVariant(colorHex, colorHex);
+            filament.ReplaceProfileAssignments([FilamentProfileAssignment.Create(filament.Id, "System", "Simulation", 0.4m, profile.Id)]);
+            db.Filaments.Add(filament);
+            var spool = Spool.Create(variant.Id, null, 1000, 1000);
+            spool.LoadOntoFeedSlot(ams.AddFeedSlot(ams.FeedSlots.Count).Id);
+            db.Spools.Add(spool);
+        }
+
+        (await db.Printers.SingleAsync(p => p.Id == printerId)).RecordTelemetry(null, null, null, null, null, null, [], null, null, null, 255);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>A plain project (sliced in production) with two PLA filament slots, white then black.</summary>
+    private async Task<Part> TwoColourProjectAsync(SlicerRef pin)
+    {
+        using var zip = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(zip, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var model = new StreamWriter(archive.CreateEntry("3D/3dmodel.model").Open()))
+                await model.WriteAsync($"<model unit=\"millimeter\"><!-- {Guid.NewGuid():N} --><resources/><build/></model>");
+            using var settings = new StreamWriter(archive.CreateEntry("Metadata/project_settings.config").Open());
+            await settings.WriteAsync("""{"filament_type":["PLA","PLA"],"filament_colour":["#FFFFFF","#000000"]}""");
+        }
+
+        var bytes = zip.ToArray();
+        using var scope = Factory.Services.CreateScope();
+        var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        using var stream = new MemoryStream(bytes);
+        var path = await scope.ServiceProvider.GetRequiredService<IPartFileStorage>().SaveAsync(hash, "part.3mf", stream, default);
+        var part = Part.Create($"Part {Guid.NewGuid():N}", PartFileFormat.ThreeMf, true, "part.3mf", path, bytes.Length, 0.4m,
+            pin.Engine, pin.Version, EstimateStatus.Available, 60, 20, 1, 1, hash,
+            [new FilamentRequirementSpec("PLA", "#FFFFFF", null, null, null), new FilamentRequirementSpec("PLA", "#000000", null, null, null)], [], []);
+        await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
+        return part;
+    }
+
     private async Task StartWorkerAsync(TimeSpan duration)
     {
         using var worker = Worker();
@@ -279,6 +344,41 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         detail.Provenance!.Engine.Should().Be("BambuStudio");
         detail.Provenance.Version.Should().Be("2.7.1");
         detail.Provenance.Presets.Should().HaveCount(3).And.OnlyContain(p => p.Outcome == "MappedEngine" && p.SourceVersion == "2.7.1" && p.SettingId != null);
+    }
+
+    // Each colour of a project slices with its own line's filament: one file per project slot, in slot order.
+    [Fact]
+    public async Task S13_TwoColourProject_SlicesEachSlotWithItsOwnLinesFilament()
+    {
+        var vendor = $"Bambulab-{Guid.NewGuid():N}";
+        var presets = await SeedAsync(vendor, [Orca242]);
+        var matte = await SeedFilamentAsync(vendor, Orca242, "Bambu PLA Matte @BBL X1C", "GFA01");
+        var printer = await SelectedPrinterAsync(presets);
+        await LoadAmsAsync(printer.Id, ("#FFFFFF", presets.Filament[Orca242]), ("#000000", matte));
+        var part = await TwoColourProjectAsync(Orca242);
+        var client = await ClientAsync();
+        var run = await RunAsync(client, part.Id, pinned: printer.Id);
+
+        using (var worker = Worker())
+        {
+            await worker.StartAsync(default);
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                while (Spy.CallsFor(printer.Id).Count == 0) await Task.Delay(50, deadline.Token);
+            }
+            finally { await worker.StopAsync(default); }
+        }
+
+        // The spy's file holds no filaments, so dispatch stops after slicing; what the slicer was asked for is the point.
+        // Job lines come back in any order, so each slot is checked through the line it names.
+        var call = Spy.CallsFor(printer.Id).First();
+        var bySlot = call.Profiles.Slots.Select(slot => (call.Profiles.Filaments[slot.Filament], slot.ColorHex)).ToList();
+        bySlot.Select(s => (s.Item1.Preset.ResolvedName, s.ColorHex)).Should().Equal(
+            (FilamentName, "#FFFFFF"), ("Bambu PLA Matte @BBL X1C", "#000000"));
+        bySlot[1].Item1.SettingsJson.Should().Contain(Marker("GFA01", Orca242));
+        // Not left blocked in the queue for the scenarios after this one.
+        (await client.PostAsJsonAsync($"/api/v1/print-jobs/{(await JobAsync(run.Id)).Id}/cancel", new { })).EnsureSuccessStatusCode();
     }
 
     [Fact]

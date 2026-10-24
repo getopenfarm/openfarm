@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 
@@ -39,15 +40,38 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
         var processSettingsPath = Path.Combine(workDirectoryPath, "process_settings.json");
         File.WriteAllText(processSettingsPath, profiles.ProcessSettingsJson);
 
-        var filamentSettingsPath = Path.Combine(workDirectoryPath, "filament_settings.json");
-        File.WriteAllText(filamentSettingsPath, profiles.FilamentSettingsJson);
+        var filamentSettingsPaths = WriteFilamentSettings(profiles, workDirectoryPath);
 
         var outputPath = Path.Combine(workDirectoryPath, "output.gcode.3mf");
 
-        var arguments = $"--slice 0 --allow-newer-file --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{filamentSettingsPath}\" " +
+        var arguments = $"--slice 0 --allow-newer-file --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{string.Join(';', filamentSettingsPaths)}\" " +
             $"--export-3mf \"{outputPath}\" \"{modelFilePath}\"";
 
         return new SlicerProcessInvocation(slicer.ExecutablePath, arguments, outputPath, ProducesGCodeBearingThreeMf: true);
+    }
+
+    /// <summary>
+    /// One file per project filament slot (the CLI loads them by position), so each slot slices with its own line's
+    /// preset. The slot's colour is written into its file: the CLI ranks a loaded filament above the project, and dispatch
+    /// matches the output's filaments to job lines by material and colour. Without slots, the one filament alone.
+    /// </summary>
+    private static List<string> WriteFilamentSettings(ResolvedSlicingProfiles profiles, string workDirectoryPath)
+    {
+        if (profiles.Slots.Count == 0)
+        {
+            var path = Path.Combine(workDirectoryPath, "filament_settings.json");
+            File.WriteAllText(path, profiles.FilamentSettingsJson);
+            return [path];
+        }
+
+        return profiles.Slots.Select((slot, index) =>
+        {
+            var settings = JsonNode.Parse(profiles.Filaments[slot.Filament].SettingsJson)!.AsObject();
+            if (slot.ColorHex is { } color) settings["filament_colour"] = new JsonArray(color);
+            var path = Path.Combine(workDirectoryPath, $"filament_settings_{index}.json");
+            File.WriteAllText(path, settings.ToJsonString());
+            return path;
+        }).ToList();
     }
 
     public static SlicerProcessInvocation BuildEmbeddedProjectInvocation(AvailableSlicer slicer, string modelPath, string workDirectory)

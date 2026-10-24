@@ -10,8 +10,10 @@ public sealed class EditPrinterCommandValidator : AbstractValidator<EditPrinterC
         RuleFor(x => x.PrinterId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty();
 
+        // NotNull, not NotEmpty: a Snapmaker without an API key changes its IP with an empty one. A blank Bambu access
+        // code just fails the verify that runs before anything is saved.
         RuleFor(x => x.AccessCode)
-            .NotEmpty()
+            .NotNull()
             .WithMessage("Provide both ipAddress and accessCode to change connection details, or neither to keep the current connection.")
             .When(x => !string.IsNullOrWhiteSpace(x.IpAddress));
 

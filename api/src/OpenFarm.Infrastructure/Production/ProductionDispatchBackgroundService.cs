@@ -517,7 +517,11 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         if (fileContent.Profiles is { } sliced)
         {
             job.RecordDispatchProvenance(DispatchProvenance.From(sliced, configurationStamp, DateTimeOffset.UtcNow).ToJson());
-            LogSlicingProfilesUsed(_logger, job.Id, printer.Id, sliced.Pin.Engine, sliced.Pin.Version, sliced.Machine, sliced.Process, sliced.Filament);
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                var filaments = string.Join(", ", (sliced.Filaments.Count == 0 ? [sliced.Filament] : sliced.Filaments.Select(f => f.Preset)).Distinct());
+                LogSlicingProfilesUsed(_logger, job.Id, printer.Id, sliced.Pin.Engine, sliced.Pin.Version, sliced.Machine, sliced.Process, filaments);
+            }
         }
 
         await jobRepository.SaveChangesAsync(cancellationToken);
@@ -600,8 +604,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     [LoggerMessage(Level = LogLevel.Error, Message = "Resolving job {JobId}'s sliceable output failed.")]
     private static partial void LogFileResolutionFailed(ILogger logger, Guid jobId, Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Job {JobId} to printer {PrinterId} sliced with {Engine} {Version}: machine={Machine} process={Process} filament={Filament}")]
-    private static partial void LogSlicingProfilesUsed(ILogger logger, Guid jobId, Guid printerId, SlicerEngine engine, string version, OpenFarm.Application.Profiles.ResolvedPreset machine, OpenFarm.Application.Profiles.ResolvedPreset process, OpenFarm.Application.Profiles.ResolvedPreset filament);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Job {JobId} to printer {PrinterId} sliced with {Engine} {Version}: machine={Machine} process={Process} filaments={Filaments}")]
+    private static partial void LogSlicingProfilesUsed(ILogger logger, Guid jobId, Guid printerId, SlicerEngine engine, string version, OpenFarm.Application.Profiles.ResolvedPreset machine, OpenFarm.Application.Profiles.ResolvedPreset process, string filaments);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Job {JobId} not sent (failed attempt {Attempts}, next try in {Delay}): {Reason}")]
     private static partial void LogJobBlocked(ILogger logger, Guid jobId, int attempts, TimeSpan delay, string reason);

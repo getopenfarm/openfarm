@@ -54,6 +54,31 @@ public class RealSlicerGoldenFileTests
         GCodeMetadataHelper.ParseFilamentWeightGrams(values).Should().BeGreaterThan(0);
     }
 
+    // The U1 preset declares four extruders; production loads one filament for a single-colour job, which must still slice
+    // into a U1 file that prints on tool 0 (the dispatcher's map_table then routes tool 0 to the spool's head).
+    [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
+    public async Task OrcaSlicer231_SnapmakerU1_SlicesOneFilamentOnItsFourExtruderPreset()
+    {
+        var (available, reason) = RealSlicerBundleLocator.TryResolve(SlicerEngine.OrcaSlicer, "2.3.1");
+        available.Should().NotBeNull(reason);
+        var staging = await VendorProfileFixtureStaging.StageAndIngestAsync(SlicerEngine.OrcaSlicer, "2.3.1",
+            "Snapmaker U1 (0.4 nozzle)", "0.20 Standard @Snapmaker U1 (0.4 nozzle)", "Snapmaker PLA @U1", CancellationToken.None);
+        var profiles = await staging.Resolver.ResolveProfilesAsync(
+            staging.MachineProfileId, staging.ProcessProfileId, staging.FilamentProfileId, BuildPlateType.HighTemp, staging.Pin, use: null, CancellationToken.None);
+
+        var caseDir = Path.Combine(FixturesRoot, "orcaslicer-2.3.1-benchy-stl");
+        var model = await File.ReadAllBytesAsync(Path.Combine(caseDir, GoldenCaseManifest.Load(caseDir).ModelFileName));
+        var gcode = await RealSlicerProcessRunner.SliceAsync(
+            available!, new PrusaSliceFamilyInvocation(), model, PartFileFormat.Stl, "PLA", 0.4m, profiles, CancellationToken.None);
+
+        var values = GCodeMetadataHelper.ParseComments(gcode);
+        values["printer_model"].Should().Be("Snapmaker U1");
+        GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values).Should().BeGreaterThan(0);
+        GCodeMetadataHelper.ParseFilamentWeightGrams(values).Should().BeGreaterThan(0);
+        gcode.Should().MatchRegex(@"(?m)^T0\b");
+        gcode.Should().NotMatchRegex(@"(?m)^T[1-3]\b", "a single-colour job never changes tool");
+    }
+
     [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
     public async Task OrcaSlicer231_EmbeddedProject_PreservesItsSavedSettings()
     {

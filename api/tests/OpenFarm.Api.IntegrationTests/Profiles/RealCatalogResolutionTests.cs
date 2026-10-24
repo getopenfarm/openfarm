@@ -63,10 +63,11 @@ public class RealCatalogResolutionTests(CustomWebApplicationFactory factory, ITe
     private static readonly string[] ExpectedCoverage =
     [
         "Machine OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: MappedEngine 28",
+        "Machine OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 73",
         "Process OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: MappedEngine 118",
-        "Process OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 1",
+        "Process OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 84",
         "Filament OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: MappedEngine 552",
-        "Filament OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 275",
+        "Filament OrcaSlicer 2.3.1 -> BambuStudio 2.7.1: Missing 389",
         "Machine BambuStudio 2.7.1 -> OrcaSlicer 2.3.1: MappedEngine 28",
         "Machine BambuStudio 2.7.1 -> OrcaSlicer 2.3.1: Missing 28",
         "Process BambuStudio 2.7.1 -> OrcaSlicer 2.3.1: MappedEngine 118",

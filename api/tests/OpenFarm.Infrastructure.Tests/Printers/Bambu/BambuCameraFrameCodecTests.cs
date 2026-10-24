@@ -55,6 +55,16 @@ public class BambuCameraFrameCodecTests
         BambuCameraFrameCodec.IsValidJpegFrame(frame).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(0xE1)] // EXIF APP1
+    [InlineData(0xDB)] // a bare quantization table
+    public void IsValidJpegFrame_WithAnySegmentAfterTheStartMarker_ReturnsTrue(byte segment)
+    {
+        byte[] frame = [0xFF, 0xD8, 0xFF, segment, 0x00, 0xFF, 0xD9];
+
+        BambuCameraFrameCodec.IsValidJpegFrame(frame).Should().BeTrue();
+    }
+
     [Fact]
     public void IsValidJpegFrame_WithMissingStartMagicBytes_ReturnsFalse()
     {
