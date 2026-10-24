@@ -31,7 +31,7 @@ underlying MQTT message.
 {
   "printerId": "guid",
   "telemetry": { "nozzleTempC": 219.4, "bedTempC": 59.8, "printProgressPercent": 42, "currentStageLabel": "printing" },
-  "amsUnits": [ { "unitIndex": 0, "trays": [ { "slotIndex": 0, "empty": false, "materialType": "PLA", "colorHex": "1A1A1AFF", "remainPercent": 62, "active": true } ] } ]
+  "feedReadings": [ { "kind": "MultiMaterialUnit", "unitIndex": 0, "displayLabel": "AMS 1", "slots": [ { "slotPosition": 0, "extruderIndex": 0, "displayLabel": "AMS 1 · Slot 1", "empty": false, "materialType": "PLA", "colorHex": "1A1A1AFF", "remainPercent": 62, "active": true, "rfidId": null } ] } ]
 }
 ```
 

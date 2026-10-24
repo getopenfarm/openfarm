@@ -112,6 +112,33 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
     }
 
     [Fact]
+    public async Task MixedNozzleU1_NamesTheHeadWithTheWrongNozzle()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\nG28\n");
+        var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
+        // The job needs a 0.4 mm nozzle; its only spool is on T2, which has 0.6 mm.
+        await AttachHeadsAsync(printer.Id, [0.4m, 0.6m, 0.4m, 0.4m], head: 1);
+        var run = await RunAsync(client, part.Id, pinned: printer.Id);
+        var job = (await JobsAsync(run.Id)).Single();
+
+        var diagnostics = await client.GetFromJsonAsync<JobMatchingDiagnostics>($"/api/v1/print-jobs/{job.Id}/matching-diagnostics");
+
+        var result = diagnostics!.Printers.Single(p => p.PrinterId == printer.Id);
+        result.Eligible.Should().BeFalse();
+        result.Checks.Single(c => c.Code == "nozzle-match").Should().BeEquivalentTo(new
+        {
+            Status = "Passed",
+            Actual = "T1 0.4 mm · T2 0.6 mm · T3 0.4 mm · T4 0.4 mm",
+        });
+        result.Checks.Single(c => c.Code == "extruder-nozzle").Should().BeEquivalentTo(new
+        {
+            Status = "Failed",
+            Message = "T2: 0.6 mm, job needs 0.4 mm.",
+        });
+    }
+
+    [Fact]
     public async Task DiagnosticsRequireAuthentication()
     {
         var client = await ClientAsync();

@@ -83,7 +83,7 @@ describe('PrinterDetailPage', () => {
             status: 'AwaitingClear',
             isReachable: true,
             telemetry: {},
-            amsUnits: [],
+            feedReadings: [],
           }),
         );
       }),
@@ -173,12 +173,13 @@ describe('PrinterDetailPage', () => {
             printProgressPercent: 42,
             currentStageLabel: 'printing',
           },
-          amsUnits: [
+          feedReadings: [
             {
+              kind: 'MultiMaterialUnit',
               unitIndex: 0,
-              trays: [
+              slots: [
                 {
-                  slotIndex: 0,
+                  slotPosition: 0,
                   empty: false,
                   materialType: 'PLA',
                   colorHex: '1A1A1AFF',
@@ -251,7 +252,7 @@ describe('PrinterDetailPage', () => {
             printProgressPercent: null,
             currentStageLabel: null,
           },
-          amsUnits: [],
+          feedReadings: [],
         }),
       );
     });
@@ -293,7 +294,7 @@ describe('PrinterDetailPage', () => {
             printProgressPercent: null,
             currentStageLabel: null,
           },
-          amsUnits: [],
+          feedReadings: [],
           buildPlateType: 'TexturedPei',
           buildPlateTypeLabel: 'Textured PEI Plate',
           compatibleBuildPlateTypes: [
@@ -338,7 +339,7 @@ describe('PrinterDetailPage', () => {
             printProgressPercent: null,
             currentStageLabel: null,
           },
-          amsUnits: [],
+          feedReadings: [],
           buildPlateType: null,
           buildPlateTypeLabel: null,
           compatibleBuildPlateTypes: [
@@ -403,7 +404,7 @@ describe('PrinterDetailPage', () => {
             printProgressPercent: null,
             currentStageLabel: null,
           },
-          amsUnits: [],
+          feedReadings: [],
         }),
       );
     });
@@ -466,7 +467,7 @@ describe('PrinterDetailPage', () => {
             printProgressPercent: null,
             currentStageLabel: null,
           },
-          amsUnits: [],
+          feedReadings: [],
         }),
       );
     });

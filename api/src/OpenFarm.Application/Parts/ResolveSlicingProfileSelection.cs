@@ -76,10 +76,10 @@ public sealed class ResolveSlicingProfileSelection(
             throw new SlicingProfileUnconfiguredException("Production slicing requires an assigned printer; use explicit estimation settings for library estimates.");
         var (printer, machineProfileId, processProfileId, buildPlateType) = await ResolveForPrinterAsync(targetPrinterId, cancellationToken);
 
-        var filamentProfile = (await representativeFilamentResolver.ResolveLoadedAsync(targetPrinterId, materialType,
-            null, null, narrowedFilamentProfileId, cancellationToken)).Profile;
-        var use = new ProfileUseContext(printer.Brand, printer.ModelCode, printer.ReportedNozzleDiameterMm!.Value, materialType);
-        return await ResolveProfilesAsync(machineProfileId, processProfileId, filamentProfile.Id, buildPlateType, pin, use, cancellationToken);
+        var filament = await representativeFilamentResolver.ResolveLoadedAsync(targetPrinterId, materialType,
+            null, null, narrowedFilamentProfileId, cancellationToken);
+        var use = new ProfileUseContext(printer.Brand, printer.ModelCode, filament.NozzleMm, materialType);
+        return await ResolveProfilesAsync(machineProfileId, processProfileId, filament.Profile.Id, buildPlateType, pin, use, cancellationToken);
     }
 
     /// <param name="use">The printer and material the set is for; <c>null</c> skips the checks that need them (library estimates).</param>

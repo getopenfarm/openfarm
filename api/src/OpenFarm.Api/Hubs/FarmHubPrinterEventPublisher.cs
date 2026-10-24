@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using OpenFarm.Api.Endpoints.Printers;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.Printers;
 
@@ -21,6 +22,7 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
 
     public Task PrinterTelemetryUpdatedAsync(
         Guid printerId,
+        PrinterModel? model,
         PrinterTelemetrySnapshot telemetry,
         CancellationToken cancellationToken) =>
         Group.SendAsync(
@@ -36,6 +38,7 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
                     nozzleDiameterMm = telemetry.NozzleDiameterMm,
                     nozzleObservedAtUtc = telemetry.NozzleObservedAtUtc,
                     nozzleConfirmed = telemetry.NozzleConfirmed,
+                    extruders = ExtruderResponse.From(telemetry.Extruders),
                     nozzleTempC = telemetry.NozzleTempC,
                     bedTempC = telemetry.BedTempC,
                     printProgressPercent = telemetry.PrintProgressPercent,
@@ -43,8 +46,7 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
                     remainingTimeMinutes = telemetry.RemainingTimeMinutes,
                     currentJobName = telemetry.CurrentJobName,
                 },
-                amsUnits = telemetry.AmsUnits,
-                externalSpoolTray = telemetry.ExternalSpoolTray,
+                feedReadings = FeedReadingResponse.From(telemetry.FeedReadings, model),
             },
             cancellationToken);
 

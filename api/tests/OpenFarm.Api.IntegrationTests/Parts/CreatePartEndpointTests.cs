@@ -42,7 +42,7 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         return _client;
     }
 
-    /// <summary>Registers a printer, imports a machine profile with a known nozzle diameter, and links them — the minimum <see cref="OpenFarm.Application.Parts.NozzleDiameterResolver"/> needs before a part upload will even create a job.</summary>
+    /// <summary>Registers a printer, imports a machine profile with a known nozzle diameter, and links them.</summary>
     private static async Task RegisterPrinterWithNozzleDiameterAsync(HttpClient client, string serialNumber)
     {
         var registerResponse = await client.PostAsJsonAsync(

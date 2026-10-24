@@ -221,9 +221,8 @@ builder.Services.AddScoped<IQueryHandler<ListConnectionSecretsQuery, IReadOnlyLi
 
 builder.Services.AddScoped<IPrinterRepository, PrinterRepository>();
 // Singleton so the simulator's in-memory per-serial state is shared across the long-lived
-// background service and short-lived callers (tests). Connector selection between the simulator
-// and the real BambuLanConnector happens per-printer inside PrinterConnectorFactory, keyed off
-// each printer's own IP address — no process-wide switch (research.md §2).
+// background service and short-lived callers (tests). Connector selection happens per-printer
+// inside PrinterConnectorFactory, keyed off each printer's catalog driver — no process-wide switch.
 builder.Services.AddSingleton<SimulatorPrinterConnector>();
 builder.Services.AddSingleton<SimulatorPrinterCameraRelay>();
 builder.Services.AddScoped<IPrinterConnectorFactory, PrinterConnectorFactory>();

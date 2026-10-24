@@ -331,7 +331,7 @@ describe('NotificationsBell', () => {
     );
     expect(await screen.findByText('Spool linked.')).toBeInTheDocument();
   });
-  it('corrects a drifting spool to the AMS reading, keeping its label and purchase info', async () => {
+  it('corrects a drifting spool to the printer reading, keeping its label and purchase info', async () => {
     const requests = stubFetch(
       [],
       [],
@@ -369,7 +369,7 @@ describe('NotificationsBell', () => {
         body: {
           label: 'Shelf C',
           remainingWeightGrams: 420,
-          reason: 'AMS reading',
+          reason: 'Printer reading',
           price: 18.5,
           supplier: 'Bambu',
           orderNumber: 'A-1',

@@ -18,8 +18,10 @@ public interface IPrinterEventPublisher
         bool isReachable,
         CancellationToken cancellationToken);
 
+    /// <param name="model">The printer's catalog model, which names its feed units and slots; null when the catalog doesn't know it.</param>
     Task PrinterTelemetryUpdatedAsync(
         Guid printerId,
+        PrinterModel? model,
         PrinterTelemetrySnapshot telemetry,
         CancellationToken cancellationToken);
 

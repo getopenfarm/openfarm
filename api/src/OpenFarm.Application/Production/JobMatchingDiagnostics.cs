@@ -9,5 +9,7 @@ public sealed record PrinterMatchingDiagnostics(Guid PrinterId, string PrinterNa
 public sealed record JobMatchingDiagnostics(Guid JobId, DateTimeOffset EvaluatedAtUtc, string RequirementSource,
     string Outcome, string Summary, IReadOnlyList<MatchingFilamentRequirement> Requirements,
     IReadOnlyList<MatchingCheck> JobChecks, IReadOnlyList<PrinterMatchingDiagnostics> Printers);
+/// <param name="ExtruderIndex">The extruder the spool's slot feeds.</param>
+/// <param name="NozzleMm">That extruder's nozzle confirmed on the current connection; null when unconfirmed.</param>
 public sealed record LoadedProductionFilament(Guid VariantId, Guid FilamentId, string MaterialType, string ColorHex,
-    string ColorName, Guid SlotId);
+    string ColorName, Guid SlotId, int ExtruderIndex = 0, decimal? NozzleMm = null);

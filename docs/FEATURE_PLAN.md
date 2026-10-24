@@ -252,6 +252,7 @@ Split out from Phase 7 so the queue can ship and be used while unit-level outcom
 
 - Extend live integration beyond Bambu Lab to other brands/protocols (OctoPrint, Klipper/Moonraker, Prusa Connect, etc.), bringing them up to the same auto-status-detection level Bambu Lab got in Phase 1 — Fleet management + live Bambu integration.
 - **Started with the Snapmaker U1 (Klipper/Moonraker)** through the existing `IPrinterConnector` contract — no contract change beyond an optional `ReadSerialNumberAsync`. Registration, live status, dispatch (tool→head mapped) and the snapshot camera are in. See `docs/SNAPMAKER_U1.md`.
+- A new model or driver is a catalog entry plus adapter work: hardware facts, feed positions and per-extruder nozzles are brand-neutral. See `docs/PRINTER_HARDWARE_MODEL.md`, which also lists what the Bambu H2D still needs.
 
 ## Phase 16 — Order integration
 

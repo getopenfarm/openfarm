@@ -93,7 +93,7 @@ describe('Feed units live updates', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries');
     const key =
       getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey('p1');
-    client.setQueryData(key, { data: { id: 'p1', amsUnits: [] } });
+    client.setQueryData(key, { data: { id: 'p1', feedReadings: [] } });
     const { unmount } = renderHook(useFarmHub, {
       wrapper: ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -104,10 +104,17 @@ describe('Feed units live updates', () => {
         hub.handlers.get('PrinterTelemetryUpdated')?.({
           printerId,
           telemetry: {},
-          amsUnits: [
+          feedReadings: [
             {
+              kind: 'MultiMaterialUnit',
               unitIndex: 3,
-              trays: [{ slotIndex, remainPercent: percent, active: true }],
+              slots: [
+                {
+                  slotPosition: slotIndex,
+                  remainPercent: percent,
+                  active: true,
+                },
+              ],
             },
           ],
         }),
@@ -121,7 +128,7 @@ describe('Feed units live updates', () => {
     emit('p1', 61);
     expect(invalidate).not.toHaveBeenCalled();
     expect(client.getQueryData(key)).toMatchObject({
-      data: { amsUnits: [{ trays: [{ remainPercent: 61 }] }] },
+      data: { feedReadings: [{ slots: [{ remainPercent: 61 }] }] },
     });
     emit('p1', 61, 7);
     expect(invalidate).toHaveBeenCalledTimes(1);
@@ -141,7 +148,7 @@ describe('Feed units live updates', () => {
     const client = new QueryClient();
     const key =
       getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey('p1');
-    client.setQueryData(key, { data: { id: 'p1', amsUnits: [] } });
+    client.setQueryData(key, { data: { id: 'p1', feedReadings: [] } });
     const invalidate = vi.spyOn(client, 'invalidateQueries');
     const { unmount } = renderHook(useFarmHub, {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -153,12 +160,20 @@ describe('Feed units live updates', () => {
         hub.handlers.get('PrinterTelemetryUpdated')?.({
           printerId: 'p1',
           telemetry: {},
-          amsUnits: [],
-          externalSpoolTray: {
-            active: true,
-            materialType: 'PLA',
-            remainPercent: percent,
-          },
+          feedReadings: [
+            {
+              kind: 'ExternalSpool',
+              unitIndex: 0,
+              slots: [
+                {
+                  slotPosition: 0,
+                  active: true,
+                  materialType: 'PLA',
+                  remainPercent: percent,
+                },
+              ],
+            },
+          ],
         }),
       );
     emit(30);
@@ -166,7 +181,9 @@ describe('Feed units live updates', () => {
     emit(0);
     expect(invalidate).not.toHaveBeenCalled();
     expect(client.getQueryData(key)).toMatchObject({
-      data: { externalSpoolTray: { active: true, remainPercent: 0 } },
+      data: {
+        feedReadings: [{ slots: [{ active: true, remainPercent: 0 }] }],
+      },
     });
     unmount();
   });
@@ -183,7 +200,7 @@ describe('Feed units live updates', () => {
         hub.handlers.get('PrinterTelemetryUpdated')?.({
           printerId: 'p1',
           telemetry: { nozzleDiameterMm: diameter, nozzleConfirmed: confirmed },
-          amsUnits: [],
+          feedReadings: [],
         }),
       );
     emit(0.4, true);
@@ -197,6 +214,80 @@ describe('Feed units live updates', () => {
     expect(invalidate).toHaveBeenCalledTimes(1);
     invalidate.mockClear();
     emit(0.6, false);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+  it('unconfirms every extruder when the printer goes offline', () => {
+    const client = new QueryClient();
+    const key =
+      getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey('p1');
+    client.setQueryData(key, {
+      data: {
+        id: 'p1',
+        telemetry: {
+          nozzleConfirmed: true,
+          extruders: [
+            { index: 0, nozzleDiameterMm: 0.4, nozzleConfirmed: true },
+          ],
+        },
+      },
+    });
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    act(() =>
+      hub.handlers.get('PrinterStatusChanged')?.({
+        printerId: 'p1',
+        status: 'Idle',
+        isReachable: false,
+      }),
+    );
+
+    expect(client.getQueryData(key)).toMatchObject({
+      data: {
+        telemetry: {
+          nozzleConfirmed: false,
+          extruders: [{ nozzleDiameterMm: 0.4, nozzleConfirmed: false }],
+        },
+      },
+    });
+    unmount();
+  });
+  it('refreshes compatibility when one head of a mixed printer changes nozzle', () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    const emit = (secondHead: number) =>
+      act(() =>
+        hub.handlers.get('PrinterTelemetryUpdated')?.({
+          printerId: 'p1',
+          // Mixed heads: no one shared nozzle.
+          telemetry: {
+            nozzleDiameterMm: null,
+            nozzleConfirmed: true,
+            extruders: [
+              { index: 0, nozzleDiameterMm: 0.4, nozzleConfirmed: true },
+              { index: 1, nozzleDiameterMm: secondHead, nozzleConfirmed: true },
+            ],
+          },
+          feedReadings: [],
+        }),
+      );
+    emit(0.6);
+    expect(invalidate).toHaveBeenCalledWith({
+      predicate: expect.any(Function),
+    });
+    invalidate.mockClear();
+    emit(0.6);
+    expect(invalidate).not.toHaveBeenCalled();
+    emit(0.8);
     expect(invalidate).toHaveBeenCalledTimes(1);
     unmount();
   });

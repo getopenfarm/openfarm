@@ -12,7 +12,7 @@ namespace OpenFarm.Api.IntegrationTests.Production;
 /// <summary>A reloader that replaces the external port feeds tray 254, so a print on that tray draws from the reloader's feeding spool.</summary>
 public class ExternalPrintReloaderTests(ProductionTestFactory factory) : ProductionTestContext(factory), IClassFixture<ProductionTestFactory>
 {
-    private const int ExternalTray = 254;
+    private static readonly FeedSlotRef ExternalPort = new(FeedUnitKindCatalog.ExternalSpool, 0, 0);
 
     /// <summary>The printer's one spool moves from the external slot to a reloader that replaces it; no feeding slot is chosen yet.</summary>
     private async Task<(Guid PrinterId, Guid SpoolId, Guid ReloaderSlotId, Guid ReloaderId)> PrinterWithReloaderAsync()
@@ -50,7 +50,7 @@ public class ExternalPrintReloaderTests(ProductionTestFactory factory) : Product
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var printer = await db.Printers.SingleAsync(p => p.Id == printerId);
         printer.ObserveReportedState("RUNNING", DateTimeOffset.UtcNow);
-        printer.RecordTelemetry(null, null, 50, null, null, "benchy", [], null, 50, 100, ExternalTray, "benchy.gcode.3mf");
+        printer.RecordTelemetry(null, null, 50, null, null, "benchy", [], 50, 100, [ExternalPort], "benchy.gcode.3mf");
         await scope.ServiceProvider.GetRequiredService<ExternalPrintSync>().ObserveTelemetryAsync(printer, default);
     }
 

@@ -17,7 +17,36 @@ public enum CameraTransport
     HttpSnapshot,
 }
 
+/// <summary>The adapter that talks to a model — the one switch that picks its connector and camera relay.</summary>
+public enum PrinterDriver
+{
+    /// <summary>Bambu LAN mode: MQTT over TLS, FTPS uploads, JPEG-over-TLS camera.</summary>
+    BambuLan,
+
+    /// <summary>Snapmaker's Moonraker fork (the U1): JSON-RPC websocket, HTTP uploads, a polled snapshot camera.</summary>
+    SnapmakerMoonraker,
+
+    /// <summary>The in-process simulator.</summary>
+    Simulator,
+}
+
+/// <summary>How a model's connector-derived multi-material unit is named.</summary>
+public enum FeedUnitStyle
+{
+    /// <summary>"Multi-Material Unit n".</summary>
+    MultiMaterialUnit,
+
+    /// <summary>Bambu's "AMS n".</summary>
+    Ams,
+
+    /// <summary>A toolchanger's heads: one unit whose slot n is the spool on extruder n, named after that extruder.</summary>
+    Toolheads,
+}
+
 /// <summary>
+/// What a printer model is — the single home of hardware facts; how to talk to it stays in its driver's adapter.
+/// <paramref name="Extruders"/> names each extruder in index order (one "Nozzle" on a single-nozzle printer, "T1"–"T4" on
+/// the U1); a feed slot's extruder index points into it.
 /// <paramref name="VendorMachineModelName"/> is the exact <c>machine_model_list[].name</c> string the
 /// bundled slicer's own vendor index uses for this model (e.g. "Bambu Lab X1 Carbon") — hand-authored
 /// per entry (research.md §0), <c>null</c> only for the non-vendor <c>System/Simulation</c> entry.
@@ -32,8 +61,20 @@ public enum CameraTransport
 public sealed record PrinterModel(
     PrinterBrand Brand,
     string ModelCode,
+    PrinterDriver Driver,
     CameraTransport CameraTransport,
-    int FilamentInletCount = 1,
+    IReadOnlyList<string> Extruders,
     string? VendorMachineModelName = null,
     IReadOnlySet<BuildPlateType>? CompatiblePlateTypes = null,
-    bool SendsExplicitExternalMapping = true);
+    FeedUnitStyle FeedUnitStyle = FeedUnitStyle.MultiMaterialUnit)
+{
+    /// <summary>
+    /// Whether registering needs an operator-typed serial and access code. Bambu addresses MQTT by serial and
+    /// authenticates with the LAN access code; a Snapmaker reports its own serial and its Moonraker API key is optional.
+    /// </summary>
+    public bool UsesAccessCode => Driver != PrinterDriver.SnapmakerMoonraker;
+
+    /// <summary>Whether OpenFarm can show this model's camera.</summary>
+    // ponytail: no RTSP relay yet (the X1 family), add one when an RTSP model needs a camera
+    public bool CameraSupported => CameraTransport is CameraTransport.BinaryImage or CameraTransport.HttpSnapshot;
+}

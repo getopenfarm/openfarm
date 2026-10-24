@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Infrastructure.Printers.Snapmaker;
 
 namespace OpenFarm.Infrastructure.Tests.Printers.Snapmaker;
@@ -29,15 +30,17 @@ public class MoonrakerStatusMapperTests
     {
         var telemetry = MoonrakerStatusMapper.Telemetry(Fixture("snapmaker-u1-idle.json"), "IDLE");
 
-        var unit = telemetry.AmsUnits.Should().ContainSingle().Subject;
+        var unit = telemetry.FeedReadings.Should().ContainSingle().Subject;
+        unit.Kind.Should().Be(FeedUnitKindCatalog.MultiMaterialUnit);
         unit.UnitIndex.Should().Be(0);
-        var trays = unit.Trays;
-        trays.Select(t => t.SlotIndex).Should().Equal(0, 1, 2, 3);
+        var trays = unit.Slots;
+        trays.Select(t => t.SlotPosition).Should().Equal(0, 1, 2, 3);
+        // Head n's spool feeds extruder n.
+        trays.Select(t => t.ExtruderIndex).Should().Equal(0, 1, 2, 3);
         trays[0].Should().BeEquivalentTo(new { Empty = false, MaterialType = "PLA", ColorHex = "FF0000FF", SubBrand = "PLA Basic", RemainPercent = (int?)null, RfidId = (string?)null });
         trays[1].Should().BeEquivalentTo(new { Empty = false, MaterialType = "PETG", SubBrand = (string?)null });
         trays[2].Should().BeEquivalentTo(new { Empty = true, MaterialType = (string?)null, ColorHex = (string?)null });
         trays[3].SubBrand.Should().Be("PLA Matte");
-        telemetry.ExternalSpoolTray.Should().BeNull();
     }
 
     [Fact]
@@ -45,14 +48,13 @@ public class MoonrakerStatusMapperTests
     {
         var telemetry = MoonrakerStatusMapper.Telemetry(Fixture("snapmaker-u1-idle.json"), "IDLE");
 
-        // No head picked up: the hottest head, no active tray, nothing remaining.
+        // No head picked up: the hottest head, no slot feeding any head, nothing remaining.
         telemetry.NozzleTempC.Should().Be(31);
-        telemetry.ActiveTrayId.Should().Be(MoonrakerStatusMapper.NoActiveHead);
+        telemetry.ActiveSlots.Should().Equal(null, null, null, null);
         telemetry.RemainingTimeMinutes.Should().Be(0);
         telemetry.PrintProgressPercent.Should().BeNull();
         telemetry.BedTempC.Should().Be(25);
-        telemetry.NozzleDiameterMm.Should().Be(0.4m);
-        telemetry.NozzleReported.Should().BeTrue();
+        telemetry.NozzleDiametersMm.Should().Equal(0.4m, 0.4m, 0.4m, 0.4m);
         telemetry.CurrentGcodeFile.Should().BeNull();
     }
 
@@ -61,7 +63,7 @@ public class MoonrakerStatusMapperTests
     {
         var telemetry = MoonrakerStatusMapper.Telemetry(Fixture("snapmaker-u1-printing.json"), "RUNNING");
 
-        telemetry.ActiveTrayId.Should().Be(1);
+        telemetry.ActiveSlots.Should().Equal(null, MoonrakerStatusMapper.HeadSlot(1), null, null);
         telemetry.NozzleTempC.Should().Be(220);
         telemetry.PrintProgressPercent.Should().Be(42);
         // 1260 s for 42 %: 1260 × 58 / 42 / 60 = 28.9… → 29 min.
@@ -70,19 +72,18 @@ public class MoonrakerStatusMapperTests
         telemetry.TotalLayers.Should().Be(80);
         telemetry.CurrentGcodeFile.Should().Be("openfarm/Bracket_PLA_2h.gcode");
         telemetry.CurrentJobName.Should().Be("Bracket_PLA_2h");
-        telemetry.AmsUnits.Single().Trays[1].Active.Should().BeTrue();
+        telemetry.FeedReadings.Single().Slots[1].Active.Should().BeTrue();
     }
 
     [Fact]
-    public void Telemetry_MixedNozzles_ReportsAnUnknownDiameter()
+    public void Telemetry_MixedNozzles_ReportsEachHeadsDiameter()
     {
         var status = Fixture("snapmaker-u1-idle.json");
         status["extruder2"]!["nozzle_diameter"] = 0.6;
 
         var telemetry = MoonrakerStatusMapper.Telemetry(status, "IDLE");
 
-        telemetry.NozzleDiameterMm.Should().BeNull();
-        telemetry.NozzleReported.Should().BeTrue("a reported mixed set must clear the confirmed nozzle");
+        telemetry.NozzleDiametersMm.Should().Equal(0.4m, 0.4m, 0.6m, 0.4m);
     }
 
     [Fact]
@@ -91,7 +92,7 @@ public class MoonrakerStatusMapperTests
         var status = Fixture("snapmaker-u1-idle.json");
         status.Remove("print_task_config");
 
-        MoonrakerStatusMapper.Telemetry(status, "IDLE").AmsUnits.Should().BeEmpty();
+        MoonrakerStatusMapper.Telemetry(status, "IDLE").FeedReadings.Should().BeEmpty();
     }
 
     [Fact]

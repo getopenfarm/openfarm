@@ -100,6 +100,7 @@ public class MarkPrinterReadyCommandHandlerTests
 
         public Task PrinterTelemetryUpdatedAsync(
             Guid printerId,
+            PrinterModel? model,
             PrinterTelemetrySnapshot telemetry,
             CancellationToken cancellationToken) => Task.CompletedTask;
 

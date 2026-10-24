@@ -26,10 +26,10 @@ public sealed class GetFeedUnitsQueryHandler(
             .Where(s => s.FeedSlotId is not null)
             .ToDictionary(s => s.FeedSlotId!.Value);
 
-        var singleFilamentInlet = !PrinterModelCatalog.TryResolve(printer.Brand, printer.ModelCode, out var model) || model!.FilamentInletCount == 1;
+        var model = PrinterModelCatalog.Find(printer.Brand, printer.ModelCode);
 
         var details = feedUnits
-            .Select(unit => BuildDetail(unit, feedUnits, printer, spoolBySlotId, singleFilamentInlet))
+            .Select(unit => BuildDetail(unit, feedUnits, printer, model, spoolBySlotId))
             .ToList();
 
         return details
@@ -42,28 +42,28 @@ public sealed class GetFeedUnitsQueryHandler(
         FeedUnit unit,
         IReadOnlyList<FeedUnit> allUnits,
         Printer printer,
-        Dictionary<Guid, Spool> spoolBySlotId,
-        bool singleFilamentInlet)
+        PrinterModel? model,
+        Dictionary<Guid, Spool> spoolBySlotId)
     {
         var slots = unit.FeedSlots
             .OrderBy(s => s.SlotPosition)
-            .Select(slot => BuildSlotDetail(unit, slot, printer, spoolBySlotId, allUnits))
+            .Select(slot => BuildSlotDetail(unit, slot, printer, model, spoolBySlotId, allUnits))
             .ToList();
 
-        var supersededByFeedUnitId = FeedUnitDisplay.ResolveSupersededByFeedUnitId(unit, allUnits, singleFilamentInlet);
+        var supersededByFeedUnitId = FeedUnitDisplay.ResolveSupersededByFeedUnitId(unit, allUnits);
 
         return new FeedUnitDetail(
             unit.Id,
             unit.Kind,
             unit.UnitIndex,
-            FeedUnitDisplay.UnitLabel(unit, printer.Brand),
+            FeedUnitDisplay.UnitLabel(unit, model),
             unit.IsRevealed,
             unit.ReplacesFeedUnitId,
             supersededByFeedUnitId,
             slots, unit.ArchivedAtUtc, unit.FeedingSlotId, unit.FeedingSelectionSource);
     }
 
-    private static FeedSlotDetail BuildSlotDetail(FeedUnit unit, FeedSlot slot, Printer printer, Dictionary<Guid, Spool> spoolBySlotId, IReadOnlyList<FeedUnit> allUnits)
+    private static FeedSlotDetail BuildSlotDetail(FeedUnit unit, FeedSlot slot, Printer printer, PrinterModel? model, Dictionary<Guid, Spool> spoolBySlotId, IReadOnlyList<FeedUnit> allUnits)
     {
         var currentSpool = spoolBySlotId.TryGetValue(slot.Id, out var spool)
             ? new CurrentSpoolSummary(spool.Id, spool.FilamentVariantId, spool.RemainingWeightGrams, spool.SpoolWeightGrams)
@@ -76,7 +76,7 @@ public sealed class GetFeedUnitsQueryHandler(
         return new FeedSlotDetail(
             slot.Id,
             slot.SlotPosition,
-            FeedUnitDisplay.SlotLabel(unit, slot, printer.Brand),
+            FeedUnitDisplay.SlotLabel(unit, slot, model),
             slot.DeactivatedAtUtc,
             currentSpool,
             detectedTray is { Empty: false } ? detectedTray.MaterialType : null,

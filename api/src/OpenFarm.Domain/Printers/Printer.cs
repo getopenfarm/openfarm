@@ -21,7 +21,8 @@ public sealed class Printer
         SerialNumber = serialNumber;
         Status = PrinterStatus.Idle;
         IsReachable = false;
-        AmsUnits = [];
+        FeedReadings = [];
+        Extruders = [];
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -68,28 +69,59 @@ public sealed class Printer
 
     public DateTimeOffset? LastMessageUtc { get; private set; }
 
+    /// <summary>The nozzle every extruder shares, or null when they differ — for display; production asks per extruder.</summary>
     public decimal? ReportedNozzleDiameterMm { get; private set; }
     public DateTimeOffset? NozzleObservedAtUtc { get; private set; }
+
+    /// <summary>Some extruder's nozzle is confirmed on the current connection.</summary>
     public bool NozzleConfirmed { get; private set; }
 
-    public void BeginConnection() => NozzleConfirmed = false;
+    /// <summary>A new connection confirms nothing until the printer reports again; the last diameters are kept for display.</summary>
+    public void BeginConnection()
+    {
+        NozzleConfirmed = false;
+        Extruders = WithExtruders(Extruders.Count, (extruder, _) => extruder with { NozzleConfirmed = false });
+    }
 
+    /// <summary>The same nozzle on every extruder the printer has reported, at least one.</summary>
     public void ObserveNozzle(decimal? diameterMm, DateTimeOffset observedAtUtc)
     {
         if (diameterMm is not > 0) return;
-        ReportedNozzleDiameterMm = diameterMm;
-        NozzleObservedAtUtc = observedAtUtc;
-        NozzleConfirmed = true;
+        ObserveNozzles(Enumerable.Repeat(diameterMm, Math.Max(Extruders.Count, 1)).ToList(), observedAtUtc);
     }
+
+    /// <summary>
+    /// Records and confirms each extruder's reported nozzle (index = extruder). An unknown diameter unconfirms only that
+    /// extruder, keeping its last diameter.
+    /// </summary>
+    public void ObserveNozzles(IReadOnlyList<decimal?> diametersMm, DateTimeOffset observedAtUtc)
+    {
+        if (diametersMm.Count == 0) return;
+        Extruders = WithExtruders(diametersMm.Count, (extruder, index) => diametersMm[index] is > 0
+            ? extruder with { NozzleDiameterMm = diametersMm[index], NozzleConfirmed = true }
+            : extruder with { NozzleConfirmed = false });
+        if (diametersMm.Any(d => d is > 0)) NozzleObservedAtUtc = observedAtUtc;
+        NozzleConfirmed = Extruders.Any(e => e.NozzleConfirmed);
+        ReportedNozzleDiameterMm = Extruders.Select(e => e.NozzleDiameterMm).Distinct().ToList() is [{ } shared] ? shared : null;
+    }
+
+    /// <summary>The extruder's nozzle confirmed on the current connection, or null.</summary>
+    public decimal? ConfirmedNozzleMm(int extruderIndex) =>
+        Extruders.FirstOrDefault(e => e.Index == extruderIndex) is { NozzleConfirmed: true, NozzleDiameterMm: { } diameter } ? diameter : null;
+
+    /// <summary>Each distinct nozzle confirmed on the current connection, smallest first.</summary>
+    public IReadOnlyList<decimal> ConfirmedNozzlesMm() =>
+        Extruders.Where(e => e.NozzleConfirmed).Select(e => e.NozzleDiameterMm).OfType<decimal>().Distinct().Order().ToList();
+
+    /// <summary>Each distinct nozzle the extruders last reported, confirmed or not, smallest first.</summary>
+    public IReadOnlyList<decimal> ReportedNozzlesMm() =>
+        Extruders.Select(e => e.NozzleDiameterMm).OfType<decimal>().Distinct().Order().ToList();
 
     public decimal? NozzleTempC { get; private set; }
 
     public decimal? BedTempC { get; private set; }
 
     public int? PrintProgressPercent { get; private set; }
-
-    /// <summary>The printer's own <c>tray_now</c>: 254 = external spool is the active feed, 255 = nothing loaded, else an AMS tray id.</summary>
-    public int? ActiveTrayId { get; private set; }
 
     public int? CurrentLayer { get; private set; }
 
@@ -104,15 +136,16 @@ public sealed class Printer
     /// <summary>The printer's own <c>gcode_file</c> for the current print — where an external print's file can be found.</summary>
     public string? CurrentGcodeFile { get; private set; }
 
-    public IReadOnlyList<AmsUnit> AmsUnits { get; private set; }
+    /// <summary>The feed units and slots the printer last reported, with what it detects in each.</summary>
+    public IReadOnlyList<FeedUnitReading> FeedReadings { get; private set; }
 
-    public AmsTray? ExternalSpoolTray { get; private set; }
+    /// <summary>What the printer last reported per extruder (index = extruder): its nozzle and the slot feeding it.</summary>
+    public IReadOnlyList<ExtruderReading> Extruders { get; private set; }
 
     /// <summary>
     /// Optional link to a Machine Profile (Phase 2), filling the deferred link `docs/FEATURE_PLAN.md`'s
     /// own Phase 1 notes earmarked (FR-005b). `null` at creation time — a matching profile might not be
-    /// imported yet. Only a printer with this set counts as a "real fleet member" for
-    /// <c>NozzleDiameterResolver</c> (FR-005a).
+    /// imported yet.
     /// </summary>
     public Guid? MachineProfileId { get; private set; }
 
@@ -197,15 +230,16 @@ public sealed class Printer
     public void MarkUnreachable()
     {
         IsReachable = false;
-        NozzleConfirmed = false;
+        BeginConnection();
     }
 
     /// <summary>
-    /// Bambu's MQTT reports are deltas (research.md §1): a missing field means "unchanged", not
-    /// "cleared". Each nullable parameter therefore falls back to the previously recorded value
-    /// rather than overwriting it with null. <paramref name="amsUnits"/> can't represent "absent"
-    /// at the type level (the parser returns an empty list both when the AMS key is missing from
-    /// a delta and when it's genuinely empty), so an empty list is likewise treated as "unchanged".
+    /// Printer reports are deltas (Bambu's MQTT, research.md §1): a missing field means "unchanged", not "cleared". Each
+    /// nullable parameter therefore falls back to the previously recorded value rather than overwriting it with null.
+    /// <paramref name="feedReadings"/> replaces only the unit kinds it reports — an AMS delta and an external-spool delta
+    /// arrive separately — so an empty list is "unchanged". <paramref name="activeSlots"/> is per extruder (index = extruder;
+    /// a null entry means nothing feeds it), or null when the delta doesn't say. <paramref name="extruderTempsC"/> is per
+    /// extruder too; a null entry leaves that extruder's temperature unchanged.
     /// </summary>
     public void RecordTelemetry(
         decimal? nozzleTempC,
@@ -214,59 +248,65 @@ public sealed class Printer
         string? currentStageLabel,
         int? remainingTimeMinutes,
         string? currentJobName,
-        IReadOnlyList<AmsUnit> amsUnits,
-        AmsTray? externalSpoolTray = null,
+        IReadOnlyList<FeedUnitReading> feedReadings,
         int? currentLayer = null,
         int? totalLayers = null,
-        int? activeTrayId = null,
-        string? currentGcodeFile = null)
+        IReadOnlyList<FeedSlotRef?>? activeSlots = null,
+        string? currentGcodeFile = null,
+        IReadOnlyList<decimal?>? extruderTempsC = null)
     {
         NozzleTempC = nozzleTempC ?? NozzleTempC;
         BedTempC = bedTempC ?? BedTempC;
         PrintProgressPercent = printProgressPercent ?? PrintProgressPercent;
         CurrentLayer = currentLayer ?? CurrentLayer;
-        ActiveTrayId = activeTrayId ?? ActiveTrayId;
         TotalLayers = totalLayers ?? TotalLayers;
         CurrentStageLabel = currentStageLabel ?? CurrentStageLabel;
         RemainingTimeMinutes = remainingTimeMinutes ?? RemainingTimeMinutes;
         CurrentJobName = currentJobName ?? CurrentJobName;
         CurrentGcodeFile = currentGcodeFile ?? CurrentGcodeFile;
-        AmsUnits = amsUnits.Count > 0 ? amsUnits : AmsUnits;
-        ExternalSpoolTray = externalSpoolTray ?? ExternalSpoolTray;
+        if (feedReadings.Count > 0)
+        {
+            var reportedKinds = feedReadings.Select(r => r.Kind).ToHashSet();
+            FeedReadings = FeedReadings.Where(r => !reportedKinds.Contains(r.Kind)).Concat(feedReadings)
+                .OrderBy(r => r.Kind, StringComparer.Ordinal).ThenBy(r => r.UnitIndex).ToList();
+        }
+
+        if (activeSlots is not null)
+            Extruders = WithExtruders(activeSlots.Count, (extruder, index) => extruder with { ActiveSlot = activeSlots[index] });
+        if (extruderTempsC is not null)
+            Extruders = WithExtruders(extruderTempsC.Count, (extruder, index) => extruder with { TempC = extruderTempsC[index] ?? extruder.TempC });
         MarkActiveFeed();
     }
 
     /// <summary>
-    /// <c>tray_now</c> and the <c>ams</c> array arrive in separate deltas, so which tray is the active feed can only be derived from
-    /// the merged state. With no AMS the external spool is the only feed path; with an AMS nothing is marked until <c>tray_now</c> is known.
+    /// Which slot feeds each extruder and what the printer lists arrive in separate deltas, so the active flags are derived from
+    /// the merged state: a slot is active when its extruder reports it as the one feeding it, and an extruder no multi-material
+    /// unit feeds can only be fed by its external spool.
     /// </summary>
     private void MarkActiveFeed()
     {
-        var noAms = AmsUnits.Count == 0;
-        if (!noAms && ActiveTrayId is null)
-        {
-            return;
-        }
+        var marked = FeedReadings
+            .Select(unit => unit with { Slots = unit.Slots.Select(slot => slot with { Active = IsActiveFeed(unit, slot) }).ToList() })
+            .ToList();
+        // Rebuild only on a real change, so the jsonb value comparer sees no change on an unchanged active slot.
+        if (!marked.SelectMany(u => u.Slots).Select(s => s.Active).SequenceEqual(FeedReadings.SelectMany(u => u.Slots).Select(s => s.Active)))
+            FeedReadings = marked;
+    }
 
-        var trayId = ActiveTrayId ?? 255;
-        var externalActive = noAms || trayId == ProductionFeedPath.ExternalTrayId;
-        if (ExternalSpoolTray is { } external && external.Active != externalActive)
-        {
-            ExternalSpoolTray = external with { Active = externalActive };
-        }
+    private bool IsActiveFeed(FeedUnitReading unit, FeedSlotReading slot) =>
+        unit.Kind == FeedUnitKindCatalog.ExternalSpool && !FeedReadings.Any(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit
+            && u.Slots.Any(s => s.ExtruderIndex == slot.ExtruderIndex))
+        || Extruders.FirstOrDefault(e => e.Index == slot.ExtruderIndex)?.ActiveSlot == new FeedSlotRef(unit.Kind, unit.UnitIndex, slot.SlotPosition);
 
-        // Rebuild only on a real change, so the jsonb value comparer sees no change on an unchanged tray_now.
-        if (AmsUnits.Any(unit => unit.Trays.Any(tray => tray.Active != ProductionFeedPath.IsActiveAmsTray(trayId, unit.UnitIndex, tray.SlotIndex))))
-        {
-            AmsUnits = AmsUnits
-                .Select(unit => unit with
-                {
-                    Trays = unit.Trays
-                        .Select(tray => tray with { Active = ProductionFeedPath.IsActiveAmsTray(trayId, unit.UnitIndex, tray.SlotIndex) })
-                        .ToList(),
-                })
-                .ToList();
-        }
+    /// <summary>The extruder readings covering at least <paramref name="count"/> extruders, the first <paramref name="count"/> updated.</summary>
+    private IReadOnlyList<ExtruderReading> WithExtruders(int count, Func<ExtruderReading, int, ExtruderReading> update)
+    {
+        var extruders = Enumerable.Range(0, Math.Max(count, Extruders.Count))
+            .Select(index => Extruders.FirstOrDefault(e => e.Index == index) ?? new ExtruderReading(index))
+            .Select(extruder => extruder.Index < count ? update(extruder, extruder.Index) : extruder)
+            .ToList();
+        // An unchanged report keeps the same list, so the jsonb value comparer sees no change.
+        return extruders.SequenceEqual(Extruders) ? Extruders : extruders;
     }
 
     /// <summary>Clears the last print's progress when a new job starts, so a stale value is never read as the new job's.</summary>

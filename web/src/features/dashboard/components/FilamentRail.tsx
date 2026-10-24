@@ -246,11 +246,11 @@ export function FilamentRail({ printer }: { printer: MonitoredPrinter }) {
                   onLeave={leave}
                   onSelect={() => select(meter)}
                   className={
-                    rail.kind === 'ams'
-                      ? undefined
-                      : rail.kind === 'external' || rail.meters.length === 1
-                        ? 'col-span-2 row-span-2'
-                        : 'row-span-2'
+                    rail.meters.length === 1
+                      ? 'col-span-2 row-span-2'
+                      : rail.meters.length === 2
+                        ? 'row-span-2'
+                        : undefined
                   }
                 />
               ))

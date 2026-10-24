@@ -107,7 +107,7 @@ export function NotificationsBell() {
       await openFarmApiEndpointsSpoolsEditSpoolEndpoint(id, {
         label: spool.label ?? null,
         remainingWeightGrams: item.readGrams ?? 0,
-        reason: 'AMS reading',
+        reason: 'Printer reading',
         price: spool.price ?? null,
         supplier: spool.supplier ?? null,
         orderNumber: spool.orderNumber ?? null,

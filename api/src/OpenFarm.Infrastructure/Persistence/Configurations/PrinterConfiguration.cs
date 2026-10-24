@@ -45,7 +45,6 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.Property(p => p.NozzleTempC);
         builder.Property(p => p.BedTempC);
         builder.Property(p => p.PrintProgressPercent);
-        builder.Property(p => p.ActiveTrayId);
         builder.Property(p => p.CurrentLayer);
         builder.Property(p => p.TotalLayers);
         builder.Property(p => p.CurrentStageLabel);
@@ -64,21 +63,25 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
                 alerts => alerts.Aggregate(0, (hash, alert) => HashCode.Combine(hash, alert.GetHashCode())),
                 alerts => alerts.ToList()));
 
-        builder.Property(p => p.AmsUnits)
+        builder.Property(p => p.FeedReadings)
             .HasColumnType("jsonb")
             .HasConversion(
                 units => JsonSerializer.Serialize(units, (JsonSerializerOptions?)null),
-                json => JsonSerializer.Deserialize<IReadOnlyList<AmsUnit>>(json, (JsonSerializerOptions?)null) ?? Array.Empty<AmsUnit>())
-            .Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<AmsUnit>>(
-                (left, right) => (left ?? Array.Empty<AmsUnit>()).SequenceEqual(right ?? Array.Empty<AmsUnit>()),
+                json => JsonSerializer.Deserialize<IReadOnlyList<FeedUnitReading>>(json, (JsonSerializerOptions?)null) ?? Array.Empty<FeedUnitReading>())
+            .Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<FeedUnitReading>>(
+                (left, right) => (left ?? Array.Empty<FeedUnitReading>()).SequenceEqual(right ?? Array.Empty<FeedUnitReading>()),
                 units => units.Aggregate(0, (hash, unit) => HashCode.Combine(hash, unit.GetHashCode())),
                 units => units.ToList()));
 
-        builder.Property(p => p.ExternalSpoolTray)
+        builder.Property(p => p.Extruders)
             .HasColumnType("jsonb")
             .HasConversion(
-                tray => JsonSerializer.Serialize(tray, (JsonSerializerOptions?)null),
-                json => JsonSerializer.Deserialize<AmsTray?>(json, (JsonSerializerOptions?)null));
+                extruders => JsonSerializer.Serialize(extruders, (JsonSerializerOptions?)null),
+                json => JsonSerializer.Deserialize<IReadOnlyList<ExtruderReading>>(json, (JsonSerializerOptions?)null) ?? Array.Empty<ExtruderReading>())
+            .Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<ExtruderReading>>(
+                (left, right) => (left ?? Array.Empty<ExtruderReading>()).SequenceEqual(right ?? Array.Empty<ExtruderReading>()),
+                extruders => extruders.Aggregate(0, (hash, extruder) => HashCode.Combine(hash, extruder.GetHashCode())),
+                extruders => extruders.ToList()));
 
         builder.Property(p => p.MachineProfileId);
         builder.Property(p => p.ProcessProfileId);

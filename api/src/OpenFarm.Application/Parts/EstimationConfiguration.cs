@@ -40,7 +40,7 @@ public sealed class ResolveEstimationProfiles(ResolveSlicingProfileSelection res
             throw new SlicingProfileUnconfiguredException("The estimation build plate is invalid.");
         var profiles = await resolver.ResolveProfilesAsync(set, selection.BuildPlateType, use: null, cancellationToken);
         using var machineJson = JsonDocument.Parse(profiles.MachineSettingsJson);
-        var model = PrinterModelCatalog.All.SelectMany(g => g.Models.Select(code => PrinterModelCatalog.Resolve(g.Brand.ToString(), code)))
+        var model = PrinterModelCatalog.Models
             .FirstOrDefault(m => m.VendorMachineModelName == (machine.VendorMachineModelName ?? ReadFirst(machineJson.RootElement, "printer_model")) && m.VendorMachineModelName is not null);
         if (model?.CompatiblePlateTypes is { } plates && !plates.Contains(selection.BuildPlateType))
             throw new SlicingProfileUnconfiguredException("The estimation build plate is incompatible with the machine model.");

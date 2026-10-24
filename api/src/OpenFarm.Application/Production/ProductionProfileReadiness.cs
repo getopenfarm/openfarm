@@ -73,9 +73,9 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         for (var i = 0; i < requirements.Count; i++)
             selections.Add(await resolver.ResolveLoadedAsync(printerId, requirements[i].MaterialType,
                 requirements[i].NarrowFilamentVariantId is null ? requirements[i].DetectedColorHex : null,
-                requirements[i].NarrowFilamentVariantId, requirements[i].NarrowFilamentProfileId, ct, estimates[i]));
+                requirements[i].NarrowFilamentVariantId, requirements[i].NarrowFilamentProfileId, ct, estimates[i], part.NozzleDiameterMm));
         if (selections.Count == 0) throw new SlicingProfileUnconfiguredException("No production filament requirements are available.");
-        var feeds = new List<FeedPlacement>();
+        var feeds = new List<FeedSlotRef>();
         foreach (var selection in selections)
             if (await placements.ResolveAsync(selection.SpoolId, ct) is { } placement) feeds.Add(placement);
         if (PrintFeedMappingBuilder.MixesAmsWithExternal(feeds))
@@ -104,7 +104,7 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
     private async Task EnsureSlicedForPrinterAsync(Guid printerId, Part part, string? revisionHash, CancellationToken ct)
     {
         var printer = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
-        if (!PrinterModelCatalog.TryResolve(printer.Brand, printer.ModelCode, out var printerModel) || printerModel!.Brand == PrinterBrand.System)
+        if (PrinterModelCatalog.Find(printer.Brand, printer.ModelCode) is not { } printerModel || printerModel.Driver == PrinterDriver.Simulator)
             return;
         var declared = await SlicedModelAsync(part, revisionHash, ct);
         var model = PrinterModelCatalog.TryResolveSlicedModel(declared);
@@ -160,7 +160,7 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         var issues = new List<ProfileIssue>();
         foreach (var selection in selections)
         {
-            var use = new ProfileUseContext(printer.Brand, printer.ModelCode, printer.ReportedNozzleDiameterMm!.Value, selection.MaterialType);
+            var use = new ProfileUseContext(printer.Brand, printer.ModelCode, selection.NozzleMm, selection.MaterialType);
             try
             {
                 resolved.Add(await profileSelection.ResolveProfilesAsync(machineProfileId, processProfileId, selection.Profile.Id, buildPlate, pin, use, ct));
@@ -201,7 +201,8 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         foreach (var selection in resolution.Selections) filamentSettings.Add(await compatibility.FilamentJsonAsync(selection.Profile, ct));
         var json = JsonSerializer.Serialize(new
         {
-            printer.ReportedNozzleDiameterMm,
+            // Each extruder's nozzle, never its temperature or active slot.
+            Nozzles = printer.Extruders.Select(e => new { e.Index, e.NozzleDiameterMm }),
             printer.MachineProfileId,
             printer.ProcessProfileId,
             printer.BuildPlateType,

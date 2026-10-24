@@ -56,7 +56,9 @@ still needed to confirm resolution of a particular MicroSD error.
 ## Filament feed mapping (`use_ams`, `ams_mapping`, `ams_mapping2`)
 
 Without a mapping a Bambu prints from the external spool. At dispatch OpenFarm tells the printer which feed each
-filament of the file uses, from the spools it matched for the job (`PrintFeedMappingBuilder`).
+filament of the file uses, from the spools it matched for the job: `PrintFeedMappingBuilder` names a feed slot
+(`FeedSlotRef`: unit kind, unit index, slot) per project filament, and `BambuLanConnector.EncodeAmsMapping` turns that
+into Bambu's arrays — the only place tray ids are computed.
 
 - `ams_mapping` is an integer array indexed by the project's filament (the G-code's `T<n>`, slice_info filament
   `id - 1`), as long as the project's filament list. Each entry is the absolute tray id: `unit * 4 + slot` for a
@@ -64,18 +66,19 @@ filament of the file uses, from the spools it matched for the job (`PrintFeedMap
 - `ams_mapping2` is the same list as `{ "ams_id", "slot_id" }`; `{255, 255}` is unmapped and the external feed is
   `{255, 0}`. Both arrays follow Bambu Studio and [bambu-printer-manager](https://github.com/synman/bambu-printer-manager).
 - `use_ams` is true when any filament comes from an AMS tray.
-- The external spool is spelled out (`[-1]` plus `ams_mapping2`) when the model's `SendsExplicitExternalMapping` is
-  true (default). A community report says an omitted mapping can raise HMS `07FF_8012` on current firmware; turn the
-  flag off per model in `PrinterModelCatalog` if a printer rejects it.
+- The external spool is always spelled out (`[-1]` plus `ams_mapping2`): a community report says an omitted mapping
+  can raise HMS `07FF_8012` on current firmware. If a model ever rejects it, make the choice a Bambu-adapter trait in
+  `BambuLanConnector`, not a catalog field.
 
 ### One feed path at a time
 
 An AMS and the external spool share one filament inlet, and an external spool that is not already loaded into the
 extruder is never fed automatically. On a printer with an AMS, production therefore uses either the AMS or the
-external spool, never both (`ProductionFeedPath.ActiveSlotIds`). Which one comes from the printer's own
-`print.ams.tray_now`, stored as `Printer.ActiveTrayId`: `254` means the external spool is the active feed, so only it
-is usable; anything else (an AMS tray, `255` nothing loaded, not reported yet) means only the AMS is usable. A
-printer without an AMS always uses the external spool. A reloader replaces the external port and loads through the
+external spool, never both (`ProductionFeedPath.ActiveSlotIds`, per extruder). Which one comes from the printer's own
+`print.ams.tray_now`, which the parser turns into the extruder's active slot (`Printer.Extruders[0].ActiveSlot`):
+`254` is the external spool, so only it is usable; an AMS tray (`unit * 4 + slot`, or a 128+ AMS HT id), `255`
+nothing loaded, or not reported yet means only the AMS is usable. A printer without an AMS always uses the external
+spool. A reloader replaces the external port and loads through the
 extruder, so it is usable on either path. A job whose colours would need both the AMS and a reloader is held.
 
 `tray_now` meanings come from community sources (Home Assistant `ha-bambulab`, OpenBambuAPI), not Bambu documentation.
@@ -86,7 +89,7 @@ Unverified on hardware: `254` while idle with external filament hand-loaded, `25
 
 A Bambu spool's two RFID tags carry the same spool id (`tray_uuid`); OpenFarm stores it as the spool's `RfidId`. An all-zero
 id (an untagged spool, or a printer without a reader, such as the A1's external holder) means no tag. Only the parser knows
-the Bambu field names: the rest of the app sees `AmsTray.RfidId` and `RfidWeightGrams` (`tray_weight`).
+the Bambu field names: the rest of the app sees `FeedSlotReading.RfidId` and `RfidWeightGrams` (`tray_weight`).
 
 - **Register or link.** `POST /api/v1/spools` takes `rfidId` (one line of one spool). `PUT /api/v1/spools/{id}/rfid` ties a spool already
   in inventory to its tag, so a spool registered before RFID assist is not registered twice. One active spool per tag: a

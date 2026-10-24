@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Infrastructure.Printers.Bambu;
@@ -108,12 +109,13 @@ public static class BambuMqttMessageParser
             var currentStageLabel = ResolveCurrentStageLabel(print);
             var remainingTimeMinutes = TryGetInt(print, "mc_remaining_time");
             var currentJobName = ResolveCurrentJobName(print);
-            var amsUnits = ParseAmsUnits(print);
-            var externalSpoolTray = ParseExternalSpool(print);
+            var feedReadings = ParseAmsUnits(print);
+            if (ParseExternalSpool(print) is { } externalSpool)
+                feedReadings.Add(new FeedUnitReading(FeedUnitKindCatalog.ExternalSpool, 0, [externalSpool]));
 
-            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, amsUnits, externalSpoolTray, ParseNozzleDiameter(print), NozzleReported: HasNozzleReport(print),
+            return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, feedReadings,
                 CurrentLayer: TryGetInt(print, "layer_num"), TotalLayers: TryGetInt(print, "total_layer_num"),
-                ActiveTrayId: ParseActiveTrayId(print), CurrentGcodeFile: GetString(print, "gcode_file"));
+                ActiveSlots: ParseActiveSlots(print), CurrentGcodeFile: GetString(print, "gcode_file"), NozzleDiametersMm: ParseNozzleDiameters(print));
         }
         catch (JsonException)
         {
@@ -121,25 +123,27 @@ public static class BambuMqttMessageParser
         }
     }
 
-    private static bool HasNozzleReport(JsonElement print) => print.TryGetProperty("nozzle_diameter", out _)
-        || print.TryGetProperty("device", out var device) && device.ValueKind == JsonValueKind.Object
-        && device.TryGetProperty("nozzle", out var nozzle) && nozzle.ValueKind == JsonValueKind.Object
-        && nozzle.TryGetProperty("info", out _);
-
-    private static decimal? ParseNozzleDiameter(JsonElement print)
+    /// <summary>
+    /// Each nozzle's diameter, by extruder: <c>device.nozzle.info[]</c> (mounted nozzles have ids under 16; higher ids sit in a
+    /// nozzle rack), else the single <c>nozzle_diameter</c>. An unreadable diameter is null; null when the delta reports no nozzle.
+    /// </summary>
+    private static List<decimal?>? ParseNozzleDiameters(JsonElement print)
     {
         if (print.TryGetProperty("device", out var device) && device.ValueKind == JsonValueKind.Object
             && device.TryGetProperty("nozzle", out var nozzle) && nozzle.ValueKind == JsonValueKind.Object
-            && nozzle.TryGetProperty("info", out var info) && info.ValueKind == JsonValueKind.Array)
+            && nozzle.TryGetProperty("info", out var info))
         {
-            var reported = info.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Object ? TryGetDecimal(e, "diameter") : null).ToArray();
-            if (reported.Length == 0 || reported.Any(d => d is not > 0)) return null;
-            var diameters = reported.Distinct().ToArray();
-            // The current production model supports a uniform nozzle diameter only.
-            return diameters.Length == 1 ? diameters[0] : null;
+            var mounted = info.ValueKind != JsonValueKind.Array ? [] : info.EnumerateArray()
+                .Where(e => e.ValueKind == JsonValueKind.Object && (TryGetInt(e, "id") ?? 0) < 16)
+                .OrderBy(e => TryGetInt(e, "id") ?? 0)
+                .Select(e => TryGetDecimal(e, "diameter") is > 0 and var diameter ? diameter : (decimal?)null)
+                .ToList();
+            return mounted.Count > 0 ? mounted : [null];
         }
-        var diameter = TryGetDecimal(print, "nozzle_diameter");
-        return diameter is > 0 ? diameter : null;
+
+        return print.TryGetProperty("nozzle_diameter", out _)
+            ? [TryGetDecimal(print, "nozzle_diameter") is > 0 and var single ? single : null]
+            : null;
     }
 
     /// <summary>
@@ -191,7 +195,7 @@ public static class BambuMqttMessageParser
         return string.IsNullOrWhiteSpace(fileName) ? null : fileName;
     }
 
-    private static List<AmsUnit> ParseAmsUnits(JsonElement print)
+    private static List<FeedUnitReading> ParseAmsUnits(JsonElement print)
     {
         if (!print.TryGetProperty("ams", out var amsRoot)
             || amsRoot.ValueKind != JsonValueKind.Object
@@ -201,7 +205,7 @@ public static class BambuMqttMessageParser
             return [];
         }
 
-        var units = new List<AmsUnit>();
+        var units = new List<FeedUnitReading>();
         foreach (var unitElement in amsArray.EnumerateArray())
         {
             if (unitElement.ValueKind != JsonValueKind.Object
@@ -212,7 +216,7 @@ public static class BambuMqttMessageParser
                 continue;
             }
 
-            var trays = new List<AmsTray>();
+            var trays = new List<FeedSlotReading>();
             if (unitElement.TryGetProperty("tray", out var trayArray) && trayArray.ValueKind == JsonValueKind.Array)
             {
                 trays.AddRange(trayArray.EnumerateArray()
@@ -220,27 +224,37 @@ public static class BambuMqttMessageParser
                     .Select(ParseTray));
             }
 
-            units.Add(new AmsUnit(unitIndex, trays));
+            units.Add(new FeedUnitReading(FeedUnitKindCatalog.MultiMaterialUnit, unitIndex, trays));
         }
 
         return units;
     }
 
-    /// <summary><c>print.ams.tray_now</c> is a string: 254 = external spool is the active feed, 255 = nothing loaded, else <c>ams_id * 4 + slot</c>.</summary>
-    private static int? ParseActiveTrayId(JsonElement print) =>
+    /// <summary>
+    /// <c>print.ams.tray_now</c>, a string, as the slot feeding the (one) extruder: 254 = the external spool, 255 = nothing
+    /// loaded, an AMS HT by its unit id (128+), else <c>ams_id * 4 + slot</c>. Null when the delta doesn't carry it.
+    /// </summary>
+    private static List<FeedSlotRef?>? ParseActiveSlots(JsonElement print) =>
         print.TryGetProperty("ams", out var ams) && ams.ValueKind == JsonValueKind.Object
             && ams.TryGetProperty("tray_now", out var trayNow) && trayNow.ValueKind == JsonValueKind.String
             && int.TryParse(trayNow.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var id)
-                ? id
+                ? [id switch
+                {
+                    > 254 => null,
+                    254 => new FeedSlotRef(FeedUnitKindCatalog.ExternalSpool, 0, 0),
+                    >= 128 => new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, id, 0),
+                    _ => new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, id / 4, id % 4),
+                }]
                 : null;
 
     /// <summary>Reads <c>print.vt_tray</c> — the external/single spool holder, reported the same way regardless of an AMS being attached (FR-020, research.md §6). Mirrors <see cref="ParseTray"/>.</summary>
-    private static AmsTray? ParseExternalSpool(JsonElement print) =>
+    private static FeedSlotReading? ParseExternalSpool(JsonElement print) =>
         print.TryGetProperty("vt_tray", out var vtTray) && vtTray.ValueKind == JsonValueKind.Object
-            ? ParseTray(vtTray)
+            // Its tray id (254) is the port's tray_now id, not a position: the holder has one slot.
+            ? ParseTray(vtTray) with { SlotPosition = 0 }
             : null;
 
-    private static AmsTray ParseTray(JsonElement trayElement)
+    private static FeedSlotReading ParseTray(JsonElement trayElement)
     {
         var slotIndex = trayElement.TryGetProperty("id", out var idProperty)
             && idProperty.ValueKind == JsonValueKind.String
@@ -260,7 +274,7 @@ public static class BambuMqttMessageParser
         // loaded (research.md §3) — there's no explicit "empty" flag on the wire.
         var empty = string.IsNullOrEmpty(materialType) || colorHex == "00000000";
 
-        return new AmsTray(
+        return new FeedSlotReading(
             slotIndex,
             empty,
             empty ? null : materialType,

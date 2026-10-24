@@ -94,15 +94,15 @@ public sealed class LoadSpoolOntoFeedSlotCommandHandler(
         }
 
         var allUnits = await feedUnitRepository.GetByPrinterIdAsync(feedUnit.PrinterId, cancellationToken);
-        var singleFilamentInlet = !PrinterModelCatalog.TryResolve(printer.Brand, printer.ModelCode, out var model) || model!.FilamentInletCount == 1;
-        var supersededByFeedUnitId = FeedUnitDisplay.ResolveSupersededByFeedUnitId(feedUnit, allUnits, singleFilamentInlet);
+        var model = PrinterModelCatalog.Find(printer.Brand, printer.ModelCode);
+        var supersededByFeedUnitId = FeedUnitDisplay.ResolveSupersededByFeedUnitId(feedUnit, allUnits);
         if (supersededByFeedUnitId is not { } supersedingId)
         {
             return null;
         }
 
         var supersedingUnit = allUnits.FirstOrDefault(u => u.Id == supersedingId);
-        var supersedingLabel = supersedingUnit is not null ? FeedUnitDisplay.UnitLabel(supersedingUnit, printer.Brand) : "another Feed Unit";
+        var supersedingLabel = supersedingUnit is not null ? FeedUnitDisplay.UnitLabel(supersedingUnit, model) : "another Feed Unit";
         return $"This port may be superseded by {supersedingLabel}";
     }
 }

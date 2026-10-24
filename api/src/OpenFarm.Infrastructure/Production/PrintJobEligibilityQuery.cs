@@ -3,6 +3,7 @@ using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
 
@@ -13,14 +14,14 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
     ProductionJobRequirements jobRequirements, IFilamentRepository filaments, ILogger<PrintJobEligibilityQuery> logger) : IPrintJobEligibilityQuery
 {
     private readonly Dictionary<Guid, JobMatchingDiagnostics> _evaluations = [];
-    private readonly Dictionary<Guid, (IReadOnlyList<LoadedProductionFilament> Loaded, decimal? Nozzle, bool Reserved)> _printerFacts = [];
+    private readonly Dictionary<Guid, (IReadOnlyList<LoadedProductionFilament> Loaded, IReadOnlyList<decimal> Nozzles, bool Reserved)> _printerFacts = [];
     private IReadOnlyList<Printer>? _fleet;
 
-    private async Task<(IReadOnlyList<LoadedProductionFilament> Loaded, decimal? Nozzle, bool Reserved)> PrinterFactsAsync(Printer printer, CancellationToken ct)
+    private async Task<(IReadOnlyList<LoadedProductionFilament> Loaded, IReadOnlyList<decimal> Nozzles, bool Reserved)> PrinterFactsAsync(Printer printer, CancellationToken ct)
     {
         if (_printerFacts.TryGetValue(printer.Id, out var cached)) return cached;
         var facts = (await dispatchQuery.ResolveLoadedFilamentsAsync(printer, ct),
-            await dispatchQuery.ResolvePrinterNozzleDiameterMmAsync(printer, ct),
+            await dispatchQuery.ResolvePrinterNozzlesMmAsync(printer, ct),
             await printJobs.GetActiveJobByDispatchedPrinterIdAsync(printer.Id, ct) is not null);
         _printerFacts[printer.Id] = facts;
         return facts;
@@ -94,7 +95,9 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
         {
             var facts = await PrinterFactsAsync(printer, ct);
             var loaded = facts.Loaded;
-            var nozzle = facts.Nozzle;
+            var nozzles = facts.Nozzles;
+            var nozzleMatches = part.NozzleDiameterMm is { } needed && nozzles.Contains(needed);
+            var model = PrinterModelCatalog.Find(printer.Brand, printer.ModelCode);
             var checks = new List<MatchingCheck>
             {
                 Check("pin", "Assignment target", job.AssignmentMode != AssignmentMode.Pinned || job.PinnedPrinterId == printer.Id,
@@ -104,16 +107,18 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
                     "Reachable (live printers)", printer.IsReachable ? "Reachable" : "Not reachable", $"/printers/{printer.Id}"),
                 Check("reservation", "Active job reservation", !facts.Reserved,
                     "No active assigned job", facts.Reserved ? "Printer has an active assigned job" : "No active assigned job", $"/printers/{printer.Id}"),
-                Check("nozzle-confirmed", "Current connection nozzle telemetry", nozzle is not null, "Confirmed",
-                    nozzle is null ? "Waiting for nozzle telemetry" : $"{nozzle} mm", $"/printers/{printer.Id}"),
-                Check("nozzle-match", "Nozzle diameter", nozzle is not null && nozzle == part.NozzleDiameterMm,
-                    $"{part.NozzleDiameterMm} mm", nozzle is null ? "Unknown" : $"{nozzle} mm", $"/printers/{printer.Id}")
+                Check("nozzle-confirmed", "Current connection nozzle telemetry", nozzles.Count > 0, "Confirmed",
+                    nozzles.Count == 0 ? "Waiting for nozzle telemetry" : NozzleText(printer, model, nozzles), $"/printers/{printer.Id}"),
+                Check("nozzle-match", "Nozzle diameter", nozzleMatches,
+                    $"{part.NozzleDiameterMm} mm", nozzles.Count == 0 ? "Unknown" : NozzleText(printer, model, nozzles), $"/printers/{printer.Id}")
             };
+            static bool Fits(JobFilamentRequirementSpec spec, LoadedProductionFilament f) =>
+                (spec.MaterialType is null || f.MaterialType == spec.MaterialType)
+                && (spec.NarrowFilamentVariantId is { } variantId ? f.VariantId == variantId :
+                    spec.DetectedColorHex is null || string.Equals(f.ColorHex, spec.DetectedColorHex, StringComparison.OrdinalIgnoreCase));
             foreach (var spec in effective.Requirements)
             {
-                var matches = loaded.Any(f => (spec.MaterialType is null || f.MaterialType == spec.MaterialType)
-                    && (spec.NarrowFilamentVariantId is { } variantId ? f.VariantId == variantId :
-                        spec.DetectedColorHex is null || string.Equals(f.ColorHex, spec.DetectedColorHex, StringComparison.OrdinalIgnoreCase)));
+                var matches = loaded.Any(f => Fits(spec, f));
                 var selected = display[checks.Count(c => c.Code == "filament")];
                 checks.Add(Check("filament", "Active loaded filament", matches,
                     spec.NarrowFilamentVariantId is null ? $"{spec.MaterialType ?? "Any material"} · {spec.DetectedColorHex ?? "Any colour"}" :
@@ -122,7 +127,18 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
                         string.Join(", ", loaded.Select(f => $"{f.MaterialType} · {f.ColorName} ({f.ColorHex})")),
                     $"/printers/{printer.Id}"));
             }
-            if (nozzle is not null && nozzle == part.NozzleDiameterMm && part.PrintRequirementsStatus == OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete)
+            if (model is { Extruders.Count: > 1 } && part.NozzleDiameterMm is { } jobNozzle)
+            {
+                // A colour loaded only on extruders with another nozzle cannot feed this job.
+                var wrong = effective.Requirements.Where(spec => !loaded.Any(f => f.NozzleMm == jobNozzle && Fits(spec, f)))
+                    .SelectMany(spec => loaded.Where(f => Fits(spec, f)))
+                    .Select(f => $"{ExtruderLabel(model, f.ExtruderIndex)}: {(f.NozzleMm is { } n ? $"{n} mm" : "unconfirmed")}")
+                    .Distinct().ToList();
+                checks.Add(new("extruder-nozzle", "Nozzle per extruder", wrong.Count == 0 ? "Passed" : "Failed", $"{jobNozzle} mm",
+                    wrong.Count == 0 ? $"{jobNozzle} mm" : string.Join(" · ", wrong),
+                    wrong.Count == 0 ? null : $"{string.Join(", ", wrong)}, job needs {jobNozzle} mm.", $"/printers/{printer.Id}"));
+            }
+            if (nozzleMatches && part.PrintRequirementsStatus == OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete)
             {
                 var issue = await dispatchQuery.GetReadinessIssueAsync(printer.Id, part.Id,
                     effective.Requirements.Select(r => r.MatchingValues).ToList(), ct, job.Id);
@@ -145,13 +161,13 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
             {
                 var candidates = await dispatchQuery.FilterReadyAsync(printer.Id, await dispatchQuery.GetUnassignedCandidatesAsync(ct), ct);
                 var pinned = await dispatchQuery.FilterReadyAsync(printer.Id, await dispatchQuery.GetPinnedCandidatesAsync(printer.Id, ct), ct);
-                var next = ProductionDispatchMatcher.SelectNextJob(nozzle!.Value, loaded.Select(f => ((string?)f.MaterialType, (string?)f.ColorHex)).ToList(), candidates, pinned);
+                var next = ProductionDispatchMatcher.SelectNextJob(nozzles, loaded.Select(f => ((string?)f.MaterialType, (string?)f.ColorHex, f.NozzleMm)).ToList(), candidates, pinned);
                 if (next != job.Id) scheduling = $"An earlier qualifying job ({next}) is ahead of this job.";
                 else if (job.AssignmentMode == AssignmentMode.Unassigned)
                 {
-                    var others = await dispatchQuery.GetOtherIdleQualifyingPrintersAsync(printer.Id, job.Id, nozzle.Value,
+                    var others = await dispatchQuery.GetOtherIdleQualifyingPrintersAsync(printer.Id, job.Id, part.NozzleDiameterMm!.Value,
                         effective.Requirements.Select(r => r.MatchingValues).ToList(), ct);
-                    if (!ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(printer.Id, printer.AmsUnits.Sum(u => u.Trays.Count), others))
+                    if (!ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(printer.Id, printer.FeedReadings.Where(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit).Sum(u => u.Slots.Count), others))
                         scheduling = "Another qualifying idle printer is preferred (fewer AMS slots, then printer ID).";
                 }
                 scheduling ??= "Eligible and next for this printer. Dispatch rechecks live configuration before sending.";
@@ -170,4 +186,12 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
 
     private static MatchingCheck Check(string code, string label, bool passed, string? required, string? actual, string? url = null) =>
         new(code, label, passed ? "Passed" : "Failed", required, actual, null, url);
+
+    // "0.4 mm", or each confirmed extruder's when they differ: "T1 0.4 mm · T2 0.6 mm".
+    private static string NozzleText(Printer printer, PrinterModel? model, IReadOnlyList<decimal> nozzles) =>
+        nozzles.Count == 1 ? $"{nozzles[0]} mm" : string.Join(" · ", printer.Extruders.Where(e => e.NozzleConfirmed)
+            .Select(e => $"{ExtruderLabel(model, e.Index)} {e.NozzleDiameterMm} mm"));
+
+    private static string ExtruderLabel(PrinterModel? model, int index) =>
+        model is not null && index < model.Extruders.Count ? model.Extruders[index] : $"Extruder {index + 1}";
 }

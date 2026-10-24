@@ -9,10 +9,5 @@ namespace OpenFarm.Application.FilamentTracking;
 /// </summary>
 public interface IFeedSlotTelemetrySync
 {
-    Task SyncAsync(
-        Guid printerId,
-        string brand,
-        IReadOnlyList<AmsUnit> amsUnits,
-        AmsTray? externalSpoolTray,
-        CancellationToken cancellationToken);
+    Task SyncAsync(Guid printerId, IReadOnlyList<FeedUnitReading> readings, CancellationToken cancellationToken);
 }

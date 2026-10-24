@@ -17,7 +17,7 @@ Remove atomically returns registered spools to `InStorage`, preserves remaining 
 - `PUT /api/v1/feed-units/{id}/configuration`: `{ replacesFeedUnitId, feedingSlotId, transferExternalSpool }`. Null replacement means an independent path; null selection means unknown. This is a full configuration update.
 - `PUT /api/v1/feed-units/{id}/feeding-slot`: `{ feedingSlotId }`, nullable to clear selection. Records operator selection without moving inventory.
 - Feed-unit responses add `archivedAtUtc`, `feedingSlotId`, and `feedingSelectionSource`. Creation responses return selection state.
-- Printer detail and `PrinterTelemetryUpdated` add `externalSpoolTray`. Live readings update the detail cache; only changes in external-port presence or AMS topology trigger topology refetches.
+- Printer detail and `PrinterTelemetryUpdated` carry `feedReadings`: every unit the printer reports, external port included, labelled by the server. Live readings update the detail cache; only changes in reported units or slot positions trigger topology refetches.
 - New mutations use `feed-units:configure` permission and activity logging; `FeedUnitsChanged` invalidates feed-unit and spool caches after persistence.
 
 Feed-path creation, configuration, selection, loading, and removal use database transactions and a per-printer advisory lock. Replacement claims have a partial unique index; feed units also use PostgreSQL `xmin` concurrency checks.

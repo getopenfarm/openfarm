@@ -1,23 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import {
-  amsTopologyKey,
   colorsDiffer,
   detectedName,
   feedSlotView,
   normalizeFilamentColor,
   sameLine,
+  topologyKey,
 } from './feedSlotView';
 
 const unit = { kind: 'MultiMaterialUnit', unitIndex: 3 };
 const slot = { slotPosition: 2 };
 const ams = [
-  { unitIndex: 0, trays: [{ slotIndex: 2, materialType: 'Wrong' }] },
   {
+    kind: 'MultiMaterialUnit',
+    unitIndex: 0,
+    slots: [{ slotPosition: 2, materialType: 'Wrong' }],
+  },
+  {
+    kind: 'ExternalSpool',
     unitIndex: 3,
-    trays: [
-      { slotIndex: 7, materialType: 'Wrong' },
+    slots: [{ slotPosition: 2, materialType: 'Wrong' }],
+  },
+  {
+    kind: 'MultiMaterialUnit',
+    unitIndex: 3,
+    slots: [
+      { slotPosition: 7, materialType: 'Wrong' },
       {
-        slotIndex: 2,
+        slotPosition: 2,
         materialType: 'PLA',
         colorHex: '000000FF',
         active: true,
@@ -56,10 +66,11 @@ describe('feedSlotView', () => {
         slot,
         [
           {
+            kind: 'MultiMaterialUnit',
             unitIndex: 3,
-            trays: [
+            slots: [
               {
-                slotIndex: 2,
+                slotPosition: 2,
                 empty: true,
                 materialType: 'Stale',
                 active: true,
@@ -86,7 +97,7 @@ describe('feedSlotView', () => {
           detectedSubBrand: 'Basic',
           detectedColorHex: '#123456',
         },
-        ams,
+        undefined,
         true,
       ),
     ).toMatchObject({ material: 'PETG', subBrand: 'Basic', color: '#123456' });
@@ -105,17 +116,17 @@ describe('feedSlotView', () => {
     expect(normalizeFilamentColor('xyzxyz')).toBeUndefined();
   });
   it('topology changes only for hardware positions, not telemetry or ordering', () => {
-    expect(amsTopologyKey(ams)).toBe(
-      amsTopologyKey(
+    expect(topologyKey(ams)).toBe(
+      topologyKey(
         [...ams].reverse().map((u) => ({
           ...u,
-          trays: [...u.trays]
+          slots: [...u.slots]
             .reverse()
             .map((t) => ({ ...t, remainPercent: 45 })),
         })),
       ),
     );
-    expect(amsTopologyKey(ams)).not.toBe(amsTopologyKey([]));
+    expect(topologyKey(ams)).not.toBe(topologyKey([]));
   });
 });
 
@@ -125,34 +136,50 @@ describe('reloader telemetry projection', () => {
     replacesFeedUnitId: 'external',
     feedingSlotId: 'ch2',
   };
-  const external = {
-    active: true,
-    empty: false,
-    materialType: 'PLA',
-    colorHex: '00FF00',
-    remainPercent: 0,
-  };
+  const external = [
+    {
+      kind: 'ExternalSpool',
+      unitIndex: 0,
+      slots: [
+        {
+          slotPosition: 0,
+          active: true,
+          empty: false,
+          materialType: 'PLA',
+          colorHex: '00FF00',
+          remainPercent: 0,
+        },
+      ],
+    },
+  ];
   it('projects port telemetry only onto the selected slot', () => {
-    expect(feedSlotView(unit, { id: 'ch2' }, [], true, external)).toMatchObject(
-      { material: 'PLA', active: true, remainPercent: 0 },
-    );
-    expect(feedSlotView(unit, { id: 'ch1' }, [], true, external)).toMatchObject(
-      { material: null, active: false },
-    );
+    expect(feedSlotView(unit, { id: 'ch2' }, external, true)).toMatchObject({
+      material: 'PLA',
+      active: true,
+      remainPercent: 0,
+    });
+    expect(feedSlotView(unit, { id: 'ch1' }, external, true)).toMatchObject({
+      material: null,
+      active: false,
+    });
   });
   it('keeps the selected slot separate from offline activity', () => {
-    expect(
-      feedSlotView(unit, { id: 'ch2' }, [], false, external),
-    ).toMatchObject({ material: 'PLA', active: false });
+    expect(feedSlotView(unit, { id: 'ch2' }, external, false)).toMatchObject({
+      material: 'PLA',
+      active: false,
+    });
   });
   it('does not duplicate detection on a revealed replaced port', () => {
     expect(
       feedSlotView(
-        { kind: 'ExternalSpool', supersededByFeedUnitId: 'reloader' },
-        { detectedMaterialType: 'PLA' },
-        [],
-        true,
+        {
+          kind: 'ExternalSpool',
+          unitIndex: 0,
+          supersededByFeedUnitId: 'reloader',
+        },
+        { slotPosition: 0, detectedMaterialType: 'PLA' },
         external,
+        true,
         true,
       ),
     ).toMatchObject({ material: null, active: false });
@@ -162,9 +189,8 @@ describe('reloader telemetry projection', () => {
       feedSlotView(
         { ...unit, replacesFeedUnitId: null },
         { id: 'ch2' },
-        [],
-        true,
         external,
+        true,
       ),
     ).toMatchObject({ material: null, active: false });
   });

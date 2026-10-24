@@ -18,8 +18,7 @@ import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog'
 import { FillMeter } from '@/features/spools/components/FillMeter';
 import { ManageSlotDialog } from '@/features/spools/components/ManageSlotDialog';
 import type {
-  AmsTrayResponse,
-  AmsUnitResponse,
+  FeedReadingResponse,
   FeedSlotResponse,
   FeedUnitResponse,
   ListFeedUnitsResponse,
@@ -43,9 +42,8 @@ import { AddFeedUnitDialog } from './AddFeedUnitDialog';
 
 export interface FeedUnitsCardProps {
   printerId: string;
-  amsUnits?: AmsUnitResponse[];
+  feedReadings?: FeedReadingResponse[];
   isReachable?: boolean;
-  externalSpoolTray?: AmsTrayResponse | null;
 }
 
 type Filaments = ReturnType<typeof useFilamentCatalog>;
@@ -55,9 +53,8 @@ function FeedSlotRow({
   unit,
   slot,
   filaments,
-  amsUnits,
+  feedReadings,
   isReachable,
-  externalSpoolTray,
   externalPortReplacedByReloader,
   unitPrinterId,
   onManage,
@@ -66,9 +63,8 @@ function FeedSlotRow({
   unit: FeedUnitResponse;
   slot: FeedSlotResponse;
   filaments: Filaments;
-  amsUnits: AmsUnitResponse[];
+  feedReadings?: FeedReadingResponse[];
   isReachable: boolean;
-  externalSpoolTray?: AmsTrayResponse | null;
   externalPortReplacedByReloader?: boolean;
   onManage: () => void;
 }) {
@@ -82,9 +78,8 @@ function FeedSlotRow({
   const view = feedSlotView(
     unit,
     slot,
-    amsUnits,
+    feedReadings,
     isReachable,
-    externalSpoolTray,
     externalPortReplacedByReloader,
   );
   const queryClient = useQueryClient();
@@ -254,16 +249,14 @@ function FeedUnitGroup({
   unit,
   printerId,
   filaments,
-  amsUnits,
+  feedReadings,
   isReachable,
-  externalSpoolTray,
   externalPortReplacedByReloader,
   onManageSlot,
 }: {
-  amsUnits: AmsUnitResponse[];
+  feedReadings?: FeedReadingResponse[];
   filaments: Filaments;
   isReachable: boolean;
-  externalSpoolTray?: AmsTrayResponse | null;
   externalPortReplacedByReloader?: boolean;
   unit: FeedUnitResponse;
   printerId: string;
@@ -350,9 +343,8 @@ function FeedUnitGroup({
             unitPrinterId={printerId}
             filaments={filaments}
             externalPortReplacedByReloader={externalPortReplacedByReloader}
-            externalSpoolTray={externalSpoolTray}
             slot={slot}
-            amsUnits={amsUnits}
+            feedReadings={feedReadings}
             isReachable={isReachable}
             onManage={() => onManageSlot(slot)}
           />
@@ -382,9 +374,8 @@ function FeedUnitGroup({
 
 export function FeedUnitsCard({
   printerId,
-  amsUnits = [],
+  feedReadings,
   isReachable = false,
-  externalSpoolTray,
 }: FeedUnitsCardProps) {
   const [addOpen, setAddOpen] = useState(false);
   const [managing, setManaging] = useState<{
@@ -460,8 +451,7 @@ export function FeedUnitsCard({
                       other.replacesFeedUnitId === unit.id,
                   )
                 }
-                externalSpoolTray={externalSpoolTray}
-                amsUnits={amsUnits}
+                feedReadings={feedReadings}
                 isReachable={isReachable}
                 onManageSlot={(slot) =>
                   slot.id &&

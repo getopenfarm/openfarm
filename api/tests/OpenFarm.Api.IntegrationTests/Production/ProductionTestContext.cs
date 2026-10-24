@@ -140,7 +140,8 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         spool.LoadOntoFeedSlot(slot.Id);
         db.Spools.Add(spool);
         printer.MarkReachable(DateTimeOffset.UtcNow);
-        printer.RecordTelemetry(null, null, null, null, null, null, [], new AmsTray(0, false, "PLA", "FFFFFF", null, null, false));
+        printer.RecordTelemetry(null, null, null, null, null, null,
+            [new FeedUnitReading(FeedUnitKindCatalog.ExternalSpool, 0, [new FeedSlotReading(0, false, "PLA", "FFFFFF", null, null, false)])]);
         printer.ObserveStatus(state);
         db.Printers.Add(printer);
         // No manual brand is currently registrable. Persist a future/manual brand through EF's
@@ -150,6 +151,25 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         db.ConnectionSecrets.Add(ConnectionSecret.Create(printer.SerialNumber, protector.Protect("test-access-code")));
         await db.SaveChangesAsync();
         return printer;
+    }
+
+    /// <summary>
+    /// Gives a toolchanger its heads, slot n feeding extruder n, with each head's nozzle as reported, and moves the printer's
+    /// one loaded spool onto <paramref name="head"/>.
+    /// </summary>
+    protected async Task<FeedSlot[]> AttachHeadsAsync(Guid printerId, decimal[] nozzlesMm, int head)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var heads = FeedUnit.CreateConnectorDerived(printerId, FeedUnitKindCatalog.MultiMaterialUnit, 0);
+        var slots = Enumerable.Range(0, nozzlesMm.Length).Select(index => heads.AddFeedSlot(index, extruderIndex: index)).ToArray();
+        db.FeedUnits.Add(heads);
+        var spool = await db.Spools.SingleAsync(s => s.State == SpoolState.Using && db.FeedUnits.Any(u => u.PrinterId == printerId && u.FeedSlots.Any(f => f.Id == s.FeedSlotId)));
+        spool.ReturnToStorage();
+        spool.LoadOntoFeedSlot(slots[head].Id);
+        (await db.Printers.SingleAsync(p => p.Id == printerId)).ObserveNozzles(nozzlesMm.Select(n => (decimal?)n).ToList(), DateTimeOffset.UtcNow);
+        await db.SaveChangesAsync();
+        return slots;
     }
 
     protected async Task AssignAsync(Guid jobId, Guid printerId, bool started = true)

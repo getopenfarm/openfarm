@@ -6,11 +6,12 @@ namespace OpenFarm.Domain.FilamentTracking;
 /// </summary>
 public sealed class FeedSlot
 {
-    private FeedSlot(Guid id, Guid feedUnitId, int slotPosition, DateTimeOffset createdAtUtc)
+    private FeedSlot(Guid id, Guid feedUnitId, int slotPosition, int extruderIndex, DateTimeOffset createdAtUtc)
     {
         Id = id;
         FeedUnitId = feedUnitId;
         SlotPosition = slotPosition;
+        ExtruderIndex = extruderIndex;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -20,6 +21,9 @@ public sealed class FeedSlot
 
     public int SlotPosition { get; }
 
+    /// <summary>The extruder this slot feeds (an index into the printer model's extruders): 0 on a single-nozzle printer, the head on a toolchanger.</summary>
+    public int ExtruderIndex { get; private set; }
+
     public DateTimeOffset? DeactivatedAtUtc { get; private set; }
 
     /// <summary>The RFID tag this slot last loaded a spool by: how auto-load tells a tag just read from one still sitting there.</summary>
@@ -27,8 +31,16 @@ public sealed class FeedSlot
 
     public DateTimeOffset CreatedAtUtc { get; }
 
-    internal static FeedSlot Create(Guid feedUnitId, int slotPosition) =>
-        new(Guid.NewGuid(), feedUnitId, slotPosition, DateTimeOffset.UtcNow);
+    internal static FeedSlot Create(Guid feedUnitId, int slotPosition, int extruderIndex) =>
+        new(Guid.NewGuid(), feedUnitId, slotPosition, extruderIndex, DateTimeOffset.UtcNow);
+
+    /// <summary>Follows the printer's report of which extruder this slot feeds. True when it changed.</summary>
+    public bool AssignExtruder(int extruderIndex)
+    {
+        if (ExtruderIndex == extruderIndex) return false;
+        ExtruderIndex = extruderIndex;
+        return true;
+    }
 
     /// <summary>
     /// Takes one reading of the slot's tag. True when the spool with <paramref name="rfidId"/> should be loaded here now: a

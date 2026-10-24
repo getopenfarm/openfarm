@@ -1,4 +1,5 @@
 using FluentAssertions;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Domain.Tests.Production;
@@ -8,6 +9,10 @@ public class ExternalPrintTests
     private static readonly Guid SpoolA = Guid.NewGuid();
     private static readonly Guid SpoolB = Guid.NewGuid();
 
+    private static FeedSlotRef Slot(int position) => new(FeedUnitKindCatalog.MultiMaterialUnit, 0, position);
+
+    private static readonly FeedSlotRef ExternalPort = new(FeedUnitKindCatalog.ExternalSpool, 0, 0);
+
     private static ExternalPrint Start(int tools) => ExternalPrint.Start(Guid.NewGuid(), "benchy",
         Enumerable.Range(0, tools).Select(i => new ExternalFilamentSpec(i, "PLA", null, 10, null)));
 
@@ -15,8 +20,8 @@ public class ExternalPrintTests
     public void Close_BindsTheFirstTraySeen_ForASingleTool()
     {
         var print = Start(1);
-        print.ObserveTray(1, SpoolA);
-        print.ObserveTray(2, SpoolB);
+        print.ObserveSlot(Slot(1), SpoolA);
+        print.ObserveSlot(Slot(2), SpoolB);
 
         print.MarkCompleted();
 
@@ -27,8 +32,8 @@ public class ExternalPrintTests
     public void Close_DoesNotPairSeveralToolsByOrderOfAppearance()
     {
         var print = Start(2);
-        print.ObserveTray(3, SpoolB);
-        print.ObserveTray(0, SpoolA);
+        print.ObserveSlot(Slot(3), SpoolB);
+        print.ObserveSlot(Slot(0), SpoolA);
 
         print.MarkFailed();
 
@@ -50,7 +55,7 @@ public class ExternalPrintTests
     public void BindTools_NeverReplacesABoundSpool()
     {
         var print = Start(1);
-        print.ObserveTray(1, SpoolA);
+        print.ObserveSlot(Slot(1), SpoolA);
         print.MarkCompleted();
 
         print.BindTools(new Dictionary<int, Guid> { [0] = SpoolB });
@@ -62,7 +67,7 @@ public class ExternalPrintTests
     public void Close_LeavesToolsUnbound_WhenTrayCountDoesNotMatch()
     {
         var print = Start(2);
-        print.ObserveTray(0, SpoolA);
+        print.ObserveSlot(Slot(0), SpoolA);
 
         print.MarkCompleted();
 
@@ -70,15 +75,15 @@ public class ExternalPrintTests
     }
 
     [Fact]
-    public void ObserveTray_IgnoresARepeatedTray_AndAnyTrayAfterTheEnd()
+    public void ObserveSlot_IgnoresARepeatedTray_AndAnyTrayAfterTheEnd()
     {
         var print = Start(1);
-        print.ObserveTray(0, SpoolA).Should().BeTrue();
-        print.ObserveTray(0, SpoolA).Should().BeFalse();
+        print.ObserveSlot(Slot(0), SpoolA).Should().BeTrue();
+        print.ObserveSlot(Slot(0), SpoolA).Should().BeFalse();
 
         print.MarkCompleted();
 
-        print.ObserveTray(1, SpoolB).Should().BeFalse();
+        print.ObserveSlot(Slot(1), SpoolB).Should().BeFalse();
     }
 
     [Fact]
@@ -118,27 +123,27 @@ public class ExternalPrintTests
     }
 
     [Fact]
-    public void ObserveTray_FillsInASpoolThatWasUnknownWhenTheTrayFirstAppeared()
+    public void ObserveSlot_FillsInASpoolThatWasUnknownWhenTheTrayFirstAppeared()
     {
         var print = Start(1);
-        print.ObserveTray(254, null).Should().BeTrue();
-        print.WantsSpoolFor(254).Should().BeTrue();
+        print.ObserveSlot(ExternalPort, null).Should().BeTrue();
+        print.WantsSpoolFor(ExternalPort).Should().BeTrue();
 
-        print.ObserveTray(254, SpoolA).Should().BeTrue("the tray was seen without a spool, and now one is known");
+        print.ObserveSlot(ExternalPort, SpoolA).Should().BeTrue("the tray was seen without a spool, and now one is known");
 
-        print.WantsSpoolFor(254).Should().BeFalse();
+        print.WantsSpoolFor(ExternalPort).Should().BeFalse();
         print.ObservedSpoolIds.Should().Equal(SpoolA);
         print.MarkCompleted();
         print.Filaments[0].SpoolId.Should().Be(SpoolA);
     }
 
     [Fact]
-    public void ObserveTray_NeverReplacesASpoolAlreadyKnownForTheTray()
+    public void ObserveSlot_NeverReplacesASpoolAlreadyKnownForTheTray()
     {
         var print = Start(1);
-        print.ObserveTray(1, SpoolA);
+        print.ObserveSlot(Slot(1), SpoolA);
 
-        print.ObserveTray(1, SpoolB).Should().BeFalse();
+        print.ObserveSlot(Slot(1), SpoolB).Should().BeFalse();
 
         print.ObservedSpoolIds.Should().Equal(SpoolA);
     }
@@ -147,10 +152,10 @@ public class ExternalPrintTests
     public void WantsSpoolFor_IsTrueForANewTray_AndFalseOnceTheRunHasEnded()
     {
         var print = Start(1);
-        print.WantsSpoolFor(3).Should().BeTrue();
+        print.WantsSpoolFor(Slot(3)).Should().BeTrue();
 
         print.MarkCompleted();
 
-        print.WantsSpoolFor(3).Should().BeFalse();
+        print.WantsSpoolFor(Slot(3)).Should().BeFalse();
     }
 }

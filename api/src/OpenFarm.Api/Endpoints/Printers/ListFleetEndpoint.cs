@@ -15,6 +15,9 @@ public sealed class FleetPrinterResponse
 
     public string ModelCode { get; set; } = string.Empty;
 
+    /// <summary>Null only when the catalog no longer knows this printer's model.</summary>
+    public PrinterModelResponse? Model { get; set; }
+
     public string IpAddress { get; set; } = string.Empty;
 
     public string SerialNumber { get; set; } = string.Empty;
@@ -70,6 +73,7 @@ public sealed class ListFleetEndpoint(IQueryHandler<GetFleetQuery, IReadOnlyList
                     Name = p.Name,
                     Brand = p.Brand,
                     ModelCode = p.ModelCode,
+                    Model = PrinterModelResponse.Find(p.Brand, p.ModelCode),
                     IpAddress = p.IpAddress,
                     SerialNumber = p.SerialNumber,
                     Status = p.Status.ToString(),

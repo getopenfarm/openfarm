@@ -65,13 +65,14 @@ public sealed class GetPrinterDetailQueryHandler(
             printer.CurrentStageLabel,
             printer.RemainingTimeMinutes,
             printer.CurrentJobName,
-            printer.AmsUnits,
+            printer.FeedReadings,
             printer.MachineProfileId,
             machineProfileName,
             printer.ProcessProfileId,
             processProfileName,
             printer.BuildPlateType,
             buildPlateTypeLabel,
-            compatibleBuildPlateTypes, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, machineProfileIssue, printer.ExternalSpoolTray, printer.ReportedState, printer.StateObservedAtUtc, printer.ActiveAlerts);
+            compatibleBuildPlateTypes, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, machineProfileIssue, printer.ReportedState, printer.StateObservedAtUtc, printer.ActiveAlerts,
+            printer.Extruders);
     }
 }

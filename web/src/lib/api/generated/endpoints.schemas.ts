@@ -1084,9 +1084,27 @@ export interface PrinterCameraSnapshot {
   receivedAtUtc?: string;
 }
 
+export interface PrinterConnectionFieldsResponse {
+  serialRequired?: boolean;
+  secretName?: string;
+  secretRequired?: boolean;
+  secretHint?: string;
+  /** @nullable */
+  note?: string | null;
+}
+
+export interface PrinterModelResponse {
+  modelCode?: string;
+  name?: string;
+  driver?: string;
+  extruders?: string[];
+  connection?: PrinterConnectionFieldsResponse;
+  cameraSupported?: boolean;
+}
+
 export interface PrinterCatalogBrandResponse {
   brand?: string;
-  models?: string[];
+  models?: PrinterModelResponse[];
 }
 
 export interface PrinterCatalogResponse {
@@ -1102,6 +1120,15 @@ export interface PrinterAlert {
   troubleshootingUrl?: string | null;
 }
 
+export interface ExtruderResponse {
+  index?: number;
+  /** @nullable */
+  nozzleDiameterMm?: number | null;
+  nozzleConfirmed?: boolean;
+  /** @nullable */
+  tempC?: number | null;
+}
+
 export interface PrinterDetailTelemetryResponse {
   /** @nullable */
   reportedState?: string | null;
@@ -1113,6 +1140,7 @@ export interface PrinterDetailTelemetryResponse {
   /** @nullable */
   nozzleObservedAtUtc?: string | null;
   nozzleConfirmed?: boolean;
+  extruders?: ExtruderResponse[];
   /** @nullable */
   nozzleTempC?: number | null;
   /** @nullable */
@@ -1127,8 +1155,10 @@ export interface PrinterDetailTelemetryResponse {
   currentJobName?: string | null;
 }
 
-export interface AmsTrayResponse {
-  slotIndex?: number;
+export interface FeedSlotReadingResponse {
+  slotPosition?: number;
+  extruderIndex?: number;
+  displayLabel?: string;
   empty?: boolean;
   /** @nullable */
   materialType?: string | null;
@@ -1143,9 +1173,11 @@ export interface AmsTrayResponse {
   rfidId?: string | null;
 }
 
-export interface AmsUnitResponse {
+export interface FeedReadingResponse {
+  kind?: string;
   unitIndex?: number;
-  trays?: AmsTrayResponse[];
+  displayLabel?: string;
+  slots?: FeedSlotReadingResponse[];
 }
 
 export interface BuildPlateTypeOptionResponse {
@@ -1158,13 +1190,13 @@ export interface PrinterDetailResponse {
   name?: string;
   brand?: string;
   modelCode?: string;
+  model?: PrinterModelResponse | null;
   ipAddress?: string;
   serialNumber?: string;
   status?: string;
   isReachable?: boolean;
   telemetry?: PrinterDetailTelemetryResponse;
-  externalSpoolTray?: AmsTrayResponse | null;
-  amsUnits?: AmsUnitResponse[];
+  feedReadings?: FeedReadingResponse[];
   /** @nullable */
   machineProfileId?: string | null;
   /** @nullable */
@@ -1187,6 +1219,7 @@ export interface FleetPrinterResponse {
   name?: string;
   brand?: string;
   modelCode?: string;
+  model?: PrinterModelResponse | null;
   ipAddress?: string;
   serialNumber?: string;
   status?: string;

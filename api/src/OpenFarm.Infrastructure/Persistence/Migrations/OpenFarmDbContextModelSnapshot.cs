@@ -416,6 +416,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("DeactivatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("ExtruderIndex")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("FeedUnitId")
                         .HasColumnType("uuid");
 
@@ -1056,13 +1059,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<int?>("ActiveTrayId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("AmsUnits")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
                     b.Property<decimal?>("BedTempC")
                         .HasColumnType("numeric");
 
@@ -1088,7 +1084,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("CurrentStageLabel")
                         .HasColumnType("text");
 
-                    b.Property<string>("ExternalSpoolTray")
+                    b.Property<string>("Extruders")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("FeedReadings")
+                        .IsRequired()
                         .HasColumnType("jsonb");
 
                     b.Property<string>("IpAddress")
@@ -1757,13 +1758,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 {
                     b.HasBaseType("OpenFarm.Domain.Production.Print");
 
+                    b.Property<string>("ObservedSlots")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
                     b.PrimitiveCollection<Guid[]>("ObservedSpoolIds")
                         .IsRequired()
                         .HasColumnType("uuid[]");
-
-                    b.PrimitiveCollection<int[]>("ObservedTrayIds")
-                        .IsRequired()
-                        .HasColumnType("integer[]");
 
                     b.ToTable("ExternalPrints", (string)null);
                 });

@@ -1,6 +1,5 @@
 import type {
-  AmsTrayResponse,
-  AmsUnitResponse,
+  FeedReadingResponse,
   FeedSlotResponse,
   FeedUnitResponse,
 } from '@/lib/api/generated/endpoints.schemas';
@@ -55,13 +54,24 @@ export function detectedName(
     : `${material} ${subBrand}`;
 }
 
-/** Match hardware positions, never display labels or response array order. */
+/** What the printer reports for one slot; positions only, never labels or array order. */
+export function readingSlot(
+  readings: FeedReadingResponse[] | undefined,
+  kind: string | undefined,
+  unitIndex: number | undefined,
+  slotPosition: number | undefined,
+) {
+  return readings
+    ?.find((unit) => unit.kind === kind && unit.unitIndex === unitIndex)
+    ?.slots?.find((slot) => slot.slotPosition === slotPosition);
+}
+
+/** `readings` undefined = no telemetry yet, so a port falls back to the REST detection. */
 export function feedSlotView(
   unit: FeedUnitResponse,
   slot: FeedSlotResponse,
-  amsUnits: AmsUnitResponse[],
+  readings: FeedReadingResponse[] | undefined,
   isReachable: boolean,
-  externalSpoolTray?: AmsTrayResponse | null,
   externalPortReplacedByReloader = false,
 ) {
   const feedingReloader =
@@ -71,17 +81,14 @@ export function feedSlotView(
   const portTelemetry =
     (unit.kind === 'ExternalSpool' && !externalPortReplacedByReloader) ||
     feedingReloader;
-  const tray = portTelemetry
-    ? externalSpoolTray
-    : unit.kind === 'MultiMaterialUnit' &&
-        unit.unitIndex != null &&
-        slot.slotPosition != null
-      ? amsUnits
-          .find((ams) => ams.unitIndex === unit.unitIndex)
-          ?.trays?.find((t) => t.slotIndex === slot.slotPosition)
+  const tray = feedingReloader
+    ? // ponytail: the one external port, as the server does; the replaced port's own once a model has one per extruder
+      readingSlot(readings, 'ExternalSpool', 0, 0)
+    : unit.kind === 'MultiMaterialUnit' || portTelemetry
+      ? readingSlot(readings, unit.kind, unit.unitIndex, slot.slotPosition)
       : undefined;
   // For AMS, absence from the current snapshot means unknown, not stale REST detection.
-  const useRestDetection = portTelemetry && externalSpoolTray === undefined;
+  const useRestDetection = portTelemetry && readings === undefined;
   const material = tray?.empty
     ? null
     : (tray?.materialType ??
@@ -110,35 +117,29 @@ export function feedSlotView(
 
 /** Sorting makes response reordering irrelevant to topology refreshes. */
 /** The RFID tags a printer reads and how full each tagged spool reads; changes when a tagged spool comes, goes or is measured. */
-export function amsRfidKey(
-  units: AmsUnitResponse[],
-  external: AmsTrayResponse | null | undefined,
-): string {
-  const trays = [
-    ...units.flatMap((unit) =>
-      (unit.trays ?? []).map((tray) => [unit.unitIndex, tray] as const),
-    ),
-    ...(external ? [['external', external] as const] : []),
-  ];
-  return trays
-    .filter(([, tray]) => tray.rfidId)
-    .map(
-      ([unit, tray]) =>
-        `${unit}:${tray.slotIndex}:${tray.rfidId}:${tray.remainPercent ?? ''}`,
+export function rfidKey(readings: FeedReadingResponse[]): string {
+  return readings
+    .flatMap((unit) =>
+      (unit.slots ?? [])
+        .filter((slot) => slot.rfidId)
+        .map(
+          (slot) =>
+            `${unit.kind}:${unit.unitIndex}:${slot.slotPosition}:${slot.rfidId}:${slot.remainPercent ?? ''}`,
+        ),
     )
     .sort()
     .join('|');
 }
 
-export function amsTopologyKey(units: AmsUnitResponse[]): string {
-  return JSON.stringify(
-    units
-      .map((unit) => [
-        unit.unitIndex,
-        (unit.trays ?? [])
-          .map((tray) => tray.slotIndex)
-          .sort((a, b) => (a ?? -1) - (b ?? -1)),
-      ])
-      .sort((a, b) => Number(a[0]) - Number(b[0])),
-  );
+export function topologyKey(readings: FeedReadingResponse[]): string {
+  return readings
+    .map(
+      (unit) =>
+        `${unit.kind}:${unit.unitIndex}:${(unit.slots ?? [])
+          .map((slot) => slot.slotPosition)
+          .sort((a, b) => (a ?? -1) - (b ?? -1))
+          .join(',')}`,
+    )
+    .sort()
+    .join('|');
 }

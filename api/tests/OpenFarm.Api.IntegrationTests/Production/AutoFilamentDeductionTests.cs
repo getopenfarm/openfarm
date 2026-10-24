@@ -33,7 +33,7 @@ public class AutoFilamentDeductionTests(ProductionTestFactory factory) : Product
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        (await db.Printers.SingleAsync(p => p.Id == printerId)).RecordTelemetry(null, null, percent, null, null, null, [], null, layer, totalLayers);
+        (await db.Printers.SingleAsync(p => p.Id == printerId)).RecordTelemetry(null, null, percent, null, null, null, [], layer, totalLayers);
         await db.SaveChangesAsync();
     }
 

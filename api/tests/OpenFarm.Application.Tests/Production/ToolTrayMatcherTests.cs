@@ -6,7 +6,7 @@ namespace OpenFarm.Application.Tests.Production;
 public class ToolTrayMatcherTests
 {
     // The AMS of the print that skipped deduction: red, white, black PETG and a tan PLA, colours as the printer reports them (RRGGBBAA).
-    private static readonly LoadedTray[] Ams =
+    private static readonly LoadedTray<int>[] Ams =
     [
         new(0, "PETG", "F72323FF"),
         new(1, "PETG", "FFFFFFFF"),
@@ -15,7 +15,7 @@ public class ToolTrayMatcherTests
     ];
 
     private static IReadOnlyDictionary<int, int> Match(
-        (int, string?, string?)[] tools, IReadOnlyList<LoadedTray>? trays = null, params int[] observed) =>
+        (int, string?, string?)[] tools, IReadOnlyList<LoadedTray<int>>? trays = null, params int[] observed) =>
         ToolTrayMatcher.Match(tools, trays ?? Ams, observed);
 
     [Fact]
@@ -41,7 +41,7 @@ public class ToolTrayMatcherTests
     [Fact]
     public void LeavesAToolUnmatched_WhenTwoTraysAreEquallyGood_AndNoneWasSeen()
     {
-        LoadedTray[] twins = [new(0, "PLA", "FF0000FF"), new(1, "PLA", "FF0000FF")];
+        LoadedTray<int>[] twins = [new(0, "PLA", "FF0000FF"), new(1, "PLA", "FF0000FF")];
 
         Match([(0, "PLA", "#FF0000")], twins).Should().BeEmpty();
     }
@@ -49,7 +49,7 @@ public class ToolTrayMatcherTests
     [Fact]
     public void BreaksATieWithAnObservedTray()
     {
-        LoadedTray[] twins = [new(0, "PLA", "FF0000FF"), new(1, "PLA", "FF0000FF")];
+        LoadedTray<int>[] twins = [new(0, "PLA", "FF0000FF"), new(1, "PLA", "FF0000FF")];
 
         Match([(0, "PLA", "#FF0000")], twins, 1).Should().BeEquivalentTo(new Dictionary<int, int> { [0] = 1 });
     }

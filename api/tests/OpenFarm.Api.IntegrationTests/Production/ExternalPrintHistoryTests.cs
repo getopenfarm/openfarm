@@ -23,7 +23,7 @@ public class ExternalPrintHistoryTests(ProductionTestFactory factory) : Producti
         var spool = await db.Spools.SingleAsync(s => s.FeedSlotId != null && slotIds.Contains(s.FeedSlotId.Value));
 
         var print = ExternalPrint.Start(printer.Id, "benchy", [new ExternalFilamentSpec(0, "PLA", "000000", grams, null)]);
-        print.ObserveTray(0, spool.Id);
+        print.ObserveSlot(new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, 0, 0), spool.Id);
         var repository = scope.ServiceProvider.GetRequiredService<IExternalPrintRepository>();
         await repository.AddAsync(print, default);
         await repository.SaveChangesAsync(default);

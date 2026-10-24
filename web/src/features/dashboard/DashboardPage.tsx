@@ -99,8 +99,7 @@ export function DashboardPage() {
             const monitored: MonitoredPrinter = {
               ...printer,
               telemetry: detail?.telemetry,
-              amsUnits: detail?.amsUnits,
-              externalSpoolTray: detail?.externalSpoolTray,
+              feedReadings: detail?.feedReadings,
             };
             return (
               <MonitoringCard

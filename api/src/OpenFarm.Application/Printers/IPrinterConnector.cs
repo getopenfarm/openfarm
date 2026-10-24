@@ -1,9 +1,18 @@
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Application.Printers;
 
 public sealed record PrinterConnectionDetails(string Brand, string ModelCode, string IpAddress, string SerialNumber, string AccessCode);
 
+/// <summary>
+/// One printer report in OpenFarm's terms — a connector's (possibly partial) delta, or a printer's merged state when published.
+/// <paramref name="FeedReadings"/> lists only the unit kinds the report covers. <paramref name="ActiveSlots"/>,
+/// <paramref name="NozzleDiametersMm"/> and <paramref name="ExtruderTempsC"/> are per extruder (index = extruder), null when
+/// the report doesn't say; an <paramref name="ActiveSlots"/> entry is null when nothing feeds that extruder.
+/// <paramref name="NozzleDiameterMm"/>, <paramref name="NozzleObservedAtUtc"/>, <paramref name="NozzleConfirmed"/> and
+/// <paramref name="Extruders"/> describe the printer's merged state and are only set when it is published.
+/// </summary>
 public sealed record PrinterTelemetrySnapshot(
     decimal? NozzleTempC,
     decimal? BedTempC,
@@ -11,19 +20,20 @@ public sealed record PrinterTelemetrySnapshot(
     string? CurrentStageLabel,
     int? RemainingTimeMinutes,
     string? CurrentJobName,
-    IReadOnlyList<AmsUnit> AmsUnits,
-    AmsTray? ExternalSpoolTray = null,
+    IReadOnlyList<FeedUnitReading> FeedReadings,
     decimal? NozzleDiameterMm = null,
     DateTimeOffset? NozzleObservedAtUtc = null,
     bool NozzleConfirmed = false,
-    bool NozzleReported = false,
     string? ReportedState = null,
     DateTimeOffset? StateObservedAtUtc = null,
     IReadOnlyList<PrinterAlert>? ActiveAlerts = null,
     int? CurrentLayer = null,
     int? TotalLayers = null,
-    int? ActiveTrayId = null,
-    string? CurrentGcodeFile = null);
+    IReadOnlyList<FeedSlotRef?>? ActiveSlots = null,
+    string? CurrentGcodeFile = null,
+    IReadOnlyList<decimal?>? NozzleDiametersMm = null,
+    IReadOnlyList<decimal?>? ExtruderTempsC = null,
+    IReadOnlyList<ExtruderReading>? Extruders = null);
 
 /// <summary>
 /// One inbound message from a printer's live connection, already parsed into domain-shaped data —

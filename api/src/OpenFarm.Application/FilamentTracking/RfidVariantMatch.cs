@@ -12,14 +12,14 @@ public static class RfidVariantMatch
     /// named for the line ("PLA Matte", "Bambu PLA Matte") come first; a plainer name ("PLA") only when none is. Null when
     /// nothing, or more than one colour, fits.
     /// </summary>
-    public static VariantStock? Find(IReadOnlyList<VariantStock> colors, AmsTray tray)
+    public static VariantStock? Find(IReadOnlyList<VariantStock> colors, FeedSlotReading tray)
     {
         if (string.IsNullOrWhiteSpace(tray.SubBrand)) return null;
         var line = Words(tray.SubBrand);
         var named = colors.Where(c => line.IsSubsetOf(Words(c.Material))).ToList();
         var candidates = named.Count > 0 ? named : colors.Where(c => Words(c.Material).IsSubsetOf(line)).ToList();
         var match = ToolTrayMatcher.Match([(0, tray.MaterialType, tray.ColorHex)],
-            candidates.Select((c, i) => new LoadedTray(i, c.MaterialType, c.ColorHex)).ToList(), []);
+            candidates.Select((c, i) => new LoadedTray<int>(i, c.MaterialType, c.ColorHex)).ToList(), []);
         return match.TryGetValue(0, out var index) ? candidates[index] : null;
     }
 

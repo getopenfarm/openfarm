@@ -50,7 +50,7 @@ public sealed class PartProcessingJobConfiguration : IEntityTypeConfiguration<Pa
         builder.Property(j => j.PreviewPlateCount);
 
         // Small, bounded, never independently queried — the same jsonb-value-list pattern
-        // Printer.AmsUnits already establishes (research.md §3a), not a child table.
+        // Printer.FeedReadings already establishes (research.md §3a), not a child table.
         builder.Property(j => j.PreviewFilamentRequirements)
             .HasColumnType("jsonb")
             .HasConversion(

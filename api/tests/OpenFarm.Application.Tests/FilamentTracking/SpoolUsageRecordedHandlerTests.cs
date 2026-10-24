@@ -1,8 +1,10 @@
 using FluentAssertions;
 using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Application.Tests.Profiles.Fakes;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Application.Tests.FilamentTracking;
 
@@ -12,9 +14,10 @@ public class SpoolUsageRecordedHandlerTests
     private readonly InMemoryFeedUnitRepository _feedUnitRepository = new();
     private readonly RecordingActivityLogWriter _activityLogWriter = new();
     private readonly RecordingEventPublisher _eventPublisher = new();
+    private readonly FakePrinterRepository _printers = new();
 
     private SpoolUsageRecordedHandler CreateHandler() =>
-        new(_spoolRepository, _feedUnitRepository, _activityLogWriter, _eventPublisher);
+        new(_spoolRepository, _feedUnitRepository, _activityLogWriter, _eventPublisher, _printers);
 
     private (FeedUnit Unit, FeedSlot[] Slots) CreateFeedUnit(string kind, int slotCount)
     {
@@ -57,6 +60,26 @@ public class SpoolUsageRecordedHandlerTests
         result.MaterialMismatch.Should().BeFalse();
         depleted.State.Should().Be(SpoolState.Finished);
         sibling.State.Should().Be(SpoolState.Using, "the continuation target is already loaded — it never moves");
+    }
+
+    [Fact]
+    public async Task Toolheads_NeverContinueOntoAHeadWithAnotherNozzle()
+    {
+        var printer = Printer.Create("U1", "Snapmaker", "U1", "127.0.0.1", "SN");
+        printer.ObserveNozzles([0.4m, 0.6m, 0.4m], DateTimeOffset.UtcNow);
+        await _printers.AddAsync(printer, default);
+        var unit = FeedUnit.CreateConnectorDerived(printer.Id, FeedUnitKindCatalog.MultiMaterialUnit, 0);
+        var slots = Enumerable.Range(0, 3).Select(head => unit.AddFeedSlot(head, extruderIndex: head)).ToArray();
+        _feedUnitRepository.Add(unit);
+        foreach (var slot in slots) _spoolRepository.FeedSlotOwners[slot.Id] = unit.Id;
+        var variantId = Guid.NewGuid();
+        var depleted = CreateUsingSpool(variantId, slots[0]);
+        CreateUsingSpool(variantId, slots[1]);
+        var sameNozzle = CreateUsingSpool(variantId, slots[2]);
+
+        var result = await CreateHandler().ResolveAsync(depleted, CancellationToken.None);
+
+        result.ContinuedSpoolId.Should().Be(sameNozzle.Id);
     }
 
     [Fact]

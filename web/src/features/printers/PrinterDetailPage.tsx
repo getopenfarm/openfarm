@@ -18,10 +18,10 @@ import {
   useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint,
   useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint,
 } from '@/lib/api/generated/printers/printers';
-import { formatMm } from '@/lib/formatUnits';
 import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
+import { HardwareCard } from './components/HardwareCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { PrinterReportedStatus } from './components/PrinterReportedStatus';
 import { PrinterSlicerReadinessCard } from './components/PrinterSlicerReadinessCard';
@@ -144,7 +144,7 @@ export function PrinterDetailPage() {
             <div className="flex flex-col gap-4">
               <CameraView
                 isReachable={printer.isReachable ?? false}
-                modelCode={printer.modelCode}
+                cameraSupported={printer.model?.cameraSupported ?? false}
                 printerId={printer.id ?? ''}
                 telemetry={printer.telemetry ?? {}}
               />
@@ -153,9 +153,12 @@ export function PrinterDetailPage() {
             <div className="flex flex-col gap-4">
               <FeedUnitsCard
                 printerId={printer.id ?? ''}
-                externalSpoolTray={printer.externalSpoolTray}
-                amsUnits={printer.amsUnits ?? []}
+                feedReadings={printer.feedReadings}
                 isReachable={printer.isReachable ?? false}
+              />
+              <HardwareCard
+                model={printer.model}
+                extruders={printer.telemetry?.extruders}
               />
               <Card className="gap-0 py-0">
                 <CardHeader className="border-b px-[18px] py-3.5">
@@ -164,14 +167,6 @@ export function PrinterDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2 px-[18px] py-3.5">
-                  <p className="text-sm">
-                    Nozzle:{' '}
-                    <span className="text-muted-foreground">
-                      {printer.telemetry?.nozzleDiameterMm
-                        ? `${formatMm(printer.telemetry.nozzleDiameterMm)}${printer.telemetry.nozzleConfirmed ? ' (reported)' : ' (awaiting confirmation)'}`
-                        : 'Awaiting telemetry'}
-                    </span>
-                  </p>
                   {printer.machineProfileIssue && (
                     <p className="text-sm text-destructive">
                       {printer.machineProfileIssue}

@@ -55,17 +55,64 @@ public class PrinterModelCatalogTests
     }
 
     [Fact]
-    public void All_ReturnsEveryEntryGroupedByBrand()
+    public void Models_ReturnsEveryEntry()
     {
-        var all = PrinterModelCatalog.All;
+        var byBrand = PrinterModelCatalog.Models.ToLookup(m => m.Brand, m => m.ModelCode);
 
-        all.Should().ContainSingle(g => g.Brand == PrinterBrand.Bambu)
-            .Which.Models.Should().BeEquivalentTo(["X1", "X1C", "X1E", "P1P", "P1S", "A1", "A1MINI"]);
-        all.Should().ContainSingle(g => g.Brand == PrinterBrand.System)
-            .Which.Models.Should().BeEquivalentTo(["Simulation"]);
-        all.Should().ContainSingle(g => g.Brand == PrinterBrand.Snapmaker)
-            .Which.Models.Should().BeEquivalentTo(["U1"]);
+        byBrand[PrinterBrand.Bambu].Should().BeEquivalentTo(["X1", "X1C", "X1E", "P1P", "P1S", "A1", "A1MINI"]);
+        byBrand[PrinterBrand.System].Should().BeEquivalentTo(["Simulation"]);
+        byBrand[PrinterBrand.Snapmaker].Should().BeEquivalentTo(["U1"]);
     }
+
+    [Fact]
+    public void Models_EveryEntryNamesAtLeastOneExtruder()
+    {
+        foreach (var model in PrinterModelCatalog.Models)
+        {
+            model.Extruders.Should().NotBeEmpty($"{model.ModelCode} feeds filament somewhere");
+            model.Extruders.Should().OnlyContain(label => !string.IsNullOrWhiteSpace(label));
+        }
+    }
+
+    [Theory]
+    [InlineData("X1")]
+    [InlineData("P1S")]
+    [InlineData("A1MINI")]
+    public void Resolve_Bambu_IsASingleNozzleAmsPrinterOnTheLanDriver(string modelCode)
+    {
+        var model = PrinterModelCatalog.Resolve("Bambu", modelCode);
+
+        model.Driver.Should().Be(PrinterDriver.BambuLan);
+        model.Extruders.Should().Equal("Nozzle");
+        model.FeedUnitStyle.Should().Be(FeedUnitStyle.Ams);
+    }
+
+    [Fact]
+    public void Resolve_SnapmakerU1_IsAFourHeadToolchangerOnMoonraker()
+    {
+        var model = PrinterModelCatalog.Resolve("Snapmaker", "U1");
+
+        model.Driver.Should().Be(PrinterDriver.SnapmakerMoonraker);
+        model.Extruders.Should().Equal("T1", "T2", "T3", "T4");
+        model.FeedUnitStyle.Should().Be(FeedUnitStyle.Toolheads);
+    }
+
+    [Fact]
+    public void Resolve_Simulation_RunsOnTheSimulatorDriver() =>
+        PrinterModelCatalog.Resolve("System", "Simulation").Driver.Should().Be(PrinterDriver.Simulator);
+
+    [Fact]
+    public void CameraSupported_IsFalseOnlyForTheRtspX1Family() =>
+        PrinterModelCatalog.Models.Where(m => !m.CameraSupported).Select(m => m.ModelCode)
+            .Should().BeEquivalentTo(["X1", "X1C", "X1E"]);
+
+    [Theory]
+    [InlineData("Bambu", true)]
+    [InlineData("snapmaker", true)]
+    [InlineData("System", true)]
+    [InlineData("Prusa", false)]
+    public void SupportsLiveIntegration_IsTrueForEveryCataloguedBrand(string brand, bool expected) =>
+        PrinterModelCatalog.SupportsLiveIntegration(brand).Should().Be(expected);
 
     [Fact]
     public void Resolve_SnapmakerU1_IsLiveOnTheHighTempPlateWithItsOrcaMachineModel()
@@ -105,26 +152,20 @@ public class PrinterModelCatalogTests
         PrinterModelCatalog.TryResolveSlicedModel(declared).Should().BeNull();
 
     [Theory]
-    [InlineData("Bambu", true)]
-    [InlineData("System", true)]
-    [InlineData("Unknown", true)]
-    [InlineData("Snapmaker", false)]
-    [InlineData("snapmaker", false)]
-    public void UsesAccessCode_IsFalseOnlyForSnapmaker(string brand, bool expected) =>
-        PrinterModelCatalog.UsesAccessCode(brand).Should().Be(expected);
+    [InlineData("Bambu", "P1S", true)]
+    [InlineData("System", "Simulation", true)]
+    [InlineData("Unknown", "X", true)]
+    [InlineData("Snapmaker", "U1", false)]
+    [InlineData("snapmaker", "U1", false)]
+    public void UsesAccessCode_IsFalseOnlyForTheMoonrakerDriver(string brand, string modelCode, bool expected) =>
+        PrinterModelCatalog.UsesAccessCode(brand, modelCode).Should().Be(expected);
 
     [Fact]
-    public void All_EveryEntryResolvesViaResolve()
+    public void Models_EveryEntryResolvesViaResolve()
     {
-        var all = PrinterModelCatalog.All;
-
-        foreach (var group in all)
+        foreach (var model in PrinterModelCatalog.Models)
         {
-            foreach (var modelCode in group.Models)
-            {
-                var act = () => PrinterModelCatalog.Resolve(group.Brand.ToString(), modelCode);
-                act.Should().NotThrow();
-            }
+            PrinterModelCatalog.Resolve(model.Brand.ToString(), model.ModelCode).Should().BeSameAs(model);
         }
     }
 
@@ -169,17 +210,11 @@ public class PrinterModelCatalogTests
     }
 
     [Fact]
-    public void All_EveryEntryHasANonNullNonEmptyCompatiblePlateTypesSet()
+    public void Models_EveryEntryHasANonNullNonEmptyCompatiblePlateTypesSet()
     {
-        var all = PrinterModelCatalog.All;
-
-        foreach (var group in all)
+        foreach (var model in PrinterModelCatalog.Models)
         {
-            foreach (var modelCode in group.Models)
-            {
-                var model = PrinterModelCatalog.Resolve(group.Brand.ToString(), modelCode);
-                model.CompatiblePlateTypes.Should().NotBeNull().And.NotBeEmpty();
-            }
+            model.CompatiblePlateTypes.Should().NotBeNull().And.NotBeEmpty();
         }
     }
 

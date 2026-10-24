@@ -394,11 +394,8 @@ export function PrintJobDetailPage() {
     [];
   const printer = fleet.find((p) => p.id === job?.dispatchedPrinterId);
   const external = job?.source === 'External';
-  // Mirrors PrinterModelCatalog.LiveIntegratedBrands: these printers report and take jobs themselves.
-  const manual =
-    !external &&
-    printer &&
-    !['Bambu', 'System', 'Snapmaker'].includes(printer.brand ?? '');
+  // Every catalogued model has a driver that reports and takes jobs itself; only an unknown one is run by hand.
+  const manual = !external && printer && !printer.model;
   const options = {
     mutation: {
       onSuccess: () => queryClient.invalidateQueries(),

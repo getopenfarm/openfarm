@@ -10,7 +10,7 @@ public class RfidVariantMatchTests
     private static VariantStock Color(string material, string colorName, string hex) =>
         new(Guid.NewGuid(), Guid.NewGuid(), "Bambu Lab", material, "PLA", colorName, hex, FilamentStock.Of([]), null);
 
-    private static AmsTray Tray(string? subBrand, string colorHex) =>
+    private static FeedSlotReading Tray(string? subBrand, string colorHex) =>
         new(0, false, "PLA", colorHex, subBrand, 87, false, "5F3D8925633343C29FB9A97FA9125971", 1000);
 
     [Fact]

@@ -37,6 +37,7 @@ public sealed class RfidNotifications(IPrinterRepository printers, IFeedUnitRepo
             if (readings.Count == 0) continue;
             var owners = await spools.FindByRfidIdsAsync(
                 readings.Select(r => r.Tray.RfidId!).Distinct().ToList(), cancellationToken, includeFinished: true);
+            var model = PrinterModelCatalog.Find(printer.Brand, printer.ModelCode);
             foreach (var (unit, slot, tray) in readings)
             {
                 var owned = owners.Where(s => s.RfidId == tray.RfidId).ToList();
@@ -48,7 +49,7 @@ public sealed class RfidNotifications(IPrinterRepository printers, IFeedUnitRepo
                         && SpoolReading.Drifted(active.RemainingWeightGrams, read, active.SpoolWeightGrams))
                     {
                         var color = colors.FirstOrDefault(c => c.FilamentVariantId == active.FilamentVariantId);
-                        drift.Add(new(printer.Id, printer.Name, slot.Id, FeedUnitDisplay.SlotLabel(unit, slot, printer.Brand),
+                        drift.Add(new(printer.Id, printer.Name, slot.Id, FeedUnitDisplay.SlotLabel(unit, slot, model),
                             active.Id, active.Label, active.RemainingWeightGrams, read, color?.Material, color?.ColorName));
                     }
 
@@ -59,7 +60,7 @@ public sealed class RfidNotifications(IPrinterRepository printers, IFeedUnitRepo
                 if (owned.Count > 0 && tray.RemainPercent is not (>= 1 and <= 100)) continue;
                 var loaded = await spools.FindUsingFeedSlotAsync(slot.Id, cancellationToken);
                 var linkable = loaded is { RfidId: null } ? loaded : null;
-                items.Add(new(printer.Id, printer.Name, slot.Id, FeedUnitDisplay.SlotLabel(unit, slot, printer.Brand), tray.RfidId!,
+                items.Add(new(printer.Id, printer.Name, slot.Id, FeedUnitDisplay.SlotLabel(unit, slot, model), tray.RfidId!,
                     tray.MaterialType, tray.SubBrand, tray.ColorHex, tray.RemainPercent is >= 1 and <= 100 ? tray.RemainPercent : null,
                     tray.RfidWeightGrams, tray.RfidWeightGrams is { } full ? SpoolReading.Grams(tray.RemainPercent, full) : null,
                     RfidVariantMatch.Find(colors, tray), linkable?.Id, linkable?.Label));

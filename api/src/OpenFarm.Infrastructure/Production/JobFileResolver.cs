@@ -29,7 +29,7 @@ public sealed class JobFileResolver(
         if (printerId == Guid.Empty) throw new SlicingProfileUnconfiguredException("Assign a printer before generating a production file.");
         var printer = await printers.GetByIdAsync(printerId, cancellationToken)
             ?? throw new OpenFarm.Application.Printers.PrinterNotFoundException(printerId);
-        if (!printer.NozzleConfirmed || printer.ReportedNozzleDiameterMm != nozzleDiameterMm)
+        if (!printer.ConfirmedNozzlesMm().Contains(nozzleDiameterMm))
             throw new SlicingProfileUnconfiguredException("The printer nozzle must be confirmed by current telemetry before production.");
         var effective = await jobRequirements.ResolveAsync(job, part, cancellationToken);
         // One resolution decides everything: the spools and presets that were checked are the ones the file is made

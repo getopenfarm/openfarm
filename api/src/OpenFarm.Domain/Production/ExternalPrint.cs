@@ -1,9 +1,11 @@
+using OpenFarm.Domain.FilamentTracking;
+
 namespace OpenFarm.Domain.Production;
 
 /// <summary>
 /// A print the printer started itself (Bambu Studio, the Handy app, the touchscreen, an SD card): no queue, run or part behind it.
-/// It is recorded so its filament is deducted like a dispatched job's. Which spool fed each tool isn't reported, so the trays the
-/// printer names as active are recorded as they appear; a lone tool takes the first of those trays, several are matched by material and colour (see <see cref="BindTools"/>).
+/// It is recorded so its filament is deducted like a dispatched job's. Which spool fed each tool isn't reported, so the slots the
+/// printer names as active are recorded as they appear; a lone tool takes the first of those slots, several are matched by material and colour (see <see cref="BindTools"/>).
 /// </summary>
 public sealed class ExternalPrint : Print
 {
@@ -14,8 +16,8 @@ public sealed class ExternalPrint : Print
         StartedAtUtc = startedAtUtc;
     }
 
-    /// <summary>Active tray ids in order of first appearance (<c>unit*4+slot</c>, 254 external); paired with <see cref="ObservedSpoolIds"/> (Guid.Empty = no spool known).</summary>
-    public int[] ObservedTrayIds { get; private set; } = [];
+    /// <summary>Active feed slots in order of first appearance; paired with <see cref="ObservedSpoolIds"/> (Guid.Empty = no spool known).</summary>
+    public FeedSlotRef[] ObservedSlots { get; private set; } = [];
 
     public Guid[] ObservedSpoolIds { get; private set; } = [];
 
@@ -27,25 +29,25 @@ public sealed class ExternalPrint : Print
         return print;
     }
 
-    /// <summary>The tray is new, or was seen before the spool on it was known, so looking the spool up again can still help.</summary>
-    public bool WantsSpoolFor(int trayId)
+    /// <summary>The slot is new, or was seen before the spool on it was known, so looking the spool up again can still help.</summary>
+    public bool WantsSpoolFor(FeedSlotRef slot)
     {
         if (IsClosed) return false;
-        var index = Array.IndexOf(ObservedTrayIds, trayId);
+        var index = Array.IndexOf(ObservedSlots, slot);
         return index < 0 || ObservedSpoolIds[index] == Guid.Empty;
     }
 
     /// <summary>
-    /// Records an active tray and the spool loaded there. A tray first seen with no known spool takes one when it becomes known
+    /// Records an active slot and the spool loaded there. A slot first seen with no known spool takes one when it becomes known
     /// (a spool loaded or a feeding slot chosen mid-print); a known spool is never replaced. False when nothing changed.
     /// </summary>
-    public bool ObserveTray(int trayId, Guid? spoolId)
+    public bool ObserveSlot(FeedSlotRef slot, Guid? spoolId)
     {
         if (IsClosed) return false;
-        var index = Array.IndexOf(ObservedTrayIds, trayId);
+        var index = Array.IndexOf(ObservedSlots, slot);
         if (index < 0)
         {
-            ObservedTrayIds = [.. ObservedTrayIds, trayId];
+            ObservedSlots = [.. ObservedSlots, slot];
             ObservedSpoolIds = [.. ObservedSpoolIds, spoolId ?? Guid.Empty];
             return true;
         }

@@ -137,18 +137,19 @@ describe('FeedUnitsCard', () => {
 
   it('shows grams, one mismatch tag and the active mark in one slot', async () => {
     renderCard(undefined, {
-      amsUnits: [
+      feedReadings: [
         {
+          kind: 'MultiMaterialUnit',
           unitIndex: 0,
-          trays: [
+          slots: [
             {
-              slotIndex: 0,
+              slotPosition: 0,
               materialType: 'PETG',
               subBrand: 'Basic',
               remainPercent: 0,
               active: true,
             },
-            { slotIndex: 1, empty: true },
+            { slotPosition: 1, empty: true },
           ],
         },
       ],
@@ -173,12 +174,13 @@ describe('FeedUnitsCard', () => {
         <FeedUnitsCard
           printerId="printer-1"
           isReachable={isReachable}
-          amsUnits={[
+          feedReadings={[
             {
+              kind: 'MultiMaterialUnit',
               unitIndex: 0,
-              trays: [
+              slots: [
                 {
-                  slotIndex: 0,
+                  slotPosition: 0,
                   materialType: 'PLA',
                   active: true,
                   remainPercent,
@@ -202,10 +204,11 @@ describe('FeedUnitsCard', () => {
 
   it('shows detected but unregistered filament without hiding the inventory state', async () => {
     renderCard(undefined, {
-      amsUnits: [
+      feedReadings: [
         {
+          kind: 'MultiMaterialUnit',
           unitIndex: 0,
-          trays: [{ slotIndex: 1, materialType: 'PETG', subBrand: 'Basic' }],
+          slots: [{ slotPosition: 1, materialType: 'PETG', subBrand: 'Basic' }],
         },
       ],
     });

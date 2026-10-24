@@ -44,17 +44,23 @@ public sealed class GetMachineProfilesQueryHandler(IMachineProfileRepository rep
         {
             var printer = await printers.GetByIdAsync(printerId, cancellationToken) ?? throw new PrinterNotFoundException(printerId);
             var matches = new List<MachineProfileSummary>();
-            if (printer.NozzleConfirmed && printer.ReportedNozzleDiameterMm is { } nozzle)
+            var nozzles = printer.ConfirmedNozzlesMm();
+            if (nozzles.Count > 0)
                 foreach (var profile in await repository.ListAsync(cancellationToken, scope))
                 {
                     if (query.Origin is { } origin && origin != "All" && profile.Origin.ToString() != origin
                         || !string.IsNullOrWhiteSpace(query.SearchText) && !profile.Name.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase)) continue;
                     try
                     {
-                        if (await compatibility.MachineMatchesAsync(profile, printer.Brand, printer.ModelCode, nozzle, cancellationToken))
+                        // A preset at any of the printer's confirmed nozzles fits it; jobs then need that nozzle.
+                        foreach (var nozzle in nozzles)
+                        {
+                            if (!await compatibility.MachineMatchesAsync(profile, printer.Brand, printer.ModelCode, nozzle, cancellationToken)) continue;
                             matches.Add(new(profile.Id, profile.Name, profile.Origin, profile.VendorName, profile.SourceFormat,
                                 profile.BaseProfileId, profile.BaseProfileName, false, (double)nozzle, null, null, null, null, [])
                             { SourceVersion = profile.SourceVersion });
+                            break;
+                        }
                     }
                     catch (SlicingProfileUnconfiguredException) { }
                 }

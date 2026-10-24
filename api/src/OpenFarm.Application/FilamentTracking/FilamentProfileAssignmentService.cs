@@ -21,11 +21,12 @@ public sealed class FilamentProfileAssignmentService(IFilamentProfileRepository 
     public async Task<FilamentAssignmentFleet> GetFleetAsync(CancellationToken ct)
     {
         var fleet = await printers.ListAsync(ct);
-        return new(fleet.Where(p => p.ReportedNozzleDiameterMm is > 0)
-            .GroupBy(p => (p.Brand, p.ModelCode, Nozzle: p.ReportedNozzleDiameterMm!.Value))
+        // A printer with mixed nozzles is in one group per size.
+        return new(fleet.SelectMany(p => p.ReportedNozzlesMm().Select(nozzle => (p.Brand, p.ModelCode, Nozzle: nozzle)))
+            .GroupBy(key => key)
             .OrderBy(g => g.Key.Brand).ThenBy(g => g.Key.ModelCode).ThenBy(g => g.Key.Nozzle)
             .Select(g => new FleetFilamentVariant(g.Key.Brand, g.Key.ModelCode, g.Key.Nozzle, g.Count())).ToList(),
-            fleet.Where(p => p.ReportedNozzleDiameterMm is null).Select(p => p.Name).ToList());
+            fleet.Where(p => p.ReportedNozzlesMm().Count == 0).Select(p => p.Name).ToList());
     }
 
     public async Task<IReadOnlyList<FilamentProfileAssignmentIssue>> GetIssuesAsync(Filament filament, CancellationToken ct)

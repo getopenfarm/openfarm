@@ -234,8 +234,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         }
 
         using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(connectionToken);
-        var cameraTask = PrinterModelCatalog.TryResolve(details.Brand, details.ModelCode, out var model)
-            && model!.CameraTransport is CameraTransport.BinaryImage or CameraTransport.HttpSnapshot
+        var cameraTask = PrinterModelCatalog.Find(details.Brand, details.ModelCode) is { CameraSupported: true }
                 ? RunCameraLoopAsync(printerId, details, attemptCts.Token)
                 : Task.CompletedTask;
         try
@@ -257,7 +256,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                     if (pendingTelemetry is { } pending)
                         printer.RecordTelemetry(pending.NozzleTempC, pending.BedTempC, pending.PrintProgressPercent,
                             pending.CurrentStageLabel, pending.RemainingTimeMinutes, pending.CurrentJobName,
-                            pending.AmsUnits, pending.ExternalSpoolTray, pending.CurrentLayer, pending.TotalLayers, pending.ActiveTrayId);
+                            pending.FeedReadings, pending.CurrentLayer, pending.TotalLayers, pending.ActiveSlots);
 
                     lastFlushUtc = await HandleEventAsync(printer, connectorEvent, services, _logger,
                         lastFlushUtc, _flushInterval, connectionToken);
@@ -265,7 +264,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                     // operator-controlled state. This preserves delta merging during throttling.
                     pendingTelemetry = new(printer.NozzleTempC, printer.BedTempC, printer.PrintProgressPercent,
                         printer.CurrentStageLabel, printer.RemainingTimeMinutes, printer.CurrentJobName,
-                        printer.AmsUnits, printer.ExternalSpoolTray, CurrentLayer: printer.CurrentLayer, TotalLayers: printer.TotalLayers, ActiveTrayId: printer.ActiveTrayId);
+                        printer.FeedReadings, CurrentLayer: printer.CurrentLayer, TotalLayers: printer.TotalLayers,
+                        ActiveSlots: printer.Extruders.Select(e => e.ActiveSlot).ToList());
                 }
                 finally { gate.Release(); }
             }
@@ -336,14 +336,14 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             await services.GetRequiredService<IPrinterRepository>().SaveChangesAsync(cancellationToken);
             var connectionPublisher = services.GetRequiredService<IPrinterEventPublisher>();
             await connectionPublisher.PrinterStatusChangedAsync(printer.Id, printer.Status, printer.IsReachable, cancellationToken);
-            await connectionPublisher.PrinterTelemetryUpdatedAsync(printer.Id,
+            await connectionPublisher.PrinterTelemetryUpdatedAsync(printer.Id, PrinterModelCatalog.Find(printer.Brand, printer.ModelCode),
                 new(printer.NozzleTempC, printer.BedTempC, printer.PrintProgressPercent, printer.CurrentStageLabel,
-                    printer.RemainingTimeMinutes, printer.CurrentJobName, printer.AmsUnits, printer.ExternalSpoolTray,
-                    printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, false, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts), cancellationToken);
+                    printer.RemainingTimeMinutes, printer.CurrentJobName, printer.FeedReadings,
+                    printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, false, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts,
+                    Extruders: printer.Extruders), cancellationToken);
             return DateTimeOffset.MinValue;
         }
-        var previousNozzle = printer.ReportedNozzleDiameterMm;
-        var previouslyConfirmed = printer.NozzleConfirmed;
+        var previousNozzles = NozzleState(printer);
         var wasReachable = printer.IsReachable;
         printer.MarkReachable(connectorEvent.ReceivedAtUtc);
 
@@ -371,8 +371,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
 
         if (connectorEvent.Telemetry is { } telemetry)
         {
-            if (telemetry.NozzleReported && telemetry.NozzleDiameterMm is not > 0) printer.BeginConnection();
-            else printer.ObserveNozzle(telemetry.NozzleDiameterMm, connectorEvent.ReceivedAtUtc);
+            if (telemetry.NozzleDiametersMm is { } diameters) printer.ObserveNozzles(diameters, connectorEvent.ReceivedAtUtc);
             printer.RecordTelemetry(
                 telemetry.NozzleTempC,
                 telemetry.BedTempC,
@@ -380,17 +379,18 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 telemetry.CurrentStageLabel,
                 telemetry.RemainingTimeMinutes,
                 telemetry.CurrentJobName,
-                telemetry.AmsUnits,
-                telemetry.ExternalSpoolTray,
+                telemetry.FeedReadings,
                 telemetry.CurrentLayer,
                 telemetry.TotalLayers,
-                telemetry.ActiveTrayId,
-                telemetry.CurrentGcodeFile);
+                telemetry.ActiveSlots,
+                telemetry.CurrentGcodeFile,
+                telemetry.ExtruderTempsC);
             if (services.GetService<ExternalPrintSync>() is { } externalPrintSync)
                 await externalPrintSync.ObserveTelemetryAsync(printer, cancellationToken);
         }
 
-        var mustFlushNow = reportedStateChanged || alertsChanged || statusChanged || !wasReachable || previousNozzle != printer.ReportedNozzleDiameterMm || previouslyConfirmed != printer.NozzleConfirmed;
+        var mustFlushNow = reportedStateChanged || alertsChanged || statusChanged || !wasReachable
+            || !previousNozzles.SequenceEqual(NozzleState(printer));
         if (!mustFlushNow && connectorEvent.ReceivedAtUtc - lastFlushUtc < flushInterval)
         {
             return lastFlushUtc;
@@ -400,7 +400,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         await printerRepository.SaveChangesAsync(cancellationToken);
 
         var feedSlotTelemetrySync = services.GetRequiredService<IFeedSlotTelemetrySync>();
-        await feedSlotTelemetrySync.SyncAsync(printer.Id, printer.Brand, printer.AmsUnits, printer.ExternalSpoolTray, cancellationToken);
+        await feedSlotTelemetrySync.SyncAsync(printer.Id, printer.FeedReadings, cancellationToken);
         // After topology sync (a slot may be new) and before the idle dispatch request below (it may load a spool a job needs).
         if (services.GetService<RfidSpoolLinker>() is { } rfidSpoolLinker)
             await rfidSpoolLinker.LinkAsync(printer, cancellationToken);
@@ -460,13 +460,17 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 printer.CurrentStageLabel,
                 printer.RemainingTimeMinutes,
                 printer.CurrentJobName,
-                printer.AmsUnits,
-                printer.ExternalSpoolTray, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts);
-            await publisher.PrinterTelemetryUpdatedAsync(printer.Id, mergedTelemetry, cancellationToken);
+                printer.FeedReadings, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts,
+                Extruders: printer.Extruders);
+            await publisher.PrinterTelemetryUpdatedAsync(printer.Id, PrinterModelCatalog.Find(printer.Brand, printer.ModelCode), mergedTelemetry, cancellationToken);
         }
 
         return connectorEvent.ReceivedAtUtc;
     }
+
+    // Each extruder's nozzle and confirmation: a change is flushed at once, since dispatch and profile pickers depend on it.
+    private static List<(decimal?, bool)> NozzleState(Printer printer) =>
+        printer.Extruders.Select(e => (e.NozzleDiameterMm, e.NozzleConfirmed)).ToList();
 
     private async Task SweepUnreachablePrintersAsync(CancellationToken stoppingToken)
     {

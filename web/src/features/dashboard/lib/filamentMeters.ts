@@ -38,14 +38,6 @@ export interface FilamentRail {
   additionalSlots: number;
 }
 
-/** The backend's FeedUnitDisplay label, for a unit seen in telemetry before it is persisted: a Snapmaker's unit is its toolheads. */
-function multiMaterialLabel(
-  brand: string | null | undefined,
-  unitIndex: number | null | undefined,
-) {
-  return brand === 'Snapmaker' ? 'Toolheads' : `AMS ${(unitIndex ?? 0) + 1}`;
-}
-
 /** Feed equipment is identified by topology, never material/color or array position. */
 export function buildFilamentRail(
   printer: MonitoredPrinter,
@@ -65,29 +57,22 @@ export function buildFilamentRail(
         )
       ),
   );
-  for (const ams of printer.amsUnits ?? []) {
-    if (
-      !units.some(
-        (unit) =>
-          unit.kind === 'MultiMaterialUnit' && unit.unitIndex === ams.unitIndex,
-      )
-    ) {
-      units.push({
-        kind: 'MultiMaterialUnit',
-        unitIndex: ams.unitIndex,
-        displayLabel: multiMaterialLabel(printer.brand, ams.unitIndex),
-      });
-    }
-  }
-  if (
-    printer.externalSpoolTray &&
-    !available.some(
+  // A unit the printer reports before it is persisted, labelled by the server.
+  for (const reading of printer.feedReadings ?? []) {
+    const known = available.some(
       (unit) =>
-        unit.kind === 'ExternalSpool' ||
-        (unit.kind === 'AutomaticFilamentReloader' && unit.replacesFeedUnitId),
-    )
-  ) {
-    units.push({ kind: 'ExternalSpool', displayLabel: 'External spool' });
+        (unit.kind === reading.kind && unit.unitIndex === reading.unitIndex) ||
+        // ponytail: one external port, so any port-replacing reloader replaces it
+        (reading.kind === 'ExternalSpool' &&
+          unit.kind === 'AutomaticFilamentReloader' &&
+          Boolean(unit.replacesFeedUnitId)),
+    );
+    if (!known)
+      units.push({
+        kind: reading.kind,
+        unitIndex: reading.unitIndex,
+        displayLabel: reading.displayLabel,
+      });
   }
   const groups = units
     .map((unit) => {
@@ -98,11 +83,12 @@ export function buildFilamentRail(
             ? 'reloader'
             : 'external';
       const label =
-        kind === 'ams'
-          ? unit.displayLabel ||
-            multiMaterialLabel(printer.brand, unit.unitIndex)
-          : unit.displayLabel ||
-            (kind === 'reloader' ? 'Reloader' : 'External spool');
+        unit.displayLabel ||
+        (kind === 'ams'
+          ? 'Multi-Material Unit'
+          : kind === 'reloader'
+            ? 'Reloader'
+            : 'External spool');
       const slots: FeedSlotResponse[] = [...(unit.feedSlots ?? [])].filter(
         (slot) => !slot.deactivatedAtUtc,
       );
@@ -111,23 +97,21 @@ export function buildFilamentRail(
           .filter((slot) => slot.deactivatedAtUtc)
           .map((slot) => slot.slotPosition),
       );
-      if (kind === 'ams') {
-        const telemetry = printer.amsUnits?.find(
-          (ams) => ams.unitIndex === unit.unitIndex,
+      // A slot seen only in telemetry, with the server's label; a reloader's port reading is its feeding slot instead.
+      if (kind !== 'reloader') {
+        const reading = printer.feedReadings?.find(
+          (item) =>
+            item.kind === unit.kind && item.unitIndex === unit.unitIndex,
         );
-        for (const tray of telemetry?.trays ?? []) {
+        for (const reported of reading?.slots ?? []) {
           if (
-            !deactivated.has(tray.slotIndex) &&
-            !slots.some((slot) => slot.slotPosition === tray.slotIndex)
+            !deactivated.has(reported.slotPosition) &&
+            !slots.some((slot) => slot.slotPosition === reported.slotPosition)
           )
-            slots.push({ slotPosition: tray.slotIndex });
-        }
-        for (let position = 0; slots.length < 4 && position < 4; position++) {
-          if (
-            !deactivated.has(position) &&
-            !slots.some((slot) => slot.slotPosition === position)
-          )
-            slots.push({ slotPosition: position });
+            slots.push({
+              slotPosition: reported.slotPosition,
+              displayLabel: reported.displayLabel,
+            });
         }
       }
       if (kind === 'external' && slots.length === 0)
@@ -138,9 +122,8 @@ export function buildFilamentRail(
           const view = feedSlotView(
             unit,
             slot,
-            printer.amsUnits ?? [],
+            printer.feedReadings,
             printer.isReachable ?? false,
-            printer.externalSpoolTray,
           );
           const current = slot.currentSpool;
           const spool = current?.id

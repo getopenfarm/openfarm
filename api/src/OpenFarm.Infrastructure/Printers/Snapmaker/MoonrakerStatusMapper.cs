@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Infrastructure.Printers.Snapmaker;
@@ -9,16 +10,13 @@ namespace OpenFarm.Infrastructure.Printers.Snapmaker;
 /// <summary>
 /// Pure translation of a Snapmaker U1's merged Moonraker status (the <c>printer.objects.subscribe</c> snapshot with
 /// every <c>notify_status_update</c> delta folded in) into OpenFarm's printer vocabulary: Bambu-style
-/// <c>gcode_state</c> words, the four toolheads as one four-tray unit (tray id = head index), and exceptions as
-/// alerts. Object and field names follow Snapmaker's open-source Klipper/Moonraker forks (<c>u1-klipper</c>,
-/// <c>u1-moonraker</c>).
+/// <c>gcode_state</c> words, the four toolheads as one four-slot unit whose slot n is the spool on head (extruder) n,
+/// and exceptions as alerts. Object and field names follow Snapmaker's open-source Klipper/Moonraker forks
+/// (<c>u1-klipper</c>, <c>u1-moonraker</c>).
 /// </summary>
 internal static class MoonrakerStatusMapper
 {
     public const int HeadCount = 4;
-
-    /// <summary><c>ActiveTrayId</c> when no head is picked up — the same "nothing loaded" value Bambu's <c>tray_now</c> uses.</summary>
-    public const int NoActiveHead = 255;
 
     public const string AlertSource = "Exception";
 
@@ -67,10 +65,8 @@ internal static class MoonrakerStatusMapper
         var heads = Enumerable.Range(0, HeadCount).Select(i => status[ExtruderName(i)]).ToArray();
         var active = ActiveHead(status, heads);
         var temperatures = heads.Select(h => Number(h, "temperature")).ToArray();
-        var diameters = heads.Select(h => Number(h, "nozzle_diameter")).ToArray();
-        var uniformDiameter = diameters.All(d => d is > 0) && diameters.Distinct().Count() == 1
-            ? Math.Round(diameters[0]!.Value, 2, MidpointRounding.AwayFromZero)
-            : (decimal?)null;
+        var reportedDiameters = heads.Select(h => Number(h, "nozzle_diameter")).ToArray();
+        var diameters = reportedDiameters.Select(d => d is > 0 ? Math.Round(d.Value, 2, MidpointRounding.AwayFromZero) : (decimal?)null).ToList();
         var printing = state is "RUNNING" or "PAUSE";
         var progress = printing || state == "FINISH" ? ProgressPercent(status) : null;
         var file = Text(status["print_stats"], "filename") is { Length: > 0 } name ? name : null;
@@ -86,15 +82,18 @@ internal static class MoonrakerStatusMapper
             printing ? RemainingMinutes(Number(status["print_stats"], "print_duration"), progress) : 0,
             file is null ? null : Path.GetFileNameWithoutExtension(file),
             Toolheads(status["print_task_config"], active),
-            ExternalSpoolTray: null,
-            NozzleDiameterMm: uniformDiameter,
-            // Reported even when the heads differ, so a mixed set clears the confirmed nozzle instead of keeping the old one.
-            NozzleReported: diameters.Any(d => d is not null),
             CurrentLayer: Integer(info, "current_layer"),
             TotalLayers: Integer(info, "total_layer"),
-            ActiveTrayId: active ?? NoActiveHead,
-            CurrentGcodeFile: file);
+            // Only the picked-up head is feeding; a parked head's spool waits.
+            ActiveSlots: Enumerable.Range(0, HeadCount).Select(head => head == active ? HeadSlot(head) : (FeedSlotRef?)null).ToList(),
+            CurrentGcodeFile: file,
+            // Per head: each head is confirmed at its own nozzle.
+            NozzleDiametersMm: reportedDiameters.Any(d => d is not null) ? diameters : null,
+            ExtruderTempsC: temperatures.Any(t => t is not null) ? temperatures.Select(WholeDegrees).ToList() : null);
     }
+
+    /// <summary>The feed slot of a head: the toolheads are one unit whose slot n is the spool on head n.</summary>
+    public static FeedSlotRef HeadSlot(int head) => new(FeedUnitKindCatalog.MultiMaterialUnit, 0, head);
 
     /// <summary>Alerts for the exception list Moonraker caches (<c>server.exception.query</c> / <c>notify_exception_status</c>).</summary>
     public static IReadOnlyList<PrinterAlert> Alerts(JsonNode? exceptions) =>
@@ -125,25 +124,26 @@ internal static class MoonrakerStatusMapper
         return heads.All(h => h?["state"] is null) && Text(status["toolhead"], "extruder") is { } name ? HeadIndex(name) : null;
     }
 
-    private static IReadOnlyList<AmsUnit> Toolheads(JsonNode? config, int? active)
+    private static IReadOnlyList<FeedUnitReading> Toolheads(JsonNode? config, int? active)
     {
         // An empty list means "unchanged" to Printer.RecordTelemetry, which is right until print_task_config arrives.
         if (config is not JsonObject) return [];
 
-        var trays = Enumerable.Range(0, HeadCount).Select(head =>
+        var slots = Enumerable.Range(0, HeadCount).Select(head =>
         {
             var empty = Element(config["filament_exist"], head)?.GetValueKind() != JsonValueKind.True;
             var type = empty ? null : Known(Element(config["filament_type"], head));
             var subType = Known(Element(config["filament_sub_type"], head));
             var color = Element(config["filament_color_rgba"], head)?.ToString();
-            return new AmsTray(head, empty, type,
+            return new FeedSlotReading(head, empty, type,
                 type is null || string.IsNullOrWhiteSpace(color) ? null : color.ToUpperInvariant(),
                 // Bambu's "PLA Basic" shape, which RfidVariantMatch.SameLine compares against a spool's line.
                 type is null || subType is null ? null : $"{type} {subType}",
                 RemainPercent: null,
-                Active: active == head);
+                Active: active == head,
+                ExtruderIndex: head);
         }).ToList();
-        return [new AmsUnit(0, trays)];
+        return [new FeedUnitReading(FeedUnitKindCatalog.MultiMaterialUnit, 0, slots)];
     }
 
     // ponytail: the level scale is unpublished (raised exceptions default to 3); confirm against real captures.

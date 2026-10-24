@@ -2,8 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey } from '@/lib/api/generated/activity-log/activity-log';
 import type {
-  AmsTrayResponse,
-  AmsUnitResponse,
+  FeedReadingResponse,
   FleetPrinterResponse,
   ListFleetResponse,
   PrinterDetailResponse,
@@ -18,8 +17,8 @@ import {
 } from '@/lib/api/generated/printers/printers';
 import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
-import { amsRfidKey, amsTopologyKey } from '../lib/feedSlotView';
-import { filamentColorFromAms } from '../lib/filamentColor';
+import { rfidKey, topologyKey } from '../lib/feedSlotView';
+import { filamentColorFromReadings } from '../lib/filamentColor';
 
 interface PrinterStatusChangedPayload {
   printerId: string;
@@ -30,8 +29,7 @@ interface PrinterStatusChangedPayload {
 interface PrinterTelemetryUpdatedPayload {
   printerId: string;
   telemetry: PrinterDetailTelemetryResponse;
-  amsUnits: AmsUnitResponse[];
-  externalSpoolTray?: AmsTrayResponse | null;
+  feedReadings: FeedReadingResponse[];
 }
 
 interface CameraFrameReceivedPayload {
@@ -187,7 +185,13 @@ export function useFarmHub() {
                 isReachable: payload.isReachable,
                 telemetry: payload.isReachable
                   ? current.data.telemetry
-                  : { ...current.data.telemetry, nozzleConfirmed: false },
+                  : {
+                      ...current.data.telemetry,
+                      nozzleConfirmed: false,
+                      extruders: current.data.telemetry?.extruders?.map(
+                        (extruder) => ({ ...extruder, nozzleConfirmed: false }),
+                      ),
+                    },
               },
             };
           },
@@ -198,13 +202,20 @@ export function useFarmHub() {
     connection.on(
       'PrinterTelemetryUpdated',
       (payload: PrinterTelemetryUpdatedPayload) => {
-        const nozzle = `${payload.telemetry.nozzleDiameterMm ?? ''}:${payload.telemetry.nozzleConfirmed ?? false}`;
+        // Every extruder's nozzle and confirmation: profile pickers and job matching depend on each.
+        const extruders = payload.telemetry.extruders ?? [];
+        const nozzle = JSON.stringify([
+          payload.telemetry.nozzleDiameterMm ?? null,
+          payload.telemetry.nozzleConfirmed ?? false,
+          extruders.map((e) => [e.nozzleDiameterMm, e.nozzleConfirmed]),
+        ]);
         const previousNozzle = nozzleByPrinter.get(payload.printerId);
         nozzleByPrinter.set(payload.printerId, nozzle);
         if (
           previousNozzle !== nozzle &&
           (previousNozzle !== undefined ||
-            payload.telemetry.nozzleDiameterMm != null)
+            payload.telemetry.nozzleDiameterMm != null ||
+            extruders.some((e) => e.nozzleDiameterMm != null))
         ) {
           queryClient.invalidateQueries({
             predicate: (query) =>
@@ -218,13 +229,13 @@ export function useFarmHub() {
           });
         }
         // Unregistered RFID spools in Action required are derived from the tags printers read.
-        const rfid = amsRfidKey(payload.amsUnits, payload.externalSpoolTray);
+        const rfid = rfidKey(payload.feedReadings);
         const previousRfid = rfidByPrinter.get(payload.printerId);
         rfidByPrinter.set(payload.printerId, rfid);
         if (previousRfid !== undefined && previousRfid !== rfid) {
           invalidateNotificationQueries(queryClient);
         }
-        const topology = `${amsTopologyKey(payload.amsUnits)}:${payload.externalSpoolTray == null ? 'no-external' : 'external'}`;
+        const topology = topologyKey(payload.feedReadings);
         if (topologyByPrinter.get(payload.printerId) !== topology) {
           topologyByPrinter.set(payload.printerId, topology);
           queryClient.invalidateQueries({
@@ -248,8 +259,7 @@ export function useFarmHub() {
               data: {
                 ...current.data,
                 telemetry: payload.telemetry,
-                amsUnits: payload.amsUnits,
-                externalSpoolTray: payload.externalSpoolTray,
+                feedReadings: payload.feedReadings,
               },
             };
           },
@@ -283,8 +293,8 @@ export function useFarmHub() {
                           remainingTimeMinutes:
                             payload.telemetry.remainingTimeMinutes,
                           currentJobName: payload.telemetry.currentJobName,
-                          filamentColorHex: filamentColorFromAms(
-                            payload.amsUnits,
+                          filamentColorHex: filamentColorFromReadings(
+                            payload.feedReadings,
                           ),
                         }
                       : printer,

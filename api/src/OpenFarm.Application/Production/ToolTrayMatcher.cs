@@ -3,8 +3,8 @@ using OpenFarm.Application.Printers;
 
 namespace OpenFarm.Application.Production;
 
-/// <summary>A tray the printer reports loaded: its <c>tray_now</c> id and the material and colour it reports for it.</summary>
-public sealed record LoadedTray(int TrayId, string? MaterialType, string? ColorHex);
+/// <summary>A tray the printer reports loaded: what identifies it (its feed slot) and the material and colour it reports for it.</summary>
+public sealed record LoadedTray<TKey>(TKey Key, string? MaterialType, string? ColorHex);
 
 /// <summary>
 /// Pairs the tools of a print the printer started itself with the AMS trays that fed them, from what each tool prints (material
@@ -19,27 +19,27 @@ public static class ToolTrayMatcher
     public const double MaxDistance = 80;
     private const double MinMargin = 40;
 
-    /// <summary>Tool index to tray id for every tool that has one clearly best tray.</summary>
-    public static IReadOnlyDictionary<int, int> Match(
+    /// <summary>Tool index to tray key for every tool that has one clearly best tray.</summary>
+    public static IReadOnlyDictionary<int, TKey> Match<TKey>(
         IEnumerable<(int ToolIndex, string? MaterialType, string? ColorHex)> tools,
-        IReadOnlyList<LoadedTray> trays,
-        IReadOnlyCollection<int> observedTrayIds)
+        IReadOnlyList<LoadedTray<TKey>> trays,
+        IReadOnlyCollection<TKey> observedTrays)
     {
-        var matched = new Dictionary<int, int>();
+        var matched = new Dictionary<int, TKey>();
         foreach (var (toolIndex, material, color) in tools)
         {
             if (Rgb(color) is not { } want || string.IsNullOrEmpty(material)) continue;
             var ranked = trays
                 .Where(t => string.Equals(t.MaterialType, material, StringComparison.OrdinalIgnoreCase))
-                .Select(t => (t.TrayId, Distance: Rgb(t.ColorHex) is { } have ? Distance(want, have) : double.MaxValue))
+                .Select(t => (t.Key, Distance: Rgb(t.ColorHex) is { } have ? Distance(want, have) : double.MaxValue))
                 .Where(t => t.Distance <= MaxDistance)
                 .OrderBy(t => t.Distance)
                 .ToList();
             if (ranked.Count == 0) continue;
 
             var contenders = ranked.Where(t => t.Distance - ranked[0].Distance < MinMargin).ToList();
-            if (contenders.Count == 1) matched[toolIndex] = contenders[0].TrayId;
-            else if (contenders.Where(t => observedTrayIds.Contains(t.TrayId)).ToList() is [var seen]) matched[toolIndex] = seen.TrayId;
+            if (contenders.Count == 1) matched[toolIndex] = contenders[0].Key;
+            else if (contenders.Where(t => observedTrays.Contains(t.Key)).ToList() is [var seen]) matched[toolIndex] = seen.Key;
         }
 
         return matched;

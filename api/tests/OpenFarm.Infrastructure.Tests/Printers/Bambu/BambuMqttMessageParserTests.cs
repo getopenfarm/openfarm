@@ -1,5 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
+using OpenFarm.Application.Printers;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Printers.Bambu;
 
@@ -12,45 +14,60 @@ namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
 /// </summary>
 public class BambuMqttMessageParserTests
 {
-    [Theory]
-    [InlineData("254", 254)]
-    [InlineData("255", 255)]
-    [InlineData("5", 5)]
-    [InlineData("", null)]
-    public void TrayNowIsTheActiveTrayId(string trayNow, int? expected)
-    {
-        var json = trayNow.Length == 0 ? "{\"print\":{\"ams\":{}}}" : $"{{\"print\":{{\"ams\":{{\"tray_now\":\"{trayNow}\"}}}}}}";
+    private static PrinterTelemetrySnapshot TrayNow(string trayNow) =>
+        BambuMqttMessageParser.TryParseTelemetry($"{{\"print\":{{\"ams\":{{\"tray_now\":\"{trayNow}\"}}}}}}")!;
 
-        BambuMqttMessageParser.TryParseTelemetry(json)!.ActiveTrayId.Should().Be(expected);
-    }
+    [Theory]
+    [InlineData("254", FeedUnitKindCatalog.ExternalSpool, 0, 0)]
+    [InlineData("5", FeedUnitKindCatalog.MultiMaterialUnit, 1, 1)]
+    [InlineData("128", FeedUnitKindCatalog.MultiMaterialUnit, 128, 0)]
+    public void TrayNowIsTheSlotFeedingTheExtruder(string trayNow, string kind, int unit, int slot) =>
+        TrayNow(trayNow).ActiveSlots.Should().Equal(new FeedSlotRef(kind, unit, slot));
 
     [Fact]
-    public void TrayNowAbsentFromAnAmslessDelta_IsNotReported() =>
-        BambuMqttMessageParser.TryParseTelemetry("{\"print\":{\"mc_percent\":10}}")!.ActiveTrayId.Should().BeNull();
+    public void TrayNow255_IsNothingLoaded() =>
+        TrayNow("255").ActiveSlots.Should().ContainSingle().Which.Should().BeNull();
+
+    [Theory]
+    [InlineData("{\"print\":{\"ams\":{}}}")]
+    [InlineData("{\"print\":{\"mc_percent\":10}}")]
+    public void TrayNowAbsentFromADelta_IsNotReported(string json) =>
+        BambuMqttMessageParser.TryParseTelemetry(json)!.ActiveSlots.Should().BeNull();
+
+    /// <summary>"0.4|0.6" is extruder 0 then 1; an empty entry is an unreadable diameter.</summary>
+    private static decimal?[] Diameters(string perExtruder) => perExtruder.Split('|')
+        .Select(d => d.Length == 0 ? (decimal?)null : decimal.Parse(d, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
 
     [Theory]
     [InlineData("[{\"diameter\":\"0.4\"}]", "0.4")]
-    [InlineData("[{\"diameter\":0.4},{\"diameter\":0.6}]", null)]
-    [InlineData("[{\"diameter\":0.4},{}]", null)]
-    [InlineData("[]", null)]
-    public void NestedNozzleReportsRequireKnownUniformDiameters(string info, string? expected)
-    {
-        var telemetry = BambuMqttMessageParser.TryParseTelemetry($"{{\"print\":{{\"device\":{{\"nozzle\":{{\"info\":{info}}}}}}}}}");
-        telemetry!.NozzleReported.Should().BeTrue();
-        telemetry.NozzleDiameterMm.Should().Be(expected is null ? null : decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
-    }
+    [InlineData("[{\"diameter\":0.4},{\"diameter\":0.6}]", "0.4|0.6")]
+    [InlineData("[{\"diameter\":0.4},{}]", "0.4|")]
+    [InlineData("[]", "")]
+    // Mounted nozzles by id; ids from 16 sit in a nozzle rack.
+    [InlineData("[{\"id\":1,\"diameter\":0.6},{\"id\":16,\"diameter\":0.2},{\"id\":0,\"diameter\":0.4}]", "0.4|0.6")]
+    public void NestedNozzleReports_ListEachExtrudersDiameter(string info, string expected) =>
+        BambuMqttMessageParser.TryParseTelemetry($"{{\"print\":{{\"device\":{{\"nozzle\":{{\"info\":{info}}}}}}}}}")!
+            .NozzleDiametersMm.Should().Equal(Diameters(expected));
 
     [Theory]
     [InlineData("0.4", "0.4")]
     [InlineData("\"0.6\"", "0.6")]
-    [InlineData("0", null)]
-    [InlineData("\"unknown\"", null)]
-    [InlineData("null", null)]
-    public void NozzleDiameterAcceptsNumericAndStringTelemetryOnly(string value, string? expected)
-    {
-        var telemetry = BambuMqttMessageParser.TryParseTelemetry($"{{\"print\":{{\"nozzle_diameter\":{value}}}}}");
-        telemetry!.NozzleDiameterMm.Should().Be(expected is null ? null : decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
-    }
+    [InlineData("0", "")]
+    [InlineData("\"unknown\"", "")]
+    [InlineData("null", "")]
+    public void NozzleDiameterAcceptsNumericAndStringTelemetryOnly(string value, string expected) =>
+        BambuMqttMessageParser.TryParseTelemetry($"{{\"print\":{{\"nozzle_diameter\":{value}}}}}")!
+            .NozzleDiametersMm.Should().Equal(Diameters(expected));
+
+    [Fact]
+    public void ADeltaWithoutANozzle_ReportsNoDiameters() =>
+        BambuMqttMessageParser.TryParseTelemetry("{\"print\":{\"mc_percent\":10}}")!.NozzleDiametersMm.Should().BeNull();
+
+    private static IEnumerable<FeedUnitReading> Ams(PrinterTelemetrySnapshot telemetry) =>
+        telemetry.FeedReadings.Where(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit);
+
+    private static FeedSlotReading? ExternalSpool(PrinterTelemetrySnapshot telemetry) =>
+        telemetry.FeedReadings.SingleOrDefault(u => u.Kind == FeedUnitKindCatalog.ExternalSpool)?.Slots.Single();
 
     private static readonly string FixturesDirectory = Path.Combine(AppContext.BaseDirectory, "Printers", "Fixtures");
 
@@ -78,7 +95,7 @@ public class BambuMqttMessageParserTests
 
         telemetry.Should().NotBeNull();
         telemetry!.NozzleTempC.Should().Be(220);
-        telemetry.AmsUnits.SelectMany(unit => unit.Trays).Should().BeEmpty();
+        Ams(telemetry).SelectMany(unit => unit.Slots).Should().BeEmpty();
     }
 
     [Theory]
@@ -213,10 +230,10 @@ public class BambuMqttMessageParserTests
         var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
 
         telemetry.Should().NotBeNull();
-        telemetry!.AmsUnits.Should().HaveCount(4);
-        telemetry.AmsUnits.Select(u => u.UnitIndex).Should().BeEquivalentTo([0, 1, 2, 128]);
-        telemetry.AmsUnits.Single(u => u.UnitIndex == 0).Trays.Should().HaveCount(4);
-        telemetry.AmsUnits.Single(u => u.UnitIndex == 128).Trays.Should().HaveCount(1); // external spool holder
+        Ams(telemetry!).Should().HaveCount(4);
+        Ams(telemetry).Select(u => u.UnitIndex).Should().BeEquivalentTo([0, 1, 2, 128]);
+        Ams(telemetry).Single(u => u.UnitIndex == 0).Slots.Should().HaveCount(4);
+        Ams(telemetry).Single(u => u.UnitIndex == 128).Slots.Should().HaveCount(1); // external spool holder
     }
 
     [Fact]
@@ -226,7 +243,7 @@ public class BambuMqttMessageParserTests
 
         var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
 
-        var tray = telemetry!.AmsUnits.Single(u => u.UnitIndex == 0).Trays.Single(t => t.SlotIndex == 0);
+        var tray = Ams(telemetry!).Single(u => u.UnitIndex == 0).Slots.Single(t => t.SlotPosition == 0);
         tray.Empty.Should().BeFalse();
         tray.MaterialType.Should().Be("PLA");
         tray.ColorHex.Should().Be("000000FF");
@@ -241,7 +258,7 @@ public class BambuMqttMessageParserTests
         var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
 
         // Unit 2, tray 0 has no tray_type/tray_color in the real fixture — an unloaded slot.
-        var tray = telemetry!.AmsUnits.Single(u => u.UnitIndex == 2).Trays.Single(t => t.SlotIndex == 0);
+        var tray = Ams(telemetry!).Single(u => u.UnitIndex == 2).Slots.Single(t => t.SlotPosition == 0);
         tray.Empty.Should().BeTrue();
         tray.MaterialType.Should().BeNull();
         tray.ColorHex.Should().BeNull();
@@ -255,7 +272,7 @@ public class BambuMqttMessageParserTests
         var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
 
         telemetry.Should().NotBeNull();
-        telemetry!.AmsUnits.Should().BeEmpty();
+        Ams(telemetry!).Should().BeEmpty();
     }
 
     [Theory]
@@ -276,10 +293,10 @@ public class BambuMqttMessageParserTests
         var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
 
         telemetry.Should().NotBeNull();
-        telemetry!.ExternalSpoolTray.Should().NotBeNull();
-        telemetry.ExternalSpoolTray!.Empty.Should().BeFalse();
-        telemetry.ExternalSpoolTray.MaterialType.Should().Be("PLA");
-        telemetry.ExternalSpoolTray.ColorHex.Should().Be("FFFFFFFF");
+        ExternalSpool(telemetry!).Should().NotBeNull();
+        ExternalSpool(telemetry)!.Empty.Should().BeFalse();
+        ExternalSpool(telemetry)!.MaterialType.Should().Be("PLA");
+        ExternalSpool(telemetry)!.ColorHex.Should().Be("FFFFFFFF");
     }
 
     [Fact]
@@ -290,10 +307,10 @@ public class BambuMqttMessageParserTests
         var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
 
         telemetry.Should().NotBeNull();
-        telemetry!.ExternalSpoolTray.Should().NotBeNull();
-        telemetry.ExternalSpoolTray!.Empty.Should().BeFalse();
-        telemetry.ExternalSpoolTray.MaterialType.Should().Be("PETG");
-        telemetry.ExternalSpoolTray.ColorHex.Should().Be("BCBCBCFF");
+        ExternalSpool(telemetry!).Should().NotBeNull();
+        ExternalSpool(telemetry)!.Empty.Should().BeFalse();
+        ExternalSpool(telemetry)!.MaterialType.Should().Be("PETG");
+        ExternalSpool(telemetry)!.ColorHex.Should().Be("BCBCBCFF");
     }
 
     [Fact]
@@ -304,14 +321,14 @@ public class BambuMqttMessageParserTests
         var telemetry = BambuMqttMessageParser.TryParseTelemetry(reportPayload);
 
         telemetry.Should().NotBeNull();
-        telemetry!.ExternalSpoolTray.Should().NotBeNull();
-        telemetry.ExternalSpoolTray!.Empty.Should().BeTrue();
-        telemetry.ExternalSpoolTray.MaterialType.Should().BeNull();
+        ExternalSpool(telemetry!).Should().NotBeNull();
+        ExternalSpool(telemetry)!.Empty.Should().BeTrue();
+        ExternalSpool(telemetry)!.MaterialType.Should().BeNull();
     }
 
-    private static AmsTray Tray(string fixtureFile, int unitIndex, int slotIndex) =>
+    private static FeedSlotReading Tray(string fixtureFile, int unitIndex, int slotIndex) =>
         BambuMqttMessageParser.TryParseTelemetry(LoadSection(fixtureFile, "pushall"))!
-            .AmsUnits.Single(u => u.UnitIndex == unitIndex).Trays.Single(t => t.SlotIndex == slotIndex);
+            .FeedReadings.Single(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit && u.UnitIndex == unitIndex).Slots.Single(t => t.SlotPosition == slotIndex);
 
     [Fact]
     public void TryParseTelemetry_WithMultiAmsFixture_ReadsEachSpoolsRfidIdAndWeight()
@@ -348,7 +365,7 @@ public class BambuMqttMessageParserTests
     [Fact]
     public void TryParseTelemetry_ExternalSpoolWithAnAllZeroUuid_HasNoTag() =>
         BambuMqttMessageParser.TryParseTelemetry(LoadSection("awaiting-clear-p1p-no-ams.json", "pushall"))!
-            .ExternalSpoolTray!.RfidId.Should().BeNull();
+            .FeedReadings.Single(u => u.Kind == FeedUnitKindCatalog.ExternalSpool).Slots.Single().RfidId.Should().BeNull();
 
     [Theory]
     [InlineData("\"1000\"", 1000)]
@@ -361,7 +378,7 @@ public class BambuMqttMessageParserTests
             "tray_uuid":"5F3D8925633343C29FB9A97FA9125971","tray_weight":WEIGHT}]}]}}}
             """.Replace("WEIGHT", weight, StringComparison.Ordinal);
 
-        BambuMqttMessageParser.TryParseTelemetry(payload)!.AmsUnits.Single().Trays.Single().RfidWeightGrams.Should().Be(expected);
+        BambuMqttMessageParser.TryParseTelemetry(payload)!.FeedReadings.Single().Slots.Single().RfidWeightGrams.Should().Be(expected);
     }
 
     private static string LoadSection(string fixtureFile, string sectionName)

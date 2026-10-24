@@ -58,7 +58,7 @@ public class ReloaderConfigurationTests(CustomWebApplicationFactory factory) : I
         unit.FeedSlots[0].CurrentSpool!.Id.Should().Be(spoolId);
         unit.FeedSlots[1].DetectedMaterialType.Should().BeNull();
         var printer = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printerId}", UriKind.Relative));
-        unit.FeedSlots[0].DetectedMaterialType.Should().Be(printer!.ExternalSpoolTray!.MaterialType);
+        unit.FeedSlots[0].DetectedMaterialType.Should().Be(printer!.FeedReadings.Single(r => r.Kind == FeedUnitKindCatalog.ExternalSpool).Slots.Single().MaterialType);
         var all = await client.GetFromJsonAsync<ListFeedUnitsResponse>(UnitsUrl(printerId, true));
         all!.FeedUnits.Single(u => u.Id == external.Id).FeedSlots[0].DetectedMaterialType.Should().BeNull();
     }

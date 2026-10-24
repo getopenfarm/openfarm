@@ -38,13 +38,20 @@ public class GetPrinterCatalogEndpointTests(CustomWebApplicationFactory factory)
         body.Should().NotBeNull();
 
         var bambu = body!.Brands.Should().ContainSingle(b => b.Brand == "Bambu").Which;
-        bambu.Models.Should().BeEquivalentTo(["X1", "X1C", "X1E", "P1P", "P1S", "A1", "A1MINI"]);
+        bambu.Models.Select(m => m.ModelCode).Should().BeEquivalentTo(["X1", "X1C", "X1E", "P1P", "P1S", "A1", "A1MINI"]);
+        bambu.Models.Should().OnlyContain(m => m.Connection.SerialRequired
+            && m.Connection.SecretRequired && m.Connection.SecretName == "access code" && m.Connection.Note != null);
+        bambu.Models.Where(m => !m.CameraSupported).Select(m => m.ModelCode).Should().BeEquivalentTo(["X1", "X1C", "X1E"]);
 
         var system = body.Brands.Should().ContainSingle(b => b.Brand == "System").Which;
-        system.Models.Should().BeEquivalentTo(["Simulation"]);
+        system.Models.Select(m => m.ModelCode).Should().BeEquivalentTo(["Simulation"]);
 
         var snapmaker = body.Brands.Should().ContainSingle(b => b.Brand == "Snapmaker").Which;
-        snapmaker.Models.Should().BeEquivalentTo(["U1"]);
+        var u1 = snapmaker.Models.Should().ContainSingle().Which;
+        u1.Should().BeEquivalentTo(new { ModelCode = "U1", Name = "Snapmaker U1", CameraSupported = true },
+            options => options.ExcludingMissingMembers());
+        u1.Connection.Should().BeEquivalentTo(new { SerialRequired = false, SecretName = "API key", SecretRequired = false },
+            options => options.ExcludingMissingMembers());
     }
 
     [Fact]

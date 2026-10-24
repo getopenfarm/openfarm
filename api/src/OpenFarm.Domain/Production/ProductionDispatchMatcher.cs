@@ -14,23 +14,24 @@ namespace OpenFarm.Domain.Production;
 public static class ProductionDispatchMatcher
 {
     /// <summary>
-    /// Returns the id of the topmost-queued Unassigned candidate whose required nozzle diameter
-    /// matches the printer's exactly and whose entire filament requirement is satisfiable by what's
-    /// loaded; failing that, the topmost-queued <paramref name="pinnedCandidates"/> entry (FR-007c —
-    /// already scoped by the caller to this exact printer, and still subject to FR-010 validation); or <see langword="null"/> if neither yields anything. A <c>null</c>
+    /// Returns the id of the topmost-queued Unassigned candidate the printer <see cref="CanServe"/>; failing that, the
+    /// topmost-queued <paramref name="pinnedCandidates"/> entry (FR-007c — already scoped by the caller to this exact
+    /// printer, and still subject to FR-010 validation); or <see langword="null"/> if neither yields anything. A <c>null</c>
     /// <c>MaterialType</c>/<c>ColorHex</c> on a requirement is a wildcard (Phase 4's "any
     /// material"/unconstrained color) and matches anything loaded.
     /// </summary>
+    /// <param name="printerNozzlesMm">The nozzles confirmed on the printer's extruders.</param>
+    /// <param name="printerLoadedMaterials">Each loaded spool with its extruder's confirmed nozzle (null when unconfirmed).</param>
     public static Guid? SelectNextJob(
-        decimal printerNozzleDiameterMm,
-        IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials,
+        IReadOnlyCollection<decimal> printerNozzlesMm,
+        IReadOnlyList<(string? MaterialType, string? ColorHex, decimal? NozzleMm)> printerLoadedMaterials,
         IReadOnlyList<DispatchCandidate> candidates,
         IReadOnlyList<DispatchCandidate>? pinnedCandidates = null)
     {
         DispatchCandidate? best = null;
         foreach (var candidate in candidates.Concat(pinnedCandidates ?? []))
         {
-            if (!Matches(printerNozzleDiameterMm, printerLoadedMaterials, candidate)) continue;
+            if (!CanServe(printerNozzlesMm, printerLoadedMaterials, candidate.RequiredNozzleDiameterMm, candidate.FilamentRequirement)) continue;
             if (best is null || candidate.QueuePosition < best.QueuePosition) best = candidate;
         }
         return best?.JobId;
@@ -73,18 +74,13 @@ public static class ProductionDispatchMatcher
     /// no ordering signal among backfill lines (FR-008a rules out priority-based scheduling).
     /// </summary>
     public static Guid? SelectNextBackfillLine(
-        decimal printerNozzleDiameterMm,
-        IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials,
+        IReadOnlyCollection<decimal> printerNozzlesMm,
+        IReadOnlyList<(string? MaterialType, string? ColorHex, decimal? NozzleMm)> printerLoadedMaterials,
         IReadOnlyList<BackfillLineCandidate> backfillCandidates)
     {
         foreach (var candidate in backfillCandidates)
         {
-            if (candidate.RequiredNozzleDiameterMm != printerNozzleDiameterMm)
-            {
-                continue;
-            }
-
-            if (!SatisfiesFilamentRequirement(printerLoadedMaterials, candidate.FilamentRequirement))
+            if (!CanServe(printerNozzlesMm, printerLoadedMaterials, candidate.RequiredNozzleDiameterMm, candidate.FilamentRequirement))
             {
                 continue;
             }
@@ -105,20 +101,20 @@ public static class ProductionDispatchMatcher
         return null;
     }
 
-    private static bool Matches(
-        decimal printerNozzleDiameterMm,
-        IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials,
-        DispatchCandidate candidate) =>
-        candidate.RequiredNozzleDiameterMm == printerNozzleDiameterMm
-            && SatisfiesFilamentRequirement(printerLoadedMaterials, candidate.FilamentRequirement);
-
-    private static bool SatisfiesFilamentRequirement(
-        IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials,
+    /// <summary>
+    /// A printer can take a job when one of its extruders has the job's nozzle and every required filament is loaded on an
+    /// extruder with that nozzle — extruders the job doesn't use may differ.
+    /// </summary>
+    public static bool CanServe(
+        IReadOnlyCollection<decimal> printerNozzlesMm,
+        IReadOnlyList<(string? MaterialType, string? ColorHex, decimal? NozzleMm)> printerLoadedMaterials,
+        decimal requiredNozzleMm,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> filamentRequirement)
     {
+        if (!printerNozzlesMm.Contains(requiredNozzleMm)) return false;
         foreach (var required in filamentRequirement)
         {
-            var satisfiable = printerLoadedMaterials.Any(loaded =>
+            var satisfiable = printerLoadedMaterials.Any(loaded => loaded.NozzleMm == requiredNozzleMm &&
                 (required.MaterialType is null || required.MaterialType == loaded.MaterialType) &&
                 (required.ColorHex is null || string.Equals(required.ColorHex, loaded.ColorHex, StringComparison.OrdinalIgnoreCase)));
 

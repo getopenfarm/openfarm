@@ -48,6 +48,7 @@ import type {
   DiscoveredPrinterResponse,
   PrinterCatalogResponse,
   PrinterDetailResponse,
+  PrinterModelResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsPrintersGetDiscoveredPrintersEndpointQueryKey,
@@ -59,6 +60,7 @@ import {
   useOpenFarmApiEndpointsPrintersRegisterPrinterEndpoint,
   useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint,
 } from '@/lib/api/generated/printers/printers';
+import { formatMm } from '@/lib/formatUnits';
 import { DiscoverPrinters } from './DiscoverPrinters';
 
 interface PrinterFormPageProps {
@@ -72,39 +74,43 @@ export function PrinterFormPage({ mode }: PrinterFormPageProps) {
   return <EditPrinterForm />;
 }
 
-// Mirrors PrinterModelCatalog.UsesAccessCode: a Snapmaker reports its own SN and its Moonraker API key is optional.
-function usesAccessCode(brand: string) {
-  return brand !== 'Snapmaker';
+function findModel(
+  catalog: PrinterCatalogResponse | undefined,
+  brand: string,
+  modelCode: string,
+) {
+  return catalog?.brands
+    ?.find((b) => b.brand === brand)
+    ?.models?.find((m) => m.modelCode === modelCode);
 }
 
-// FR-007/FR-008 (US3): brand/model options come from the backend catalog, not a hardcoded list —
-// adding a brand/model to PrinterModelCatalog now requires zero frontend code change. A compile-time
-// z.enum can no longer describe a server-driven list, so brand/modelCode are validated via a
-// runtime .refine() closed over the fetched catalog (research.md §5) instead.
-const addSchema = z
-  .object({
-    name: z.string().min(1, 'Name is required'),
-    brand: z.string().min(1, 'Brand is required'),
-    modelCode: z.string().min(1, 'Model is required'),
-    ipAddress: z.string().min(1, 'IP address is required'),
-    serialNumber: z.string(),
-    accessCode: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (!usesAccessCode(values.brand)) return;
-    if (!values.serialNumber)
-      ctx.addIssue({
-        code: 'custom',
-        path: ['serialNumber'],
-        message: 'Serial number is required',
-      });
-    if (!values.accessCode)
-      ctx.addIssue({
-        code: 'custom',
-        path: ['accessCode'],
-        message: 'Access code is required',
-      });
-  });
+// The model's own connection fields; a model the server doesn't describe gets the strictest ones.
+function connectionFields(model: PrinterModelResponse | null | undefined) {
+  const connection = model?.connection;
+  return {
+    serialRequired: connection?.serialRequired ?? true,
+    secretName: connection?.secretName || 'access code',
+    secretRequired: connection?.secretRequired ?? true,
+    secretHint: connection?.secretHint ?? '',
+    note: connection?.note ?? null,
+  };
+}
+
+const upperFirst = (text: string) =>
+  text.charAt(0).toUpperCase() + text.slice(1);
+
+// FR-007/FR-008 (US3): brand/model options and their connection fields come from the backend catalog,
+// not a hardcoded list — adding a brand/model to PrinterModelCatalog requires zero frontend code change.
+// A compile-time z.enum can no longer describe a server-driven list, so brand/modelCode are validated via
+// a runtime .refine() closed over the fetched catalog (research.md §5) instead.
+const addSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  brand: z.string().min(1, 'Brand is required'),
+  modelCode: z.string().min(1, 'Model is required'),
+  ipAddress: z.string().min(1, 'IP address is required'),
+  serialNumber: z.string(),
+  accessCode: z.string(),
+});
 
 type AddFormValues = z.infer<typeof addSchema>;
 
@@ -174,6 +180,23 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
   }, [catalog]);
 
   const validatedSchema = addSchema
+    .superRefine((values, ctx) => {
+      const fields = connectionFields(
+        findModel(catalogRef.current, values.brand, values.modelCode),
+      );
+      if (fields.serialRequired && !values.serialNumber)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['serialNumber'],
+          message: 'Serial number is required',
+        });
+      if (fields.secretRequired && !values.accessCode)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['accessCode'],
+          message: `${upperFirst(fields.secretName)} is required`,
+        });
+    })
     .refine(
       (values) =>
         (catalogRef.current?.brands ?? []).some(
@@ -183,9 +206,8 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
     )
     .refine(
       (values) =>
-        (catalogRef.current?.brands ?? [])
-          .find((b) => b.brand === values.brand)
-          ?.models?.includes(values.modelCode) ?? false,
+        findModel(catalogRef.current, values.brand, values.modelCode) !==
+        undefined,
       { message: 'Unknown model for this brand', path: ['modelCode'] },
     );
 
@@ -219,23 +241,22 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
     if (!form.getValues('brand')) {
       const firstBrand = catalog.brands[0];
       form.setValue('brand', firstBrand.brand ?? '');
-      form.setValue('modelCode', firstBrand.models?.[0] ?? '');
+      form.setValue('modelCode', firstBrand.models?.[0]?.modelCode ?? '');
     }
   }, [catalog, form]);
 
   const selectedBrand = form.watch('brand');
+  const selectedModelCode = form.watch('modelCode');
   const modelsForBrand =
     catalog?.brands?.find((b) => b.brand === selectedBrand)?.models ?? [];
-  const accessCodeBrand = usesAccessCode(selectedBrand);
+  const connection = connectionFields(
+    findModel(catalog, selectedBrand, selectedModelCode),
+  );
 
   // Discovery already knows brand/model, unless the printer reported a model the catalog can't map.
   const showModelPickers =
     !prefill?.modelCode ||
-    !catalog?.brands?.some(
-      (b) =>
-        b.brand === prefill.brand &&
-        b.models?.includes(prefill.modelCode ?? ''),
-    );
+    !findModel(catalog, prefill.brand ?? '', prefill.modelCode);
 
   const verifyMutation =
     useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint();
@@ -263,14 +284,20 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
       },
     });
 
+  // A hidden serial typed for another model must not reach a printer that reports its own.
+  function clearSerialUnlessAsked(brand: string, modelCode: string) {
+    if (!connectionFields(findModel(catalog, brand, modelCode)).serialRequired)
+      form.setValue('serialNumber', '');
+  }
+
   function handleBrandChange(newBrand: string) {
     // Radix's hidden form control can emit an empty value while options mount.
     if (!newBrand) return;
     form.setValue('brand', newBrand);
-    // A hidden serial typed for another brand must not reach a printer that reports its own.
-    if (!usesAccessCode(newBrand)) form.setValue('serialNumber', '');
     const models = catalog?.brands?.find((b) => b.brand === newBrand)?.models;
-    form.setValue('modelCode', models?.[0] ?? '');
+    const modelCode = models?.[0]?.modelCode ?? '';
+    form.setValue('modelCode', modelCode);
+    clearSerialUnlessAsked(newBrand, modelCode);
   }
 
   // FR-001a: verify-before-add — Add runs the connection check first and only registers once it
@@ -385,7 +412,9 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                             name={field.name}
                             value={field.value}
                             onValueChange={(next) => {
-                              if (next) field.onChange(next);
+                              if (!next) return;
+                              field.onChange(next);
+                              clearSerialUnlessAsked(selectedBrand, next);
                             }}
                             disabled={
                               catalogQuery.isLoading || catalogUnavailable
@@ -403,8 +432,11 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                             <SelectContent>
                               <SelectGroup>
                                 {modelsForBrand.map((model) => (
-                                  <SelectItem key={model} value={model}>
-                                    {model}
+                                  <SelectItem
+                                    key={model.modelCode}
+                                    value={model.modelCode ?? ''}
+                                  >
+                                    {model.modelCode}
                                   </SelectItem>
                                 ))}
                               </SelectGroup>
@@ -431,7 +463,7 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                         </FormItem>
                       )}
                     />
-                    {accessCodeBrand && (
+                    {connection.serialRequired && (
                       <FormField
                         control={form.control}
                         name="serialNumber"
@@ -453,17 +485,11 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                   name="accessCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>
-                        {accessCodeBrand ? 'Access code' : 'API key'}
-                      </FormLabel>
+                      <FormLabel>{upperFirst(connection.secretName)}</FormLabel>
                       <FormControl>
                         <Input type="password" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        {accessCodeBrand
-                          ? 'Printer screen → Settings → Network.'
-                          : 'Moonraker. Blank = none.'}
-                      </FormDescription>
+                      <FormDescription>{connection.secretHint}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -475,18 +501,18 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                 )}
                 {verifyMutation.isError && !adding && (
                   <p className="text-sm text-destructive sm:col-span-2">
-                    {prefill
-                      ? accessCodeBrand
-                        ? 'Connection failed. Check access code.'
-                        : 'Connection failed. Check API key.'
-                      : accessCodeBrand
-                        ? 'Connection failed. Check IP, serial, access code.'
-                        : 'Connection failed. Check IP, API key.'}
+                    {`Connection failed. Check ${[
+                      !prefill && 'IP',
+                      !prefill && connection.serialRequired && 'serial',
+                      connection.secretName,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}.`}
                   </p>
                 )}
-                {selectedBrand === 'Bambu' && (
+                {connection.note && (
                   <p className="text-sm text-muted-foreground sm:col-span-2">
-                    LAN mode disconnects Bambu Cloud and Bambu Handy.
+                    {connection.note}
                   </p>
                 )}
               </CardContent>
@@ -568,8 +594,15 @@ function EditPrinterForm() {
       printerName={printer.name ?? ''}
       brand={printer.brand ?? ''}
       modelCode={printer.modelCode ?? ''}
+      model={printer.model}
       serialNumber={printer.serialNumber ?? ''}
-      nozzleDiameterMm={printer.telemetry?.nozzleDiameterMm}
+      confirmedNozzlesMm={[
+        ...new Set(
+          (printer.telemetry?.extruders ?? [])
+            .filter((e) => e.nozzleConfirmed && e.nozzleDiameterMm != null)
+            .map((e) => e.nozzleDiameterMm as number),
+        ),
+      ].sort((a, b) => a - b)}
       nozzleConfirmed={printer.telemetry?.nozzleConfirmed ?? false}
       currentIpAddress={printer.ipAddress ?? ''}
       machineProfileId={printer.machineProfileId}
@@ -588,9 +621,11 @@ interface EditPrinterFormLoadedProps {
   printerName: string;
   brand: string;
   modelCode: string;
+  model?: PrinterModelResponse | null;
   serialNumber: string;
   currentIpAddress: string;
-  nozzleDiameterMm?: number | null;
+  /** Each distinct nozzle confirmed on the printer's extruders. */
+  confirmedNozzlesMm: number[];
   nozzleConfirmed: boolean;
   machineProfileId: string | null | undefined;
   machineProfileName: string | null | undefined;
@@ -610,9 +645,10 @@ function EditPrinterFormLoaded({
   printerName,
   brand,
   modelCode,
+  model,
   serialNumber,
   currentIpAddress,
-  nozzleDiameterMm,
+  confirmedNozzlesMm,
   nozzleConfirmed,
   machineProfileId,
   machineProfileName,
@@ -668,7 +704,7 @@ function EditPrinterFormLoaded({
   // connection fields — a name-only change never triggers the verify-before-save flow (FR-003).
   const connectionChanged =
     ipAddress !== currentIpAddress || accessCode.length > 0;
-  const accessCodeBrand = usesAccessCode(brand);
+  const connection = connectionFields(model);
 
   const verifyMutation =
     useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint({
@@ -716,8 +752,11 @@ function EditPrinterFormLoaded({
     ) {
       return;
     }
-    // A Snapmaker without an API key moves to a new IP with an empty one.
-    if (!values.ipAddress || (accessCodeBrand && !values.accessCode)) {
+    // A printer whose key is optional moves to a new IP with an empty one.
+    if (
+      !values.ipAddress ||
+      (connection.secretRequired && !values.accessCode)
+    ) {
       return;
     }
     verifyMutation.mutate({
@@ -780,7 +819,7 @@ function EditPrinterFormLoaded({
           </BackLink>
         }
         title={`Edit ${printerName}`}
-        description={`${brand} ${modelCode} · ${serialNumber}`}
+        description={`${model?.name ?? `${brand} ${modelCode}`} · ${serialNumber}`}
       />
 
       <Form {...form}>
@@ -828,15 +867,14 @@ function EditPrinterFormLoaded({
                   name="accessCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>
-                        {accessCodeBrand ? 'Access code' : 'API key'}
-                      </FormLabel>
+                      <FormLabel>{upperFirst(connection.secretName)}</FormLabel>
                       <FormControl>
                         <Input
                           type="password"
                           // A stored key never goes to a new address, so a key-optional printer that moves gets none.
                           placeholder={
-                            accessCodeBrand || ipAddress === currentIpAddress
+                            connection.secretRequired ||
+                            ipAddress === currentIpAddress
                               ? 'Blank = keep current'
                               : 'Blank = none'
                           }
@@ -860,9 +898,7 @@ function EditPrinterFormLoaded({
                   verifyMutation.isError &&
                   !verifyMutation.isPending && (
                     <p className="text-sm text-destructive">
-                      {accessCodeBrand
-                        ? 'Connection failed. Check IP, access code.'
-                        : 'Connection failed. Check IP, API key.'}
+                      {`Connection failed. Check IP, ${connection.secretName}.`}
                     </p>
                   )}
                 {connectionChanged && verified && !verifyMutation.isPending && (
@@ -874,7 +910,7 @@ function EditPrinterFormLoaded({
                   <FieldTitle>Machine profile</FieldTitle>
                   <p className="text-xs text-muted-foreground">
                     {nozzleConfirmed
-                      ? `Nozzle: ${nozzleDiameterMm} mm (reported)`
+                      ? `Nozzle: ${confirmedNozzlesMm.map(formatMm).join(' · ')} (reported)`
                       : 'Waiting for nozzle data…'}
                   </p>
                   {selectedMachineProfileId === machineProfileId &&

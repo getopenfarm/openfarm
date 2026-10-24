@@ -12,9 +12,15 @@ public sealed class PrinterDetailTelemetryResponse
     public DateTimeOffset? StateObservedAtUtc { get; set; }
     public IReadOnlyList<PrinterAlert> ActiveAlerts { get; set; } = [];
 
+    /// <summary>The nozzle every extruder shares; null when they differ (see <see cref="Extruders"/>).</summary>
     public decimal? NozzleDiameterMm { get; set; }
     public DateTimeOffset? NozzleObservedAtUtc { get; set; }
+
+    /// <summary>Some extruder's nozzle is confirmed on the current connection.</summary>
     public bool NozzleConfirmed { get; set; }
+
+    /// <summary>What the printer last reported per extruder; index into the model's extruders.</summary>
+    public IReadOnlyList<ExtruderResponse> Extruders { get; set; } = [];
 
     public decimal? NozzleTempC { get; set; }
 
@@ -29,31 +35,25 @@ public sealed class PrinterDetailTelemetryResponse
     public string? CurrentJobName { get; set; }
 }
 
-public sealed class AmsTrayResponse
+public sealed class ExtruderResponse
 {
-    public int SlotIndex { get; set; }
+    public int Index { get; set; }
 
-    public bool Empty { get; set; }
+    public decimal? NozzleDiameterMm { get; set; }
 
-    public string? MaterialType { get; set; }
+    /// <summary>The nozzle was reported on the current connection.</summary>
+    public bool NozzleConfirmed { get; set; }
 
-    public string? ColorHex { get; set; }
+    public decimal? TempC { get; set; }
 
-    public string? SubBrand { get; set; }
-
-    public int? RemainPercent { get; set; }
-
-    public bool Active { get; set; }
-
-    /// <summary>The spool's RFID tag id; null without one.</summary>
-    public string? RfidId { get; set; }
-}
-
-public sealed class AmsUnitResponse
-{
-    public int UnitIndex { get; set; }
-
-    public IReadOnlyList<AmsTrayResponse> Trays { get; set; } = [];
+    public static IReadOnlyList<ExtruderResponse> From(IReadOnlyList<ExtruderReading>? extruders) =>
+        (extruders ?? []).Select(e => new ExtruderResponse
+        {
+            Index = e.Index,
+            NozzleDiameterMm = e.NozzleDiameterMm,
+            NozzleConfirmed = e.NozzleConfirmed,
+            TempC = e.TempC,
+        }).ToList();
 }
 
 public sealed class BuildPlateTypeOptionResponse
@@ -73,6 +73,9 @@ public sealed class PrinterDetailResponse
 
     public string ModelCode { get; set; } = string.Empty;
 
+    /// <summary>Null only when the catalog no longer knows this printer's model.</summary>
+    public PrinterModelResponse? Model { get; set; }
+
     public string IpAddress { get; set; } = string.Empty;
 
     public string SerialNumber { get; set; } = string.Empty;
@@ -83,9 +86,8 @@ public sealed class PrinterDetailResponse
 
     public PrinterDetailTelemetryResponse Telemetry { get; set; } = new();
 
-    public AmsTrayResponse? ExternalSpoolTray { get; set; }
-
-    public IReadOnlyList<AmsUnitResponse> AmsUnits { get; set; } = [];
+    /// <summary>The feed units and slots the printer last reported, with what it detects in each.</summary>
+    public IReadOnlyList<FeedReadingResponse> FeedReadings { get; set; } = [];
 
     /// <summary>Optional selected preset; never a source of nozzle diameter.</summary>
     public Guid? MachineProfileId { get; set; }
@@ -129,12 +131,14 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
             return;
         }
 
+        var model = PrinterModelCatalog.Find(detail.Brand, detail.ModelCode);
         Response = new PrinterDetailResponse
         {
             Id = detail.Id,
             Name = detail.Name,
             Brand = detail.Brand,
             ModelCode = detail.ModelCode,
+            Model = model is null ? null : PrinterModelResponse.From(model),
             IpAddress = detail.IpAddress,
             SerialNumber = detail.SerialNumber,
             Status = detail.Status.ToString(),
@@ -147,6 +151,7 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                 NozzleDiameterMm = detail.ReportedNozzleDiameterMm,
                 NozzleObservedAtUtc = detail.NozzleObservedAtUtc,
                 NozzleConfirmed = detail.NozzleConfirmed,
+                Extruders = ExtruderResponse.From(detail.Extruders),
                 NozzleTempC = detail.NozzleTempC,
                 BedTempC = detail.BedTempC,
                 PrintProgressPercent = detail.PrintProgressPercent,
@@ -154,36 +159,7 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                 RemainingTimeMinutes = detail.RemainingTimeMinutes,
                 CurrentJobName = detail.CurrentJobName,
             },
-            ExternalSpoolTray = detail.ExternalSpoolTray is { } external ? new AmsTrayResponse
-            {
-                SlotIndex = external.SlotIndex,
-                Empty = external.Empty,
-                MaterialType = external.MaterialType,
-                ColorHex = external.ColorHex,
-                SubBrand = external.SubBrand,
-                RemainPercent = external.RemainPercent,
-                Active = external.Active,
-                RfidId = external.RfidId,
-            } : null,
-            AmsUnits = detail.AmsUnits
-                .Select(unit => new AmsUnitResponse
-                {
-                    UnitIndex = unit.UnitIndex,
-                    Trays = unit.Trays
-                        .Select(tray => new AmsTrayResponse
-                        {
-                            SlotIndex = tray.SlotIndex,
-                            Empty = tray.Empty,
-                            MaterialType = tray.MaterialType,
-                            ColorHex = tray.ColorHex,
-                            SubBrand = tray.SubBrand,
-                            RemainPercent = tray.RemainPercent,
-                            Active = tray.Active,
-                            RfidId = tray.RfidId,
-                        })
-                        .ToList(),
-                })
-                .ToList(),
+            FeedReadings = FeedReadingResponse.From(detail.FeedReadings, model),
             MachineProfileId = detail.MachineProfileId,
             MachineProfileName = detail.MachineProfileName,
             MachineProfileIssue = detail.MachineProfileIssue,

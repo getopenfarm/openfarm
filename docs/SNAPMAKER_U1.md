@@ -57,10 +57,11 @@ The websocket subscribes (`printer.objects.subscribe`) to `print_stats`, `virtua
 | `display_status.progress` (M73), else `virtual_sdcard.progress` | Progress % |
 | `print_duration` ÷ progress | Remaining minutes (0 when not printing) |
 | `print_stats.info.current_layer` / `total_layer` | Layers |
-| The head whose `state` is `ACTIVATE` | Active tray (255 when none) |
+| The head whose `state` is `ACTIVATE` | That extruder's active slot (none when no head is picked up) |
 | Active head's temperature, else the hottest head | Nozzle temperature |
-| `nozzle_diameter` on all four heads | Nozzle diameter — only when all four agree (mixed heads are unknown, so nothing dispatches) |
-| `print_task_config` arrays (`filament_exist`, `filament_type`, `filament_sub_type`, `filament_color_rgba`) | One four-tray unit, tray = head (T1–T4) |
+| `nozzle_diameter` on each head | That extruder's nozzle, confirmed per head; heads may differ |
+| Each head's `temperature` | That extruder's temperature (Hardware card) |
+| `print_task_config` arrays (`filament_exist`, `filament_type`, `filament_sub_type`, `filament_color_rgba`) | One four-slot unit, slot n = head n, feeding extruder n (T1–T4) |
 | Exceptions (`id`, `index`, `code`, `level`, `message`) | Alerts, source `Exception`, code `id:index:code` |
 
 **States are sent once per change.** A state is reported on a connection's first snapshot and then only when it
@@ -68,10 +69,15 @@ changes — never re-sent on a telemetry tick or after a websocket reconnect. Re
 operator's Mark ready, because the U1 keeps reporting `complete` until the next print. State changes go out at
 once and in order; telemetry is coalesced to at most one event a second, with one at least every 10 s.
 
-**Toolheads.** The four heads appear as one Multi-Material Unit labelled *Toolheads*, slots *T1*–*T4*. A tray's
-id is its head index, so a job's tray mapping is exactly the firmware's tool→head map. Its reload policy matches
+**Toolheads.** The four heads appear as one Multi-Material Unit labelled *Toolheads*, slots *T1*–*T4*. Slot n is
+head n and feeds extruder n (`FeedSlot.ExtruderIndex`), so a job's slot mapping is exactly the firmware's tool→head
+map, and each head's spool is the active feed only while that head is picked up. Its reload policy matches
 the U1's *auto replenish* (another head with the same filament takes over); if auto replenish is off on the
-printer, same-filament heads still count as backup stock in the enough-filament check.
+printer, same-filament heads still count as backup stock in the enough-filament check. Neither crosses nozzle sizes:
+the firmware won't refill from a head with another nozzle.
+
+**Mixed nozzles.** Heads may carry different nozzles. A job goes only to heads with the part's nozzle, and the
+printer's machine preset must be at that nozzle (`Snapmaker U1 (0.4 nozzle)` serves 0.4 mm jobs).
 
 **Not mapped yet:** per-head temperatures, RFID spool linking (`filament_detect.info[N].CARD_UID`), the
 `machine_state_manager` stage (bed leveling, flow calibration, …).
@@ -90,9 +96,9 @@ and readiness says so.
 2. Uploads it with `POST /server/files/upload` (`root=gcodes`, `path=openfarm`, `checksum=<sha256>`), named like
    Bambu uploads but ending in `.gcode`.
 3. Starts it over a short-lived websocket with `server.files.start_local_print {path, options: {map_table}}`
-   (firmware 1.3+; the method is not offered over HTTP). `map_table` is `[[tool, head], …]` from the job's tray
-   mapping — a tray id is a head index here — and the firmware resets its map to identity before applying it.
-   With no mapping the identity map stays.
+   (firmware 1.3+; the method is not offered over HTTP). `map_table` is `[[tool, head], …]` from the job's feed
+   mapping — the toolheads are one unit whose slot n is head n, so a tool's slot position is its head — and the
+   firmware resets its map to identity before applying it. With no mapping the identity map stays.
 4. Fails the dispatch, which is reverted and retried later, when the answer's `state` isn't `success` (for example
    "Printer is busy, cannot start print"), when the method is missing (firmware older than 1.3), or after 60 s.
 

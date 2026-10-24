@@ -8,7 +8,10 @@ requirements apply (hexadecimal colour comparison is case-insensitive).
 Selecting a different material from a known file requirement is rejected.
 
 Production still needs an available printer, confirmed nozzle telemetry, an active
-loaded spool, and compatible machine and filament profile assignments. Files that
+loaded spool, and compatible machine and filament profile assignments. Each
+required filament must be loaded on an extruder whose confirmed nozzle is the
+part's nozzle; on a printer with several extruders the `extruder-nozzle` check
+names the one that differs ("T2: 0.6 mm, job needs 0.4 mm."). Files that
 need slicing also require process and build-plate settings. Reloaders contribute
 only their selected feeding slot; standby and archived slots do not qualify.
 

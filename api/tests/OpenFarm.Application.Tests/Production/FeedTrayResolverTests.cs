@@ -8,6 +8,8 @@ namespace OpenFarm.Application.Tests.Production;
 
 public class FeedTrayResolverTests
 {
+    private static readonly FeedSlotRef ExternalPort = new(FeedUnitKindCatalog.ExternalSpool, 0, 0);
+
     private readonly Guid _printer = Guid.NewGuid();
     private readonly FakeFeedUnitRepository _units = new();
     private readonly SlotSpoolRepository _spools = new();
@@ -37,7 +39,7 @@ public class FeedTrayResolverTests
         var external = await ExternalAsync();
         var spool = LoadedOn(external.AddFeedSlot(0));
 
-        (await Resolver.ResolveSpoolAsync(_printer, 254, CancellationToken.None)).Should().Be(spool.Id);
+        (await Resolver.ResolveSpoolAsync(_printer, ExternalPort, CancellationToken.None)).Should().Be(spool.Id);
     }
 
     [Fact]
@@ -51,7 +53,7 @@ public class FeedTrayResolverTests
         var spool = LoadedOn(feeding);
         reloader.SelectFeedingSlot(feeding.Id);
 
-        (await Resolver.ResolveSpoolAsync(_printer, 254, CancellationToken.None)).Should().Be(spool.Id);
+        (await Resolver.ResolveSpoolAsync(_printer, ExternalPort, CancellationToken.None)).Should().Be(spool.Id);
     }
 
     [Fact]
@@ -62,7 +64,7 @@ public class FeedTrayResolverTests
         var reloader = await AddUnitAsync(FeedUnit.CreateAutomaticFilamentReloader(_printer, 0, "AFR", external.Id));
         LoadedOn(reloader.AddFeedSlot(0));
 
-        (await Resolver.ResolveSpoolAsync(_printer, 254, CancellationToken.None)).Should().BeNull();
+        (await Resolver.ResolveSpoolAsync(_printer, ExternalPort, CancellationToken.None)).Should().BeNull();
     }
 
     [Fact]
@@ -76,7 +78,7 @@ public class FeedTrayResolverTests
         reloader.SelectFeedingSlot(slot.Id);
         reloader.Archive();
 
-        (await Resolver.ResolveSpoolAsync(_printer, 254, CancellationToken.None)).Should().Be(spool.Id);
+        (await Resolver.ResolveSpoolAsync(_printer, ExternalPort, CancellationToken.None)).Should().Be(spool.Id);
     }
 
     [Fact]
@@ -86,7 +88,7 @@ public class FeedTrayResolverTests
         ams.AddFeedSlot(0);
         var spool = LoadedOn(ams.AddFeedSlot(2));
 
-        (await Resolver.ResolveSpoolAsync(_printer, 6, CancellationToken.None)).Should().Be(spool.Id);
+        (await Resolver.ResolveSpoolAsync(_printer, new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, 1, 2), CancellationToken.None)).Should().Be(spool.Id);
     }
 
     /// <summary>Finds the spool in the Using state on a slot, which the shared production fake does not.</summary>

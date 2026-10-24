@@ -132,13 +132,14 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
     {
         var tools = print.Filaments.Where(f => f.SpoolId is null).Select(f => (f.ToolIndex, f.MaterialType, f.DetectedColorHex)).ToList();
         if (tools.Count == 0) return;
-        var trays = printer.AmsUnits
-            .SelectMany(u => u.Trays.Where(t => !t.Empty).Select(t => new LoadedTray(ProductionFeedPath.TrayId(u.UnitIndex, t.SlotIndex), t.MaterialType, t.ColorHex)))
+        var trays = printer.FeedReadings.Where(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit)
+            .SelectMany(u => u.Slots.Where(s => !s.Empty)
+                .Select(s => new LoadedTray<FeedSlotRef>(new FeedSlotRef(u.Kind, u.UnitIndex, s.SlotPosition), s.MaterialType, s.ColorHex)))
             .ToList();
         var resolver = services.GetRequiredService<FeedTrayResolver>();
         var spools = new Dictionary<int, Guid>();
-        foreach (var (tool, tray) in ToolTrayMatcher.Match(tools, trays, print.ObservedTrayIds))
-            if (await resolver.ResolveSpoolAsync(printer.Id, tray, cancellationToken) is { } spool) spools[tool] = spool;
+        foreach (var (tool, slot) in ToolTrayMatcher.Match(tools, trays, print.ObservedSlots))
+            if (await resolver.ResolveSpoolAsync(printer.Id, slot, cancellationToken) is { } spool) spools[tool] = spool;
         print.BindTools(spools);
     }
 

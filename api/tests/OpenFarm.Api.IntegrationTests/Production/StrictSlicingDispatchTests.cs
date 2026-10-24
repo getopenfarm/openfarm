@@ -253,7 +253,7 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
             db.Spools.Add(spool);
         }
 
-        (await db.Printers.SingleAsync(p => p.Id == printerId)).RecordTelemetry(null, null, null, null, null, null, [], null, null, null, 255);
+        (await db.Printers.SingleAsync(p => p.Id == printerId)).RecordTelemetry(null, null, null, null, null, null, [], null, null, [null]);
         await db.SaveChangesAsync();
     }
 

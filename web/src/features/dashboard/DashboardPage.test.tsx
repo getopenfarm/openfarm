@@ -17,12 +17,14 @@ import type {
 } from '@/lib/api/generated/endpoints.schemas';
 import { DashboardPage } from './DashboardPage';
 
+const p1s = { cameraSupported: true };
 const printing: FleetPrinterResponse = {
   id: 'p1',
   name: 'P1S-01',
   status: 'Printing',
   isReachable: true,
   modelCode: 'P1S',
+  model: p1s,
   currentJobName: 'Enclosure bracket',
   printProgressPercent: 62,
   remainingTimeMinutes: 84,
@@ -33,6 +35,7 @@ const finished: FleetPrinterResponse = {
   status: 'AwaitingClear',
   isReachable: true,
   modelCode: 'P1S',
+  model: p1s,
   currentJobName: 'Cable organizer',
   printProgressPercent: 100,
 };
@@ -42,6 +45,7 @@ const idle: FleetPrinterResponse = {
   status: 'Idle',
   isReachable: true,
   modelCode: 'P1S',
+  model: p1s,
 };
 function respond(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -215,12 +219,24 @@ describe('Fixed compact dashboard', () => {
   it('shows bars instead of persistent filament values and reveals recorded weight on hover', async () => {
     setup(
       [printing],
-      { p1: { externalSpoolTray: { active: true, remainPercent: 20 } } },
+      {
+        p1: {
+          feedReadings: [
+            {
+              kind: 'ExternalSpool',
+              unitIndex: 0,
+              displayLabel: 'External Spool',
+              slots: [{ slotPosition: 0, active: true, remainPercent: 20 }],
+            },
+          ],
+        },
+      },
       {
         feeds: [
           {
             id: 'ext',
             kind: 'ExternalSpool',
+            unitIndex: 0,
             feedSlots: [
               {
                 id: 'slot',
@@ -271,6 +287,22 @@ describe('Fixed compact dashboard', () => {
     const spools = [
       { id: 's1', remainingWeightGrams: 300, spoolWeightGrams: 500 },
     ];
+    // Bambu reports all four trays; slots 3 and 4 exist only in telemetry.
+    const reported = {
+      p1: {
+        feedReadings: [
+          {
+            kind: 'MultiMaterialUnit',
+            unitIndex: 0,
+            displayLabel: 'AMS 1',
+            slots: [0, 1, 2, 3].map((slotPosition) => ({
+              slotPosition,
+              displayLabel: `AMS 1 · Slot ${slotPosition + 1}`,
+            })),
+          },
+        ],
+      },
+    };
     async function bars() {
       const [one, two, three] = await Promise.all([
         screen.findByRole('button', { name: /^AMS 1 · Slot 1:/ }),
@@ -281,7 +313,7 @@ describe('Fixed compact dashboard', () => {
     }
 
     it('shows one popover that follows hover while nothing is pinned', async () => {
-      setup([printing], {}, { feeds: [ams], spools });
+      setup([printing], reported, { feeds: [ams], spools });
       const { one, two } = await bars();
       fireEvent.pointerEnter(two);
       expect(screen.getAllByRole('dialog')).toHaveLength(1);
@@ -292,7 +324,7 @@ describe('Fixed compact dashboard', () => {
     });
 
     it('hints at managing on hover and opens the slot dialog on click', async () => {
-      setup([printing], {}, { feeds: [ams], spools });
+      setup([printing], reported, { feeds: [ams], spools });
       const { two } = await bars();
       fireEvent.pointerEnter(two);
       expect(screen.getByRole('dialog')).toHaveTextContent(
@@ -307,7 +339,7 @@ describe('Fixed compact dashboard', () => {
     });
 
     it('opens the slot dialog for a loaded slot with its unload actions', async () => {
-      setup([printing], {}, { feeds: [ams], spools });
+      setup([printing], reported, { feeds: [ams], spools });
       const { one } = await bars();
       fireEvent.click(one);
       expect(
@@ -319,7 +351,7 @@ describe('Fixed compact dashboard', () => {
     });
 
     it('only shows the readout for a slot that exists only in telemetry', async () => {
-      setup([printing], {}, { feeds: [ams], spools });
+      setup([printing], reported, { feeds: [ams], spools });
       const { three } = await bars();
       fireEvent.click(three);
       expect(screen.getByRole('dialog')).toHaveTextContent('AMS 1 · Slot 3');
@@ -334,13 +366,22 @@ describe('Fixed compact dashboard', () => {
   it('keeps unknown and empty quantities distinct and shows the active AMS without persistent equipment labels', async () => {
     setup([printing], {
       p1: {
-        amsUnits: [
-          { unitIndex: 0, trays: [{ slotIndex: 0, empty: true }] },
+        feedReadings: [
           {
+            kind: 'MultiMaterialUnit',
+            unitIndex: 0,
+            displayLabel: 'AMS 1',
+            slots: [{ slotPosition: 0, empty: true }],
+          },
+          {
+            kind: 'MultiMaterialUnit',
             unitIndex: 1,
-            trays: [
-              { slotIndex: 0, active: true, remainPercent: 50 },
-              { slotIndex: 1, empty: true },
+            displayLabel: 'AMS 2',
+            slots: [
+              { slotPosition: 0, active: true, remainPercent: 50 },
+              { slotPosition: 1, empty: true },
+              { slotPosition: 2 },
+              { slotPosition: 3 },
             ],
           },
         ],

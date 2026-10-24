@@ -136,15 +136,16 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
         PostAsync(details, "/printer/print/cancel", cancellationToken);
 
     /// <summary>
-    /// <c>[tool, head]</c> pairs for the firmware's tool→head map. A tray id is a head index here (the toolheads are one
-    /// four-tray unit), so <see cref="FilamentFeedMapping.Trays"/> is already the map; -1 is a tool no line uses.
+    /// <c>[tool, head]</c> pairs for the firmware's tool→head map. The toolheads are one unit whose slot n is the spool on
+    /// head n, so a tool's slot position is its head; a tool no line uses is left out.
     /// </summary>
     internal static int[][] MapTable(FilamentFeedMapping? feedMapping)
     {
-        var pairs = (feedMapping?.Trays ?? []).Select((head, tool) => (tool, head)).Where(p => p.head >= 0).ToList();
-        if (pairs.Any(p => p.head >= MoonrakerStatusMapper.HeadCount))
-            throw new InvalidOperationException($"A Snapmaker U1 has {MoonrakerStatusMapper.HeadCount} heads; the feed mapping names tray {pairs.Max(p => p.head)}.");
-        return pairs.Select(p => new[] { p.tool, p.head }).ToArray();
+        var pairs = (feedMapping?.Tools ?? []).Select((slot, tool) => (tool, slot)).Where(p => p.slot is not null).ToList();
+        if (pairs.FirstOrDefault(p => p.slot is not { IsMultiMaterialUnit: true, UnitIndex: 0, SlotPosition: < MoonrakerStatusMapper.HeadCount })
+            is { slot: { } unknown })
+            throw new InvalidOperationException($"A Snapmaker U1 feeds from its {MoonrakerStatusMapper.HeadCount} heads; the feed mapping names {unknown}.");
+        return pairs.Select(p => new[] { p.tool, p.slot!.Value.SlotPosition }).ToArray();
     }
 
     private static async Task<byte[]> PlateGCodeAsync(Stream fileContent, CancellationToken cancellationToken)

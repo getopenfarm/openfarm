@@ -54,17 +54,20 @@ public sealed class GetSlicingReadinessQueryHandler(
         foreach (var printer in fleet)
         {
             printerReports.Add(new(printer.Id, printer.Name, await CheckPrinterAsync(printer, pin, cancellationToken)));
+            var nozzles = printer.ReportedNozzlesMm();
             if (printer.MachineProfileId is not { } machineId || printer.ProcessProfileId is not { } processId
-                || printer.BuildPlateType is not { } plate || printer.ReportedNozzleDiameterMm is not { } nozzle)
+                || printer.BuildPlateType is not { } plate || nozzles.Count == 0)
             {
                 continue;
             }
 
             foreach (var filament in allFilaments)
             {
+                // ponytail: every assignment at any of the printer's nozzles is checked against its one machine preset
                 foreach (var assignment in filament.ProfileAssignments.Where(a =>
-                             a.Brand == printer.Brand && a.ModelCode == printer.ModelCode && a.NozzleDiameterMm == nozzle))
+                             a.Brand == printer.Brand && a.ModelCode == printer.ModelCode && nozzles.Contains(a.NozzleDiameterMm)))
                 {
+                    var nozzle = assignment.NozzleDiameterMm;
                     var key = (filament.Id, assignment.Id);
                     if (!assignments.TryGetValue(key, out var entry))
                     {
@@ -125,14 +128,16 @@ public sealed class GetSlicingReadinessQueryHandler(
                 issues.Add(Issue("Process", nameof(ProfileResolutionOutcome.Incompatible), "The selected process profile is incompatible with the machine profile."));
             }
 
-            if (printer.NozzleConfirmed && printer.ReportedNozzleDiameterMm is { } nozzle)
+            if (printer.ConfirmedNozzlesMm() is { Count: > 0 } nozzles)
             {
                 try
                 {
-                    if (!ProfileCompatibility.MachineJsonMatches(await compatibility.MachineJsonAsync(resolvedMachine, ct), printer.Brand, printer.ModelCode, nozzle))
+                    // Fits when it matches some confirmed nozzle; jobs then need that nozzle.
+                    var machineJson = await compatibility.MachineJsonAsync(resolvedMachine, ct);
+                    if (!nozzles.Any(nozzle => ProfileCompatibility.MachineJsonMatches(machineJson, printer.Brand, printer.ModelCode, nozzle)))
                     {
                         issues.Add(Issue("Machine", nameof(ProfileResolutionOutcome.Incompatible),
-                            $"Machine profile '{resolvedMachine.Name}' does not match {printer.ModelCode} with its reported {nozzle} mm nozzle."));
+                            $"Machine profile '{resolvedMachine.Name}' does not match {printer.ModelCode} with its reported {string.Join("/", nozzles)} mm nozzle."));
                     }
                 }
                 catch (SlicingProfileUnconfiguredException ex)

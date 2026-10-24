@@ -1,4 +1,5 @@
 using OpenFarm.Application.ActivityLog;
+using OpenFarm.Application.Printers;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.FilamentTracking;
 
@@ -14,7 +15,8 @@ public sealed class SpoolUsageRecordedHandler(
     ISpoolRepository spoolRepository,
     IFeedUnitRepository feedUnitRepository,
     IActivityLogWriter activityLogWriter,
-    IFilamentTrackingEventPublisher eventPublisher) : IAutoContinuationResolver
+    IFilamentTrackingEventPublisher eventPublisher,
+    IPrinterRepository printers) : IAutoContinuationResolver
 {
     public async Task<AutoContinuationResult> ResolveAsync(Spool depletedSpool, CancellationToken cancellationToken)
     {
@@ -46,8 +48,13 @@ public sealed class SpoolUsageRecordedHandler(
         }
 
         var siblings = await spoolRepository.FindLoadedInFeedUnitAsync(feedUnit.Id, cancellationToken);
+        // A printer never continues onto an extruder with another nozzle size (the U1's heads can differ).
+        var printer = await printers.GetByIdAsync(feedUnit.PrinterId, cancellationToken);
+        decimal? NozzleOf(Guid? slotId) => feedUnit.FeedSlots.FirstOrDefault(slot => slot.Id == slotId) is { } slot
+            ? printer?.Extruders.FirstOrDefault(e => e.Index == slot.ExtruderIndex)?.NozzleDiameterMm : null;
         var available = siblings.Where(s => s.Id != depletedSpool.Id && s.State == SpoolState.Using && s.RemainingWeightGrams > 0
-            && feedUnit.FeedSlots.Any(slot => slot.Id == s.FeedSlotId && slot.DeactivatedAtUtc is null));
+            && feedUnit.FeedSlots.Any(slot => slot.Id == s.FeedSlotId && slot.DeactivatedAtUtc is null)
+            && NozzleOf(s.FeedSlotId) == NozzleOf(feedSlotId));
         var candidates = policy == ReloadPolicy.MatchRequired
             ? available.Where(s => s.FilamentVariantId == depletedSpool.FilamentVariantId)
             : available;

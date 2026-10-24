@@ -13,8 +13,9 @@ public sealed class GetPrinterCatalogQueryHandler : IQueryHandler<GetPrinterCata
 {
     public Task<PrinterCatalogResult> HandleAsync(GetPrinterCatalogQuery query, CancellationToken cancellationToken)
     {
-        var brands = PrinterModelCatalog.All
-            .Select(group => new PrinterCatalogBrand(group.Brand.ToString(), group.Models))
+        var brands = PrinterModelCatalog.Models
+            .GroupBy(model => model.Brand)
+            .Select(group => new PrinterCatalogBrand(group.Key.ToString(), group.ToList()))
             .ToList();
 
         return Task.FromResult(new PrinterCatalogResult(brands));

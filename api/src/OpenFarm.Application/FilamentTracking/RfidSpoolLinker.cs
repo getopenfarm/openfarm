@@ -74,7 +74,7 @@ public sealed partial class RfidSpoolLinker(
     /// never theirs), and so is an external spool a reloader replaced. A tray holding a spool but giving no tag is skipped
     /// rather than read as empty: an untagged spool, or a report that left the tag out, says nothing about the tag.
     /// </summary>
-    internal static IEnumerable<(FeedUnit Unit, FeedSlot Slot, AmsTray Tray)> Readings(IReadOnlyList<FeedUnit> units, Printer printer) =>
+    internal static IEnumerable<(FeedUnit Unit, FeedSlot Slot, FeedSlotReading Tray)> Readings(IReadOnlyList<FeedUnit> units, Printer printer) =>
         from unit in units
         where unit.ArchivedAtUtc is null && unit.Kind != FeedUnitKindCatalog.AutomaticFilamentReloader
             && !units.Any(r => r.Kind == FeedUnitKindCatalog.AutomaticFilamentReloader && r.ArchivedAtUtc is null && r.ReplacesFeedUnitId == unit.Id)

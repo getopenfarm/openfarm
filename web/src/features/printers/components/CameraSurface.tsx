@@ -12,11 +12,6 @@ import {
 
 const FRESHNESS_TIMEOUT_MS = 5000;
 
-/** X1-family RTSP is not implemented by the current relay (PrinterModelCatalog). */
-export function cameraSupported(modelCode?: string) {
-  return !['X1', 'X1C', 'X1E'].includes(modelCode?.toUpperCase() ?? '');
-}
-
 export function formatCameraAge(ageMs: number) {
   const seconds = Math.max(0, Math.floor(ageMs / 1000));
   if (seconds < 60) return `${seconds}s ago`;

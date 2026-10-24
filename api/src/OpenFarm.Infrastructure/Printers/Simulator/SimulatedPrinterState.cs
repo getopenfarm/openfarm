@@ -1,3 +1,4 @@
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Infrastructure.Printers.Simulator;
@@ -57,25 +58,21 @@ public sealed class SimulatedPrinterState
     /// Fixed illustrative default fixture (data-model.md's AMS default content table) — same static
     /// material/color/remaining-% shape for the life of the connection; only the printing tray's
     /// <c>Active</c> flag reflects current status. Slots 1 and 2 (indexes 0 and 1) hold RFID-tagged spools, tagged per printer so two simulated
-    /// printers never read the same spool.
+    /// printers never read the same spool. The virtual printer also reports an External Spool position, letting
+    /// quickstart.md Scenario 2's default-hidden-behind-the-active-AMS behavior be observed locally without real hardware.
     /// </summary>
-    public IReadOnlyList<AmsUnit> AmsUnits =>
+    public IReadOnlyList<FeedUnitReading> FeedReadings =>
     [
-        new AmsUnit(0,
+        new FeedUnitReading(FeedUnitKindCatalog.MultiMaterialUnit, 0,
         [
-            new AmsTray(0, Empty: false, MaterialType: "PLA", ColorHex: "#E53935", SubBrand: "Generic", RemainPercent: 82, Active: Status == PrinterStatus.Printing,
+            new FeedSlotReading(0, Empty: false, MaterialType: "PLA", ColorHex: "#E53935", SubBrand: "Generic", RemainPercent: 82, Active: Status == PrinterStatus.Printing,
                 RfidId: $"{SerialNumber}-0", RfidWeightGrams: 1000),
-            new AmsTray(1, Empty: false, MaterialType: "PETG", ColorHex: "#1E88E5", SubBrand: "Generic", RemainPercent: 45, Active: false,
+            new FeedSlotReading(1, Empty: false, MaterialType: "PETG", ColorHex: "#1E88E5", SubBrand: "Generic", RemainPercent: 45, Active: false,
                 RfidId: $"{SerialNumber}-1", RfidWeightGrams: 1000),
-            new AmsTray(2, Empty: false, MaterialType: "ABS", ColorHex: "#43A047", SubBrand: "Generic", RemainPercent: 90, Active: false),
-            new AmsTray(3, Empty: false, MaterialType: "TPU", ColorHex: "#FDD835", SubBrand: "Generic", RemainPercent: 12, Active: false),
+            new FeedSlotReading(2, Empty: false, MaterialType: "ABS", ColorHex: "#43A047", SubBrand: "Generic", RemainPercent: 90, Active: false),
+            new FeedSlotReading(3, Empty: false, MaterialType: "TPU", ColorHex: "#FDD835", SubBrand: "Generic", RemainPercent: 12, Active: false),
         ]),
+        new FeedUnitReading(FeedUnitKindCatalog.ExternalSpool, 0,
+            [new FeedSlotReading(0, Empty: false, MaterialType: "PLA", ColorHex: "#8E24AA", SubBrand: "Generic", RemainPercent: 60, Active: false)]),
     ];
-
-    /// <summary>
-    /// Fixed illustrative fixture so the virtual/simulator printer also reports an External Spool
-    /// position, letting quickstart.md Scenario 2's default-hidden-behind-the-active-AMS behavior be
-    /// observed locally without real hardware.
-    /// </summary>
-    public AmsTray ExternalSpoolTray { get; } = new(0, Empty: false, MaterialType: "PLA", ColorHex: "#8E24AA", SubBrand: "Generic", RemainPercent: 60, Active: false);
 }

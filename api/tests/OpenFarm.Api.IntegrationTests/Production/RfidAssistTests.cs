@@ -26,28 +26,28 @@ public class RfidAssistTests(ProductionTestFactory factory) : ProductionTestCont
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var ams = FeedUnit.CreateConnectorDerived(printer.Id, FeedUnitKindCatalog.MultiMaterialUnit, 0);
-        var slots = Enumerable.Range(0, 4).Select(ams.AddFeedSlot).ToArray();
+        var slots = Enumerable.Range(0, 4).Select(position => ams.AddFeedSlot(position)).ToArray();
         db.FeedUnits.Add(ams);
         await db.SaveChangesAsync();
         return (printer.Id, slots.Select(s => s.Id).ToArray());
     }
 
     /// <summary>What an AMS slot reads: a tagged PLA Matte spool, nearly black, 90% left; or empty when <paramref name="tag"/> is null.</summary>
-    private static AmsTray TrayOf(int slot, string? tag, int remain = 90) => tag is null
-        ? new AmsTray(slot, true, null, null, null, null, false)
-        : new AmsTray(slot, false, "PLA", "080808FF", "PLA Matte", remain, false, tag, 1000);
+    private static FeedSlotReading TrayOf(int slot, string? tag, int remain = 90) => tag is null
+        ? new FeedSlotReading(slot, true, null, null, null, null, false)
+        : new FeedSlotReading(slot, false, "PLA", "080808FF", "PLA Matte", remain, false, tag, 1000);
 
     /// <summary>Records what the AMS reads in each listed slot (null: empty), then runs the linker as a telemetry flush would.</summary>
     private Task ReadAsync(Guid printerId, params (int Slot, string? Tag)[] trays) =>
         ReadTraysAsync(printerId, trays.Select(t => TrayOf(t.Slot, t.Tag)).ToArray());
 
-    private async Task ReadTraysAsync(Guid printerId, params AmsTray[] trays)
+    private async Task ReadTraysAsync(Guid printerId, params FeedSlotReading[] trays)
     {
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var printer = await db.Printers.SingleAsync(p => p.Id == printerId);
-            printer.RecordTelemetry(null, null, null, null, null, null, [new AmsUnit(0, trays)], null);
+            printer.RecordTelemetry(null, null, null, null, null, null, [new FeedUnitReading(FeedUnitKindCatalog.MultiMaterialUnit, 0, trays)]);
             await db.SaveChangesAsync();
         }
 

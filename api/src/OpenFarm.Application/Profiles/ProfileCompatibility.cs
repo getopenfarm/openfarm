@@ -49,18 +49,26 @@ public sealed class ProfileCompatibility(IMachineProfileRepository machines, IFi
         using var json = JsonDocument.Parse(machineJson);
         var root = json.RootElement;
         var nozzles = ReadStrings(root, "nozzle_diameter");
-        if (!PrinterModelCatalog.TryResolve(brand, modelCode, out var registered)) return false;
-        var model = registered!.VendorMachineModelName;
+        if (PrinterModelCatalog.Find(brand, modelCode) is not { } registered) return false;
+        // The simulator stands in for every model, so any preset at its nozzle fits it.
         return nozzles.Count > 0 && nozzles.All(n => decimal.TryParse(n, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && value == nozzleMm)
-            && (model is null ? brand == "System" : ReadStrings(root, "printer_model").Contains(model, StringComparer.Ordinal));
+            && (registered.Driver == PrinterDriver.Simulator
+                || (registered.VendorMachineModelName is { } model && ReadStrings(root, "printer_model").Contains(model, StringComparer.Ordinal)));
     }
 
-    public async Task ValidateMachineAsync(Printer printer, MachineProfile profile, CancellationToken ct)
+    /// <param name="nozzleMm">The job's nozzle: an extruder must have it confirmed, and the preset must fit it. Without one,
+    /// the preset must fit some confirmed nozzle.</param>
+    public async Task ValidateMachineAsync(Printer printer, MachineProfile profile, CancellationToken ct, decimal? nozzleMm = null)
     {
-        if (!printer.NozzleConfirmed || printer.ReportedNozzleDiameterMm is not { } nozzle)
+        var confirmed = printer.ConfirmedNozzlesMm();
+        if (confirmed.Count == 0)
             throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' is waiting for nozzle telemetry from its current connection.");
-        if (!await MachineMatchesAsync(profile, printer.Brand, printer.ModelCode, nozzle, ct))
-            throw new SlicingProfileUnconfiguredException($"Machine profile '{profile.Name}' does not match {printer.ModelCode} with its reported {nozzle} mm nozzle. Select a compatible machine profile.");
+        if (nozzleMm is { } wanted && !confirmed.Contains(wanted))
+            throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no extruder with a {wanted} mm nozzle.");
+        IReadOnlyList<decimal> nozzles = nozzleMm is { } job ? [job] : confirmed;
+        foreach (var nozzle in nozzles)
+            if (await MachineMatchesAsync(profile, printer.Brand, printer.ModelCode, nozzle, ct)) return;
+        throw new SlicingProfileUnconfiguredException($"Machine profile '{profile.Name}' does not match {printer.ModelCode} with its reported {string.Join("/", nozzles)} mm nozzle. Select a compatible machine profile.");
     }
 
     public async Task ValidateFilamentAsync(FilamentProfile profile, string materialType, string brand, string modelCode,

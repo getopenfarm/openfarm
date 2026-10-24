@@ -9,7 +9,7 @@ public sealed class PrinterCatalogBrandResponse
 {
     public string Brand { get; set; } = string.Empty;
 
-    public IReadOnlyList<string> Models { get; set; } = [];
+    public IReadOnlyList<PrinterModelResponse> Models { get; set; } = [];
 }
 
 public sealed class PrinterCatalogResponse
@@ -39,7 +39,7 @@ public sealed class GetPrinterCatalogEndpoint(IQueryHandler<GetPrinterCatalogQue
         Response = new PrinterCatalogResponse
         {
             Brands = result.Brands
-                .Select(b => new PrinterCatalogBrandResponse { Brand = b.Brand, Models = b.Models })
+                .Select(b => new PrinterCatalogBrandResponse { Brand = b.Brand, Models = b.Models.Select(PrinterModelResponse.From).ToList() })
                 .ToList(),
         };
     }

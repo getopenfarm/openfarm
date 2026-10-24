@@ -1,4 +1,5 @@
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Application.FilamentTracking;
 
@@ -23,8 +24,8 @@ public sealed record SpoolRow(
     SpoolSlotPlacement? Placement,
     Guid FilamentId);
 
-/// <summary>The columns <see cref="FeedUnitDisplay.SlotLabel(string, int, string?, int, string)"/> reads for a loaded spool, plus the printer's name — a spool's location must say which printer.</summary>
-public sealed record SpoolSlotPlacement(string UnitKind, int UnitIndex, string? UnitName, int SlotPosition, string PrinterBrand, string PrinterName);
+/// <summary>The columns <see cref="FeedUnitDisplay.SlotLabel(string, int, string?, int, PrinterModel?)"/> reads for a loaded spool, plus the printer's name — a spool's location must say which printer.</summary>
+public sealed record SpoolSlotPlacement(string UnitKind, int UnitIndex, string? UnitName, int SlotPosition, string PrinterBrand, string PrinterModelCode, string PrinterName);
 
 /// <summary>Rows for the requested page and the total number of rows matching the filters.</summary>
 public sealed record SpoolRowPage(IReadOnlyList<SpoolRow> Rows, int TotalCount);
@@ -44,7 +45,8 @@ internal static class SpoolRowMapping
         row.State,
         row.FeedSlotId,
         row.Placement is { } placement
-            ? $"{placement.PrinterName} · {FeedUnitDisplay.SlotLabel(placement.UnitKind, placement.UnitIndex, placement.UnitName, placement.SlotPosition, placement.PrinterBrand)}"
+            ? $"{placement.PrinterName} · {FeedUnitDisplay.SlotLabel(placement.UnitKind, placement.UnitIndex, placement.UnitName, placement.SlotPosition,
+                PrinterModelCatalog.Find(placement.PrinterBrand, placement.PrinterModelCode))}"
             : null,
         row.HasUsageOverrun,
         row.Price,

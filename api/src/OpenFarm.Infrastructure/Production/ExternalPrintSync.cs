@@ -9,6 +9,7 @@ using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.ActivityLog;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
 
@@ -76,9 +77,14 @@ public sealed partial class ExternalPrintSync(
             if (open is null) return;
         }
 
-        if (printer.ActiveTrayId is { } tray and < 255 && open.WantsSpoolFor(tray)
-            && open.ObserveTray(tray, await trayResolver.ResolveSpoolAsync(printer.Id, tray, cancellationToken)))
-            await prints.SaveChangesAsync(cancellationToken);
+        var observed = false;
+        foreach (var slot in printer.Extruders.Select(e => e.ActiveSlot).OfType<FeedSlotRef>())
+        {
+            if (open.WantsSpoolFor(slot))
+                observed |= open.ObserveSlot(slot, await trayResolver.ResolveSpoolAsync(printer.Id, slot, cancellationToken));
+        }
+
+        if (observed) await prints.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>Forgets that the file for the printer's current print was fetched, so the next print is looked up afresh.</summary>

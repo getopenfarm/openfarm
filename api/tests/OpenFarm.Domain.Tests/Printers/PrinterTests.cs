@@ -1,4 +1,5 @@
 using FluentAssertions;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Domain.Tests.Printers;
@@ -28,7 +29,8 @@ public class PrinterTests
         printer.Status.Should().Be(PrinterStatus.Idle);
         printer.IsReachable.Should().BeFalse();
         printer.LastMessageUtc.Should().BeNull();
-        printer.AmsUnits.Should().BeEmpty();
+        printer.FeedReadings.Should().BeEmpty();
+        printer.Extruders.Should().BeEmpty();
         printer.CreatedAtUtc.Should().BeOnOrAfter(beforeCreate);
     }
 
@@ -158,9 +160,9 @@ public class PrinterTests
     public void RecordTelemetry_WithFullSnapshot_SetsAllFields()
     {
         var printer = CreateValidPrinter();
-        var amsUnits = new List<AmsUnit> { new(0, []) };
+        var readings = new List<FeedUnitReading> { new(FeedUnitKindCatalog.MultiMaterialUnit, 0, []) };
 
-        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", amsUnits);
+        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", readings);
 
         printer.NozzleTempC.Should().Be(60.5m);
         printer.BedTempC.Should().Be(65.0m);
@@ -168,15 +170,15 @@ public class PrinterTests
         printer.CurrentStageLabel.Should().Be("Printing");
         printer.RemainingTimeMinutes.Should().Be(72);
         printer.CurrentJobName.Should().Be("benchy.3mf");
-        printer.AmsUnits.Should().BeEquivalentTo(amsUnits);
+        printer.FeedReadings.Should().BeEquivalentTo(readings);
     }
 
     [Fact]
     public void RecordTelemetry_WithSubsequentPartialSnapshot_PreservesFieldsMissingFromDelta()
     {
         var printer = CreateValidPrinter();
-        var amsUnits = new List<AmsUnit> { new(0, []) };
-        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", amsUnits);
+        var readings = new List<FeedUnitReading> { new(FeedUnitKindCatalog.MultiMaterialUnit, 0, []) };
+        printer.RecordTelemetry(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", readings);
 
         // Bambu's MQTT deltas omit fields that haven't changed since the last message — a
         // subsequent null/empty here must not clear the previously recorded value.
@@ -188,7 +190,20 @@ public class PrinterTests
         printer.CurrentStageLabel.Should().Be("Printing");
         printer.RemainingTimeMinutes.Should().Be(72);
         printer.CurrentJobName.Should().Be("benchy.3mf");
-        printer.AmsUnits.Should().BeEquivalentTo(amsUnits);
+        printer.FeedReadings.Should().BeEquivalentTo(readings);
+    }
+
+    [Fact]
+    public void RecordTelemetry_ReplacesOnlyTheUnitKindsADeltaReports()
+    {
+        var printer = CreateValidPrinter();
+        printer.RecordTelemetry(null, null, null, null, null, null, [Ams(0), Ams(1)]);
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [External()]);
+        printer.RecordTelemetry(null, null, null, null, null, null, [Ams(0)]);
+
+        printer.FeedReadings.Select(u => (u.Kind, u.UnitIndex)).Should().BeEquivalentTo(
+            [(FeedUnitKindCatalog.ExternalSpool, 0), (FeedUnitKindCatalog.MultiMaterialUnit, 0)]);
     }
 
     [Fact]
@@ -207,100 +222,133 @@ public class PrinterTests
         printer.CurrentJobName.Should().Be("benchy.3mf");
     }
 
-    private static AmsTray Tray(int slot) => new(slot, false, "PLA", "#FFFFFF", null, 50, false);
+    private static FeedSlotReading Slot(int position, int extruder = 0) => new(position, false, "PLA", "#FFFFFF", null, 50, false, ExtruderIndex: extruder);
 
-    private static AmsUnit Unit(int index, int trays = 4) => new(index, Enumerable.Range(0, trays).Select(Tray).ToList());
+    private static FeedUnitReading Ams(int index, int slots = 4) =>
+        new(FeedUnitKindCatalog.MultiMaterialUnit, index, Enumerable.Range(0, slots).Select(position => Slot(position)).ToList());
 
-    private static AmsTray External() => new(0, false, "PLA", "#FFFFFF", null, null, false);
+    private static FeedUnitReading External(int extruder = 0) =>
+        new(FeedUnitKindCatalog.ExternalSpool, extruder, [new FeedSlotReading(0, false, "PLA", "#FFFFFF", null, null, false, ExtruderIndex: extruder)]);
 
-    private static string[] ActiveTrays(Printer printer) =>
-        printer.AmsUnits.SelectMany(u => u.Trays.Where(t => t.Active).Select(t => $"{u.UnitIndex}:{t.SlotIndex}")).ToArray();
+    private static FeedSlotRef AmsSlot(int unit, int slot) => new(FeedUnitKindCatalog.MultiMaterialUnit, unit, slot);
 
-    [Theory]
-    [InlineData(0, "0:0")]
-    [InlineData(6, "1:2")]
-    [InlineData(128, "128:0")]
-    public void RecordTelemetry_MarksTheTrayTrayNowAddresses(int trayNow, string expected)
-    {
-        var printer = CreateValidPrinter();
+    private static readonly FeedSlotRef ExternalPort = new(FeedUnitKindCatalog.ExternalSpool, 0, 0);
 
-        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0), Unit(1), Unit(128, 1)], External(), activeTrayId: trayNow);
+    private static string[] ActiveAmsSlots(Printer printer) => printer.FeedReadings.Where(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit)
+        .SelectMany(u => u.Slots.Where(s => s.Active).Select(s => $"{u.UnitIndex}:{s.SlotPosition}")).ToArray();
 
-        ActiveTrays(printer).Should().Equal(expected);
-        printer.ExternalSpoolTray!.Active.Should().BeFalse();
-    }
-
-    [Fact]
-    public void RecordTelemetry_AppliesTrayNowArrivingAloneToTheStoredUnits()
-    {
-        var printer = CreateValidPrinter();
-        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0), Unit(1)], External());
-        ActiveTrays(printer).Should().BeEmpty();
-
-        printer.RecordTelemetry(null, null, null, null, null, null, [], activeTrayId: 5);
-        ActiveTrays(printer).Should().Equal("1:1");
-
-        printer.RecordTelemetry(null, null, null, null, null, null, [], activeTrayId: 2);
-        ActiveTrays(printer).Should().Equal("0:2");
-    }
-
-    [Fact]
-    public void RecordTelemetry_AppliesTheStoredTrayNowToAnAmsArrivingLater()
-    {
-        var printer = CreateValidPrinter();
-        printer.RecordTelemetry(null, null, null, null, null, null, [], activeTrayId: 1);
-
-        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0)]);
-
-        ActiveTrays(printer).Should().Equal("0:1");
-    }
-
-    [Fact]
-    public void RecordTelemetry_ExternalSpoolIsTheActiveFeedWhenTrayNowIsExternal()
-    {
-        var printer = CreateValidPrinter();
-
-        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0)], External(), activeTrayId: 254);
-
-        printer.ExternalSpoolTray!.Active.Should().BeTrue();
-        ActiveTrays(printer).Should().BeEmpty();
-    }
-
-    [Fact]
-    public void RecordTelemetry_NothingLoadedMarksNoTrayOnAnAmsPrinter()
-    {
-        var printer = CreateValidPrinter();
-        printer.RecordTelemetry(null, null, null, null, null, null, [Unit(0)], External(), activeTrayId: 254);
-
-        printer.RecordTelemetry(null, null, null, null, null, null, [], activeTrayId: 255);
-
-        printer.ExternalSpoolTray!.Active.Should().BeFalse();
-        ActiveTrays(printer).Should().BeEmpty();
-    }
+    private static bool ExternalActive(Printer printer, int extruder = 0) =>
+        printer.FeedReadings.Single(u => u.Kind == FeedUnitKindCatalog.ExternalSpool && u.UnitIndex == extruder).Slots.Single().Active;
 
     [Theory]
-    [InlineData(null)]
-    [InlineData(254)]
-    [InlineData(255)]
-    public void RecordTelemetry_ExternalSpoolIsAlwaysActiveWithoutAnAms(int? trayNow)
+    [InlineData(0, 0, "0:0")]
+    [InlineData(1, 2, "1:2")]
+    [InlineData(128, 0, "128:0")]
+    public void RecordTelemetry_MarksTheSlotThePrinterReportsFeeding(int unit, int slot, string expected)
     {
         var printer = CreateValidPrinter();
 
-        printer.RecordTelemetry(null, null, null, null, null, null, [], External(), activeTrayId: trayNow);
+        printer.RecordTelemetry(null, null, null, null, null, null, [Ams(0), Ams(1), Ams(128, 1), External()], activeSlots: [AmsSlot(unit, slot)]);
 
-        printer.ExternalSpoolTray!.Active.Should().BeTrue();
+        ActiveAmsSlots(printer).Should().Equal(expected);
+        ExternalActive(printer).Should().BeFalse();
     }
 
     [Fact]
-    public void RecordTelemetry_LeavesFlagsAloneWhenAnAmsPrinterHasNotReportedTrayNow()
+    public void RecordTelemetry_AppliesAnActiveSlotArrivingAloneToTheStoredUnits()
     {
         var printer = CreateValidPrinter();
-        var reported = new AmsUnit(0, [Tray(0) with { Active = true }, Tray(1)]);
+        printer.RecordTelemetry(null, null, null, null, null, null, [Ams(0), Ams(1), External()]);
+        ActiveAmsSlots(printer).Should().BeEmpty();
 
-        printer.RecordTelemetry(null, null, null, null, null, null, [reported], External() with { Active = true });
+        printer.RecordTelemetry(null, null, null, null, null, null, [], activeSlots: [AmsSlot(1, 1)]);
+        ActiveAmsSlots(printer).Should().Equal("1:1");
 
-        ActiveTrays(printer).Should().Equal("0:0");
-        printer.ExternalSpoolTray!.Active.Should().BeTrue();
+        printer.RecordTelemetry(null, null, null, null, null, null, [], activeSlots: [AmsSlot(0, 2)]);
+        ActiveAmsSlots(printer).Should().Equal("0:2");
+    }
+
+    [Fact]
+    public void RecordTelemetry_AppliesTheStoredActiveSlotToAnAmsArrivingLater()
+    {
+        var printer = CreateValidPrinter();
+        printer.RecordTelemetry(null, null, null, null, null, null, [], activeSlots: [AmsSlot(0, 1)]);
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [Ams(0)]);
+
+        ActiveAmsSlots(printer).Should().Equal("0:1");
+    }
+
+    [Fact]
+    public void RecordTelemetry_ExternalSpoolIsTheActiveFeedWhenThePrinterSaysSo()
+    {
+        var printer = CreateValidPrinter();
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [Ams(0), External()], activeSlots: [ExternalPort]);
+
+        ExternalActive(printer).Should().BeTrue();
+        ActiveAmsSlots(printer).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RecordTelemetry_NothingLoadedMarksNoSlotOnAnAmsPrinter()
+    {
+        var printer = CreateValidPrinter();
+        printer.RecordTelemetry(null, null, null, null, null, null, [Ams(0), External()], activeSlots: [ExternalPort]);
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [], activeSlots: [null]);
+
+        ExternalActive(printer).Should().BeFalse();
+        ActiveAmsSlots(printer).Should().BeEmpty();
+    }
+
+    public static TheoryData<FeedSlotRef?[]?> AnyActiveSlotReport => new() { null, new FeedSlotRef?[] { ExternalPort }, new FeedSlotRef?[] { null } };
+
+    [Theory]
+    [MemberData(nameof(AnyActiveSlotReport))]
+    public void RecordTelemetry_ExternalSpoolIsAlwaysActiveWithoutAnAms(FeedSlotRef?[]? activeSlots)
+    {
+        var printer = CreateValidPrinter();
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [External()], activeSlots: activeSlots);
+
+        ExternalActive(printer).Should().BeTrue();
+    }
+
+    [Fact]
+    public void RecordTelemetry_MarksNothingOnAnAmsPrinterUntilItSaysWhichSlotFeeds()
+    {
+        var printer = CreateValidPrinter();
+        var reported = new FeedUnitReading(FeedUnitKindCatalog.MultiMaterialUnit, 0, [Slot(0) with { Active = true }, Slot(1)]);
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [reported, External()]);
+
+        ActiveAmsSlots(printer).Should().BeEmpty();
+        ExternalActive(printer).Should().BeFalse();
+    }
+
+    [Fact]
+    public void RecordTelemetry_AnExtruderNoAmsFeedsUsesItsOwnExternalSpool()
+    {
+        var printer = CreateValidPrinter();
+
+        // The AMS feeds extruder 0; extruder 1 has only its external spool.
+        printer.RecordTelemetry(null, null, null, null, null, null, [Ams(0), External(0), External(1)], activeSlots: [AmsSlot(0, 3), null]);
+
+        ActiveAmsSlots(printer).Should().Equal("0:3");
+        ExternalActive(printer, 0).Should().BeFalse();
+        ExternalActive(printer, 1).Should().BeTrue();
+    }
+
+    [Fact]
+    public void RecordTelemetry_AToolchangerMarksOnlyTheHeadThatIsFeeding()
+    {
+        var printer = CreateValidPrinter();
+        var heads = new FeedUnitReading(FeedUnitKindCatalog.MultiMaterialUnit, 0, Enumerable.Range(0, 4).Select(head => Slot(head, head)).ToList());
+
+        printer.RecordTelemetry(null, null, null, null, null, null, [heads], activeSlots: [null, null, AmsSlot(0, 2), null]);
+
+        ActiveAmsSlots(printer).Should().Equal("0:2");
     }
 
     [Fact]

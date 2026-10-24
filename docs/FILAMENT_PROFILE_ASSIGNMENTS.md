@@ -4,15 +4,15 @@ Filament inventory and profile configuration are separate. Inventory can be save
 
 ## Hardware identity
 
-The profile-assignment card groups the fleet by registered brand, model, and **reported nozzle diameter**. Duplicate printers share one row. Machine profiles never supply a nozzle diameter. Last reported sizes remain available for offline configuration, but production and new machine-profile selections require confirmation from the current printer connection.
+The profile-assignment card groups the fleet by registered brand, model, and **reported nozzle diameter**. Duplicate printers share one row; a printer whose extruders have different nozzles is in one group per size. Machine profiles never supply a nozzle diameter. Last reported sizes remain available for offline configuration, but production and new machine-profile selections require confirmation from the current printer connection.
 
-Bambu telemetry accepts numeric and string diameters, including uniform nested nozzle reports. Partial reports preserve the last observation. Explicit unknown or mixed nozzle reports remove confirmation. Reconnection, connection edits, and reachability loss remove confirmation until a fresh valid nozzle report arrives.
+Bambu telemetry accepts numeric and string diameters, including uniform nested nozzle reports. Partial reports preserve the last observation. Each extruder is confirmed at its own reported nozzle; an explicit unknown report removes that extruder's confirmation. Reconnection, connection edits, and reachability loss remove confirmation until a fresh valid nozzle report arrives (`docs/PRINTER_HARDWARE_MODEL.md`, Nozzles).
 
 ## Assignments
 
 Each filament can have a default assignment for each hardware group. A colour can override that assignment; clearing an override restores inheritance. Assignment writes validate effective inherited material, declared nozzle compatibility, compatible printer names, selectable/current status, and that the profile resolves in the farm default slicer's own catalog (see Slicer resolution). Compatibility expressions that cannot be evaluated are rejected with an explanation.
 
-The edit card retains assignments for hardware no longer in the fleet and displays invalid saved assignments. Machine-profile pickers are filtered server-side using the printer's registered model and confirmed telemetry nozzle. Invalid existing machine links remain visible so unrelated printer edits remain possible.
+The edit card retains assignments for hardware no longer in the fleet and displays invalid saved assignments. Machine-profile pickers are filtered server-side using the printer's registered model and confirmed telemetry nozzles (a preset at any of them). Invalid existing machine links remain visible so unrelated printer edits remain possible.
 
 ## Production
 

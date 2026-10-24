@@ -29,7 +29,7 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
             await repo.SaveChangesAsync(default);
             var candidates = await scope.ServiceProvider.GetRequiredService<ProductionDispatchQueryService>().GetBackfillCandidatesAsync(default);
             candidates.Single(c => c.RunLineId == run.Lines.Single().Id).CurrentOccupancy.Should().Be(1);
-            ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PLA", null)], candidates.Where(c => c.RunLineId == run.Lines.Single().Id).ToList()).Should().BeNull();
+            ProductionDispatchMatcher.SelectNextBackfillLine([0.4m], [("PLA", null, 0.4m)], candidates.Where(c => c.RunLineId == run.Lines.Single().Id).ToList()).Should().BeNull();
         }
         await PostAsync(client, $"/api/v1/production-runs/{run.Id}/cancel");
         using (var scope = Factory.Services.CreateScope())

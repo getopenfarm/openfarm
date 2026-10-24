@@ -8165,8 +8165,57 @@
           "models": {
             "type": "array",
             "items": {
+              "$ref": "#/components/schemas/PrinterModelResponse"
+            }
+          }
+        }
+      },
+      "PrinterModelResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "modelCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "driver": {
+            "type": "string"
+          },
+          "extruders": {
+            "type": "array",
+            "items": {
               "type": "string"
             }
+          },
+          "connection": {
+            "$ref": "#/components/schemas/PrinterConnectionFieldsResponse"
+          },
+          "cameraSupported": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PrinterConnectionFieldsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "serialRequired": {
+            "type": "boolean"
+          },
+          "secretName": {
+            "type": "string"
+          },
+          "secretRequired": {
+            "type": "boolean"
+          },
+          "secretHint": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -8187,6 +8236,14 @@
           "modelCode": {
             "type": "string"
           },
+          "model": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrinterModelResponse"
+              }
+            ]
+          },
           "ipAddress": {
             "type": "string"
           },
@@ -8202,18 +8259,10 @@
           "telemetry": {
             "$ref": "#/components/schemas/PrinterDetailTelemetryResponse"
           },
-          "externalSpoolTray": {
-            "nullable": true,
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/AmsTrayResponse"
-              }
-            ]
-          },
-          "amsUnits": {
+          "feedReadings": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AmsUnitResponse"
+              "$ref": "#/components/schemas/FeedReadingResponse"
             }
           },
           "machineProfileId": {
@@ -8286,6 +8335,12 @@
           "nozzleConfirmed": {
             "type": "boolean"
           },
+          "extruders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtruderResponse"
+            }
+          },
           "nozzleTempC": {
             "type": "number",
             "format": "decimal",
@@ -8338,13 +8393,65 @@
           }
         }
       },
-      "AmsTrayResponse": {
+      "ExtruderResponse": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "slotIndex": {
+          "index": {
             "type": "integer",
             "format": "int32"
+          },
+          "nozzleDiameterMm": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "nozzleConfirmed": {
+            "type": "boolean"
+          },
+          "tempC": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "FeedReadingResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "unitIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayLabel": {
+            "type": "string"
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedSlotReadingResponse"
+            }
+          }
+        }
+      },
+      "FeedSlotReadingResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "slotPosition": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "extruderIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayLabel": {
+            "type": "string"
           },
           "empty": {
             "type": "boolean"
@@ -8372,22 +8479,6 @@
           "rfidId": {
             "type": "string",
             "nullable": true
-          }
-        }
-      },
-      "AmsUnitResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "unitIndex": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "trays": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AmsTrayResponse"
-            }
           }
         }
       },
@@ -8431,6 +8522,14 @@
           },
           "modelCode": {
             "type": "string"
+          },
+          "model": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrinterModelResponse"
+              }
+            ]
           },
           "ipAddress": {
             "type": "string"

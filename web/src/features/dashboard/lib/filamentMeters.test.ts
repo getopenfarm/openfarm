@@ -1,14 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  FeedReadingResponse,
+  FeedSlotReadingResponse,
   FeedUnitResponse,
   SpoolResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { buildFilamentRail } from './filamentMeters';
 import type { MonitoredPrinter } from './monitoring';
 
+/** The external port's reading. */
+const port = (slot: FeedSlotReadingResponse): FeedReadingResponse[] => [
+  {
+    kind: 'ExternalSpool',
+    unitIndex: 0,
+    displayLabel: 'External Spool',
+    slots: [{ slotPosition: 0, ...slot }],
+  },
+];
+/** An AMS reading with all four trays, as Bambu reports them. */
+const reading = (
+  unitIndex: number,
+  ...reported: FeedSlotReadingResponse[]
+): FeedReadingResponse => ({
+  kind: 'MultiMaterialUnit',
+  unitIndex,
+  displayLabel: `AMS ${unitIndex + 1}`,
+  slots: [0, 1, 2, 3].map((slotPosition) => ({
+    slotPosition,
+    ...reported.find((slot) => slot.slotPosition === slotPosition),
+  })),
+});
+
 const external: FeedUnitResponse = {
   id: 'ext',
   kind: 'ExternalSpool',
+  unitIndex: 0,
   feedSlots: [
     {
       id: 'external-slot',
@@ -51,7 +77,7 @@ describe('Compact filament rail model', () => {
   });
   it('marks the lone external spool as the active feed when the printer reports it active', () => {
     const rail = buildFilamentRail(
-      { ...online, externalSpoolTray: { active: true } },
+      { ...online, feedReadings: port({ active: true }) },
       [external],
       spools,
       [],
@@ -60,15 +86,29 @@ describe('Compact filament rail model', () => {
     expect(rail.meters).toHaveLength(1);
     expect(rail.meters[0].active).toBe(true);
   });
+  it('labels an external spool seen only in telemetry the way the server does', () => {
+    const rail = buildFilamentRail(
+      {
+        ...online,
+        feedReadings: port({ active: true, displayLabel: 'External Spool' }),
+      },
+      [],
+      [],
+      [],
+    );
+    expect(rail.meters.map((meter) => meter.location)).toEqual([
+      'External Spool',
+    ]);
+  });
   it('uses two reloader meters and projects external telemetry only onto the selected slot', () => {
     const rail = buildFilamentRail(
       {
         ...online,
-        externalSpoolTray: {
+        feedReadings: port({
           active: true,
           remainPercent: 18,
           materialType: 'PLA',
-        },
+        }),
       },
       [external, reloader],
       spools,
@@ -121,12 +161,9 @@ describe('Compact filament rail model', () => {
     const rail = buildFilamentRail(
       {
         ...online,
-        amsUnits: [
-          {
-            unitIndex: 5,
-            trays: [{ slotIndex: 3, active: true, remainPercent: 25 }],
-          },
-          { unitIndex: 1, trays: [{ slotIndex: 0, remainPercent: 50 }] },
+        feedReadings: [
+          reading(5, { slotPosition: 3, active: true, remainPercent: 25 }),
+          reading(1, { slotPosition: 0, remainPercent: 50 }),
         ],
       },
       [],
@@ -149,27 +186,39 @@ describe('Compact filament rail model', () => {
   });
   it('shows the lowest-index AMS when activity is unknown without inventing activity', () => {
     const rail = buildFilamentRail(
-      { ...online, amsUnits: [{ unitIndex: 4 }, { unitIndex: 2 }] },
+      { ...online, feedReadings: [reading(4), reading(2)] },
       [],
       [],
       [],
     );
     expect(rail.label).toBe('AMS 3');
+    expect(rail.meters).toHaveLength(4);
     expect(
       rail.meters.every((meter) => !meter.active && meter.source === 'unknown'),
     ).toBe(true);
   });
-  it("labels a Snapmaker's unit as its toolheads, persisted or not", () => {
+  it("labels a toolchanger's unit as its toolheads, persisted or not", () => {
     const synthesized = buildFilamentRail(
-      { ...online, brand: 'Snapmaker', amsUnits: [{ unitIndex: 0 }] },
+      {
+        ...online,
+        feedReadings: [
+          {
+            kind: 'MultiMaterialUnit',
+            unitIndex: 0,
+            displayLabel: 'Toolheads',
+            slots: [{ slotPosition: 1, displayLabel: 'T2' }],
+          },
+        ],
+      },
       [],
       [],
       [],
     );
     expect(synthesized.label).toBe('Toolheads');
+    expect(synthesized.meters.map((meter) => meter.location)).toEqual(['T2']);
 
     const persisted = buildFilamentRail(
-      { ...online, brand: 'Snapmaker' },
+      online,
       [
         {
           id: 'heads',
@@ -188,14 +237,12 @@ describe('Compact filament rail model', () => {
     const rail = buildFilamentRail(
       {
         ...online,
-        amsUnits: [
-          {
-            unitIndex: 2,
-            trays: [
-              { slotIndex: 3, remainPercent: 90 },
-              { slotIndex: 0, empty: true },
-            ],
-          },
+        feedReadings: [
+          reading(
+            2,
+            { slotPosition: 3, remainPercent: 90 },
+            { slotPosition: 0, empty: true },
+          ),
         ],
       },
       [
@@ -232,7 +279,7 @@ describe('Compact filament rail model', () => {
   });
   it('does not use a printer percentage as recorded weight when capacity is unknown', () => {
     const rail = buildFilamentRail(
-      { ...online, externalSpoolTray: { remainPercent: 80 } },
+      { ...online, feedReadings: port({ remainPercent: 80 }) },
       [external],
       [],
       [],
@@ -248,14 +295,12 @@ describe('Compact filament rail model', () => {
     const rail = buildFilamentRail(
       {
         isReachable: false,
-        amsUnits: [
-          {
-            unitIndex: 0,
-            trays: [
-              { slotIndex: 0, active: true, remainPercent: 60 },
-              { slotIndex: 1, active: true },
-            ],
-          },
+        feedReadings: [
+          reading(
+            0,
+            { slotPosition: 0, active: true, remainPercent: 60 },
+            { slotPosition: 1, active: true },
+          ),
         ],
       },
       [
@@ -280,10 +325,10 @@ describe('Compact filament rail model', () => {
     const rail = buildFilamentRail(
       {
         ...online,
-        amsUnits: [
-          { unitIndex: 0, trays: [{ slotIndex: 1, remainPercent: 30 }] },
+        feedReadings: [
+          reading(0, { slotPosition: 1, remainPercent: 30 }),
+          ...port({ active: true }),
         ],
-        externalSpoolTray: { active: true },
       },
       [external],
       spools,
@@ -299,7 +344,12 @@ describe('Compact filament rail model', () => {
       unitIndex: 0,
       feedSlots: [{ id: 'persisted', slotPosition: 0 }],
     };
-    const rail = buildFilamentRail(online, [ams], [], []);
+    const rail = buildFilamentRail(
+      { ...online, feedReadings: [reading(0)] },
+      [ams],
+      [],
+      [],
+    );
     expect(rail.meters.map((meter) => meter.slotId)).toEqual([
       'persisted',
       undefined,
@@ -317,8 +367,13 @@ describe('Compact filament rail model', () => {
         { id: 'persisted', slotPosition: 0, displayLabel: 'AMS 1 · Slot 1' },
       ],
     };
-    const rail = buildFilamentRail(online, [ams], [], []);
-    // Telemetry-only slots have no API label, so they fall back to unit + position.
+    const rail = buildFilamentRail(
+      { ...online, feedReadings: [reading(0)] },
+      [ams],
+      [],
+      [],
+    );
+    // Slots without an API label fall back to unit + position.
     expect(rail.meters.map((meter) => meter.location)).toEqual([
       'AMS 1 · Slot 1',
       'AMS 1 · Slot 2',
@@ -328,7 +383,7 @@ describe('Compact filament rail model', () => {
   });
   it('leaves invalid printer percentages unknown and does not duplicate replaced-port telemetry', () => {
     const rail = buildFilamentRail(
-      { ...online, externalSpoolTray: { active: true, remainPercent: -1 } },
+      { ...online, feedReadings: port({ active: true, remainPercent: -1 }) },
       [{ ...reloader, feedingSlotId: null }],
       [],
       [],

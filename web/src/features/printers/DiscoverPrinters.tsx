@@ -59,7 +59,7 @@ export function DiscoverPrinters({
       <EmptyState
         icon={<RadarIcon className="size-8 text-muted-foreground" />}
         title="No printers found"
-        description="Check: powered on, same subnet, Bambu LAN mode on."
+        description="Check: powered on, same subnet, LAN access on."
         action={<Button onClick={onManual}>{manualLabel}</Button>}
       />
     );

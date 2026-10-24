@@ -65,12 +65,12 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
     private FeedMappingRecorder Recorder => ((AmsFeedFactory)Factory).Recorder;
 
     /// <summary>Gives the printer an AMS and moves its one loaded spool from the external port into AMS slot <paramref name="slot"/>.</summary>
-    private async Task AttachAmsAsync(Guid printerId, int? moveSpoolToSlot, int? activeTrayId)
+    private async Task AttachAmsAsync(Guid printerId, int? moveSpoolToSlot, bool externalFeeding)
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var ams = FeedUnit.CreateConnectorDerived(printerId, FeedUnitKindCatalog.MultiMaterialUnit, 0);
-        var slots = Enumerable.Range(0, 4).Select(ams.AddFeedSlot).ToArray();
+        var slots = Enumerable.Range(0, 4).Select(position => ams.AddFeedSlot(position)).ToArray();
         db.FeedUnits.Add(ams);
         if (moveSpoolToSlot is { } slot)
         {
@@ -79,7 +79,8 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
             spool.LoadOntoFeedSlot(slots[slot].Id);
         }
 
-        (await db.Printers.SingleAsync(p => p.Id == printerId)).RecordTelemetry(null, null, null, null, null, null, [], null, null, null, activeTrayId);
+        (await db.Printers.SingleAsync(p => p.Id == printerId)).RecordTelemetry(null, null, null, null, null, null, [], null, null,
+            [externalFeeding ? new FeedSlotRef(FeedUnitKindCatalog.ExternalSpool, 0, 0) : null]);
         await db.SaveChangesAsync();
     }
 
@@ -102,12 +103,11 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         var client = await ClientAsync();
         var part = await PartAsync();
         var printer = await PrinterAsync();
-        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, activeTrayId: 255);
+        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, externalFeeding: false);
 
         var mapping = await DispatchedMappingAsync(printer, async () => (await RunAsync(client, part.Id, pinned: printer.Id)).Id);
 
-        mapping!.UseAms.Should().BeTrue();
-        mapping.Trays.Should().Equal(2);
+        mapping!.Tools.Should().Equal(new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, 0, 2));
     }
 
     [Fact]
@@ -117,13 +117,35 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         var part = await PartAsync(contents: "; printer_model = Snapmaker U1\nG28\n");
         var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
         // The U1's four heads are one four-slot unit; slot 2 is T3.
-        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, activeTrayId: 255);
+        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, externalFeeding: false);
 
         var mapping = await DispatchedMappingAsync(printer, async () => (await RunAsync(client, part.Id, pinned: printer.Id)).Id);
 
         // The connector sends this to the firmware as map_table [[0, 2]].
-        mapping!.UseAms.Should().BeTrue();
-        mapping.Trays.Should().Equal(2);
+        mapping!.Tools.Should().Equal(new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, 0, 2));
+    }
+
+    [Fact]
+    public async Task SnapmakerU1_MixedNozzles_SendsTheJobToAHeadWithItsNozzle()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\nG28\n");
+        var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
+        // The job's filament is on T1 with a 0.6 mm nozzle and on T3 with the job's 0.4 mm.
+        var slots = await AttachHeadsAsync(printer.Id, [0.6m, 0.4m, 0.4m, 0.4m], head: 0);
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var onT1 = await db.Spools.SingleAsync(s => s.FeedSlotId == slots[0].Id);
+            var twin = Spool.Create(onT1.FilamentVariantId, null, 1000, 1000);
+            twin.LoadOntoFeedSlot(slots[2].Id);
+            db.Spools.Add(twin);
+            await db.SaveChangesAsync();
+        }
+
+        var mapping = await DispatchedMappingAsync(printer, async () => (await RunAsync(client, part.Id, pinned: printer.Id)).Id);
+
+        mapping!.Tools.Should().Equal(new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, 0, 2));
     }
 
     [Fact]
@@ -132,7 +154,7 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         var client = await ClientAsync();
         var part = await PartAsync(contents: "; printer_model = Bambu Lab P1S\nG28\n");
         var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
-        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, activeTrayId: 255);
+        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, externalFeeding: false);
         var run = await RunAsync(client, part.Id, pinned: printer.Id);
 
         using var worker = Worker();
@@ -150,12 +172,11 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         var client = await ClientAsync();
         var part = await PartAsync();
         var printer = await PrinterAsync();
-        await AttachAmsAsync(printer.Id, moveSpoolToSlot: null, activeTrayId: 254);
+        await AttachAmsAsync(printer.Id, moveSpoolToSlot: null, externalFeeding: true);
 
         var mapping = await DispatchedMappingAsync(printer, async () => (await RunAsync(client, part.Id, pinned: printer.Id)).Id);
 
-        mapping!.UseAms.Should().BeFalse();
-        mapping.Trays.Should().Equal(-1);
+        mapping!.Tools.Should().Equal(new FeedSlotRef(FeedUnitKindCatalog.ExternalSpool, 0, 0));
     }
 
     [Fact]
@@ -164,7 +185,7 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         var client = await ClientAsync();
         var part = await PartAsync();
         var printer = await PrinterAsync();
-        await AttachAmsAsync(printer.Id, moveSpoolToSlot: null, activeTrayId: 255);
+        await AttachAmsAsync(printer.Id, moveSpoolToSlot: null, externalFeeding: false);
         var run = await RunAsync(client, part.Id, pinned: printer.Id);
 
         using var worker = Worker();
@@ -185,6 +206,6 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
 
         var mapping = await DispatchedMappingAsync(printer, async () => (await RunAsync(client, part.Id, pinned: printer.Id)).Id);
 
-        mapping!.UseAms.Should().BeFalse();
+        mapping!.Tools.Should().OnlyContain(slot => slot == null || !slot.Value.IsMultiMaterialUnit);
     }
 }

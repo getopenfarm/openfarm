@@ -18,6 +18,7 @@ function setup(
   selectedVariantId?: string,
   snapshotState = 'Ready',
   extra: Record<string, unknown> = {},
+  printers: unknown[] = [],
 ) {
   const requests = vi.fn(
     async (input: RequestInfo | URL, _init?: RequestInit) => {
@@ -64,7 +65,7 @@ function setup(
         : url.includes('/spools')
           ? { spools: [] }
           : url.includes('/printers')
-            ? { printers: [] }
+            ? { printers }
             : job;
       return new Response(JSON.stringify(body), {
         status: 200,
@@ -293,6 +294,16 @@ it('shows why the last dispatch attempt failed on a queued job', async () => {
 
   expect(await screen.findByText('Last attempt failed')).toBeInTheDocument();
   expect(screen.getByText(BLOCK_REASON)).toBeInTheDocument();
+});
+
+it('offers manual status on a printer whose model has no driver', async () => {
+  setup('Queued', undefined, 'Ready', { dispatchedPrinterId: 'printer-1' }, [
+    { id: 'printer-1', name: 'P01', model: null },
+  ]);
+
+  expect(
+    await screen.findByRole('button', { name: 'Mark started' }),
+  ).toBeInTheDocument();
 });
 
 it('does not show a stale block reason once the job is no longer queued', async () => {

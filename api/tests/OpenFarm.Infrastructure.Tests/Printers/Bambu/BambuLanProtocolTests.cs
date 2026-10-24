@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using MQTTnet;
 using MQTTnet.Adapter;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Infrastructure.Printers.Bambu;
 
 namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
@@ -340,11 +341,15 @@ public class BambuLanProtocolTests
         return request.RootElement.GetProperty("print").Clone();
     }
 
+    private static FeedSlotRef AmsSlot(int unit, int slot) => new(FeedUnitKindCatalog.MultiMaterialUnit, unit, slot);
+
+    private static readonly FeedSlotRef ExternalPort = new(FeedUnitKindCatalog.ExternalSpool, 0, 0);
+
     [Fact]
     public async Task StartJob_WithAmsMapping_UsesAmsAndSendsBothMappingArrays()
     {
         // Black on AMS 0 slot 2, white on AMS 0 slot 0; a third project filament is unused.
-        var mapping = new FilamentFeedMapping(true, [2, 0, -1], [new(0, 2), new(0, 0), new(255, 255)]);
+        var mapping = new FilamentFeedMapping([AmsSlot(0, 2), AmsSlot(0, 0), null]);
 
         var print = await StartWithMappingAsync(mapping);
 
@@ -357,11 +362,35 @@ public class BambuLanProtocolTests
     [Fact]
     public async Task StartJob_ExternalOnlyMapping_DoesNotUseAmsButIsSpelledOut()
     {
-        var print = await StartWithMappingAsync(new FilamentFeedMapping(false, [-1], [new(255, 0)]));
+        var print = await StartWithMappingAsync(new FilamentFeedMapping([ExternalPort]));
 
         print.GetProperty("use_ams").GetBoolean().Should().BeFalse();
         print.GetProperty("ams_mapping").EnumerateArray().Select(e => e.GetInt32()).Should().Equal(-1);
         print.GetProperty("ams_mapping2")[0].GetProperty("ams_id").GetInt32().Should().Be(255);
+        print.GetProperty("ams_mapping2")[0].GetProperty("slot_id").GetInt32().Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(0, 3, 3)]
+    [InlineData(1, 0, 4)]
+    [InlineData(1, 3, 7)]
+    [InlineData(3, 3, 15)]
+    public void EncodeAmsMapping_FourSlotUnits_UseUnitTimesFourPlusSlot(int unit, int slot, int tray)
+    {
+        var encoded = BambuLanConnector.EncodeAmsMapping(new([AmsSlot(unit, slot)]));
+
+        encoded.Trays.Should().Equal(tray);
+        encoded.Targets.Should().Equal((unit, slot));
+    }
+
+    [Fact]
+    public void EncodeAmsMapping_SingleSlotUnit_UsesItsUnitIdAndSlotZero()
+    {
+        var encoded = BambuLanConnector.EncodeAmsMapping(new([AmsSlot(128, 0)]));
+
+        encoded.UseAms.Should().BeTrue();
+        encoded.Trays.Should().Equal(128);
+        encoded.Targets.Should().Equal((128, 0));
     }
 
     [Fact]

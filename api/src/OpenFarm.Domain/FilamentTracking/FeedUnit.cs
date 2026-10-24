@@ -104,9 +104,13 @@ public sealed class FeedUnit
         return new FeedUnit(Guid.NewGuid(), printerId, FeedUnitKindCatalog.AutomaticFilamentReloader, unitIndex, name, replacesFeedUnitId, DateTimeOffset.UtcNow);
     }
 
-    public FeedSlot AddFeedSlot(int slotPosition)
+    // Two overloads, not an optional parameter: `Select(unit.AddFeedSlot)` would otherwise bind LINQ's indexed overload and
+    // put slot n on extruder n.
+    public FeedSlot AddFeedSlot(int slotPosition) => AddFeedSlot(slotPosition, 0);
+
+    public FeedSlot AddFeedSlot(int slotPosition, int extruderIndex)
     {
-        var slot = FeedSlot.Create(Id, slotPosition);
+        var slot = FeedSlot.Create(Id, slotPosition, extruderIndex);
         _feedSlots.Add(slot);
         return slot;
     }

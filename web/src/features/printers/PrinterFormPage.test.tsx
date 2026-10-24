@@ -22,15 +22,56 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+// The server's PrinterModelResponse for each catalog model: the form renders its fields from these.
+const ACCESS_CODE = {
+  serialRequired: true,
+  secretName: 'access code',
+  secretRequired: true,
+  secretHint: 'Printer screen → Settings → Network.',
+};
+const bambuModel = (modelCode: string) => ({
+  modelCode,
+  name: `Bambu Lab ${modelCode}`,
+  connection: {
+    ...ACCESS_CODE,
+    note: 'LAN mode disconnects Bambu Cloud and Bambu Handy.',
+  },
+  cameraSupported: !modelCode.startsWith('X1'),
+});
+const U1_MODEL = {
+  modelCode: 'U1',
+  name: 'Snapmaker U1',
+  connection: {
+    serialRequired: false,
+    secretName: 'API key',
+    secretRequired: false,
+    secretHint: 'Moonraker. Blank = none.',
+  },
+  cameraSupported: true,
+};
+
 const CATALOG_RESPONSE = {
   brands: [
-    { brand: 'Bambu', models: ['X1', 'X1C', 'P1S'] },
-    { brand: 'System', models: ['Simulation'] },
+    { brand: 'Bambu', models: ['X1', 'X1C', 'P1S'].map(bambuModel) },
+    {
+      brand: 'System',
+      models: [
+        {
+          modelCode: 'Simulation',
+          name: 'System Simulation',
+          connection: ACCESS_CODE,
+          cameraSupported: true,
+        },
+      ],
+    },
   ],
 };
 
 const CATALOG_WITH_SNAPMAKER = {
-  brands: [...CATALOG_RESPONSE.brands, { brand: 'Snapmaker', models: ['U1'] }],
+  brands: [
+    ...CATALOG_RESPONSE.brands,
+    { brand: 'Snapmaker', models: [U1_MODEL] },
+  ],
 };
 
 function printerDetailBody(overrides?: Record<string, unknown>) {
@@ -39,12 +80,13 @@ function printerDetailBody(overrides?: Record<string, unknown>) {
     name: 'Test Printer',
     brand: 'Bambu',
     modelCode: 'P1S',
+    model: bambuModel('P1S'),
     serialNumber: 'SN-0001',
     ipAddress: '10.0.0.50',
     status: 'Idle',
     isReachable: true,
     telemetry: {},
-    amsUnits: [],
+    feedReadings: [],
     machineProfileId: null,
     machineProfileName: null,
     processProfileId: null,
@@ -631,6 +673,7 @@ describe('PrinterFormPage edit mode', () => {
             printerDetailBody({
               brand: 'Snapmaker',
               modelCode: 'U1',
+              model: U1_MODEL,
               serialNumber: 'U1SN0001',
             }),
           ),

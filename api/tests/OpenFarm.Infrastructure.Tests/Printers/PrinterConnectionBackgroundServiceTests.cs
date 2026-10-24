@@ -244,7 +244,7 @@ public class PrinterConnectionBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            var amsUnits = new List<AmsUnit> { new(0, []) };
+            var amsUnits = new List<FeedUnitReading> { new(FeedUnitKindCatalog.MultiMaterialUnit, 0, []) };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
                 Telemetry: new PrinterTelemetrySnapshot(60.5m, 65.0m, 42, "Printing", 72, "benchy.3mf", amsUnits)));
@@ -265,7 +265,7 @@ public class PrinterConnectionBackgroundServiceTests
             secondBroadcast.BedTempC.Should().Be(65.0m);
             secondBroadcast.PrintProgressPercent.Should().Be(50);
             secondBroadcast.CurrentStageLabel.Should().Be("Printing");
-            secondBroadcast.AmsUnits.Should().BeEquivalentTo(amsUnits);
+            secondBroadcast.FeedReadings.Should().BeEquivalentTo(amsUnits);
         }
         finally
         {
@@ -487,9 +487,9 @@ public class PrinterConnectionBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            var twoTrayAms = new List<AmsUnit>
+            var twoTrayAms = new List<FeedUnitReading>
             {
-                new(0, [new AmsTray(0, false, "PLA", "#FF0000", "Generic", 80, false), new AmsTray(1, false, "PETG", "#00FF00", "Generic", 50, false)]),
+                new(FeedUnitKindCatalog.MultiMaterialUnit, 0, [new FeedSlotReading(0, false, "PLA", "#FF0000", "Generic", 80, false), new FeedSlotReading(1, false, "PETG", "#00FF00", "Generic", 50, false)]),
             };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
@@ -502,7 +502,7 @@ public class PrinterConnectionBackgroundServiceTests
             unit.FeedSlots.Should().OnlyContain(s => s.DeactivatedAtUtc == null);
 
             // Topology shrinks to one tray.
-            var oneTrayAms = new List<AmsUnit> { new(0, [new AmsTray(0, false, "PLA", "#FF0000", "Generic", 80, false)]) };
+            var oneTrayAms = new List<FeedUnitReading> { new(FeedUnitKindCatalog.MultiMaterialUnit, 0, [new FeedSlotReading(0, false, "PLA", "#FF0000", "Generic", 80, false)]) };
             connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(
                 DateTimeOffset.UtcNow,
                 Telemetry: new PrinterTelemetrySnapshot(60m, 65m, 20, "Printing", null, null, oneTrayAms)));
@@ -800,7 +800,7 @@ public class PrinterConnectionBackgroundServiceTests
             return Task.CompletedTask;
         }
         public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) => Publish(false);
+        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterModel? model, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) => Publish(false);
         public Task CameraFrameReceivedAsync(Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) => Publish(true);
     }
 
@@ -809,7 +809,7 @@ public class PrinterConnectionBackgroundServiceTests
         public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) =>
+        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterModel? model, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
         public Task CameraFrameReceivedAsync(Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) =>
@@ -832,7 +832,7 @@ public class PrinterConnectionBackgroundServiceTests
         public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken)
+        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterModel? model, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken)
         {
             TelemetryBroadcasts.Add(telemetry);
             return Task.CompletedTask;
@@ -893,7 +893,7 @@ public class PrinterConnectionBackgroundServiceTests
 
     private sealed class NoOpFeedSlotTelemetrySync : IFeedSlotTelemetrySync
     {
-        public Task SyncAsync(Guid printerId, string brand, IReadOnlyList<AmsUnit> amsUnits, AmsTray? externalSpoolTray, CancellationToken cancellationToken) =>
+        public Task SyncAsync(Guid printerId, IReadOnlyList<FeedUnitReading> readings, CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 

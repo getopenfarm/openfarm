@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.FeedUnits;
+using OpenFarm.Api.Endpoints.Printers;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Infrastructure.Persistence;
 using static OpenFarm.Api.IntegrationTests.FilamentTracking.FilamentTrackingTestHelpers;
@@ -40,6 +41,22 @@ public class FeedUnitsListingTests(CustomWebApplicationFactory factory) : IClass
 
         var unit = feedUnits.FeedUnits.First(u => u.Kind == "MultiMaterialUnit");
         unit.FeedSlots.Should().OnlyContain(s => s.DisplayLabel == $"{unit.DisplayLabel} · Slot {s.SlotPosition + 1}");
+    }
+
+    /// <summary>The web shows a reading before its unit is persisted, so both carry the server's labels.</summary>
+    [Fact]
+    public async Task GetPrinterDetail_FeedReadings_AreLabelledLikeTheFeedUnits()
+    {
+        var client = await AuthenticatedClientAsync(_client);
+        var printerId = await RegisterSimulatorPrinterAsync(client);
+        var feedUnits = await WaitForFeedUnitsAsync(client, printerId, r => r.FeedUnits.Any(u => u.Kind == "MultiMaterialUnit" && u.FeedSlots.Count > 0));
+
+        var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printerId}", UriKind.Relative));
+
+        var unit = feedUnits.FeedUnits.First(u => u.Kind == "MultiMaterialUnit");
+        var reading = detail!.FeedReadings.Should().ContainSingle(r => r.Kind == "MultiMaterialUnit").Subject;
+        reading.DisplayLabel.Should().Be(unit.DisplayLabel);
+        reading.Slots.Select(s => s.DisplayLabel).Should().Equal(unit.FeedSlots.Select(s => s.DisplayLabel));
     }
 
     /// <summary>

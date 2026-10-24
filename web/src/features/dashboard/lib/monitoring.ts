@@ -8,7 +8,7 @@ import type {
 } from '@/lib/api/generated/endpoints.schemas';
 
 export type MonitoredPrinter = FleetPrinterResponse &
-  Pick<PrinterDetailResponse, 'telemetry' | 'amsUnits' | 'externalSpoolTray'>;
+  Pick<PrinterDetailResponse, 'telemetry' | 'feedReadings'>;
 export function reportedState(printer: MonitoredPrinter) {
   return printer.telemetry?.reportedState?.trim().toUpperCase();
 }

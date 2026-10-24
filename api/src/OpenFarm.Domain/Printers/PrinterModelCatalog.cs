@@ -17,35 +17,31 @@ public static class PrinterModelCatalog
     private static readonly IReadOnlySet<BuildPlateType> BambuXAndP1SeriesPlateTypes =
         new HashSet<BuildPlateType> { BuildPlateType.Cool, BuildPlateType.HighTemp, BuildPlateType.TexturedPei, BuildPlateType.Supertack };
 
-    private static readonly Dictionary<(PrinterBrand Brand, string ModelCode), PrinterModel> Entries =
-        new Dictionary<(PrinterBrand, string), PrinterModel>
-        {
-            [(PrinterBrand.Bambu, "X1")] = new PrinterModel(PrinterBrand.Bambu, "X1", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
-            [(PrinterBrand.Bambu, "X1C")] = new PrinterModel(PrinterBrand.Bambu, "X1C", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1 Carbon", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
-            [(PrinterBrand.Bambu, "X1E")] = new PrinterModel(PrinterBrand.Bambu, "X1E", CameraTransport.Rtsp, VendorMachineModelName: "Bambu Lab X1E", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
-            [(PrinterBrand.Bambu, "P1P")] = new PrinterModel(PrinterBrand.Bambu, "P1P", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1P", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
-            [(PrinterBrand.Bambu, "P1S")] = new PrinterModel(PrinterBrand.Bambu, "P1S", CameraTransport.BinaryImage, VendorMachineModelName: "Bambu Lab P1S", CompatiblePlateTypes: BambuXAndP1SeriesPlateTypes),
-            [(PrinterBrand.Bambu, "A1")] = new PrinterModel(PrinterBrand.Bambu, "A1", CameraTransport.BinaryImage,
-                VendorMachineModelName: "Bambu Lab A1",
-                CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.TexturedPei, BuildPlateType.HighTemp }),
-            [(PrinterBrand.Bambu, "A1MINI")] = new PrinterModel(PrinterBrand.Bambu, "A1MINI", CameraTransport.BinaryImage,
-                VendorMachineModelName: "Bambu Lab A1 mini",
-                // Cross-checked both signals (research.md R2): machine preset's own
-                // not_support_bed_type = "Smooth Cool Plate;Engineering Plate" (authoritative) agrees
-                // with the filament-temp fallback (eng_plate_temp resolves to "0" through inheritance).
-                CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.TexturedPei, BuildPlateType.HighTemp }),
-            [(PrinterBrand.System, "Simulation")] = new PrinterModel(PrinterBrand.System, "Simulation", CameraTransport.BinaryImage,
-                CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.Cool, BuildPlateType.Engineering, BuildPlateType.HighTemp, BuildPlateType.TexturedPei, BuildPlateType.TexturedCool, BuildPlateType.Supertack }),
-            // Plates per 012 research.md R9: the vendor's filament presets leave only hot_plate_temp non-zero.
-            [(PrinterBrand.Snapmaker, "U1")] = new PrinterModel(PrinterBrand.Snapmaker, "U1", CameraTransport.HttpSnapshot,
-                VendorMachineModelName: "Snapmaker U1",
-                CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.HighTemp }),
-        };
+    private static readonly IReadOnlyList<string> OneNozzle = ["Nozzle"];
 
-    // Every current brand (Bambu and the Snapmaker U1, the real integrations; System, the Simulator stand-in) has live
-    // status/dispatch integration — there is no non-live brand registrable today. This is the one place that check
-    // extends, never a restructure of the dispatcher/command-handler branches that already read it (FR-012/FR-024b).
-    private static readonly HashSet<PrinterBrand> LiveIntegratedBrands = new() { PrinterBrand.Bambu, PrinterBrand.System, PrinterBrand.Snapmaker };
+    private static PrinterModel Bambu(string modelCode, CameraTransport camera, string vendorMachineModelName, IReadOnlySet<BuildPlateType> plates) =>
+        new(PrinterBrand.Bambu, modelCode, PrinterDriver.BambuLan, camera, OneNozzle, vendorMachineModelName, plates, FeedUnitStyle.Ams);
+
+    private static readonly Dictionary<(PrinterBrand Brand, string ModelCode), PrinterModel> Entries = new PrinterModel[]
+    {
+        Bambu("X1", CameraTransport.Rtsp, "Bambu Lab X1", BambuXAndP1SeriesPlateTypes),
+        Bambu("X1C", CameraTransport.Rtsp, "Bambu Lab X1 Carbon", BambuXAndP1SeriesPlateTypes),
+        Bambu("X1E", CameraTransport.Rtsp, "Bambu Lab X1E", BambuXAndP1SeriesPlateTypes),
+        Bambu("P1P", CameraTransport.BinaryImage, "Bambu Lab P1P", BambuXAndP1SeriesPlateTypes),
+        Bambu("P1S", CameraTransport.BinaryImage, "Bambu Lab P1S", BambuXAndP1SeriesPlateTypes),
+        Bambu("A1", CameraTransport.BinaryImage, "Bambu Lab A1",
+            new HashSet<BuildPlateType> { BuildPlateType.TexturedPei, BuildPlateType.HighTemp }),
+        // Cross-checked both signals (research.md R2): machine preset's own
+        // not_support_bed_type = "Smooth Cool Plate;Engineering Plate" (authoritative) agrees
+        // with the filament-temp fallback (eng_plate_temp resolves to "0" through inheritance).
+        Bambu("A1MINI", CameraTransport.BinaryImage, "Bambu Lab A1 mini",
+            new HashSet<BuildPlateType> { BuildPlateType.TexturedPei, BuildPlateType.HighTemp }),
+        new(PrinterBrand.System, "Simulation", PrinterDriver.Simulator, CameraTransport.BinaryImage, OneNozzle,
+            CompatiblePlateTypes: new HashSet<BuildPlateType> { BuildPlateType.Cool, BuildPlateType.Engineering, BuildPlateType.HighTemp, BuildPlateType.TexturedPei, BuildPlateType.TexturedCool, BuildPlateType.Supertack }),
+        // Plates per 012 research.md R9: the vendor's filament presets leave only hot_plate_temp non-zero.
+        new(PrinterBrand.Snapmaker, "U1", PrinterDriver.SnapmakerMoonraker, CameraTransport.HttpSnapshot, ["T1", "T2", "T3", "T4"],
+            "Snapmaker U1", new HashSet<BuildPlateType> { BuildPlateType.HighTemp }, FeedUnitStyle.Toolheads),
+    }.ToDictionary(m => (m.Brand, m.ModelCode));
 
     // Bambu SSDP DevModel.bambu.com codes -> catalog ModelCode, for LAN discovery prefill.
     // ponytail: C11/C12/N2S/N1 confirmed via ha-bambulab pybambu/utils.py; the X-series codes are
@@ -76,15 +72,17 @@ public static class PrinterModelCatalog
             ?? (TryMapBambuDeviceModel(name) is { } code ? Entries[(PrinterBrand.Bambu, code)] : null);
     }
 
-    public static bool SupportsLiveIntegration(string brand) =>
-        Enum.TryParse<PrinterBrand>(brand, ignoreCase: true, out var parsedBrand) && LiveIntegratedBrands.Contains(parsedBrand);
-
     /// <summary>
-    /// Whether registering needs an operator-typed serial and access code. Bambu addresses MQTT by serial and
-    /// authenticates with the LAN access code; a Snapmaker reports its own serial and its Moonraker API key is optional.
+    /// Every catalogued model has a driver, so a catalogued brand has live status/dispatch integration. This is the one
+    /// place that check extends, never a restructure of the dispatcher/command-handler branches that already read it
+    /// (FR-012/FR-024b).
     /// </summary>
-    public static bool UsesAccessCode(string brand) =>
-        !Enum.TryParse<PrinterBrand>(brand, ignoreCase: true, out var parsedBrand) || parsedBrand != PrinterBrand.Snapmaker;
+    public static bool SupportsLiveIntegration(string brand) =>
+        Enum.TryParse<PrinterBrand>(brand, ignoreCase: true, out var parsedBrand) && Entries.Keys.Any(key => key.Brand == parsedBrand);
+
+    /// <summary><see cref="PrinterModel.UsesAccessCode"/>; an unknown model needs one (validation rejects it anyway).</summary>
+    public static bool UsesAccessCode(string brand, string modelCode) =>
+        !TryResolve(brand, modelCode, out var model) || model!.UsesAccessCode;
 
     public static PrinterModel Resolve(string brand, string modelCode)
     {
@@ -95,6 +93,9 @@ public static class PrinterModelCatalog
 
         return model!;
     }
+
+    /// <summary>The model, or null when (brand, modelCode) isn't catalogued.</summary>
+    public static PrinterModel? Find(string brand, string modelCode) => TryResolve(brand, modelCode, out var model) ? model : null;
 
     public static bool TryResolve(string brand, string modelCode, out PrinterModel? model)
     {
@@ -110,18 +111,10 @@ public static class PrinterModelCatalog
     }
 
     /// <summary>
-    /// Every (Brand, ModelCode) entry currently registered, grouped by brand — the read path a
-    /// backend-exposed catalog endpoint (US3) projects into a response, guaranteed to never drift
-    /// from what <see cref="Resolve"/>/<see cref="TryResolve"/> would accept since both read the
-    /// same static dictionary.
+    /// Every registered model — the read path the catalog endpoint projects, guaranteed to never drift from what
+    /// <see cref="Resolve"/>/<see cref="TryResolve"/> would accept since both read the same static dictionary.
     /// </summary>
-    public static IReadOnlyList<PrinterCatalogBrandGroup> All =>
-        Entries.Keys
-            .GroupBy(key => key.Brand)
-            .Select(group => new PrinterCatalogBrandGroup(
-                group.Key,
-                group.Select(key => key.ModelCode).ToList()))
-            .ToList();
+    public static IReadOnlyCollection<PrinterModel> Models => Entries.Values;
 
     /// <summary>
     /// Every distinct <see cref="PrinterModel.VendorMachineModelName"/> currently registered — System
@@ -130,12 +123,10 @@ public static class PrinterModelCatalog
     /// so a new vendor's rows appear automatically once a catalog entry maps to it.
     /// </summary>
     public static IReadOnlyList<string> AllVendorMachineModelNames =>
-        Entries.Values
+        Models
             .Select(m => m.VendorMachineModelName)
             .Where(name => name is not null)
             .Select(name => name!)
             .Distinct(StringComparer.Ordinal)
             .ToList();
 }
-
-public sealed record PrinterCatalogBrandGroup(PrinterBrand Brand, IReadOnlyList<string> Models);

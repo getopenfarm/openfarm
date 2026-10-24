@@ -9,12 +9,65 @@ public class ProductionDispatchMatcherTests
         Guid jobId, double queuePosition, decimal nozzleDiameterMm, params (string? MaterialType, string? ColorHex)[] filament) =>
         new(jobId, queuePosition, nozzleDiameterMm, filament);
 
+    // A single-nozzle printer: everything loaded feeds its one nozzle.
+    private static Guid? SelectNextJob(decimal printerNozzleDiameterMm,
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials,
+        IReadOnlyList<DispatchCandidate> candidates, IReadOnlyList<DispatchCandidate>? pinnedCandidates = null) =>
+        ProductionDispatchMatcher.SelectNextJob([printerNozzleDiameterMm], OnNozzle(printerNozzleDiameterMm, printerLoadedMaterials),
+            candidates, pinnedCandidates);
+
+    private static Guid? SelectNextBackfillLine(decimal printerNozzleDiameterMm,
+        IReadOnlyList<(string? MaterialType, string? ColorHex)> printerLoadedMaterials, IReadOnlyList<BackfillLineCandidate> backfillCandidates) =>
+        ProductionDispatchMatcher.SelectNextBackfillLine([printerNozzleDiameterMm], OnNozzle(printerNozzleDiameterMm, printerLoadedMaterials),
+            backfillCandidates);
+
+    private static List<(string? MaterialType, string? ColorHex, decimal? NozzleMm)> OnNozzle(decimal nozzleMm,
+        IEnumerable<(string? MaterialType, string? ColorHex)> loaded) =>
+        loaded.Select(l => (l.MaterialType, l.ColorHex, (decimal?)nozzleMm)).ToList();
+
+    [Fact]
+    public void SelectNextJob_MaterialOnlyOnAnExtruderWithAnotherNozzle_SelectsNothing()
+    {
+        var candidate = Candidate(Guid.NewGuid(), 1024, 0.4m, ("PETG", "#000000"));
+
+        ProductionDispatchMatcher.SelectNextJob([0.4m, 0.6m], [("PLA", "#FFFFFF", 0.4m), ("PETG", "#000000", 0.6m)], [candidate])
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void SelectNextJob_MixedNozzles_TakesTheJobTheMatchingExtruderServes()
+    {
+        var needs04 = Candidate(Guid.NewGuid(), 1024, 0.4m, ("PETG", "#000000"));
+        var needs06 = Candidate(Guid.NewGuid(), 2048, 0.6m, ("PETG", "#000000"));
+
+        ProductionDispatchMatcher.SelectNextJob([0.4m, 0.6m], [("PETG", "#000000", 0.6m)], [needs04, needs06])
+            .Should().Be(needs06.JobId);
+    }
+
+    [Fact]
+    public void SelectNextJob_MultiColourJob_NeedsEveryColourOnAMatchingExtruder()
+    {
+        var candidate = Candidate(Guid.NewGuid(), 1024, 0.4m, ("PLA", "#000000"), ("PLA", "#FFFFFF"));
+
+        ProductionDispatchMatcher.SelectNextJob([0.4m, 0.6m], [("PLA", "#000000", 0.4m), ("PLA", "#FFFFFF", 0.6m)], [candidate])
+            .Should().BeNull();
+        ProductionDispatchMatcher.SelectNextJob([0.4m, 0.6m], [("PLA", "#000000", 0.4m), ("PLA", "#FFFFFF", 0.4m)], [candidate])
+            .Should().Be(candidate.JobId);
+    }
+
+    [Fact]
+    public void CanServe_AJobWithoutFilament_StillNeedsAnExtruderWithItsNozzle()
+    {
+        ProductionDispatchMatcher.CanServe([0.6m], [], 0.4m, []).Should().BeFalse();
+        ProductionDispatchMatcher.CanServe([0.4m, 0.6m], [], 0.4m, []).Should().BeTrue();
+    }
+
     [Fact]
     public void ExplicitCatalogVariantRemovesDetectedColourFromCoarseMatching()
     {
         var spec = new JobFilamentRequirementSpec("PETG", "#000000", Guid.NewGuid());
         var candidate = Candidate(Guid.NewGuid(), 1024, 0.6m, spec.MatchingValues);
-        ProductionDispatchMatcher.SelectNextJob(0.6m, [("PETG", "#27272a")], [candidate]).Should().Be(candidate.JobId);
+        SelectNextJob(0.6m, [("PETG", "#27272a")], [candidate]).Should().Be(candidate.JobId);
         // Identity is validated separately against the active tracked spool during readiness.
         new JobFilamentRequirementSpec("PETG", "#000000").MatchingValues.ColorHex.Should().Be("#000000");
     }
@@ -23,7 +76,7 @@ public class ProductionDispatchMatcherTests
     public void ColourHexCasingDoesNotChangeCompatibility()
     {
         var candidate = Candidate(Guid.NewGuid(), 1024, 0.4m, ("PETG", "#abcdef"));
-        ProductionDispatchMatcher.SelectNextJob(0.4m, [("PETG", "#ABCDEF")], [candidate]).Should().Be(candidate.JobId);
+        SelectNextJob(0.4m, [("PETG", "#ABCDEF")], [candidate]).Should().Be(candidate.JobId);
     }
 
     [Fact]
@@ -32,7 +85,7 @@ public class ProductionDispatchMatcherTests
         var jobId = Guid.NewGuid();
         var candidates = new[] { Candidate(jobId, 1024, 0.4m, ("PETG", "#000000")) };
 
-        var result = ProductionDispatchMatcher.SelectNextJob(
+        var result = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("PETG", "#000000")],
             candidates: candidates);
@@ -45,7 +98,7 @@ public class ProductionDispatchMatcherTests
     {
         var candidates = new[] { Candidate(Guid.NewGuid(), 1024, 0.4m, ("PETG", "#000000")) };
 
-        var result = ProductionDispatchMatcher.SelectNextJob(
+        var result = SelectNextJob(
             printerNozzleDiameterMm: 0.6m,
             printerLoadedMaterials: [("PETG", "#000000")],
             candidates: candidates);
@@ -58,7 +111,7 @@ public class ProductionDispatchMatcherTests
     {
         var candidates = new[] { Candidate(Guid.NewGuid(), 1024, 0.4m, ("PETG", "#000000")) };
 
-        var result = ProductionDispatchMatcher.SelectNextJob(
+        var result = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("PLA", "#FFFFFF")],
             candidates: candidates);
@@ -77,7 +130,7 @@ public class ProductionDispatchMatcherTests
             Candidate(Guid.NewGuid(), 2048, 0.4m, ("PETG", "#000000")),
         };
 
-        var result = ProductionDispatchMatcher.SelectNextJob(
+        var result = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("PETG", "#000000")],
             candidates: candidates);
@@ -88,7 +141,7 @@ public class ProductionDispatchMatcherTests
     [Fact]
     public void SelectNextJob_NoCandidates_ReturnsNull()
     {
-        var result = ProductionDispatchMatcher.SelectNextJob(
+        var result = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("PETG", "#000000")],
             candidates: []);
@@ -105,7 +158,7 @@ public class ProductionDispatchMatcherTests
         var jobId = Guid.NewGuid();
         var candidates = new[] { Candidate(jobId, 1024, 0.4m, (null, null)) };
 
-        var result = ProductionDispatchMatcher.SelectNextJob(
+        var result = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("ABS", "#123456")],
             candidates: candidates);
@@ -121,13 +174,13 @@ public class ProductionDispatchMatcherTests
         var jobId = Guid.NewGuid();
         var candidates = new[] { Candidate(jobId, 1024, 0.4m, ("PETG", "#000000"), ("PETG", "#FFFFFF")) };
 
-        var partialMatchResult = ProductionDispatchMatcher.SelectNextJob(
+        var partialMatchResult = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("PETG", "#000000")],
             candidates: candidates);
         partialMatchResult.Should().BeNull();
 
-        var fullMatchResult = ProductionDispatchMatcher.SelectNextJob(
+        var fullMatchResult = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("PETG", "#000000"), ("PETG", "#FFFFFF")],
             candidates: candidates);
@@ -144,7 +197,7 @@ public class ProductionDispatchMatcherTests
             Candidate(lowerPinnedJobId, 1024, 0.6m, ("PLA", "#FFFFFF")),
         };
 
-        var result = ProductionDispatchMatcher.SelectNextJob(
+        var result = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("PETG", "#000000")],
             candidates: [],
@@ -161,7 +214,7 @@ public class ProductionDispatchMatcherTests
         var candidates = new[] { Candidate(unassignedJobId, 2048, 0.4m, ("PETG", "#000000")) };
         var pinnedCandidates = new[] { Candidate(Guid.NewGuid(), 1024, 0.6m, ("PLA", "#FFFFFF")) };
 
-        var result = ProductionDispatchMatcher.SelectNextJob(
+        var result = SelectNextJob(
             printerNozzleDiameterMm: 0.4m,
             printerLoadedMaterials: [("PETG", "#000000")],
             candidates: candidates,
@@ -174,7 +227,7 @@ public class ProductionDispatchMatcherTests
     public void SelectNextJob_MatchingPinnedJobAboveUnassigned_RespectsManualQueueOrder()
     {
         var pinnedId = Guid.NewGuid();
-        var result = ProductionDispatchMatcher.SelectNextJob(0.4m, [("PLA", null)],
+        var result = SelectNextJob(0.4m, [("PLA", null)],
             [Candidate(Guid.NewGuid(), 2048, 0.4m, ("PLA", null))],
             [Candidate(pinnedId, 1024, 0.4m, ("PLA", null))]);
         result.Should().Be(pinnedId);
@@ -246,7 +299,7 @@ public class ProductionDispatchMatcherTests
             BackfillCandidate(requirementId, 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 0, cumulativeUnits: 0, ("PETG", "#000000")),
         };
 
-        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
+        var result = SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
 
         result.Should().Be(requirementId);
     }
@@ -259,7 +312,7 @@ public class ProductionDispatchMatcherTests
             BackfillCandidate(Guid.NewGuid(), 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 1, cumulativeUnits: 0, ("PETG", "#000000")),
         };
 
-        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
+        var result = SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
 
         result.Should().BeNull();
     }
@@ -272,7 +325,7 @@ public class ProductionDispatchMatcherTests
             BackfillCandidate(Guid.NewGuid(), 0.4m, backfillPrinterCap: 5, cumulativeCeiling: 8, currentOccupancy: 0, cumulativeUnits: 8, ("PETG", "#000000")),
         };
 
-        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
+        var result = SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
 
         result.Should().BeNull();
     }
@@ -285,9 +338,22 @@ public class ProductionDispatchMatcherTests
             BackfillCandidate(Guid.NewGuid(), 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 0, cumulativeUnits: 0, ("PETG", "#000000")),
         };
 
-        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.6m, [("PETG", "#000000")], candidates);
+        var result = SelectNextBackfillLine(0.6m, [("PETG", "#000000")], candidates);
 
         result.Should().BeNull();
+    }
+
+    [Fact]
+    public void SelectNextBackfillLine_SkipsLinesOnlyAnotherNozzleCanFeed()
+    {
+        var needs06 = Guid.NewGuid();
+        var candidates = new[]
+        {
+            BackfillCandidate(Guid.NewGuid(), 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 0, cumulativeUnits: 0, ("PETG", "#000000")),
+            BackfillCandidate(needs06, 0.6m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 0, cumulativeUnits: 0, ("PETG", "#000000")),
+        };
+
+        ProductionDispatchMatcher.SelectNextBackfillLine([0.4m, 0.6m], [("PETG", "#000000", 0.6m)], candidates).Should().Be(needs06);
     }
 
     [Fact]
@@ -300,7 +366,7 @@ public class ProductionDispatchMatcherTests
             BackfillCandidate(eligibleRequirementId, 0.4m, backfillPrinterCap: 1, cumulativeCeiling: null, currentOccupancy: 0, cumulativeUnits: 0, ("PETG", "#000000")),
         };
 
-        var result = ProductionDispatchMatcher.SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
+        var result = SelectNextBackfillLine(0.4m, [("PETG", "#000000")], candidates);
 
         result.Should().Be(eligibleRequirementId);
     }

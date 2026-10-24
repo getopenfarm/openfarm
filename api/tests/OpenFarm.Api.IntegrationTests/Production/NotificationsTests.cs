@@ -24,7 +24,7 @@ public class NotificationsTests(ProductionTestFactory factory) : ProductionTestC
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var spool = await LoadedSpoolAsync(db, printer.Id);
         var print = ExternalPrint.Start(printer.Id, "benchy", [new ExternalFilamentSpec(0, "PLA", "000000", 20m, null)]);
-        if (observeTray) print.ObserveTray(0, spool.Id);
+        if (observeTray) print.ObserveSlot(new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, 0, 0), spool.Id);
         var repository = scope.ServiceProvider.GetRequiredService<IExternalPrintRepository>();
         await repository.AddAsync(print, default);
         await repository.SaveChangesAsync(default);

@@ -199,9 +199,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             throw new IOException($"Printer file upload did not succeed ({uploadStatus}).");
         }
 
-        // The external spool needs no tray ids; whether the printer wants it spelled out is a per-model setting.
-        var sendMapping = feedMapping is not null
-            && (feedMapping.UseAms || !PrinterModelCatalog.TryResolve("Bambu", details.ModelCode, out var model) || model!.SendsExplicitExternalMapping);
+        // Spelled out even for the external spool alone, so the printer never falls back to a tray of its own choosing.
+        (bool UseAms, int[] Trays, (int AmsId, int SlotId)[] Targets)? mapping = feedMapping is null ? null : EncodeAmsMapping(feedMapping);
         var payload = JsonSerializer.Serialize(new
         {
             print = new
@@ -224,12 +223,38 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 flow_cali = false,
                 vibration_cali = false,
                 layer_inspect = false,
-                use_ams = feedMapping?.UseAms ?? false,
-                ams_mapping = sendMapping ? feedMapping!.Trays : null,
-                ams_mapping2 = sendMapping ? feedMapping!.Targets.Select(t => new { ams_id = t.AmsId, slot_id = t.SlotId }) : null,
+                use_ams = mapping?.UseAms ?? false,
+                ams_mapping = mapping?.Trays,
+                ams_mapping2 = mapping?.Targets.Select(t => new { ams_id = t.AmsId, slot_id = t.SlotId }),
             },
         }, IgnoreNullOptions);
         await PublishCommandAsync(details, payload, cancellationToken);
+    }
+
+    /// <summary>
+    /// Bambu Studio's encoding of a feed mapping. <c>ams_mapping</c> holds absolute tray ids — <c>unit * 4 + slot</c> for a
+    /// 4-slot AMS or AMS Lite, the unit id for a single-slot AMS HT (ids from 128), -1 for an unused or external filament;
+    /// <c>ams_mapping2</c> holds <c>{ams_id, slot_id}</c>, where the external spool is <c>{255, 0}</c> and unmapped is
+    /// <c>{255, 255}</c>. <c>use_ams</c> is true when any filament comes from an AMS.
+    /// </summary>
+    internal static (bool UseAms, int[] Trays, (int AmsId, int SlotId)[] Targets) EncodeAmsMapping(FilamentFeedMapping mapping)
+    {
+        const int firstSingleSlotUnit = 128;
+        const int unmapped = 255;
+        var trays = new int[mapping.Tools.Count];
+        var targets = new (int AmsId, int SlotId)[mapping.Tools.Count];
+        for (var tool = 0; tool < mapping.Tools.Count; tool++)
+        {
+            (trays[tool], targets[tool]) = mapping.Tools[tool] switch
+            {
+                null => (-1, (unmapped, unmapped)),
+                { IsMultiMaterialUnit: false } => (-1, (unmapped, 0)),
+                { UnitIndex: >= firstSingleSlotUnit } slot => (slot.UnitIndex, (slot.UnitIndex, 0)),
+                { } slot => (slot.UnitIndex * 4 + slot.SlotPosition, (slot.UnitIndex, slot.SlotPosition)),
+            };
+        }
+
+        return (mapping.Tools.Any(t => t?.IsMultiMaterialUnit == true), trays, targets);
     }
 
     private async Task<FtpStatus> UploadFileAsync(

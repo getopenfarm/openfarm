@@ -3,10 +3,7 @@ import { Link } from 'react-router';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import {
-  CameraSurface,
-  cameraSupported,
-} from '@/features/printers/components/CameraSurface';
+import { CameraSurface } from '@/features/printers/components/CameraSurface';
 import { formatMinutes } from '@/lib/formatMinutes';
 import { cn } from '@/lib/utils';
 import {
@@ -85,7 +82,7 @@ export function MonitoringCard({
           printerId={printer.id ?? ''}
           name={printer.name}
           isReachable={printer.isReachable}
-          supported={cameraSupported(printer.modelCode)}
+          supported={printer.model?.cameraSupported ?? false}
           compact
           className="min-w-0 flex-1 self-start rounded-md"
         />

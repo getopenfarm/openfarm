@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Bambu;
 using OpenFarm.Infrastructure.Printers.Simulator;
@@ -37,17 +38,6 @@ public class PrinterConnectorFactoryTests
         var cameraRelay = factory.CreateCameraRelay(details);
 
         cameraRelay.Should().BeSameAs(simulatorCameraRelay);
-    }
-
-    [Fact]
-    public void CreateConnector_LowerCaseSystemSimulationBrandModel_StillRoutesToSimulator()
-    {
-        var factory = CreateFactory(out var simulatorConnector, out _);
-        var details = new PrinterConnectionDetails("system", "simulation", "10.0.0.1", "SN-1", "12345678");
-
-        var connector = factory.CreateConnector(details);
-
-        connector.Should().BeSameAs(simulatorConnector);
     }
 
     [Fact]
@@ -94,19 +84,18 @@ public class PrinterConnectorFactoryTests
         first.Should().NotBeSameAs(second);
     }
 
+    // A model the catalog doesn't know has no driver: it is refused, never guessed to be a Bambu.
     [Theory]
     [InlineData("", "")]
     [InlineData("Unknown", "Widget9000")]
     [InlineData("System", "P1S")]
     [InlineData("Bambu", "Simulation")]
-    public void CreateConnector_UnrecognizedOrMismatchedBrandModel_NeverThrowsAndRoutesToBambu(string brand, string modelCode)
+    public void CreateConnector_UnrecognizedOrMismatchedBrandModel_Throws(string brand, string modelCode)
     {
         var factory = CreateFactory(out _, out _);
         var details = new PrinterConnectionDetails(brand, modelCode, "10.0.0.50", "SN-3", "12345678");
 
-        var act = () => factory.CreateConnector(details);
-
-        act.Should().NotThrow();
-        act().Should().BeOfType<BambuLanConnector>();
+        factory.Invoking(f => f.CreateConnector(details)).Should().Throw<UnknownPrinterModelException>();
+        factory.Invoking(f => f.CreateCameraRelay(details)).Should().Throw<UnknownPrinterModelException>();
     }
 }

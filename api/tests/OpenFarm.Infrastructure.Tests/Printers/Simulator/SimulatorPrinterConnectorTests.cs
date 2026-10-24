@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Infrastructure.Printers.Simulator;
 
@@ -50,7 +51,7 @@ public class SimulatorPrinterConnectorTests
         firstEvent.GcodeState.Should().Be("IDLE");
         firstEvent.Telemetry.Should().NotBeNull();
         firstEvent.Telemetry!.PrintProgressPercent.Should().Be(0);
-        firstEvent.Telemetry.AmsUnits.Should().NotBeEmpty();
+        firstEvent.Telemetry.FeedReadings.Should().Contain(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit);
     }
 
     [Fact]
@@ -117,19 +118,20 @@ public class SimulatorPrinterConnectorTests
 
         var expectedTrays = new[]
         {
-            new AmsTray(0, Empty: false, MaterialType: "PLA", ColorHex: "#E53935", SubBrand: "Generic", RemainPercent: 82, Active: false,
+            new FeedSlotReading(0, Empty: false, MaterialType: "PLA", ColorHex: "#E53935", SubBrand: "Generic", RemainPercent: 82, Active: false,
                 RfidId: "SN-5-0", RfidWeightGrams: 1000),
-            new AmsTray(1, Empty: false, MaterialType: "PETG", ColorHex: "#1E88E5", SubBrand: "Generic", RemainPercent: 45, Active: false,
+            new FeedSlotReading(1, Empty: false, MaterialType: "PETG", ColorHex: "#1E88E5", SubBrand: "Generic", RemainPercent: 45, Active: false,
                 RfidId: "SN-5-1", RfidWeightGrams: 1000),
-            new AmsTray(2, Empty: false, MaterialType: "ABS", ColorHex: "#43A047", SubBrand: "Generic", RemainPercent: 90, Active: false),
-            new AmsTray(3, Empty: false, MaterialType: "TPU", ColorHex: "#FDD835", SubBrand: "Generic", RemainPercent: 12, Active: false),
+            new FeedSlotReading(2, Empty: false, MaterialType: "ABS", ColorHex: "#43A047", SubBrand: "Generic", RemainPercent: 90, Active: false),
+            new FeedSlotReading(3, Empty: false, MaterialType: "TPU", ColorHex: "#FDD835", SubBrand: "Generic", RemainPercent: 12, Active: false),
         };
 
         foreach (var connectorEvent in events)
         {
-            connectorEvent.Telemetry!.AmsUnits.Should().ContainSingle();
-            connectorEvent.Telemetry.AmsUnits[0].UnitIndex.Should().Be(0);
-            connectorEvent.Telemetry.AmsUnits[0].Trays.Should().BeEquivalentTo(expectedTrays);
+            var ams = connectorEvent.Telemetry!.FeedReadings.Where(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit).ToList();
+            ams.Should().ContainSingle();
+            ams[0].UnitIndex.Should().Be(0);
+            ams[0].Slots.Should().BeEquivalentTo(expectedTrays);
         }
     }
 
