@@ -99,8 +99,11 @@ public class ExternalPrintFetchTests(GatedFetchFactory factory) : ProductionTest
         await ObserveRunningAsync(printer.Id);
         gate.Calls.Should().Be(1, "a file that could not be read is not retried for the same print");
 
+        // The print counts from first sight; a file that never reads leaves one line of unknown grams for the operator.
         using var scope = Factory.Services.CreateScope();
-        (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().ExternalPrints.CountAsync(p => p.PrinterId == printer.Id))
-            .Should().Be(0);
+        var print = await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().ExternalPrints.Include(p => p.Filaments)
+            .SingleAsync(p => p.PrinterId == printer.Id);
+        print.StartedAtUtc.Should().BeBefore(DateTimeOffset.UtcNow.AddMilliseconds(-150), "it started when first seen, not when the read ended");
+        print.Filaments.Should().ContainSingle().Which.EstimatedGrams.Should().BeNull();
     }
 }

@@ -24,7 +24,9 @@ import type {
   OpenFarmApiEndpointsReportsDailyUsageEndpointParams,
   OpenFarmApiEndpointsReportsExportMaterialsReportEndpointParams,
   OpenFarmApiEndpointsReportsGetMaterialsReportEndpointParams,
+  OpenFarmApiEndpointsReportsStatsEndpointParams,
   ProblemDetails,
+  StatsReport,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -828,6 +830,220 @@ export function useOpenFarmApiEndpointsReportsExportMaterialsReportEndpoint<
       params,
       options,
     );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsReportsStatsEndpointResponse200 = {
+  data: StatsReport;
+  status: 200;
+};
+
+export type openFarmApiEndpointsReportsStatsEndpointResponse400 = {
+  data: ProblemDetails;
+  status: 400;
+};
+
+export type openFarmApiEndpointsReportsStatsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsReportsStatsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsReportsStatsEndpointResponseSuccess =
+  openFarmApiEndpointsReportsStatsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsReportsStatsEndpointResponseError = (
+  | openFarmApiEndpointsReportsStatsEndpointResponse400
+  | openFarmApiEndpointsReportsStatsEndpointResponse401
+  | openFarmApiEndpointsReportsStatsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsReportsStatsEndpointResponse =
+  | openFarmApiEndpointsReportsStatsEndpointResponseSuccess
+  | openFarmApiEndpointsReportsStatsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsReportsStatsEndpointUrl = (
+  params: OpenFarmApiEndpointsReportsStatsEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/reports/stats?${stringifiedParams}`
+    : `/api/v1/reports/stats`;
+};
+
+export const openFarmApiEndpointsReportsStatsEndpoint = async (
+  params: OpenFarmApiEndpointsReportsStatsEndpointParams,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsReportsStatsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsReportsStatsEndpointResponse>(
+    getOpenFarmApiEndpointsReportsStatsEndpointUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsReportsStatsEndpointQueryKey = (
+  params?: OpenFarmApiEndpointsReportsStatsEndpointParams,
+) => {
+  return [`/api/v1/reports/stats`, ...(params ? [params] : [])] as const;
+};
+
+export const getOpenFarmApiEndpointsReportsStatsEndpointQueryOptions = <
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsStatsEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getOpenFarmApiEndpointsReportsStatsEndpointQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>
+  > = ({ signal }) =>
+    openFarmApiEndpointsReportsStatsEndpoint(params, { signal });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type OpenFarmApiEndpointsReportsStatsEndpointQueryResult = NonNullable<
+  Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>
+>;
+export type OpenFarmApiEndpointsReportsStatsEndpointQueryError =
+  ProblemDetails | void;
+
+export function useOpenFarmApiEndpointsReportsStatsEndpoint<
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsStatsEndpointParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+          TError,
+          Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsReportsStatsEndpoint<
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsStatsEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+          TError,
+          Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsReportsStatsEndpoint<
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsStatsEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsReportsStatsEndpoint<
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+  TError = ProblemDetails | void,
+>(
+  params: OpenFarmApiEndpointsReportsStatsEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsReportsStatsEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getOpenFarmApiEndpointsReportsStatsEndpointQueryOptions(
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<
     TData,

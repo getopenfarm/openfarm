@@ -21,12 +21,28 @@ public sealed class ExternalPrint : Print
 
     public Guid[] ObservedSpoolIds { get; private set; } = [];
 
+    /// <summary>A print seen running, counted from first sight; its filament lines come once its file is read.</summary>
+    public static ExternalPrint Start(Guid printerId, string name) => new(Guid.NewGuid(), printerId, name, DateTimeOffset.UtcNow);
+
     public static ExternalPrint Start(Guid printerId, string name, IEnumerable<ExternalFilamentSpec> filaments)
     {
-        var print = new ExternalPrint(Guid.NewGuid(), printerId, name, DateTimeOffset.UtcNow);
-        foreach (var spec in filaments.OrderBy(f => f.ToolIndex))
-            print.AddFilament(PrintFilament.Create(print.Id, spec));
+        var print = Start(printerId, name);
+        print.AttachFilaments(filaments.ToList());
         return print;
+    }
+
+    /// <summary>
+    /// Gives the print its filament lines, once: one per tool its file names. A file that couldn't be read, or names no usage,
+    /// leaves one line of unknown grams, which deduction skips as <see cref="FilamentSkipReason.NoEstimate"/>, so the print
+    /// shows in the operator's follow-up instead of going unaccounted.
+    /// </summary>
+    public void AttachFilaments(IReadOnlyCollection<ExternalFilamentSpec>? filaments)
+    {
+        if (Filaments.Count > 0) return;
+        IEnumerable<ExternalFilamentSpec> specs = filaments is { Count: > 0 }
+            ? filaments.OrderBy(f => f.ToolIndex)
+            : [new ExternalFilamentSpec(0, null, null, null, null)];
+        foreach (var spec in specs) AddFilament(PrintFilament.Create(Id, spec));
     }
 
     /// <summary>The slot is new, or was seen before the spool on it was known, so looking the spool up again can still help.</summary>

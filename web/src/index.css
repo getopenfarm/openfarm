@@ -122,6 +122,17 @@
   --kind-blue: #0369a1;
   --kind-orange: #9a3412;
 
+  /* stats charts — fills, not text: print outcomes (status steps) and printer time (the printer-status hues, in an
+     order validated for color-vision deficiency with adjacent segments; dataviz validate_palette.js) */
+  --chart-completed: #0ca30c;
+  --chart-cancelled: #898781;
+  --chart-failed: #d03b3b;
+  --chart-printing: #2a78d6;
+  --chart-awaiting-clear: #eda100;
+  --chart-paused: #6250d6;
+  --chart-idle: #898781;
+  --chart-offline: #d03b3b;
+
   --checkerboard-a: color-mix(
     in oklch,
     var(--foreground) 4%,
@@ -171,6 +182,9 @@
   --kind-violet: #c4b5fd;
   --kind-blue: #7dd3fc;
   --kind-orange: #fdba74;
+  --chart-printing: #3987e5;
+  --chart-awaiting-clear: #c98500;
+  --chart-paused: #9085e9;
 }
 
 @utility swatch-rainbow {

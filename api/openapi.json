@@ -1154,6 +1154,75 @@
         ]
       }
     },
+    "/api/v1/reports/stats": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "OpenFarmApiEndpointsReportsStatsEndpoint",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/profiles/imports/confirm": {
       "post": {
         "tags": [
@@ -6349,6 +6418,245 @@
         }
       },
       "MaterialsReportRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "StatsReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "current": {
+            "$ref": "#/components/schemas/StatsSummary"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/StatsSummary"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatsDay"
+            }
+          },
+          "printers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrinterStats"
+            }
+          },
+          "failureCodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FailureCode"
+            }
+          }
+        }
+      },
+      "StatsSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancelled": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "usedGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "wasteGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "wasteMachineHours": {
+            "type": "number",
+            "format": "double"
+          },
+          "units": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "activity": {
+            "$ref": "#/components/schemas/ActivityHours"
+          },
+          "queueWaitP50Minutes": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "queueWaitP95Minutes": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "estimateRatio": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "plateClearMinutes": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "successRate": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "wasteShare": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "ActivityHours": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "printing": {
+            "type": "number",
+            "format": "double"
+          },
+          "paused": {
+            "type": "number",
+            "format": "double"
+          },
+          "awaitingClear": {
+            "type": "number",
+            "format": "double"
+          },
+          "idle": {
+            "type": "number",
+            "format": "double"
+          },
+          "offline": {
+            "type": "number",
+            "format": "double"
+          },
+          "noData": {
+            "type": "number",
+            "format": "double"
+          },
+          "observed": {
+            "type": "number",
+            "format": "double"
+          },
+          "utilization": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "StatsDay": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "completed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancelled": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "usedGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "wasteGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "units": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "printingHours": {
+            "type": "number",
+            "format": "double"
+          },
+          "observedHours": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "PrinterStats": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "printerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancelled": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "usedGrams": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "activity": {
+            "$ref": "#/components/schemas/ActivityHours"
+          }
+        }
+      },
+      "FailureCode": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "prints": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "StatsRequest": {
         "type": "object",
         "additionalProperties": false
       },

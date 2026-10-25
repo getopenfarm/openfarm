@@ -10,5 +10,9 @@ namespace OpenFarm.Application.Production;
 /// </summary>
 public interface IJobTelemetrySync
 {
-    Task ObserveAsync(Guid printerId, string gcodeState, CancellationToken cancellationToken);
+    /// <param name="unseenSinceUtc">
+    /// When the printer was last heard, if nothing was observed between then and this report (it was unreachable, or
+    /// OpenFarm was down); null while it was being watched. A print found ended is dated back into that silence.
+    /// </param>
+    Task ObserveAsync(Guid printerId, string gcodeState, DateTimeOffset? unseenSinceUtc, CancellationToken cancellationToken);
 }

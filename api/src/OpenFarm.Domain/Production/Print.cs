@@ -1,4 +1,5 @@
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Domain.Production;
 
@@ -55,6 +56,9 @@ public abstract class Print
 
     public int? StopPercent { get; private set; }
 
+    /// <summary>The printer's alerts when the print closed (HMS codes, print errors): what stats count as failure codes.</summary>
+    public IReadOnlyList<PrinterAlert> StopAlerts { get; private set; } = [];
+
     /// <summary>Set when the operator chose to leave the print's undeducted filament as is.</summary>
     public DateTimeOffset? FilamentFollowUpDismissedAtUtc { get; private set; }
 
@@ -85,23 +89,24 @@ public abstract class Print
         Status = PrintJobStatus.Printing;
     }
 
-    public void MarkFailed(string? reason = null)
+    /// <param name="endedAtUtc">When the print really ended, if OpenFarm saw it only later (<see cref="PrintEnd.Infer"/>); now otherwise.</param>
+    public void MarkFailed(string? reason = null, DateTimeOffset? endedAtUtc = null)
     {
         PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Failed);
-        Close(PrintJobStatus.Failed);
+        Close(PrintJobStatus.Failed, endedAtUtc);
     }
 
-    public void MarkCompleted()
+    public void MarkCompleted(DateTimeOffset? endedAtUtc = null)
     {
         PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Completed);
-        Close(PrintJobStatus.Completed);
+        Close(PrintJobStatus.Completed, endedAtUtc);
     }
 
     /// <summary>See FR-024c for how this is chosen over MarkFailed.</summary>
-    public void MarkCancelled()
+    public void MarkCancelled(DateTimeOffset? endedAtUtc = null)
     {
         PrintJobStatusTransitions.EnsureValidTransition(Status, PrintJobStatus.Cancelled);
-        Close(PrintJobStatus.Cancelled);
+        Close(PrintJobStatus.Cancelled, endedAtUtc);
     }
 
     /// <summary>
@@ -130,11 +135,12 @@ public abstract class Print
         }
     }
 
-    public void RecordStopProgress(int? layer, int? totalLayers, int? percent)
+    public void RecordStopProgress(int? layer, int? totalLayers, int? percent, IReadOnlyList<PrinterAlert>? alerts = null)
     {
         StopLayer = layer;
         StopTotalLayers = totalLayers;
         StopPercent = percent;
+        StopAlerts = alerts ?? [];
     }
 
     /// <summary>Marks a line automatic deduction could not record, so the operator can follow it up.</summary>
@@ -163,10 +169,12 @@ public abstract class Print
     {
     }
 
-    private void Close(PrintJobStatus terminalStatus)
+    private void Close(PrintJobStatus terminalStatus, DateTimeOffset? endedAtUtc)
     {
         Status = terminalStatus;
-        EndedAtUtc = DateTimeOffset.UtcNow;
+        var ended = endedAtUtc ?? DateTimeOffset.UtcNow;
+        // An inferred end never comes before the start.
+        EndedAtUtc = StartedAtUtc is { } started && ended < started ? started : ended;
         if (StartedAtUtc is not null)
         {
             ActualDurationMinutes = (int)Math.Round((EndedAtUtc.Value - StartedAtUtc.Value).TotalMinutes);

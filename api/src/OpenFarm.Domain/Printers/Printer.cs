@@ -4,6 +4,8 @@ namespace OpenFarm.Domain.Printers;
 
 public sealed class Printer
 {
+    private readonly List<PrinterActivitySpan> _closedActivitySpans = [];
+
     private Printer(
         Guid id,
         string name,
@@ -24,6 +26,8 @@ public sealed class Printer
         FeedReadings = [];
         Extruders = [];
         CreatedAtUtc = createdAtUtc;
+        Activity = PrinterActivity.Offline;
+        ActivitySinceUtc = createdAtUtc;
     }
 
     public Guid Id { get; }
@@ -50,7 +54,37 @@ public sealed class Printer
         var changed = ReportedState != state;
         ReportedState = state;
         StateObservedAtUtc = atUtc;
+        SyncActivity(atUtc);
         return changed;
+    }
+
+    /// <summary>What the printer has been doing since <see cref="ActivitySinceUtc"/>; derived from status, reachability and PAUSE.</summary>
+    public PrinterActivity Activity { get; private set; }
+
+    public DateTimeOffset ActivitySinceUtc { get; private set; }
+
+    /// <summary>Stretches this instance closed, for saving with it; never loaded back.</summary>
+    public IReadOnlyList<PrinterActivitySpan> ClosedActivitySpans => _closedActivitySpans;
+
+    // Awaiting clear is OpenFarm's own state: only Mark ready or a new print ends it, so it holds while the printer is unreachable.
+    private PrinterActivity DerivedActivity =>
+        Status == PrinterStatus.AwaitingClear ? PrinterActivity.AwaitingClear
+        : !IsReachable ? PrinterActivity.Offline
+        : Status != PrinterStatus.Printing ? PrinterActivity.Idle
+        : string.Equals(ReportedState, "PAUSE", StringComparison.OrdinalIgnoreCase) ? PrinterActivity.Paused
+        : PrinterActivity.Printing;
+
+    private void SyncActivity(DateTimeOffset atUtc) => SwitchActivity(DerivedActivity, atUtc);
+
+    /// <summary>Closes the open stretch at <paramref name="atUtc"/>. A time before it began is clamped, and an empty stretch is dropped.</summary>
+    private void SwitchActivity(PrinterActivity activity, DateTimeOffset atUtc)
+    {
+        if (activity == Activity) return;
+        if (atUtc < ActivitySinceUtc) atUtc = ActivitySinceUtc;
+        if (atUtc > ActivitySinceUtc)
+            _closedActivitySpans.Add(PrinterActivitySpan.Closed(Id, Activity, ActivitySinceUtc, atUtc));
+        Activity = activity;
+        ActivitySinceUtc = atUtc;
     }
 
     // Null means absent from a delta; an empty list explicitly clears that source. The first list is the printer's
@@ -198,10 +232,11 @@ public sealed class Printer
     /// <summary>
     /// The only manual status transition this phase supports: AwaitingClear -&gt; Idle ("Mark ready").
     /// </summary>
-    public void TransitionTo(PrinterStatus target)
+    public void TransitionTo(PrinterStatus target, DateTimeOffset? atUtc = null)
     {
         PrinterStatusTransitions.EnsureValidManualTransition(Status, target);
         Status = target;
+        SyncActivity(atUtc ?? DateTimeOffset.UtcNow);
     }
 
     /// <summary>
@@ -209,7 +244,7 @@ public sealed class Printer
     /// rules (FR-004). Returns whether the status actually changed, for callers deciding whether to
     /// log/emit an event; never throws.
     /// </summary>
-    public bool ObserveStatus(string gcodeState)
+    public bool ObserveStatus(string gcodeState, DateTimeOffset? atUtc = null)
     {
         var observed = PrinterStatusTransitions.ObserveStatus(gcodeState);
         if (observed is null || observed == Status || (Status == PrinterStatus.AwaitingClear && observed == PrinterStatus.Idle))
@@ -218,6 +253,7 @@ public sealed class Printer
         }
 
         Status = observed.Value;
+        SyncActivity(atUtc ?? DateTimeOffset.UtcNow);
         return true;
     }
 
@@ -225,12 +261,29 @@ public sealed class Printer
     {
         IsReachable = true;
         LastMessageUtc = atUtc;
+        SyncActivity(atUtc);
     }
 
+    /// <summary>The printer went silent: it is offline from when it was last heard, not from when the silence was noticed.</summary>
     public void MarkUnreachable()
     {
         IsReachable = false;
         BeginConnection();
+        SyncActivity(LastMessageUtc ?? DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// OpenFarm is starting, so nothing was observed since the printer was last heard: that stretch is
+    /// <see cref="PrinterActivity.Unknown"/>, and the printer is unreachable until its first message. A printer already offline
+    /// stays offline, and Awaiting clear carries through.
+    /// </summary>
+    public void MarkUnwatched(DateTimeOffset nowUtc)
+    {
+        if (IsReachable && Status != PrinterStatus.AwaitingClear)
+            SwitchActivity(PrinterActivity.Unknown, LastMessageUtc ?? nowUtc);
+        IsReachable = false;
+        BeginConnection();
+        SyncActivity(nowUtc);
     }
 
     /// <summary>

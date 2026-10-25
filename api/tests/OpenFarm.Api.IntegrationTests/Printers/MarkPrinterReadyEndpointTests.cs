@@ -2,11 +2,14 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.ActivityLog;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Api.Endpoints.Printers;
 using OpenFarm.Application.Auth;
+using OpenFarm.Domain.Printers;
+using OpenFarm.Infrastructure.Persistence;
 using OpenFarm.Infrastructure.Printers.Simulator;
 
 namespace OpenFarm.Api.IntegrationTests.Printers;
@@ -118,6 +121,14 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
         var fleetResponse = await client.GetAsync(new Uri("/api/v1/printers", UriKind.Relative));
         var fleet = await fleetResponse.Content.ReadFromJsonAsync<ListFleetResponse>();
         fleet!.Printers.Single(p => p.Id == printer.Id).Status.Should().Be("Idle");
+
+        // The printer's time is saved stretch by stretch through its own collection, which EF must insert, not update.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var spans = await db.PrinterActivitySpans.Where(s => s.PrinterId == printer.Id).OrderBy(s => s.StartedAtUtc).ToListAsync();
+        spans.Select(s => s.Activity).Should().ContainInOrder(PrinterActivity.Printing, PrinterActivity.AwaitingClear);
+        spans.Should().OnlyContain(s => s.EndedAtUtc > s.StartedAtUtc);
+        (await db.Printers.SingleAsync(p => p.Id == printer.Id)).Activity.Should().Be(PrinterActivity.Idle);
     }
 
     [Fact]

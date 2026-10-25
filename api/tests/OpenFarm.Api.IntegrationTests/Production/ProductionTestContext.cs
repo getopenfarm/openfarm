@@ -192,10 +192,10 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         return (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Printers.SingleAsync(p => p.Id == printerId)).Status;
     }
 
-    protected async Task ReplayAsync(Guid printerId, string state)
+    protected async Task ReplayAsync(Guid printerId, string state, DateTimeOffset? unseenSinceUtc = null)
     {
         using var scope = Factory.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IJobTelemetrySync>().ObserveAsync(printerId, state, default);
+        await scope.ServiceProvider.GetRequiredService<IJobTelemetrySync>().ObserveAsync(printerId, state, unseenSinceUtc, default);
     }
 
     protected ProductionDispatchBackgroundService Worker() => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),

@@ -15,6 +15,7 @@ import {
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryKey,
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
 } from '@/lib/api/generated/printers/printers';
+import { getOpenFarmApiEndpointsReportsStatsEndpointQueryKey } from '@/lib/api/generated/reports/reports';
 import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
 import { rfidKey, topologyKey } from '../lib/feedSlotView';
@@ -140,6 +141,10 @@ export function useFarmHub() {
       (payload: PrinterStatusChangedPayload) => {
         // RFID items in Action required list only reachable printers.
         invalidateNotificationQueries(queryClient);
+        // Stats split each printer's time by its status.
+        queryClient.invalidateQueries({
+          queryKey: getOpenFarmApiEndpointsReportsStatsEndpointQueryKey(),
+        });
         queryClient.setQueryData<FleetQueryData | undefined>(
           getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
           (current) => {
@@ -332,11 +337,15 @@ export function useFarmHub() {
       invalidateFilamentTrackingQueries(queryClient);
     });
 
-    // Queued work moves the filament shortages shown on the catalog, wherever the operator is.
+    // Queued work moves the filament shortages shown on the catalog, wherever the operator is; a print starting or
+    // ending moves the stats.
     connection.on('PrintJobStatusChanged', () => {
       queryClient.invalidateQueries({
         queryKey:
           getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryKey(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getOpenFarmApiEndpointsReportsStatsEndpointQueryKey(),
       });
     });
 

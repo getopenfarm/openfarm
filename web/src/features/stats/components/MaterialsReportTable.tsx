@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import type { MaterialsReportRowResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsReportsGetMaterialsReportEndpoint } from '@/lib/api/generated/reports/reports';
-import { formatCost, formatWeight } from '@/lib/formatUnits';
+import { formatCost, formatPercent, formatWeight } from '@/lib/formatUnits';
 
 function Figures({ row }: { row: MaterialsReportRowResponse }) {
   const unpriced = row.unpricedGrams ?? 0;
@@ -27,7 +27,7 @@ function Figures({ row }: { row: MaterialsReportRowResponse }) {
         {formatWeight(row.wasteGrams ?? 0)}
       </TableCell>
       <TableCell className="text-right tabular-nums">
-        {row.wasteShare == null ? '—' : `${Math.round(row.wasteShare * 100)}%`}
+        {row.wasteShare == null ? '—' : formatPercent(row.wasteShare)}
       </TableCell>
       <TableCell className="text-right tabular-nums">
         {formatWeight(row.writtenOffGrams ?? 0)}

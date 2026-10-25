@@ -17,6 +17,45 @@ public class ExternalPrintTests
         Enumerable.Range(0, tools).Select(i => new ExternalFilamentSpec(i, "PLA", null, 10, null)));
 
     [Fact]
+    public void APrintSeenWithoutItsFile_GetsOneLineOfUnknownGrams()
+    {
+        var print = ExternalPrint.Start(Guid.NewGuid(), "benchy");
+        print.Filaments.Should().BeEmpty();
+
+        print.AttachFilaments(null);
+        print.AttachFilaments([new ExternalFilamentSpec(0, "PLA", null, 10, null)]);
+
+        // Deduction skips a line with no grams as NoEstimate, so the print reaches Action required instead of vanishing.
+        print.Filaments.Should().ContainSingle().Which.EstimatedGrams.Should().BeNull();
+    }
+
+    [Fact]
+    public void AttachFilaments_GivesEachToolItsLine_InToolOrder()
+    {
+        var print = ExternalPrint.Start(Guid.NewGuid(), "benchy");
+
+        print.AttachFilaments([new ExternalFilamentSpec(1, "PETG", null, 5, null), new ExternalFilamentSpec(0, "PLA", null, 10, null)]);
+
+        print.Filaments.Select(f => (f.ToolIndex, f.EstimatedGrams)).Should().Equal((0, 10m), (1, 5m));
+    }
+
+    [Fact]
+    public void AnInferredEnd_IsKept_ButNeverBeforeTheStart()
+    {
+        var print = Start(1);
+        var started = print.StartedAtUtc!.Value;
+
+        print.MarkCompleted(started.AddMinutes(-5));
+
+        print.EndedAtUtc.Should().Be(started);
+        print.ActualDurationMinutes.Should().Be(0);
+
+        var later = Start(1);
+        later.MarkFailed(endedAtUtc: later.StartedAtUtc!.Value.AddMinutes(90));
+        later.ActualDurationMinutes.Should().Be(90);
+    }
+
+    [Fact]
     public void Close_BindsTheFirstTraySeen_ForASingleTool()
     {
         var print = Start(1);

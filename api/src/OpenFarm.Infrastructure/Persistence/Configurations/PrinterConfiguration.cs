@@ -92,6 +92,17 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.Property(p => p.CreatedAtUtc)
             .IsRequired();
 
+        builder.Property(p => p.Activity)
+            .IsRequired()
+            .HasConversion<string>();
+
+        builder.Property(p => p.ActivitySinceUtc)
+            .IsRequired();
+
+        // Closed stretches are only appended through the printer and read back by stats SQL; the collection is never loaded.
+        builder.HasMany(p => p.ClosedActivitySpans).WithOne().HasForeignKey(s => s.PrinterId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(p => p.ClosedActivitySpans).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Serial number is the natural key ConnectionSecret is looked up by (data-model.md) — must
         // stay unique.
         builder.HasIndex(p => p.SerialNumber)
@@ -111,5 +122,29 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
             .WithMany()
             .HasForeignKey(p => p.ProcessProfileId)
             .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public sealed class PrinterActivitySpanConfiguration : IEntityTypeConfiguration<PrinterActivitySpan>
+{
+    public void Configure(EntityTypeBuilder<PrinterActivitySpan> builder)
+    {
+        builder.ToTable("PrinterActivitySpans");
+
+        builder.HasKey(s => s.Id);
+
+        // The domain sets the key and the span reaches EF through the printer's collection: a store-generated key would make
+        // EF read the new span as an existing row and update it.
+        builder.Property(s => s.Id).ValueGeneratedNever();
+
+        builder.Property(s => s.Activity)
+            .IsRequired()
+            .HasConversion<string>();
+
+        builder.Property(s => s.StartedAtUtc).IsRequired();
+        builder.Property(s => s.EndedAtUtc).IsRequired();
+
+        // Stats read each printer's stretches that end after a range starts.
+        builder.HasIndex(s => new { s.PrinterId, s.EndedAtUtc });
     }
 }

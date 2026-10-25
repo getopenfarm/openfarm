@@ -11,6 +11,13 @@ export const formatWeight = (grams: number) =>
 export const formatDays = (days: number, cap = 60) =>
   days >= cap ? `${cap}+ d` : days < 1 ? '< 1 d' : `~${Math.floor(days)} d`;
 
+/** A share from 0 to 1, whole percent: 0.123 -> "12%". */
+export const formatPercent = (share: number) => `${Math.round(share * 100)}%`;
+
+/** 0.25 -> "0.3 h"; 12.46 -> "12.5 h"; 1234.4 -> "1234 h". For totals of machine time. */
+export const formatHours = (hours: number) =>
+  `${trim(hours, hours < 100 ? 1 : 0)} h`;
+
 /** 0.125 -> "0.13"; no currency symbol — the app has no currency setting. */
 export const formatCost = (n: number) => n.toFixed(2);
 

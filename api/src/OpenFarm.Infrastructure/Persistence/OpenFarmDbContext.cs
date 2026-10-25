@@ -24,6 +24,8 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
 
     public DbSet<Printer> Printers => Set<Printer>();
 
+    public DbSet<PrinterActivitySpan> PrinterActivitySpans => Set<PrinterActivitySpan>();
+
     public DbSet<MachineProfile> MachineProfiles => Set<MachineProfile>();
 
     public DbSet<FilamentProfile> FilamentProfiles => Set<FilamentProfile>();

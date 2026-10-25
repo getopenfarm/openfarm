@@ -20,10 +20,10 @@ namespace OpenFarm.Infrastructure.Production;
 /// </summary>
 public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetrySync
 {
-    public async Task ObserveAsync(Guid printerId, string gcodeState, CancellationToken cancellationToken)
+    public async Task ObserveAsync(Guid printerId, string gcodeState, DateTimeOffset? unseenSinceUtc, CancellationToken cancellationToken)
     {
         var state = gcodeState.Trim().ToUpperInvariant();
-        if (state is "FINISH" or "FAILED") ExternalPrintSync.ClearAttempt(printerId);
+        if (state is "FINISH" or "FAILED" or "IDLE") ExternalPrintSync.ClearAttempt(printerId);
 
         var jobRepository = services.GetRequiredService<IPrintJobRepository>();
         // Not an OpenFarm job: a print started at the printer itself is tracked the same way.
@@ -65,37 +65,62 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
             case "FINISH":
                 if (print.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
                 {
-                    if (cancelRequested) print.MarkCancelled();
-                    else print.MarkCompleted();
-                    await DeductFilamentAsync(print, printerId, cancellationToken);
-                    await SaveAndPublishAsync(jobRepository, print, cancellationToken);
-
-                    if (print is PrintJob job)
-                    {
-                        var completionService = services.GetRequiredService<ProductionRunCompletionService>();
-                        await completionService.TryCompleteRunForRequirementAsync(job.PartRequirementId, cancellationToken);
-                    }
+                    var outcome = cancelRequested ? PrintJobStatus.Cancelled : PrintJobStatus.Completed;
+                    await CloseAsync(jobRepository, print, outcome, printerId, unseenSinceUtc, cancellationToken);
                 }
 
                 break;
 
             case "FAILED":
                 if (print.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
-                {
-                    if (ResolveTerminalStatus(cancelRequested) == PrintJobStatus.Cancelled)
-                    {
-                        print.MarkCancelled();
-                    }
-                    else
-                    {
-                        print.MarkFailed(reason: "The printer reported a failed print.");
-                    }
+                    await CloseAsync(jobRepository, print, ResolveTerminalStatus(cancelRequested), printerId, unseenSinceUtc, cancellationToken);
 
-                    await DeductFilamentAsync(print, printerId, cancellationToken);
-                    await SaveAndPublishAsync(jobRepository, print, cancellationToken);
+                break;
+
+            case "IDLE":
+                // Back to idle with this print still open: the printer rebooted or lost power, or the print ended while nobody
+                // watched. The last progress seen decides, as the U1 connector does within one connection. The plate may hold
+                // the print either way, so the printer waits for Mark ready, whoever started the print.
+                if (print.Status is PrintJobStatus.Printing or PrintJobStatus.Paused)
+                {
+                    var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, cancellationToken);
+                    var outcome = cancelRequested ? PrintJobStatus.Cancelled
+                        : PrintEnd.LooksFinished(printer?.PrintProgressPercent, printer?.CurrentLayer, printer?.TotalLayers) ? PrintJobStatus.Completed
+                        : PrintJobStatus.Failed;
+                    printer?.ObserveStatus("FINISH", printer.StateObservedAtUtc);
+                    await CloseAsync(jobRepository, print, outcome, printerId, unseenSinceUtc, cancellationToken);
                 }
 
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Ends the print with <paramref name="outcome"/>, deducts its filament and saves. Seen only after a silence, it ended back
+    /// in that silence, not when OpenFarm heard of it.
+    /// </summary>
+    private async Task CloseAsync(
+        IPrintJobRepository jobRepository, Print print, PrintJobStatus outcome, Guid printerId, DateTimeOffset? unseenSinceUtc,
+        CancellationToken cancellationToken)
+    {
+        var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, cancellationToken);
+        DateTimeOffset? endedAtUtc = unseenSinceUtc is { } lastHeard
+            ? PrintEnd.Infer(outcome, lastHeard, printer?.RemainingTimeMinutes, DateTimeOffset.UtcNow)
+            : null;
+        switch (outcome)
+        {
+            case PrintJobStatus.Completed: print.MarkCompleted(endedAtUtc); break;
+            case PrintJobStatus.Cancelled: print.MarkCancelled(endedAtUtc); break;
+            default: print.MarkFailed(reason: "The printer reported a failed print.", endedAtUtc); break;
+        }
+
+        await DeductFilamentAsync(print, printerId, cancellationToken);
+        await SaveAndPublishAsync(jobRepository, print, cancellationToken);
+
+        if (outcome != PrintJobStatus.Failed && print is PrintJob job)
+        {
+            var completionService = services.GetRequiredService<ProductionRunCompletionService>();
+            await completionService.TryCompleteRunForRequirementAsync(job.PartRequirementId, cancellationToken);
         }
     }
 
@@ -117,7 +142,14 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
     {
         var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, cancellationToken);
         // Kept on the print so an operator can finish a skipped deduction later, long after the printer moved on.
-        print.RecordStopProgress(printer?.CurrentLayer, printer?.TotalLayers, printer?.PrintProgressPercent);
+        print.RecordStopProgress(printer?.CurrentLayer, printer?.TotalLayers, printer?.PrintProgressPercent, printer?.ActiveAlerts);
+        if (print is ExternalPrint { Filaments.Count: 0 } unread)
+        {
+            // Its file never arrived: one line of unknown grams, which deduction skips, so the operator sees what wasn't taken.
+            unread.AttachFilaments(null);
+            services.GetRequiredService<IExternalPrintRepository>().TrackNewFilaments(unread.Filaments);
+        }
+
         if (print is ExternalPrint external && printer is not null) await BindToolSpoolsAsync(external, printer, cancellationToken);
         var progress = new JobProgress(print.Status, print.StopLayer, print.StopTotalLayers, print.StopPercent);
         await services.GetRequiredService<JobFilamentAutoDeduction>().ApplyAsync(print, progress, cancellationToken);

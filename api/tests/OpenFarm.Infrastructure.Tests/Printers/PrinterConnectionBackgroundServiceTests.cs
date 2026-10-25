@@ -226,6 +226,58 @@ public class PrinterConnectionBackgroundServiceTests
     }
 
     [Fact]
+    public async Task AStateResentOnReconnect_DoesNotUndoMarkReady()
+    {
+        // Bambu's pushall and Moonraker's first snapshot re-send the last state on every connect.
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-REACH-3");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
+        var connector = new EmittingPrinterConnector();
+        using var provider = BuildServiceProvider(printer, secret, connector, out _);
+        var service = new PrinterConnectionBackgroundService(provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance, SweepInterval, UnreachableThreshold, NoFlushThrottling);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: "FINISH"));
+            await WaitUntilAsync(() => printer.Status == PrinterStatus.AwaitingClear, TimeSpan.FromSeconds(2));
+            printer.TransitionTo(PrinterStatus.Idle);
+
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionStarted: true));
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: "FINISH",
+                Telemetry: new(30, null, null, null, null, null, [])));
+            await WaitUntilAsync(() => printer.NozzleTempC == 30, TimeSpan.FromSeconds(2));
+
+            printer.Status.Should().Be(PrinterStatus.Idle);
+        }
+        finally { await service.StopAsync(CancellationToken.None); }
+    }
+
+    [Fact]
+    public async Task Startup_CountsTheTimeOpenFarmWasDownAsUnknown()
+    {
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-REACH-4");
+        printer.MarkReachable(DateTimeOffset.UtcNow);
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
+        var connector = new EmittingPrinterConnector();
+        using var provider = BuildServiceProvider(printer, secret, connector, out _);
+        var service = new PrinterConnectionBackgroundService(provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance, SweepInterval, TimeSpan.FromSeconds(10), NoFlushThrottling);
+        await Task.Delay(20);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitUntilAsync(() => printer.ClosedActivitySpans.Any(s => s.Activity == PrinterActivity.Unknown), TimeSpan.FromSeconds(2));
+            printer.IsReachable.Should().BeFalse("nothing has been heard since the restart");
+            printer.Activity.Should().Be(PrinterActivity.Offline);
+
+            connector.Emit(printer.SerialNumber, new PrinterConnectorEvent(DateTimeOffset.UtcNow));
+            await WaitUntilAsync(() => printer.IsReachable, TimeSpan.FromSeconds(2));
+            printer.Activity.Should().Be(PrinterActivity.Idle);
+        }
+        finally { await service.StopAsync(CancellationToken.None); }
+    }
+
+    [Fact]
     public async Task TelemetryEvents_WithSubsequentPartialDelta_BroadcastsMergedState()
     {
         var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-TELEMETRY-1");
@@ -395,7 +447,8 @@ public class PrinterConnectionBackgroundServiceTests
             publisher.CameraFramesReceived.Should().Equal(
                 Convert.ToBase64String([1, 2, 3]),
                 Convert.ToBase64String([4, 5, 6]));
-            repository.SaveChangesCallCount.Should().Be(1, "only starting the telemetry connection writes the unconfirmed nozzle state; camera frames add no writes");
+            repository.SaveChangesCallCount.Should().Be(2,
+                "only startup (the unwatched gap) and starting the telemetry connection (the unconfirmed nozzle state) write; camera frames add no writes");
         }
         finally
         {
@@ -899,14 +952,14 @@ public class PrinterConnectionBackgroundServiceTests
 
     private sealed class NoOpJobTelemetrySync : IJobTelemetrySync
     {
-        public Task ObserveAsync(Guid printerId, string gcodeState, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ObserveAsync(Guid printerId, string gcodeState, DateTimeOffset? unseenSinceUtc, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class RecordingJobTelemetrySync : IJobTelemetrySync
     {
         public ConcurrentQueue<string> States { get; } = new();
 
-        public Task ObserveAsync(Guid printerId, string gcodeState, CancellationToken cancellationToken)
+        public Task ObserveAsync(Guid printerId, string gcodeState, DateTimeOffset? unseenSinceUtc, CancellationToken cancellationToken)
         {
             States.Enqueue(gcodeState);
             return Task.CompletedTask;

@@ -1059,6 +1059,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("Activity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("ActivitySinceUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<decimal?>("BedTempC")
                         .HasColumnType("numeric");
 
@@ -1163,6 +1170,31 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.ToTable("Printers", (string)null);
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Printers.PrinterActivitySpan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Activity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("EndedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PrinterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrinterId", "EndedAtUtc");
+
+                    b.ToTable("PrinterActivitySpans", (string)null);
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Production.PartRequirement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1229,6 +1261,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("StopAlerts")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
 
                     b.Property<int?>("StopLayer")
                         .HasColumnType("integer");
@@ -2059,6 +2095,15 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Printers.PrinterActivitySpan", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Printers.Printer", null)
+                        .WithMany("ClosedActivitySpans")
+                        .HasForeignKey("PrinterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Production.PartRequirement", b =>
                 {
                     b.HasOne("OpenFarm.Domain.Parts.Part", null)
@@ -2211,6 +2256,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("OpenFarm.Domain.Parts.PartProcessingJob", b =>
                 {
                     b.Navigation("PreviewThumbnails");
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Printers.Printer", b =>
+                {
+                    b.Navigation("ClosedActivitySpans");
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Production.Print", b =>

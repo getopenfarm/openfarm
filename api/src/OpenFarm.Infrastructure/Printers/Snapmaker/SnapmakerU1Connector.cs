@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Printers.Snapmaker;
@@ -423,7 +424,7 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
                 state = "FAILED";
             else if (wasPrinting && state == "IDLE")
                 // ponytail: judged by the last progress seen; read server.history.list for the real outcome if this misjudges.
-                state = _lastProgress >= 99 ? "FINISH" : "FAILED";
+                state = _lastProgress >= PrintEnd.FinishedPercent ? "FINISH" : "FAILED";
 
             if (state is "RUNNING" or "PAUSE")
                 _lastProgress = MoonrakerStatusMapper.ProgressPercent(status) ?? _lastProgress;

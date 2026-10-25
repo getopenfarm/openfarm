@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
@@ -30,6 +32,15 @@ public sealed class PrintConfiguration : IEntityTypeConfiguration<Print>
         builder.Property(p => p.StopLayer);
         builder.Property(p => p.StopTotalLayers);
         builder.Property(p => p.StopPercent);
+        builder.Property(p => p.StopAlerts)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                alerts => JsonSerializer.Serialize(alerts, (JsonSerializerOptions?)null),
+                json => JsonSerializer.Deserialize<IReadOnlyList<PrinterAlert>>(json, (JsonSerializerOptions?)null) ?? Array.Empty<PrinterAlert>())
+            .Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<PrinterAlert>>(
+                (left, right) => (left ?? Array.Empty<PrinterAlert>()).SequenceEqual(right ?? Array.Empty<PrinterAlert>()),
+                alerts => alerts.Aggregate(0, (hash, alert) => HashCode.Combine(hash, alert.GetHashCode())),
+                alerts => alerts.ToList()));
         builder.Property(p => p.FilamentFollowUpDismissedAtUtc);
 
         builder.HasOne<Printer>().WithMany().HasForeignKey(p => p.PrinterId).OnDelete(DeleteBehavior.SetNull);

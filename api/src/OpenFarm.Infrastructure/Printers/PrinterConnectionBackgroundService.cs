@@ -157,6 +157,13 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         using var scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
         var printers = await repository.ListAsync(stoppingToken);
+
+        // Nothing was observed while OpenFarm was down: that time is Unknown in each printer's activity, not Offline.
+        var now = DateTimeOffset.UtcNow;
+        foreach (var summary in printers)
+            (await repository.GetByIdAsync(summary.Id, stoppingToken))?.MarkUnwatched(now);
+        await repository.SaveChangesAsync(stoppingToken);
+
         foreach (var printer in printers)
         {
             StartConnection(printer.Id, stoppingToken);
@@ -345,6 +352,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         }
         var previousNozzles = NozzleState(printer);
         var wasReachable = printer.IsReachable;
+        // Unreachable until now (silent, or OpenFarm restarting): what happened since the printer was last heard went unseen.
+        var unseenSinceUtc = wasReachable ? null : printer.LastMessageUtc;
         printer.MarkReachable(connectorEvent.ReceivedAtUtc);
 
         if (!wasReachable)
@@ -356,7 +365,9 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         var previousAlerts = printer.ActiveAlerts;
         var reportedStateChanged = printer.ObserveReportedState(connectorEvent.GcodeState, connectorEvent.ReceivedAtUtc);
         var alertsChanged = printer.ObserveAlerts(connectorEvent.HmsAlerts, connectorEvent.PrintErrors);
-        var statusChanged = connectorEvent.GcodeState is not null && printer.ObserveStatus(connectorEvent.GcodeState);
+        // Only a change moves the status: a printer re-reports its last state on every connect (Bambu's pushall, Moonraker's
+        // first snapshot), and a FINISH re-sent that way would put a printer marked ready back into Awaiting clear.
+        var statusChanged = reportedStateChanged && printer.ObserveStatus(connectorEvent.GcodeState!, connectorEvent.ReceivedAtUtc);
 
         if (connectorEvent.GcodeState is not null)
         {
@@ -366,7 +377,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             // (PrinterStatusTransitions maps PAUSE to the same Printing bucket as RUNNING) — gating
             // this on mustFlushNow would silently drop the one signal PrintJob.MarkPaused() needs.
             var jobTelemetrySync = services.GetRequiredService<IJobTelemetrySync>();
-            await jobTelemetrySync.ObserveAsync(printer.Id, connectorEvent.GcodeState, cancellationToken);
+            await jobTelemetrySync.ObserveAsync(printer.Id, connectorEvent.GcodeState, unseenSinceUtc, cancellationToken);
         }
 
         if (connectorEvent.Telemetry is { } telemetry)

@@ -18,5 +18,8 @@ public interface IExternalPrintRepository
     Task<(IReadOnlyList<ExternalPrint> Prints, int TotalCount, IReadOnlyDictionary<string, int> StatusCounts)> ListAsync(
         int page, int pageSize, string? status, string? search, CancellationToken cancellationToken);
 
+    /// <summary>Lines given to a print already saved, which EF must insert rather than update.</summary>
+    void TrackNewFilaments(IReadOnlyList<PrintFilament> lines) { }
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

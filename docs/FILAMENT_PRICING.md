@@ -112,9 +112,9 @@ the materials report's waste share, which compares failed and cancelled prints w
 
 ## Materials report
 
-`GET /api/v1/reports/materials?from&to&filamentId` (and `.csv`) sums filament per color over a range. The Stats page shows
-every filament; a filament's *Usage* tab passes `filamentId`, which keeps that filament's colors only, so the *No spool* row
-drops out. `from` is inclusive and `to` exclusive; the pages send local calendar days as UTC instants.
+`GET /api/v1/reports/materials?from&to&filamentId` (and `.csv`) sums filament per color over a range. The Stats page's
+*Materials* card shows its totals and the colors used most, with the CSV export; a filament's *Usage* tab passes `filamentId`,
+which keeps that filament's colors only, so the *No spool* row drops out. `from` is inclusive and `to` exclusive; the pages send local calendar days as UTC instants.
 
 - **Rows** are the color of the spool a print line was deducted from, plus a *No spool* row for lines with none. A print counts
   when it ended in the range. A line counts once deduction ran on it: grams recorded, or skipped with a reason. Lines of a

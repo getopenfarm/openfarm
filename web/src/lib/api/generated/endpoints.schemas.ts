@@ -378,6 +378,84 @@ export interface MaterialsReportRequest {
   [key: string]: unknown;
 }
 
+export interface ActivityHours {
+  printing?: number;
+  paused?: number;
+  awaitingClear?: number;
+  idle?: number;
+  offline?: number;
+  noData?: number;
+  observed?: number;
+  /** @nullable */
+  utilization?: number | null;
+}
+
+export interface StatsSummary {
+  prints?: number;
+  completed?: number;
+  failed?: number;
+  cancelled?: number;
+  usedGrams?: number;
+  wasteGrams?: number;
+  wasteMachineHours?: number;
+  units?: number;
+  activity?: ActivityHours;
+  /** @nullable */
+  queueWaitP50Minutes?: number | null;
+  /** @nullable */
+  queueWaitP95Minutes?: number | null;
+  /** @nullable */
+  estimateRatio?: number | null;
+  /** @nullable */
+  plateClearMinutes?: number | null;
+  /** @nullable */
+  successRate?: number | null;
+  /** @nullable */
+  wasteShare?: number | null;
+}
+
+export interface StatsDay {
+  day?: string;
+  completed?: number;
+  failed?: number;
+  cancelled?: number;
+  usedGrams?: number;
+  wasteGrams?: number;
+  units?: number;
+  printingHours?: number;
+  observedHours?: number;
+}
+
+export interface PrinterStats {
+  printerId?: string;
+  name?: string;
+  prints?: number;
+  completed?: number;
+  failed?: number;
+  cancelled?: number;
+  usedGrams?: number;
+  activity?: ActivityHours;
+}
+
+export interface FailureCode {
+  code?: string;
+  /** @nullable */
+  message?: string | null;
+  prints?: number;
+}
+
+export interface StatsReport {
+  current?: StatsSummary;
+  previous?: StatsSummary;
+  days?: StatsDay[];
+  printers?: PrinterStats[];
+  failureCodes?: FailureCode[];
+}
+
+export interface StatsRequest {
+  [key: string]: unknown;
+}
+
 export interface CreatedProfileItem {
   id?: string;
   name?: string;
@@ -2291,6 +2369,12 @@ export type OpenFarmApiEndpointsReportsExportMaterialsReportEndpointParams = {
    * @nullable
    */
   filamentId?: string | null;
+};
+
+export type OpenFarmApiEndpointsReportsStatsEndpointParams = {
+  from: string;
+  to: string;
+  timeZone: string;
 };
 
 export type OpenFarmApiEndpointsProfilesListFilamentProfilesEndpointParams = {

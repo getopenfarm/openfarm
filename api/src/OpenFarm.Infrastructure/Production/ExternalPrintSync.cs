@@ -16,12 +16,13 @@ using OpenFarm.Domain.Production;
 namespace OpenFarm.Infrastructure.Production;
 
 /// <summary>
-/// Deducts filament for prints the printer started itself (Bambu Studio, the Handy app, the touchscreen, an SD card).
-/// Once a print is seen running with no OpenFarm job behind it, the printed file is read back from the printer and its
-/// per-tool grams and layer curve are frozen on an <see cref="ExternalPrint"/>; the trays the printer reports active are
-/// recorded as they appear. <c>JobTelemetrySync</c> drives the print's later transitions and deducts through the same
-/// <see cref="JobFilamentAutoDeduction"/> a dispatched job uses, so the accuracy is the same. Every failure here (no secret, file not found, unreadable) skips quietly: external
-/// prints are best effort and must never wedge telemetry handling.
+/// Records and deducts filament for prints the printer started itself (Bambu Studio, the Handy app, the touchscreen, an SD
+/// card). A print seen running with no OpenFarm job behind it becomes an <see cref="ExternalPrint"/> at once, so it counts
+/// from first sight; its file is read back from the printer meanwhile, and its per-tool grams and layer curve become the
+/// print's lines. The trays the printer reports active are recorded as they appear. <c>JobTelemetrySync</c> drives the
+/// print's later transitions and deducts through the same <see cref="JobFilamentAutoDeduction"/> a dispatched job uses, so
+/// the accuracy is the same. A file that can't be read (no secret, not found, unreadable) leaves one line of unknown grams,
+/// which the operator follows up; nothing here may wedge telemetry handling.
 /// </summary>
 public sealed partial class ExternalPrintSync(
     IExternalPrintRepository prints,
@@ -52,7 +53,7 @@ public sealed partial class ExternalPrintSync(
 
     private static readonly Regex PlateName = PlateRegex();
 
-    /// <summary>Run after the printer's telemetry is recorded: opens an external print on first sight of one running, and tracks trays.</summary>
+    /// <summary>Run after the printer's telemetry is recorded: opens an external print on first sight of one running, gives it its file's lines, and tracks trays.</summary>
     public async Task ObserveTelemetryAsync(Printer printer, CancellationToken cancellationToken)
     {
         if (printer.ReportedState?.ToUpperInvariant() is not ("RUNNING" or "PAUSE")) return;
@@ -62,20 +63,11 @@ public sealed partial class ExternalPrintSync(
         {
             if (string.IsNullOrWhiteSpace(printer.CurrentJobName)
                 || await jobs.GetActiveJobByDispatchedPrinterIdAsync(printer.Id, cancellationToken) is not null) return;
-            if (!Fetches.TryGetValue(printer.Id, out var fetch) || fetch.JobName != printer.CurrentJobName)
-            {
-                // The download runs beside the telemetry loop: reading the file is slow, and a printer must keep reporting meanwhile.
-                Fetches[printer.Id] = await BeginFetchAsync(printer, cancellationToken)
-                    ?? new Fetch(printer.CurrentJobName, Task.FromResult<byte[]?>(null)) { Used = true };
-                return;
-            }
-
-            if (!fetch.File.IsCompleted || fetch.Used) return;
-            // Drop the file bytes once taken; the entry stays so this print is not fetched again.
-            Fetches[printer.Id] = new Fetch(fetch.JobName, Task.FromResult<byte[]?>(null)) { Used = true };
-            open = fetch.File.Result is { } file ? await TryStartAsync(printer, file, cancellationToken) : null;
+            open = await TryStartAsync(printer, cancellationToken);
             if (open is null) return;
         }
+
+        if (open.Filaments.Count == 0) await AttachFileAsync(printer, open, cancellationToken);
 
         var observed = false;
         foreach (var slot in printer.Extruders.Select(e => e.ActiveSlot).OfType<FeedSlotRef>())
@@ -133,7 +125,49 @@ public sealed partial class ExternalPrintSync(
         }
     }
 
-    private async Task<ExternalPrint?> TryStartAsync(Printer printer, byte[] file, CancellationToken cancellationToken)
+    /// <summary>Opens the print the printer is running, before its file is read: a print whose file never reads still counts.</summary>
+    private async Task<ExternalPrint?> TryStartAsync(Printer printer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var print = ExternalPrint.Start(printer.Id, printer.CurrentJobName!);
+            await prints.AddAsync(print, cancellationToken);
+            await prints.SaveChangesAsync(cancellationToken);
+            await activityLog.WriteAsync(ActivityLogEntry.Create(
+                "ExternalPrint", print.Id.ToString(), "ExternalPrintStarted", null, ActorType.System), cancellationToken);
+            await publisher.PrintJobStatusChangedAsync(print.Id, print.Status, cancellationToken);
+            return print;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            LogStartFailed(logger, printer.Id, ex);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads the open print's file in the background and, once it is read, gives the print a line per tool. A file that can't
+    /// be read, or names no usage, gives it one line of unknown grams. After a restart mid-print the file is read again.
+    /// </summary>
+    private async Task AttachFileAsync(Printer printer, ExternalPrint open, CancellationToken cancellationToken)
+    {
+        if (!Fetches.TryGetValue(printer.Id, out var fetch) || fetch.JobName != open.Name)
+        {
+            // The download runs beside the telemetry loop: reading the file is slow, and a printer must keep reporting meanwhile.
+            Fetches[printer.Id] = await BeginFetchAsync(printer, cancellationToken) ?? new Fetch(open.Name, Task.FromResult<byte[]?>(null));
+            return;
+        }
+
+        if (!fetch.File.IsCompleted || fetch.Used) return;
+        // Drop the file bytes once taken; the entry stays so this print is not fetched again.
+        Fetches[printer.Id] = new Fetch(fetch.JobName, Task.FromResult<byte[]?>(null)) { Used = true };
+        open.AttachFilaments(fetch.File.Result is { } file ? Usage(printer, file) : null);
+        prints.TrackNewFilaments(open.Filaments);
+        await prints.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>The printed plate's grams and layer curve per tool, or null when the plate or its usage is unknown.</summary>
+    private List<ExternalFilamentSpec>? Usage(Printer printer, byte[] file)
     {
         try
         {
@@ -151,19 +185,14 @@ public sealed partial class ExternalPrintSync(
                 return null;
             }
 
-            var print = ExternalPrint.Start(printer.Id, printer.CurrentJobName!, usage.Usages.Select(u =>
+            return usage.Usages.Select(u =>
                 new ExternalFilamentSpec(u.ToolIndex, u.MaterialType, u.ColorHex, u.Grams,
-                    usage.Extrusion.Tools.TryGetValue(u.ToolIndex, out var tool) ? FilamentUsageCurve.FromExtrusion(usage.Extrusion.Marks, [tool]) : null)));
-            await prints.AddAsync(print, cancellationToken);
-            await prints.SaveChangesAsync(cancellationToken);
-            await activityLog.WriteAsync(ActivityLogEntry.Create(
-                "ExternalPrint", print.Id.ToString(), "ExternalPrintStarted", null, ActorType.System), cancellationToken);
-            await publisher.PrintJobStatusChangedAsync(print.Id, print.Status, cancellationToken);
-            return print;
+                    usage.Extrusion.Tools.TryGetValue(u.ToolIndex, out var tool) ? FilamentUsageCurve.FromExtrusion(usage.Extrusion.Marks, [tool]) : null))
+                .ToList();
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        catch (Exception ex)
         {
-            LogStartFailed(logger, printer.Id, ex);
+            LogFileUnreadable(logger, printer.Id, printer.CurrentJobName!, ex);
             return null;
         }
     }
@@ -171,18 +200,21 @@ public sealed partial class ExternalPrintSync(
     [GeneratedRegex(@"plate_(\d+)", RegexOptions.IgnoreCase)]
     private static partial Regex PlateRegex();
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Printer {PrinterId} is printing '{JobName}' but its file could not be read back; no filament will be deducted.")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Printer {PrinterId} is printing '{JobName}' but its file could not be read back; its filament is left for the operator.")]
     private static partial void LogFileNotFound(ILogger logger, Guid printerId, string jobName);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {PrinterId} is printing '{JobName}', but its file holds plates {Plates} and the printed one is unknown; no filament will be deducted.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {PrinterId} is printing '{JobName}', but its file holds plates {Plates} and the printed one is unknown; its filament is left for the operator.")]
     private static partial void LogPlateUnknown(ILogger logger, Guid printerId, string jobName, string plates);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {PrinterId} is printing '{JobName}', but its file has no filament usage for plate {Plate}; no filament will be deducted.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {PrinterId} is printing '{JobName}', but its file has no filament usage for plate {Plate}; its filament is left for the operator.")]
     private static partial void LogNoUsage(ILogger logger, Guid printerId, string jobName, int plate);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Reading '{JobName}' back from printer {PrinterId} failed after {Seconds}s ({ErrorType}: {Reason}); no filament will be deducted.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Reading '{JobName}' back from printer {PrinterId} failed after {Seconds}s ({ErrorType}: {Reason}); its filament is left for the operator.")]
     private static partial void LogFetchFailed(ILogger logger, Guid printerId, string jobName, int seconds, string errorType, string reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not start tracking the external print on printer {PrinterId}.")]
     private static partial void LogStartFailed(ILogger logger, Guid printerId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {PrinterId} is printing '{JobName}', but its file could not be parsed; its filament is left for the operator.")]
+    private static partial void LogFileUnreadable(ILogger logger, Guid printerId, string jobName, Exception exception);
 }

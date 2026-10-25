@@ -19,6 +19,8 @@ public sealed class ExternalPrintRepository(OpenFarmDbContext dbContext) : IExte
             .OrderByDescending(p => p.StartedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public void TrackNewFilaments(IReadOnlyList<PrintFilament> lines) => dbContext.PrintFilaments.AddRange(lines);
+
     public Task<ExternalPrint?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.ExternalPrints.Include(p => p.Filaments).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
