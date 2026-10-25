@@ -11,8 +11,8 @@ docker compose logs openfarm | grep "generated password"   # the first login: us
   login there, or add any other setting as `KEY=value`. A `.env` line replaces the default.
   `.env.example` lists the common ones as comments (admin account, `Jwt__SigningKey`, the DataProtection certificate,
   `PUID`, `PGID`, `TZ`, ...), marking those worth changing. Any `Section__Key` from `appsettings.json` works.
-- **Generated secrets:** without `Seed__AdminPassword`, the first start creates `admin` with a random password and
-  logs it once (there is no reset, and recreating the container drops the log line; save it right away, or set `Seed__AdminPassword`). Without `Jwt__SigningKey`, the first start writes a random key to
+- **Generated secrets:** without `Seed__AdminPassword`, the first start creates `admin` with the password
+  `admin-openfarm` (public, so set `Seed__AdminPassword` before exposing the app). Without `Jwt__SigningKey`, the first start writes a random key to
   `./data/keys/jwt-signing-key`; deleting it only logs everyone out.
 - **Database:** `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` in `.env` (shipped as `openfarm` / `openfarm` /
   `openfarm`; change the password before the first start) apply to both `postgres` and `openfarm`. Without

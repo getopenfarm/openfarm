@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -33,6 +32,8 @@ public sealed partial class FirstBootSeeder(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    private const string DefaultAdminPassword = "admin-openfarm";
+
     private async Task EnsureAdminUserAsync(CancellationToken cancellationToken)
     {
         var username = configuration["Seed:AdminUsername"];
@@ -60,8 +61,7 @@ public sealed partial class FirstBootSeeder(
                 return;
             }
 
-            // The prefix and the dash satisfy the password policy (lowercase, non-alphanumeric).
-            password = $"admin-{Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(12))}";
+            password = DefaultAdminPassword;
         }
 
         var user = new ApplicationUser
@@ -80,14 +80,13 @@ public sealed partial class FirstBootSeeder(
 
         if (generated)
         {
-            LogGeneratedAdminPassword(logger, username, password!);
+            LogDefaultAdminPassword(logger, username);
         }
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Seed:AdminUsername/Seed:AdminEmail are not configured; skipping operator seeding.")]
     private static partial void LogAdminSeedSkipped(ILogger logger);
 
-    // The password is logged on purpose: Seed:AdminPassword was not set, and this is the only time anybody sees it.
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Created administrator '{Username}' with generated password '{Password}'. Keep it; it is not shown again.")]
-    private static partial void LogGeneratedAdminPassword(ILogger logger, string username, string password);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Created administrator '{Username}' with the default password. Change it, or set Seed:AdminPassword before the first start.")]
+    private static partial void LogDefaultAdminPassword(ILogger logger, string username);
 }
