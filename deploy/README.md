@@ -15,19 +15,20 @@ docker compose logs openfarm | grep "generated password"   # the first login: us
 - **Generated secrets:** without `Seed__AdminPassword`, the first start creates `admin` with a random password and
   logs it once (there is no reset; keep it). Without `Jwt__SigningKey`, the first start writes a random key to
   `./data/keys/jwt-signing-key`; deleting it only logs everyone out.
-- **Database:** `POSTGRES_USER` and `POSTGRES_PASSWORD` in `.env` (shipped as `openfarm` / `openfarm`; change the
-  password before the first start) apply to both `postgres` and `openfarm`, and the database is named after the user, as
-  in the Postgres image. Postgres reads them only when it creates a new volume, and no port is published. Another
+- **Database:** `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` in `.env` (shipped as `openfarm` / `openfarm` /
+  `openfarm`; change the password before the first start) apply to both `postgres` and `openfarm`. Without
+  `POSTGRES_DB`, the database is named after the user, as in the Postgres image. Postgres reads them only when it
+  creates a new volume, and no port is published. Another
   server: set the `Database__*` keys; a full `ConnectionStrings__Default` also works and wins.
 - **Upgrade:** `docker compose pull && docker compose up -d` (migrations run at startup). Replace the existing application instance; do not run an overlapping instance against the same database. Expect brief downtime.
 - **From the 0.0.1 `.env` layout:** the old compose file and `.env` keep working. To switch, keep the folder name
-  (Compose then reuses the `pg_data` volume) and your `.env`, and add `POSTGRES_USER=openfarm` to it. Rename
+  (Compose then reuses the `pg_data` volume) and your `.env`, and add `POSTGRES_USER=openfarm` and `POSTGRES_DB=openfarm` to it. Rename
   `JWT_SIGNING_KEY` to `Jwt__SigningKey` to keep everyone logged in. `POSTGRES_PASSWORD`, `TZ`, `PUID` and `PGID` keep
   their names; the `ADMIN_*` lines are unused (the admin account is already in the database).
 - **Slicer profiles:** the image bundles the slicers listed in `slicers.manifest.json`, and the entrypoint loads their System profiles (machine / process / filament) on every start — one catalog per slicer version, so adding a version never overwrites another. To re-run it by hand:
   `docker compose exec openfarm dotnet OpenFarm.Api.dll ingest-system-profiles` (idempotent).
 - **Backup:** `./data` (part files, camera snapshots, DataProtection keys) **and** the Postgres volume
-  (`docker compose exec postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_USER"' > backup.sql`). Losing `./data/keys`
+  (`docker compose exec postgres sh -c 'pg_dump -U "$POSTGRES_USER" "${POSTGRES_DB:-$POSTGRES_USER}"' > backup.sql`). Losing `./data/keys`
   makes stored printer secrets undecryptable.
 - **Single replica only** — run exactly one OpenFarm application instance per installation, with PostgreSQL as a separate service. Migrations, printer connections, production dispatch, and part-processing workers run inside the API process. Do not use `docker compose up --scale openfarm=2`, rolling deployments with overlapping instances, or multiple application hosts sharing the database. This is an operating constraint, not a distributed lock enforced by the application.
 - **Printer discovery:** *Add printer* lists the printers on the server's LAN: Bambu over SSDP (UDP 2021/1990) and the
