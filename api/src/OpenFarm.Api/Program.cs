@@ -105,8 +105,7 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
     .Filter.With<ExpectedMigrationProbeFilter>()
     .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture));
 
-var connectionString = builder.Configuration.GetConnectionString("Default")
-    ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
+var connectionString = DatabaseConnectionString.Resolve(builder.Configuration);
 
 builder.Services.AddDbContext<OpenFarmDbContext>(options => options.UseNpgsql(connectionString));
 
@@ -114,10 +113,12 @@ builder.Services
     .AddHealthChecks()
     .AddNpgSql(connectionString, name: "postgres");
 
+var keysDirectory = builder.Configuration["DataProtection:KeysDirectory"] is { Length: > 0 } keysDir ? keysDir : "./keys";
+
 var dataProtectionBuilder = builder.Services
     .AddDataProtection()
     .SetApplicationName("OpenFarm")
-    .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["DataProtection:KeysDirectory"] is { Length: > 0 } keysDir ? keysDir : "./keys"));
+    .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
 
 // Without this, DataProtection keys sit on the keys volume in the clear — Linux has no
 // DPAPI-equivalent fallback the way Windows does — so anyone with filesystem/backup access to
@@ -154,9 +155,11 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"]
     ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
 var jwtAudience = builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException("Jwt:Audience is not configured.");
-var jwtSigningKey = builder.Configuration["Jwt:SigningKey"] is { Length: > 0 } signingKey
-    ? signingKey
-    : throw new InvalidOperationException("Jwt:SigningKey is not configured.");
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"] is { Length: > 0 } configuredKey
+    ? configuredKey
+    : SigningKeyFile.LoadOrCreate(keysDirectory);
+// JwtTokenService reads the key from configuration too.
+builder.Configuration["Jwt:SigningKey"] = jwtSigningKey;
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

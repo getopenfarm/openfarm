@@ -27,9 +27,9 @@ COPY --from=api /opt/slicers /opt/slicers
 COPY --from=web /web/dist ./wwwroot
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && mkdir -p /data
-# The database is the compose `postgres` service; Npgsql reads its password from PGPASSWORD.
+# The database is the compose `postgres` service; the other Database__* defaults are in appsettings.json.
 ENV ASPNETCORE_URLS=http://+:8888 \
-    ConnectionStrings__Default="Host=postgres;Database=openfarm;Username=openfarm" \
+    Database__Host=postgres \
     SlicerBundle__RootDirectory=/opt/slicers \
     PartFileStorage__RootDirectory=/data/part-files \
     CameraSnapshotStorage__RootDirectory=/data/camera-snapshots \

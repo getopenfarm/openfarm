@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -38,14 +39,8 @@ public sealed partial class FirstBootSeeder(
         var email = configuration["Seed:AdminEmail"];
         var password = configuration["Seed:AdminPassword"];
 
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email))
         {
-            // Without a first account nobody can log in, so the first boot needs the seed credentials.
-            if (!await dbContext.Users.AnyAsync(cancellationToken))
-            {
-                throw new InvalidOperationException("Seed:AdminPassword is not configured; it is required to create the first administrator account.");
-            }
-
             LogAdminSeedSkipped(logger);
             return;
         }
@@ -56,6 +51,19 @@ public sealed partial class FirstBootSeeder(
             return;
         }
 
+        var generated = string.IsNullOrWhiteSpace(password);
+        if (generated)
+        {
+            // An install that already has accounts never gets a surprise administrator.
+            if (await dbContext.Users.AnyAsync(cancellationToken))
+            {
+                return;
+            }
+
+            // The prefix and the dash satisfy the password policy (lowercase, non-alphanumeric).
+            password = $"admin-{Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(12))}";
+        }
+
         var user = new ApplicationUser
         {
             UserName = username,
@@ -63,14 +71,23 @@ public sealed partial class FirstBootSeeder(
             EmailConfirmed = true,
         };
 
-        var result = await userManager.CreateAsync(user, password);
+        var result = await userManager.CreateAsync(user, password!);
         if (!result.Succeeded)
         {
             throw new InvalidOperationException(
                 $"Failed to seed the administrator account: {string.Join(", ", result.Errors.Select(e => e.Description))}");
         }
+
+        if (generated)
+        {
+            LogGeneratedAdminPassword(logger, username, password!);
+        }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Seed:AdminUsername/Seed:AdminEmail/Seed:AdminPassword are not configured; skipping operator seeding.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Seed:AdminUsername/Seed:AdminEmail are not configured; skipping operator seeding.")]
     private static partial void LogAdminSeedSkipped(ILogger logger);
+
+    // The password is logged on purpose: Seed:AdminPassword was not set, and this is the only time anybody sees it.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Created administrator '{Username}' with generated password '{Password}'. Keep it; it is not shown again.")]
+    private static partial void LogGeneratedAdminPassword(ILogger logger, string username, string password);
 }

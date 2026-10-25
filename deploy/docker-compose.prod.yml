@@ -6,13 +6,7 @@ services:
       - "8888:8888"
     volumes:
       - ./data:/data
-    environment:
-      - PGPASSWORD=            # Required: same value as POSTGRES_PASSWORD below
-      - Jwt__SigningKey=       # Required: openssl rand -base64 48
-      - Seed__AdminPassword=   # Required on first boot: log in as admin with this password
-      # - TZ=Etc/UTC           # Log timestamps
-      # - PUID=1000            # Set to $(id -u) to match your host user
-      # - PGID=1000            # Set to $(id -g) to match your host group
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -22,11 +16,9 @@ services:
     restart: unless-stopped
     volumes:
       - pg_data:/var/lib/postgresql
-    environment:
-      - POSTGRES_USER=openfarm
-      - POSTGRES_PASSWORD=     # Required
+    env_file: .env
     healthcheck:
-      test: pg_isready -U openfarm
+      test: pg_isready -U $$POSTGRES_USER
       interval: 5s
       retries: 10
 
