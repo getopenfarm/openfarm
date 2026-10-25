@@ -47,7 +47,7 @@ public class PartProcessingBackgroundServiceTests
         {
             service.Enqueue(new PartProcessingWorkItem(job.Id));
 
-            await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(() => publisher.StatusSnapshots.Count == 1, TimeSpan.FromSeconds(2));
 
             job.ErrorMessage.Should().Be("permission denied");
             publisher.StatusSnapshots.Should().Equal(PartProcessingJobStatus.Failed);
@@ -86,7 +86,7 @@ public class PartProcessingBackgroundServiceTests
         {
             service.Enqueue(new PartProcessingWorkItem(job.Id));
 
-            await WaitUntilAsync(() => job.PreviewEstimateStatus == EstimateStatus.Unavailable, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(() => publisher.StatusSnapshots.Count == 2, TimeSpan.FromSeconds(2));
 
             job.EstimateUnavailableReason.Should().Contain("disk read failed");
             job.Status.Should().Be(PartProcessingJobStatus.ReadyForReview);
@@ -115,7 +115,7 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitUntilAsync(() => job.Status == PartProcessingJobStatus.Failed, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(() => publisher.JobStatusChanges.Contains(job.Id), TimeSpan.FromSeconds(2));
 
             job.Status.Should().Be(PartProcessingJobStatus.Failed);
             job.ErrorMessage.Should().Contain("interrupted");
@@ -167,7 +167,7 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitUntilAsync(() => part.EstimateStatus == EstimateStatus.Unavailable, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(() => publisher.EstimateUnavailable.Contains(part.Id), TimeSpan.FromSeconds(2));
 
             part.EstimateStatus.Should().Be(EstimateStatus.Unavailable);
             publisher.EstimateUnavailable.Should().Contain(part.Id);
