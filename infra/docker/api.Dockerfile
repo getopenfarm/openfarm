@@ -2,6 +2,11 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0
 WORKDIR /src
 EXPOSE 6868
 
+# The slicer AppImages (extracted) refuse to start without the host OpenGL runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libopengl0 libglu1-mesa \
+    && rm -rf /var/lib/apt/lists/*
+
 # Build context is the repo root (infra/docker-compose.yml) so this stage can reach both api/ and
 # the standalone tools/provision-slicers project + the root-level manifest (plan.md "Structure
 # Decision" — the provisioning tool is deliberately outside api/'s dependency graph, FR-018).

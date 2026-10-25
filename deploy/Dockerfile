@@ -22,6 +22,10 @@ RUN dotnet run --project tools/provision-slicers -- \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+# The slicer AppImages (extracted) refuse to start without the host OpenGL runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libopengl0 libglu1-mesa \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=api /out ./
 COPY --from=api /opt/slicers /opt/slicers
 COPY --from=web /web/dist ./wwwroot
