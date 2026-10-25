@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using FluentAssertions;
+using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.Parts;
 
@@ -47,6 +48,43 @@ public class AlreadySlicedFileMetadataParserTests
         result.DetectedFilamentSlots.Should().ContainSingle(r => r.MaterialType == "PETG");
         result.EstimatedPrintTimeMinutes.Should().BeNull();
         result.EstimatedFilamentWeightGrams.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ParseAsync_EmptyValueLineBeforeNozzleDiameter_StillReadsNozzleAndMachine()
+    {
+        // OrcaSlicer writes "; notes = " (empty) right before "; nozzle_diameter"; the value must not swallow the next line.
+        var content = "; notes = \n; nozzle_diameter = 0.4,0.4,0.4,0.4\n; printer_model = Snapmaker U1\nG28\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+
+        var result = await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
+
+        result.NozzleDiameterMm.Should().Be(0.4m);
+        result.Estimation!.MachineModel.Should().Be("Snapmaker U1");
+    }
+
+    [Fact]
+    public async Task ParseAsync_MultiSlotGCode_KeepsOnlySlotsThePrintUsesWithTheirVendor()
+    {
+        var content = "; filament_type = PLA;PLA;PLA;PLA\n; filament_colour = #000000;#FFFFFF;#000000;#FEC11D\n"
+            + "; filament_vendor = Snapmaker;Snapmaker;Aliz;Aliz\n; filament used [g] = 1.19, 0.00, 0.00, 0.00\nG28\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+
+        var result = await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
+
+        result.DetectedFilamentSlots.Should().ContainSingle()
+            .Which.Should().Be(new DetectedFilamentSlot("PLA", "#000000", "Snapmaker"));
+    }
+
+    [Fact]
+    public async Task ParseAsync_MultiSlotGCodeWithoutUsageLine_KeepsEverySlot()
+    {
+        var content = "; filament_type = PLA;PETG\n; filament_colour = #000000;#FFFFFF\nG28\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+
+        var result = await Parser.ParseAsync(stream, PartFileFormat.GCode, CancellationToken.None);
+
+        result.DetectedFilamentSlots.Should().HaveCount(2);
     }
 
     [Fact]

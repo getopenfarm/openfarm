@@ -63,19 +63,43 @@ public static partial class GCodeMetadataHelper
             : values.TryGetValue("filament_color", out var colorsRaw) ? SplitList(colorsRaw)
             : [];
 
+        var vendors = values.TryGetValue("filament_vendor", out var vendorsRaw) ? SplitList(vendorsRaw) : [];
+        var used = UsedSlots(values, types.Count);
+
         var slots = new List<Application.Parts.DetectedFilamentSlot>();
         for (var i = 0; i < types.Count; i++)
         {
-            if (string.IsNullOrWhiteSpace(types[i]))
+            if (string.IsNullOrWhiteSpace(types[i]) || used is not null && !used[i])
             {
                 continue;
             }
 
             var color = i < colors.Count && !string.IsNullOrWhiteSpace(colors[i]) ? NormalizeColorHex(colors[i]) : null;
-            slots.Add(new Application.Parts.DetectedFilamentSlot(types[i], color, null));
+            var vendor = i < vendors.Count && !string.IsNullOrWhiteSpace(vendors[i]) ? vendors[i] : null;
+            slots.Add(new Application.Parts.DetectedFilamentSlot(types[i], color, vendor));
         }
 
         return slots;
+    }
+
+    /// <summary>
+    /// Which slots the print draws from, by the per-slot usage line (<c>filament used [g] = 1.19, 0.00, …</c>); null when the file
+    /// has none, it doesn't line up with the slots, or nothing is used — then every slot counts.
+    /// </summary>
+    private static bool[]? UsedSlots(Dictionary<string, string> values, int slotCount)
+    {
+        var raw = values.GetValueOrDefault("filament used [g]") ?? values.GetValueOrDefault("filament used [mm]");
+        if (raw is null) return null;
+        var amounts = SplitList(raw);
+        if (amounts.Count != slotCount) return null;
+        var used = new bool[slotCount];
+        for (var i = 0; i < slotCount; i++)
+        {
+            if (!decimal.TryParse(amounts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out var amount)) return null;
+            used[i] = amount > 0;
+        }
+
+        return used.Any(u => u) ? used : null;
     }
 
     /// <summary>"model printing time: 1h 23m; total estimated time: 1h 30m" — prefers the total.</summary>
@@ -155,7 +179,9 @@ public static partial class GCodeMetadataHelper
         return "#" + (trimmed.Length >= 6 ? trimmed[..6] : trimmed).ToUpperInvariant();
     }
 
-    [GeneratedRegex(@"^\s*;\s*([A-Za-z0-9_\[\]\(\) ]+?)\s*=\s*(.+?)\s*$", RegexOptions.Multiline)]
+    // Same-line whitespace only: OrcaSlicer writes "; notes = " (empty) right before "; nozzle_diameter", and a \s* after "="
+    // would take that next line as the value, losing the key.
+    [GeneratedRegex(@"^[ \t]*;[ \t]*([A-Za-z0-9_\[\]\(\) ]+?)[ \t]*=[ \t]*(.+?)[ \t]*\r?$", RegexOptions.Multiline)]
     private static partial Regex CommentLineRegex();
 
     [GeneratedRegex(@";\s*total filament weight \[g\]\s*:\s*([^;\r\n]+)", RegexOptions.IgnoreCase)]

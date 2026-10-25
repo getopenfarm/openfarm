@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenFarm.Application.ActivityLog;
+using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Parts;
@@ -167,10 +168,19 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                     FilamentRequirements = materialResolution.FilamentRequirements.Select(r =>
                     {
                         var previous = source.FilamentRequirements.FirstOrDefault(p => p.MaterialType == r.MaterialType
-                            && p.DetectedColorHex == r.DetectedColorHex && p.DetectedSubBrand == r.DetectedSubBrand);
+                            && p.DetectedColorHex == r.DetectedColorHex && (p.DetectedSubBrand == r.DetectedSubBrand || p.DetectedSubBrand is null));
                         return r with { NarrowFilamentVariantId = previous?.NarrowFilamentVariantId, NarrowFilamentProfileId = previous?.NarrowFilamentProfileId };
                     }).ToList(),
                 };
+        }
+
+        if (materialResolution.FilamentRequirements.Any(r => r.NarrowFilamentVariantId is null && r.DetectedColorHex is not null))
+        {
+            var vendors = (await services.GetRequiredService<IVendorRepository>().ListAsync(stoppingToken)).ToDictionary(v => v.Id, v => v.Name);
+            var catalog = (await services.GetRequiredService<IFilamentRepository>().ListAsync(stoppingToken))
+                .SelectMany(f => f.Variants.Select(v => new CatalogColour(v.Id, vendors.GetValueOrDefault(f.VendorId, string.Empty), f.MaterialType, v.ColorHex)))
+                .ToList();
+            materialResolution = materialResolution with { FilamentRequirements = PartFilamentAutoMatcher.Apply(materialResolution.FilamentRequirements, catalog) };
         }
 
         job.SetEstimation(materialResolution.Estimation is { } details && job.RequiresSlicing

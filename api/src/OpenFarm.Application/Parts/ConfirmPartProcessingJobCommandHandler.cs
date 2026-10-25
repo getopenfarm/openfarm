@@ -62,13 +62,13 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             {
                 overridesByIndex.TryGetValue(preview.RequirementIndex, out var overrideEntry);
                 var previous = existingPart?.FilamentRequirements.FirstOrDefault(r => r.MaterialType == preview.MaterialType
-                    && r.DetectedColorHex == preview.DetectedColorHex && r.DetectedSubBrand == preview.DetectedSubBrand);
+                    && r.DetectedColorHex == preview.DetectedColorHex && (r.DetectedSubBrand == preview.DetectedSubBrand || r.DetectedSubBrand is null));
                 return new FilamentRequirementSpec(
                     preview.MaterialType,
                     preview.DetectedColorHex,
                     preview.DetectedSubBrand,
-                    overrideEntry is not null ? overrideEntry.NarrowFilamentVariantId : previous?.NarrowFilamentVariantId,
-                    overrideEntry is not null ? overrideEntry.NarrowFilamentProfileId : previous?.NarrowFilamentProfileId,
+                    overrideEntry is not null ? overrideEntry.NarrowFilamentVariantId : preview.NarrowFilamentVariantId ?? previous?.NarrowFilamentVariantId,
+                    overrideEntry is not null ? overrideEntry.NarrowFilamentProfileId : preview.NarrowFilamentProfileId ?? previous?.NarrowFilamentProfileId,
                     preview.EstimatedGrams);
             })
             .ToList();
