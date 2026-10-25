@@ -17,6 +17,30 @@ public class SlicerInvocationTests
         filamentJson: """{"type":"filament","name":"Generic PETG","filament_type":["PETG"]}""");
 
     [Fact]
+    public void PrusaSliceFamilyInvocation_BuildInvocation_AddsTheTypeAUserPresetExportLeavesOut()
+    {
+        var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");
+        try
+        {
+            var userPresets = TestResolvedProfiles.Create(
+                new SlicerRef(SlicerEngine.OrcaSlicer, "2.2.0"),
+                machineJson: """{"from":"User","name":"User Machine"}""",
+                processJson: """{"from":"User","name":"User Process"}""",
+                filamentJson: """{"from":"User","name":"User PETG","filament_type":["PETG"]}""");
+
+            new PrusaSliceFamilyInvocation().BuildInvocation(Orca, "/tmp/model.3mf", "PETG", 0.4m, workDirectory.FullName, userPresets);
+
+            File.ReadAllText(Path.Combine(workDirectory.FullName, "machine_settings.json")).Should().Contain("\"type\":\"machine\"");
+            File.ReadAllText(Path.Combine(workDirectory.FullName, "process_settings.json")).Should().Contain("\"type\":\"process\"");
+            File.ReadAllText(Path.Combine(workDirectory.FullName, "filament_settings.json")).Should().Contain("\"type\":\"filament\"").And.Contain("\"name\":\"User PETG\"");
+        }
+        finally
+        {
+            workDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void PrusaSliceFamilyInvocation_SupportsOrcaSlicerAndBambuStudioOnly()
     {
         var invocation = new PrusaSliceFamilyInvocation();

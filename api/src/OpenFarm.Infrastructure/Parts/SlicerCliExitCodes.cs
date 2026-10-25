@@ -7,6 +7,13 @@ namespace OpenFarm.Infrastructure.Parts;
 /// </summary>
 internal static class SlicerCliExitCodes
 {
+    /// <summary>
+    /// The slicer rejected the settings embedded in a project — failed validation, saved by a newer version, or modified printer
+    /// parameters — rather than failing to slice. The project's presets as the pinned slicer ships them may still work.
+    /// </summary>
+    public static bool RejectsProjectSettings(int? exitCode) =>
+        exitCode is { } code && (code is > 127 and <= 255 ? code - 256 : code) is -51 or -24 or -23;
+
     public static string? Describe(int exitCode)
     {
         // Signal deaths are reported as 128 + signal and carry no CLI message (and the empty stderr that goes with it).

@@ -12,7 +12,8 @@ public sealed class PartFileProcessor(
     ISlicerEngine slicerEngine,
     ResolveEstimationProfiles? estimationProfiles = null,
     ResolveSlicerSelection? slicerSelection = null,
-    IFarmSettingsRepository? farmSettings = null, IHostPlatformProvider? hostPlatform = null) : IPartFileProcessor
+    IFarmSettingsRepository? farmSettings = null, IHostPlatformProvider? hostPlatform = null,
+    ResolveProjectEstimationProfiles? projectProfiles = null) : IPartFileProcessor
 {
     public async Task<PartMaterialResolution> ResolveMaterialAsync(PartProcessingJob job, Stream fileStream, CancellationToken cancellationToken)
     {
@@ -75,10 +76,32 @@ public sealed class PartFileProcessor(
     {
         var configuration = job.EstimationConfigurationJson is { } json ? JsonSerializer.Deserialize<EstimationConfiguration>(json) : null;
         if (configuration is null) throw new SlicingFailedException("No estimation configuration was resolved for this job.");
-        var result = await slicerEngine.EstimateAsync(new(job.SlicerEngineUsed!.Value, job.SlicerVersionUsed!),
-            fileStream, job.FileFormat, configuration, cancellationToken);
+        var pin = new SlicerRef(job.SlicerEngineUsed!.Value, job.SlicerVersionUsed!);
+        EstimationDetails? details = null;
+        SlicingResult result;
+        try
+        {
+            result = await slicerEngine.EstimateAsync(pin, fileStream, job.FileFormat, configuration, cancellationToken);
+        }
+        catch (SlicingFailedException ex) when (configuration.EmbeddedProject && SlicerCliExitCodes.RejectsProjectSettings(ex.ExitCode)
+            && projectProfiles is not null && job.Estimation is { } project && fileStream.CanSeek)
+        {
+            // The slicer refused the project's own settings (typically saved by a newer version): estimate with the presets it
+            // names, as this slicer ships them. If those cannot be used either, report both reasons.
+            try
+            {
+                (configuration, details) = await projectProfiles.ResolveAsync(project, pin, cancellationToken);
+            }
+            catch (SlicingProfileUnconfiguredException unusable)
+            {
+                throw new SlicingFailedException($"{ex.Message} The project's presets could not be used instead: {unusable.Message}", ex, ex.ExitCode);
+            }
+
+            fileStream.Position = 0;
+            result = await slicerEngine.EstimateAsync(pin, fileStream, job.FileFormat, configuration, cancellationToken);
+        }
         // The sliced output is what a print draws from the spools, so its per-filament usage (purge included) is the by-colour split.
         return new(result.EstimatedPrintTimeMinutes, result.EstimatedFilamentWeightGrams, result.Thumbnails,
-            JobFilamentUsageReader.ReadAllPlates(result.OutputFileBytes));
+            JobFilamentUsageReader.ReadAllPlates(result.OutputFileBytes), details, details is null ? null : configuration);
     }
 }

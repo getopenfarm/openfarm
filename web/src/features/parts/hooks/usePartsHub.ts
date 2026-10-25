@@ -53,10 +53,9 @@ function invalidatePartQueries(queryClient: ReturnType<typeof useQueryClient>) {
  * Opens the /hubs/farm SignalR connection and writes Part Library events directly into TanStack
  * Query's cache — no polling fallback, matching every other real-time feature in this app.
  *
- * `PartProcessingJobStatusChanged` carries the full derived preview directly in the push
- * (contracts/part-library-api.md), so the job-detail cache is written in place rather than
- * invalidated — this is what lets AddOrReplacePartDialog's review panel update live with no
- * follow-up GET. `PartUpserted`/`PartEstimateResolved`/`PartEstimateUnavailable`/`PartDeleted`
+ * `PartProcessingJobStatusChanged` carries the derived preview directly in the push
+ * (contracts/part-library-api.md), so the job-detail cache is written in place first — the review
+ * panel updates at once — and then refetched for the fields the push leaves out. `PartUpserted`/`PartEstimateResolved`/`PartEstimateUnavailable`/`PartDeleted`
  * invalidate instead, since those always mean "go re-fetch the authoritative Part row."
  */
 export function usePartsHub() {
@@ -71,10 +70,12 @@ export function usePartsHub() {
     connection.on(
       'PartProcessingJobStatusChanged',
       (payload: PartProcessingJobStatusChangedPayload) => {
-        queryClient.setQueryData<JobQueryData | undefined>(
+        const jobKey =
           getOpenFarmApiEndpointsPartProcessingJobsGetPartProcessingJobEndpointQueryKey(
             payload.jobId,
-          ),
+          );
+        queryClient.setQueryData<JobQueryData | undefined>(
+          jobKey,
           (current) => {
             const base: PartProcessingJobResponse = current?.data ?? {
               id: payload.jobId,
@@ -92,6 +93,8 @@ export function usePartsHub() {
             };
           },
         );
+        // The push is a partial preview (no estimation source, warnings or print-requirements status), so refetch the rest.
+        queryClient.invalidateQueries({ queryKey: jobKey });
       },
     );
 

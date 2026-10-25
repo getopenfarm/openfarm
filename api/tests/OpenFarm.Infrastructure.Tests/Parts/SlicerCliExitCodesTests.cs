@@ -23,4 +23,19 @@ public class SlicerCliExitCodesTests
     [InlineData(0)]
     public void Describe_UnknownCodes_AreLeftAlone(int exitCode) =>
         SlicerCliExitCodes.Describe(exitCode).Should().BeNull();
+
+    [Theory]
+    [InlineData(205, true)] // slicing parameters failed validation (-51) — what a project saved by a newer slicer hits
+    [InlineData(-51, true)] // same code on Windows
+    [InlineData(232, true)] // saved by a newer or incompatible version (-24)
+    [InlineData(233, true)] // modified printer parameters (-23)
+    [InlineData(156, false)] // slicing failed (-100): the settings were accepted
+    [InlineData(139, false)]
+    [InlineData(1, false)]
+    public void RejectsProjectSettings_OnlyForCodesAboutTheProjectsOwnSettings(int exitCode, bool expected) =>
+        SlicerCliExitCodes.RejectsProjectSettings(exitCode).Should().Be(expected);
+
+    [Fact]
+    public void RejectsProjectSettings_NoExitCode_IsFalse() =>
+        SlicerCliExitCodes.RejectsProjectSettings(null).Should().BeFalse();
 }

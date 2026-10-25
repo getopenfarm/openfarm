@@ -2,10 +2,9 @@ services:
   openfarm:
     image: ghcr.io/getopenfarm/openfarm:latest
     restart: unless-stopped
-    ports:
-      - "6868:6868"
+    network_mode: host
     volumes:
-      - ./data:/data
+      - data:/data
     env_file: .env
     depends_on:
       postgres:
@@ -15,7 +14,7 @@ services:
     image: postgres:18
     restart: unless-stopped
     volumes:
-      - pg_data:/var/lib/postgresql
+      - postgres:/var/lib/postgresql
     env_file: .env
     healthcheck:
       test: pg_isready -U $$POSTGRES_USER
@@ -23,4 +22,5 @@ services:
       retries: 10
 
 volumes:
-  pg_data:
+  data:
+  postgres:

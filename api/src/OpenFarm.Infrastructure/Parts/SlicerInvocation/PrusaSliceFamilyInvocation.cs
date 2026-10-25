@@ -35,10 +35,10 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
             ?? throw new SlicingFailedException("OrcaSlicer/Bambu Studio require a resolved machine/process/filament profile to slice.");
 
         var machineSettingsPath = Path.Combine(workDirectoryPath, "machine_settings.json");
-        File.WriteAllText(machineSettingsPath, profiles.MachineSettingsJson);
+        File.WriteAllText(machineSettingsPath, WithType(profiles.MachineSettingsJson, "machine"));
 
         var processSettingsPath = Path.Combine(workDirectoryPath, "process_settings.json");
-        File.WriteAllText(processSettingsPath, profiles.ProcessSettingsJson);
+        File.WriteAllText(processSettingsPath, WithType(profiles.ProcessSettingsJson, "process"));
 
         var filamentSettingsPaths = WriteFilamentSettings(profiles, workDirectoryPath);
 
@@ -60,7 +60,7 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
         if (profiles.Slots.Count == 0)
         {
             var path = Path.Combine(workDirectoryPath, "filament_settings.json");
-            File.WriteAllText(path, profiles.FilamentSettingsJson);
+            File.WriteAllText(path, WithType(profiles.FilamentSettingsJson, "filament"));
             return [path];
         }
 
@@ -68,10 +68,23 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
         {
             var settings = JsonNode.Parse(profiles.Filaments[slot.Filament].SettingsJson)!.AsObject();
             if (slot.ColorHex is { } color) settings["filament_colour"] = new JsonArray(color);
+            if (!settings.ContainsKey("type")) settings["type"] = "filament";
             var path = Path.Combine(workDirectoryPath, $"filament_settings_{index}.json");
             File.WriteAllText(path, settings.ToJsonString());
             return path;
         }).ToList();
+    }
+
+    /// <summary>
+    /// The CLI rejects a settings file with no <c>type</c> (exit 251, "unknown config type"). The slicers' own export of a user
+    /// preset leaves it out — the folder it sits in implies it — so a user-imported preset needs it added. A file that has it is untouched.
+    /// </summary>
+    private static string WithType(string settingsJson, string type)
+    {
+        var settings = JsonNode.Parse(settingsJson)!.AsObject();
+        if (settings.ContainsKey("type")) return settingsJson;
+        settings["type"] = type;
+        return settings.ToJsonString();
     }
 
     public static SlicerProcessInvocation BuildEmbeddedProjectInvocation(AvailableSlicer slicer, string modelPath, string workDirectory)

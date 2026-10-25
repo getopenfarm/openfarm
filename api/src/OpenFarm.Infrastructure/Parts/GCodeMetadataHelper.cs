@@ -50,8 +50,11 @@ public static partial class GCodeMetadataHelper
         return nozzles.Count > 0 && nozzles.All(n => n is not null) && nozzles.Distinct().Count() == 1 ? nozzles[0] : null;
     }
 
-    /// <summary>One entry per comma-separated slot in <c>filament_type</c>/<c>filament_colour</c> — parallel arrays, same convention this codebase's <c>BambuMqttMessageParser</c> AMS reports already use.</summary>
-    public static IReadOnlyList<Application.Parts.DetectedFilamentSlot> ParseFilamentSlots(Dictionary<string, string> values)
+    /// <summary>
+    /// One entry per comma-separated slot in <c>filament_type</c>/<c>filament_colour</c> — parallel arrays, same convention this codebase's <c>BambuMqttMessageParser</c> AMS reports already use.
+    /// With <paramref name="onlyUsed"/>, only the slots the print draws from — no longer parallel to the file's arrays, so not for callers that index by tool.
+    /// </summary>
+    public static IReadOnlyList<Application.Parts.DetectedFilamentSlot> ParseFilamentSlots(Dictionary<string, string> values, bool onlyUsed = false)
     {
         if (!values.TryGetValue("filament_type", out var typesRaw))
         {
@@ -64,7 +67,7 @@ public static partial class GCodeMetadataHelper
             : [];
 
         var vendors = values.TryGetValue("filament_vendor", out var vendorsRaw) ? SplitList(vendorsRaw) : [];
-        var used = UsedSlots(values, types.Count);
+        var used = onlyUsed ? UsedSlots(values, types.Count) : null;
 
         var slots = new List<Application.Parts.DetectedFilamentSlot>();
         for (var i = 0; i < types.Count; i++)

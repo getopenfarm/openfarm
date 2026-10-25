@@ -249,7 +249,15 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                 if (current.Status == PartProcessingJobStatus.ReadyForReview)
                 {
                     if (resolution is not null)
+                    {
+                        if (resolution.Estimation is { } usedDetails)
+                        {
+                            current.SetEstimation(usedDetails);
+                            current.SetEstimationConfiguration(System.Text.Json.JsonSerializer.Serialize(resolution.EstimationConfiguration));
+                        }
+
                         current.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails, resolution.FilamentGrams);
+                    }
                     else
                         current.MarkEstimateUnavailable(unavailableReason!);
                     await jobs.SaveChangesAsync(stoppingToken);
@@ -262,7 +270,10 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                     var part = await parts.GetByIdAsync(partId, stoppingToken);
                     if (part is null || part.ActiveProcessingJobId != current.Id) return;
                     if (resolution is not null)
+                    {
+                        if (resolution.Estimation is { } usedDetails) part.SetEstimation(usedDetails);
                         part.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails, resolution.FilamentGrams);
+                    }
                     else
                         part.MarkEstimateUnavailable(unavailableReason);
                     await parts.SaveChangesAsync(stoppingToken);

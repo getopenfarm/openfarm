@@ -2,7 +2,6 @@ import { AlertTriangleIcon, LoaderIcon } from 'lucide-react';
 import type { PartProcessingJobPreviewResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatMm } from '@/lib/formatUnits';
 import { filamentGrams, PartEstimate } from './PartEstimate';
-import { PartEstimationSource } from './PartEstimationSource';
 import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
@@ -77,6 +76,12 @@ export function PartProcessingReviewSection({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 text-sm">
+        {preview.estimation?.machineModel && (
+          <div>
+            <p className="text-muted-foreground">Printer model</p>
+            <p className="font-medium">{preview.estimation.machineModel}</p>
+          </div>
+        )}
         <div>
           <p className="text-muted-foreground">Nozzle diameter</p>
           <p className="font-medium">
@@ -87,7 +92,6 @@ export function PartProcessingReviewSection({
         </div>
         <div>
           <p className="text-muted-foreground">Estimated print</p>
-          <PartEstimationSource estimation={preview.estimation} />
           <PartEstimate
             status={estimateStatus}
             minutes={preview.estimatedPrintTimeMinutes}

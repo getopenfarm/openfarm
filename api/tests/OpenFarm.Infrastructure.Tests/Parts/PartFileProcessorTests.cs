@@ -73,6 +73,31 @@ public class PartFileProcessorTests
         result.Thumbnails.Should().NotBeEmpty();
     }
 
+    [Fact]
+    public async Task ResolveEstimateAsync_EmbeddedSettingsRejectedAndNoProjectPresets_KeepsTheSlicersFailure()
+    {
+        var processor = new PartFileProcessor(
+            new FakeAlreadySlicedFileMetadataParser(null), new FakeUnslicedProjectMaterialResolver(null), new RejectingSlicerEngine());
+        var job = PartProcessingJob.CreateAdd(
+            PartFileFormat.ThreeMf, "a.3mf", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.3.1", null, "PETG", null);
+        job.SetEstimationConfiguration(System.Text.Json.JsonSerializer.Serialize(new EstimationConfiguration(true, 0.4m, "PETG", null)));
+
+        var act = () => processor.ResolveEstimateAsync(job, new MemoryStream(), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<SlicingFailedException>()).Which.ExitCode.Should().Be(205);
+    }
+
+    private sealed class RejectingSlicerEngine : ISlicerEngine
+    {
+        public Task<SlicingResult> EstimateAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+            EstimationConfiguration configuration, CancellationToken cancellationToken) =>
+            throw new SlicingFailedException("rejected", exitCode: 205);
+
+        public Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat,
+            string materialType, decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class FakeAlreadySlicedFileMetadataParser(SlicedFileMetadata? result) : IAlreadySlicedFileMetadataParser
     {
         public Task<SlicedFileMetadata> ParseAsync(Stream fileStream, PartFileFormat format, CancellationToken cancellationToken) =>

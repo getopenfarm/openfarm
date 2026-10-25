@@ -178,7 +178,7 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
             throw new PartFileParsingFailedException("The file does not contain readable G-code commands.");
         var values = GCodeMetadataHelper.ParseComments(gcodeContent);
         var nozzleDiameterMm = GCodeMetadataHelper.ParseNozzleDiameter(values);
-        var slots = GCodeMetadataHelper.ParseFilamentSlots(values);
+        var slots = GCodeMetadataHelper.ParseFilamentSlots(values, onlyUsed: true);
 
         byte[]? thumbnail = null;
         if (thumbnailEntry is not null)

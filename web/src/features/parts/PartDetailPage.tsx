@@ -50,6 +50,11 @@ import {
 import { formatMinutes } from '@/lib/formatMinutes';
 import { formatFileSize, formatGrams, formatMm } from '@/lib/formatUnits';
 import { AddOrReplacePartDialog } from './components/AddOrReplacePartDialog';
+import {
+  estimationProfileNames,
+  estimationSourceLabel,
+  PRODUCTION_MAY_DIFFER,
+} from './components/estimationLabels';
 import { filamentGrams, PartEstimate } from './components/PartEstimate';
 import {
   type DisplayFilamentRequirement,
@@ -84,6 +89,8 @@ function PartFileFacts({ part }: { part: PartResponse }) {
         : 'Unknown',
     ],
   ];
+  if (part.estimation?.machineModel)
+    facts.push(['Printer', part.estimation.machineModel]);
   if (part.slicer?.engine) {
     facts.push([
       'Slicer',
@@ -92,21 +99,8 @@ function PartFileFacts({ part }: { part: PartResponse }) {
   }
   const estimation = part.estimation;
   if (estimation) {
-    facts.push([
-      'Estimated from',
-      estimation.source === 'DefaultProfiles'
-        ? 'Default estimation profiles'
-        : estimation.source === 'EmbeddedProject'
-          ? 'Embedded project settings'
-          : 'Embedded sliced metadata',
-    ]);
-    const profiles = [
-      estimation.machineModel,
-      estimation.machineProfileName,
-      estimation.processProfileName,
-      ...(estimation.filamentProfileNames ?? []),
-      estimation.buildPlate,
-    ].filter(Boolean);
+    facts.push(['Estimated from', estimationSourceLabel(estimation.source)]);
+    const profiles = estimationProfileNames(estimation);
     if (profiles.length > 0) facts.push(['Profiles', profiles.join(', ')]);
   }
   return (
@@ -159,8 +153,7 @@ function PartProcessingNotes({ part }: { part: PartResponse }) {
         {mayVary && (
           <p className="flex gap-2 text-muted-foreground">
             <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
-            Production slicing uses the assigned printer’s settings and may
-            produce different estimates.
+            {PRODUCTION_MAY_DIFFER}
           </p>
         )}
       </PopoverContent>

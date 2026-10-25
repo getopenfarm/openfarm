@@ -21,12 +21,17 @@ public sealed record PartMaterialResolution(
     IReadOnlyList<ThumbnailSpec>? Thumbnails = null, EstimationDetails? Estimation = null,
     EstimationConfiguration? EstimationConfiguration = null, IReadOnlyList<string>? MetadataWarnings = null);
 
-/// <summary>Milestone 2 result (research.md §3b) — estimate summed across every plate, plus per-plate thumbnails.</summary>
+/// <summary>
+/// Milestone 2 result (research.md §3b) — estimate summed across every plate, plus per-plate thumbnails.
+/// <see cref="Estimation"/>/<see cref="EstimationConfiguration"/> are set only when the estimate was made with other settings than
+/// the job's (the project's presets, after the slicer rejected its embedded settings) and replace the job's.
+/// </summary>
 public sealed record PartEstimateResolution(
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
     IReadOnlyList<ThumbnailSpec> Thumbnails,
-    IReadOnlyList<FilamentGrams>? FilamentGrams = null);
+    IReadOnlyList<FilamentGrams>? FilamentGrams = null,
+    EstimationDetails? Estimation = null, EstimationConfiguration? EstimationConfiguration = null);
 
 /// <summary>
 /// The single seam <c>PartProcessingBackgroundService</c> depends on — unifies the parse (already-sliced)

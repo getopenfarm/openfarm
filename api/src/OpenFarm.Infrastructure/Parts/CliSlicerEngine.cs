@@ -153,7 +153,8 @@ public sealed partial class CliSlicerEngine(
                     LogSlicerFailed(logger, slicer.Engine, process.ExitCode, errorOutput);
                     var meaning = SlicerCliExitCodes.Describe(process.ExitCode);
                     throw new SlicingFailedException(
-                        $"The {slicer.Engine} CLI exited with code {process.ExitCode}{(meaning is null ? "" : $" ({meaning})")}: {errorOutput}");
+                        $"The {slicer.Engine} CLI exited with code {process.ExitCode}{(meaning is null ? "" : $" ({meaning})")}: {errorOutput}",
+                        exitCode: process.ExitCode);
                 }
 
                 if (processInvocation.ProducesGCodeBearingThreeMf)

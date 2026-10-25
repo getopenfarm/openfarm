@@ -68,6 +68,31 @@ public class EmbeddedMetadataTests
         result.EstimationUnavailableReason.Should().BeNull();
     }
 
+    [Fact]
+    public async Task UnslicedProject_KeepsOnlyTheFilamentsItsObjectsPrintWith()
+    {
+        // Slot 2 ("Unused PLA") is defined by the project but no object uses it.
+        using var zip = Zip(("Metadata/project_settings.config", Project), ("Metadata/model_settings.config",
+            "<config><object id=\"2\"><metadata key=\"extruder\" value=\"1\"/><part id=\"1\" subtype=\"normal_part\"/></object>"
+            + "<plate><model_instance><metadata key=\"object_id\" value=\"2\"/></model_instance></plate></config>"),
+            ("3D/Objects/a.model", "<model><mesh/></model>"));
+        var result = await new UnslicedProjectMaterialResolver().ResolveAsync(zip, CancellationToken.None);
+        result.FilamentSlots.Should().ContainSingle().Which.MaterialType.Should().Be("PETG");
+        result.MaterialType.Should().Be("PETG");
+        result.Estimation!.FilamentProfileNames.Should().Equal("Custom PETG");
+    }
+
+    [Fact]
+    public async Task UnslicedProject_WithPaintedColours_KeepsEverySlot()
+    {
+        using var zip = Zip(("Metadata/project_settings.config", Project), ("Metadata/model_settings.config",
+            "<config><object id=\"2\"><metadata key=\"extruder\" value=\"1\"/></object>"
+            + "<plate><model_instance><metadata key=\"object_id\" value=\"2\"/></model_instance></plate></config>"),
+            ("3D/Objects/a.model", "<model><triangle v1=\"0\" paint_color=\"4\"/></model>"));
+        var result = await new UnslicedProjectMaterialResolver().ResolveAsync(zip, CancellationToken.None);
+        result.FilamentSlots.Should().HaveCount(2);
+    }
+
     [Theory]
     [InlineData("invalid")]
     [InlineData("{\"filament_type\":[\"PETG\"]}")]

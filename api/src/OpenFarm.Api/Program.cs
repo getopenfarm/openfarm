@@ -375,6 +375,7 @@ builder.Services.AddScoped<PartFilamentSelectionValidator>();
 builder.Services.AddScoped<FilamentProfileAssignmentService>();
 builder.Services.AddScoped<ResolveSlicingProfileSelection>();
 builder.Services.AddScoped<ResolveEstimationProfiles>();
+builder.Services.AddScoped<ResolveProjectEstimationProfiles>();
 
 builder.Services.AddScoped<ISlicerEngine, CliSlicerEngine>();
 builder.Services.AddScoped<ISlicerDefaultsProvider, SlicerDefaultsProvider>();
