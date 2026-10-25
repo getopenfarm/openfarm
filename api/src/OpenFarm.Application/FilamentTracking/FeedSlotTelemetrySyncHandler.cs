@@ -13,7 +13,16 @@ namespace OpenFarm.Application.FilamentTracking;
 /// </summary>
 public sealed class FeedSlotTelemetrySyncHandler(IFeedUnitRepository feedUnitRepository) : IFeedSlotTelemetrySync
 {
-    public async Task SyncAsync(Guid printerId, IReadOnlyList<FeedUnitReading> readings, CancellationToken cancellationToken)
+    // One transaction, so a reader never sees a half-synced topology (an External Spool before the Multi-Material Unit
+    // that supersedes it), and concurrent syncs of one printer queue up instead of colliding on the unique unit index.
+    public Task SyncAsync(Guid printerId, IReadOnlyList<FeedUnitReading> readings, CancellationToken cancellationToken) =>
+        feedUnitRepository.ExecuteAtomicallyAsync(async () =>
+        {
+            await SyncCoreAsync(printerId, readings, cancellationToken);
+            return true;
+        }, cancellationToken, printerId);
+
+    private async Task SyncCoreAsync(Guid printerId, IReadOnlyList<FeedUnitReading> readings, CancellationToken cancellationToken)
     {
         var reportedKinds = readings.Select(r => r.Kind).ToHashSet();
         var existingUnits = (await feedUnitRepository.GetByPrinterIdAsync(printerId, cancellationToken))
