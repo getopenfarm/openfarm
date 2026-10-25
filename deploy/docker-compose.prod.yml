@@ -1,50 +1,34 @@
-# Self-hosted deployment. Copy this file + .env.prod.example (as .env) to a folder and run:
-#   docker compose up -d
 services:
-  postgres:
-    image: postgres:18
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: openfarm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: openfarm
-    volumes:
-      - pg_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U openfarm -d openfarm"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # Exactly one application instance per installation. Workers and migrations run here.
-  # Replace this instance during upgrades; overlapping replicas are unsupported.
   openfarm:
     image: ghcr.io/getopenfarm/openfarm:latest
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    # Linux only: printer discovery uses LAN broadcast/multicast (Bambu: UDP 2021/1990; Snapmaker U1:
-    # mDNS, UDP 5353), which a bridged container never receives. To enable it, uncomment
-    # `network_mode: host`, drop `ports`, and change `Host=postgres` below to `Host=localhost` (and
-    # publish postgres on 5432).
-    # network_mode: host
     ports:
       - "8888:8888"
     volumes:
       - ./data:/data
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      TZ: ${TZ:-Etc/UTC}
-      PUID: ${PUID:-1000}
-      PGID: ${PGID:-1000}
-      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=openfarm;Username=openfarm;Password=${POSTGRES_PASSWORD}"
-      Jwt__Issuer: OpenFarm
-      Jwt__Audience: OpenFarm
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY in .env}
-      Seed__AdminUsername: ${ADMIN_USERNAME:-admin}
-      Seed__AdminEmail: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
-      Seed__AdminPassword: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      - PGPASSWORD=            # Required: same value as POSTGRES_PASSWORD below
+      - Jwt__SigningKey=       # Required: openssl rand -base64 48
+      - Seed__AdminPassword=   # Required on first boot: log in as admin with this password
+      # - TZ=Etc/UTC           # Log timestamps
+      # - PUID=1000            # Set to $(id -u) to match your host user
+      # - PGID=1000            # Set to $(id -g) to match your host group
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    volumes:
+      - pg_data:/var/lib/postgresql
+    environment:
+      - POSTGRES_USER=openfarm
+      - POSTGRES_PASSWORD=     # Required
+    healthcheck:
+      test: pg_isready -U openfarm
+      interval: 5s
+      retries: 10
 
 volumes:
   pg_data:

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenFarm.Domain.Settings;
@@ -39,6 +40,12 @@ public sealed partial class FirstBootSeeder(
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
+            // Without a first account nobody can log in, so the first boot needs the seed credentials.
+            if (!await dbContext.Users.AnyAsync(cancellationToken))
+            {
+                throw new InvalidOperationException("Seed:AdminPassword is not configured; it is required to create the first administrator account.");
+            }
+
             LogAdminSeedSkipped(logger);
             return;
         }

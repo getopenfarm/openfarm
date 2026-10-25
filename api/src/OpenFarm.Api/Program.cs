@@ -154,8 +154,9 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"]
     ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
 var jwtAudience = builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException("Jwt:Audience is not configured.");
-var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
-    ?? throw new InvalidOperationException("Jwt:SigningKey is not configured.");
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"] is { Length: > 0 } signingKey
+    ? signingKey
+    : throw new InvalidOperationException("Jwt:SigningKey is not configured.");
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
