@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0
 WORKDIR /src
-EXPOSE 8888
+EXPOSE 6868
 
 # Build context is the repo root (infra/docker-compose.yml) so this stage can reach both api/ and
 # the standalone tools/provision-slicers project + the root-level manifest (plan.md "Structure
@@ -20,4 +20,4 @@ RUN dotnet run --project tools/provision-slicers -- \
         --platform linux \
     || echo "WARNING: Slicer provisioning failed or was incomplete — Part Library in-app slicing may be unavailable for the missing engine/version until this is fixed; unrelated feature work is unaffected."
 
-ENTRYPOINT ["dotnet", "watch", "run", "--project", "api/src/OpenFarm.Api/OpenFarm.Api.csproj", "--urls", "http://0.0.0.0:8888", "--no-launch-profile"]
+ENTRYPOINT ["dotnet", "watch", "run", "--project", "api/src/OpenFarm.Api/OpenFarm.Api.csproj", "--urls", "http://0.0.0.0:6868", "--no-launch-profile"]

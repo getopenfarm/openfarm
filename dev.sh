@@ -59,8 +59,8 @@ reset_all() {
 }
 
 case "${1:-help}" in
-#: api      backend on :8888/:8889 (auto-migrates + seeds)
-api)     dotnet run --project="$API" --launch-profile=https --urls="https://0.0.0.0:8889;http://0.0.0.0:8888" ;;
+#: api      backend on :6868/:8889 (auto-migrates + seeds)
+api)     dotnet run --project="$API" --launch-profile=https --urls="https://0.0.0.0:8889;http://0.0.0.0:6868" ;;
 #: web      vite dev server on :5173
 web)     cd web && VITE_API_BASE_URL="${VITE_API_BASE_URL:-}" bun run dev --host 0.0.0.0 ;;
 #: up       api + web in one terminal, Ctrl-C stops both
@@ -72,7 +72,7 @@ up)      trap 'kill 0' EXIT INT TERM
          "$0" api &
          api_pid=$!
          echo "Waiting for API health check..."
-         until curl -sf -o /dev/null http://localhost:8888/health/ready; do
+         until curl -sf -o /dev/null http://localhost:6868/health/ready; do
            kill -0 "$api_pid" 2>/dev/null || { echo "API exited before becoming healthy" >&2; exit 1; }
            sleep 1
          done

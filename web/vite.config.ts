@@ -8,9 +8,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': 'http://localhost:8888',
+      '/api': 'http://localhost:6868',
       '/hubs': {
-        target: 'http://localhost:8888',
+        target: 'http://localhost:6868',
         ws: true,
       },
     },

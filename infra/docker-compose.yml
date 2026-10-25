@@ -34,7 +34,7 @@ services:
       SlicerBundle__RootDirectory: /opt/slicers
       CameraSnapshotStorage__RootDirectory: /data/camera-snapshots
     ports:
-      - "${API_HTTP_PORT}:8888"
+      - "${API_HTTP_PORT}:6868"
     volumes:
       - ..:/src
       - openfarm_part_files:/data/part-files

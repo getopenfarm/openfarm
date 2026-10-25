@@ -3,7 +3,7 @@
 ```
 mkdir openfarm && cd openfarm
 # save docker-compose.prod.yml here as docker-compose.yml, and .env.example as .env
-docker compose up -d      # http://<host>:8888
+docker compose up -d      # http://<host>:6868
 docker compose logs openfarm | grep "generated password"   # the first login: user admin
 ```
 

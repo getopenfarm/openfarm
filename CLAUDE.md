@@ -39,7 +39,7 @@ bun run icons              # regenerate favicon/PWA/iOS icons in public/ from pu
 ### Local dev — `./dev.sh` (native, against a locally installed Postgres)
 ```
 ./dev.sh            # prints the subcommand list
-./dev.sh api        # backend on :8888/:8889 (auto-migrates + seeds on startup)
+./dev.sh api        # backend on :6868/:8889 (auto-migrates + seeds on startup)
 ./dev.sh web        # vite dev server on :5173
 ./dev.sh up         # both in one terminal, Ctrl-C stops both
 ./dev.sh slicers    # provision slicer bundles into ./.slicers for this platform

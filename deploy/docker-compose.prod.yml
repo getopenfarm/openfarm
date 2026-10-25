@@ -3,7 +3,7 @@ services:
     image: ghcr.io/getopenfarm/openfarm:latest
     restart: unless-stopped
     ports:
-      - "8888:8888"
+      - "6868:6868"
     volumes:
       - ./data:/data
     env_file: .env

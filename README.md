@@ -116,7 +116,7 @@ Start the API and frontend:
 ```
 
 The frontend runs at `http://localhost:5173`; the API runs at
-`http://localhost:8888` and `https://localhost:8889`. You can also use
+`http://localhost:6868` and `https://localhost:8889`. You can also use
 `./dev.sh api` and `./dev.sh web` in separate terminals. Run the backend through
 `dev.sh` so it finds the slicer bundles in the repository's `.slicers` directory.
 
