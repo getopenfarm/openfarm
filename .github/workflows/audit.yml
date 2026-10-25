@@ -12,10 +12,10 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: api/global.json
       - name: dotnet vulnerable packages
