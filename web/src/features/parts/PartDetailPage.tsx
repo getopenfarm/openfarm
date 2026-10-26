@@ -618,6 +618,7 @@ export function PartDetailPage() {
             partName={part.name}
             currentSlicer={part.slicer}
             currentPlateNumber={part.plateNumber}
+            currentPlateName={part.plateName}
             open={replaceOpen}
             onOpenChange={setReplaceOpen}
           />
@@ -627,6 +628,7 @@ export function PartDetailPage() {
             partName={part.name}
             currentSlicer={part.slicer}
             currentPlateNumber={part.plateNumber}
+            currentPlateName={part.plateName}
             mode="reprocess"
             open={reprocessOpen}
             onOpenChange={setReprocessOpen}

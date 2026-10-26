@@ -21,6 +21,10 @@ public interface IPartRepository
 
     Task RemoveAsync(Part part, CancellationToken cancellationToken);
 
+    /// <summary>Parts whose current file is <paramref name="revisionHash"/>: the parts one upload was split into, while they share it.</summary>
+    Task<IReadOnlyList<Part>> ListByRevisionHashAsync(string revisionHash, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Part>>([]);
+
     void TrackReplacementChildren(Part part) { }
 
     Task SaveChangesAsync(CancellationToken cancellationToken);

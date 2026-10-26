@@ -22,6 +22,9 @@ public sealed record PartProcessingJobPreviewDetail(
     IReadOnlyList<string>? ProcessingWarnings = null,
     string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null);
 
+/// <summary>Another part sharing the replaced part's file (split from the same upload), with the plate it prints.</summary>
+public sealed record RelatedPartView(Guid PartId, string Name, int? PlateNumber, string? PlateName);
+
 public sealed record PartProcessingJobDetail(
     Guid Id,
     string Kind,
@@ -29,4 +32,5 @@ public sealed record PartProcessingJobDetail(
     Guid? PartId,
     SlicerSelectionView? Slicer,
     PartProcessingJobPreviewDetail? Preview,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    IReadOnlyList<RelatedPartView>? RelatedParts = null);

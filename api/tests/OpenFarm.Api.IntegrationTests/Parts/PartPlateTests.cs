@@ -149,4 +149,69 @@ public class PartPlateTests(EmptySlicerBundleWebApplicationFactory factory) : IC
 
         confirm.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    // Each call's bytes are its own: parts sharing a content hash are related, whatever test made them.
+    private static byte[] Named(params (int Number, string Name, string Material)[] plates) => Zip(
+        plates.Select(p => ($"Metadata/plate_{p.Number}.gcode", Plate(p.Material, "#000000", 10 * p.Number, p.Number)))
+            .Append(("Metadata/model_settings.config", $"<config><!-- {Guid.NewGuid():N} -->" + string.Concat(plates.Select(p =>
+                $"<plate><metadata key=\"plater_id\" value=\"{p.Number}\"/><metadata key=\"plater_name\" value=\"{p.Name}\"/></plate>")) + "</config>"))
+            .ToArray());
+
+    [Fact]
+    public async Task ReplacingOnePartOfASplit_UpdatesTheOthersSharingItsFile_MatchedByPlateName()
+    {
+        using var client = await ClientAsync();
+        var name = $"Kit {Guid.NewGuid():N}";
+        var added = await SubmitAsync(client, "/api/v1/parts", "kit.gcode.3mf", Named((1, "Cover", "PLA"), (2, "Handle", "PETG")));
+        await WaitAsync(client, added.JobId);
+        (await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{added.JobId}/confirm",
+            new ConfirmPartProcessingJobRequest { Name = name, PlateNumbers = [1, 2] })).EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var cover = await db.Parts.AsNoTracking().SingleAsync(p => p.Name == $"{name} – Cover");
+        var handle = await db.Parts.AsNoTracking().SingleAsync(p => p.Name == $"{name} – Handle");
+
+        // The new version swaps the plates: Handle is plate 1, Cover plate 2.
+        var replaced = await SubmitAsync(client, $"/api/v1/parts/{cover.Id}/file", "kit-v2.gcode.3mf",
+            Named((1, "Handle", "PETG"), (2, "Cover", "PLA")), replace: true);
+        var review = await WaitAsync(client, replaced.JobId);
+        review.RelatedParts.Should().ContainSingle().Which.Should().BeEquivalentTo(new { PartId = handle.Id, PlateNumber = 2, PlateName = "Handle" });
+
+        // No plate named for the replaced part: it keeps "Cover" by name, now plate 2.
+        var confirm = await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{replaced.JobId}/confirm",
+            new ConfirmPartProcessingJobRequest { RelatedParts = [new RelatedPartPlateRequest { PartId = handle.Id, PlateNumber = 1 }] });
+
+        confirm.StatusCode.Should().Be(HttpStatusCode.Created, await confirm.Content.ReadAsStringAsync());
+        var parts = await db.Parts.AsNoTracking().Where(p => p.Id == cover.Id || p.Id == handle.Id).ToListAsync();
+        parts.Select(p => (p.Name, p.PlateNumber, p.RevisionNumber, p.EstimatedPrintTimeMinutes)).Should().BeEquivalentTo(
+            [($"{name} – Cover", 2, 2, 20), ($"{name} – Handle", 1, 2, 10)]);
+        parts.Select(p => p.RevisionHash).Distinct().Should().ContainSingle().Which.Should().NotBe(cover.RevisionHash);
+    }
+
+    [Fact]
+    public async Task ARelatedPartChangedSinceTheReview_IsAConflict()
+    {
+        using var client = await ClientAsync();
+        var name = $"Kit {Guid.NewGuid():N}";
+        var added = await SubmitAsync(client, "/api/v1/parts", "kit.gcode.3mf", Named((1, "Cover", "PLA"), (2, "Handle", "PETG")));
+        await WaitAsync(client, added.JobId);
+        (await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{added.JobId}/confirm",
+            new ConfirmPartProcessingJobRequest { Name = name, PlateNumbers = [1, 2] })).EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var cover = await db.Parts.AsNoTracking().SingleAsync(p => p.Name == $"{name} – Cover");
+        var handle = await db.Parts.AsNoTracking().SingleAsync(p => p.Name == $"{name} – Handle");
+        var replaced = await SubmitAsync(client, $"/api/v1/parts/{cover.Id}/file", "v2.gcode.3mf", Named((1, "Cover", "PLA"), (2, "Handle", "PLA")), replace: true);
+        await WaitAsync(client, replaced.JobId);
+
+        // Meanwhile the handle gets a file of its own.
+        var alone = await SubmitAsync(client, $"/api/v1/parts/{handle.Id}/file", "handle.gcode.3mf", Named((1, "Handle", "ABS")), replace: true);
+        await WaitAsync(client, alone.JobId);
+        (await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{alone.JobId}/confirm", new { })).EnsureSuccessStatusCode();
+
+        var confirm = await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{replaced.JobId}/confirm",
+            new ConfirmPartProcessingJobRequest { RelatedParts = [new RelatedPartPlateRequest { PartId = handle.Id, PlateNumber = 2 }] });
+
+        confirm.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
 }

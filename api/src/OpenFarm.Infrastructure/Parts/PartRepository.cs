@@ -49,6 +49,10 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
             .Where(p => p.EstimateStatus == EstimateStatus.Resolving)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Part>> ListByRevisionHashAsync(string revisionHash, CancellationToken cancellationToken) =>
+        await Include(dbContext.Parts).Where(p => p.RevisionHash == revisionHash).OrderBy(p => p.PlateNumber).ThenBy(p => p.Name)
+            .ToListAsync(cancellationToken);
+
     public async Task RemoveAsync(Part part, CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);

@@ -42,6 +42,14 @@ public sealed class GetPartProcessingJobQueryHandler(IPartProcessingJobRepositor
             ? new SlicerSelectionView(engine.ToString(), version)
             : null;
 
-        return new PartProcessingJobDetail(job.Id, job.Kind.ToString(), job.Status.ToString(), job.PartId, slicer, preview, job.ErrorMessage);
+        // A replace can update the other parts the same upload was split into: the parts still sharing this part's file.
+        IReadOnlyList<RelatedPartView> related = [];
+        if (job.Kind == PartProcessingJobKind.Replace && job.Status == PartProcessingJobStatus.ReadyForReview
+            && partRepository is not null && job.PartId is { } replacedId
+            && await partRepository.GetByIdAsync(replacedId, cancellationToken) is { } replaced)
+            related = (await partRepository.ListByRevisionHashAsync(replaced.RevisionHash, cancellationToken))
+                .Where(p => p.Id != replaced.Id).Select(p => new RelatedPartView(p.Id, p.Name, p.PlateNumber, p.PlateName)).ToList();
+
+        return new PartProcessingJobDetail(job.Id, job.Kind.ToString(), job.Status.ToString(), job.PartId, slicer, preview, job.ErrorMessage, related);
     }
 }

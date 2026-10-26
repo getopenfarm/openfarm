@@ -9536,6 +9536,13 @@
           },
           "createAssembly": {
             "type": "boolean"
+          },
+          "relatedParts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/RelatedPartPlateRequest"
+            }
           }
         }
       },
@@ -9556,6 +9563,20 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          }
+        }
+      },
+      "RelatedPartPlateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "partId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "plateNumber": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -9601,6 +9622,12 @@
           "errorMessage": {
             "type": "string",
             "nullable": true
+          },
+          "relatedParts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelatedPartResponse"
+            }
           }
         }
       },
@@ -9731,6 +9758,28 @@
             "items": {
               "$ref": "#/components/schemas/PreviewFilamentRequirementResponse"
             }
+          }
+        }
+      },
+      "RelatedPartResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "partId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plateNumber": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "plateName": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

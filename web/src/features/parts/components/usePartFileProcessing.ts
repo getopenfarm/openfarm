@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import type {
   PartProcessingJobResponse,
   PartProcessingJobSubmittedResponse,
+  PlateResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsPartProcessingJobsGetPartProcessingJobEndpointQueryKey,
@@ -30,6 +31,27 @@ export const ACCEPTED_EXTENSIONS = '.stl,.3mf,.gcode,.gco,.g';
 // turns out not to require slicing either way (contracts/slicer-management-api.md), so offering the
 // choice a moment early is harmless.
 export const USE_DEFAULT_SLICER = '__use-farm-default__';
+
+/**
+ * A part's plate in a (new) file: the plate with its name when no other plate has that name, else the plate with its
+ * number unless that plate is named otherwise — plate numbers shift when plates are reordered or removed in the slicer,
+ * names do not.
+ */
+export function matchPlate(
+  plates: PlateResponse[],
+  part: { plateNumber?: number | null; plateName?: string | null },
+) {
+  const named = plates.filter(
+    (plate) => part.plateName && plate.name === part.plateName,
+  );
+  return named.length === 1
+    ? named[0]
+    : plates.find(
+        (plate) =>
+          plate.number === part.plateNumber &&
+          (!plate.name || !part.plateName || plate.name === part.plateName),
+      );
+}
 
 export function slicerSelectionKey(slicer: {
   engine?: string;
@@ -70,6 +92,7 @@ export interface UsePartFileProcessingOptions {
   onConfirmed?: () => void;
   /** The plate the part prints now: replacing or reprocessing keeps it when the file still has it. */
   currentPlateNumber?: number | null;
+  currentPlateName?: string | null;
 }
 
 export interface ConfirmValues {
@@ -91,11 +114,16 @@ export function usePartFileProcessing({
   partId,
   onConfirmed,
   currentPlateNumber,
+  currentPlateName,
 }: UsePartFileProcessingOptions) {
   const [file, setFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<number, string | null>>({});
   const [chosenPlates, setPlateNumbers] = useState<number[] | null>(null);
+  const [chosenRelated, setChosenRelated] = useState<Record<
+    string,
+    number | null
+  > | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [slicerSelection, setSlicerSelection] = useState(USE_DEFAULT_SLICER);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,14 +144,35 @@ export function usePartFileProcessing({
 
   // A part prints one plate: the one chosen, else the file's only plate, else the part's own plate when the file has it.
   const plates = job?.preview?.plates ?? [];
+  const current = matchPlate(plates, {
+    plateNumber: currentPlateNumber,
+    plateName: currentPlateName,
+  });
   const plateNumbers =
     chosenPlates ??
     (plates.length === 1
       ? [plates[0].number ?? 1]
-      : plates.some((plate) => plate.number === currentPlateNumber)
-        ? [currentPlateNumber as number]
+      : current?.number != null
+        ? [current.number]
         : []);
   const needsPlate = plates.length > 1 && plateNumbers.length === 0;
+
+  // A replace can update the other parts sharing the file: each takes its own plate of the new one (null skips it).
+  const relatedParts = job?.relatedParts ?? [];
+  const relatedPlates =
+    chosenRelated ??
+    Object.fromEntries(
+      relatedParts.map((part) => [
+        part.partId ?? '',
+        matchPlate(plates, part)?.number ?? null,
+      ]),
+    );
+  function setRelatedPlate(partId: string, plateNumber: number | null) {
+    setChosenRelated({ ...relatedPlates, [partId]: plateNumber });
+  }
+  const relatedReplaced = Object.entries(relatedPlates).filter(
+    (entry): entry is [string, number] => entry[1] != null,
+  );
 
   const createMutation = useOpenFarmApiEndpointsPartsCreatePartEndpoint({
     mutation: {
@@ -215,6 +264,7 @@ export function usePartFileProcessing({
     setJobId(null);
     setOverrides({});
     setPlateNumbers(null);
+    setChosenRelated(null);
     setSlicerSelection(USE_DEFAULT_SLICER);
   }
 
@@ -223,6 +273,7 @@ export function usePartFileProcessing({
     setJobId(null);
     setOverrides({});
     setPlateNumbers(null);
+    setChosenRelated(null);
 
     const [slicerEngine, slicerVersion] =
       slicerSelection === USE_DEFAULT_SLICER
@@ -318,7 +369,17 @@ export function usePartFileProcessing({
     } else {
       confirmMutation.mutate({
         id: jobId,
-        data: { filamentRequirementOverrides, plateNumbers: chosen },
+        data: {
+          filamentRequirementOverrides,
+          plateNumbers: chosen,
+          relatedParts:
+            relatedReplaced.length > 0
+              ? relatedReplaced.map(([partId, plateNumber]) => ({
+                  partId,
+                  plateNumber,
+                }))
+              : undefined,
+        },
       });
     }
   }
@@ -358,6 +419,10 @@ export function usePartFileProcessing({
     plateNumbers,
     setPlateNumbers,
     needsPlate,
+    relatedParts,
+    relatedPlates,
+    setRelatedPlate,
+    relatedReplacedCount: relatedReplaced.length,
     isDragging,
     slicerSelection,
     setSlicerSelection,

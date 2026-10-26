@@ -1562,6 +1562,11 @@ export interface FilamentRequirementOverrideRequest {
   narrowFilamentProfileId?: string | null;
 }
 
+export interface RelatedPartPlateRequest {
+  partId?: string;
+  plateNumber?: number;
+}
+
 export interface ConfirmPartProcessingJobRequest {
   /** @nullable */
   name?: string | null;
@@ -1572,6 +1577,8 @@ export interface ConfirmPartProcessingJobRequest {
   /** @nullable */
   plateNumbers?: number[] | null;
   createAssembly?: boolean;
+  /** @nullable */
+  relatedParts?: RelatedPartPlateRequest[] | null;
 }
 
 export interface DiscardPartProcessingJobRequest {
@@ -1623,6 +1630,15 @@ export interface PartProcessingJobPreviewResponse {
   thumbnails?: ThumbnailResponse[];
 }
 
+export interface RelatedPartResponse {
+  partId?: string;
+  name?: string;
+  /** @nullable */
+  plateNumber?: number | null;
+  /** @nullable */
+  plateName?: string | null;
+}
+
 export interface PartProcessingJobResponse {
   id?: string;
   kind?: string;
@@ -1633,6 +1649,7 @@ export interface PartProcessingJobResponse {
   preview?: PartProcessingJobPreviewResponse | null;
   /** @nullable */
   errorMessage?: string | null;
+  relatedParts?: RelatedPartResponse[];
 }
 
 export interface DismissNotificationResponse {

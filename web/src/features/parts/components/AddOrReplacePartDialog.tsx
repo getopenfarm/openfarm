@@ -6,7 +6,7 @@ import {
   DialogScrollableContent,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import {
   Select,
   SelectContent,
@@ -20,6 +20,7 @@ import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { formatFileSize } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import { PartProcessingReviewSection } from './PartProcessingReviewSection';
+import { plateLabel } from './PartThumbnailGallery';
 import {
   ACCEPTED_EXTENSIONS,
   slicerSelectionKey,
@@ -39,7 +40,10 @@ interface AddOrReplacePartDialogProps {
   currentSlicer?: { engine?: string; version?: string } | null;
   /** The plate the part prints: kept when the file still has it. */
   currentPlateNumber?: number | null;
+  currentPlateName?: string | null;
 }
+
+const SKIP = 'skip';
 
 /**
  * Replace-file dialog (research.md §11, "reserved" modal per docs/UI_CONVENTIONS.md — a quick
@@ -57,6 +61,7 @@ export function AddOrReplacePartDialog({
   mode = 'replace',
   currentSlicer,
   currentPlateNumber,
+  currentPlateName,
 }: AddOrReplacePartDialogProps) {
   const {
     file,
@@ -69,6 +74,10 @@ export function AddOrReplacePartDialog({
     plateNumbers,
     setPlateNumbers,
     needsPlate,
+    relatedParts,
+    relatedPlates,
+    setRelatedPlate,
+    relatedReplacedCount,
     isDragging,
     slicerSelection,
     setSlicerSelection,
@@ -88,6 +97,7 @@ export function AddOrReplacePartDialog({
     mode,
     partId,
     currentPlateNumber,
+    currentPlateName,
     onConfirmed: () => onOpenChange(false),
   });
 
@@ -96,7 +106,24 @@ export function AddOrReplacePartDialog({
     onOpenChange(false);
   }
 
-  const canConfirm = status === 'ReadyForReview' && !needsPlate;
+  const plates = job?.preview?.plates ?? [];
+  // Other parts sharing the file are replaced too once the estimate is in (each takes its own plate's).
+  const waitForEstimate =
+    relatedReplacedCount > 0 && job?.preview?.estimateStatus === 'Resolving';
+  const canConfirm =
+    status === 'ReadyForReview' && !needsPlate && !waitForEstimate;
+  const chosen = plates.find((plate) => plate.number === plateNumbers[0]);
+  const plateChanges =
+    currentPlateNumber != null &&
+    chosen != null &&
+    (chosen.name && currentPlateName
+      ? chosen.name !== currentPlateName
+      : chosen.number !== currentPlateNumber);
+  const unused = plates.filter(
+    (plate) =>
+      plate.number !== plateNumbers[0] &&
+      !Object.values(relatedPlates).includes(plate.number ?? null),
+  );
   const review = (
     <>
       <PartProcessingReviewSection
@@ -108,13 +135,71 @@ export function AddOrReplacePartDialog({
         plateNumbers={plateNumbers}
         onPlateNumbersChange={setPlateNumbers}
       />
-      {currentPlateNumber != null &&
-        plateNumbers.length === 1 &&
-        plateNumbers[0] !== currentPlateNumber && (
-          <p role="status" className="text-sm text-kind-amber">
-            Plate changes: {currentPlateNumber} → {plateNumbers[0]}
-          </p>
-        )}
+      {plateChanges && chosen && (
+        <p role="status" className="text-sm text-kind-amber">
+          Plate changes:{' '}
+          {plateLabel({ number: currentPlateNumber, name: currentPlateName })} →{' '}
+          {plateLabel(chosen)}
+        </p>
+      )}
+      {status === 'ReadyForReview' && relatedParts.length > 0 && (
+        <Field className="flex flex-col gap-1.5">
+          <FieldLabel>Also replace</FieldLabel>
+          <FieldDescription>
+            {waitForEstimate
+              ? 'Estimating… several parts need it.'
+              : 'Parts sharing this file.'}
+          </FieldDescription>
+          {relatedParts.map((part) => {
+            const partId = part.partId ?? '';
+            const plateNumber = relatedPlates[partId];
+            return (
+              <div
+                key={partId}
+                className="grid grid-cols-[1fr_14rem] items-center gap-2 text-sm"
+              >
+                <span className="truncate" title={part.name}>
+                  {part.name}
+                </span>
+                <Select
+                  value={plateNumber != null ? String(plateNumber) : SKIP}
+                  onValueChange={(value) =>
+                    setRelatedPlate(
+                      partId,
+                      value === SKIP ? null : Number(value),
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    aria-label={`Plate for ${part.name}`}
+                    className="w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value={SKIP}>Skip · keep its file</SelectItem>
+                      {plates.map((plate) => (
+                        <SelectItem
+                          key={plate.number}
+                          value={String(plate.number)}
+                        >
+                          {plateLabel(plate)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })}
+          {unused.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Not used: {unused.map(plateLabel).join(', ')}
+            </p>
+          )}
+        </Field>
+      )}
     </>
   );
 
@@ -202,7 +287,11 @@ export function AddOrReplacePartDialog({
               onClick={() => confirm()}
               disabled={!canConfirm || isConfirmPending}
             >
-              {isConfirmPending ? 'Saving…' : 'Save'}
+              {isConfirmPending
+                ? 'Saving…'
+                : relatedReplacedCount > 0
+                  ? `Replace ${relatedReplacedCount + 1} parts`
+                  : 'Save'}
             </Button>
           </>
         }

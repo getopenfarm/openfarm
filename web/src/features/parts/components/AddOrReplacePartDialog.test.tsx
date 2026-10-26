@@ -293,4 +293,79 @@ describe('AddOrReplacePartDialog (a part keeps its slicer)', () => {
       });
     });
   });
+
+  it('replaces the parts sharing the file too, each matched to its plate by name', async () => {
+    const user = userEvent.setup();
+    let confirmBody: unknown;
+    const plate = (number: number, name: string) => ({
+      number,
+      name,
+      estimatedPrintTimeMinutes: 10,
+      estimatedFilamentWeightGrams: 4,
+      filamentRequirements: [],
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.includes('/settings/slicing-defaults'))
+          return Promise.resolve(jsonResponse(slicingDefaults));
+        if (url.includes(`/api/v1/parts/${PART_ID}/file`))
+          return Promise.resolve(
+            jsonResponse({ jobId: 'job-1', status: 'Processing' }, 202),
+          );
+        if (url.includes('/confirm') && init?.method === 'POST') {
+          confirmBody = JSON.parse(String(init.body));
+          return Promise.resolve(jsonResponse({}));
+        }
+        if (url.includes('/part-processing-jobs/'))
+          // The new file swaps the plates: Handle is plate 1, Cover plate 2.
+          return Promise.resolve(
+            jsonResponse({
+              id: 'job-1',
+              kind: 'Replace',
+              status: 'ReadyForReview',
+              partId: PART_ID,
+              preview: {
+                estimateStatus: 'Available',
+                filamentRequirements: [],
+                plates: [plate(1, 'Handle'), plate(2, 'Cover')],
+              },
+              relatedParts: [
+                {
+                  partId: 'handle-part',
+                  name: 'Kit – Handle',
+                  plateNumber: 2,
+                  plateName: 'Handle',
+                },
+              ],
+            }),
+          );
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+
+    renderDialog({ currentPlateNumber: 1, currentPlateName: 'Cover' });
+    const fileInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    await user.upload(
+      fileInput,
+      new File(['zip'], 'kit-v2.gcode.3mf', { type: 'application/zip' }),
+    );
+
+    const save = await screen.findByRole('button', { name: 'Replace 2 parts' });
+    expect(screen.queryByText(/Plate changes/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: 'Plate for Kit – Handle' }),
+    ).toHaveTextContent('Plate 1 · Handle');
+    await user.click(save);
+
+    await waitFor(() =>
+      expect(confirmBody).toMatchObject({
+        plateNumbers: [2],
+        relatedParts: [{ partId: 'handle-part', plateNumber: 1 }],
+      }),
+    );
+  });
 });

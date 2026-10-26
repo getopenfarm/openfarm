@@ -56,6 +56,14 @@ public sealed class PartProcessingJobPreviewResponse
     public List<ThumbnailResponse> Thumbnails { get; set; } = [];
 }
 
+public sealed class RelatedPartResponse
+{
+    public Guid PartId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int? PlateNumber { get; set; }
+    public string? PlateName { get; set; }
+}
+
 public sealed class PartProcessingJobResponse
 {
     public Guid Id { get; set; }
@@ -66,8 +74,18 @@ public sealed class PartProcessingJobResponse
     public PartProcessingJobPreviewResponse? Preview { get; set; }
     public string? ErrorMessage { get; set; }
 
+    /// <summary>A replace only: other parts sharing the replaced part's file, which the confirmation can update too.</summary>
+    public List<RelatedPartResponse> RelatedParts { get; set; } = [];
+
     public static PartProcessingJobResponse FromDetail(PartProcessingJobDetail detail) => new()
     {
+        RelatedParts = (detail.RelatedParts ?? []).Select(r => new RelatedPartResponse
+        {
+            PartId = r.PartId,
+            Name = r.Name,
+            PlateNumber = r.PlateNumber,
+            PlateName = r.PlateName,
+        }).ToList(),
         Id = detail.Id,
         Kind = detail.Kind,
         Status = detail.Status,
