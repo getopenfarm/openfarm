@@ -87,6 +87,7 @@ function renderRoute() {
         children: [
           { path: '/parts/new', element: <PartFormPage /> },
           { path: '/parts', element: <div>Parts list page</div> },
+          { path: '/assemblies', element: <div>Assemblies page</div> },
         ],
       },
     ],
@@ -212,5 +213,67 @@ describe('PartFormPage', () => {
 
     expect(await screen.findByText('Parts list page')).toBeInTheDocument();
     await waitFor(() => expect(discardCalled).toBe(true));
+  });
+
+  it('adds one part per chosen plate and groups them as an assembly', async () => {
+    const user = userEvent.setup();
+    let confirmBody: unknown;
+    vi.stubGlobal(
+      'fetch',
+      baseFetchMock((url, init) => {
+        if (
+          url.includes(`/part-processing-jobs/${JOB_ID}/confirm`) &&
+          init?.method === 'POST'
+        ) {
+          confirmBody = JSON.parse(String(init.body));
+          return jsonResponse({});
+        }
+        return undefined;
+      }),
+    );
+    const { queryClient } = renderRoute();
+    const { fileInput, file } = uploadFile();
+    await user.upload(fileInput, file);
+    await user.type(await screen.findByLabelText('Name'), 'Kit');
+
+    const plate = (number: number, name: string | null) => ({
+      number,
+      name,
+      estimatedPrintTimeMinutes: 10,
+      estimatedFilamentWeightGrams: 4,
+      filamentRequirements: [],
+    });
+    act(() => {
+      queryClient.setQueryData(
+        getOpenFarmApiEndpointsPartProcessingJobsGetPartProcessingJobEndpointQueryKey(
+          JOB_ID,
+        ),
+        {
+          data: jobBody('ReadyForReview', {
+            preview: {
+              estimateStatus: 'Available',
+              filamentRequirements: [],
+              plates: [plate(1, 'Cover'), plate(2, null)],
+            },
+          }),
+          status: 200,
+          headers: new Headers(),
+        },
+      );
+    });
+
+    await user.click(
+      await screen.findByRole('button', { name: /Plate 1 · Cover/ }),
+    );
+    await user.click(screen.getByRole('button', { name: /Plate 2/ }));
+    await user.click(screen.getByLabelText('Create assembly'));
+    await user.click(screen.getByRole('button', { name: 'Add 2 parts' }));
+
+    expect(await screen.findByText('Assemblies page')).toBeInTheDocument();
+    expect(confirmBody).toMatchObject({
+      name: 'Kit',
+      plateNumbers: [1, 2],
+      createAssembly: true,
+    });
   });
 });

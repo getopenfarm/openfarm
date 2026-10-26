@@ -25,6 +25,8 @@ interface PartProcessingReviewSectionProps {
   /** The plate the part prints; asked only when the file offers several. */
   plateNumbers: number[];
   onPlateNumbersChange: (plateNumbers: number[]) => void;
+  /** Adding a file may take several plates: one part each. */
+  multiple?: boolean;
 }
 
 /**
@@ -41,6 +43,7 @@ export function PartProcessingReviewSection({
   onNarrow,
   plateNumbers,
   onPlateNumbersChange,
+  multiple = false,
 }: PartProcessingReviewSectionProps) {
   if (status === 'Failed') {
     return (
@@ -121,7 +124,11 @@ export function PartProcessingReviewSection({
               )}
             />
           ) : (
-            <p className="text-sm text-muted-foreground">Choose a plate.</p>
+            <p className="text-sm text-muted-foreground">
+              {plateNumbers.length > 1
+                ? `${plateNumbers.length} parts, one per plate`
+                : 'Choose a plate.'}
+            </p>
           )}
         </div>
       </div>
@@ -150,6 +157,7 @@ export function PartProcessingReviewSection({
             thumbnails={preview.thumbnails}
             plateNumbers={plateNumbers}
             onChange={onPlateNumbersChange}
+            multiple={multiple}
           />
         </div>
       ) : (
@@ -196,16 +204,57 @@ function PlatePicker({
   thumbnails,
   plateNumbers,
   onChange,
+  multiple,
 }: {
   plates: PlateResponse[];
   thumbnails: ThumbnailResponse[] | undefined;
   plateNumbers: number[];
   onChange: (plateNumbers: number[]) => void;
+  multiple: boolean;
 }) {
   const byIndex = new Map(
     (thumbnails ?? []).map((thumbnail) => [thumbnail.plateIndex, thumbnail]),
   );
-  return (
+  const items = plates.map((plate) => {
+    const thumbnail = byIndex.get((plate.number ?? 1) - 1);
+    return (
+      <ToggleGroupItem
+        key={plate.number}
+        value={String(plate.number)}
+        className="h-auto flex-col items-start gap-1 p-2"
+      >
+        <span className="flex size-16 items-center justify-center overflow-hidden rounded-md bg-muted/40">
+          {thumbnail?.thumbnailBase64 ? (
+            <img
+              src={`data:image/png;base64,${thumbnail.thumbnailBase64}`}
+              alt=""
+              className="size-full object-contain"
+            />
+          ) : (
+            <ImageOffIcon className="size-4 text-muted-foreground" />
+          )}
+        </span>
+        <span className="text-xs font-medium">{plateLabel(plate)}</span>
+        <PartEstimate
+          minutes={plate.estimatedPrintTimeMinutes}
+          grams={plate.estimatedFilamentWeightGrams}
+        />
+      </ToggleGroupItem>
+    );
+  });
+  return multiple ? (
+    <ToggleGroup
+      type="multiple"
+      variant="outline"
+      value={plateNumbers.map(String)}
+      onValueChange={(values) =>
+        onChange(values.map(Number).sort((a, b) => a - b))
+      }
+      className="flex-wrap"
+    >
+      {items}
+    </ToggleGroup>
+  ) : (
     <ToggleGroup
       type="single"
       variant="outline"
@@ -213,33 +262,7 @@ function PlatePicker({
       onValueChange={(value) => onChange(value ? [Number(value)] : [])}
       className="flex-wrap"
     >
-      {plates.map((plate) => {
-        const thumbnail = byIndex.get((plate.number ?? 1) - 1);
-        return (
-          <ToggleGroupItem
-            key={plate.number}
-            value={String(plate.number)}
-            className="h-auto flex-col items-start gap-1 p-2"
-          >
-            <span className="flex size-16 items-center justify-center overflow-hidden rounded-md bg-muted/40">
-              {thumbnail?.thumbnailBase64 ? (
-                <img
-                  src={`data:image/png;base64,${thumbnail.thumbnailBase64}`}
-                  alt=""
-                  className="size-full object-contain"
-                />
-              ) : (
-                <ImageOffIcon className="size-4 text-muted-foreground" />
-              )}
-            </span>
-            <span className="text-xs font-medium">{plateLabel(plate)}</span>
-            <PartEstimate
-              minutes={plate.estimatedPrintTimeMinutes}
-              grams={plate.estimatedFilamentWeightGrams}
-            />
-          </ToggleGroupItem>
-        );
-      })}
+      {items}
     </ToggleGroup>
   );
 }

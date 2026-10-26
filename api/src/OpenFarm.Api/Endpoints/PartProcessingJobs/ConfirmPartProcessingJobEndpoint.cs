@@ -24,8 +24,14 @@ public sealed class ConfirmPartProcessingJobRequest : IActivityLoggable
 
     public List<FilamentRequirementOverrideRequest>? FilamentRequirementOverrides { get; set; }
 
-    /// <summary>The plate the part prints (one of the preview's <c>plates</c>); may be omitted when the file offers one plate.</summary>
+    /// <summary>
+    /// The plate the part prints (one of the preview's <c>plates</c>); may be omitted when the file offers one plate. Adding a
+    /// file can name several: one part each, named "name – plate name"; the response is the first.
+    /// </summary>
     public List<int>? PlateNumbers { get; set; }
+
+    /// <summary>With several plates: also create an assembly of the parts, named after them, one print of each plate per unit.</summary>
+    public bool CreateAssembly { get; set; }
 
     public string EntityType => "Part";
 
@@ -52,7 +58,7 @@ public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler) : E
             .Select(o => new FilamentRequirementOverride(o.RequirementIndex, o.NarrowFilamentVariantId, o.NarrowFilamentProfileId))
             .ToList();
 
-        var command = new ConfirmPartProcessingJobCommand(jobId, req.Name, req.Tags, overrides, userId, req.PlateNumbers);
+        var command = new ConfirmPartProcessingJobCommand(jobId, req.Name, req.Tags, overrides, userId, req.PlateNumbers, req.CreateAssembly);
         var part = await handler.HandleAsync(command, ct);
 
         Response = PartResponse.FromDomain(part);

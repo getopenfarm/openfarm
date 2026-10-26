@@ -75,6 +75,8 @@ export interface UsePartFileProcessingOptions {
 export interface ConfirmValues {
   name: string;
   tags: string;
+  /** With several plates: also an assembly of their parts. */
+  createAssembly?: boolean;
 }
 
 /**
@@ -309,6 +311,8 @@ export function usePartFileProcessing({
           tags: tags.length > 0 ? tags : undefined,
           filamentRequirementOverrides,
           plateNumbers: chosen,
+          createAssembly:
+            values.createAssembly && plateNumbers.length > 1 ? true : undefined,
         },
       });
     } else {

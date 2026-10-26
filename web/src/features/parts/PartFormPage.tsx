@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Upload } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 import { z } from 'zod';
@@ -10,7 +10,13 @@ import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -64,6 +70,8 @@ export function PartFormPage() {
   // the navigate() below is exempted from the still-stale-at-that-instant isDirty guard, matching
   // the pattern every other migrated form uses for its post-save navigate call.
   const markCleanRef = useRef<() => void>(() => {});
+  // Several plates make one part each; this also groups them as an assembly (one print of each plate per unit).
+  const [createAssembly, setCreateAssembly] = useState(false);
 
   const {
     file,
@@ -93,7 +101,9 @@ export function PartFormPage() {
     mode: 'add',
     onConfirmed: () => {
       markCleanRef.current();
-      navigate('/parts');
+      navigate(
+        createAssembly && plateNumbers.length > 1 ? '/assemblies' : '/parts',
+      );
     },
   });
 
@@ -117,12 +127,16 @@ export function PartFormPage() {
   }, []);
 
   function onSubmit(values: FormValues) {
-    confirm(values);
+    confirm({ ...values, createAssembly });
   }
 
+  // Each part takes its plate's own estimate, so several wait for it.
+  const split = plateNumbers.length > 1;
+  const waitForEstimate = split && job?.preview?.estimateStatus === 'Resolving';
   const canConfirm =
     status === 'ReadyForReview' &&
     !needsPlate &&
+    !waitForEstimate &&
     form.watch('name').trim().length > 0;
 
   return (
@@ -293,7 +307,32 @@ export function PartFormPage() {
                       onNarrow={handleNarrow}
                       plateNumbers={plateNumbers}
                       onPlateNumbersChange={setPlateNumbers}
+                      multiple
                     />
+                    {split && (
+                      <Field orientation="horizontal">
+                        <Checkbox
+                          id="part-create-assembly"
+                          checked={createAssembly}
+                          onCheckedChange={(checked) =>
+                            setCreateAssembly(checked === true)
+                          }
+                        />
+                        <div className="flex flex-col gap-0.5">
+                          <FieldLabel
+                            htmlFor="part-create-assembly"
+                            className="font-normal"
+                          >
+                            Create assembly
+                          </FieldLabel>
+                          <FieldDescription>
+                            {waitForEstimate
+                              ? 'Estimating… several plates need it.'
+                              : 'Parts named "<name> – <plate>". 1 unit = 1 print of each plate.'}
+                          </FieldDescription>
+                        </div>
+                      </Field>
+                    )}
                   </>
                 )}
               </CardContent>
@@ -314,7 +353,11 @@ export function PartFormPage() {
                     disabled={!canConfirm || isConfirmPending}
                   >
                     {isConfirmPending && <Spinner data-icon="inline-start" />}
-                    {isConfirmPending ? 'Adding…' : 'Add part'}
+                    {isConfirmPending
+                      ? 'Adding…'
+                      : split
+                        ? `Add ${plateNumbers.length} parts`
+                        : 'Add part'}
                   </Button>
                 </>
               }
