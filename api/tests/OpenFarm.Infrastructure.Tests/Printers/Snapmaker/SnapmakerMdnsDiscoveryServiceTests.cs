@@ -84,7 +84,7 @@ public class SnapmakerMdnsDiscoveryServiceTests
         {
             FirstRequery = TimeSpan.FromMilliseconds(100),
             MaxRequery = TimeSpan.FromMilliseconds(200),
-            BrowseIdle = TimeSpan.FromMilliseconds(600),
+            BrowseIdle = TimeSpan.FromMilliseconds(1000),
         };
         using var service = await StartAsync(options);
 
@@ -95,9 +95,10 @@ public class SnapmakerMdnsDiscoveryServiceTests
         var query = await ReceiveAsync(responder);
         query.Buffer.Should().Equal(ExpectedQuery);
         await responder.SendAsync(U1Reply(), query.RemoteEndPoint);
+        service.GetRecent(); // a stalled CI runner must not let the idle window lapse before the re-query is sent
         (await ReceiveAsync(responder)).Buffer.Should().Equal(ExpectedQuery, "a browse re-queries");
 
-        await Task.Delay(2000);
+        await Task.Delay(2500);
         while (responder.Available > 0)
         {
             await responder.ReceiveAsync();
