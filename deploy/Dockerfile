@@ -22,9 +22,12 @@ RUN dotnet run --project tools/provision-slicers -- \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
-# The slicer AppImages (extracted) refuse to start without the host OpenGL runtime.
+# The slicer AppImages (extracted) link GTK/WebKitGTK/OpenGL at load time and refuse to start without the host
+# libs, even for headless CLI slicing. Verified with every Linux build in slicers.manifest.json: ldd reports
+# nothing missing and `AppRun --help` runs. libmspack0 is bundled only by OrcaSlicer 2.4.x.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libopengl0 libglu1-mesa \
+    && apt-get install -y --no-install-recommends \
+        libopengl0 libglu1-mesa libwebkit2gtk-4.1-0 libsecret-1-0 libsm6 libmspack0 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=api /out ./
 COPY --from=api /opt/slicers /opt/slicers
