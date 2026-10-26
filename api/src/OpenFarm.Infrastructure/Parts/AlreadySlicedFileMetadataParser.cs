@@ -10,7 +10,7 @@ namespace OpenFarm.Infrastructure.Parts;
 // Fixture-replay, test-after (research.md §12, mirrors ProfileBundleParser/BambuMqttMessageParser's
 // existing carve-out) — reads a standalone G-code's header/footer comments, or walks every plate's
 // own embedded G-code inside a .gcode.3mf (Metadata/plate_<n>.gcode + Metadata/plate_<n>.png),
-// summing estimates and grouping filament requirements across every plate/slot (research.md §7).
+// reporting each plate on its own and summing estimates and filament requirements across them (research.md §7).
 public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFileMetadataParser
 {
     public async Task<SlicedFileMetadata> ParseAsync(Stream fileStream, PartFileFormat format, CancellationToken cancellationToken)
@@ -29,16 +29,17 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
         var content = await reader.ReadToEndAsync(cancellationToken);
 
         var plate = ParsePlate(content);
+        var grams = Grams([ReadUsage(() => JobFilamentUsageReader.Read(System.Text.Encoding.UTF8.GetBytes(content), 1))]);
 
         return new SlicedFileMetadata(
             plate.NozzleDiameterMm,
             plate.EstimatedPrintTimeMinutes,
             plate.EstimatedFilamentWeightGrams,
-            PlateCount: 1,
+            [new FilePlate(1, null, plate.FilamentSlots, plate.EstimatedPrintTimeMinutes, plate.EstimatedFilamentWeightGrams, grams)],
             plate.FilamentSlots,
             plate.Thumbnail is null ? [] : [new ThumbnailSpec(0, plate.Thumbnail)],
             plate.MaterialMetadataComplete, DescribeGCode(content),
-            FilamentGrams: ReadFilamentGrams(() => JobFilamentUsageReader.Sum([JobFilamentUsageReader.Read(System.Text.Encoding.UTF8.GetBytes(content), 1)])));
+            FilamentGrams: grams);
     }
 
     private static async Task<SlicedFileMetadata> ParseGCode3mfAsync(Stream fileStream, CancellationToken cancellationToken)
@@ -83,7 +84,14 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
                 project = ProjectSettingsMetadata.Read(await reader.ReadToEndAsync(cancellationToken));
             }
             EstimationDetails? details = project is null ? null : project.Details with { Source = "EmbeddedSlicedMetadata" };
-
+            IReadOnlyList<ProjectUsedFilaments.ProjectPlate> names = [];
+            if (SlicedPlateMetadata.Find(archive, "Metadata/model_settings.config") is { } modelSettings)
+            {
+                using var reader = new StreamReader(modelSettings.Open());
+                names = ProjectUsedFilaments.Plates(await reader.ReadToEndAsync(cancellationToken));
+            }
+            var plates = new List<FilePlate>();
+            var usages = new List<JobFilamentUsageReport?>();
 
             foreach (var plateNumber in plateNumbers)
             {
@@ -102,8 +110,8 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
                     gcodeContent = await entryReader.ReadToEndAsync(cancellationToken);
                 }
 
-                // Ordinal among sliced plates (not plateNumber - 1) so indices stay dense and match PlateCount.
-                var plateIndex = plateNumbers.IndexOf(plateNumber);
+                // Indexed by plate number, like an unsliced project's thumbnails, so a plate keeps its thumbnail across the two.
+                var plateIndex = plateNumber - 1;
                 var thumbnailEntry = archive.GetEntry($"Metadata/plate_{plateNumber}.png");
                 var parsed = ParsePlate(gcodeContent, thumbnailEntry);
                 var gcodeDetails = DescribeGCode(gcodeContent);
@@ -152,6 +160,10 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
                 totalMinutes += parsed.EstimatedPrintTimeMinutes;
                 totalWeightGrams += parsed.EstimatedFilamentWeightGrams;
                 allSlots.AddRange(parsed.FilamentSlots);
+                var usage = ReadUsage(() => JobFilamentUsageReader.Read(archive, plateNumber));
+                usages.Add(usage);
+                plates.Add(new FilePlate(plateNumber, names.FirstOrDefault(n => n.Number == plateNumber)?.Name, parsed.FilamentSlots,
+                    parsed.EstimatedPrintTimeMinutes, parsed.EstimatedFilamentWeightGrams, Grams([usage])));
 
                 if (parsed.Thumbnail is { } bytes)
                 {
@@ -159,17 +171,21 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
                 }
             }
 
-            return new SlicedFileMetadata(nozzleComplete ? nozzleDiameterMm : null, totalMinutes, totalWeightGrams, plateNumbers.Count, allSlots, thumbnails, materialComplete, details, warnings,
-                ReadFilamentGrams(() => JobFilamentUsageReader.Sum(plateNumbers.Select(n => JobFilamentUsageReader.Read(archive, n)))));
+            return new SlicedFileMetadata(nozzleComplete ? nozzleDiameterMm : null, totalMinutes, totalWeightGrams, plates, allSlots, thumbnails, materialComplete, details, warnings,
+                Grams(usages));
         }
     }
 
-    /// <summary>Per-filament grams, purge included. Best effort: an unreadable usage section leaves the part with its total only, never fails the parse.</summary>
-    private static List<FilamentGrams>? ReadFilamentGrams(Func<List<FilamentGrams>> read)
+    /// <summary>One plate's filament usage. Best effort: an unreadable usage section leaves the part with its total only, never fails the parse.</summary>
+    private static JobFilamentUsageReport? ReadUsage(Func<JobFilamentUsageReport> read)
     {
-        try { return read() is { Count: > 0 } grams ? grams : null; }
+        try { return read(); }
         catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException) { return null; }
     }
+
+    /// <summary>Per-filament grams of these plates together, purge included; null when any was unreadable or none says.</summary>
+    private static List<FilamentGrams>? Grams(IReadOnlyList<JobFilamentUsageReport?> usages) =>
+        usages.Any(u => u is null) ? null : JobFilamentUsageReader.Sum(usages!) is { Count: > 0 } grams ? grams : null;
 
     private static ParsedPlate ParsePlate(string gcodeContent, ZipArchiveEntry? thumbnailEntry = null)
     {

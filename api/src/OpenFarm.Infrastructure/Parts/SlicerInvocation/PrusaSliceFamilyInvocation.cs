@@ -15,8 +15,8 @@ namespace OpenFarm.Infrastructure.Parts.SlicerInvocation;
 /// compatibility; only a preset authored/shipped for the exact machine passes, never a fixed generic
 /// one), and the material's default filament profile, each already flattened across its ancestor
 /// chain. The only export flag is <c>--export-3mf</c>, which writes a gcode-bearing 3MF (the real
-/// G-code lives inside it at <c>Metadata/plate_1.gcode</c>; <c>CliSlicerEngine</c> retains the
-/// archive for production while extracting metadata).
+/// G-code lives inside it at <c>Metadata/plate_&lt;n&gt;.gcode</c>; <c>CliSlicerEngine</c> retains the
+/// archive for production while extracting metadata). <c>--slice</c> takes the profiles' plate (1-based), or 0 for every plate.
 /// <c>--allow-newer-file</c> is always passed: the CLI otherwise refuses any 3MF whose generator has a
 /// different major version or a newer minor version than the bundled slicer (exit -24), e.g. a project
 /// saved by Bambu Studio 1.x or a newer Orca. Nozzle diameter and material are deliberately NOT passed
@@ -44,7 +44,7 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
 
         var outputPath = Path.Combine(workDirectoryPath, "output.gcode.3mf");
 
-        var arguments = $"--slice 0 --allow-newer-file --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{string.Join(';', filamentSettingsPaths)}\" " +
+        var arguments = $"--slice {profiles.Plate} --allow-newer-file --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{string.Join(';', filamentSettingsPaths)}\" " +
             $"--export-3mf \"{outputPath}\" \"{modelFilePath}\"";
 
         return new SlicerProcessInvocation(slicer.ExecutablePath, arguments, outputPath, ProducesGCodeBearingThreeMf: true);

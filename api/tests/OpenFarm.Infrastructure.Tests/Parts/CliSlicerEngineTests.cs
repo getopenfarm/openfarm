@@ -38,7 +38,8 @@ public class CliSlicerEngineTests
 
         result.OutputFileBytes.Should().Equal(invocation.ExportedBytes);
         result.OutputFileFormat.Should().Be(project ? PartFileFormat.ThreeMf : PartFileFormat.GCode);
-        result.PlateCount.Should().Be(1);
+        if (project) result.Plates.Should().ContainSingle().Which.Number.Should().Be(1);
+        else result.Plates.Should().BeNull();
     }
 
     private sealed class ExportFixtureInvocation(bool project) : ISlicerInvocation

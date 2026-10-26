@@ -40,7 +40,8 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.Property(p => p.SlicerEngineOverride).HasConversion<string>();
         builder.Property(p => p.SlicerVersionUsed);
 
-        builder.Property(p => p.PlateCount).IsRequired();
+        builder.Property(p => p.PlateNumber);
+        builder.Property(p => p.PlateName);
 
         builder.Property(p => p.UnitsPerPrint).IsRequired();
         builder.Property(p => p.RevisionHash).IsRequired();

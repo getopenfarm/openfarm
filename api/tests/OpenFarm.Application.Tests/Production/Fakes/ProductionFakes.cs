@@ -338,7 +338,7 @@ public static class ProductionTestFixtures
             "Test part", PartFileFormat.ThreeMf, requiresSlicing: false, "widget.3mf", "path",
             fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null,
             EstimateStatus.Available, estimatedPrintTimeMinutes: 30, estimatedFilamentWeightGrams: 10m,
-            plateCount: 1, unitsPerPrint: unitsPerPrint, revisionHash: revisionHash ?? $"{Guid.NewGuid():N}",
+            plateNumber: 1, unitsPerPrint: unitsPerPrint, revisionHash: revisionHash ?? $"{Guid.NewGuid():N}",
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
 
     public static PrintJob CreateQueuedJob(Guid partRequirementId, double queuePosition = 1024) =>

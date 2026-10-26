@@ -35,6 +35,9 @@ public sealed record ResolvedSlicingProfiles(
     /// multi-colour project slices each slot with its own line's preset. Empty slices with <see cref="FilamentSettingsJson"/>.
     /// </summary>
     public IReadOnlyList<SlotFilament> Slots { get; init; } = [];
+
+    /// <summary>The project plate to slice (the part's plate); 0 slices every plate, as a library estimate does.</summary>
+    public int Plate { get; init; }
 }
 
 /// <summary>One job line's filament preset, flattened, and what it was resolved to.</summary>

@@ -52,32 +52,45 @@ public sealed class JobFileResolver(
                 effective.RevisionHash == part.RevisionHash ? part.EstimatedPrintTimeMinutes : null);
             var storedExtension = classification.Format == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
             var bytes = storedBuffer.ToArray();
-            return new JobFileContent(bytes, $"{description}{storedExtension}", PlateToPrint(bytes)) { ConfigurationStamp = stamp };
+            return new JobFileContent(bytes, $"{description}{storedExtension}", PlateToPrint(bytes, part.PlateNumber)) { ConfigurationStamp = stamp };
         }
 
         // A file that needs slicing never reaches the slicer without the presets that were resolved for the pin.
         var profiles = resolution.Profiles
             ?? throw new SlicingProfileUnconfiguredException("The file needs slicing, but the part has no slicing settings. Reprocess the part.");
-        var projectSlots = classification.Format == PartFileFormat.ThreeMf ? await ProjectSlotsAsync(stored, cancellationToken) : [];
+        // A part is one plate of its project: only that plate is sliced (an STL or a legacy part slices them all).
+        var plate = classification.Format == PartFileFormat.ThreeMf ? part.PlateNumber ?? 0 : 0;
+        var (projectSlots, unused) = classification.Format == PartFileFormat.ThreeMf ? await ProjectSlotsAsync(stored, plate, cancellationToken) : ([], []);
         stored.Position = 0;
-        profiles = profiles with { Slots = FilamentSlots(projectSlots, effective.Requirements) };
+        profiles = profiles with { Slots = FilamentSlots(projectSlots, effective.Requirements), Plate = plate };
         var result = await slicerEngine.SliceConfiguredAsync(profiles.Pin, stored, classification.Format, selections[0].MaterialType,
             nozzleDiameterMm, printerId, profiles, cancellationToken);
+        var printed = PlateToPrint(result.OutputFileBytes, part.PlateNumber);
+        // A slot taken as unused was sliced with another line's filament: if the plate does print with it, nothing was chosen for it.
+        if (unused.Count > 0 && JobFilamentUsageReader.Read(result.OutputFileBytes, printed).Usages.FirstOrDefault(u => unused.Contains(u.ToolIndex)) is { } stray)
+            throw new SlicingProfileUnconfiguredException(
+                $"Filament {stray.ToolIndex + 1} of the file prints on this plate but matches no job line. Reprocess the part.");
 
         var extension = result.OutputFileFormat == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
         var slicedDescription = PrintFileName.Describe(part.Name, selections.Select(s => s.MaterialType), result.EstimatedPrintTimeMinutes);
-        return new JobFileContent(result.OutputFileBytes, $"{slicedDescription}{extension}", PlateToPrint(result.OutputFileBytes))
+        return new JobFileContent(result.OutputFileBytes, $"{slicedDescription}{extension}", printed)
         { ConfigurationStamp = stamp, Profiles = profiles };
     }
 
     /// <summary>
-    /// The plate of the file to print: plate 1 when the file has it, else its only sliced plate (an exported single plate keeps
-    /// its number, e.g. <c>Metadata/plate_4.gcode</c>); bare G-code is plate 1. A file holding several other plates is refused
-    /// rather than one of them guessed.
+    /// The plate of the file to print. A part's own plate must be in the file. A legacy part without one prints plate 1 when the
+    /// file has it, else its only sliced plate (an exported single plate keeps its number, e.g. <c>Metadata/plate_4.gcode</c>),
+    /// and a file holding several other plates is refused rather than one of them guessed. Bare G-code is plate 1.
     /// </summary>
-    internal static int PlateToPrint(byte[] file) =>
-        JobFilamentUsageReader.ChoosePlate(file, 1) ?? throw new SlicingProfileUnconfiguredException(
-            $"The file holds plates {string.Join(", ", JobFilamentUsageReader.PlatesWithGCode(file))} and no plate 1. Upload a file with one plate.");
+    internal static int PlateToPrint(byte[] file, int? plate)
+    {
+        var plates = JobFilamentUsageReader.PlatesWithGCode(file);
+        if (plate is { } own)
+            return plates.Count == 0 || plates.Contains(own) ? own
+                : throw new SlicingProfileUnconfiguredException($"The file has no sliced plate {own}. Reprocess the part.");
+        return JobFilamentUsageReader.ChoosePlate(file, 1) ?? throw new SlicingProfileUnconfiguredException(
+            $"The file holds plates {string.Join(", ", plates)} and no plate 1. Reprocess the part to choose one.");
+    }
 
     /// <summary>
     /// Which line's filament each project slot loads. A slot's material and colour name its line — the key the part's
@@ -104,18 +117,26 @@ public sealed class JobFileResolver(
         }).ToList();
     }
 
-    private static async Task<IReadOnlyList<DetectedFilamentSlot?>> ProjectSlotsAsync(Stream stored, CancellationToken cancellationToken)
+    /// <summary>
+    /// Every project slot in order, a blank one as null. When the slots the plate prints with can be told (0: every placed
+    /// object's), one it never prints is null too and listed in <c>Unused</c>, so no job line has to claim it.
+    /// </summary>
+    private static async Task<(IReadOnlyList<DetectedFilamentSlot?> Slots, IReadOnlyList<int> Unused)> ProjectSlotsAsync(
+        Stream stored, int plate, CancellationToken cancellationToken)
     {
         try
         {
             using var archive = new ZipArchive(stored, ZipArchiveMode.Read, leaveOpen: true);
-            if (SlicedPlateMetadata.Find(archive, "Metadata/project_settings.config") is not { } settings) return [];
+            if (SlicedPlateMetadata.Find(archive, "Metadata/project_settings.config") is not { } settings) return ([], []);
             using var reader = new StreamReader(settings.Open());
-            return ProjectSettingsMetadata.ReadAllSlots(await reader.ReadToEndAsync(cancellationToken));
+            var slots = ProjectSettingsMetadata.ReadAllSlots(await reader.ReadToEndAsync(cancellationToken));
+            if (ProjectUsedFilaments.Read(archive, plate == 0 ? null : plate) is not { } used) return (slots, []);
+            var unused = Enumerable.Range(0, slots.Count).Where(i => slots[i] is not null && !used.Contains(i)).ToList();
+            return (slots.Select((slot, i) => unused.Contains(i) ? null : slot).ToList(), unused);
         }
         catch (InvalidDataException)
         {
-            return [];
+            return ([], []);
         }
     }
 }

@@ -39,7 +39,7 @@ public sealed class RecordingEstimator : ISlicerEngine
     {
         Calls.Enqueue(configuration);
         if (Gate is { } gate) await gate.Task.WaitAsync(cancellationToken);
-        return new SlicingResult(1, 42, 12m, [], []);
+        return new SlicingResult(42, 12m, [], []);
     }
     public Task<SlicingResult> SliceConfiguredAsync(SlicerRef slicer, Stream modelFileStream, PartFileFormat modelFileFormat, string materialType,
         decimal nozzleDiameterMm, Guid printerId, ResolvedSlicingProfiles profiles, CancellationToken cancellationToken) =>

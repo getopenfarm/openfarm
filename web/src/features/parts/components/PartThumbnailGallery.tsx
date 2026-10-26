@@ -2,12 +2,14 @@ import { ImageOffIcon } from 'lucide-react';
 import type { ThumbnailResponse } from '@/lib/api/generated/endpoints.schemas';
 import { cn } from '@/lib/utils';
 
+/** "Plate 4 · Clip": a plate by its number and, when the slicer named it, its name. */
+export function plateLabel(plate: { number?: number; name?: string | null }) {
+  return `Plate ${plate.number ?? 1}${plate.name ? ` · ${plate.name}` : ''}`;
+}
+
 interface PartThumbnailGalleryProps {
+  /** One per plate, indexed by plate number - 1. */
   thumbnails: ThumbnailResponse[] | undefined;
-  /** Total number of plates the file has, independent of how many produced a thumbnail
-   * (research.md §8) — lets a plate with no derivable preview render as an explicit
-   * "no thumbnail" placeholder rather than looking like a missing plate. */
-  plateCount: number | undefined;
   className?: string;
   /** Per-tile size in Tailwind arbitrary-value form, e.g. "5rem". Defaults to a compact strip size. */
   tileSize?: string;
@@ -16,13 +18,14 @@ interface PartThumbnailGalleryProps {
 /** Renders {thumbnailBase64} as a data: URI directly — no fetch of its own (research.md §8). */
 export function PartThumbnailGallery({
   thumbnails,
-  plateCount,
   className,
   tileSize = '5rem',
 }: PartThumbnailGalleryProps) {
-  const total = plateCount ?? thumbnails?.length ?? 0;
+  const sorted = [...(thumbnails ?? [])].sort(
+    (a, b) => (a.plateIndex ?? 0) - (b.plateIndex ?? 0),
+  );
 
-  if (total === 0) {
+  if (sorted.length === 0) {
     return (
       <div
         className={cn(
@@ -36,17 +39,12 @@ export function PartThumbnailGallery({
     );
   }
 
-  const byPlateIndex = new Map(
-    (thumbnails ?? []).map((thumbnail) => [thumbnail.plateIndex, thumbnail]),
-  );
-
   return (
     <div className={cn('flex flex-wrap gap-2', className)}>
-      {Array.from({ length: total }, (_, plateIndex) => {
-        const thumbnail = byPlateIndex.get(plateIndex);
+      {sorted.map((thumbnail) => {
+        const plateIndex = thumbnail.plateIndex ?? 0;
         return (
           <div
-            // biome-ignore lint/suspicious/noArrayIndexKey: plateIndex is the stable identity here
             key={plateIndex}
             className="relative overflow-hidden rounded-lg border bg-muted/40"
             style={{ width: tileSize, height: tileSize }}
@@ -63,7 +61,7 @@ export function PartThumbnailGallery({
                 <ImageOffIcon className="size-4" />
               </div>
             )}
-            {total > 1 ? (
+            {sorted.length > 1 ? (
               <span className="absolute bottom-0.5 right-1 text-[10px] font-medium text-muted-foreground">
                 {plateIndex + 1}
               </span>

@@ -37,6 +37,8 @@ interface AddOrReplacePartDialogProps {
   mode?: 'replace' | 'reprocess';
   /** The slicer the part is pinned to: replacing or reprocessing keeps it unless another is chosen. */
   currentSlicer?: { engine?: string; version?: string } | null;
+  /** The plate the part prints: kept when the file still has it. */
+  currentPlateNumber?: number | null;
 }
 
 /**
@@ -54,6 +56,7 @@ export function AddOrReplacePartDialog({
   partName,
   mode = 'replace',
   currentSlicer,
+  currentPlateNumber,
 }: AddOrReplacePartDialogProps) {
   const {
     file,
@@ -63,6 +66,9 @@ export function AddOrReplacePartDialog({
     status,
     job,
     overrides,
+    plateNumbers,
+    setPlateNumbers,
+    needsPlate,
     isDragging,
     slicerSelection,
     setSlicerSelection,
@@ -81,6 +87,7 @@ export function AddOrReplacePartDialog({
   } = usePartFileProcessing({
     mode,
     partId,
+    currentPlateNumber,
     onConfirmed: () => onOpenChange(false),
   });
 
@@ -89,7 +96,27 @@ export function AddOrReplacePartDialog({
     onOpenChange(false);
   }
 
-  const canConfirm = status === 'ReadyForReview';
+  const canConfirm = status === 'ReadyForReview' && !needsPlate;
+  const review = (
+    <>
+      <PartProcessingReviewSection
+        status={status}
+        preview={job?.preview}
+        errorMessage={job?.errorMessage}
+        overrides={overrides}
+        onNarrow={handleNarrow}
+        plateNumbers={plateNumbers}
+        onPlateNumbersChange={setPlateNumbers}
+      />
+      {currentPlateNumber != null &&
+        plateNumbers.length === 1 &&
+        plateNumbers[0] !== currentPlateNumber && (
+          <p role="status" className="text-sm text-kind-amber">
+            Plate changes: {currentPlateNumber} → {plateNumbers[0]}
+          </p>
+        )}
+    </>
+  );
 
   // Replacing or reprocessing keeps the part's slicer unless the operator picks another: say which one will be used.
   const [chosenEngine, chosenVersion] =
@@ -183,13 +210,7 @@ export function AddOrReplacePartDialog({
         <div className="flex flex-col gap-4">
           {mode === 'reprocess' ? (
             jobId ? (
-              <PartProcessingReviewSection
-                status={status}
-                preview={job?.preview}
-                errorMessage={job?.errorMessage}
-                overrides={overrides}
-                onNarrow={handleNarrow}
-              />
+              review
             ) : (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-muted-foreground">
@@ -248,13 +269,7 @@ export function AddOrReplacePartDialog({
                 — {formatFileSize(file.size)}
               </p>
 
-              <PartProcessingReviewSection
-                status={status}
-                preview={job?.preview}
-                errorMessage={job?.errorMessage}
-                overrides={overrides}
-                onNarrow={handleNarrow}
-              />
+              {review}
             </>
           )}
         </div>

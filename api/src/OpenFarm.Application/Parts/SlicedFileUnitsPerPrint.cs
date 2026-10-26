@@ -5,16 +5,19 @@ using System.Xml.Linq;
 
 namespace OpenFarm.Application.Parts;
 
-/// <summary>Best-effort suggestion; ambiguous or unequal plate counts retain the default of one.</summary>
+/// <summary>
+/// Best-effort suggestion; ambiguous or unequal plate counts retain the default of one. With <c>plate</c>, only that plate's
+/// objects count (<c>plater_id</c> in model_settings, <c>index</c> in slice_info).
+/// </summary>
 public static partial class SlicedFileUnitsPerPrint
 {
-    public static async Task<int> SuggestAsync(IPartFileStorage storage, string path, CancellationToken ct)
+    public static async Task<int> SuggestAsync(IPartFileStorage storage, string path, int? plate, CancellationToken ct)
     {
         await using var stream = await storage.OpenReadAsync(path, ct);
-        return Suggest(stream, path);
+        return Suggest(stream, path, plate);
     }
 
-    public static int Suggest(Stream stream, string fileName)
+    public static int Suggest(Stream stream, string fileName, int? plate = null)
     {
         try
         {
@@ -26,6 +29,8 @@ public static partial class SlicedFileUnitsPerPrint
                 using var content = entry.Open();
                 using var reader = XmlReader.Create(content, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
                 var counts = XDocument.Load(reader).Descendants("plate")
+                    .Where(p => plate is null || p.Elements("metadata").Any(m => (string?)m.Attribute("key") is "plater_id" or "index"
+                        && (string?)m.Attribute("value") == plate.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                     .Select(p => p.Elements("model_instance").Count() is var n && n > 0 ? n : p.Elements("object").Count())
                     .Where(n => n > 0).Distinct().ToList();
                 return counts.Count == 1 ? counts[0] : 1;

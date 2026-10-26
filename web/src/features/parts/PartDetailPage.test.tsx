@@ -42,7 +42,7 @@ function partBody(id: string, name: string) {
     requiresSlicing: true,
     tags: [],
     thumbnails: [],
-    plateCount: 1,
+    plateNumber: 1,
     estimateStatus: 'Unavailable',
     estimatedPrintTimeMinutes: null,
     estimatedFilamentWeightGrams: null,
@@ -321,7 +321,7 @@ describe('PartDetailPage', () => {
     const part = {
       ...partBody(partId, 'Two plates'),
       printRequirementsStatus: 'Incomplete',
-      plateCount: 2,
+      plateNumber: null,
       thumbnails: [
         { plateIndex: 0, thumbnailBase64: 'AAAA' },
         { plateIndex: 1, thumbnailBase64: 'BBBB' },

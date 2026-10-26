@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Text.RegularExpressions;
-using System.Xml;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 
@@ -9,7 +8,7 @@ namespace OpenFarm.Infrastructure.Parts;
 // Fixture-replay, test-after (research.md §12/§13) — reads an unsliced 3MF's own
 // Metadata/project_settings.config (the OrcaSlicer/Bambu Studio project-settings JSON entry every
 // saved project contains, distinct from the sliced-only Metadata/slice_info.config) for its
-// filament-preset assignment, plus Metadata/model_settings.config's <plate> elements for plate count.
+// filament-preset assignment, plus Metadata/model_settings.config's <plate> elements for its plates.
 public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMaterialResolver
 {
     public async Task<UnslicedProjectMaterial> ResolveAsync(Stream fileStream, CancellationToken cancellationToken)
@@ -34,18 +33,12 @@ public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMa
                 metadata = ProjectSettingsMetadata.Read(await reader.ReadToEndAsync(cancellationToken));
             }
 
-            var plateCount = 1;
             string? modelSettingsXml = null;
             var modelSettingsEntry = SlicedPlateMetadata.Find(archive, "Metadata/model_settings.config");
             if (modelSettingsEntry is not null)
             {
                 using var reader = new StreamReader(modelSettingsEntry.Open());
-                var xml = modelSettingsXml = await reader.ReadToEndAsync(cancellationToken);
-                var matches = PlateElementRegex().Count(xml);
-                if (matches > 0)
-                {
-                    plateCount = matches;
-                }
+                modelSettingsXml = await reader.ReadToEndAsync(cancellationToken);
             }
 
             var thumbnails = new List<ThumbnailSpec>();
@@ -65,64 +58,33 @@ public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMa
             // line up with the project's arrays only when none is blank (MaterialComplete), so otherwise keep them all.
             var slots = metadata?.Slots;
             var details = metadata?.Details;
-            if (metadata is { MaterialComplete: true } && modelSettingsXml is not null
-                && ProjectUsedFilaments.Read(modelSettingsXml, PaintedSlots(archive)) is { } used
-                && used.All(i => i < metadata.Slots.Count))
+            var painted = ProjectUsedFilaments.PaintedSlots(archive);
+            // The slots some objects print with, in slot order; null keeps them all (see ProjectUsedFilaments.Read).
+            IReadOnlyList<int>? UsedSlots(IReadOnlySet<string>? objectIds) =>
+                metadata is { MaterialComplete: true } && modelSettingsXml is not null
+                && ProjectUsedFilaments.Read(modelSettingsXml, painted, objectIds) is { } used && used.All(i => i < metadata.Slots.Count)
+                    ? used.Order().ToList() : null;
+            if (UsedSlots(null) is { } order)
             {
-                var order = used.Order().ToList();
-                slots = order.Select(i => metadata.Slots[i]).ToList();
-                if (details?.FilamentProfileNames is { } names && names.Count == metadata.Slots.Count)
+                slots = order.Select(i => metadata!.Slots[i]).ToList();
+                if (details?.FilamentProfileNames is { } names && names.Count == metadata!.Slots.Count)
                     details = details with { FilamentProfileNames = order.Select(i => names[i]).ToList() };
             }
 
-            return new UnslicedProjectMaterial(slots is { Count: > 0 } ? slots[0].MaterialType : null, plateCount, thumbnails,
+            // Plates with objects on them, each with the slots its own objects print with; a project without any is one plate.
+            var projectPlates = modelSettingsXml is null ? [] : ProjectUsedFilaments.Plates(modelSettingsXml).Where(p => p.ObjectIds.Count > 0).ToList();
+            IReadOnlyList<FilePlate> plates = projectPlates.Count == 0
+                ? [new FilePlate(1, null, slots ?? [])]
+                : projectPlates.Select(p => new FilePlate(p.Number, p.Name,
+                    UsedSlots(p.ObjectIds) is { } own ? own.Select(i => metadata!.Slots[i]).ToList() : slots ?? [])).ToList();
+
+            return new UnslicedProjectMaterial(slots is { Count: > 0 } ? slots[0].MaterialType : null, plates, thumbnails,
                 settingsEntry is not null || unsupported, metadata?.Nozzle, details,
                 metadata?.UnavailableReason ?? (unsupported ? "Estimation unavailable: this embedded project format is not supported." : null),
                 slots, metadata?.MaterialComplete ?? true);
         }
     }
 
-    /// <summary>
-    /// The slots object volumes paint per triangle (<c>paint_color</c>, <c>mmu_segmentation</c>), empty when nothing is painted;
-    /// <c>null</c> when a painted value cannot be decoded, so the caller keeps every slot.
-    /// </summary>
-    private static HashSet<int>? PaintedSlots(ZipArchive archive)
-    {
-        var slots = new HashSet<int>();
-        var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit };
-        foreach (var entry in archive.Entries.Where(e => PaintableModelRegex().IsMatch(e.FullName.Replace('\\', '/'))))
-        {
-            try
-            {
-                using var xml = XmlReader.Create(entry.Open(), settings);
-                while (xml.Read())
-                {
-                    if (xml.NodeType != XmlNodeType.Element || !xml.HasAttributes) continue;
-                    foreach (var attribute in PaintAttributes)
-                        if (xml.GetAttribute(attribute) is { } value)
-                        {
-                            if (ProjectUsedFilaments.PaintedSlots(value) is not { } painted) return null;
-                            slots.UnionWith(painted);
-                        }
-                }
-            }
-            catch (XmlException)
-            {
-                return null;
-            }
-        }
-
-        return slots;
-    }
-
-    private static readonly string[] PaintAttributes = ["paint_color", "mmu_segmentation"];
-
-    [GeneratedRegex(@"^3D/(?:Objects/.+|3dmodel)\.model$", RegexOptions.IgnoreCase)]
-    private static partial Regex PaintableModelRegex();
-
     [GeneratedRegex(@"^Metadata/plate_(\d+)\.png$", RegexOptions.IgnoreCase)]
     private static partial Regex PlateThumbnailRegex();
-
-    [GeneratedRegex(@"<plate\b", RegexOptions.IgnoreCase)]
-    private static partial Regex PlateElementRegex();
 }

@@ -68,6 +68,8 @@ export interface UsePartFileProcessingOptions {
    * invalidation has already run — the caller decides what "done" means (close a dialog,
    * navigate away, etc.). */
   onConfirmed?: () => void;
+  /** The plate the part prints now: replacing or reprocessing keeps it when the file still has it. */
+  currentPlateNumber?: number | null;
 }
 
 export interface ConfirmValues {
@@ -86,10 +88,12 @@ export function usePartFileProcessing({
   mode,
   partId,
   onConfirmed,
+  currentPlateNumber,
 }: UsePartFileProcessingOptions) {
   const [file, setFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<number, string | null>>({});
+  const [chosenPlates, setPlateNumbers] = useState<number[] | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [slicerSelection, setSlicerSelection] = useState(USE_DEFAULT_SLICER);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +111,17 @@ export function usePartFileProcessing({
     );
   const job = jobQuery.data?.data as PartProcessingJobResponse | undefined;
   const status = job?.status;
+
+  // A part prints one plate: the one chosen, else the file's only plate, else the part's own plate when the file has it.
+  const plates = job?.preview?.plates ?? [];
+  const plateNumbers =
+    chosenPlates ??
+    (plates.length === 1
+      ? [plates[0].number ?? 1]
+      : plates.some((plate) => plate.number === currentPlateNumber)
+        ? [currentPlateNumber as number]
+        : []);
+  const needsPlate = plates.length > 1 && plateNumbers.length === 0;
 
   const createMutation = useOpenFarmApiEndpointsPartsCreatePartEndpoint({
     mutation: {
@@ -197,6 +212,7 @@ export function usePartFileProcessing({
     setFile(null);
     setJobId(null);
     setOverrides({});
+    setPlateNumbers(null);
     setSlicerSelection(USE_DEFAULT_SLICER);
   }
 
@@ -204,6 +220,7 @@ export function usePartFileProcessing({
     setFile(selectedFile);
     setJobId(null);
     setOverrides({});
+    setPlateNumbers(null);
 
     const [slicerEngine, slicerVersion] =
       slicerSelection === USE_DEFAULT_SLICER
@@ -278,6 +295,8 @@ export function usePartFileProcessing({
       return;
     }
     const filamentRequirementOverrides = buildOverridesPayload();
+    const chosen =
+      plates.length > 0 && plateNumbers.length > 0 ? plateNumbers : undefined;
     if (mode === 'add' && values) {
       const tags = values.tags
         .split(',')
@@ -289,12 +308,13 @@ export function usePartFileProcessing({
           name: values.name,
           tags: tags.length > 0 ? tags : undefined,
           filamentRequirementOverrides,
+          plateNumbers: chosen,
         },
       });
     } else {
       confirmMutation.mutate({
         id: jobId,
-        data: { filamentRequirementOverrides },
+        data: { filamentRequirementOverrides, plateNumbers: chosen },
       });
     }
   }
@@ -331,6 +351,9 @@ export function usePartFileProcessing({
     job,
     status,
     overrides,
+    plateNumbers,
+    setPlateNumbers,
+    needsPlate,
     isDragging,
     slicerSelection,
     setSlicerSelection,

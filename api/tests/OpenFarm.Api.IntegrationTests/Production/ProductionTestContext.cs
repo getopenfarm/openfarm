@@ -78,7 +78,7 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         var format = fileName.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase) ? PartFileFormat.ThreeMf : PartFileFormat.GCode;
         var part = Part.Create($"Part {Guid.NewGuid():N}", format,
             false, fileName, path, bytes.Length, 0.4m, null, null, EstimateStatus.Available,
-            60, grams, 1, units, hash, [requirement ?? new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
+            60, grams, plateNumber: null, units, hash, [requirement ?? new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
         await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
         return part;
     }

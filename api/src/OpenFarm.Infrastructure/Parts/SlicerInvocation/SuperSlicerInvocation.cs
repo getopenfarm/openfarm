@@ -25,6 +25,9 @@ public sealed class SuperSlicerInvocation : ISlicerInvocation
         // directly — it has no use for the complete flattened presets OrcaSlicer/Bambu Studio need.
         if (resolvedProfiles?.Slots.Count > 1)
             throw new SlicingFailedException("SuperSlicer slices one filament. Pin the part to OrcaSlicer or Bambu Studio for more.");
+        // ponytail: SuperSlicer has no plates and slices the whole file, which is plate 1's part only for a one-plate file.
+        if (resolvedProfiles?.Plate > 1)
+            throw new SlicingFailedException("SuperSlicer slices the whole file. Pin the part to OrcaSlicer or Bambu Studio to print one plate.");
         var outputPath = Path.Combine(workDirectoryPath, "output.gcode");
 
         var arguments = $"--slice --filament-type \"{EscapeMaterial(materialType)}\" " +

@@ -64,7 +64,10 @@ import {
   type PartRemovalNoticeData,
   PartRemovalToast,
 } from './components/PartRemovalToast';
-import { PartThumbnailGallery } from './components/PartThumbnailGallery';
+import {
+  PartThumbnailGallery,
+  plateLabel,
+} from './components/PartThumbnailGallery';
 import { QueuePartDialog } from './components/QueuePartDialog';
 import { RemovePartButton } from './components/RemovePartButton';
 import { formatPartFileType } from './formatPartFileType';
@@ -81,7 +84,12 @@ function PartFileFacts({ part }: { part: PartResponse }) {
       part.fileSizeBytes != null ? formatFileSize(part.fileSizeBytes) : '—',
     ],
     ['Format', formatPartFileType(part)],
-    ['Plates', String(part.plateCount ?? '—')],
+    [
+      'Plate',
+      part.plateNumber != null
+        ? plateLabel({ number: part.plateNumber, name: part.plateName })
+        : '—',
+    ],
     [
       'Nozzle',
       part.nozzleDiameterMm != null
@@ -461,7 +469,6 @@ export function PartDetailPage() {
                   <CardContent className="grid grid-cols-1 gap-4 px-[18px] py-4 sm:grid-cols-[auto_1fr]">
                     <PartThumbnailGallery
                       thumbnails={part.thumbnails}
-                      plateCount={part.plateCount}
                       tileSize="10rem"
                       className="sm:max-w-[20.5rem]"
                     />
@@ -610,6 +617,7 @@ export function PartDetailPage() {
             partId={part.id}
             partName={part.name}
             currentSlicer={part.slicer}
+            currentPlateNumber={part.plateNumber}
             open={replaceOpen}
             onOpenChange={setReplaceOpen}
           />
@@ -618,6 +626,7 @@ export function PartDetailPage() {
             partId={part.id}
             partName={part.name}
             currentSlicer={part.slicer}
+            currentPlateNumber={part.plateNumber}
             mode="reprocess"
             open={reprocessOpen}
             onOpenChange={setReprocessOpen}

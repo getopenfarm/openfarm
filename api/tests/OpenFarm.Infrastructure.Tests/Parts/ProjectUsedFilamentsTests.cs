@@ -80,4 +80,24 @@ public class ProjectUsedFilamentsTests
     [InlineData("<config><plate/></config>")]
     public void UnreadableOrWithoutObjects_CannotBeTold(string xml) =>
         ProjectUsedFilaments.Read(xml, NoPaint).Should().BeNull();
+
+    [Fact]
+    public void Plates_AreReadInOrderWithTheirNumbersNamesAndObjects()
+    {
+        const string xml = """
+            <config>
+              <plate><metadata key="plater_id" value="1"/><metadata key="plater_name" value="Cover"/>
+                <model_instance><metadata key="object_id" value="2"/></model_instance></plate>
+              <plate><metadata key="plater_id" value="3"/><metadata key="plater_name" value=""/></plate>
+            </config>
+            """;
+
+        ProjectUsedFilaments.Plates(xml).Select(p => (p.Number, p.Name, string.Join(",", p.ObjectIds)))
+            .Should().Equal((1, "Cover", "2"), (3, null, ""));
+    }
+
+    [Fact]
+    public void OnePlatesObjects_UseOnlyTheirOwnSlots() =>
+        ProjectUsedFilaments.Read(Settings(Obj("2", "1") + Obj("3", "2"), OnPlate("2") + OnPlate("3")), NoPaint, new HashSet<string> { "3" })!
+            .Order().Should().Equal(1);
 }

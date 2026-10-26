@@ -32,7 +32,8 @@ public sealed class GetPartProcessingJobQueryHandler(IPartProcessingJobRepositor
                 job.PreviewEstimateStatus!.Value.ToString(),
                 job.PreviewEstimatedPrintTimeMinutes,
                 job.PreviewEstimatedFilamentWeightGrams,
-                job.PreviewPlateCount,
+                job.PreviewPlates.Select(p => new PlateView(p.Number, p.Name, p.EstimatedPrintTimeMinutes, p.EstimatedFilamentWeightGrams,
+                    job.PlateRequirements(p))).ToList(),
                 job.PreviewThumbnails.Select(t => new ThumbnailView(t.PlateIndex, Convert.ToBase64String(t.Bytes))).ToList(),
                 job.PrintRequirementsStatus.ToString(), warnings, job.EstimateUnavailableReason, job.Estimation)
             : null;

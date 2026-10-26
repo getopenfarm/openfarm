@@ -26,10 +26,10 @@ public sealed record PartDetail(
     decimal? EstimatedFilamentWeightGrams,
     SlicerSelectionView? Slicer,
     IReadOnlyList<PartFilamentRequirementDetail> FilamentRequirements,
-    int PlateCount,
+    int? PlateNumber,
     IReadOnlyList<ThumbnailView> Thumbnails,
     IReadOnlyList<string> Tags,
     int UnitsPerPrint = 1,
     string PrintRequirementsStatus = "Complete",
     IReadOnlyList<string>? ProcessingWarnings = null,
-    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null);
+    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null, string? PlateName = null);

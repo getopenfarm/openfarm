@@ -47,9 +47,9 @@ public sealed class GetPartQueryHandler(
             part.EstimatedFilamentWeightGrams,
             slicer,
             requirements,
-            part.PlateCount,
+            part.PlateNumber,
             part.Thumbnails.OrderBy(t => t.PlateIndex).Select(t => new ThumbnailView(t.PlateIndex, Convert.ToBase64String(t.Bytes))).ToList(),
             part.Tags.Select(t => t.Name).ToList(), part.UnitsPerPrint,
-            part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation);
+            part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation, part.PlateName);
     }
 }

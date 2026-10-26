@@ -11,6 +11,13 @@ namespace OpenFarm.Infrastructure.Tests.Parts;
 public class EmbeddedMetadataTests
 {
     private const string Project = """{"printer_model":"Bambu Lab P1S","printer_settings_id":"Bambu Lab P1S 0.6 nozzle - Scrubbler","nozzle_diameter":["0.6"],"filament_type":["PETG","PLA"],"filament_colour":["#000000","#FFFFFF"],"filament_settings_id":["Custom PETG","Unused PLA"],"print_settings_id":"0.30mm Standard","curr_bed_type":"Textured PEI Plate","sparse_infill_density":"25%"}""";
+    // Two plates with an object each (objects 1 and 2 are not defined, so neither narrows the slots); plate 2 is named.
+    private const string TwoPlates = """
+        <config>
+          <plate><metadata key="plater_id" value="1"/><model_instance><metadata key="object_id" value="1"/></model_instance></plate>
+          <plate><metadata key="plater_id" value="2"/><metadata key="plater_name" value="Lid"/><model_instance><metadata key="object_id" value="2"/></model_instance></plate>
+        </config>
+        """;
     private const string SliceInfo = """<config><plate><metadata key="index" value="1"/><metadata key="printer_model_id" value="C12"/><metadata key="nozzle_diameters" value="0.6"/><metadata key="prediction" value="10790"/><metadata key="weight" value="176.84"/><filament id="1" type="PETG" color="#000000" used_g="176.84" used_for_object="true"/><filament id="2" type="PLA" used_g="0" used_for_object="false" used_for_support="false"/><nozzle nozzle_diameter="0.6"/></plate></config>""";
 
     [Fact]
@@ -56,13 +63,33 @@ public class EmbeddedMetadataTests
     }
 
     [Fact]
+    public async Task UnslicedProject_EachPlatePrintsWithItsOwnSlots_AndEmptyPlatesAreNotOffered()
+    {
+        const string settings = """
+            <config>
+              <object id="2"><metadata key="extruder" value="1"/></object>
+              <object id="3"><metadata key="extruder" value="2"/></object>
+              <plate><metadata key="plater_id" value="1"/><model_instance><metadata key="object_id" value="2"/></model_instance></plate>
+              <plate><metadata key="plater_id" value="2"/></plate>
+              <plate><metadata key="plater_id" value="3"/><metadata key="plater_name" value="Lid"/><model_instance><metadata key="object_id" value="3"/></model_instance></plate>
+            </config>
+            """;
+        using var zip = Zip(("Metadata/project_settings.config", Project), ("Metadata/model_settings.config", settings));
+
+        var result = await new UnslicedProjectMaterialResolver().ResolveAsync(zip, CancellationToken.None);
+
+        result.Plates.Select(p => (p.Number, p.Name, string.Join(",", p.FilamentSlots.Select(s => s.MaterialType))))
+            .Should().Equal((1, null, "PETG"), (3, "Lid", "PLA"));
+    }
+
+    [Fact]
     public async Task UnslicedProject_ExtractsMachineNozzleCustomProfilesAndMultipleMaterials()
     {
-        using var zip = Zip(("Metadata/project_settings.config", Project), ("Metadata/model_settings.config", "<config><plate/><plate/></config>"));
+        using var zip = Zip(("Metadata/project_settings.config", Project), ("Metadata/model_settings.config", TwoPlates));
         var result = await new UnslicedProjectMaterialResolver().ResolveAsync(zip, CancellationToken.None);
         result.HasEmbeddedSettings.Should().BeTrue();
         result.NozzleDiameterMm.Should().Be(0.6m);
-        result.PlateCount.Should().Be(2);
+        result.Plates.Select(p => (p.Number, p.Name)).Should().Equal((1, null), (2, "Lid"));
         result.FilamentSlots.Should().HaveCount(2);
         result.Estimation!.MachineProfileName.Should().Contain("Scrubbler");
         result.EstimationUnavailableReason.Should().BeNull();

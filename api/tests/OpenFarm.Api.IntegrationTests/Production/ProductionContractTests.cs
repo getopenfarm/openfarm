@@ -77,7 +77,7 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         var jobs = scope.ServiceProvider.GetRequiredService<IPartProcessingJobRepository>();
         foreach (var processing in new[] { add, replace })
         {
-            processing.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], 1, EstimateStatus.Available, 60, 20, []);
+            processing.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], [], EstimateStatus.Available, 60, 20, []);
             await jobs.AddAsync(processing, default);
         }
         var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<ConfirmPartProcessingJobCommand, Part>>();

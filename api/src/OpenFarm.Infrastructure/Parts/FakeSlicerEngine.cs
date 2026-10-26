@@ -27,7 +27,6 @@ public sealed class FakeSlicerEngine : ISlicerEngine
         Task.FromResult(Canned());
 
     private static SlicingResult Canned() => new(
-        PlateCount: 1,
         EstimatedPrintTimeMinutes: 47,
         EstimatedFilamentWeightGrams: 18.4m,
         Thumbnails: [new ThumbnailSpec(0, OnePixelPng)],

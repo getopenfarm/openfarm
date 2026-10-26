@@ -102,4 +102,19 @@ public class FilamentRequirementGrouperTests
         result.Should().ContainSingle();
         result[0].DetectedSubBrand.Should().Be("Bambu PETG-CF");
     }
+
+    [Fact]
+    public void Plates_IndexTheRequirementsTheirOwnSlotsName()
+    {
+        var black = new DetectedFilamentSlot("PETG", "#000000", null);
+        var white = new DetectedFilamentSlot("PLA", "#FFFFFF", null);
+        var requirements = FilamentRequirementGrouper.Group([black, white]);
+
+        var plates = FilamentRequirementGrouper.Plates(requirements,
+            [new FilePlate(1, "Cover", [black], 10, 5m), new FilePlate(2, null, [white, black]), new FilePlate(3, null, [])]);
+
+        plates.Select(p => (p.Number, p.Name, string.Join(",", p.RequirementIndices))).Should().Equal(
+            (1, "Cover", "0"), (2, null, "0,1"), (3, null, "0,1"));
+        plates[0].EstimatedPrintTimeMinutes.Should().Be(10);
+    }
 }

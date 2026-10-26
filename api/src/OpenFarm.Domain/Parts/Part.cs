@@ -24,7 +24,7 @@ public sealed class Part
         EstimateStatus estimateStatus,
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
-        int plateCount,
+        int? plateNumber,
         int unitsPerPrint,
         string revisionHash,
         int revisionNumber,
@@ -44,7 +44,7 @@ public sealed class Part
         EstimateStatus = estimateStatus;
         EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
-        PlateCount = plateCount;
+        PlateNumber = plateNumber;
         UnitsPerPrint = unitsPerPrint;
         RevisionHash = revisionHash;
         RevisionNumber = revisionNumber;
@@ -58,7 +58,7 @@ public sealed class Part
         var part = new Part(snapshot.PartId, snapshot.Name, snapshot.FileFormat,
             snapshot.RequiresSlicing, snapshot.OriginalFileName, snapshot.StoragePath, snapshot.FileSizeBytes,
             snapshot.NozzleDiameterMm, snapshot.SlicerEngine, snapshot.SlicerVersion, snapshot.EstimateStatus,
-            snapshot.EstimatedPrintTimeMinutes, snapshot.EstimatedFilamentWeightGrams, snapshot.PlateCount,
+            snapshot.EstimatedPrintTimeMinutes, snapshot.EstimatedFilamentWeightGrams, snapshot.PlateNumber,
             snapshot.UnitsPerPrint, snapshot.RevisionHash, snapshot.RevisionNumber, DateTimeOffset.UtcNow)
         { MaterialMetadataComplete = snapshot.MaterialMetadataComplete };
         foreach (var requirement in snapshot.FilamentRequirements)
@@ -125,14 +125,14 @@ public sealed class Part
 
     public void Reprocess(
         decimal? nozzleDiameterMm, SlicerEngine? engine, string? version, EstimateStatus estimateStatus,
-        int? minutes, decimal? grams, int plateCount,
-        IReadOnlyList<FilamentRequirementSpec> requirements, IReadOnlyList<ThumbnailSpec> thumbnails)
+        int? minutes, decimal? grams, int? plateNumber,
+        IReadOnlyList<FilamentRequirementSpec> requirements, IReadOnlyList<ThumbnailSpec> thumbnails, string? plateName = null)
     {
         var uploadedAt = FileUploadedAtUtc;
         var revisionNumber = RevisionNumber;
         ReplaceFile(FileFormat, RequiresSlicing, OriginalFileName, StoragePath, FileSizeBytes,
-            nozzleDiameterMm, engine, version, estimateStatus, minutes, grams, plateCount,
-            RevisionHash, requirements, thumbnails);
+            nozzleDiameterMm, engine, version, estimateStatus, minutes, grams, plateNumber,
+            RevisionHash, requirements, thumbnails, plateName);
         FileUploadedAtUtc = uploadedAt;
         RevisionNumber = revisionNumber;
     }
@@ -148,7 +148,14 @@ public sealed class Part
     /// <summary>The exact upstream version actually produced with (FR-005) — <c>null</c> for a non-slicing file or a legacy pre-feature row.</summary>
     public string? SlicerVersionUsed { get; private set; }
 
-    public int PlateCount { get; private set; }
+    /// <summary>
+    /// The plate of the file this part prints (a part is one plate: <c>Metadata/plate_&lt;n&gt;.gcode</c>, <c>--slice n</c>);
+    /// <c>null</c> for a part confirmed before plates were chosen, which prints plate 1, else the file's only sliced plate.
+    /// </summary>
+    public int? PlateNumber { get; private set; }
+
+    /// <summary>The slicer's name for <see cref="PlateNumber"/> (<c>plater_name</c>), when it has one.</summary>
+    public string? PlateName { get; private set; }
 
     /// <summary>FR-005a — default 1, auto-suggested from a sliced file's per-plate object count where parseable, always operator-overridable.</summary>
     public int UnitsPerPrint { get; private set; }
@@ -182,14 +189,15 @@ public sealed class Part
         EstimateStatus estimateStatus,
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
-        int plateCount,
+        int? plateNumber,
         int unitsPerPrint,
         string revisionHash,
         IReadOnlyList<FilamentRequirementSpec> filamentRequirements,
         IReadOnlyList<ThumbnailSpec> thumbnails,
-        IReadOnlyList<Tag> tags)
+        IReadOnlyList<Tag> tags,
+        string? plateName = null)
     {
-        ValidateSharedFields(name, originalFileName, storagePath, fileSizeBytes, nozzleDiameterMm, plateCount, unitsPerPrint, filamentRequirements);
+        ValidateSharedFields(name, originalFileName, storagePath, fileSizeBytes, nozzleDiameterMm, plateNumber, unitsPerPrint, filamentRequirements);
 
         var part = new Part(
             Guid.NewGuid(),
@@ -205,11 +213,12 @@ public sealed class Part
             estimateStatus,
             estimatedPrintTimeMinutes,
             estimatedFilamentWeightGrams,
-            plateCount,
+            plateNumber,
             unitsPerPrint,
             revisionHash,
             1,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow)
+        { PlateName = plateName };
 
         foreach (var spec in filamentRequirements)
         {
@@ -274,12 +283,13 @@ public sealed class Part
         EstimateStatus estimateStatus,
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
-        int plateCount,
+        int? plateNumber,
         string revisionHash,
         IReadOnlyList<FilamentRequirementSpec> filamentRequirements,
-        IReadOnlyList<ThumbnailSpec> thumbnails)
+        IReadOnlyList<ThumbnailSpec> thumbnails,
+        string? plateName = null)
     {
-        ValidateSharedFields(Name, originalFileName, storagePath, fileSizeBytes, nozzleDiameterMm, plateCount, UnitsPerPrint, filamentRequirements);
+        ValidateSharedFields(Name, originalFileName, storagePath, fileSizeBytes, nozzleDiameterMm, plateNumber, UnitsPerPrint, filamentRequirements);
 
         FileFormat = fileFormat;
         RequiresSlicing = requiresSlicing;
@@ -293,7 +303,8 @@ public sealed class Part
         EstimateStatus = estimateStatus;
         EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
-        PlateCount = plateCount;
+        PlateNumber = plateNumber;
+        PlateName = plateName;
         // research.md R6: content-addressed by revision hash — a new revision always increments,
         // even if (rare) it happens to hash-collide with a still-referenced earlier one.
         RevisionHash = revisionHash;
@@ -401,7 +412,7 @@ public sealed class Part
         string storagePath,
         long fileSizeBytes,
         decimal? nozzleDiameterMm,
-        int plateCount,
+        int? plateNumber,
         int unitsPerPrint,
         IReadOnlyList<FilamentRequirementSpec> filamentRequirements)
     {
@@ -430,9 +441,9 @@ public sealed class Part
             throw new ArgumentOutOfRangeException(nameof(nozzleDiameterMm), "Nozzle diameter must be positive.");
         }
 
-        if (plateCount < 1)
+        if (plateNumber < 1)
         {
-            throw new ArgumentOutOfRangeException(nameof(plateCount), "Plate count must be at least 1.");
+            throw new ArgumentOutOfRangeException(nameof(plateNumber), "Plate number must be at least 1.");
         }
 
         if (unitsPerPrint < 1)

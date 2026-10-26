@@ -47,7 +47,8 @@ public sealed class PartProcessingJobConfiguration : IEntityTypeConfiguration<Pa
         builder.Property(j => j.PreviewEstimateStatus).HasConversion<string>();
         builder.Property(j => j.PreviewEstimatedPrintTimeMinutes);
         builder.Property(j => j.PreviewEstimatedFilamentWeightGrams);
-        builder.Property(j => j.PreviewPlateCount);
+        builder.Property(j => j.PreviewPlatesJson).HasColumnType("jsonb");
+        builder.Ignore(j => j.PreviewPlates);
 
         // Small, bounded, never independently queried — the same jsonb-value-list pattern
         // Printer.FeedReadings already establishes (research.md §3a), not a child table.

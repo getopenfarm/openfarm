@@ -2,10 +2,14 @@ namespace OpenFarm.Application.Parts;
 
 public sealed record FilamentRequirementOverride(int RequirementIndex, Guid? NarrowFilamentVariantId, Guid? NarrowFilamentProfileId);
 
-/// <summary>The Save action — name/tags (Add only) plus any narrow filament overrides, submitted together (research.md §2/§11).</summary>
+/// <summary>
+/// The Save action — name/tags (Add only) plus any narrow filament overrides, submitted together (research.md §2/§11).
+/// <paramref name="PlateNumbers"/> is the plate the part prints; it may be left out when the file offers one plate.
+/// </summary>
 public sealed record ConfirmPartProcessingJobCommand(
     Guid JobId,
     string? Name,
     IReadOnlyList<string>? Tags,
     IReadOnlyList<FilamentRequirementOverride>? FilamentRequirementOverrides,
-    Guid? ActingUserId);
+    Guid? ActingUserId,
+    IReadOnlyList<int>? PlateNumbers = null);

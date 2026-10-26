@@ -142,12 +142,11 @@ Every change to a spool's remaining weight writes one append-only `SpoolUsageRec
 
 Found while making the estimate more exact. Each matters once the product grows.
 
-### 1. Multi-plate parts still sum every plate
-- Dispatch now picks one plate and sends, maps and deducts that plate (`JobFileContent.Plate`). An exported single plate
-  (`plate_4.gcode` only) prints and deducts correctly.
-- A part's estimate and per-colour grams still add up every sliced plate, while a multi-plate file prints only plate 1. Fixed by
-  storing one plate per part (`Part.PlateNumber`, planned), after which estimates, filaments and production slicing (`--slice N`)
-  describe that plate only.
+### 1. Legacy multi-plate parts still sum every plate
+- A part prints one plate (`Part.PlateNumber`): its estimate, per-colour grams and production slice (`--slice N`) are that plate's,
+  and dispatch sends, maps and deducts it (`JobFileContent.Plate`).
+- A part confirmed before plates were chosen has no plate: it prints plate 1 (else the file's only sliced plate) but keeps the
+  estimate summed over every plate until it is reprocessed, which asks for its plate.
 
 ### 2. Manual Fail deducts nothing
 - `FailPrintJobCommandHandler.cs:42` and `CompletePrintJobCommandHandler.cs:47` pass `new JobProgress(job.Status)` with no layer

@@ -31,4 +31,23 @@ public class SlicedFileUnitsPerPrintTests
         stream.Position = 0;
         SlicedFileUnitsPerPrint.Suggest(stream, "plates.3mf").Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData(1, 2)]
+    [InlineData(2, 3)]
+    [InlineData(3, 1)]
+    public void Sliced3mf_CountsOnlyThePlatesOwnObjects(int plate, int expected)
+    {
+        const string xml = """
+            <config>
+              <plate><metadata key="plater_id" value="1"/><model_instance/><model_instance/></plate>
+              <plate><metadata key="plater_id" value="2"/><model_instance/><model_instance/><model_instance/></plate>
+            </config>
+            """;
+        using var stream = new MemoryStream();
+        using (var zip = new ZipArchive(stream, ZipArchiveMode.Create, true))
+        using (var writer = new StreamWriter(zip.CreateEntry("Metadata/model_settings.config").Open())) writer.Write(xml);
+        stream.Position = 0;
+        SlicedFileUnitsPerPrint.Suggest(stream, "plates.3mf", plate).Should().Be(expected);
+    }
 }

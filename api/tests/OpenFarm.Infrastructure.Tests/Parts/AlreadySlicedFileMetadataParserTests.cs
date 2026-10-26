@@ -28,7 +28,7 @@ public class AlreadySlicedFileMetadataParserTests
         result.NozzleDiameterMm.Should().Be(0.4m);
         result.EstimatedPrintTimeMinutes.Should().Be(47);
         result.EstimatedFilamentWeightGrams.Should().Be(18.4m);
-        result.PlateCount.Should().Be(1);
+        result.Plates.Should().ContainSingle().Which.Should().BeEquivalentTo(new { Number = 1, EstimatedPrintTimeMinutes = 47, EstimatedFilamentWeightGrams = 18.4m });
         result.DetectedFilamentSlots.Should().ContainSingle();
         result.DetectedFilamentSlots[0].MaterialType.Should().Be("PETG");
         result.DetectedFilamentSlots[0].DetectedColorHex.Should().Be("#1A1A1A");
@@ -104,7 +104,9 @@ public class AlreadySlicedFileMetadataParserTests
 
         var result = await Parser.ParseAsync(stream, PartFileFormat.ThreeMf, CancellationToken.None);
 
-        result.PlateCount.Should().Be(4);
+        result.Plates.Select(p => p.Number).Should().Equal(1, 2, 3, 4);
+        result.Plates[1].FilamentSlots.Should().ContainSingle(s => s.MaterialType == "PLA" && s.DetectedColorHex == "#FFFFFF");
+        result.Plates.Should().AllSatisfy(p => (p.EstimatedPrintTimeMinutes, p.EstimatedFilamentWeightGrams).Should().Be((10, 5m)));
         result.DetectedFilamentSlots.Should().HaveCount(4, "one raw detected slot per plate, before grouping");
         result.NozzleDiameterMm.Should().Be(0.4m);
         // Sum across every plate — each plate's estimate in the fixture is 10 min / 5 g.
@@ -155,7 +157,7 @@ public class AlreadySlicedFileMetadataParserTests
             ("Metadata/plate_2.gcode", "; total estimated time = 20m\nG28"),
             ("Metadata/plate_2.png", "thumbnail"));
         var result = await Parser.ParseAsync(stream, PartFileFormat.ThreeMf, CancellationToken.None);
-        result.PlateCount.Should().Be(2);
+        result.Plates.Select(p => (p.Number, p.EstimatedPrintTimeMinutes, p.EstimatedFilamentWeightGrams)).Should().Equal((1, 10, 5m), (2, 20, null));
         result.NozzleDiameterMm.Should().BeNull();
         result.MaterialMetadataComplete.Should().BeFalse();
         result.EstimatedPrintTimeMinutes.Should().Be(30);
@@ -165,14 +167,21 @@ public class AlreadySlicedFileMetadataParserTests
     }
 
     [Fact]
-    public async Task OnlyLaterPlateSliced_ThumbnailIndexIsOrdinalAmongSlicedPlates()
+    public async Task OnlyLaterPlateSliced_IsThatPlateWithItsNameAndThumbnail()
     {
+        // An "export plate sliced file" of plate 3: model_settings still lists every plate, only plate 3 has G-code.
         using var stream = BuildZip(
             ("Metadata/plate_3.gcode", "; nozzle_diameter = 0.4\n; filament_type = PLA\nG28"),
-            ("Metadata/plate_3.png", "thumbnail"));
+            ("Metadata/plate_3.png", "thumbnail"),
+            ("Metadata/model_settings.config", """
+                <config>
+                  <plate><metadata key="plater_id" value="1"/><metadata key="plater_name" value="Cover"/></plate>
+                  <plate><metadata key="plater_id" value="3"/><metadata key="plater_name" value="Handle"/></plate>
+                </config>
+                """));
         var result = await Parser.ParseAsync(stream, PartFileFormat.ThreeMf, CancellationToken.None);
-        result.PlateCount.Should().Be(1);
-        result.Thumbnails.Should().ContainSingle(t => t.PlateIndex == 0);
+        result.Plates.Should().ContainSingle().Which.Should().BeEquivalentTo(new { Number = 3, Name = "Handle" });
+        result.Thumbnails.Should().ContainSingle(t => t.PlateIndex == 2, "a thumbnail is indexed by its plate number, like an unsliced project's");
     }
 
     [Fact]

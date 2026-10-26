@@ -16,6 +16,15 @@ public sealed class PreviewFilamentRequirementResponse
     public decimal? EstimatedGrams { get; set; }
 }
 
+public sealed class PlateResponse
+{
+    public int Number { get; set; }
+    public string? Name { get; set; }
+    public int? EstimatedPrintTimeMinutes { get; set; }
+    public decimal? EstimatedFilamentWeightGrams { get; set; }
+    public List<PreviewFilamentRequirementResponse> FilamentRequirements { get; set; } = [];
+}
+
 public sealed class ThumbnailResponse
 {
     public int PlateIndex { get; set; }
@@ -42,7 +51,8 @@ public sealed class PartProcessingJobPreviewResponse
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
-    public int? PlateCount { get; set; }
+    /// <summary>The plates the file offers; a part prints one. Confirm with one of their numbers when there are several.</summary>
+    public List<PlateResponse> Plates { get; set; } = [];
     public List<ThumbnailResponse> Thumbnails { get; set; } = [];
 }
 
@@ -74,23 +84,32 @@ public sealed class PartProcessingJobResponse
             EstimateStatus = detail.Preview.EstimateStatus,
             EstimatedPrintTimeMinutes = detail.Preview.EstimatedPrintTimeMinutes,
             EstimatedFilamentWeightGrams = detail.Preview.EstimatedFilamentWeightGrams,
-            PlateCount = detail.Preview.PlateCount,
-            FilamentRequirements = detail.Preview.FilamentRequirements.Select(r => new PreviewFilamentRequirementResponse
+            Plates = detail.Preview.Plates.Select(p => new PlateResponse
             {
-                RequirementIndex = r.RequirementIndex,
-                NarrowFilamentVariantId = r.NarrowFilamentVariantId,
-                NarrowFilamentProfileId = r.NarrowFilamentProfileId,
-                MaterialType = r.MaterialType,
-                DetectedColorHex = r.DetectedColorHex,
-                DetectedSubBrand = r.DetectedSubBrand,
-                EstimatedGrams = r.EstimatedGrams,
+                Number = p.Number,
+                Name = p.Name,
+                EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
+                EstimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,
+                FilamentRequirements = p.FilamentRequirements.Select(Requirement).ToList(),
             }).ToList(),
+            FilamentRequirements = detail.Preview.FilamentRequirements.Select(Requirement).ToList(),
             Thumbnails = detail.Preview.Thumbnails.Select(t => new ThumbnailResponse
             {
                 PlateIndex = t.PlateIndex,
                 ThumbnailBase64 = t.ThumbnailBase64,
             }).ToList(),
         },
+    };
+
+    private static PreviewFilamentRequirementResponse Requirement(OpenFarm.Domain.Parts.PreviewFilamentRequirement r) => new()
+    {
+        RequirementIndex = r.RequirementIndex,
+        NarrowFilamentVariantId = r.NarrowFilamentVariantId,
+        NarrowFilamentProfileId = r.NarrowFilamentProfileId,
+        MaterialType = r.MaterialType,
+        DetectedColorHex = r.DetectedColorHex,
+        DetectedSubBrand = r.DetectedSubBrand,
+        EstimatedGrams = r.EstimatedGrams,
     };
 }
 

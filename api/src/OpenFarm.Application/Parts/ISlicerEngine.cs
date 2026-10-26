@@ -3,19 +3,19 @@ using OpenFarm.Domain.Parts;
 namespace OpenFarm.Application.Parts;
 
 /// <summary>
-/// Result of an in-app slice — estimate summed across every plate, plus per-plate thumbnails
-/// (research.md §4/§8). <see cref="OutputFileBytes"/> is the actual sliced output (014 FR-011,
+/// Result of an in-app slice — estimate summed across every plate, each sliced plate's own (<see cref="Plates"/>, empty for
+/// bare G-code output), plus per-plate thumbnails (research.md §4/§8). <see cref="OutputFileBytes"/> is the actual sliced output (014 FR-011,
 /// job-dispatch-time re-slicing) — every producer populates it, but only dispatch-time callers read
 /// it; the upload-time estimate pipeline (009) discards it same as before. <see cref="OutputFileFormat"/>
 /// distinguishes a retained sliced 3MF archive from bare G-code.
 /// </summary>
 public sealed record SlicingResult(
-    int PlateCount,
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
     IReadOnlyList<ThumbnailSpec> Thumbnails,
     byte[] OutputFileBytes,
-    PartFileFormat OutputFileFormat = PartFileFormat.GCode);
+    PartFileFormat OutputFileFormat = PartFileFormat.GCode,
+    IReadOnlyList<FilePlate>? Plates = null);
 
 /// <summary>
 /// Invokes the configured headless slicer CLI. Reusable, unmodified, by Phase 7's future

@@ -46,6 +46,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 throw new PartConcurrencyConflictException(existingPart.Id);
         }
 
+        var plate = ChoosePlate(job, command.PlateNumbers, existingPart?.PlateNumber);
         var overridesByIndex = (command.FilamentRequirementOverrides ?? [])
             .ToDictionary(o => o.RequirementIndex);
 
@@ -57,7 +58,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             }
         }
 
-        var filamentRequirements = job.PreviewFilamentRequirements
+        var filamentRequirements = (plate is null ? job.PreviewFilamentRequirements : job.PlateRequirements(plate))
             .Select(preview =>
             {
                 overridesByIndex.TryGetValue(preview.RequirementIndex, out var overrideEntry);
@@ -78,10 +79,18 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 await filamentValidator.ValidateAsync(selection.MaterialType, selection.NarrowFilamentVariantId, cancellationToken);
 
         var thumbnails = job.PreviewThumbnails
+            .Where(t => plate is null || t.PlateIndex == plate.Number - 1)
             .Select(t => new ThumbnailSpec(t.PlateIndex, t.Bytes))
             .ToList();
 
-        var estimateStatus = job.PreviewEstimateStatus!.Value;
+        // A part prints one plate, so its estimate is that plate's (still Resolving while the slice runs). The file's
+        // "missing metadata" reason describes its totals; the plate's own numbers decide it instead.
+        var minutes = plate is null ? job.PreviewEstimatedPrintTimeMinutes : plate.EstimatedPrintTimeMinutes;
+        var grams = plate is null ? job.PreviewEstimatedFilamentWeightGrams : plate.EstimatedFilamentWeightGrams;
+        var estimateStatus = plate is null || job.PreviewEstimateStatus == EstimateStatus.Resolving
+            ? job.PreviewEstimateStatus!.Value : PartEstimateAvailability.From(minutes, grams);
+        var unavailableReason = plate is not null && job.EstimateUnavailableReason == PartEstimateAvailability.MissingMetadataReason(null, null)
+            ? PartEstimateAvailability.MissingMetadataReason(minutes, grams) : job.EstimateUnavailableReason;
 
         // The file was already saved under a content-hash-keyed path (research.md R6) by the
         // Add/Replace submit step (AddPartCommandHandler/ReplacePartFileCommandHandler) — the hash
@@ -108,19 +117,20 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 job.SlicerEngineUsed,
                 job.SlicerVersionUsed,
                 estimateStatus,
-                job.PreviewEstimatedPrintTimeMinutes,
-                job.PreviewEstimatedFilamentWeightGrams,
-                job.PreviewPlateCount!.Value,
-                unitsPerPrint: fileStorage is not null && !job.RequiresSlicing
-                    ? await SlicedFileUnitsPerPrint.SuggestAsync(fileStorage, job.StoragePath, cancellationToken) : 1,
+                minutes,
+                grams,
+                plate?.Number,
+                unitsPerPrint: fileStorage is not null && (!job.RequiresSlicing || plate is not null)
+                    ? await SlicedFileUnitsPerPrint.SuggestAsync(fileStorage, job.StoragePath, plate?.Number, cancellationToken) : 1,
                 revisionHash,
                 filamentRequirements,
                 thumbnails,
-                tags);
+                tags,
+                plate?.Name);
 
             part.SetEstimation(job.Estimation);
             part.SetMetadataWarnings(job.MetadataWarnings);
-            part.SetProcessingMetadata(job.Id, job.PreviewMaterialMetadataComplete, job.EstimateUnavailableReason);
+            part.SetProcessingMetadata(job.Id, job.PreviewMaterialMetadataComplete, unavailableReason);
             job.Confirm(part.Id);
             await partRepository.AddAsync(part, cancellationToken);
         }
@@ -143,8 +153,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             if (job.Kind == PartProcessingJobKind.Reprocess)
             {
                 part.Reprocess(job.PreviewNozzleDiameterMm, job.SlicerEngineUsed, job.SlicerVersionUsed,
-                    estimateStatus, job.PreviewEstimatedPrintTimeMinutes, job.PreviewEstimatedFilamentWeightGrams,
-                    job.PreviewPlateCount!.Value, filamentRequirements, thumbnails);
+                    estimateStatus, minutes, grams, plate?.Number, filamentRequirements, thumbnails, plate?.Name);
             }
             else part.ReplaceFile(
                 job.FileFormat,
@@ -156,16 +165,17 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 job.SlicerEngineUsed,
                 job.SlicerVersionUsed,
                 estimateStatus,
-                job.PreviewEstimatedPrintTimeMinutes,
-                job.PreviewEstimatedFilamentWeightGrams,
-                job.PreviewPlateCount!.Value,
+                minutes,
+                grams,
+                plate?.Number,
                 revisionHash,
                 filamentRequirements,
-                thumbnails);
+                thumbnails,
+                plate?.Name);
 
             part.SetEstimation(job.Estimation);
             part.SetMetadataWarnings(job.MetadataWarnings);
-            part.SetProcessingMetadata(job.Id, job.PreviewMaterialMetadataComplete, job.EstimateUnavailableReason);
+            part.SetProcessingMetadata(job.Id, job.PreviewMaterialMetadataComplete, unavailableReason);
             partRepository.TrackReplacementChildren(part);
             job.Confirm(part.Id);
             await partRepository.SaveChangesAsync(cancellationToken);
@@ -175,6 +185,25 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
         await eventPublisher.PartUpsertedAsync(part.Id, cancellationToken);
 
         return part;
+    }
+
+    /// <summary>
+    /// The plate the part prints: the one chosen, else the file's only plate, else the part's own plate when the file still has
+    /// it. <c>null</c> for a job processed before plates were recorded, which keeps a legacy part (plate 1, else the file's only
+    /// sliced plate).
+    /// </summary>
+    private static PreviewPlate? ChoosePlate(PartProcessingJob job, IReadOnlyList<int>? chosen, int? current)
+    {
+        var plates = job.PreviewPlates;
+        if (plates.Count == 0) return null;
+        return chosen switch
+        {
+            null or [] => plates.Count == 1 ? plates[0] : plates.FirstOrDefault(p => p.Number == current)
+                ?? throw new InvalidConfirmPartProcessingJobRequestException("Choose a plate."),
+            [var number] => plates.FirstOrDefault(p => p.Number == number)
+                ?? throw new InvalidConfirmPartProcessingJobRequestException($"Plate {number} is not in the file."),
+            _ => throw new InvalidConfirmPartProcessingJobRequestException("A part prints one plate. Choose one."),
+        };
     }
 
     private async Task<Tag> GetOrCreateTagAsync(string name, CancellationToken cancellationToken)

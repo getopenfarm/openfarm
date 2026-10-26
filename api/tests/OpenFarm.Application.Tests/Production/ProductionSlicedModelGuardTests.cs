@@ -88,7 +88,7 @@ public class ProductionSlicedModelGuardTests
     private sealed class DeclaringParser(string? declared) : IAlreadySlicedFileMetadataParser
     {
         public Task<SlicedFileMetadata> ParseAsync(Stream fileStream, PartFileFormat format, CancellationToken cancellationToken) =>
-            Task.FromResult(new SlicedFileMetadata(0.4m, 10, 10, 1, [], [], Estimation: new EstimationDetails("EmbeddedSlicedMetadata", declared)));
+            Task.FromResult(new SlicedFileMetadata(0.4m, 10, 10, [], [], [], Estimation: new EstimationDetails("EmbeddedSlicedMetadata", declared)));
     }
 
     private sealed class StubClassifier : IPartFileClassifier

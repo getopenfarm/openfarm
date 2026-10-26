@@ -15,7 +15,7 @@ public class FarmHubPartEventPublisherTests
     {
         var variantId = Guid.NewGuid();
         var job = PartProcessingJob.CreateAdd(PartFileFormat.GCode, "a.gcode", "a.gcode", 1, false, null, null, null, null, null);
-        job.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PETG", "#000000", "Aliz", variantId, null, 1.2m)], 1,
+        job.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PETG", "#000000", "Aliz", variantId, null, 1.2m)], [new PreviewPlate(1, null, [0], 10, 1.2m)],
             EstimateStatus.Available, 10, 1.2m, []);
         var proxy = new CapturingProxy();
 

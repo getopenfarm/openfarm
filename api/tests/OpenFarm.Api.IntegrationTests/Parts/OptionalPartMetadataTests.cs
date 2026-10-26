@@ -118,7 +118,7 @@ public class OptionalPartMetadataTests(EmptySlicerBundleWebApplicationFactory fa
         Lines = [new CreateRunLineRequest { TargetKind = "Part", TargetId = partId, Quantity = 1 }],
     };
 
-    private static async Task<PartProcessingJobSubmittedResponse> SubmitAsync(HttpClient client, string url, string name, byte[] bytes, bool replace = false)
+    internal static async Task<PartProcessingJobSubmittedResponse> SubmitAsync(HttpClient client, string url, string name, byte[] bytes, bool replace = false)
     {
         using var upload = new MultipartFormDataContent { { new ByteArrayContent(bytes), "File", name } };
         var response = replace ? await client.PutAsync(url, upload) : await client.PostAsync(url, upload);
@@ -126,7 +126,7 @@ public class OptionalPartMetadataTests(EmptySlicerBundleWebApplicationFactory fa
         return (await response.Content.ReadFromJsonAsync<PartProcessingJobSubmittedResponse>())!;
     }
 
-    private static async Task<PartProcessingJobResponse> WaitAsync(HttpClient client, Guid jobId)
+    internal static async Task<PartProcessingJobResponse> WaitAsync(HttpClient client, Guid jobId)
     {
         for (var i = 0; i < 100; i++)
         {
@@ -137,7 +137,7 @@ public class OptionalPartMetadataTests(EmptySlicerBundleWebApplicationFactory fa
         throw new TimeoutException("Part processing did not settle.");
     }
 
-    private static byte[] Zip(params (string Name, string Text)[] entries)
+    internal static byte[] Zip(params (string Name, string Text)[] entries)
     {
         using var buffer = new MemoryStream();
         using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))

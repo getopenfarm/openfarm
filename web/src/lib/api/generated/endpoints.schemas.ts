@@ -1470,7 +1470,10 @@ export interface PartResponse {
   estimatedFilamentWeightGrams?: number | null;
   slicer?: SlicerResponse | null;
   filamentRequirements?: PartFilamentRequirementResponse[];
-  plateCount?: number;
+  /** @nullable */
+  plateNumber?: number | null;
+  /** @nullable */
+  plateName?: string | null;
   unitsPerPrint?: number;
   thumbnails?: ThumbnailResponse[];
   tags?: string[];
@@ -1566,6 +1569,8 @@ export interface ConfirmPartProcessingJobRequest {
   tags?: string[] | null;
   /** @nullable */
   filamentRequirementOverrides?: FilamentRequirementOverrideRequest[] | null;
+  /** @nullable */
+  plateNumbers?: number[] | null;
 }
 
 export interface DiscardPartProcessingJobRequest {
@@ -1588,6 +1593,17 @@ export interface PreviewFilamentRequirementResponse {
   estimatedGrams?: number | null;
 }
 
+export interface PlateResponse {
+  number?: number;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  estimatedPrintTimeMinutes?: number | null;
+  /** @nullable */
+  estimatedFilamentWeightGrams?: number | null;
+  filamentRequirements?: PreviewFilamentRequirementResponse[];
+}
+
 export interface PartProcessingJobPreviewResponse {
   /** @nullable */
   nozzleDiameterMm?: number | null;
@@ -1602,8 +1618,7 @@ export interface PartProcessingJobPreviewResponse {
   estimatedPrintTimeMinutes?: number | null;
   /** @nullable */
   estimatedFilamentWeightGrams?: number | null;
-  /** @nullable */
-  plateCount?: number | null;
+  plates?: PlateResponse[];
   thumbnails?: ThumbnailResponse[];
 }
 

@@ -86,6 +86,9 @@ export function PartFormPage() {
     cancel,
     jobId,
     isConfirmPending,
+    plateNumbers,
+    setPlateNumbers,
+    needsPlate,
   } = usePartFileProcessing({
     mode: 'add',
     onConfirmed: () => {
@@ -118,7 +121,9 @@ export function PartFormPage() {
   }
 
   const canConfirm =
-    status === 'ReadyForReview' && form.watch('name').trim().length > 0;
+    status === 'ReadyForReview' &&
+    !needsPlate &&
+    form.watch('name').trim().length > 0;
 
   return (
     <Page className="flex-1">
@@ -286,6 +291,8 @@ export function PartFormPage() {
                       errorMessage={job?.errorMessage}
                       overrides={overrides}
                       onNarrow={handleNarrow}
+                      plateNumbers={plateNumbers}
+                      onPlateNumbersChange={setPlateNumbers}
                     />
                   </>
                 )}

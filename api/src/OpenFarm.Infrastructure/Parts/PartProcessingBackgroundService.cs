@@ -191,7 +191,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
         job.MarkReadyForReview(
             materialResolution.NozzleDiameterMm,
             materialResolution.FilamentRequirements,
-            materialResolution.PlateCount,
+            materialResolution.Plates,
             materialResolution.ImmediateEstimate is { } estimate
                 ? PartEstimateAvailability.From(estimate.EstimatedPrintTimeMinutes, estimate.EstimatedFilamentWeightGrams)
                 : materialResolution.EstimateUnavailableReason is null ? EstimateStatus.Resolving : EstimateStatus.Unavailable,
@@ -256,7 +256,8 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                             current.SetEstimationConfiguration(System.Text.Json.JsonSerializer.Serialize(resolution.EstimationConfiguration));
                         }
 
-                        current.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails, resolution.FilamentGrams);
+                        current.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails, resolution.FilamentGrams,
+                            resolution.Plates?.Select(p => new PreviewPlate(p.Number, p.Name, [], p.EstimatedPrintTimeMinutes, p.EstimatedFilamentWeightGrams, p.FilamentGrams)).ToList());
                     }
                     else
                         current.MarkEstimateUnavailable(unavailableReason!);
@@ -272,7 +273,9 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                     if (resolution is not null)
                     {
                         if (resolution.Estimation is { } usedDetails) part.SetEstimation(usedDetails);
-                        part.ResolveEstimate(resolution.EstimatedPrintTimeMinutes, resolution.EstimatedFilamentWeightGrams, resolution.Thumbnails, resolution.FilamentGrams);
+                        // The part prints one plate: it takes that plate's estimate, not the file's.
+                        var own = resolution.ForPlate(part.PlateNumber);
+                        part.ResolveEstimate(own.EstimatedPrintTimeMinutes, own.EstimatedFilamentWeightGrams, own.Thumbnails, own.FilamentGrams);
                     }
                     else
                         part.MarkEstimateUnavailable(unavailableReason);

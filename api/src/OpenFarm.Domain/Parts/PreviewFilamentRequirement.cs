@@ -23,3 +23,16 @@ public sealed record PreviewFilamentRequirement(
         return requirements.Select((r, i) => r with { EstimatedGrams = split[i] }).ToList();
     }
 }
+
+/// <summary>
+/// One plate a <see cref="PartProcessingJob"/> offers to become the part (a part prints one plate). Its filaments are the
+/// job's <see cref="PreviewFilamentRequirement"/>s at <see cref="RequirementIndices"/>; its estimate and per-colour
+/// <see cref="FilamentGrams"/> are that plate's alone. Stored in the job's <c>jsonb</c> <c>PreviewPlatesJson</c>.
+/// </summary>
+public sealed record PreviewPlate(
+    int Number,
+    string? Name,
+    IReadOnlyList<int> RequirementIndices,
+    int? EstimatedPrintTimeMinutes = null,
+    decimal? EstimatedFilamentWeightGrams = null,
+    IReadOnlyList<FilamentGrams>? FilamentGrams = null);

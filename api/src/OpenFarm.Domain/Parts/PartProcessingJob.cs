@@ -126,7 +126,14 @@ public sealed class PartProcessingJob
 
     public decimal? PreviewEstimatedFilamentWeightGrams { get; private set; }
 
-    public int? PreviewPlateCount { get; private set; }
+    /// <summary>The plates the file offers, in plate order; empty for a job processed before plates were recorded.</summary>
+    public string? PreviewPlatesJson { get; private set; }
+    public IReadOnlyList<PreviewPlate> PreviewPlates => PreviewPlatesJson is null ? []
+        : System.Text.Json.JsonSerializer.Deserialize<PreviewPlate[]>(PreviewPlatesJson) ?? [];
+
+    /// <summary>The requirements one plate prints with, grams from that plate alone.</summary>
+    public IReadOnlyList<PreviewFilamentRequirement> PlateRequirements(PreviewPlate plate) => PreviewFilamentRequirement.WithGrams(
+        _previewFilamentRequirements.Where(r => plate.RequirementIndices.Contains(r.RequirementIndex)).ToList(), plate.FilamentGrams);
 
     public IReadOnlyList<PartProcessingJobPreviewThumbnail> PreviewThumbnails => _previewThumbnails;
 
@@ -189,7 +196,7 @@ public sealed class PartProcessingJob
     public void MarkReadyForReview(
         decimal? nozzleDiameterMm,
         IReadOnlyList<PreviewFilamentRequirement> filamentRequirements,
-        int plateCount,
+        IReadOnlyList<PreviewPlate> plates,
         EstimateStatus estimateStatus,
         int? estimatedPrintTimeMinutes,
         decimal? estimatedFilamentWeightGrams,
@@ -207,7 +214,7 @@ public sealed class PartProcessingJob
         TargetMaterialType = resolvedTargetMaterialType ?? TargetMaterialType;
         PreviewNozzleDiameterMm = nozzleDiameterMm;
         _previewFilamentRequirements = filamentRequirements;
-        PreviewPlateCount = plateCount;
+        PreviewPlatesJson = System.Text.Json.JsonSerializer.Serialize(plates);
         PreviewEstimateStatus = estimateStatus;
         PreviewEstimatedPrintTimeMinutes = estimatedPrintTimeMinutes;
         PreviewEstimatedFilamentWeightGrams = estimatedFilamentWeightGrams;
@@ -223,10 +230,11 @@ public sealed class PartProcessingJob
 
     /// <summary>
     /// research.md §3b's trailing continuation, success case, while still unconfirmed — refreshes the
-    /// preview in place; <see cref="Status"/> stays <c>ReadyForReview</c>.
+    /// preview in place; <see cref="Status"/> stays <c>ReadyForReview</c>. <paramref name="plates"/> are the slice's own
+    /// per-plate estimates (by plate number); a single-plate job without one takes the totals.
     /// </summary>
     public void ResolveEstimate(int? estimatedPrintTimeMinutes, decimal? estimatedFilamentWeightGrams, IReadOnlyList<ThumbnailSpec> thumbnails,
-        IReadOnlyList<FilamentGrams>? filamentGrams = null)
+        IReadOnlyList<FilamentGrams>? filamentGrams = null, IReadOnlyList<PreviewPlate>? plates = null)
     {
         if (Status != PartProcessingJobStatus.ReadyForReview || PreviewEstimateStatus != EstimateStatus.Resolving)
         {
@@ -234,6 +242,13 @@ public sealed class PartProcessingJob
         }
 
         _previewFilamentRequirements = PreviewFilamentRequirement.WithGrams(_previewFilamentRequirements, filamentGrams);
+        var previewPlates = PreviewPlates;
+        PreviewPlatesJson = System.Text.Json.JsonSerializer.Serialize(previewPlates.Select(p =>
+            plates?.FirstOrDefault(s => s.Number == p.Number) is { } sliced
+                ? p with { EstimatedPrintTimeMinutes = sliced.EstimatedPrintTimeMinutes, EstimatedFilamentWeightGrams = sliced.EstimatedFilamentWeightGrams, FilamentGrams = sliced.FilamentGrams }
+                : previewPlates.Count == 1
+                    ? p with { EstimatedPrintTimeMinutes = estimatedPrintTimeMinutes, EstimatedFilamentWeightGrams = estimatedFilamentWeightGrams, FilamentGrams = filamentGrams }
+                    : p).ToList());
 
         PreviewEstimateStatus = PartEstimateAvailability.From(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
         EstimateUnavailableReason = PartEstimateAvailability.MissingMetadataReason(estimatedPrintTimeMinutes, estimatedFilamentWeightGrams);
@@ -271,7 +286,7 @@ public sealed class PartProcessingJob
         ErrorMessage = errorMessage;
         PreviewNozzleDiameterMm = null;
         _previewFilamentRequirements = [];
-        PreviewPlateCount = null;
+        PreviewPlatesJson = null;
         PreviewEstimateStatus = null;
         PreviewEstimatedPrintTimeMinutes = null;
         PreviewEstimatedFilamentWeightGrams = null;

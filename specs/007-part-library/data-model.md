@@ -53,13 +53,14 @@ two small additions to existing tables (`Printers.MachineProfileId`, `Organizati
 | `NozzleDiameterMm` | `decimal` | Parsed from an already-sliced file, or the farm's auto-detected value used to drive the in-app slice (`research.md` §5). |
 | **Estimate** (FR-013 — MAY still be resolving at the moment the row is created, for a requires-slicing file confirmed early; `research.md` §3b) | | |
 | `EstimateStatus` | enum: `Resolving` \| `Available` \| `Unavailable` | `Available` immediately for a file that doesn't require slicing (parsed atomically alongside `NozzleDiameterMm`/material — `research.md` §1). For a requires-slicing file, starts `Resolving` at row creation if the operator confirmed before the slice finished (FR-009c/FR-009d); a trailing background continuation (`research.md` §3b) flips it to `Available` (populating the two fields below) or, on a deferred slicing failure, `Unavailable` — permanently, with no retry in this phase. |
-| `EstimatedPrintTimeMinutes` | `int?` | `> 0` when set. `null` while `EstimateStatus != Available`. Whole-print total — for a multi-plate file, the **sum** across every plate's own parsed/sliced estimate (`research.md` §7), since a multi-plate file executes all its plates as one continuous print. |
-| `EstimatedFilamentWeightGrams` | `decimal?` | `> 0` when set. `null` while `EstimateStatus != Available`. Whole-print total, same sum-across-plates rule as above. |
+| `EstimatedPrintTimeMinutes` | `int?` | `> 0` when set. `null` while `EstimateStatus != Available`. The part's plate's own estimate (`PlateNumber`); a legacy part without a plate keeps the sum across every plate. |
+| `EstimatedFilamentWeightGrams` | `decimal?` | `> 0` when set. `null` while `EstimateStatus != Available`. The part's plate's own, same rule as above. |
 | **Slicing configuration** (only meaningful when `RequiresSlicing = true`; ignored otherwise) | | |
 | `SlicerEngineOverride` | enum `SlicerEngine?` (`OrcaSlicer` \| `BambuStudio`) | Per-part override of the organization default (FR-008). `null` → the org default (`Organization.DefaultSlicerEngine`) applies. |
 | **Thumbnails** (FR-014/FR-014a — per plate, best-effort, never blocks saving; `research.md` §8) | | |
-| `PlateCount` | `int` | `>= 1`. Known independently of thumbnail derivation, from the same metadata/project-settings scan that also produces filament-requirement grouping (`research.md` §7/§13). Always `1` for an STL. Tells the frontend how many thumbnail slots to render — see `PartThumbnail` below for which are actually filled. |
-| *(see `PartThumbnail`, new child table below)* | | Zero-to-`PlateCount` rows; `PlateIndex = 0`'s row (if present) is the catalog/list-view thumbnail. |
+| `PlateNumber` | `int?` | `>= 1`. The plate of the file this part prints (a part is one plate), chosen at review. Always `1` for an STL or bare G-code. `null` for a part confirmed before plates were chosen: it prints plate 1, else the file's only sliced plate. |
+| `PlateName` | `string?` | The slicer's name for that plate (`plater_name`), when it has one. |
+| *(see `PartThumbnail`, new child table below)* | | The plate's thumbnail, `PlateIndex = PlateNumber - 1`; the lowest `PlateIndex` is the catalog/list-view thumbnail. |
 | `CreatedAtUtc` | `DateTimeOffset` | |
 | `UpdatedAtUtc` | `DateTimeOffset` | Bumped whenever a `PartProcessingJob` is confirmed against this part, its name/tags change, or the `research.md` §3b trailing continuation resolves/fails its estimate. |
 | *(xmin)* | Postgres system column | `UseXminAsConcurrencyToken()` — guards the concurrent-replace edge case, the same technique `Spool` already uses. |

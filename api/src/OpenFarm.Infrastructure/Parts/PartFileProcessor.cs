@@ -20,8 +20,9 @@ public sealed class PartFileProcessor(
         if (!job.RequiresSlicing)
         {
             var metadata = await slicedMetadataParser.ParseAsync(fileStream, job.FileFormat, cancellationToken);
+            var requirements = PreviewFilamentRequirement.WithGrams(FilamentRequirementGrouper.Group(metadata.DetectedFilamentSlots), metadata.FilamentGrams);
             return new PartMaterialResolution(metadata.NozzleDiameterMm,
-                PreviewFilamentRequirement.WithGrams(FilamentRequirementGrouper.Group(metadata.DetectedFilamentSlots), metadata.FilamentGrams), metadata.PlateCount,
+                requirements, FilamentRequirementGrouper.Plates(requirements, metadata.Plates),
                 new(metadata.EstimatedPrintTimeMinutes, metadata.EstimatedFilamentWeightGrams, metadata.Thumbnails),
                 MaterialMetadataComplete: metadata.MaterialMetadataComplete,
                 EstimateUnavailableReason: PartEstimateAvailability.MissingMetadataReason(metadata.EstimatedPrintTimeMinutes, metadata.EstimatedFilamentWeightGrams),
@@ -29,14 +30,15 @@ public sealed class PartFileProcessor(
         }
 
         var project = job.FileFormat == PartFileFormat.ThreeMf
-            ? await unslicedProjectMaterialResolver.ResolveAsync(fileStream, cancellationToken) : new UnslicedProjectMaterial(null, 1);
+            ? await unslicedProjectMaterialResolver.ResolveAsync(fileStream, cancellationToken) : new UnslicedProjectMaterial(null, [new FilePlate(1, null, [])]);
         if (project.HasEmbeddedSettings)
         {
             var configuration = new EstimationConfiguration(true, project.NozzleDiameterMm, project.MaterialType, null);
             var reason = project.EstimationUnavailableReason ?? AvailabilityReason(job, embedded: true);
+            IReadOnlyList<PreviewFilamentRequirement> requirements = project.FilamentSlots is { Count: > 0 } slots ? FilamentRequirementGrouper.Group(slots)
+                : [new(0, project.MaterialType, null, null)];
             return new(project.NozzleDiameterMm,
-                project.FilamentSlots is { Count: > 0 } slots ? FilamentRequirementGrouper.Group(slots)
-                    : [new(0, project.MaterialType, null, null)], project.PlateCount, null, project.MaterialType,
+                requirements, FilamentRequirementGrouper.Plates(requirements, project.Plates), null, project.MaterialType,
                 project.MaterialMetadataComplete, reason, project.Thumbnails, project.Estimation ?? new("EmbeddedProject"), configuration);
         }
 
@@ -54,8 +56,9 @@ public sealed class PartFileProcessor(
             unavailable ??= AvailabilityReason(job, embedded: false);
         }
         catch (SlicingProfileUnconfiguredException ex) { unavailable = $"Estimation unavailable: {ex.Message}"; }
+        IReadOnlyList<PreviewFilamentRequirement> wildcard = [new(0, null, null, null)];
         return new(defaults?.NozzleDiameterMm,
-            [new(0, null, null, null)], project.PlateCount, null, defaults?.MaterialType,
+            wildcard, FilamentRequirementGrouper.Plates(wildcard, project.Plates), null, defaults?.MaterialType,
             EstimateUnavailableReason: unavailable, Thumbnails: project.Thumbnails, Estimation: details, EstimationConfiguration: defaults);
     }
 
@@ -102,6 +105,6 @@ public sealed class PartFileProcessor(
         }
         // The sliced output is what a print draws from the spools, so its per-filament usage (purge included) is the by-colour split.
         return new(result.EstimatedPrintTimeMinutes, result.EstimatedFilamentWeightGrams, result.Thumbnails,
-            JobFilamentUsageReader.ReadAllPlates(result.OutputFileBytes), details, details is null ? null : configuration);
+            JobFilamentUsageReader.ReadAllPlates(result.OutputFileBytes), details, details is null ? null : configuration, result.Plates);
     }
 }

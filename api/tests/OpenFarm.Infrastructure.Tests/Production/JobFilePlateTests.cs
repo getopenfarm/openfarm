@@ -11,23 +11,35 @@ public class JobFilePlateTests
 {
     [Fact]
     public void SeveralPlatesWithPlateOne_PrintsPlateOne() =>
-        JobFileResolver.PlateToPrint(Project(1, 2)).Should().Be(1);
+        JobFileResolver.PlateToPrint(Project(1, 2), null).Should().Be(1);
 
     [Fact]
     public void AnExportedSinglePlate_PrintsItsOwnNumber() =>
-        JobFileResolver.PlateToPrint(Project(4)).Should().Be(4);
+        JobFileResolver.PlateToPrint(Project(4), null).Should().Be(4);
 
     [Fact]
     public void SeveralPlatesWithoutPlateOne_BlocksRatherThanGuess()
     {
-        var act = () => JobFileResolver.PlateToPrint(Project(2, 3));
+        var act = () => JobFileResolver.PlateToPrint(Project(2, 3), null);
 
-        act.Should().Throw<SlicingProfileUnconfiguredException>().WithMessage("The file holds plates 2, 3 and no plate 1.*");
+        act.Should().Throw<SlicingProfileUnconfiguredException>().WithMessage("The file holds plates 2, 3 and no plate 1. Reprocess the part to choose one.");
     }
 
     [Fact]
     public void BareGCode_IsPlateOne() =>
-        JobFileResolver.PlateToPrint(Encoding.UTF8.GetBytes("G28\n")).Should().Be(1);
+        JobFileResolver.PlateToPrint(Encoding.UTF8.GetBytes("G28\n"), null).Should().Be(1);
+
+    [Fact]
+    public void APartsOwnPlate_IsPrintedWhenTheFileHasIt() =>
+        JobFileResolver.PlateToPrint(Project(1, 2, 3), 2).Should().Be(2);
+
+    [Fact]
+    public void APartsOwnPlateMissingFromTheFile_Blocks()
+    {
+        var act = () => JobFileResolver.PlateToPrint(Project(1), 2);
+
+        act.Should().Throw<SlicingProfileUnconfiguredException>().WithMessage("The file has no sliced plate 2. Reprocess the part.");
+    }
 
     private static byte[] Project(params int[] plates)
     {

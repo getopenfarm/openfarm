@@ -6,15 +6,23 @@ namespace OpenFarm.Application.Parts;
 public sealed record DetectedFilamentSlot(string MaterialType, string? DetectedColorHex, string? DetectedSubBrand);
 
 /// <summary>
+/// One plate of a file: what printing that plate alone takes. <see cref="FilamentSlots"/> are pre-grouping; <see cref="Name"/>
+/// is the slicer's <c>plater_name</c>.
+/// </summary>
+public sealed record FilePlate(int Number, string? Name, IReadOnlyList<DetectedFilamentSlot> FilamentSlots,
+    int? EstimatedPrintTimeMinutes = null, decimal? EstimatedFilamentWeightGrams = null, IReadOnlyList<FilamentGrams>? FilamentGrams = null);
+
+/// <summary>
 /// The full atomic parse result of an already-sliced file — nozzle diameter, a summed estimate
-/// across every plate, per-plate thumbnails, and every detected filament slot across every plate/AMS
-/// slot (pre-grouping — the caller runs <c>FilamentRequirementGrouper</c>) (research.md §1/§7/§8).
+/// across every plate, each sliced plate on its own (<see cref="Plates"/>), per-plate thumbnails, and every detected
+/// filament slot across every plate/AMS slot (pre-grouping — the caller runs <c>FilamentRequirementGrouper</c>)
+/// (research.md §1/§7/§8).
 /// </summary>
 public sealed record SlicedFileMetadata(
     decimal? NozzleDiameterMm,
     int? EstimatedPrintTimeMinutes,
     decimal? EstimatedFilamentWeightGrams,
-    int PlateCount,
+    IReadOnlyList<FilePlate> Plates,
     IReadOnlyList<DetectedFilamentSlot> DetectedFilamentSlots,
     IReadOnlyList<ThumbnailSpec> Thumbnails,
     bool MaterialMetadataComplete = true, EstimationDetails? Estimation = null, IReadOnlyList<string>? Warnings = null,

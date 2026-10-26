@@ -12,7 +12,7 @@ public class PartFileProcessorTests
     public async Task ResolveMaterialAsync_AlreadySlicedFile_ReturnsImmediateEstimate()
     {
         var slicedParser = new FakeAlreadySlicedFileMetadataParser(new SlicedFileMetadata(
-            0.4m, 47, 18.4m, 1, [new DetectedFilamentSlot("PETG", "#000000", null)], []));
+            0.4m, 47, 18.4m, [new FilePlate(1, null, [])], [new DetectedFilamentSlot("PETG", "#000000", null)], []));
         var processor = new PartFileProcessor(slicedParser, new FakeUnslicedProjectMaterialResolver(null), new FakeSlicerEngine());
         var job = PartProcessingJob.CreateAdd(PartFileFormat.GCode, "a.gcode", "path", 10, requiresSlicing: false, null, null, null, null, null);
 
@@ -46,7 +46,7 @@ public class PartFileProcessorTests
     {
         var processor = new PartFileProcessor(
             new FakeAlreadySlicedFileMetadataParser(null),
-            new FakeUnslicedProjectMaterialResolver(new UnslicedProjectMaterial("PETG", 2, HasEmbeddedSettings: true, NozzleDiameterMm: 0.6m)),
+            new FakeUnslicedProjectMaterialResolver(new UnslicedProjectMaterial("PETG", [new FilePlate(1, null, []), new FilePlate(2, "Lid", [])], HasEmbeddedSettings: true, NozzleDiameterMm: 0.6m)),
             new FakeSlicerEngine());
         var job = PartProcessingJob.CreateAdd(
             PartFileFormat.ThreeMf, "a.3mf", "path", 10, requiresSlicing: true, SlicerEngine.OrcaSlicer, "2.2.0", 0.4m, "PETG", null);
@@ -54,7 +54,7 @@ public class PartFileProcessorTests
         var result = await processor.ResolveMaterialAsync(job, new MemoryStream(), CancellationToken.None);
 
         result.FilamentRequirements.Should().ContainSingle(r => r.MaterialType == "PETG");
-        result.PlateCount.Should().Be(2);
+        result.Plates.Select(p => (p.Number, p.Name)).Should().Equal((1, null), (2, "Lid"));
         result.ImmediateEstimate.Should().BeNull();
     }
 

@@ -95,7 +95,7 @@ public class RealSlicerGoldenFileTests
             new EstimationConfiguration(true, null, null, null), CancellationToken.None);
         result.EstimatedPrintTimeMinutes.Should().Be(35);
         result.EstimatedFilamentWeightGrams.Should().Be(11.09m);
-        result.PlateCount.Should().Be(1);
+        result.Plates.Should().ContainSingle().Which.Number.Should().Be(1);
         using var output = new MemoryStream(result.OutputFileBytes);
         var metadata = await new AlreadySlicedFileMetadataParser().ParseAsync(output, PartFileFormat.ThreeMf, CancellationToken.None);
         metadata.NozzleDiameterMm.Should().Be(0.4m);

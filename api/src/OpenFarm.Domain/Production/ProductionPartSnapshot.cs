@@ -8,7 +8,7 @@ public sealed record ProductionPartSnapshot(
     string OriginalFileName, string StoragePath, long FileSizeBytes, decimal? NozzleDiameterMm,
     bool MaterialMetadataComplete, SlicerEngine? SlicerEngine, string? SlicerVersion,
     EstimateStatus EstimateStatus, int? EstimatedPrintTimeMinutes, decimal? EstimatedFilamentWeightGrams,
-    int PlateCount, int UnitsPerPrint, string RevisionHash, int RevisionNumber,
+    int? PlateNumber, int UnitsPerPrint, string RevisionHash, int RevisionNumber,
     IReadOnlyList<FilamentRequirementSpec> FilamentRequirements)
 {
     public static ProductionPartSnapshot Capture(Part part, SlicerRef? slicer = null) => new(
@@ -16,7 +16,7 @@ public sealed record ProductionPartSnapshot(
         part.OriginalFileName, part.StoragePath, part.FileSizeBytes, part.NozzleDiameterMm,
         part.MaterialMetadataComplete, slicer?.Engine ?? part.SlicerEngineOverride,
         slicer?.Version ?? part.SlicerVersionUsed, part.EstimateStatus, part.EstimatedPrintTimeMinutes,
-        part.EstimatedFilamentWeightGrams, part.PlateCount, part.UnitsPerPrint, part.RevisionHash,
+        part.EstimatedFilamentWeightGrams, part.PlateNumber, part.UnitsPerPrint, part.RevisionHash,
         part.RevisionNumber, part.FilamentRequirements.Select(r => new FilamentRequirementSpec(
             r.MaterialType, r.DetectedColorHex, r.DetectedSubBrand, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, r.EstimatedGrams)).ToArray());
 }

@@ -37,7 +37,7 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
             var processing = PartProcessingJob.CreateAdd(source.FileFormat,
                 source.OriginalFileName, source.StoragePath, source.FileSizeBytes, false, null, null, null, null, null);
             processing.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", "#000000", null)],
-                1, EstimateStatus.Available, 60, 20, []);
+                [], EstimateStatus.Available, 60, 20, []);
             await scope.ServiceProvider.GetRequiredService<IPartProcessingJobRepository>().AddAsync(processing, default);
             processingId = processing.Id;
         }

@@ -798,7 +798,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("PlateCount")
+                    b.Property<string>("PlateName")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("PlateNumber")
                         .HasColumnType("integer");
 
                     b.Property<bool>("RequiresSlicing")
@@ -938,8 +941,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("PreviewNozzleDiameterMm")
                         .HasColumnType("numeric");
 
-                    b.Property<int?>("PreviewPlateCount")
-                        .HasColumnType("integer");
+                    b.Property<string>("PreviewPlatesJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<DateTimeOffset?>("ProcessedAtUtc")
                         .HasColumnType("timestamp with time zone");

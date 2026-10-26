@@ -86,7 +86,7 @@ public sealed class SpySlicerEngine : ISlicerEngine
         Calls.Enqueue((printerId, slicer, profiles));
         if (_whileSlicing.TryGetValue(printerId, out var hook)) await hook(profiles);
         if (_failures.TryGetValue(printerId, out var failure)) throw failure;
-        return new SlicingResult(1, 42, 12m, [], Encoding.UTF8.GetBytes("; fake sliced gcode\n"));
+        return new SlicingResult(42, 12m, [], Encoding.UTF8.GetBytes("; fake sliced gcode\n"));
     }
 }
 
@@ -257,14 +257,27 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         await db.SaveChangesAsync();
     }
 
-    /// <summary>A plain project (sliced in production) with two PLA filament slots, white then black.</summary>
-    private async Task<Part> TwoColourProjectAsync(SlicerRef pin)
+    /// <summary>
+    /// A plain project (sliced in production) with two PLA filament slots, white then black. With <paramref name="plate"/>,
+    /// the part is that plate of a two-plate project: plate 1 prints white, plate 2 black, and the part needs only its own.
+    /// </summary>
+    private async Task<Part> TwoColourProjectAsync(SlicerRef pin, int? plate = null)
     {
         using var zip = new MemoryStream();
         using (var archive = new System.IO.Compression.ZipArchive(zip, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
         {
             using (var model = new StreamWriter(archive.CreateEntry("3D/3dmodel.model").Open()))
                 await model.WriteAsync($"<model unit=\"millimeter\"><!-- {Guid.NewGuid():N} --><resources/><build/></model>");
+            if (plate is not null)
+                using (var plates = new StreamWriter(archive.CreateEntry("Metadata/model_settings.config").Open()))
+                    await plates.WriteAsync("""
+                        <config>
+                          <object id="2"><metadata key="extruder" value="1"/></object>
+                          <object id="3"><metadata key="extruder" value="2"/></object>
+                          <plate><metadata key="plater_id" value="1"/><model_instance><metadata key="object_id" value="2"/></model_instance></plate>
+                          <plate><metadata key="plater_id" value="2"/><model_instance><metadata key="object_id" value="3"/></model_instance></plate>
+                        </config>
+                        """);
             using var settings = new StreamWriter(archive.CreateEntry("Metadata/project_settings.config").Open());
             await settings.WriteAsync("""{"filament_type":["PLA","PLA"],"filament_colour":["#FFFFFF","#000000"]}""");
         }
@@ -275,8 +288,10 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         using var stream = new MemoryStream(bytes);
         var path = await scope.ServiceProvider.GetRequiredService<IPartFileStorage>().SaveAsync(hash, "part.3mf", stream, default);
         var part = Part.Create($"Part {Guid.NewGuid():N}", PartFileFormat.ThreeMf, true, "part.3mf", path, bytes.Length, 0.4m,
-            pin.Engine, pin.Version, EstimateStatus.Available, 60, 20, 1, 1, hash,
-            [new FilamentRequirementSpec("PLA", "#FFFFFF", null, null, null), new FilamentRequirementSpec("PLA", "#000000", null, null, null)], [], []);
+            pin.Engine, pin.Version, EstimateStatus.Available, 60, 20, plate, 1, hash,
+            plate is null
+                ? [new FilamentRequirementSpec("PLA", "#FFFFFF", null, null, null), new FilamentRequirementSpec("PLA", "#000000", null, null, null)]
+                : [new FilamentRequirementSpec("PLA", plate == 1 ? "#FFFFFF" : "#000000", null, null, null)], [], []);
         await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
         return part;
     }
@@ -378,6 +393,36 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
             (FilamentName, "#FFFFFF"), ("Bambu PLA Matte @BBL X1C", "#000000"));
         bySlot[1].Item1.SettingsJson.Should().Contain(Marker("GFA01", Orca242));
         // Not left blocked in the queue for the scenarios after this one.
+        (await client.PostAsJsonAsync($"/api/v1/print-jobs/{(await JobAsync(run.Id)).Id}/cancel", new { })).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task S14_OnePlateOfAProject_SlicesOnlyThatPlate_AndASlotOnlyAnotherPlateUsesNeedsNoLine()
+    {
+        var vendor = $"Bambulab-{Guid.NewGuid():N}";
+        var presets = await SeedAsync(vendor, [Orca242]);
+        var matte = await SeedFilamentAsync(vendor, Orca242, "Bambu PLA Matte @BBL X1C", "GFA01");
+        var printer = await SelectedPrinterAsync(presets);
+        await LoadAmsAsync(printer.Id, ("#000000", matte));
+        var part = await TwoColourProjectAsync(Orca242, plate: 2);
+        var client = await ClientAsync();
+        var run = await RunAsync(client, part.Id, pinned: printer.Id);
+
+        using (var worker = Worker())
+        {
+            await worker.StartAsync(default);
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                while (Spy.CallsFor(printer.Id).Count == 0) await Task.Delay(50, deadline.Token);
+            }
+            finally { await worker.StopAsync(default); }
+        }
+
+        var profiles = Spy.CallsFor(printer.Id).First().Profiles;
+        profiles.Plate.Should().Be(2);
+        // White is printed only by plate 1: it takes the part's one filament, like a blank slot, instead of blocking the job.
+        profiles.Slots.Should().Equal(new SlotFilament(0, null), new SlotFilament(0, "#000000"));
         (await client.PostAsJsonAsync($"/api/v1/print-jobs/{(await JobAsync(run.Id)).Id}/cancel", new { })).EnsureSuccessStatusCode();
     }
 

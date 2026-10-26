@@ -24,6 +24,9 @@ public sealed class ConfirmPartProcessingJobRequest : IActivityLoggable
 
     public List<FilamentRequirementOverrideRequest>? FilamentRequirementOverrides { get; set; }
 
+    /// <summary>The plate the part prints (one of the preview's <c>plates</c>); may be omitted when the file offers one plate.</summary>
+    public List<int>? PlateNumbers { get; set; }
+
     public string EntityType => "Part";
 
     public string EventType => "PartConfirmed";
@@ -49,7 +52,7 @@ public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler) : E
             .Select(o => new FilamentRequirementOverride(o.RequirementIndex, o.NarrowFilamentVariantId, o.NarrowFilamentProfileId))
             .ToList();
 
-        var command = new ConfirmPartProcessingJobCommand(jobId, req.Name, req.Tags, overrides, userId);
+        var command = new ConfirmPartProcessingJobCommand(jobId, req.Name, req.Tags, overrides, userId, req.PlateNumbers);
         var part = await handler.HandleAsync(command, ct);
 
         Response = PartResponse.FromDomain(part);

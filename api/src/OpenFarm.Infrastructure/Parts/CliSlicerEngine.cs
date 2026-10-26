@@ -160,13 +160,13 @@ public sealed partial class CliSlicerEngine(
                 {
                     await using var output = File.OpenRead(processInvocation.OutputPath);
                     var metadata = await new AlreadySlicedFileMetadataParser().ParseAsync(output, PartFileFormat.ThreeMf, cancellationToken);
-                    return new(metadata.PlateCount, metadata.EstimatedPrintTimeMinutes, metadata.EstimatedFilamentWeightGrams,
-                        metadata.Thumbnails, await File.ReadAllBytesAsync(processInvocation.OutputPath, cancellationToken), PartFileFormat.ThreeMf);
+                    return new(metadata.EstimatedPrintTimeMinutes, metadata.EstimatedFilamentWeightGrams,
+                        metadata.Thumbnails, await File.ReadAllBytesAsync(processInvocation.OutputPath, cancellationToken), PartFileFormat.ThreeMf, metadata.Plates);
                 }
                 var gcode = await File.ReadAllTextAsync(processInvocation.OutputPath, cancellationToken);
                 var values = GCodeMetadataHelper.ParseComments(gcode);
                 var thumbnail = GCodeMetadataHelper.ExtractEmbeddedThumbnailPng(gcode);
-                return new SlicingResult(1, GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values),
+                return new SlicingResult(GCodeMetadataHelper.ParseEstimatedPrintTimeMinutes(values),
                     GCodeMetadataHelper.ParseFilamentWeightGrams(values),
                     thumbnail is null ? [] : [new ThumbnailSpec(0, thumbnail)], System.Text.Encoding.UTF8.GetBytes(gcode));
             }

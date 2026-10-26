@@ -34,25 +34,34 @@ public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext) :
     private static object BuildPreview(PartProcessingJob job) => new
     {
         nozzleDiameterMm = job.PreviewNozzleDiameterMm,
-        filamentRequirements = job.PreviewFilamentRequirements.Select(r => new
-        {
-            requirementIndex = r.RequirementIndex,
-            materialType = r.MaterialType,
-            detectedColorHex = r.DetectedColorHex,
-            detectedSubBrand = r.DetectedSubBrand,
-            narrowFilamentVariantId = r.NarrowFilamentVariantId,
-            narrowFilamentProfileId = r.NarrowFilamentProfileId,
-            estimatedGrams = r.EstimatedGrams,
-        }),
+        filamentRequirements = job.PreviewFilamentRequirements.Select(Requirement),
         estimateStatus = job.PreviewEstimateStatus.ToString(),
         estimatedPrintTimeMinutes = job.PreviewEstimatedPrintTimeMinutes,
         estimatedFilamentWeightGrams = job.PreviewEstimatedFilamentWeightGrams,
-        plateCount = job.PreviewPlateCount,
+        plates = job.PreviewPlates.Select(p => new
+        {
+            number = p.Number,
+            name = p.Name,
+            estimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
+            estimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,
+            filamentRequirements = job.PlateRequirements(p).Select(Requirement),
+        }),
         thumbnails = job.PreviewThumbnails.Select(t => new
         {
             plateIndex = t.PlateIndex,
             thumbnailBase64 = Convert.ToBase64String(t.Bytes),
         }),
+    };
+
+    private static object Requirement(PreviewFilamentRequirement r) => new
+    {
+        requirementIndex = r.RequirementIndex,
+        materialType = r.MaterialType,
+        detectedColorHex = r.DetectedColorHex,
+        detectedSubBrand = r.DetectedSubBrand,
+        narrowFilamentVariantId = r.NarrowFilamentVariantId,
+        narrowFilamentProfileId = r.NarrowFilamentProfileId,
+        estimatedGrams = r.EstimatedGrams,
     };
 
     private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);

@@ -9164,9 +9164,14 @@
               "$ref": "#/components/schemas/PartFilamentRequirementResponse"
             }
           },
-          "plateCount": {
+          "plateNumber": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
+          },
+          "plateName": {
+            "type": "string",
+            "nullable": true
           },
           "unitsPerPrint": {
             "type": "integer",
@@ -9520,6 +9525,14 @@
             "items": {
               "$ref": "#/components/schemas/FilamentRequirementOverrideRequest"
             }
+          },
+          "plateNumbers": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
           }
         }
       },
@@ -9637,10 +9650,11 @@
             "format": "decimal",
             "nullable": true
           },
-          "plateCount": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+          "plates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlateResponse"
+            }
           },
           "thumbnails": {
             "type": "array",
@@ -9684,6 +9698,36 @@
             "type": "number",
             "format": "decimal",
             "nullable": true
+          }
+        }
+      },
+      "PlateResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimatedPrintTimeMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "estimatedFilamentWeightGrams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "filamentRequirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewFilamentRequirementResponse"
+            }
           }
         }
       },

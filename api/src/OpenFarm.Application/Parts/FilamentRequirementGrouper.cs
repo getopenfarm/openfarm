@@ -27,4 +27,17 @@ public static class FilamentRequirementGrouper
 
         return requirements;
     }
+
+    /// <summary>
+    /// Each plate as indices into <paramref name="requirements"/> (grouped from the same slots): the requirements its own
+    /// slots name, or every requirement when it names none (no slots of its own, or the STL "any material" wildcard).
+    /// </summary>
+    public static IReadOnlyList<PreviewPlate> Plates(IReadOnlyList<PreviewFilamentRequirement> requirements, IReadOnlyList<FilePlate> plates) =>
+        plates.Select(plate =>
+        {
+            var own = requirements.Where(r => plate.FilamentSlots.Any(s =>
+                s.MaterialType == r.MaterialType && s.DetectedColorHex == r.DetectedColorHex)).Select(r => r.RequirementIndex).ToList();
+            return new PreviewPlate(plate.Number, plate.Name, own.Count > 0 ? own : requirements.Select(r => r.RequirementIndex).ToList(),
+                plate.EstimatedPrintTimeMinutes, plate.EstimatedFilamentWeightGrams, plate.FilamentGrams);
+        }).ToList();
 }

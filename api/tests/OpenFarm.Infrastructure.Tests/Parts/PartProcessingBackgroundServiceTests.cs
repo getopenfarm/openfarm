@@ -73,7 +73,7 @@ public class PartProcessingBackgroundServiceTests
             () => throw new IOException("disk read failed"));
         var processor = new FixedPartFileProcessor
         {
-            MaterialResolution = new PartMaterialResolution(0.4m, [], PlateCount: 1, ImmediateEstimate: null),
+            MaterialResolution = new PartMaterialResolution(0.4m, [], Plates: [], ImmediateEstimate: null),
         };
         var publisher = new RecordingPartEventPublisher();
 
@@ -133,7 +133,7 @@ public class PartProcessingBackgroundServiceTests
     public async Task Reconciliation_OrphanedReadyForReviewWithResolvingPreview_KeepsReviewReady()
     {
         var job = ProcessingJob();
-        job.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], plateCount: 1,
+        job.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], plates: [],
             EstimateStatus.Resolving, estimatedPrintTimeMinutes: null, estimatedFilamentWeightGrams: null, thumbnails: []);
 
         var jobs = new ReconcilingJobRepository(job);
@@ -187,11 +187,11 @@ public class PartProcessingBackgroundServiceTests
         // estimate is already Available. Over-eager reconciliation would wrongly fail/unavailable
         // these; it must not.
         var readyAvailable = ProcessingJob();
-        readyAvailable.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], plateCount: 1,
+        readyAvailable.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], plates: [],
             EstimateStatus.Available, estimatedPrintTimeMinutes: 42, estimatedFilamentWeightGrams: 12.5m, thumbnails: []);
 
         var confirmed = ProcessingJob();
-        confirmed.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], plateCount: 1,
+        confirmed.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], plates: [],
             EstimateStatus.Available, estimatedPrintTimeMinutes: 42, estimatedFilamentWeightGrams: 12.5m, thumbnails: []);
         confirmed.Confirm(Guid.NewGuid());
 
@@ -237,7 +237,7 @@ public class PartProcessingBackgroundServiceTests
             Material = _ => new PartMaterialResolution(
                 0.4m,
                 [new PreviewFilamentRequirement(0, "PLA", null, null)],
-                PlateCount: 1,
+                Plates: [],
                 ImmediateEstimate: new PartEstimateResolution(42, 12.5m, [])),
         };
 
@@ -280,7 +280,7 @@ public class PartProcessingBackgroundServiceTests
         {
             Material = job => job.Id == poison.Id
                 ? throw new InvalidOperationException("boom")
-                : new PartMaterialResolution(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], 1,
+                : new PartMaterialResolution(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], [],
                     new PartEstimateResolution(42, 12.5m, [])),
         };
 
@@ -401,7 +401,7 @@ public class PartProcessingBackgroundServiceTests
     {
         public TaskCompletionSource<PartEstimateResolution> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<PartMaterialResolution> ResolveMaterialAsync(PartProcessingJob job, Stream stream, CancellationToken cancellationToken) =>
-            Task.FromResult(new PartMaterialResolution(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], 1, null));
+            Task.FromResult(new PartMaterialResolution(0.4m, [new PreviewFilamentRequirement(0, "PLA", null, null)], [], null));
         public Task<PartEstimateResolution> ResolveEstimateAsync(PartProcessingJob job, Stream stream, CancellationToken cancellationToken) => Completion.Task;
     }
 
@@ -412,14 +412,14 @@ public class PartProcessingBackgroundServiceTests
     private static Part ResolvingPart() =>
         Part.Create("Resolving part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
             fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null, EstimateStatus.Resolving,
-            estimatedPrintTimeMinutes: null, estimatedFilamentWeightGrams: null, plateCount: 1,
+            estimatedPrintTimeMinutes: null, estimatedFilamentWeightGrams: null, plateNumber: 1,
             unitsPerPrint: 1, revisionHash: $"{Guid.NewGuid():N}",
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
 
     private static Part AvailablePart() =>
         Part.Create("Available part", PartFileFormat.ThreeMf, requiresSlicing: true, "widget.3mf", "path",
             fileSizeBytes: 10, nozzleDiameterMm: 0.4m, slicerEngineOverride: null, slicerVersionUsed: null, EstimateStatus.Available,
-            estimatedPrintTimeMinutes: 42, estimatedFilamentWeightGrams: 12.5m, plateCount: 1,
+            estimatedPrintTimeMinutes: 42, estimatedFilamentWeightGrams: 12.5m, plateNumber: 1,
             unitsPerPrint: 1, revisionHash: $"{Guid.NewGuid():N}",
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
 
@@ -598,7 +598,7 @@ public class PartProcessingBackgroundServiceTests
     /// <summary>Returns a fixed milestone-1 resolution; its milestone-2 path is never expected to run.</summary>
     private sealed class FixedPartFileProcessor : IPartFileProcessor
     {
-        public PartMaterialResolution MaterialResolution { get; set; } = new(0.4m, [], PlateCount: 1, ImmediateEstimate: null);
+        public PartMaterialResolution MaterialResolution { get; set; } = new(0.4m, [], Plates: [], ImmediateEstimate: null);
 
         public Task<PartMaterialResolution> ResolveMaterialAsync(PartProcessingJob job, Stream fileStream, CancellationToken cancellationToken) =>
             Task.FromResult(MaterialResolution);

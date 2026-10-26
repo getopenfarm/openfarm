@@ -13,7 +13,7 @@ namespace OpenFarm.Application.Parts;
 public sealed record PartMaterialResolution(
     decimal? NozzleDiameterMm,
     IReadOnlyList<PreviewFilamentRequirement> FilamentRequirements,
-    int PlateCount,
+    IReadOnlyList<PreviewPlate> Plates,
     PartEstimateResolution? ImmediateEstimate,
     string? ResolvedTargetMaterialType = null,
     bool MaterialMetadataComplete = true,
@@ -22,7 +22,8 @@ public sealed record PartMaterialResolution(
     EstimationConfiguration? EstimationConfiguration = null, IReadOnlyList<string>? MetadataWarnings = null);
 
 /// <summary>
-/// Milestone 2 result (research.md §3b) — estimate summed across every plate, plus per-plate thumbnails.
+/// Milestone 2 result (research.md §3b) — estimate summed across every plate, each plate's own (<see cref="Plates"/>), plus
+/// per-plate thumbnails.
 /// <see cref="Estimation"/>/<see cref="EstimationConfiguration"/> are set only when the estimate was made with other settings than
 /// the job's (the project's presets, after the slicer rejected its embedded settings) and replace the job's.
 /// </summary>
@@ -31,7 +32,21 @@ public sealed record PartEstimateResolution(
     decimal? EstimatedFilamentWeightGrams,
     IReadOnlyList<ThumbnailSpec> Thumbnails,
     IReadOnlyList<FilamentGrams>? FilamentGrams = null,
-    EstimationDetails? Estimation = null, EstimationConfiguration? EstimationConfiguration = null);
+    EstimationDetails? Estimation = null, EstimationConfiguration? EstimationConfiguration = null,
+    IReadOnlyList<FilePlate>? Plates = null)
+{
+    /// <summary>This estimate as it applies to a part printing plate <paramref name="plate"/>; unchanged when that plate is not in it.</summary>
+    public PartEstimateResolution ForPlate(int? plate) =>
+        plate is { } number && Plates?.FirstOrDefault(p => p.Number == number) is { } own
+            ? this with
+            {
+                EstimatedPrintTimeMinutes = own.EstimatedPrintTimeMinutes,
+                EstimatedFilamentWeightGrams = own.EstimatedFilamentWeightGrams,
+                FilamentGrams = own.FilamentGrams,
+                Thumbnails = Thumbnails.Where(t => t.PlateIndex == number - 1).ToList(),
+            }
+            : this;
+}
 
 /// <summary>
 /// The single seam <c>PartProcessingBackgroundService</c> depends on — unifies the parse (already-sliced)

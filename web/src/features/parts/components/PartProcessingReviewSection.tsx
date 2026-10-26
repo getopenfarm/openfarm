@@ -1,12 +1,17 @@
-import { AlertTriangleIcon, LoaderIcon } from 'lucide-react';
-import type { PartProcessingJobPreviewResponse } from '@/lib/api/generated/endpoints.schemas';
+import { AlertTriangleIcon, ImageOffIcon, LoaderIcon } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import type {
+  PartProcessingJobPreviewResponse,
+  PlateResponse,
+  ThumbnailResponse,
+} from '@/lib/api/generated/endpoints.schemas';
 import { formatMm } from '@/lib/formatUnits';
 import { filamentGrams, PartEstimate } from './PartEstimate';
 import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
 } from './PartFilamentRequirementsList';
-import { PartThumbnailGallery } from './PartThumbnailGallery';
+import { PartThumbnailGallery, plateLabel } from './PartThumbnailGallery';
 
 interface PartProcessingReviewSectionProps {
   status: string | undefined;
@@ -17,6 +22,9 @@ interface PartProcessingReviewSectionProps {
     requirementIndex: number,
     filamentVariantId: string | null,
   ) => void;
+  /** The plate the part prints; asked only when the file offers several. */
+  plateNumbers: number[];
+  onPlateNumbersChange: (plateNumbers: number[]) => void;
 }
 
 /**
@@ -31,6 +39,8 @@ export function PartProcessingReviewSection({
   errorMessage,
   overrides,
   onNarrow,
+  plateNumbers,
+  onPlateNumbersChange,
 }: PartProcessingReviewSectionProps) {
   if (status === 'Failed') {
     return (
@@ -50,8 +60,17 @@ export function PartProcessingReviewSection({
     );
   }
 
+  // A part prints one plate: the review shows that plate. A job from before plates were recorded has none and shows the file.
+  const plates = preview.plates ?? [];
+  const plate =
+    plates.length === 1
+      ? plates[0]
+      : plates.find(
+          (p) => plateNumbers.length === 1 && p.number === plateNumbers[0],
+        );
+  const shown = plate ?? (plates.length === 0 ? preview : undefined);
   const requirements: DisplayFilamentRequirement[] = (
-    preview.filamentRequirements ?? []
+    shown?.filamentRequirements ?? []
   ).map((requirement) => ({
     key: requirement.requirementIndex ?? 0,
     estimatedGrams: requirement.estimatedGrams,
@@ -92,14 +111,18 @@ export function PartProcessingReviewSection({
         </div>
         <div>
           <p className="text-muted-foreground">Estimated print</p>
-          <PartEstimate
-            status={estimateStatus}
-            minutes={preview.estimatedPrintTimeMinutes}
-            grams={filamentGrams(
-              requirements,
-              preview.estimatedFilamentWeightGrams,
-            )}
-          />
+          {shown ? (
+            <PartEstimate
+              status={estimateStatus}
+              minutes={shown.estimatedPrintTimeMinutes}
+              grams={filamentGrams(
+                requirements,
+                shown.estimatedFilamentWeightGrams,
+              )}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">Choose a plate.</p>
+          )}
         </div>
       </div>
 
@@ -119,33 +142,104 @@ export function PartProcessingReviewSection({
           must be completed before production.
         </p>
       )}
-      <div>
-        <p className="mb-1.5 text-sm text-muted-foreground">Thumbnails</p>
-        <PartThumbnailGallery
-          thumbnails={preview.thumbnails}
-          plateCount={preview.plateCount ?? undefined}
-        />
-      </div>
-
-      <div>
-        <p className="mb-1.5 text-sm text-muted-foreground">
-          Filament requirements
-        </p>
-        {requirements.some(
-          (requirement) => requirement.narrowFilamentProfileId,
-        ) && (
-          <p className="mb-2 text-xs text-muted-foreground">
-            Existing filament profile selections will be preserved unless you
-            change or clear a selection.
+      {plates.length > 1 ? (
+        <div>
+          <p className="mb-1.5 text-sm text-muted-foreground">Plate</p>
+          <PlatePicker
+            plates={plates}
+            thumbnails={preview.thumbnails}
+            plateNumbers={plateNumbers}
+            onChange={onPlateNumbersChange}
+          />
+        </div>
+      ) : (
+        <div>
+          <p className="mb-1.5 text-sm text-muted-foreground">
+            {plate ? plateLabel(plate) : 'Thumbnails'}
           </p>
-        )}
-        <PartFilamentRequirementsList
-          requirements={requirements}
-          onNarrow={(key, filamentVariantId) =>
-            onNarrow(Number(key), filamentVariantId)
-          }
-        />
-      </div>
+          <PartThumbnailGallery
+            thumbnails={preview.thumbnails?.filter(
+              (thumbnail) =>
+                !plate || thumbnail.plateIndex === (plate.number ?? 1) - 1,
+            )}
+          />
+        </div>
+      )}
+
+      {shown && (
+        <div>
+          <p className="mb-1.5 text-sm text-muted-foreground">
+            Filament requirements
+          </p>
+          {requirements.some(
+            (requirement) => requirement.narrowFilamentProfileId,
+          ) && (
+            <p className="mb-2 text-xs text-muted-foreground">
+              Existing filament profile selections will be preserved unless you
+              change or clear a selection.
+            </p>
+          )}
+          <PartFilamentRequirementsList
+            requirements={requirements}
+            onNarrow={(key, filamentVariantId) =>
+              onNarrow(Number(key), filamentVariantId)
+            }
+          />
+        </div>
+      )}
     </div>
+  );
+}
+
+function PlatePicker({
+  plates,
+  thumbnails,
+  plateNumbers,
+  onChange,
+}: {
+  plates: PlateResponse[];
+  thumbnails: ThumbnailResponse[] | undefined;
+  plateNumbers: number[];
+  onChange: (plateNumbers: number[]) => void;
+}) {
+  const byIndex = new Map(
+    (thumbnails ?? []).map((thumbnail) => [thumbnail.plateIndex, thumbnail]),
+  );
+  return (
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      value={plateNumbers.length === 1 ? String(plateNumbers[0]) : ''}
+      onValueChange={(value) => onChange(value ? [Number(value)] : [])}
+      className="flex-wrap"
+    >
+      {plates.map((plate) => {
+        const thumbnail = byIndex.get((plate.number ?? 1) - 1);
+        return (
+          <ToggleGroupItem
+            key={plate.number}
+            value={String(plate.number)}
+            className="h-auto flex-col items-start gap-1 p-2"
+          >
+            <span className="flex size-16 items-center justify-center overflow-hidden rounded-md bg-muted/40">
+              {thumbnail?.thumbnailBase64 ? (
+                <img
+                  src={`data:image/png;base64,${thumbnail.thumbnailBase64}`}
+                  alt=""
+                  className="size-full object-contain"
+                />
+              ) : (
+                <ImageOffIcon className="size-4 text-muted-foreground" />
+              )}
+            </span>
+            <span className="text-xs font-medium">{plateLabel(plate)}</span>
+            <PartEstimate
+              minutes={plate.estimatedPrintTimeMinutes}
+              grams={plate.estimatedFilamentWeightGrams}
+            />
+          </ToggleGroupItem>
+        );
+      })}
+    </ToggleGroup>
   );
 }

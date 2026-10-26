@@ -85,6 +85,23 @@ public class SlicerInvocationTests
     }
 
     [Fact]
+    public void PrusaSliceFamilyInvocation_BuildInvocation_SlicesOnlyThePartsPlate()
+    {
+        var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");
+        try
+        {
+            var result = new PrusaSliceFamilyInvocation().BuildInvocation(Orca, "/tmp/model.3mf", "PLA", 0.4m, workDirectory.FullName,
+                ResolvedProfiles with { Plate = 3 });
+
+            result.Arguments.Should().StartWith("--slice 3 ");
+        }
+        finally
+        {
+            workDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void PrusaSliceFamilyInvocation_BuildInvocation_LoadsOneFilamentFilePerProjectSlotWithItsColour()
     {
         var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");
@@ -121,6 +138,15 @@ public class SlicerInvocationTests
         var act = () => new SuperSlicerInvocation().BuildInvocation(SuperSlicerBinary, "/tmp/model.3mf", "PLA", 0.4m, "/tmp", profiles);
 
         act.Should().Throw<SlicingFailedException>();
+    }
+
+    [Fact]
+    public void SuperSlicerInvocation_APlateOtherThanTheFirst_IsRefused()
+    {
+        var act = () => new SuperSlicerInvocation().BuildInvocation(SuperSlicerBinary, "/tmp/model.3mf", "PLA", 0.4m, "/tmp",
+            ResolvedProfiles with { Plate = 2 });
+
+        act.Should().Throw<SlicingFailedException>().WithMessage("SuperSlicer slices the whole file.*");
     }
 
     [Fact]
