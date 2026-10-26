@@ -17,8 +17,9 @@ internal sealed record ProjectSettingsMetadata(decimal? Nozzle, IReadOnlyList<De
             string? First(string key) => ResolveEstimationProfiles.ReadFirst(json, key);
             var types = ResolveEstimationProfiles.ReadStrings(json, "filament_type");
             var colors = ResolveEstimationProfiles.ReadStrings(json, "filament_colour");
+            var vendors = ResolveEstimationProfiles.ReadStrings(json, "filament_vendor");
             var slots = types.Select((type, i) => new DetectedFilamentSlot(type,
-                i < colors.Count ? SlicedPlateMetadata.NormalizeColor(colors[i]) : null, null))
+                i < colors.Count ? SlicedPlateMetadata.NormalizeColor(colors[i]) : null, Vendor(vendors, i)))
                 .Where(s => !string.IsNullOrWhiteSpace(s.MaterialType)).ToArray();
             var nozzle = ResolveEstimationProfiles.ReadUniformNozzle(json);
             var details = new EstimationDetails("EmbeddedProject", First("printer_model"), First("printer_settings_id"),
@@ -44,15 +45,19 @@ internal sealed record ProjectSettingsMetadata(decimal? Nozzle, IReadOnlyList<De
             if (document.RootElement.ValueKind != JsonValueKind.Object) return [];
             var types = ResolveEstimationProfiles.ReadStrings(document.RootElement, "filament_type");
             var colors = ResolveEstimationProfiles.ReadStrings(document.RootElement, "filament_colour");
+            var vendors = ResolveEstimationProfiles.ReadStrings(document.RootElement, "filament_vendor");
             return types.Select((type, i) => string.IsNullOrWhiteSpace(type)
                 ? null
-                : new DetectedFilamentSlot(type, i < colors.Count ? SlicedPlateMetadata.NormalizeColor(colors[i]) : null, null)).ToList();
+                : new DetectedFilamentSlot(type, i < colors.Count ? SlicedPlateMetadata.NormalizeColor(colors[i]) : null, Vendor(vendors, i))).ToList();
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return [];
         }
     }
+
+    private static string? Vendor(IReadOnlyList<string> vendors, int i) =>
+        i < vendors.Count && !string.IsNullOrWhiteSpace(vendors[i]) ? vendors[i] : null;
 
     private static ProjectSettingsMetadata Invalid() => new(null, [], new("EmbeddedProject"), false,
         "Estimation unavailable: embedded project settings could not be read.");

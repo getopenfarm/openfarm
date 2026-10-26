@@ -82,15 +82,50 @@ public class EmbeddedMetadataTests
         result.Estimation!.FilamentProfileNames.Should().Equal("Custom PETG");
     }
 
+    private const string OnPlateTwo = "<plate><model_instance><metadata key=\"object_id\" value=\"2\"/></model_instance></plate></config>";
+
     [Fact]
-    public async Task UnslicedProject_WithPaintedColours_KeepsEverySlot()
+    public async Task UnslicedProject_WithPaintedColours_UsesTheVolumeExtrudersAndThePaintedSlots()
     {
         using var zip = Zip(("Metadata/project_settings.config", Project), ("Metadata/model_settings.config",
-            "<config><object id=\"2\"><metadata key=\"extruder\" value=\"1\"/></object>"
-            + "<plate><model_instance><metadata key=\"object_id\" value=\"2\"/></model_instance></plate></config>"),
-            ("3D/Objects/a.model", "<model><triangle v1=\"0\" paint_color=\"4\"/></model>"));
+            "<config><object id=\"2\"><metadata key=\"extruder\" value=\"1\"/></object>" + OnPlateTwo),
+            ("3D/Objects/a.model", "<model><triangle v1=\"0\" paint_color=\"8\"/></model>"));
         var result = await new UnslicedProjectMaterialResolver().ResolveAsync(zip, CancellationToken.None);
         result.FilamentSlots.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task UnslicedProject_WithPaintOnTheObjectsOwnSlot_DropsTheOthers()
+    {
+        using var zip = Zip(("Metadata/project_settings.config", Project), ("Metadata/model_settings.config",
+            "<config><object id=\"2\"><metadata key=\"extruder\" value=\"1\"/></object>" + OnPlateTwo),
+            ("3D/Objects/a.model", "<model><triangle v1=\"0\" paint_color=\"4\"/></model>"));
+        var result = await new UnslicedProjectMaterialResolver().ResolveAsync(zip, CancellationToken.None);
+        result.FilamentSlots.Should().ContainSingle().Which.MaterialType.Should().Be("PETG");
+    }
+
+    [Fact]
+    public async Task UnslicedProject_WithUndecodablePaint_KeepsEverySlot()
+    {
+        using var zip = Zip(("Metadata/project_settings.config", Project), ("Metadata/model_settings.config",
+            "<config><object id=\"2\"><metadata key=\"extruder\" value=\"1\"/></object>" + OnPlateTwo),
+            ("3D/Objects/a.model", "<model><triangle v1=\"0\" paint_color=\"zz\"/></model>"));
+        var result = await new UnslicedProjectMaterialResolver().ResolveAsync(zip, CancellationToken.None);
+        result.FilamentSlots.Should().HaveCount(2);
+    }
+
+    // Shape of a Snapmaker U1 project: four slots, volumes on slots 4 and 3, triangles painted with slots 3 and 4.
+    [Fact]
+    public async Task UnslicedProject_PaintedMultiColour_KeepsOnlyUsedSlotsWithTheirVendor()
+    {
+        const string u1 = """{"printer_model":"Snapmaker U1","printer_settings_id":"Snapmaker U1 (0.4 nozzle)","print_settings_id":"0.16 High Quality","nozzle_diameter":["0.4","0.4","0.4","0.4"],"filament_type":["PLA","PLA","PLA","PLA"],"filament_colour":["#000000","#FFFFFF","#000000","#FEC11D"],"filament_vendor":["Snapmaker","Snapmaker","Aliz","Aliz"],"filament_settings_id":["A","B","C","D"],"curr_bed_type":"Textured PEI Plate"}""";
+        using var zip = Zip(("Metadata/project_settings.config", u1), ("Metadata/model_settings.config",
+            "<config><object id=\"2\"><metadata key=\"extruder\" value=\"4\"/><part id=\"1\" subtype=\"normal_part\"><metadata key=\"extruder\" value=\"4\"/></part>"
+            + "<part id=\"2\" subtype=\"normal_part\"><metadata key=\"extruder\" value=\"3\"/></part></object>" + OnPlateTwo),
+            ("3D/Objects/a.model", "<model><triangle v1=\"0\" paint_color=\"0C\"/><triangle v1=\"1\" paint_color=\"1C\"/></model>"));
+        var result = await new UnslicedProjectMaterialResolver().ResolveAsync(zip, CancellationToken.None);
+        result.FilamentSlots!.Select(s => (s.DetectedColorHex, s.DetectedSubBrand)).Should().Equal(("#000000", "Aliz"), ("#FEC11D", "Aliz"));
+        result.Estimation!.FilamentProfileNames.Should().Equal("C", "D");
     }
 
     [Theory]

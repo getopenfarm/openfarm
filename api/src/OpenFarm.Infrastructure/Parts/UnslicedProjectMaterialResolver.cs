@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.RegularExpressions;
+using System.Xml;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 
@@ -65,7 +66,7 @@ public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMa
             var slots = metadata?.Slots;
             var details = metadata?.Details;
             if (metadata is { MaterialComplete: true } && modelSettingsXml is not null
-                && ProjectUsedFilaments.Read(modelSettingsXml, HasPaintedColours(archive)) is { } used
+                && ProjectUsedFilaments.Read(modelSettingsXml, PaintedSlots(archive)) is { } used
                 && used.All(i => i < metadata.Slots.Count))
             {
                 var order = used.Order().ToList();
@@ -81,26 +82,40 @@ public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMa
         }
     }
 
-    /// <summary>Whether any object volume paints colours (a slot per triangle), which the settings alone cannot account for.</summary>
-    private static bool HasPaintedColours(ZipArchive archive)
+    /// <summary>
+    /// The slots object volumes paint per triangle (<c>paint_color</c>, <c>mmu_segmentation</c>), empty when nothing is painted;
+    /// <c>null</c> when a painted value cannot be decoded, so the caller keeps every slot.
+    /// </summary>
+    private static HashSet<int>? PaintedSlots(ZipArchive archive)
     {
+        var slots = new HashSet<int>();
+        var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit };
         foreach (var entry in archive.Entries.Where(e => PaintableModelRegex().IsMatch(e.FullName.Replace('\\', '/'))))
         {
-            using var reader = new StreamReader(entry.Open());
-            var buffer = new char[81920];
-            var carry = string.Empty;
-            int read;
-            while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+            try
             {
-                // Overlap chunks so an attribute name split across two reads is still seen.
-                var text = carry + new string(buffer, 0, read);
-                if (text.Contains("paint_color", StringComparison.Ordinal) || text.Contains("mmu_segmentation", StringComparison.Ordinal)) return true;
-                carry = text[^Math.Min(text.Length, 16)..];
+                using var xml = XmlReader.Create(entry.Open(), settings);
+                while (xml.Read())
+                {
+                    if (xml.NodeType != XmlNodeType.Element || !xml.HasAttributes) continue;
+                    foreach (var attribute in PaintAttributes)
+                        if (xml.GetAttribute(attribute) is { } value)
+                        {
+                            if (ProjectUsedFilaments.PaintedSlots(value) is not { } painted) return null;
+                            slots.UnionWith(painted);
+                        }
+                }
+            }
+            catch (XmlException)
+            {
+                return null;
             }
         }
 
-        return false;
+        return slots;
     }
+
+    private static readonly string[] PaintAttributes = ["paint_color", "mmu_segmentation"];
 
     [GeneratedRegex(@"^3D/(?:Objects/.+|3dmodel)\.model$", RegexOptions.IgnoreCase)]
     private static partial Regex PaintableModelRegex();
