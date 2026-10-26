@@ -64,17 +64,19 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         return client;
     }
 
+    /// <param name="file">The stored file's bytes, instead of <paramref name="contents"/> (a sliced 3MF with a <c>.3mf</c> <paramref name="fileName"/>).</param>
     protected async Task<Part> PartAsync(int units = 1, string contents = "; revision one\n", string fileName = "part.gcode", bool legacy = false,
-        decimal? grams = 20, FilamentRequirementSpec? requirement = null)
+        decimal? grams = 20, FilamentRequirementSpec? requirement = null, byte[]? file = null)
     {
         using var scope = Factory.Services.CreateScope();
         var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
-        var bytes = Encoding.UTF8.GetBytes(contents);
+        var bytes = file ?? Encoding.UTF8.GetBytes(contents);
         var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         using var stream = new MemoryStream(bytes);
         var path = await storage.SaveAsync(legacy ? Guid.NewGuid().ToString("N") : hash, fileName, stream, default);
         if (legacy) hash = new string('a', 32);
-        var part = Part.Create($"Part {Guid.NewGuid():N}", PartFileFormat.GCode,
+        var format = fileName.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase) ? PartFileFormat.ThreeMf : PartFileFormat.GCode;
+        var part = Part.Create($"Part {Guid.NewGuid():N}", format,
             false, fileName, path, bytes.Length, 0.4m, null, null, EstimateStatus.Available,
             60, grams, 1, units, hash, [requirement ?? new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
         await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);

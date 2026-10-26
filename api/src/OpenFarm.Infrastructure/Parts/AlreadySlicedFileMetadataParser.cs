@@ -38,7 +38,7 @@ public sealed partial class AlreadySlicedFileMetadataParser : IAlreadySlicedFile
             plate.FilamentSlots,
             plate.Thumbnail is null ? [] : [new ThumbnailSpec(0, plate.Thumbnail)],
             plate.MaterialMetadataComplete, DescribeGCode(content),
-            FilamentGrams: ReadFilamentGrams(() => JobFilamentUsageReader.Sum([JobFilamentUsageReader.Read(System.Text.Encoding.UTF8.GetBytes(content))])));
+            FilamentGrams: ReadFilamentGrams(() => JobFilamentUsageReader.Sum([JobFilamentUsageReader.Read(System.Text.Encoding.UTF8.GetBytes(content), 1)])));
     }
 
     private static async Task<SlicedFileMetadata> ParseGCode3mfAsync(Stream fileStream, CancellationToken cancellationToken)

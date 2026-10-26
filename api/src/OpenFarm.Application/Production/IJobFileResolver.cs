@@ -4,8 +4,11 @@ using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-/// <summary>The bytes a dispatcher actually sends to a printer, plus a display name for the connector's job-name field.</summary>
-public sealed record JobFileContent(byte[] Bytes, string FileName)
+/// <summary>
+/// The bytes a dispatcher actually sends to a printer, plus a display name for the connector's job-name field and the plate
+/// of a 3MF project to print (1 for bare G-code). Decided once, here, so the plate sent and the plate whose filament is read agree.
+/// </summary>
+public sealed record JobFileContent(byte[] Bytes, string FileName, int Plate)
 {
     /// <summary>The configuration the file was produced for (<see cref="ProductionProfileReadiness.StampAsync"/>); compared with the live one right before sending.</summary>
     public string? ConfigurationStamp { get; init; }

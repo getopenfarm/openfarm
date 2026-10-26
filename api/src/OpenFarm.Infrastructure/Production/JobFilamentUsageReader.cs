@@ -20,7 +20,7 @@ internal sealed record JobFilamentUsageReport(IReadOnlyList<FilamentUsage> Usage
 
 /// <summary>
 /// Reads the slicer's per-filament grams, and how each filament is spread over the layers, from the file actually sent
-/// to the printer — plate 1, the plate <c>BambuPrintFile</c> dispatches. Anything unreadable yields less (no grams, or
+/// to the printer — the plate dispatch sends (<c>JobFileContent.Plate</c>). Anything unreadable yields less (no grams, or
 /// no curve) rather than an error, so dispatch is never blocked: the job then deducts by an even spread, or is skipped and logged.
 /// </summary>
 internal static partial class JobFilamentUsageReader
@@ -63,8 +63,8 @@ internal static partial class JobFilamentUsageReader
         return plates.Count == 1 ? plates[0] : null;
     }
 
-    /// <summary>Dispatch always sends plate 1; an external print names its own plate.</summary>
-    public static JobFilamentUsageReport Read(byte[] file, int plate = 1)
+    /// <summary>One plate of a 3mf (bare G-code has no plates: <paramref name="plate"/> is ignored).</summary>
+    public static JobFilamentUsageReport Read(byte[] file, int plate)
     {
         try
         {
@@ -116,7 +116,7 @@ internal static partial class JobFilamentUsageReader
             }
             catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException) { return []; }
         }
-        else reports = [Read(file)];
+        else reports = [Read(file, 1)];
 
         return Sum(reports);
     }

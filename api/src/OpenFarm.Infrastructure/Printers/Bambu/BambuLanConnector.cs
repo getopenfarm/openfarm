@@ -179,11 +179,11 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     /// real, open verification question for physical hardware (research.md R5's own documented risk),
     /// not settled here.
     /// </summary>
-    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
     {
         using var buffered = new MemoryStream();
         await fileContent.CopyToAsync(buffered, cancellationToken);
-        using var project = new MemoryStream(BambuPrintFile.PrepareProject(buffered.ToArray(), jobName));
+        using var project = new MemoryStream(BambuPrintFile.PrepareProject(buffered.ToArray(), jobName, plate));
 #pragma warning disable CA5351 // MD5 here is a Bambu protocol-mandated file-integrity checksum
         // (project_file's own "md5" field), not a security use.
         var md5 = Convert.ToHexStringLower(await MD5.HashDataAsync(project, cancellationToken));
@@ -207,7 +207,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             {
                 sequence_id = "0",
                 command = "project_file",
-                param = BambuPrintFile.PlatePath,
+                param = BambuPrintFile.PlatePath(plate),
                 project_id = "0",
                 profile_id = "0",
                 task_id = "0",

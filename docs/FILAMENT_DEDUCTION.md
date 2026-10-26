@@ -6,7 +6,7 @@ Job filament use is deducted automatically; operators never enter it. Manual spo
 ## Flow
 
 1. **Dispatch** (`ProductionDispatchBackgroundService`): the file about to be sent is read
-   (`JobFilamentUsageReader`: plate 1's `slice_info.config` `used_g`, else the G-code footer's
+   (`JobFilamentUsageReader`: the dispatched plate's `slice_info.config` `used_g`, else the G-code footer's
    `filament used [g]`). `JobFilamentUsageMatcher` assigns each filament's grams to a job line by
    material and colour (by file order when overridden colours leave a multi-line job unmatched).
    Start-gcode purge is added to the slicer's grams (see Usage curve). `ProductionProfileReadiness.ResolveAsync` picks the loaded Using spool per
@@ -26,7 +26,7 @@ Job filament use is deducted automatically; operators never enter it. Manual spo
 
 ## Usage curve
 
-At dispatch `GCodeFilamentCurveReader` reads plate 1's G-code: net extrusion (`G0-G3` E, retract and
+At dispatch `GCodeFilamentCurveReader` reads the dispatched plate's G-code: net extrusion (`G0-G3` E, retract and
 un-retract cancel) per tool per layer, with the layer taken from `; layer num/total_layer_count: N/T`
 (the same N the printer reports as `layer_num`) or `;LAYER_CHANGE`. The tool is the last `T<n>`, so
 colour-change flush counts to the new colour. Each line's tools are summed and normalised to a
@@ -58,7 +58,7 @@ and shows on the Jobs page in its own "Printer-started prints" section (`GET /ap
 - **Which plate:** a file printed from one plate of a multi-plate project keeps that plate's number (`Metadata/plate_4.gcode`),
   and `gcode_file` does not always name it. The plate comes from the file: the one the printer names if the file has it, else
   the only plate with G-code, else (several plates, none named) the print is not tracked and a warning says so. Dispatch
-  still always sends plate 1.
+  decides its plate once (`JobFileResolver.PlateToPrint`: plate 1, else the only sliced plate) and reads that plate.
 - **Finding the file:** each candidate path is downloaded directly and a 550 means "not there". `FileExists` is avoided: it
   lists the folder and throws if any unrelated file has a name FluentFTP treats as path traversal (e.g. `....`).
 - **Transitions:** `JobTelemetrySync` drives pause, resume, finish and fail for both kinds. Only an OpenFarm job can move
@@ -140,18 +140,14 @@ Every change to a spool's remaining weight writes one append-only `SpoolUsageRec
 
 ## Open issues (check back later)
 
-Found while making the estimate more exact. Neither is a bug today; both matter once the product grows.
+Found while making the estimate more exact. Each matters once the product grows.
 
-### 1. No plate selection — dispatch and deduction both assume plate 1
-- `BambuPrintFile.PlatePath` (`Infrastructure/Printers/Bambu/BambuPrintFile.cs:10`) always sends `Metadata/plate_1.gcode` and
-  rejects the file if it is missing. `CliSlicerEngine.ReadEmbeddedPlateGCodeAsync` (`:207`) also reads only `plate_1` after
-  slicing ("first (only, today) plate").
-- `JobFilamentUsageReader` (`PlateGCode`, `ReadSliceInfo`) reads plate 1 too, so deduction matches what is printed.
-- Single-plate sliced files and sliced plain 3mf: fine.
-- Multi-plate sliced `.gcode.3mf`: the upload parser reads every plate, but only plate 1 is dispatched. Not traced how a
-  multi-plate part becomes a job — verify before relying on it.
-- **If plate selection is added:** change `BambuPrintFile`, `CliSlicerEngine`, and `JobFilamentUsageReader.Read` (take a plate
-  number: `plate_<n>.gcode` and the `slice_info.config` `<plate>` with `index = n`) together.
+### 1. Multi-plate parts still sum every plate
+- Dispatch now picks one plate and sends, maps and deducts that plate (`JobFileContent.Plate`). An exported single plate
+  (`plate_4.gcode` only) prints and deducts correctly.
+- A part's estimate and per-colour grams still add up every sliced plate, while a multi-plate file prints only plate 1. Fixed by
+  storing one plate per part (`Part.PlateNumber`, planned), after which estimates, filaments and production slicing (`--slice N`)
+  describe that plate only.
 
 ### 2. Manual Fail deducts nothing
 - `FailPrintJobCommandHandler.cs:42` and `CompletePrintJobCommandHandler.cs:47` pass `new JobProgress(job.Status)` with no layer

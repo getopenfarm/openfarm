@@ -51,7 +51,8 @@ public sealed class JobFileResolver(
             var description = PrintFileName.Describe(part.Name, selections.Select(s => s.MaterialType),
                 effective.RevisionHash == part.RevisionHash ? part.EstimatedPrintTimeMinutes : null);
             var storedExtension = classification.Format == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
-            return new JobFileContent(storedBuffer.ToArray(), $"{description}{storedExtension}") { ConfigurationStamp = stamp };
+            var bytes = storedBuffer.ToArray();
+            return new JobFileContent(bytes, $"{description}{storedExtension}", PlateToPrint(bytes)) { ConfigurationStamp = stamp };
         }
 
         // A file that needs slicing never reaches the slicer without the presets that were resolved for the pin.
@@ -65,8 +66,18 @@ public sealed class JobFileResolver(
 
         var extension = result.OutputFileFormat == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
         var slicedDescription = PrintFileName.Describe(part.Name, selections.Select(s => s.MaterialType), result.EstimatedPrintTimeMinutes);
-        return new JobFileContent(result.OutputFileBytes, $"{slicedDescription}{extension}") { ConfigurationStamp = stamp, Profiles = profiles };
+        return new JobFileContent(result.OutputFileBytes, $"{slicedDescription}{extension}", PlateToPrint(result.OutputFileBytes))
+        { ConfigurationStamp = stamp, Profiles = profiles };
     }
+
+    /// <summary>
+    /// The plate of the file to print: plate 1 when the file has it, else its only sliced plate (an exported single plate keeps
+    /// its number, e.g. <c>Metadata/plate_4.gcode</c>); bare G-code is plate 1. A file holding several other plates is refused
+    /// rather than one of them guessed.
+    /// </summary>
+    internal static int PlateToPrint(byte[] file) =>
+        JobFilamentUsageReader.ChoosePlate(file, 1) ?? throw new SlicingProfileUnconfiguredException(
+            $"The file holds plates {string.Join(", ", JobFilamentUsageReader.PlatesWithGCode(file))} and no plate 1. Upload a file with one plate.");
 
     /// <summary>
     /// Which line's filament each project slot loads. A slot's material and colour name its line — the key the part's

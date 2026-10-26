@@ -14,7 +14,11 @@ The P1/A1 convention follows the implementation in
 [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI/blob/main/mqtt.md#printproject_file)
 also documents a cache-qualified FTP URL and the internal plate path.
 
-`param` is `Metadata/plate_1.gcode`, a ZIP entry inside the uploaded project.
+`param` is `Metadata/plate_<n>.gcode`, a ZIP entry inside the uploaded project: the plate
+`JobFileResolver` chose for the dispatch. That is plate 1 when the file has it, else its only sliced
+plate (Bambu Studio and OrcaSlicer's "export plate sliced file" keeps the plate's number, e.g.
+`plate_4.gcode`). A file holding several plates but not plate 1 is blocked instead of guessed.
+The same plate's filament is read for the feed mapping and deduction.
 Renaming plain G-code to `.3mf` does not create that entry. OpenFarm preserves
 existing sliced archives, including their settings and thumbnails. For bare
 G-code it packages the original bytes at that entry and adds the per-plate MD5

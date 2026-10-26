@@ -15,7 +15,7 @@ namespace OpenFarm.Api.IntegrationTests.Production;
 /// <summary>Records what dispatch tells the printer to feed, instead of talking to one.</summary>
 public sealed class FeedMappingRecorder : IPrinterConnectorFactory
 {
-    public ConcurrentQueue<(string SerialNumber, FilamentFeedMapping? Mapping)> Started { get; } = [];
+    public ConcurrentQueue<(string SerialNumber, int Plate, FilamentFeedMapping? Mapping)> Started { get; } = [];
 
     public IPrinterConnector CreateConnector(PrinterConnectionDetails details) => new Connector(this);
 
@@ -31,9 +31,9 @@ public sealed class FeedMappingRecorder : IPrinterConnectorFactory
             yield break;
         }
 
-        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
         {
-            owner.Started.Enqueue((details.SerialNumber, feedMapping));
+            owner.Started.Enqueue((details.SerialNumber, plate, feedMapping));
             return Task.CompletedTask;
         }
 
@@ -95,6 +95,34 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         try { await WaitForAssignmentAsync(runId); }
         finally { await worker.StopAsync(default); }
         return SentTo(printer).Should().ContainSingle().Subject;
+    }
+
+    [Fact]
+    public async Task AnExportedSinglePlate_IsSentAsThatPlateWithItsOwnGrams()
+    {
+        // Bambu Studio / Orca "export plate sliced file" of plate 4: only plate 4 has G-code, and slice_info describes plate 4.
+        using var project = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(project, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var gcode = new StreamWriter(archive.CreateEntry("Metadata/plate_4.gcode").Open())) gcode.Write("G28\n");
+            using var sliceInfo = new StreamWriter(archive.CreateEntry("Metadata/slice_info.config").Open());
+            sliceInfo.Write("""<config><plate><metadata key="index" value="4"/><filament id="1" type="PLA" color="#000000" used_g="5.5"/></plate></config>""");
+        }
+
+        var client = await ClientAsync();
+        var part = await PartAsync(fileName: "part.gcode.3mf", file: project.ToArray());
+        var printer = await PrinterAsync();
+        var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
+
+        using (var worker = Worker())
+        {
+            await worker.StartAsync(default);
+            try { await WaitForAssignmentAsync(runId); }
+            finally { await worker.StopAsync(default); }
+        }
+
+        Recorder.Started.Should().ContainSingle(s => s.SerialNumber == printer.SerialNumber).Which.Plate.Should().Be(4);
+        (await JobsAsync(runId)).Single().Filaments.Single().EstimatedGrams.Should().Be(5.5m);
     }
 
     [Fact]

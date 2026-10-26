@@ -91,7 +91,7 @@ public class RegisterPrinterCommandHandlerTests
         public IAsyncEnumerable<PrinterConnectorEvent> ConnectAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) => throw new NotSupportedException();

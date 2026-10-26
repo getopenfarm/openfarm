@@ -80,8 +80,9 @@ public interface IPrinterConnector
     /// through <see cref="ConnectAsync"/> and resolved by <c>IJobTelemetrySync</c>, does that
     /// (research.md R12).
     /// </summary>
+    /// <param name="plate">The plate of a 3MF project to print (<c>Metadata/plate_&lt;n&gt;.gcode</c>); 1 for bare G-code.</param>
     /// <param name="feedMapping">Which feed each of the file's filaments uses; null keeps the printer's default (the external spool).</param>
-    Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken);
+    Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken);
 
     /// <summary>
     /// Requests the printer pause its current print. A request, not a status change — see

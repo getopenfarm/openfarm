@@ -466,7 +466,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
-        var fileUsage = JobFilamentUsageReader.Read(fileContent.Bytes);
+        var fileUsage = JobFilamentUsageReader.Read(fileContent.Bytes, fileContent.Plate);
         var lineUsage = JobFilamentUsageMatcher.Match(
             job.Filaments.Select(c => (c.MaterialType, c.DetectedColorHex)).ToList(), fileUsage.Usages);
 
@@ -530,7 +530,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             var connector = connectorFactory.CreateConnector(details);
             using var stream = new MemoryStream(fileContent.Bytes);
-            await connector.StartJobAsync(details, stream, fileContent.FileName, feedMapping, cancellationToken);
+            await connector.StartJobAsync(details, stream, fileContent.FileName, fileContent.Plate, feedMapping, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

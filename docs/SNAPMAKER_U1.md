@@ -91,7 +91,8 @@ and readiness says so.
 
 `StartJobAsync`:
 
-1. Unwraps `Metadata/plate_1.gcode` when the file is a sliced project (`.gcode.3mf`); plain G-code is sent as it is.
+1. Unwraps the dispatched plate's `Metadata/plate_<n>.gcode` when the file is a sliced project (`.gcode.3mf`; plate
+   chosen as in `docs/BAMBU_LAN_PRINTING.md`); plain G-code is sent as it is.
    The U1 prints plain G-code, and its own 3MF handling expects files Snapmaker's slicer made.
 2. Uploads it with `POST /server/files/upload` (`root=gcodes`, `path=openfarm`, `checksum=<sha256>`), named like
    Bambu uploads but ending in `.gcode`.

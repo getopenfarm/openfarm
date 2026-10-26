@@ -26,9 +26,6 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     /// <summary>The folder under the gcodes root OpenFarm's uploads go to, apart from files people put there.</summary>
     internal const string UploadFolder = "openfarm";
 
-    // The plate inside an OrcaSlicer / Bambu Studio project; production always sends plate 1.
-    private const string PlateGCodePath = "Metadata/plate_1.gcode";
-
     // One pooled client for every printer (and their cameras); each call carries its own deadline.
     internal static readonly HttpClient Http = new(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) })
     {
@@ -110,9 +107,9 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     /// 1.3+, websocket only), whose <c>map_table</c> routes each of the file's tools to the head its spool is loaded in.
     /// A sliced project is unwrapped first: the U1 prints plain G-code, and its own 3MF handling expects Snapmaker's slicer.
     /// </summary>
-    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
     {
-        var gcode = await PlateGCodeAsync(fileContent, cancellationToken);
+        var gcode = await PlateGCodeAsync(fileContent, plate, cancellationToken);
         var fileName = PrintFileName.ForUpload(jobName, ".gcode");
         await UploadAsync(details, gcode, fileName, cancellationToken);
 
@@ -149,7 +146,8 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
         return pairs.Select(p => new[] { p.tool, p.slot!.Value.SlotPosition }).ToArray();
     }
 
-    private static async Task<byte[]> PlateGCodeAsync(Stream fileContent, CancellationToken cancellationToken)
+    // The plate's G-code inside an OrcaSlicer / Bambu Studio project; bare G-code is sent as is.
+    private static async Task<byte[]> PlateGCodeAsync(Stream fileContent, int plate, CancellationToken cancellationToken)
     {
         using var buffer = new MemoryStream();
         await fileContent.CopyToAsync(buffer, cancellationToken);
@@ -157,10 +155,11 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
         if (bytes is not [0x50, 0x4B, 0x03, 0x04, ..]) return bytes;
 
         using var archive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
-        var plate = archive.GetEntry(PlateGCodePath) ?? throw new IOException($"The print project has no {PlateGCodePath}.");
+        var path = $"Metadata/plate_{plate}.gcode";
+        var entry = archive.GetEntry(path) ?? throw new IOException($"The print project has no {path}.");
         using var gcode = new MemoryStream();
-        await using (var entry = plate.Open())
-            await entry.CopyToAsync(gcode, cancellationToken);
+        await using (var content = entry.Open())
+            await content.CopyToAsync(gcode, cancellationToken);
         return gcode.ToArray();
     }
 

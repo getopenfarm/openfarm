@@ -1,15 +1,17 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Infrastructure.Parts;
+using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Tests.Parts.RealSlicer;
 
 /// <summary>
 /// Drives one real slice independently of <see cref="CliSlicerEngine"/>, which discards the raw
 /// G-code after parsing metadata from it. Reuses <see cref="CliSlicerEngine"/>'s internal,
-/// already-test-visible helpers for the input file name and 3MF-embedded G-code extraction rather
-/// than duplicating that logic, but runs its own process so the raw G-code text can be captured.
+/// already-test-visible input file name helper rather than duplicating it, but runs its own process
+/// so the raw G-code text can be captured.
 /// </summary>
 internal static class RealSlicerProcessRunner
 {
@@ -61,7 +63,7 @@ internal static class RealSlicerProcessRunner
             }
 
             return processInvocation.ProducesGCodeBearingThreeMf
-                ? await CliSlicerEngine.ReadEmbeddedPlateGCodeAsync(processInvocation.OutputPath, cancellationToken)
+                ? await ReadOnlyPlateGCodeAsync(processInvocation.OutputPath, cancellationToken)
                 : await File.ReadAllTextAsync(processInvocation.OutputPath, cancellationToken);
         }
         finally
@@ -75,5 +77,15 @@ internal static class RealSlicerProcessRunner
                 // Best-effort cleanup — a leftover temp dir is not worth failing the test over.
             }
         }
+    }
+
+    // The fixtures are single-plate projects, so the exported 3MF holds exactly one plate's G-code.
+    private static async Task<string> ReadOnlyPlateGCodeAsync(string threeMfPath, CancellationToken cancellationToken)
+    {
+        var bytes = await File.ReadAllBytesAsync(threeMfPath, cancellationToken);
+        var plate = JobFilamentUsageReader.PlatesWithGCode(bytes).Single();
+        using var archive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+        using var reader = new StreamReader(archive.GetEntry($"Metadata/plate_{plate}.gcode")!.Open());
+        return await reader.ReadToEndAsync(cancellationToken);
     }
 }

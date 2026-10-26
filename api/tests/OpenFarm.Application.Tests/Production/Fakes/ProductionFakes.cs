@@ -285,7 +285,7 @@ public sealed class RecordingPrinterConnector : IPrinterConnector
         yield break;
     }
 
-    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
     {
         StartedJobNames.Add(jobName);
         return Task.CompletedTask;

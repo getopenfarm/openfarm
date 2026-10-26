@@ -57,7 +57,7 @@ public class BambuLanProtocolTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         try
         {
-            await connector.StartJobAsync(mqtt.Details, file, "new part.gcode", null, cts.Token);
+            await connector.StartJobAsync(mqtt.Details, file, "new part.gcode", 1, null, cts.Token);
         }
         catch (Exception ex)
         {
@@ -66,7 +66,7 @@ public class BambuLanProtocolTests
 
         using (var uploaded = new MemoryStream(ftp.UploadedBytes!))
         using (var archive = new ZipArchive(uploaded))
-        using (var plate = archive.GetEntry(BambuPrintFile.PlatePath)!.Open())
+        using (var plate = archive.GetEntry(BambuPrintFile.PlatePath(1))!.Open())
         using (var copy = new MemoryStream())
         {
             await plate.CopyToAsync(copy);
@@ -269,11 +269,11 @@ public class BambuLanProtocolTests
         using var file = new MemoryStream(fileBytes);
         const string jobName = "part \"quoted\" \\ folder\n雪.gcode";
 
-        await connector.StartJobAsync(harness.Details, file, jobName, null, CancellationToken.None);
+        await connector.StartJobAsync(harness.Details, file, jobName, 1, null, CancellationToken.None);
 
         uploadCompleted.Should().BeTrue();
         using (var archive = new ZipArchive(new MemoryStream(uploadedBytes!)))
-        using (var plate = archive.GetEntry(BambuPrintFile.PlatePath)!.Open())
+        using (var plate = archive.GetEntry(BambuPrintFile.PlatePath(1))!.Open())
         using (var copy = new MemoryStream())
         {
             await plate.CopyToAsync(copy);
@@ -318,10 +318,10 @@ public class BambuLanProtocolTests
                 return FtpStatus.Success;
             },
         });
-        var project = BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode");
+        var project = BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode", 1);
         using var file = new MemoryStream(project);
 
-        await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", null, default);
+        await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", 1, null, default);
 
         uploadedBytes.Should().Equal(project, "an existing project must retain settings, thumbnails and checksums");
         uploadPath.Should().StartWith("/cache/");
@@ -333,9 +333,9 @@ public class BambuLanProtocolTests
     {
         await using var harness = new BambuMqttHarness();
         var connector = harness.CreateConnector(harness.Options with { UploadFileAsync = (_, _, _, _) => Task.FromResult(FtpStatus.Success) });
-        using var file = new MemoryStream(BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode"));
+        using var file = new MemoryStream(BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode", 1));
 
-        await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", mapping, default);
+        await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", 1, mapping, default);
 
         using var request = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
         return request.RootElement.GetProperty("print").Clone();
@@ -404,6 +404,34 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
+    public async Task StartJob_ExportedSinglePlate_UploadsItUnchangedAndPrintsThatPlate()
+    {
+        byte[]? uploadedBytes = null;
+        await using var harness = new BambuMqttHarness();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            UploadFileAsync = async (_, content, _, token) =>
+            {
+                using var copy = new MemoryStream();
+                await content.CopyToAsync(copy, token);
+                uploadedBytes = copy.ToArray();
+                return FtpStatus.Success;
+            },
+        });
+        using var project = new MemoryStream();
+        using (var archive = new ZipArchive(project, ZipArchiveMode.Create, leaveOpen: true))
+        using (var plate = new StreamWriter(archive.CreateEntry("Metadata/plate_4.gcode").Open())) plate.Write("G28\n");
+        var projectBytes = project.ToArray();
+        using var file = new MemoryStream(projectBytes);
+
+        await connector.StartJobAsync(harness.Details, file, "part.gcode.3mf", 4, null, default);
+
+        uploadedBytes.Should().Equal(projectBytes);
+        using var document = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
+        document.RootElement.GetProperty("print").GetProperty("param").GetString().Should().Be("Metadata/plate_4.gcode");
+    }
+
+    [Fact]
     public async Task StartJob_ProjectMissingRequestedPlate_DoesNotUploadOrPublish()
     {
         var uploadCalled = false;
@@ -415,7 +443,7 @@ public class BambuLanProtocolTests
         using var file = new MemoryStream();
         using (var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true)) archive.CreateEntry("3D/3dmodel.model");
         file.Position = 0;
-        var start = () => connector.StartJobAsync(harness.Details, file, "unsliced.3mf", null, default);
+        var start = () => connector.StartJobAsync(harness.Details, file, "unsliced.3mf", 1, null, default);
 
         await start.Should().ThrowAsync<IOException>().WithMessage("*Metadata/plate_1.gcode*");
         uploadCalled.Should().BeFalse();
@@ -434,7 +462,7 @@ public class BambuLanProtocolTests
         });
         using var file = new MemoryStream([1, 2, 3]);
 
-        var start = () => connector.StartJobAsync(TestDetails, file, "part", null, CancellationToken.None);
+        var start = () => connector.StartJobAsync(TestDetails, file, "part", 1, null, CancellationToken.None);
 
         await start.Should().ThrowAsync<IOException>();
     }
@@ -449,7 +477,7 @@ public class BambuLanProtocolTests
         });
         using var file = new MemoryStream([1, 2, 3]);
 
-        var start = () => connector.StartJobAsync(TestDetails, file, "part", null, CancellationToken.None);
+        var start = () => connector.StartJobAsync(TestDetails, file, "part", 1, null, CancellationToken.None);
         await start.Should().ThrowAsync<IOException>().WithMessage("Upload connection failed");
     }
 
@@ -469,7 +497,7 @@ public class BambuLanProtocolTests
         });
         using var file = new MemoryStream([1, 2, 3]);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var start = connector.StartJobAsync(TestDetails, file, "part", null, cts.Token);
+        var start = connector.StartJobAsync(TestDetails, file, "part", 1, null, cts.Token);
         await uploading.Task.WaitAsync(TimeSpan.FromSeconds(3));
 
         await cts.CancelAsync();

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.IO.Compression;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenFarm.Application.Parts;
@@ -186,26 +185,10 @@ public sealed partial class CliSlicerEngine(
     }
 
     /// <summary>
-    /// OrcaSlicer/Bambu Studio's <c>--export-3mf</c> writes a gcode-bearing 3MF, not a plain .gcode
-    /// file — the real G-code for the first (only, today) plate lives inside it as a zip entry.
-    /// Internal (not private) so InternalsVisibleTo lets Infrastructure.Tests exercise this directly
-    /// without a real slicer subprocess, same rationale as BambuCertificateTrust.
-    /// </summary>
-    internal static async Task<string> ReadEmbeddedPlateGCodeAsync(string threeMfPath, CancellationToken cancellationToken)
-    {
-        using var archive = ZipFile.OpenRead(threeMfPath);
-        var entry = archive.GetEntry("Metadata/plate_1.gcode")
-            ?? throw new SlicingFailedException("The exported 3MF did not contain Metadata/plate_1.gcode.");
-
-        using var reader = new StreamReader(entry.Open());
-        return await reader.ReadToEndAsync(cancellationToken);
-    }
-
-    /// <summary>
     /// OrcaSlicer/Bambu Studio dispatch model loading off the input file's extension, not its
     /// content — writing an STL upload to disk as "model.3mf" made the slicer try to unzip it as a
-    /// 3MF and fail with "Loading of a model file failed." Internal (not private) for the same
-    /// InternalsVisibleTo testability as <see cref="ReadEmbeddedPlateGCodeAsync"/>.
+    /// 3MF and fail with "Loading of a model file failed." Internal (not private) so InternalsVisibleTo
+    /// lets Infrastructure.Tests exercise it without a real slicer subprocess.
     /// </summary>
     internal static string ResolveInputFileName(PartFileFormat modelFileFormat) =>
         modelFileFormat == PartFileFormat.Stl ? "model.stl" : "model.3mf";

@@ -727,7 +727,7 @@ public class PrinterConnectionBackgroundServiceTests
             yield break;
         }
 
-        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
@@ -774,7 +774,7 @@ public class PrinterConnectionBackgroundServiceTests
         public void Emit(string serialNumber, PrinterConnectorEvent connectorEvent) =>
             GetOrCreateChannel(serialNumber).Writer.TryWrite(connectorEvent);
 
-        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
