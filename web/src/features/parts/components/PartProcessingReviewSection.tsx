@@ -1,11 +1,16 @@
 import { AlertTriangleIcon, ImageOffIcon, LoaderIcon } from 'lucide-react';
+import { useId } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type {
   PartProcessingJobPreviewResponse,
   PlateResponse,
+  PreviewFilamentRequirementResponse,
   ThumbnailResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { formatMm } from '@/lib/formatUnits';
+import { cn } from '@/lib/utils';
 import { filamentGrams, PartEstimate } from './PartEstimate';
 import {
   type DisplayFilamentRequirement,
@@ -72,8 +77,12 @@ export function PartProcessingReviewSection({
           (p) => plateNumbers.length === 1 && p.number === plateNumbers[0],
         );
   const shown = plate ?? (plates.length === 0 ? preview : undefined);
+  // Several plates narrow their filaments together: the API applies an override by the file's requirement index.
+  const checked = plates.filter((p) => plateNumbers.includes(p.number ?? 1));
   const requirements: DisplayFilamentRequirement[] = (
-    shown?.filamentRequirements ?? []
+    checked.length > 1
+      ? combineRequirements(checked)
+      : (shown?.filamentRequirements ?? [])
   ).map((requirement) => ({
     key: requirement.requirementIndex ?? 0,
     estimatedGrams: requirement.estimatedGrams,
@@ -114,13 +123,14 @@ export function PartProcessingReviewSection({
         </div>
         <div>
           <p className="text-muted-foreground">Estimated print</p>
-          {shown ? (
+          {/* Several plates wait for the estimate too: each part takes its own plate's. */}
+          {shown || estimateStatus === 'Resolving' ? (
             <PartEstimate
               status={estimateStatus}
-              minutes={shown.estimatedPrintTimeMinutes}
+              minutes={shown?.estimatedPrintTimeMinutes}
               grams={filamentGrams(
                 requirements,
-                shown.estimatedFilamentWeightGrams,
+                shown?.estimatedFilamentWeightGrams,
               )}
             />
           ) : (
@@ -151,7 +161,9 @@ export function PartProcessingReviewSection({
       )}
       {plates.length > 1 ? (
         <div>
-          <p className="mb-1.5 text-sm text-muted-foreground">Plate</p>
+          {!multiple && (
+            <p className="mb-1.5 text-sm text-muted-foreground">Plate</p>
+          )}
           <PlatePicker
             plates={plates}
             thumbnails={preview.thumbnails}
@@ -174,7 +186,7 @@ export function PartProcessingReviewSection({
         </div>
       )}
 
-      {shown && (
+      {(shown || checked.length > 1) && (
         <div>
           <p className="mb-1.5 text-sm text-muted-foreground">
             Filament requirements
@@ -199,6 +211,67 @@ export function PartProcessingReviewSection({
   );
 }
 
+/** Each of the plates' filaments once, by the file's requirement index; grams summed over the plates. */
+function combineRequirements(plates: PlateResponse[]) {
+  const byIndex = new Map<number, PreviewFilamentRequirementResponse>();
+  for (const requirement of plates.flatMap(
+    (plate) => plate.filamentRequirements ?? [],
+  )) {
+    const index = requirement.requirementIndex ?? 0;
+    const seen = byIndex.get(index);
+    byIndex.set(
+      index,
+      seen
+        ? {
+            ...seen,
+            estimatedGrams:
+              seen.estimatedGrams != null && requirement.estimatedGrams != null
+                ? seen.estimatedGrams + requirement.estimatedGrams
+                : null,
+          }
+        : requirement,
+    );
+  }
+  return [...byIndex.values()].sort(
+    (a, b) => (a.requirementIndex ?? 0) - (b.requirementIndex ?? 0),
+  );
+}
+
+function PlateName({ plate }: { plate: PlateResponse }) {
+  return (
+    <span className="truncate text-xs font-medium" title={plateLabel(plate)}>
+      {plateLabel(plate)}
+    </span>
+  );
+}
+
+function PlateThumb({
+  thumbnail,
+  className,
+}: {
+  thumbnail: ThumbnailResponse | undefined;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'flex aspect-square items-center justify-center overflow-hidden rounded-md bg-muted/40',
+        className,
+      )}
+    >
+      {thumbnail?.thumbnailBase64 ? (
+        <img
+          src={`data:image/png;base64,${thumbnail.thumbnailBase64}`}
+          alt=""
+          className="size-full object-contain"
+        />
+      ) : (
+        <ImageOffIcon className="size-4 text-muted-foreground" />
+      )}
+    </span>
+  );
+}
+
 function PlatePicker({
   plates,
   thumbnails,
@@ -212,57 +285,79 @@ function PlatePicker({
   onChange: (plateNumbers: number[]) => void;
   multiple: boolean;
 }) {
+  const id = useId();
   const byIndex = new Map(
     (thumbnails ?? []).map((thumbnail) => [thumbnail.plateIndex, thumbnail]),
   );
-  const items = plates.map((plate) => {
-    const thumbnail = byIndex.get((plate.number ?? 1) - 1);
+  const thumbnailOf = (plate: PlateResponse) =>
+    byIndex.get((plate.number ?? 1) - 1);
+
+  if (!multiple) {
     return (
-      <ToggleGroupItem
-        key={plate.number}
-        value={String(plate.number)}
-        className="h-auto flex-col items-start gap-1 p-2"
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        value={plateNumbers.length === 1 ? String(plateNumbers[0]) : ''}
+        onValueChange={(value) => onChange(value ? [Number(value)] : [])}
+        className="flex-wrap"
       >
-        <span className="flex size-16 items-center justify-center overflow-hidden rounded-md bg-muted/40">
-          {thumbnail?.thumbnailBase64 ? (
-            <img
-              src={`data:image/png;base64,${thumbnail.thumbnailBase64}`}
-              alt=""
-              className="size-full object-contain"
-            />
-          ) : (
-            <ImageOffIcon className="size-4 text-muted-foreground" />
-          )}
-        </span>
-        <span className="text-xs font-medium">{plateLabel(plate)}</span>
-        <PartEstimate
-          minutes={plate.estimatedPrintTimeMinutes}
-          grams={plate.estimatedFilamentWeightGrams}
-        />
-      </ToggleGroupItem>
+        {plates.map((plate) => (
+          <ToggleGroupItem
+            key={plate.number}
+            value={String(plate.number)}
+            className="h-auto w-36 flex-col items-stretch gap-1.5 p-2 text-left font-normal"
+          >
+            <PlateThumb thumbnail={thumbnailOf(plate)} />
+            <PlateName plate={plate} />
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
     );
-  });
-  return multiple ? (
-    <ToggleGroup
-      type="multiple"
-      variant="outline"
-      value={plateNumbers.map(String)}
-      onValueChange={(values) =>
-        onChange(values.map(Number).sort((a, b) => a - b))
-      }
-      className="flex-wrap"
-    >
-      {items}
-    </ToggleGroup>
-  ) : (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      value={plateNumbers.length === 1 ? String(plateNumbers[0]) : ''}
-      onValueChange={(value) => onChange(value ? [Number(value)] : [])}
-      className="flex-wrap"
-    >
-      {items}
-    </ToggleGroup>
+  }
+
+  // Adding takes every plate by default: one part each. Unchecked plates fade.
+  const all = plates.map((plate) => plate.number ?? 1);
+  return (
+    <div className="flex flex-col gap-2">
+      <Field orientation="horizontal">
+        <Checkbox
+          id={`${id}-all`}
+          checked={plateNumbers.length === all.length}
+          onCheckedChange={(checked) => onChange(checked === true ? all : [])}
+        />
+        <FieldLabel htmlFor={`${id}-all`} className="font-normal">
+          All plates
+        </FieldLabel>
+      </Field>
+      <div className="grid grid-cols-[repeat(auto-fill,9rem)] gap-2">
+        {plates.map((plate) => {
+          const number = plate.number ?? 1;
+          return (
+            <FieldLabel key={number} htmlFor={`${id}-${number}`}>
+              <Field className="gap-1.5">
+                <PlateThumb
+                  thumbnail={thumbnailOf(plate)}
+                  className="opacity-40 transition-opacity group-has-data-checked/field-label:opacity-100 motion-reduce:transition-none"
+                />
+                <span className="flex min-w-0 items-center gap-2">
+                  <Checkbox
+                    id={`${id}-${number}`}
+                    checked={plateNumbers.includes(number)}
+                    onCheckedChange={(checked) =>
+                      onChange(
+                        checked === true
+                          ? [...plateNumbers, number].sort((a, b) => a - b)
+                          : plateNumbers.filter((n) => n !== number),
+                      )
+                    }
+                  />
+                  <PlateName plate={plate} />
+                </span>
+              </Field>
+            </FieldLabel>
+          );
+        })}
+      </div>
+    </div>
   );
 }

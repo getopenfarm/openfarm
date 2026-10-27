@@ -1576,7 +1576,6 @@ export interface ConfirmPartProcessingJobRequest {
   filamentRequirementOverrides?: FilamentRequirementOverrideRequest[] | null;
   /** @nullable */
   plateNumbers?: number[] | null;
-  createAssembly?: boolean;
   /** @nullable */
   relatedParts?: RelatedPartPlateRequest[] | null;
 }

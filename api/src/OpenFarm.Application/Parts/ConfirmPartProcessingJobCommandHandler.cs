@@ -1,8 +1,6 @@
 using OpenFarm.Application.ActivityLog;
-using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Common;
 using OpenFarm.Domain.ActivityLog;
-using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
@@ -10,7 +8,7 @@ namespace OpenFarm.Application.Parts;
 /// <summary>
 /// The Save action — creates (Add) or replaces the file/derived fields of (Replace) a
 /// <see cref="Part"/> transactionally from whatever the job's preview holds so far
-/// (data-model.md's Confirm step); an Add of several plates creates one part each, optionally grouped by an assembly.
+/// (data-model.md's Confirm step); an Add of several plates creates one part each.
 /// Test-after — orchestration, not the domain rules themselves.
 /// </summary>
 public sealed class ConfirmPartProcessingJobCommandHandler(
@@ -19,7 +17,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
     ITagRepository tagRepository,
     IPartEventPublisher eventPublisher,
     IPartFileStorage? fileStorage = null, PartFilamentSelectionValidator? filamentValidator = null,
-    IAssemblyRepository? assemblyRepository = null, IActivityLogWriter? activityLogWriter = null) : ICommandHandler<ConfirmPartProcessingJobCommand, Part>
+    IActivityLogWriter? activityLogWriter = null) : ICommandHandler<ConfirmPartProcessingJobCommand, Part>
 {
     public async Task<Part> HandleAsync(ConfirmPartProcessingJobCommand command, CancellationToken cancellationToken)
     {
@@ -118,8 +116,11 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             }
 
             job.Confirm(parts[0].Id);
-            if (parts.Count == 1) await partRepository.AddAsync(parts[0], cancellationToken);
-            else await AddSplitAsync(parts, command, cancellationToken);
+            await partRepository.AddRangeAsync(parts, cancellationToken);
+            // The endpoint logs the first part; the others are logged here.
+            if (activityLogWriter is not null && parts.Count > 1)
+                await activityLogWriter.WriteRangeAsync(parts.Skip(1).Select(p => Entry("Part", p.Id, "PartConfirmed", command.ActingUserId)).ToList(),
+                    cancellationToken);
         }
         else
         {
@@ -216,30 +217,6 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
         return related;
     }
 
-    /// <summary>
-    /// Saves the parts a split made, and the kit assembly when asked (1 kit = one print of every plate: each line is its part's
-    /// units per print), all or nothing. The endpoint logs the first part; the others and the assembly are logged here.
-    /// </summary>
-    private async Task AddSplitAsync(List<Part> parts, ConfirmPartProcessingJobCommand command, CancellationToken cancellationToken)
-    {
-        var repository = assemblyRepository ?? throw new InvalidOperationException("Splitting a file needs the assembly repository.");
-        await repository.RunWithStructuralLockAsync(async ct =>
-        {
-            foreach (var part in parts) await partRepository.AddAsync(part, ct);
-            var entries = parts.Skip(1).Select(p => Entry("Part", p.Id, "PartConfirmed", command.ActingUserId)).ToList();
-            if (command.CreateAssembly)
-            {
-                var assembly = Assembly.Create(command.Name!.Trim(), null,
-                    parts.Select(p => BomLineTargets.ToSpec(BomLineTargetKind.Part, p.Id, p.UnitsPerPrint)).ToList());
-                await repository.AddAsync(assembly, ct);
-                entries.Add(Entry("Assembly", assembly.Id, "AssemblyCreated", command.ActingUserId));
-            }
-
-            if (activityLogWriter is not null) await activityLogWriter.WriteRangeAsync(entries, ct);
-            return parts.Count;
-        }, cancellationToken);
-    }
-
     private static ActivityLogEntry Entry(string entityType, Guid id, string eventType, Guid? actor) =>
         ActivityLogEntry.Create(entityType, id.ToString(), eventType, actor, actor is null ? ActorType.System : ActorType.Operator);
 
@@ -295,12 +272,12 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
         PreviewPlate Find(int number) => plates.FirstOrDefault(p => p.Number == number)
             ?? throw new InvalidConfirmPartProcessingJobRequestException($"Plate {number} is not in the file.");
 
-        if (chosen.Count > 1 || command.CreateAssembly)
+        if (chosen.Count > 1)
         {
             if (job.Kind != PartProcessingJobKind.Add)
                 throw new InvalidConfirmPartProcessingJobRequestException("A part prints one plate. Choose one.");
-            if (chosen.Count < 2 || chosen.Distinct().Count() != chosen.Count)
-                throw new InvalidConfirmPartProcessingJobRequestException("An assembly needs two plates or more.");
+            if (chosen.Distinct().Count() != chosen.Count)
+                throw new InvalidConfirmPartProcessingJobRequestException("Each plate may be named once.");
             if (job.PreviewEstimateStatus == EstimateStatus.Resolving)
                 throw new InvalidConfirmPartProcessingJobRequestException("Wait for the estimate to add several plates.");
             return chosen.Select(n => (PreviewPlate?)Find(n)).ToList();

@@ -36,9 +36,6 @@ public sealed class ConfirmPartProcessingJobRequest : IActivityLoggable
     /// </summary>
     public List<int>? PlateNumbers { get; set; }
 
-    /// <summary>With several plates: also create an assembly of the parts, named after them, one print of each plate per unit.</summary>
-    public bool CreateAssembly { get; set; }
-
     /// <summary>A replace only: other parts sharing the replaced part's file (the job's <c>relatedParts</c>) to update too, each with its plate.</summary>
     public List<RelatedPartPlateRequest>? RelatedParts { get; set; }
 
@@ -67,7 +64,7 @@ public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler) : E
             .Select(o => new FilamentRequirementOverride(o.RequirementIndex, o.NarrowFilamentVariantId, o.NarrowFilamentProfileId))
             .ToList();
 
-        var command = new ConfirmPartProcessingJobCommand(jobId, req.Name, req.Tags, overrides, userId, req.PlateNumbers, req.CreateAssembly,
+        var command = new ConfirmPartProcessingJobCommand(jobId, req.Name, req.Tags, overrides, userId, req.PlateNumbers,
             req.RelatedParts?.Select(r => new RelatedPartPlate(r.PartId, r.PlateNumber)).ToList());
         var part = await handler.HandleAsync(command, ct);
 

@@ -6,6 +6,12 @@ public interface IPartRepository
 {
     Task AddAsync(Part part, CancellationToken cancellationToken);
 
+    /// <summary>Adds the parts one upload was split into, all or none.</summary>
+    async Task AddRangeAsync(IReadOnlyList<Part> parts, CancellationToken cancellationToken)
+    {
+        foreach (var part in parts) await AddAsync(part, cancellationToken);
+    }
+
     Task<Part?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary><paramref name="tags"/> filters to parts carrying ALL given tag names (AND-semantics, FR of US5).</summary>

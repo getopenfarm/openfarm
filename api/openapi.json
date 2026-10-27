@@ -9534,9 +9534,6 @@
               "format": "int32"
             }
           },
-          "createAssembly": {
-            "type": "boolean"
-          },
           "relatedParts": {
             "type": "array",
             "nullable": true,

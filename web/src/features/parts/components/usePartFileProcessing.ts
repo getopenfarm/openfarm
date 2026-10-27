@@ -98,8 +98,6 @@ export interface UsePartFileProcessingOptions {
 export interface ConfirmValues {
   name: string;
   tags: string;
-  /** With several plates: also an assembly of their parts. */
-  createAssembly?: boolean;
 }
 
 /**
@@ -142,7 +140,8 @@ export function usePartFileProcessing({
   const job = jobQuery.data?.data as PartProcessingJobResponse | undefined;
   const status = job?.status;
 
-  // A part prints one plate: the one chosen, else the file's only plate, else the part's own plate when the file has it.
+  // A part prints one plate: the ones chosen, else every plate when adding (one part each), else the file's only plate,
+  // else the part's own plate when the file has it.
   const plates = job?.preview?.plates ?? [];
   const current = matchPlate(plates, {
     plateNumber: currentPlateNumber,
@@ -150,8 +149,8 @@ export function usePartFileProcessing({
   });
   const plateNumbers =
     chosenPlates ??
-    (plates.length === 1
-      ? [plates[0].number ?? 1]
+    (mode === 'add' || plates.length === 1
+      ? plates.map((plate) => plate.number ?? 1)
       : current?.number != null
         ? [current.number]
         : []);
@@ -362,8 +361,6 @@ export function usePartFileProcessing({
           tags: tags.length > 0 ? tags : undefined,
           filamentRequirementOverrides,
           plateNumbers: chosen,
-          createAssembly:
-            values.createAssembly && plateNumbers.length > 1 ? true : undefined,
         },
       });
     } else {

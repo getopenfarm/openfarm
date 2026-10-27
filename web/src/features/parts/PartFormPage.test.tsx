@@ -87,7 +87,6 @@ function renderRoute() {
         children: [
           { path: '/parts/new', element: <PartFormPage /> },
           { path: '/parts', element: <div>Parts list page</div> },
-          { path: '/assemblies', element: <div>Assemblies page</div> },
         ],
       },
     ],
@@ -137,7 +136,9 @@ describe('PartFormPage', () => {
 
     expect(await screen.findByText('benchy.stl')).toBeInTheDocument();
     expect(screen.getByText('Processing…')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('benchy');
 
+    await user.clear(screen.getByLabelText('Name'));
     await user.type(screen.getByLabelText('Name'), 'Widget Bracket');
     await user.type(screen.getByLabelText('Tags'), 'Brackets');
 
@@ -165,7 +166,8 @@ describe('PartFormPage', () => {
     const { fileInput, file } = uploadFile();
     await user.upload(fileInput, file);
 
-    await user.type(await screen.findByLabelText('Name'), 'Widget Bracket');
+    await user.clear(await screen.findByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Widget Bracket');
 
     pushJobStatus(queryClient, 'ReadyForReview');
 
@@ -215,7 +217,7 @@ describe('PartFormPage', () => {
     await waitFor(() => expect(discardCalled).toBe(true));
   });
 
-  it('adds one part per chosen plate and groups them as an assembly', async () => {
+  it('adds one part per plate, every plate by default', async () => {
     const user = userEvent.setup();
     let confirmBody: unknown;
     vi.stubGlobal(
@@ -234,7 +236,8 @@ describe('PartFormPage', () => {
     const { queryClient } = renderRoute();
     const { fileInput, file } = uploadFile();
     await user.upload(fileInput, file);
-    await user.type(await screen.findByLabelText('Name'), 'Kit');
+    await user.clear(await screen.findByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Kit');
 
     const plate = (number: number, name: string | null) => ({
       number,
@@ -262,18 +265,17 @@ describe('PartFormPage', () => {
       );
     });
 
-    await user.click(
-      await screen.findByRole('button', { name: /Plate 1 · Cover/ }),
-    );
-    await user.click(screen.getByRole('button', { name: /Plate 2/ }));
-    await user.click(screen.getByLabelText('Create assembly'));
+    // Every plate is taken by default.
+    expect(
+      await screen.findByRole('checkbox', { name: /Plate 1 · Cover/ }),
+    ).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Plate 2/ })).toBeChecked();
     await user.click(screen.getByRole('button', { name: 'Add 2 parts' }));
 
-    expect(await screen.findByText('Assemblies page')).toBeInTheDocument();
+    expect(await screen.findByText('Parts list page')).toBeInTheDocument();
     expect(confirmBody).toMatchObject({
       name: 'Kit',
       plateNumbers: [1, 2],
-      createAssembly: true,
     });
   });
 });

@@ -17,6 +17,12 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         await SaveChangesAsync(cancellationToken);
     }
 
+    public async Task AddRangeAsync(IReadOnlyList<Part> parts, CancellationToken cancellationToken)
+    {
+        dbContext.Parts.AddRange(parts);
+        await SaveChangesAsync(cancellationToken);
+    }
+
     public Task<Part?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         Include(dbContext.Parts).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 

@@ -164,4 +164,79 @@ describe('PartProcessingReviewSection', () => {
     expect(screen.getByText(/PETG/)).toBeInTheDocument();
     expect(screen.queryByText(/PLA/)).not.toBeInTheDocument();
   });
+
+  it('takes several plates as checkbox tiles and narrows their filaments together', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ filaments: [] }), {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ),
+    );
+    const pla = (estimatedGrams: number) => ({
+      requirementIndex: 0,
+      materialType: 'PLA',
+      detectedColorHex: '#FFFFFF',
+      estimatedGrams,
+    });
+    const onPlateNumbersChange = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PartProcessingReviewSection
+          status="ReadyForReview"
+          preview={{
+            estimateStatus: 'Available',
+            filamentRequirements: [],
+            plates: [
+              {
+                number: 1,
+                name: 'Cover',
+                estimatedFilamentWeightGrams: 4,
+                filamentRequirements: [pla(3)],
+              },
+              {
+                number: 2,
+                name: 'Handle',
+                estimatedPrintTimeMinutes: 30,
+                estimatedFilamentWeightGrams: 9,
+                filamentRequirements: [
+                  pla(5),
+                  {
+                    requirementIndex: 1,
+                    materialType: 'PETG',
+                    detectedColorHex: '#000000',
+                  },
+                ],
+              },
+            ],
+          }}
+          overrides={{}}
+          onNarrow={vi.fn()}
+          plateNumbers={[1, 2]}
+          onPlateNumbersChange={onPlateNumbersChange}
+          multiple
+        />
+      </QueryClientProvider>,
+    );
+
+    const cover = screen.getByRole('checkbox', { name: /Plate 1 · Cover/ });
+    expect(cover).toBeChecked();
+    expect(cover.closest('label')).toHaveTextContent(/^Plate 1 · Cover$/);
+    expect(screen.queryByText(/unavailable/)).not.toBeInTheDocument();
+
+    // Each filament once, its grams summed over the checked plates.
+    expect(screen.getAllByText(/PLA/)).toHaveLength(1);
+    expect(screen.getByText('8 g')).toBeInTheDocument();
+    expect(screen.getByText(/PETG/)).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /Plate 2 · Handle/ }),
+    );
+    expect(onPlateNumbersChange).toHaveBeenLastCalledWith([1]);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'All plates' }));
+    expect(onPlateNumbersChange).toHaveBeenLastCalledWith([]);
+  });
 });

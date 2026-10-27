@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using OpenFarm.Api.Endpoints.Assemblies;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Api.Endpoints.PartProcessingJobs;
 using OpenFarm.Api.Endpoints.Parts;
@@ -94,10 +93,10 @@ public class PartPlateTests(EmptySlicerBundleWebApplicationFactory factory) : IC
     }
 
     [Fact]
-    public async Task AddingSeveralPlates_MakesOnePartEach_AndAKitAssemblyOfThem()
+    public async Task AddingSeveralPlates_MakesOnePartEach()
     {
         using var client = await ClientAsync();
-        // Plate 1 holds two copies, plate 2 one: a kit is one print of each, so its lines are 2 and 1.
+        // Plate 1 holds two copies, plate 2 one: each part takes its own plate's units per print.
         var file = Zip(
             ("Metadata/plate_1.gcode", Plate("PLA", "#FFFFFF", 10, 4m)),
             ("Metadata/plate_2.gcode", Plate("PETG", "#000000", 30, 9m)),
@@ -112,7 +111,7 @@ public class PartPlateTests(EmptySlicerBundleWebApplicationFactory factory) : IC
         await WaitAsync(client, submitted.JobId);
 
         var confirm = await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{submitted.JobId}/confirm",
-            new ConfirmPartProcessingJobRequest { Name = name, PlateNumbers = [1, 2], CreateAssembly = true });
+            new ConfirmPartProcessingJobRequest { Name = name, PlateNumbers = [1, 2] });
 
         confirm.StatusCode.Should().Be(HttpStatusCode.Created, await confirm.Content.ReadAsStringAsync());
         using var scope = factory.Services.CreateScope();
@@ -121,15 +120,8 @@ public class PartPlateTests(EmptySlicerBundleWebApplicationFactory factory) : IC
         parts.Select(p => (p.Name, p.PlateNumber, p.UnitsPerPrint, p.EstimatedPrintTimeMinutes))
             .Should().Equal(($"{name} – Cover", 1, 2, 10), ($"{name} – Plate 2", 2, 1, 30));
         parts.Select(p => p.StoragePath).Distinct().Should().ContainSingle("the parts share the uploaded file");
-        var assemblyId = await db.Assemblies.Where(a => a.Name == name).Select(a => a.Id).SingleAsync();
-        var assembly = await client.GetFromJsonAsync<AssemblyResponse>($"/api/v1/assemblies/{assemblyId}");
-        assembly!.Lines.Select(l => (l.TargetId, l.Quantity)).Should().BeEquivalentTo([(parts[0].Id, 2m), (parts[1].Id, 1m)]);
-        var logged = await db.ActivityLogEntries.Where(e => e.EntityId == parts[1].Id.ToString() || e.EntityId == assemblyId.ToString())
-            .Select(e => e.EventType).ToListAsync();
-        logged.Should().BeEquivalentTo(["PartConfirmed", "AssemblyCreated"]);
-
-        // The kit holds its parts: one cannot be removed from under it.
-        (await client.DeleteAsync($"/api/v1/parts/{parts[0].Id}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var logged = await db.ActivityLogEntries.Where(e => e.EntityId == parts[1].Id.ToString()).Select(e => e.EventType).ToListAsync();
+        logged.Should().Equal("PartConfirmed");
     }
 
     [Fact]
