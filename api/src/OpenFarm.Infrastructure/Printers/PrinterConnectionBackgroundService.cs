@@ -345,7 +345,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             await connectionPublisher.PrinterStatusChangedAsync(printer.Id, printer.Status, printer.IsReachable, cancellationToken);
             await connectionPublisher.PrinterTelemetryUpdatedAsync(printer.Id, PrinterModelCatalog.Find(printer.Brand, printer.ModelCode),
                 new(printer.NozzleTempC, printer.BedTempC, printer.PrintProgressPercent, printer.CurrentStageLabel,
-                    printer.RemainingTimeMinutes, printer.CurrentJobName, printer.FeedReadings,
+                    printer.RemainingTimeMinutes, await PrintNameAsync(printer, services, cancellationToken), printer.FeedReadings,
                     printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, false, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts,
                     Extruders: printer.Extruders), cancellationToken);
             return DateTimeOffset.MinValue;
@@ -470,7 +470,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 printer.PrintProgressPercent,
                 printer.CurrentStageLabel,
                 printer.RemainingTimeMinutes,
-                printer.CurrentJobName,
+                await PrintNameAsync(printer, services, cancellationToken),
                 printer.FeedReadings, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, ReportedState: printer.ReportedState, StateObservedAtUtc: printer.StateObservedAtUtc, ActiveAlerts: printer.ActiveAlerts,
                 Extruders: printer.Extruders);
             await publisher.PrinterTelemetryUpdatedAsync(printer.Id, PrinterModelCatalog.Find(printer.Brand, printer.ModelCode), mergedTelemetry, cancellationToken);
@@ -482,6 +482,12 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     // Each extruder's nozzle and confirmation: a change is flushed at once, since dispatch and profile pickers depend on it.
     private static List<(decimal?, bool)> NozzleState(Printer printer) =>
         printer.Extruders.Select(e => (e.NozzleDiameterMm, e.NozzleConfirmed)).ToList();
+
+    // The name screens show: an OpenFarm job's part name, else the printer's own job name.
+    private static async Task<string?> PrintNameAsync(Printer printer, IServiceProvider services, CancellationToken cancellationToken) =>
+        services.GetService<IPrintRepository>() is { } prints
+            ? (await prints.GetCurrentPrintNamesAsync([printer], cancellationToken))[printer.Id]
+            : printer.CurrentJobName;
 
     private async Task SweepUnreachablePrintersAsync(CancellationToken stoppingToken)
     {

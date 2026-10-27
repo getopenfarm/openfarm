@@ -3,8 +3,10 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.Endpoints.PrintJobs;
+using OpenFarm.Api.Endpoints.Printers;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
 using OpenFarm.Infrastructure.Persistence;
 
@@ -32,6 +34,18 @@ public class ExternalPrintHistoryTests(ProductionTestFactory factory) : Producti
 
     private static async Task<List<QueueJobRowResponse>> ListAsync(HttpClient client, string query) =>
         (await client.GetFromJsonAsync<ListQueueJobsResponse>($"/api/v1/print-jobs?{query}&pageSize=1000"))!.Items;
+
+    private async Task UpdatePrinterAsync(Guid printerId, Action<Printer> update)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        update(await db.Printers.SingleAsync(p => p.Id == printerId));
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task<(string? Fleet, string? Detail)> PrintNamesAsync(HttpClient client, Guid printerId) => (
+        (await client.GetFromJsonAsync<ListFleetResponse>("/api/v1/printers"))!.Printers.Single(p => p.Id == printerId).CurrentJobName,
+        (await client.GetFromJsonAsync<PrinterDetailResponse>($"/api/v1/printers/{printerId}"))!.Telemetry.CurrentJobName);
 
     [Fact]
     public async Task Finish_DeductsTheSpoolOnce_AndTheHistoryShowsThePrint()
@@ -119,6 +133,37 @@ public class ExternalPrintHistoryTests(ProductionTestFactory factory) : Producti
         using var check = Factory.Services.CreateScope();
         (await check.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Spools.SingleAsync(s => s.Id == spoolId))
             .RemainingWeightGrams.Should().Be(990m);
+    }
+
+    [Fact]
+    public async Task PrinterScreens_NameAnOpenFarmJobByItsPart_AndAPrinterStartedPrintByThePrinter()
+    {
+        var client = await ClientAsync();
+        var printer = await PrinterAsync();
+        var part = await PartAsync();
+        var job = (await JobsAsync((await RunAsync(client, part.Id)).Id)).Single();
+        await UpdatePrinterAsync(printer.Id, p => p.RecordTelemetry(null, null, null, null, null, "Part_PLA_1h.gcode.3mf", []));
+
+        await AssignAsync(job.Id, printer.Id);
+        (await PrintNamesAsync(client, printer.Id)).Should().Be((part.Name, part.Name));
+
+        await ReplayAsync(printer.Id, "FINISH");
+        await UpdatePrinterAsync(printer.Id, p => p.ObserveStatus("FINISH"));
+        (await PrinterStatusAsync(printer.Id)).Should().Be(PrinterStatus.AwaitingClear);
+        (await PrintNamesAsync(client, printer.Id)).Should().Be((part.Name, part.Name));
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var repository = scope.ServiceProvider.GetRequiredService<IExternalPrintRepository>();
+            await repository.AddAsync(ExternalPrint.Start(printer.Id, "benchy"), default);
+            await repository.SaveChangesAsync(default);
+        }
+        await UpdatePrinterAsync(printer.Id, p =>
+        {
+            p.RecordTelemetry(null, null, null, null, null, "benchy", []);
+            p.ObserveStatus("RUNNING");
+        });
+        (await PrintNamesAsync(client, printer.Id)).Should().Be(("benchy", "benchy"));
     }
 
     [Fact]

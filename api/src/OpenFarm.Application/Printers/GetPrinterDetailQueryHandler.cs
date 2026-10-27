@@ -1,4 +1,5 @@
 using OpenFarm.Application.Common;
+using OpenFarm.Application.Production;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Parts;
@@ -8,7 +9,7 @@ namespace OpenFarm.Application.Printers;
 public sealed class GetPrinterDetailQueryHandler(
     IPrinterRepository printerRepository,
     IMachineProfileRepository machineProfileRepository,
-    IProcessProfileRepository processProfileRepository, ProfileCompatibility compatibility)
+    IProcessProfileRepository processProfileRepository, ProfileCompatibility compatibility, IPrintRepository printRepository)
     : IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>
 {
     public async Task<PrinterDetail?> HandleAsync(GetPrinterDetailQuery query, CancellationToken cancellationToken)
@@ -50,6 +51,8 @@ public sealed class GetPrinterDetailQueryHandler(
             .Select(value => new BuildPlateTypeOption(value, BuildPlateTypeVendorNames.Resolve(value)))
             .ToList();
 
+        var printNames = await printRepository.GetCurrentPrintNamesAsync([printer], cancellationToken);
+
         return new PrinterDetail(
             printer.Id,
             printer.Name,
@@ -64,7 +67,7 @@ public sealed class GetPrinterDetailQueryHandler(
             printer.PrintProgressPercent,
             printer.CurrentStageLabel,
             printer.RemainingTimeMinutes,
-            printer.CurrentJobName,
+            printNames[printer.Id],
             printer.FeedReadings,
             printer.MachineProfileId,
             machineProfileName,

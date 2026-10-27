@@ -1,3 +1,4 @@
+using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
@@ -13,6 +14,12 @@ public interface IPrintRepository
     /// with their lines loaded. <paramref name="limit"/> caps the page; the total covers all of them.
     /// </summary>
     Task<(IReadOnlyList<Print> Prints, int TotalCount)> ListNeedingFilamentFollowUpAsync(int limit, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What each printer's current print is called, by printer id: the part name of an OpenFarm job (its open print, or while
+    /// awaiting clear the one that just ended), else the printer's own job name.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, string?>> GetCurrentPrintNamesAsync(IReadOnlyCollection<Printer> printers, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
