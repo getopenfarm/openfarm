@@ -6,7 +6,7 @@ public interface IPartRepository
 {
     Task AddAsync(Part part, CancellationToken cancellationToken);
 
-    /// <summary>Adds the parts one upload was split into, all or none.</summary>
+    /// <summary>Adds the parts one upload was split into in one save, so all are kept or none. The default adds them one at a time, which suits in-memory stand-ins.</summary>
     async Task AddRangeAsync(IReadOnlyList<Part> parts, CancellationToken cancellationToken)
     {
         foreach (var part in parts) await AddAsync(part, cancellationToken);
