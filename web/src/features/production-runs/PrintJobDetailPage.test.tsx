@@ -176,9 +176,7 @@ it('disables download and explains permanently removed legacy sources', async ()
   expect(download).toHaveAccessibleDescription(/Source part removed/);
   expect(screen.getByText('Job source removed')).toBeInTheDocument();
   await user.tab();
-  expect(
-    screen.getByRole('link', { name: 'Back to print queue' }),
-  ).toHaveFocus();
+  expect(screen.getByRole('link', { name: 'Back to queue' })).toHaveFocus();
   await user.tab();
   expect(download).not.toHaveFocus();
   await user.click(download);

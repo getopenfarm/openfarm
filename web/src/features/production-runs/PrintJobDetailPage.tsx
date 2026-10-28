@@ -415,7 +415,7 @@ export function PrintJobDetailPage() {
     );
   const backLink = (
     <BackLink to="/jobs" className="mb-1">
-      Back to print queue
+      Back to queue
     </BackLink>
   );
   const queryError: unknown = query.error;
@@ -438,7 +438,7 @@ export function PrintJobDetailPage() {
               description="Removed or invalid link."
               action={
                 <Button variant="outline" onClick={() => navigate('/jobs')}>
-                  Back to print queue
+                  Back to queue
                 </Button>
               }
             />

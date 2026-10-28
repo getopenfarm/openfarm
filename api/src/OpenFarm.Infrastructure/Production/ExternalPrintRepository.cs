@@ -41,7 +41,7 @@ public sealed class ExternalPrintRepository(OpenFarmDbContext dbContext) : IExte
         var statusCounts = Enum.GetValues<PrintJobStatus>().ToDictionary(value => value.ToString(), _ => 0);
         foreach (var count in counts) statusCounts[count.Status.ToString()] = count.Count;
 
-        if (string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(status, "InProgress", StringComparison.OrdinalIgnoreCase))
             query = query.Where(p => p.Status == PrintJobStatus.Printing || p.Status == PrintJobStatus.Paused);
         else if (Enum.TryParse<PrintJobStatus>(status, true, out var selected))
             query = query.Where(p => p.Status == selected);

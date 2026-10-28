@@ -53,7 +53,7 @@ public class ExternalPrintHistoryTests(ProductionTestFactory factory) : Producti
         var (printId, printerId, spoolId) = await StartExternalAsync(20m);
         var client = await ClientAsync();
 
-        (await ListAsync(client, "view=external&status=Active")).Should().ContainSingle(r => r.JobId == printId && r.Status == "Printing");
+        (await ListAsync(client, "view=external&status=InProgress")).Should().ContainSingle(r => r.JobId == printId && r.Status == "Printing");
 
         await ReplayAsync(printerId, "FINISH");
         await ReplayAsync(printerId, "FINISH");
@@ -100,8 +100,8 @@ public class ExternalPrintHistoryTests(ProductionTestFactory factory) : Producti
         var (printId, printerId, _) = await StartExternalAsync(20m);
         var client = await ClientAsync();
 
-        (await ListAsync(client, "view=queue&status=Active")).Should().NotContain(r => r.JobId == printId);
-        (await ListAsync(client, "view=backfill&status=Active")).Should().NotContain(r => r.JobId == printId);
+        (await ListAsync(client, "view=queue&status=InProgress")).Should().NotContain(r => r.JobId == printId);
+        (await ListAsync(client, "view=backfill&status=InProgress")).Should().NotContain(r => r.JobId == printId);
 
         using var scope = Factory.Services.CreateScope();
         var jobs = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();

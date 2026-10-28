@@ -44,14 +44,12 @@ import {
 import { useProductionHub } from './hooks/useProductionHub';
 
 const STATUSES = [
-  'Active',
-  'Queued',
-  'Printing',
-  'Paused',
-  'Completed',
-  'Failed',
-  'Cancelled',
-] as const;
+  { value: 'Queued', label: 'Queued' },
+  { value: 'InProgress', label: 'In progress' },
+  { value: 'Completed', label: 'Completed' },
+  { value: 'Cancelled', label: 'Cancelled' },
+  { value: 'Failed', label: 'Failed' },
+];
 const GROUPS = ['queue', 'backfill', 'external'] as const;
 type Group = (typeof GROUPS)[number];
 const LABELS = {
@@ -73,7 +71,7 @@ export function QueuePage() {
   const finiteScrollRef = useRef<HTMLDivElement>(null);
   const backfillScrollRef = useRef<HTMLDivElement>(null);
   const externalScrollRef = useRef<HTMLDivElement>(null);
-  const [status, setStatus] = useState<string>('Active');
+  const [status, setStatus] = useState<string>('Queued');
   const [search, setSearch] = useState('');
   const [backfillCollapsedOverride, setBackfillCollapsedOverride] = useState<
     boolean | null
@@ -215,8 +213,7 @@ export function QueuePage() {
       !externalData
     )
       return '—';
-    const statuses =
-      value === 'Active' ? ['Queued', 'Printing', 'Paused'] : [value];
+    const statuses = value === 'InProgress' ? ['Printing', 'Paused'] : [value];
     return GROUPS.reduce(
       (total, group) =>
         total +
@@ -239,7 +236,7 @@ export function QueuePage() {
   return (
     <Page className="min-h-0 flex-1">
       <PageHeader
-        title="Print queue"
+        title="Queue"
         description="Finite, backfill and printer-started jobs · status updates live."
         action={
           <Button
@@ -268,9 +265,9 @@ export function QueuePage() {
             }
           >
             <DataTableTabsList aria-label="Job status">
-              {STATUSES.map((value) => (
+              {STATUSES.map(({ value, label }) => (
                 <TabsTrigger key={value} value={value}>
-                  {value}{' '}
+                  {label}{' '}
                   <span className="ml-1 tabular-nums opacity-70">
                     {count(value)}
                   </span>
@@ -285,7 +282,7 @@ export function QueuePage() {
             <div className="flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden rounded-md border">
               <div
                 role="table"
-                aria-label="Print queue"
+                aria-label="Queue"
                 aria-colcount={6}
                 className="flex min-h-0 min-w-[900px] flex-1 flex-col text-sm"
               >
@@ -389,7 +386,7 @@ export function QueuePage() {
                               title={
                                 search
                                   ? 'No jobs match search'
-                                  : `No ${status.toLowerCase()} ${LABELS[group].toLowerCase()}`
+                                  : `No ${LABELS[group].toLowerCase()}`
                               }
                               description={
                                 group === 'external'

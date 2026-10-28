@@ -34,7 +34,7 @@ const printers: NavItem = {
   url: '/printers',
   icon: PrinterIcon,
 };
-const jobs: NavItem = { title: 'Jobs', url: '/jobs', icon: ClipboardListIcon };
+const jobs: NavItem = { title: 'Queue', url: '/jobs', icon: ClipboardListIcon };
 const stats: NavItem = { title: 'Stats', url: '/stats', icon: ChartColumnIcon };
 const filament: NavItem = {
   title: 'Filament',

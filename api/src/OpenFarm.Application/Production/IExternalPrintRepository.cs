@@ -12,7 +12,7 @@ public interface IExternalPrintRepository
     Task<ExternalPrint?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Newest first. <paramref name="status"/> is "Active", a status name, or null for everything except Cancelled; the counts
+    /// Newest first. <paramref name="status"/> is "InProgress" (Printing or Paused), a status name, or null for everything except Cancelled; the counts
     /// cover the search but not the status filter, like the queue list's.
     /// </summary>
     Task<(IReadOnlyList<ExternalPrint> Prints, int TotalCount, IReadOnlyDictionary<string, int> StatusCounts)> ListAsync(

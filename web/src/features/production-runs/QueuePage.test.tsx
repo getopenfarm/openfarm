@@ -240,7 +240,7 @@ describe('QueuePage', () => {
       }),
     );
     const { queryClient } = renderPage();
-    await screen.findByText('No active finite jobs');
+    await screen.findByText('No finite jobs');
     expect(
       screen.getByRole('button', { name: 'Expand backfill jobs' }),
     ).toHaveAttribute('aria-expanded', 'false');
@@ -270,16 +270,14 @@ describe('QueuePage', () => {
   it('shows empty feedback for both sections', async () => {
     stub(() => json({ items: [], totalCount: 0 }));
     renderPage();
-    expect(
-      await screen.findByText('No active finite jobs'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No finite jobs')).toBeInTheDocument();
     expect(
       screen.queryByRole('region', { name: 'Backfill jobs rows' }),
     ).not.toBeInTheDocument();
     await userEvent.click(
       screen.getByRole('button', { name: 'Expand backfill jobs' }),
     );
-    expect(screen.getByText('No active backfill jobs')).toBeVisible();
+    expect(screen.getByText('No backfill jobs')).toBeVisible();
   });
 
   it('renders one labelled table containing both types of jobs', async () => {
@@ -317,7 +315,7 @@ describe('QueuePage', () => {
     );
     renderPage();
     expect(
-      await screen.findByRole('tab', { name: 'Active 2014' }),
+      await screen.findByRole('tab', { name: 'In progress 12' }),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole('button', { name: 'Next finite jobs page' }),
@@ -362,9 +360,7 @@ describe('QueuePage', () => {
     expect(screen.getByText('Healthy backfill')).toBeInTheDocument();
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(
-      await screen.findByText('No active finite jobs'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No finite jobs')).toBeInTheDocument();
   });
 
   it('virtualizes a full page rather than mounting every job', async () => {
@@ -456,6 +452,9 @@ describe('QueuePage', () => {
       { external: true },
     );
     renderPage();
+    await userEvent.click(
+      await screen.findByRole('tab', { name: 'In progress 1' }),
+    );
     const link = await screen.findByRole('link', { name: 'benchy.gcode.3mf' });
     expect(link).toHaveAttribute('href', '/jobs/ext-1');
     const row = link.closest('[role="row"]') as HTMLElement;
@@ -465,22 +464,23 @@ describe('QueuePage', () => {
     expect(
       screen.getByRole('rowgroup', { name: 'Printer-started prints' }),
     ).toBeInTheDocument();
-    expect(
-      await screen.findByRole('tab', { name: 'Printing 1' }),
-    ).toBeInTheDocument();
   });
 
   it('hides the printer-started section on the Queued tab', async () => {
     stub(() => json({ totalCount: 0, statusCounts: {}, items: [] }));
     renderPage();
-    await screen.findByText('No active finite jobs');
-    expect(
-      screen.getByRole('rowgroup', { name: 'Printer-started prints' }),
-    ).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('tab', { name: /^Queued/ }));
+    await screen.findByText('No finite jobs');
+    expect(screen.getByRole('tab', { name: /^Queued/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     expect(
       screen.queryByRole('rowgroup', { name: 'Printer-started prints' }),
     ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /^In progress/ }));
+    expect(
+      screen.getByRole('rowgroup', { name: 'Printer-started prints' }),
+    ).toBeInTheDocument();
   });
 
   it('says why a job is blocked right in its row, without the configuration sentence, and why its last attempt failed', async () => {

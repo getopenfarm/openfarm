@@ -25,9 +25,9 @@ public sealed class ListQueueJobsValidator : Validator<ListQueueJobsRequest>
     public ListQueueJobsValidator()
     {
         RuleFor(x => x.Status).Must(status => status is null ||
-            string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, "InProgress", StringComparison.OrdinalIgnoreCase) ||
             Enum.GetNames<PrintJobStatus>().Contains(status, StringComparer.OrdinalIgnoreCase))
-            .WithMessage("Status must be Active, Queued, Printing, Paused, Completed, Failed or Cancelled.");
+            .WithMessage("Status must be InProgress, Queued, Printing, Paused, Completed, Failed or Cancelled.");
     }
 }
 

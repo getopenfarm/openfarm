@@ -75,11 +75,11 @@ public class QueueOrderingAndPinningTests(ProductionTestFactory factory) : Produ
         }
         var view = backfill ? "backfill" : "queue";
         var url = $"/api/v1/print-jobs?view={view}&search={Uri.EscapeDataString(part.Name.ToUpperInvariant())}&pageSize=1";
-        var active = await client.GetFromJsonAsync<ListQueueJobsResponse>($"{url}&status=Active&page=2");
-        active!.TotalCount.Should().Be(3);
-        active.Items.Should().ContainSingle(j => j.Status == "Printing");
-        active.StatusCounts.Should().HaveCount(6);
-        active.StatusCounts.Values.Should().OnlyContain(count => count == 1);
+        var inProgress = await client.GetFromJsonAsync<ListQueueJobsResponse>($"{url}&status=InProgress&page=2");
+        inProgress!.TotalCount.Should().Be(2);
+        inProgress.Items.Should().ContainSingle(j => j.Status == "Paused");
+        inProgress.StatusCounts.Should().HaveCount(6);
+        inProgress.StatusCounts.Values.Should().OnlyContain(count => count == 1);
         foreach (var status in Enum.GetNames<PrintJobStatus>())
         {
             var filtered = await client.GetFromJsonAsync<ListQueueJobsResponse>($"{url}&status={status}");
@@ -88,7 +88,7 @@ public class QueueOrderingAndPinningTests(ProductionTestFactory factory) : Produ
         }
         var legacy = await client.GetFromJsonAsync<ListQueueJobsResponse>(url);
         legacy!.TotalCount.Should().Be(5);
-        var noMatch = await client.GetFromJsonAsync<ListQueueJobsResponse>($"/api/v1/print-jobs?view={view}&status=Active&search=never-matches-%25");
+        var noMatch = await client.GetFromJsonAsync<ListQueueJobsResponse>($"/api/v1/print-jobs?view={view}&status=InProgress&search=never-matches-%25");
         noMatch!.TotalCount.Should().Be(0);
     }
 

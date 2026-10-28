@@ -81,7 +81,7 @@ export const router = createBrowserRouter([
           {
             path: '/jobs',
             element: <QueuePage />,
-            handle: { title: 'Jobs', fillViewport: true },
+            handle: { title: 'Queue', fillViewport: true },
           },
           {
             path: '/jobs/:id',

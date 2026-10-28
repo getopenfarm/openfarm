@@ -95,8 +95,8 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
         var statusCounts = Enum.GetValues<PrintJobStatus>().ToDictionary(value => value.ToString(), _ => 0);
         foreach (var count in counts) statusCounts[count.Status.ToString()] = count.Count;
 
-        if (string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase))
-            query = query.Where(j => !TerminalStatuses.Contains(j.Status));
+        if (string.Equals(status, "InProgress", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(j => j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused);
         else if (Enum.TryParse<PrintJobStatus>(status, true, out var selectedStatus))
             query = query.Where(j => j.Status == selectedStatus);
         else
