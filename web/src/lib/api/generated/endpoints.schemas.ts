@@ -730,6 +730,32 @@ export interface UpdateMachineProfileRawDataRequest {
   rawDataJson?: string;
 }
 
+export interface PlateCountsResponse {
+  completed?: number;
+  printing?: number;
+  queued?: number;
+  needsAction?: number;
+  writtenOff?: number;
+}
+
+export interface RunJobSummaryResponse {
+  id?: string;
+  status?: string;
+  /** @nullable */
+  printerId?: string | null;
+  /** @nullable */
+  startedAtUtc?: string | null;
+  /** @nullable */
+  endedAtUtc?: string | null;
+  /** @nullable */
+  lastBlockReason?: string | null;
+  /** @nullable */
+  requeuedAsJobId?: string | null;
+  writtenOff?: boolean;
+  needsAction?: boolean;
+  canRequeue?: boolean;
+}
+
 export interface PartRequirementSummaryResponse {
   id?: string;
   partId?: string;
@@ -737,10 +763,17 @@ export interface PartRequirementSummaryResponse {
   sourcePartAvailable?: boolean;
   /** @nullable */
   quantity?: number | null;
-  jobCount?: number;
-  completedJobCount?: number;
-  jobsNeedingRequeue?: string[];
-  jobsBlockedForRequeue?: string[];
+  unitsPerPlate?: number;
+  completedUnits?: number;
+  writtenOffUnits?: number;
+  plates?: PlateCountsResponse;
+  /** @nullable */
+  estimatedMinutesPerPlate?: number | null;
+  /** @nullable */
+  estimatedGramsPerPlate?: number | null;
+  /** @nullable */
+  blockingReason?: string | null;
+  jobs?: RunJobSummaryResponse[];
 }
 
 export interface RunLineSummaryResponse {
@@ -751,6 +784,8 @@ export interface RunLineSummaryResponse {
   /** @nullable */
   quantity?: number | null;
   revisionMode?: string;
+  /** @nullable */
+  pinnedPrinterId?: string | null;
   backfillPrinterCap?: number;
   /** @nullable */
   backfillCumulativeUnitCeiling?: number | null;
@@ -761,15 +796,15 @@ export interface RunLineSummaryResponse {
 
 export interface ProductionRunDetailResponse {
   id?: string;
+  displayLabel?: string;
   /** @nullable */
   name?: string | null;
   /** @nullable */
   dueDate?: string | null;
   /** @nullable */
-  priority?: string | null;
-  /** @nullable */
   notes?: string | null;
   status?: string;
+  createdAtUtc?: string;
   lines?: RunLineSummaryResponse[];
 }
 
@@ -783,16 +818,24 @@ export interface CloseProductionRunRequest {
 
 export interface CreateRunLineRequest {
   targetKind?: string;
-  targetId?: string;
-  /** @nullable */
+  /** @minLength 1 */
+  targetId: string;
+  /**
+   * @minimum 1
+   * @nullable
+   */
   quantity?: number | null;
   /** @nullable */
   revisionMode?: string | null;
   assignmentMode?: string;
   /** @nullable */
   pinnedPrinterId?: string | null;
+  /** @minimum 1 */
   backfillPrinterCap?: number;
-  /** @nullable */
+  /**
+   * @minimum 1
+   * @nullable
+   */
   backfillCumulativeUnitCeiling?: number | null;
 }
 
@@ -802,37 +845,56 @@ export interface CreateProductionRunRequest {
   /** @nullable */
   dueDate?: string | null;
   /** @nullable */
-  priority?: string | null;
-  /** @nullable */
   notes?: string | null;
   lines?: CreateRunLineRequest[];
 }
 
-export interface JobStatusSummaryResponse {
-  queued?: number;
-  printing?: number;
-  paused?: number;
-  completed?: number;
-  failed?: number;
-  cancelled?: number;
+export type ListProductionRunsResponseStatusCounts = { [key: string]: number };
+
+export interface RunLineBriefResponse {
+  targetName?: string;
+  /** @nullable */
+  quantity?: number | null;
 }
 
 export interface ProductionRunSummaryResponse {
   id?: string;
   displayLabel?: string;
+  /** @nullable */
+  name?: string | null;
   status?: string;
   /** @nullable */
   dueDate?: string | null;
-  lineCount?: number;
-  jobSummary?: JobStatusSummaryResponse;
+  createdAtUtc?: string;
+  lines?: RunLineBriefResponse[];
+  targetUnits?: number;
+  completedUnits?: number;
+  writtenOffUnits?: number;
+  producedUnits?: number;
+  plates?: PlateCountsResponse;
+  blockedCount?: number;
 }
 
 export interface ListProductionRunsResponse {
   items?: ProductionRunSummaryResponse[];
   totalCount?: number;
+  statusCounts?: ListProductionRunsResponseStatusCounts;
 }
 
 export interface ListProductionRunsRequest {
+  [key: string]: unknown;
+}
+
+export interface AddRunLinesRequest {
+  /** @minLength 1 */
+  lines: CreateRunLineRequest[];
+}
+
+export interface MoveRunToTopRequest {
+  [key: string]: unknown;
+}
+
+export interface RequeueFailedJobsRequest {
   [key: string]: unknown;
 }
 
@@ -843,17 +905,18 @@ export interface RunLineBackfillLimitsRequest {
   backfillCumulativeUnitCeiling?: number | null;
 }
 
-export interface SetRunBackfillLimitsRequest {
+export interface UpdateProductionRunRequest {
+  /**
+   * @minLength 0
+   * @maxLength 200
+   * @nullable
+   */
+  name?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
   lines?: RunLineBackfillLimitsRequest[];
-}
-
-export interface RunLineRevisionModeResponse {
-  id?: string;
-  revisionMode?: string;
-}
-
-export interface SetRunLineRevisionModeRequest {
-  revisionMode?: string;
 }
 
 export interface AssignPrintFilamentSpoolResponse {
@@ -942,6 +1005,8 @@ export interface PrintJobResponse {
   cancelRequestedAtUtc?: string | null;
   /** @nullable */
   requeuedAsJobId?: string | null;
+  /** @nullable */
+  writtenOffAtUtc?: string | null;
   filamentConsumption?: JobFilamentConsumptionResponse[];
   createdAtUtc?: string;
   snapshotState?: string;
@@ -1112,6 +1177,10 @@ export interface JobFilamentRequirementRequest {
 
 export interface SetPrintJobFilamentRequirementsRequest {
   requirements?: JobFilamentRequirementRequest[];
+}
+
+export interface WriteOffPrintJobRequest {
+  [key: string]: unknown;
 }
 
 export interface PrinterSummaryResponse {
@@ -1328,7 +1397,7 @@ export interface ListFleetResponse {
 }
 
 export interface MarkPrinterReadyRequest {
-  confirmRunCompletion?: boolean;
+  [key: string]: unknown;
 }
 
 export interface RegisterPrinterRequest {
@@ -2524,6 +2593,14 @@ export type OpenFarmApiEndpointsProductionRunsListProductionRunsEndpointParams =
      * @nullable
      */
     sortDirection?: string | null;
+    /**
+     * @nullable
+     */
+    status?: string | null;
+    /**
+     * @nullable
+     */
+    search?: string | null;
     page: number;
     pageSize: number;
   };

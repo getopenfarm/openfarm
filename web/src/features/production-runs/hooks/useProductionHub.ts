@@ -18,7 +18,7 @@ interface PrintJobDispatchedPayload {
 }
 
 /** Matches every production-run/print-job list and detail query cached so far. */
-function invalidateProductionQueries(
+export function invalidateProductionQueries(
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
   queryClient.invalidateQueries({

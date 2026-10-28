@@ -10,7 +10,6 @@ import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -28,18 +27,23 @@ import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { ProductionRunDetailResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
-  getOpenFarmApiEndpointsProductionRunsGetProductionRunEndpointQueryKey,
-  getOpenFarmApiEndpointsProductionRunsListProductionRunsEndpointQueryKey,
   useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint,
-  useOpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint,
+  useOpenFarmApiEndpointsProductionRunsUpdateProductionRunEndpoint,
 } from '@/lib/api/generated/production-runs/production-runs';
+import {
+  RunDetailsFields,
+  runDetailsRequest,
+  runDetailsSchema,
+} from './components/RunDetailsFields';
+import { invalidateProductionQueries } from './hooks/useProductionHub';
+import { isOpenRun } from './lib/runStatus';
 
 const wholeNumber = (min: number, message: string) =>
   z
     .string()
     .refine((v) => Number.isInteger(Number(v)) && Number(v) >= min, message);
 
-const schema = z.object({
+const schema = runDetailsSchema.extend({
   lines: z.array(
     z.object({
       lineId: z.string(),
@@ -51,8 +55,8 @@ const schema = z.object({
         .string()
         .refine(
           (v) =>
-            v.trim() === '' || (Number.isInteger(Number(v)) && Number(v) >= 0),
-          'Must be 0 or more, or blank for no ceiling.',
+            v.trim() === '' || (Number.isInteger(Number(v)) && Number(v) >= 1),
+          'Must be 1 or more, or blank for no ceiling.',
         ),
     }),
   ),
@@ -60,12 +64,14 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-function unlimitedLines(run: ProductionRunDetailResponse | undefined) {
-  return (run?.lines ?? []).filter((l) => l.quantity == null && l.id);
-}
+const unlimitedLines = (run: ProductionRunDetailResponse | undefined) =>
+  (run?.lines ?? []).filter((l) => l.quantity == null && l.id);
 
 function toFormValues(run: ProductionRunDetailResponse): FormValues {
   return {
+    name: run.name ?? '',
+    dueDate: run.dueDate ?? '',
+    notes: run.notes ?? '',
     lines: unlimitedLines(run).map((l) => ({
       lineId: l.id ?? '',
       backfillPrinterCap: String(l.backfillPrinterCap ?? 1),
@@ -77,77 +83,70 @@ function toFormValues(run: ProductionRunDetailResponse): FormValues {
   };
 }
 
-/** Edits the backfill limits of a run's unlimited lines as one draft, saved in one call. */
+/** An open run's details and its unlimited lines' backfill limits, as one draft saved in one call. Lines are added from the run page. */
 export function ProductionRunEditPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const runQuery =
-    useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint(id ?? '');
-  const run = runQuery.data?.data;
+    useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint(id);
+  const run = runQuery.data?.data as ProductionRunDetailResponse | undefined;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { lines: [] },
+    defaultValues: { name: '', dueDate: '', notes: '', lines: [] },
   });
   const { isDirty } = form.formState;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: seed once per run, not on every hub-driven refetch (which would clobber the draft).
   useEffect(() => {
-    if (run) form.reset(toFormValues(run));
+    if (run?.id) form.reset(toFormValues(run));
   }, [run?.id]);
 
-  const { ConfirmLeaveDialog } = useUnsavedChangesPrompt(isDirty);
+  const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(isDirty);
 
   const mutation =
-    useOpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint({
+    useOpenFarmApiEndpointsProductionRunsUpdateProductionRunEndpoint({
       mutation: {
-        onSuccess: (response) => {
-          if (response.status === 200) form.reset(toFormValues(response.data));
-          queryClient.invalidateQueries({
-            queryKey:
-              getOpenFarmApiEndpointsProductionRunsListProductionRunsEndpointQueryKey(),
-          });
-          if (id)
-            queryClient.invalidateQueries({
-              queryKey:
-                getOpenFarmApiEndpointsProductionRunsGetProductionRunEndpointQueryKey(
-                  id,
-                ),
-            });
-          toast.success('Production run saved.');
+        onSuccess: () => {
+          toast.success('Run saved.');
+          invalidateProductionQueries(queryClient);
+          markClean();
+          navigate(`/production-runs/${id}`);
         },
-        onError: async (error) => {
-          toast.error(
-            await extractErrorDetail(error, 'Could not save backfill limits.'),
-          );
+        onError: async (error: unknown) => {
+          toast.error(await extractErrorDetail(error, 'Could not save run.'));
         },
       },
     });
 
   const backLink = (
     <BackLink to={`/production-runs/${id}`} className="mb-1">
-      Back to production run
+      Back to run
     </BackLink>
   );
 
-  if (!run) {
+  if (!run?.id || !isOpenRun(run.status)) {
     return (
       <Page>
-        <PageHeader above={backLink} title="Edit production run" />
+        <PageHeader above={backLink} title="Edit run" />
         {runQuery.isLoading ? (
           <Skeleton className="h-64 w-full" />
         ) : (
           <EmptyState
-            title="Production run not found"
-            description="Removed or invalid link."
+            title={run?.id ? 'Run is closed' : 'Run not found'}
+            description={
+              run?.id
+                ? 'Closed and cancelled runs keep their record as is.'
+                : 'Removed or invalid link.'
+            }
             action={
               <Button
                 variant="outline"
                 onClick={() => navigate('/production-runs')}
               >
-                Back to production runs
+                Back to runs
               </Button>
             }
           />
@@ -160,10 +159,10 @@ export function ProductionRunEditPage() {
   const pending = mutation.isPending;
 
   function onSubmit(values: FormValues) {
-    if (!id) return;
     mutation.mutate({
       id,
       data: {
+        ...runDetailsRequest(values),
         lines: values.lines.map((l) => ({
           lineId: l.lineId,
           backfillPrinterCap: Number(l.backfillPrinterCap),
@@ -178,78 +177,75 @@ export function ProductionRunEditPage() {
 
   return (
     <Page className="flex-1">
-      <PageHeader
-        above={backLink}
-        title={`Edit ${run.name ?? run.lines?.[0]?.targetName ?? 'production run'}`}
-        description="Backfill limits for this run's unlimited lines."
-      />
+      <PageHeader above={backLink} title={`Edit ${run.displayLabel}`} />
 
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-1 flex-col gap-6"
         >
-          <div className="flex flex-1 flex-col gap-4">
-            {lines.length === 0 ? (
-              <EmptyState
-                title="No unlimited lines"
-                description="Only unlimited (backfill) lines have limits to edit."
-              />
-            ) : (
-              lines.map((line, index) => (
-                <Card key={line.id}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      {line.targetName}
-                      <Badge variant="secondary">{line.targetKind}</Badge>
-                      <span className="text-xs font-normal text-muted-foreground">
-                        {line.cumulativeProducedUnits ?? 0} produced so far
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-wrap gap-4">
-                    <FormField
-                      control={form.control}
-                      name={`lines.${index}.backfillPrinterCap`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Backfill printer cap</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={1}
-                              step={1}
-                              className="w-32"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lines.${index}.backfillCumulativeUnitCeiling`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cumulative unit ceiling</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
-                              placeholder="No ceiling"
-                              className="w-40"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </CardContent>
-                </Card>
-              ))
+          <div className="flex max-w-3xl flex-1 flex-col gap-6">
+            <RunDetailsFields control={form.control} />
+            {lines.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Backfill limits</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col divide-y">
+                  {lines.map((line, index) => (
+                    <div
+                      key={line.id}
+                      className="grid gap-4 py-3 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_9rem_9rem] sm:items-start"
+                    >
+                      <div className="min-w-0 pt-1">
+                        <span className="block truncate font-medium">
+                          {line.targetName}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {line.cumulativeProducedUnits ?? 0} produced so far
+                        </span>
+                      </div>
+                      <FormField
+                        control={form.control}
+                        name={`lines.${index}.backfillPrinterCap`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Printers at once</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={1}
+                                step={1}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`lines.${index}.backfillCumulativeUnitCeiling`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Stop at units</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={1}
+                                step={1}
+                                placeholder="No ceiling"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             )}
           </div>
 

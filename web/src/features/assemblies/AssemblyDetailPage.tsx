@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { TrashIcon } from 'lucide-react';
+import { ListPlusIcon, TrashIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
@@ -34,6 +35,7 @@ export function AssemblyDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
 
   const assemblyQuery = useOpenFarmApiEndpointsAssembliesGetAssemblyEndpoint(
     id ?? '',
@@ -161,13 +163,24 @@ export function AssemblyDetailPage() {
         onSubmit={onSubmit}
         assemblyId={id}
         headerAction={
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => setConfirmDeleteOpen(true)}
-          >
-            <TrashIcon data-icon="inline-start" /> Remove
-          </Button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isDirty}
+              title={isDirty ? 'Save changes before queueing.' : undefined}
+              onClick={() => setQueueOpen(true)}
+            >
+              <ListPlusIcon data-icon="inline-start" /> Send to queue
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setConfirmDeleteOpen(true)}
+            >
+              <TrashIcon data-icon="inline-start" /> Remove
+            </Button>
+          </div>
         }
         footerActions={
           <>
@@ -196,6 +209,12 @@ export function AssemblyDetailPage() {
         isPending={deleteMutation.isPending}
         onConfirm={() => id && deleteMutation.mutate({ id })}
       />
+      {queueOpen && (
+        <SendToQueueDialog
+          target={{ kind: 'Assembly', id: id ?? '', name: assembly.name ?? '' }}
+          onClose={() => setQueueOpen(false)}
+        />
+      )}
       <ConfirmLeaveDialog />
     </Page>
   );

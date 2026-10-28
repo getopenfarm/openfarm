@@ -95,7 +95,7 @@ export const router = createBrowserRouter([
           },
           {
             path: '/production-runs',
-            handle: { title: 'Production runs' },
+            handle: { title: 'Runs' },
             children: [
               {
                 index: true,
@@ -104,17 +104,17 @@ export const router = createBrowserRouter([
               {
                 path: 'new',
                 element: <NewProductionRunPage />,
-                handle: { title: 'Add production run' },
+                handle: { title: 'Add run' },
               },
               {
                 path: ':id',
                 element: <ProductionRunDetailPage />,
-                handle: { title: 'Production run' },
+                handle: { title: 'Run' },
               },
               {
                 path: ':id/edit',
                 element: <ProductionRunEditPage />,
-                handle: { title: 'Edit production run' },
+                handle: { title: 'Edit run' },
               },
             ],
           },

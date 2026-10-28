@@ -30,16 +30,15 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatMm } from '@/lib/formatUnits';
 import { formatPartFileType } from '../formatPartFileType';
-
 import { PartEstimate } from './PartEstimate';
 import {
   type PartRemovalNoticeData,
   PartRemovalToast,
 } from './PartRemovalToast';
-import { QueuePartDialog } from './QueuePartDialog';
 import { RemovePartsDialog } from './RemovePartsDialog';
 import type { RemovablePart } from './useRemoveParts';
 
@@ -438,9 +437,13 @@ export function PartsTable({
         />
       )}
       {queuePart && (
-        <QueuePartDialog
+        <SendToQueueDialog
           key={queuePart.id}
-          part={queuePart}
+          target={{
+            kind: 'Part',
+            id: queuePart.id ?? '',
+            name: queuePart.name ?? '',
+          }}
           returnFocusRef={queueTriggerRef}
           onClose={() => setQueuePart(null)}
         />

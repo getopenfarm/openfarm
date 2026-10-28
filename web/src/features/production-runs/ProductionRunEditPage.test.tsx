@@ -10,7 +10,10 @@ afterEach(() => vi.unstubAllGlobals());
 
 const RUN = {
   id: 'r1',
+  displayLabel: 'Weekly',
   name: 'Weekly',
+  dueDate: null,
+  notes: null,
   status: 'Active',
   lines: [
     {
@@ -38,15 +41,13 @@ const RUN = {
   ],
 };
 
-it('saves every unlimited line in one PUT', async () => {
+it('saves the details and every unlimited line in one PUT', async () => {
   const puts: unknown[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'PUT') {
-        expect(input.toString()).toContain(
-          '/api/v1/production-runs/r1/backfill-limits',
-        );
+        expect(input.toString()).toMatch(/\/api\/v1\/production-runs\/r1$/);
         puts.push(JSON.parse(init.body as string));
       }
       return Promise.resolve(
@@ -66,13 +67,16 @@ it('saves every unlimited line in one PUT', async () => {
     );
   }
   const router = createMemoryRouter(
-    [{ path: '/production-runs/:id/edit', element: <ProductionRunEditPage /> }],
+    [
+      { path: '/production-runs/:id/edit', element: <ProductionRunEditPage /> },
+      { path: '/production-runs/:id', element: <p>Run page</p> },
+    ],
     { initialEntries: ['/production-runs/r1/edit'] },
   );
   render(<RouterProvider router={router} />, { wrapper: Wrapper });
 
   const user = userEvent.setup();
-  const caps = await screen.findAllByLabelText('Backfill printer cap');
+  const caps = await screen.findAllByLabelText('Printers at once');
   expect(caps).toHaveLength(2);
   expect(screen.queryByText('Bracket')).not.toBeInTheDocument();
   const save = screen.getByRole('button', { name: 'Save' });
@@ -80,12 +84,17 @@ it('saves every unlimited line in one PUT', async () => {
 
   await user.clear(caps[0]);
   await user.type(caps[0], '3');
-  const ceilings = screen.getAllByLabelText('Cumulative unit ceiling');
+  const ceilings = screen.getAllByLabelText('Stop at units');
   await user.clear(ceilings[1]);
+  await user.clear(screen.getByLabelText('Name'));
+  await user.type(screen.getByLabelText('Name'), ' Order #7 ');
   await user.click(save);
 
   await vi.waitFor(() => expect(puts).toHaveLength(1));
   expect(puts[0]).toEqual({
+    name: 'Order #7',
+    dueDate: null,
+    notes: null,
     lines: [
       {
         lineId: 'u1',
@@ -99,4 +108,5 @@ it('saves every unlimited line in one PUT', async () => {
       },
     ],
   });
+  expect(await screen.findByText('Run page')).toBeInTheDocument();
 });

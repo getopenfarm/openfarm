@@ -60,18 +60,12 @@ function setup(
     fleetStatus?: number;
     feeds?: FeedUnitResponse[];
     spools?: SpoolResponse[];
-    confirmCompletion?: boolean;
   } = {},
 ) {
-  let markCalls = 0;
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url.endsWith('/mark-ready') && init?.method === 'POST') {
-      markCalls++;
-      return options.confirmCompletion && markCalls === 1
-        ? respond({ title: 'Run completion confirmation required' }, 409)
-        : respond({});
-    }
+    if (url.endsWith('/mark-ready') && init?.method === 'POST')
+      return respond({});
     if (url.endsWith('/feed-units'))
       return respond({ feedUnits: options.feeds ?? [] });
     if (url.includes('/api/v1/spools?'))
@@ -184,8 +178,8 @@ describe('Fixed compact dashboard', () => {
     expect(card).toHaveTextContent('Awaiting clear');
     expect(card).not.toHaveTextContent('Finished');
   });
-  it('marks ready from the status chip and preserves run-completion confirmation', async () => {
-    const { fetch } = setup([finished], {}, { confirmCompletion: true });
+  it('marks ready from the status chip in one click', async () => {
+    const { fetch } = setup([finished]);
     const markReady = await screen.findByRole('button', {
       name: 'Mark P1S-02 ready',
     });
@@ -195,26 +189,15 @@ describe('Fixed compact dashboard', () => {
     expect(screen.queryByText('Clear bed')).not.toBeInTheDocument();
     expect(screen.queryByText('Mark ready')).not.toBeInTheDocument();
     fireEvent.click(markReady);
-    const confirmation = await screen.findByRole('alertdialog');
-    fireEvent.click(
-      within(confirmation).getByRole('button', {
-        name: 'Mark ready',
-      }),
-    );
     await waitFor(() =>
       expect(
         fetch.mock.calls.filter(
           ([url, init]) =>
             String(url).endsWith('/mark-ready') && init?.method === 'POST',
         ),
-      ).toHaveLength(2),
+      ).toHaveLength(1),
     );
-    const finalCall = fetch.mock.calls
-      .filter(([url]) => String(url).endsWith('/mark-ready'))
-      .at(-1);
-    expect(JSON.parse(String(finalCall?.[1]?.body))).toEqual({
-      confirmRunCompletion: true,
-    });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
   it('shows bars instead of persistent filament values and reveals recorded weight on hover', async () => {
     setup(

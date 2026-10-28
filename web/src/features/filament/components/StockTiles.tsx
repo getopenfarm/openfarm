@@ -1,8 +1,8 @@
 import { KpiCard } from '@/components/kpi-card/KpiCard';
+import { KpiStrip } from '@/components/kpi-card/KpiStrip';
 import type { VariantStockResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatCost, formatWeight } from '@/lib/formatUnits';
 import { pluralize } from '@/lib/pluralize';
-import { cn } from '@/lib/utils';
 import { sumStock } from '../lib/stock';
 
 /**
@@ -39,31 +39,7 @@ export function StockTiles({
     { label: 'Used 30 d', value: formatWeight(totals.usedGrams) },
   ];
 
-  if (size === 'compact') {
-    return (
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border lg:grid-cols-4">
-        {cells.map((cell) => (
-          <div key={cell.label} className="bg-card px-4 py-2.5">
-            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span
-                className={cn(
-                  'size-1.5 shrink-0 rounded-full',
-                  cell.dotClassName ?? 'bg-muted-foreground',
-                )}
-              />
-              {cell.label}
-            </dt>
-            <dd className="mt-0.5 text-base font-semibold tabular-nums">
-              {cell.value}
-            </dd>
-            {cell.sub && (
-              <dd className="text-xs text-muted-foreground">{cell.sub}</dd>
-            )}
-          </div>
-        ))}
-      </dl>
-    );
-  }
+  if (size === 'compact') return <KpiStrip cells={cells} />;
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -457,6 +457,9 @@ export function PrintJobDetailPage() {
               <span className="flex flex-wrap items-center gap-3">
                 {external ? job.name : `Print job · ${job.plateQuantity} units`}
                 <Badge>{job.status}</Badge>
+                {job.writtenOffAtUtc && (
+                  <Badge variant="outline">Written off</Badge>
+                )}
               </span>
             }
             description={

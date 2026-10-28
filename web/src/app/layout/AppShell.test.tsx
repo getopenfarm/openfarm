@@ -75,6 +75,7 @@ describe('AppShell', () => {
 
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Printers' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Runs' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Queue' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Filament' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Stats' })).toBeInTheDocument();

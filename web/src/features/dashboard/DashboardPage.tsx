@@ -52,7 +52,6 @@ export function DashboardPage() {
   const ready = useMarkPrinterReady();
   return (
     <Page>
-      {ready.confirmationDialog}
       <PageHeader
         title="Dashboard"
         action={

@@ -74,8 +74,6 @@ export function PrinterDetailPage() {
 
   return (
     <Page>
-      {markReadyMutation.confirmationDialog}
-
       {detailQuery.isLoading ? (
         <>
           <PageHeader above={backLink} title="Printer" />

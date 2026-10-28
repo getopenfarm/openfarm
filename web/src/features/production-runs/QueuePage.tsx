@@ -1,9 +1,9 @@
 /** biome-ignore-all lint/a11y/useSemanticElements: ARIA table elements allow independently scrolling, virtualized row groups with a shared column header. */
 /** biome-ignore-all lint/a11y/useFocusableInteractive: This is a static table, not an interactive grid; links and action buttons provide keyboard access. */
 import { useQueryClient } from '@tanstack/react-query';
-import { ClipboardListIcon, GripVerticalIcon } from 'lucide-react';
+import { GripVerticalIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { DataTableSearch } from '@/components/data-table/DataTableSearch';
 import {
@@ -66,7 +66,6 @@ const DESCRIPTIONS = {
 const EXTERNAL_HIDDEN_STATUSES = ['Queued', 'Cancelled'];
 /** One virtualized table, with independently paged finite and backfill sections. */
 export function QueuePage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const finiteScrollRef = useRef<HTMLDivElement>(null);
   const backfillScrollRef = useRef<HTMLDivElement>(null);
@@ -238,15 +237,6 @@ export function QueuePage() {
       <PageHeader
         title="Queue"
         description="Finite, backfill and printer-started jobs · status updates live."
-        action={
-          <Button
-            variant="outline"
-            onClick={() => navigate('/production-runs')}
-          >
-            <ClipboardListIcon data-icon="inline-start" />
-            Production runs
-          </Button>
-        }
       />
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         <Tabs

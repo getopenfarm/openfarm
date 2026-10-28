@@ -46,6 +46,8 @@ function setup(
             )
           : jsonResponse({ id: 'run-1' }, 201);
       }
+      if (url.includes('/api/v1/production-runs'))
+        return jsonResponse({ items: [], totalCount: 0, statusCounts: {} });
       if (url.includes('/api/v1/parts/part-1')) {
         return jsonResponse({
           ...part,
@@ -140,13 +142,9 @@ describe('PartsTable queue action', () => {
     expect(onRowClick).not.toHaveBeenCalled();
     const input = await screen.findByLabelText('Quantity (units)');
     expect(input).toHaveValue(4);
-    expect(
-      screen.getByText(/1 print job · 4 units will be produced/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/1 plate · 4 units/)).toBeInTheDocument();
     fireEvent.change(input, { target: { value: '5' } });
-    expect(
-      screen.getByText(/2 print jobs · 8 units will be produced/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/2 plates · 8 units/)).toBeInTheDocument();
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
         name: 'Send to queue',
@@ -164,7 +162,6 @@ describe('PartsTable queue action', () => {
                 targetId: 'part-1',
                 quantity: 5,
                 assignmentMode: 'Unassigned',
-                revisionMode: 'Snapshot',
               },
             ],
           }),
@@ -174,16 +171,19 @@ describe('PartsTable queue action', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ['/api/v1/print-jobs'],
-    });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ['/api/v1/production-runs'],
-    });
+    const refreshed = invalidate.mock.calls[0]?.[0] as
+      | { predicate: (query: { queryKey: unknown[] }) => boolean }
+      | undefined;
+    expect(refreshed?.predicate({ queryKey: ['/api/v1/print-jobs'] })).toBe(
+      true,
+    );
+    expect(
+      refreshed?.predicate({ queryKey: ['/api/v1/production-runs'] }),
+    ).toBe(true);
     expect(success).toHaveBeenCalledWith(
       'Bracket sent to the queue.',
       expect.objectContaining({
-        action: expect.objectContaining({ label: 'View queue' }),
+        action: expect.objectContaining({ label: 'View run' }),
       }),
     );
   });
@@ -236,7 +236,7 @@ describe('PartsTable queue action', () => {
     setup({ detailStatus: 'Incomplete' });
     await openQueue();
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Complete this part’s print requirements before queueing.',
+      'Print requirements incomplete. Complete them before queueing.',
     );
     expect(screen.queryByLabelText('Quantity (units)')).not.toBeInTheDocument();
   });
@@ -270,7 +270,7 @@ describe('PartsTable queue action', () => {
     if (!form) throw new Error('Queue form was not rendered.');
     fireEvent.submit(form);
     expect(
-      await screen.findByText('Enter a whole number of units.'),
+      await screen.findByText('Whole number, 1 or more.'),
     ).toBeInTheDocument();
     expect(
       requests.mock.calls.some(([, init]) => init?.method === 'POST'),

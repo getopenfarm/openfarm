@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
 import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
@@ -68,7 +69,6 @@ import {
   PartThumbnailGallery,
   plateLabel,
 } from './components/PartThumbnailGallery';
-import { QueuePartDialog } from './components/QueuePartDialog';
 import { RemovePartButton } from './components/RemovePartButton';
 import { formatPartFileType } from './formatPartFileType';
 import { usePartsHub } from './hooks/usePartsHub';
@@ -635,7 +635,14 @@ export function PartDetailPage() {
           />
 
           {queueOpen && (
-            <QueuePartDialog part={part} onClose={() => setQueueOpen(false)} />
+            <SendToQueueDialog
+              target={{
+                kind: 'Part',
+                id: part.id ?? '',
+                name: part.name ?? '',
+              }}
+              onClose={() => setQueueOpen(false)}
+            />
           )}
         </>
       )}

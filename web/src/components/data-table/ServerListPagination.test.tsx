@@ -127,7 +127,6 @@ describe('Server-paginated resource lists', () => {
 it.each([
   [AssembliesPage, 'Assembly', 'name'],
   [NonPrintedComponentsPage, 'Name', 'name'],
-  [ProductionRunsPage, 'Run', 'displayLabel'],
 ] as const)(
   'sorts a resource globally and resets its page (%s)',
   async (Page, title, field) => {

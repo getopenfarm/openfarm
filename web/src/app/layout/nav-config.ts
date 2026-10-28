@@ -6,6 +6,7 @@ import {
   HistoryIcon,
   LayersIcon,
   LayoutDashboardIcon,
+  ListChecksIcon,
   type LucideIcon,
   PackageIcon,
   PrinterIcon,
@@ -33,6 +34,11 @@ const printers: NavItem = {
   title: 'Printers',
   url: '/printers',
   icon: PrinterIcon,
+};
+const runs: NavItem = {
+  title: 'Runs',
+  url: '/production-runs',
+  icon: ListChecksIcon,
 };
 const jobs: NavItem = { title: 'Queue', url: '/jobs', icon: ClipboardListIcon };
 const stats: NavItem = { title: 'Stats', url: '/stats', icon: ChartColumnIcon };
@@ -69,7 +75,7 @@ const activityLog: NavItem = {
 };
 
 export const navSections: NavSection[] = [
-  { label: 'Operate', items: [dashboard, printers, jobs, stats] },
+  { label: 'Operate', items: [dashboard, printers, runs, jobs, stats] },
   { label: 'Materials', items: [filament] },
   {
     label: 'Library',

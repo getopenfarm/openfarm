@@ -1,137 +1,253 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, PencilIcon, XIcon } from 'lucide-react';
+import { useQueries } from '@tanstack/react-query';
+import {
+  ArrowUpToLineIcon,
+  CheckIcon,
+  PencilIcon,
+  PlusIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
-import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { KpiStrip, type KpiStripCell } from '@/components/kpi-card/KpiStrip';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Spinner } from '@/components/ui/spinner';
-import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
-  getOpenFarmApiEndpointsProductionRunsGetProductionRunEndpointQueryKey,
-  getOpenFarmApiEndpointsProductionRunsListProductionRunsEndpointQueryKey,
-  useOpenFarmApiEndpointsProductionRunsCancelProductionRunEndpoint,
-  useOpenFarmApiEndpointsProductionRunsCloseProductionRunEndpoint,
-  useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint,
-} from '@/lib/api/generated/production-runs/production-runs';
-import { ShortfallBanner } from './components/ShortfallBanner';
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import type {
+  PartResponse,
+  ProductionRunDetailResponse,
+} from '@/lib/api/generated/endpoints.schemas';
+import { getOpenFarmApiEndpointsPartsGetPartEndpointQueryOptions } from '@/lib/api/generated/parts/parts';
+import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
+import { useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint } from '@/lib/api/generated/production-runs/production-runs';
+import { formatMinutes } from '@/lib/formatMinutes';
+import { formatWeight } from '@/lib/formatUnits';
+import { cn } from '@/lib/utils';
+import { RunAttentionCard } from './components/RunAttentionCard';
+import { RunLines } from './components/RunLines';
+import { SendToQueueDialog } from './components/SendToQueueDialog';
 import { useProductionHub } from './hooks/useProductionHub';
+import { useRunActions } from './hooks/useRunActions';
+import { describeDue } from './lib/dueDate';
+import { canCloseRun, isOpenRun, RUN_STATUS } from './lib/runStatus';
+
+const units = (n: number) => Number(n.toFixed(2));
+
+/** Units, plates, and the machine time and filament the waiting and printing plates still need, from their estimates. */
+function summarize(run: ProductionRunDetailResponse): KpiStripCell[] {
+  const lines = run.lines ?? [];
+  const finite = lines
+    .filter((l) => l.quantity != null)
+    .flatMap((l) => l.requirements ?? []);
+  const produced = lines
+    .filter((l) => l.quantity == null)
+    .reduce((sum, l) => sum + (l.cumulativeProducedUnits ?? 0), 0);
+  let target = 0;
+  let done = 0;
+  let writtenOff = 0;
+  let minutes = 0;
+  let grams = 0;
+  let unestimated = false;
+  const plates = {
+    completed: 0,
+    printing: 0,
+    queued: 0,
+    needsAction: 0,
+    writtenOff: 0,
+  };
+  for (const r of finite) {
+    target += r.quantity ?? 0;
+    done += Math.min(r.completedUnits ?? 0, r.quantity ?? 0);
+    writtenOff += r.writtenOffUnits ?? 0;
+    for (const key of Object.keys(plates) as (keyof typeof plates)[])
+      plates[key] += r.plates?.[key] ?? 0;
+    const left = (r.plates?.queued ?? 0) + (r.plates?.printing ?? 0);
+    if (left > 0 && r.estimatedMinutesPerPlate == null) unestimated = true;
+    minutes += left * (r.estimatedMinutesPerPlate ?? 0);
+    grams += left * (r.estimatedGramsPerPlate ?? 0);
+  }
+  const total = Object.values(plates).reduce((a, b) => a + b, 0);
+
+  return [
+    finite.length > 0
+      ? {
+          label: 'Units',
+          value: `${units(done)}/${units(target)}`,
+          sub: writtenOff > 0 ? `${writtenOff} written off` : undefined,
+          dotClassName: 'bg-(--chart-completed)',
+        }
+      : { label: 'Units produced', value: String(produced) },
+    {
+      label: 'Plates',
+      value: `${plates.completed}/${total}`,
+      sub:
+        [
+          plates.printing > 0 ? `${plates.printing} printing` : null,
+          plates.queued > 0 ? `${plates.queued} waiting` : null,
+          plates.needsAction > 0 ? `${plates.needsAction} failed` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ') || undefined,
+      dotClassName:
+        plates.needsAction > 0
+          ? 'bg-(--chart-failed)'
+          : 'bg-(--chart-printing)',
+    },
+    {
+      label: 'Machine time left',
+      value: formatMinutes(minutes),
+      sub: unestimated
+        ? 'Partial: some parts have no estimate'
+        : 'Sum of plate estimates',
+    },
+    {
+      label: 'Filament left',
+      value: formatWeight(grams),
+      sub: unestimated ? 'Partial' : undefined,
+    },
+  ];
+}
 
 export function ProductionRunDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const actions = useRunActions();
   useProductionHub();
 
-  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
-
   const runQuery =
-    useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint(id ?? '');
-  const run = runQuery.data?.data;
-
-  function invalidateRunQueries() {
-    queryClient.invalidateQueries({
-      queryKey:
-        getOpenFarmApiEndpointsProductionRunsListProductionRunsEndpointQueryKey(),
-    });
-    if (id) {
-      queryClient.invalidateQueries({
-        queryKey:
-          getOpenFarmApiEndpointsProductionRunsGetProductionRunEndpointQueryKey(
-            id,
-          ),
-      });
-    }
-  }
-
-  const closeMutation =
-    useOpenFarmApiEndpointsProductionRunsCloseProductionRunEndpoint({
-      mutation: {
-        onSuccess: () => {
-          toast.success('Production run closed.');
-          invalidateRunQueries();
-        },
-        onError: async (error) => {
-          toast.error(await extractErrorDetail(error, 'Could not close run.'));
-        },
-      },
-    });
-
-  const cancelMutation =
-    useOpenFarmApiEndpointsProductionRunsCancelProductionRunEndpoint({
-      mutation: {
-        onSuccess: () => {
-          toast.success('Run cancelled.');
-          invalidateRunQueries();
-        },
-        onError: async (error) => {
-          toast.error(await extractErrorDetail(error, 'Could not cancel run.'));
-        },
-      },
-    });
+    useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint(id);
+  const run = runQuery.data?.data as ProductionRunDetailResponse | undefined;
+  const printers =
+    useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data?.printers ??
+    [];
+  const partIds = [
+    ...new Set(
+      (run?.lines ?? []).flatMap((l) =>
+        (l.requirements ?? [])
+          .filter((r) => r.sourcePartAvailable && r.partId)
+          .map((r) => r.partId ?? ''),
+      ),
+    ),
+  ];
+  const partQueries = useQueries({
+    queries: partIds.map((partId) =>
+      getOpenFarmApiEndpointsPartsGetPartEndpointQueryOptions(partId),
+    ),
+  });
+  const thumbnailOf = (partId?: string) =>
+    (
+      partQueries[partIds.indexOf(partId ?? '')]?.data?.data as
+        | PartResponse
+        | undefined
+    )?.thumbnails?.[0]?.thumbnailBase64;
+  const printerName = (printerId?: string | null) =>
+    printers.find((p) => p.id === printerId)?.name ?? undefined;
 
   const backLink = (
     <BackLink to="/production-runs" className="mb-1">
-      Back to production runs
+      Back to runs
     </BackLink>
   );
 
-  if (runQuery.isLoading) {
+  if (!run?.id) {
     return (
       <Page>
-        <PageHeader above={backLink} title="Production run" />
-        <Skeleton className="h-64 w-full" />
+        <PageHeader above={backLink} title="Run" />
+        {runQuery.isLoading ? (
+          <Skeleton className="h-64 w-full" />
+        ) : runQuery.isError &&
+          (runQuery.error as unknown as { status?: number } | null)?.status !==
+            404 ? (
+          <ErrorState
+            title="Could not load run"
+            onRetry={() => runQuery.refetch()}
+          />
+        ) : (
+          <EmptyState
+            title="Run not found"
+            description="Removed or invalid link."
+            action={
+              <Button
+                variant="outline"
+                onClick={() => navigate('/production-runs')}
+              >
+                Back to runs
+              </Button>
+            }
+          />
+        )}
       </Page>
     );
   }
 
-  if (!run) {
-    return (
-      <Page>
-        <PageHeader above={backLink} title="Production run" />
-        <EmptyState
-          title="Production run not found"
-          description="Removed or invalid link."
-          action={
-            <Button
-              variant="outline"
-              onClick={() => navigate('/production-runs')}
-            >
-              Back to production runs
-            </Button>
-          }
-        />
-      </Page>
-    );
-  }
-
-  const title =
-    run.name ?? run.lines?.[0]?.targetName ?? 'Unnamed production run';
-  const canEditLimits =
-    run.status === 'Active' &&
-    (run.lines ?? []).some((l) => l.quantity == null);
+  const status = RUN_STATUS[run.status ?? ''];
+  const open = isOpenRun(run.status);
+  const hasFinite = (run.lines ?? []).some((l) => l.quantity != null);
+  const waiting = (run.lines ?? [])
+    .flatMap((l) => l.requirements ?? [])
+    .some((r) => (r.plates?.queued ?? 0) > 0);
+  const due = run.dueDate ? describeDue(run.dueDate) : null;
+  const created = run.createdAtUtc
+    ? new Date(run.createdAtUtc).toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+      })
+    : null;
 
   return (
     <Page>
       <PageHeader
         above={backLink}
-        title={title}
+        title={
+          <span className="flex flex-wrap items-center gap-3">
+            {run.displayLabel}
+            {status && <StatusBadge kind={status.kind} label={status.label} />}
+          </span>
+        }
         description={
-          <span className="flex items-center gap-2">
-            <Badge variant="outline">{run.status}</Badge>
-            {run.dueDate && <span>Due {run.dueDate}</span>}
+          <span className="flex flex-wrap gap-x-1">
+            {due ? (
+              <>
+                <span>Due {due.label}</span>
+                {open && (
+                  <span
+                    className={cn(
+                      due.overdue && 'font-medium text-status-attention',
+                      due.soon && 'text-foreground',
+                    )}
+                  >
+                    · {due.relative}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span>No due date</span>
+            )}
+            {created && <span>· Created {created}</span>}
           </span>
         }
         action={
-          <div className="flex gap-2">
-            {canEditLimits && (
+          <div className="flex flex-wrap gap-2">
+            {open && waiting && (
+              <Button
+                variant="outline"
+                disabled={actions.isPending}
+                onClick={() => actions.moveToTop(id)}
+              >
+                <ArrowUpToLineIcon data-icon="inline-start" /> Move to top
+              </Button>
+            )}
+            {open && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/production-runs/${id}/edit`)}
@@ -139,106 +255,72 @@ export function ProductionRunDetailPage() {
                 <PencilIcon data-icon="inline-start" /> Edit
               </Button>
             )}
-            {run.status === 'Complete' && (
+            {canCloseRun(run.status, hasFinite) && (
               <Button
-                variant="outline"
-                onClick={() => id && closeMutation.mutate({ id })}
-                disabled={closeMutation.isPending}
+                disabled={actions.isPending}
+                onClick={() => actions.close(id)}
               >
-                {closeMutation.isPending ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <CheckIcon data-icon="inline-start" />
-                )}
-                Close run
+                <CheckIcon data-icon="inline-start" />
+                {hasFinite ? 'Close run' : 'Stop backfill'}
               </Button>
             )}
-            {(run.status === 'Active' || run.status === 'Complete') && (
+            {open && (
               <Button
                 variant="destructive"
-                onClick={() => setConfirmCancelOpen(true)}
+                onClick={() => actions.cancel(id, run.displayLabel ?? 'run')}
               >
-                <XIcon data-icon="inline-start" /> Cancel run
+                Cancel run
               </Button>
             )}
           </div>
         }
       />
 
+      <KpiStrip cells={summarize(run)} />
+
+      <RunAttentionCard run={run} printerName={printerName} />
+
+      <Card className="gap-2">
+        <CardHeader>
+          <CardTitle className="text-base">Lines</CardTitle>
+          {open && (
+            <CardAction>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAdding(true)}
+              >
+                <PlusIcon data-icon="inline-start" /> Add part or assembly
+              </Button>
+            </CardAction>
+          )}
+        </CardHeader>
+        <CardContent>
+          <RunLines
+            lines={run.lines ?? []}
+            thumbnailOf={thumbnailOf}
+            printerName={printerName}
+          />
+        </CardContent>
+      </Card>
+
       {run.notes && (
-        <p className="text-sm text-muted-foreground">{run.notes}</p>
+        <Card className="gap-2">
+          <CardHeader>
+            <CardTitle className="text-base">Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="max-w-prose text-sm whitespace-pre-line">
+              {run.notes}
+            </p>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="flex flex-col gap-4">
-        {(run.lines ?? []).map((line) => (
-          <Card key={line.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                {line.targetName}
-                <Badge variant="secondary">{line.targetKind}</Badge>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {line.quantity === null || line.quantity === undefined
-                    ? 'Unlimited (backfill)'
-                    : `Qty ${line.quantity}`}
-                </span>
-                <Badge variant="outline">
-                  {line.quantity == null
-                    ? 'Follows library'
-                    : 'Independent snapshot'}
-                </Badge>
-                {line.spansMultipleRevisions && (
-                  <Badge variant="outline">Spans multiple revisions</Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              {(line.requirements ?? []).map((requirement) => (
-                <div key={requirement.id} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between rounded-md border p-2">
-                    <span className="text-sm font-medium">
-                      {requirement.partName}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {requirement.completedJobCount}/{requirement.jobCount}{' '}
-                      completed
-                      {requirement.quantity !== null &&
-                        requirement.quantity !== undefined &&
-                        ` · target ${requirement.quantity}`}
-                    </span>
-                  </div>
-                  {id && (
-                    <ShortfallBanner runId={id} requirement={requirement} />
-                  )}
-                </div>
-              ))}
-              {line.quantity == null && (
-                <p className="text-xs text-muted-foreground">
-                  Backfill printer cap {line.backfillPrinterCap ?? 1} ·{' '}
-                  {line.backfillCumulativeUnitCeiling != null
-                    ? `ceiling ${line.backfillCumulativeUnitCeiling} units`
-                    : 'no ceiling'}{' '}
-                  · {line.cumulativeProducedUnits ?? 0} produced so far
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <ConfirmDialog
-        open={confirmCancelOpen}
-        onOpenChange={setConfirmCancelOpen}
-        title="Cancel this production run?"
-        description="Cancel every queued job not yet sent to a printer. A job already printing is not stopped and still records its outcome."
-        confirmLabel="Cancel run"
-        cancelLabel="Keep run"
-        destructive
-        isPending={cancelMutation.isPending}
-        onConfirm={() => {
-          if (id) cancelMutation.mutate({ id });
-          setConfirmCancelOpen(false);
-        }}
-      />
+      {adding && (
+        <SendToQueueDialog runId={id} onClose={() => setAdding(false)} />
+      )}
+      {actions.cancelDialog}
     </Page>
   );
 }

@@ -48,26 +48,20 @@ describe('PrinterDetailPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('requires explicit confirmation before marking the last named-run printer ready', async () => {
+  it('marks the printer ready in one click, with no run confirmation', async () => {
     const user = userEvent.setup();
-    const printerId = 'named-run-printer';
-    const requests: boolean[] = [];
+    const printerId = 'finished-printer';
+    let markReadyCalls = 0;
     vi.stubGlobal(
       'fetch',
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      vi.fn((input: RequestInfo | URL) => {
         const url = input.toString();
         if (url.includes('/hubs/farm'))
           return Promise.reject(new Error('No SignalR in unit tests'));
         if (url.endsWith('/mark-ready')) {
-          const confirmed = JSON.parse(String(init?.body)).confirmRunCompletion;
-          requests.push(confirmed);
+          markReadyCalls++;
           return Promise.resolve(
-            confirmed
-              ? jsonResponse({ id: printerId, status: 'Idle' })
-              : jsonResponse(
-                  { title: 'Run completion confirmation required' },
-                  409,
-                ),
+            jsonResponse({ id: printerId, status: 'Idle' }),
           );
         }
         if (url.includes('/activity-log'))
@@ -91,15 +85,9 @@ describe('PrinterDetailPage', () => {
     renderPage(printerId);
     await screen.findByText('Finished printer');
     await user.click(screen.getByRole('button', { name: 'Mark ready' }));
-    const dialog = await screen.findByRole('alertdialog');
-    expect(requests).toEqual([false]);
-    await user.click(
-      within(dialog).getByRole('button', {
-        name: 'Mark ready',
-      }),
-    );
     await screen.findByText('Printer marked ready.');
-    expect(requests).toEqual([false, true]);
+    expect(markReadyCalls).toBe(1);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
   it('renders telemetry, current job, AMS and activity for the printer', async () => {
