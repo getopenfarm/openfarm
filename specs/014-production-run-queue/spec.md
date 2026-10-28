@@ -1,3 +1,13 @@
+> October 28, 2026 amendment (Runs page overhaul): every run, named or not, completes on its own when its last
+> finite plate is done or written off; Close is the single operator sign-off, and Mark ready no longer asks about
+> runs (supersedes FR-016b's named-run confirmation). A run of unlimited lines only closes from Active. A lost plate
+> (failed or cancelled) resolves by requeue or by **write-off** (FR-025's second remedy; works without a snapshot), so
+> no run is held open by a plate that cannot be reprinted. A requeue retries in place (the lost job's queue
+> position), is refused on a closed or cancelled run, and drops a pin to a printer that no longer exists; removing a
+> printer unpins its queued jobs and run lines. An open run's name, due date and notes are editable, and lines can be
+> added to it (a Complete run becomes Active again); quantities stay fixed. The free-text Priority field is gone:
+> **Move to top** moves a run's waiting jobs above everything else as one block, so FR-008a's manual order still holds.
+>
 > October 13, 2026 amendment: the fixed finite/unlimited snapshot rules in FR-009 supersede
 > earlier acceptance scenarios describing an editable revision toggle. Printer profiles and loaded
 > inventory remain live production dependencies. Unverifiable unfinished legacy jobs block deletion

@@ -100,8 +100,12 @@ footer must remain visible.
 - Use CardHeader, CardTitle, and CardDescription for section headings; reserve
   CardContent for the body and CardFooter for actions when appropriate.
 - KPI tiles (`KpiCard`) lead a list page. A detail page whose own content leads
-  (a filament's color rows) shows the same figures as one compact bordered strip
-  (`StockTiles size="compact"`), so the totals do not compete with it.
+  (a filament's color rows, a run's lines) shows the same figures as one compact
+  bordered strip (`KpiStrip`), so the totals do not compete with it.
+- Production progress is drawn in plates, never a percentage: `PlateStrip` shows
+  one cell per plate (done, written off, printing, failed, waiting), switching to
+  proportional segments past 60 plates, with the counts as its accessible name.
+  Units go next to it as text ("24/40 units").
 - Use shared EmptyState/ErrorState, which compose shadcn Empty. Distinguish initial
   loading, request failure with Retry, no resources with an Add action, and no
   filter matches. Use Skeleton for loading, Alert for callouts, and Sonner for toasts.
@@ -186,11 +190,12 @@ orders, and then paginates. Never apply local sorting to a server page. A
 server-paged table without a sorting handler renders non-sortable headers.
 Complete-collection tables retain client sorting and pagination.
 
-Parts, Assemblies, Non-printed Components, and Production Runs start newest
-first. Their primary header cycles default → ascending → descending → default;
-Profiles start with name ascending and toggle direction. Run ordering uses the
-actual displayed label, including captured names and legacy fallbacks. All
-server orders have an ascending entity-ID tie-breaker. Activity Log remains
+Parts, Assemblies and Non-printed Components start newest first; their primary
+header cycles default → ascending → descending → default. Runs start by due date,
+undated last, so the next order due leads; their Due header toggles direction
+(the API also sorts runs by displayed label, captured names and legacy fallbacks
+included). Profiles start with name ascending and toggle direction. All server
+orders have an ascending entity-ID tie-breaker. Activity Log remains
 newest first, and the print queue retains its operational ordering.
 
 Sort changes reset to page one. Profile tabs retain independent sorting, page,
