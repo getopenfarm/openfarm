@@ -5,8 +5,8 @@ using OpenFarm.Api.Endpoints.ProductionRuns;
 
 namespace OpenFarm.Api.IntegrationTests.Production;
 
-// Test-after: PUT /api/v1/production-runs/{id}/backfill-limits — every unlimited line's limits in one save.
-public class SetRunBackfillLimitsEndpointTests(ProductionTestFactory factory) : ProductionTestContext(factory), IClassFixture<ProductionTestFactory>
+// Test-after: PUT /api/v1/production-runs/{id} — an open run's details and every unlimited line's limits in one save.
+public class UpdateProductionRunEndpointTests(ProductionTestFactory factory) : ProductionTestContext(factory), IClassFixture<ProductionTestFactory>
 {
     private static async Task<ProductionRunDetailResponse> TwoLineRunAsync(HttpClient client, Guid firstPart, Guid secondPart, int? secondQuantity)
     {
@@ -24,13 +24,33 @@ public class SetRunBackfillLimitsEndpointTests(ProductionTestFactory factory) : 
     }
 
     [Fact]
+    public async Task Update_SetsTheDetails_AndIsRefusedOnceTheRunIsCancelled()
+    {
+        var client = await ClientAsync();
+        var run = await RunAsync(client, (await PartAsync()).Id, name: "Old name");
+
+        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}", new { name = " Order #1042 ", dueDate = "2026-10-31", notes = "Ship Friday" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var detail = await DetailAsync(client, run.Id);
+        detail.Name.Should().Be("Order #1042");
+        detail.DisplayLabel.Should().Be("Order #1042");
+        detail.DueDate.Should().Be(new DateOnly(2026, 10, 31));
+        detail.Notes.Should().Be("Ship Friday");
+        (await ActivityEventTypesAsync(client, run.Id)).Should().Contain("ProductionRunEdited");
+
+        await PostAsync(client, $"/api/v1/production-runs/{run.Id}/cancel");
+        (await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}", new { name = "Too late" })).StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Set_UpdatesEveryLine_AndLogsTheRun()
     {
         var client = await ClientAsync();
         var run = await TwoLineRunAsync(client, (await PartAsync()).Id, (await PartAsync()).Id, null);
         var (first, second) = (run.Lines[0].Id, run.Lines[1].Id);
 
-        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}/backfill-limits", new
+        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}", new
         {
             lines = new[]
             {
@@ -43,7 +63,7 @@ public class SetRunBackfillLimitsEndpointTests(ProductionTestFactory factory) : 
         var detail = await DetailAsync(client, run.Id);
         detail.Lines.Single(l => l.Id == first).Should().Match<RunLineSummaryResponse>(l => l.BackfillPrinterCap == 2 && l.BackfillCumulativeUnitCeiling == 10);
         detail.Lines.Single(l => l.Id == second).Should().Match<RunLineSummaryResponse>(l => l.BackfillPrinterCap == 3 && l.BackfillCumulativeUnitCeiling == null);
-        (await ActivityEventTypesAsync(client, run.Id)).Should().Contain("ProductionRunBackfillLimitsChanged");
+        (await ActivityEventTypesAsync(client, run.Id)).Should().Contain("ProductionRunEdited");
     }
 
     [Fact]
@@ -52,7 +72,7 @@ public class SetRunBackfillLimitsEndpointTests(ProductionTestFactory factory) : 
         var client = await ClientAsync();
         var run = await RunAsync(client, (await PartAsync()).Id, quantity: null);
 
-        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}/backfill-limits", new
+        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}", new
         {
             lines = new[] { new { lineId = run.Lines.Single().Id, backfillPrinterCap = 0 } },
         });
@@ -68,7 +88,7 @@ public class SetRunBackfillLimitsEndpointTests(ProductionTestFactory factory) : 
         var unlimited = run.Lines.Single(l => l.Quantity is null);
         var finite = run.Lines.Single(l => l.Quantity is not null);
 
-        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}/backfill-limits", new
+        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}", new
         {
             lines = new[]
             {
@@ -87,7 +107,7 @@ public class SetRunBackfillLimitsEndpointTests(ProductionTestFactory factory) : 
         var client = await ClientAsync();
         var run = await RunAsync(client, (await PartAsync()).Id, quantity: null);
 
-        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}/backfill-limits", new
+        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}", new
         {
             lines = new[] { new { lineId = Guid.NewGuid(), backfillPrinterCap = 1 } },
         });

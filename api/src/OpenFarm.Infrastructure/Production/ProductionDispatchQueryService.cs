@@ -203,8 +203,8 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
     /// research.md R4 step 5: every (RunLine, PartRequirement) pair belonging to an unlimited
     /// (<c>Quantity IS NULL</c>) line, with the owning line's own occupancy
     /// (<c>COUNT(DISTINCT PrinterId)</c> over its <c>Printing</c>/dispatched-but-unconfirmed/
-    /// Pinned-and-queued jobs) and cumulative units (<c>SUM(Part.UnitsPerPrint)</c> over its
-    /// <c>Completed</c> jobs) — both aggregated across every requirement on the line, per
+    /// Pinned-and-queued jobs) and cumulative units (<c>SUM(PlateQuantity)</c> over its
+    /// completed and in-flight jobs) — both aggregated across every requirement on the line, per
     /// data-model.md's "one cap, counted together across every distinct printed part" note for an
     /// Assembly-targeted backfill line.
     /// </summary>
@@ -214,6 +214,7 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
                            join run in dbContext.ProductionRuns on line.ProductionRunId equals run.Id
                            where line.Quantity == null && (run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)
                                && (printerId == null || line.DefaultAssignmentMode != AssignmentMode.Pinned || line.DefaultPinnedPrinterId == printerId)
+                           orderby run.CreatedAtUtc, line.Id
                            select line).ToListAsync(cancellationToken);
         if (lines.Count == 0)
         {
@@ -271,17 +272,19 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
                 .ToListAsync(cancellationToken);
             occupancyByLine[line.Id] = occupiedPrinterIds.Count;
 
-            var completedUnits = await (
-                from job in dbContext.PrintJobs
-                join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
-                where requirementIdsForLine.Contains(job.PartRequirementId) && job.Status == PrintJobStatus.Completed
-                select job.PlateQuantity)
+            // Units still printing count too: with a printer cap above 1, completed units alone let the ceiling overshoot.
+            var producedOrPrintingUnits = await dbContext.PrintJobs
+                .Where(j => requirementIdsForLine.Contains(j.PartRequirementId) &&
+                    (j.Status == PrintJobStatus.Completed || j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused ||
+                     (j.Status == PrintJobStatus.Queued && j.DispatchedAtUtc != null)))
+                .Select(j => j.PlateQuantity)
                 .ToListAsync(cancellationToken);
-            cumulativeUnitsByLine[line.Id] = completedUnits.Sum();
+            cumulativeUnitsByLine[line.Id] = producedOrPrintingUnits.Sum();
         }
 
         var candidates = new List<BackfillLineCandidate>();
-        foreach (var requirement in requirements)
+        // Oldest run first, so which unlimited line backfills next is decided, not left to row order.
+        foreach (var requirement in lines.SelectMany(l => requirements.Where(r => r.RunLineId == l.Id).OrderBy(r => r.Id)))
         {
             if (!partsById.TryGetValue(requirement.PartId, out var part) || part.PrintRequirementsStatus != PrintRequirementsStatus.Complete)
             {

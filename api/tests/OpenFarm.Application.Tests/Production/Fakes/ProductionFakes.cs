@@ -86,8 +86,10 @@ public sealed class InMemoryProductionRunRepository(params ProductionRun[] runs)
     public Task<ProductionRun?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         Task.FromResult(_runs.GetValueOrDefault(id));
 
-    public Task<(IReadOnlyList<ProductionRun> Runs, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
-        Task.FromResult<(IReadOnlyList<ProductionRun>, int)>((_runs.Values.ToList(), _runs.Count));
+    public Task<(IReadOnlyList<ProductionRun> Runs, int TotalCount, IReadOnlyDictionary<string, int> StatusCounts)> ListAsync(
+        int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null,
+        string? status = null, string? search = null) =>
+        Task.FromResult<(IReadOnlyList<ProductionRun>, int, IReadOnlyDictionary<string, int>)>((_runs.Values.ToList(), _runs.Count, new Dictionary<string, int>()));
 
     public Task<ProductionRun?> GetByRunLineIdAsync(Guid runLineId, CancellationToken cancellationToken) =>
         Task.FromResult(_runs.Values.FirstOrDefault(r => r.Lines.Any(l => l.Id == runLineId)));

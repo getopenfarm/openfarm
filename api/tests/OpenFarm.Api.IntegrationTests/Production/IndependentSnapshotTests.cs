@@ -97,7 +97,7 @@ public class IndependentSnapshotTests(ProductionTestFactory factory) : Productio
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             foreach (var part in new[] { verified, changed, missing })
             {
-                var run = ProductionRun.Create("Legacy", null, null, null,
+                var run = ProductionRun.Create("Legacy", null, null,
                     [new RunLineSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
                 var requirement = PartRequirement.Create(run.Lines.Single().Id, part.Id, 1);
                 var job = PrintJob.Create("Test part", requirement.Id, 1024, 1, AssignmentMode.Unassigned,

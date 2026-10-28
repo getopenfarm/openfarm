@@ -24,7 +24,7 @@ public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository, I
                 .Select(c => new JobFilamentConsumptionDetail(c.Id, c.MaterialType, c.DetectedColorHex, c.SpoolId, c.GramsConsumed, c.NarrowFilamentVariantId, c.NarrowFilamentProfileId, c.ToolIndex, c.EstimatedGrams, c.PricePerKg, c.PriceSource, c.Cost))
                 .ToList(),
             job.CreatedAtUtc, job.GetSnapshotState(), job.SnapshotRecoveryReason, job.Source, job.Name,
-            job.LastBlockReason, job.LastBlockedAtUtc, DispatchProvenance.FromJson(job.DispatchProvenanceJson));
+            job.LastBlockReason, job.LastBlockedAtUtc, DispatchProvenance.FromJson(job.DispatchProvenanceJson), job.WrittenOffAtUtc);
     }
 
     /// <summary>A print the printer started itself has no requirement, queue slot, plate or file revision.</summary>

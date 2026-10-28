@@ -106,7 +106,6 @@ public class ExternalPrintHistoryTests(ProductionTestFactory factory) : Producti
         using var scope = Factory.Services.CreateScope();
         var jobs = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
         (await jobs.GetActiveJobByDispatchedPrinterIdAsync(printerId, default)).Should().BeNull();
-        (await jobs.GetLastJobByDispatchedPrinterIdAsync(printerId, default)).Should().BeNull();
     }
 
     [Fact]

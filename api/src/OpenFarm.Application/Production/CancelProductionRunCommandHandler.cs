@@ -1,16 +1,10 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ActivityLog;
-using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-/// <summary>
-/// FR-017/FR-024d: cancels every Queued, never-dispatched job belonging to the run; a job already
-/// sent to a printer (dispatch-in-flight or Printing) is left alone and still records its eventual
-/// outcome — this bulk action never sends a printer command (that remains FR-024's own, separate,
-/// deliberate per-job action).
-/// </summary>
+/// <summary>FR-017: cancels the run and its unsent jobs (<see cref="UnsentJobs"/>); a job already on a printer finishes.</summary>
 public sealed class CancelProductionRunCommandHandler(
     IProductionRunRepository runRepository, IPrintJobRepository jobRepository, IProductionEventPublisher publisher, IActivityLogWriter? activityLogWriter = null)
     : ICommandHandler<CancelProductionRunCommand, ProductionRun>
@@ -21,24 +15,11 @@ public sealed class CancelProductionRunCommandHandler(
             ?? throw new ProductionRunNotFoundException(command.RunId);
 
         run.Cancel();
-
-        var jobs = await jobRepository.ListByProductionRunIdAsync(run.Id, cancellationToken);
-        var cancelledJobs = jobs.Where(j => j.Status == PrintJobStatus.Queued && j.PrinterId is null).ToList();
-        foreach (var job in cancelledJobs)
-        {
-            job.MarkCancelled();
-        }
-
+        var cancelledJobs = UnsentJobs.Cancel(await jobRepository.ListByProductionRunIdAsync(run.Id, cancellationToken));
         await runRepository.SaveChangesAsync(cancellationToken);
 
         await publisher.ProductionRunStatusChangedAsync(run.Id, run.Status, cancellationToken);
-        foreach (var job in cancelledJobs)
-        {
-            if (activityLogWriter is not null)
-                await activityLogWriter.WriteAsync(ActivityLogEntry.Create("PrintJob", job.Id.ToString(), "PrintJobCancelled", command.ActorId, command.ActorId is null ? ActorType.System : ActorType.Operator), cancellationToken);
-            await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
-        }
-
+        await UnsentJobs.PublishAsync(cancelledJobs, command.ActorId, publisher, activityLogWriter, cancellationToken);
         return run;
     }
 }

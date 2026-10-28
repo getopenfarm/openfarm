@@ -36,7 +36,7 @@ public class RunCreationExplosionSnapshotTests(ProductionTestFactory factory) : 
         { lines = new[] { new { targetKind = "Assembly", targetId = rootId, quantity = 3 } } });
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         var run = (await response.Content.ReadFromJsonAsync<ProductionRunDetailResponse>())!;
-        run.Lines.Single().Requirements.Should().ContainSingle(r => r.PartId == part.Id && r.Quantity == 18 && r.JobCount == 5);
+        run.Lines.Single().Requirements.Should().ContainSingle(r => r.PartId == part.Id && r.Quantity == 18 && r.Jobs.Count == 5);
         var edit = await client.PutAsJsonAsync($"/api/v1/assemblies/{rootId}", new
         { name = "Edited root", lines = new[] { new { targetKind = "Part", targetId = part.Id, quantity = 99 } } });
         edit.EnsureSuccessStatusCode();

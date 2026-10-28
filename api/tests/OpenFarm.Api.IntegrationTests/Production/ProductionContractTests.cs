@@ -50,9 +50,9 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         var response = await client.GetAsync("/swagger/v1/swagger.json");
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadAsStringAsync();
-        json.Should().Contain("confirmRunCompletion").And.Contain("/api/v1/production-runs")
+        json.Should().Contain("/api/v1/production-runs").And.Contain("/write-off").And.Contain("/move-to-top")
             .And.Contain("snapshotState").And.Contain("snapshotRecoveryReason").And.Contain("sourcePartAvailable")
-            .And.Contain("\"deprecated\": true");
+            .And.NotContain("confirmRunCompletion").And.NotContain("/revision-mode");
         if (Environment.GetEnvironmentVariable("OPENFARM_TEST_OPENAPI_EXPORT") is { Length: > 0 } path)
             await File.WriteAllTextAsync(path, json);
     }

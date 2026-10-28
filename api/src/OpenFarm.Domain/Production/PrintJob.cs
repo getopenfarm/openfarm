@@ -123,6 +123,13 @@ public sealed class PrintJob : Print
     /// <summary>FR-025a — set once a replacement job has been created for this one.</summary>
     public Guid? RequeuedAsJobId { get; private set; }
 
+    /// <summary>Set when the operator accepts this lost plate instead of reprinting it; its units then count as resolved.</summary>
+    public DateTimeOffset? WrittenOffAtUtc { get; private set; }
+
+    /// <summary>A failed or cancelled plate still waiting for the operator's decision: reprint it or write it off.</summary>
+    public bool IsUnresolvedLoss =>
+        Status is PrintJobStatus.Failed or PrintJobStatus.Cancelled && RequeuedAsJobId is null && WrittenOffAtUtc is null;
+
     public bool HasFilamentRequirementOverride { get; private set; }
 
     /// <summary>
@@ -263,7 +270,23 @@ public sealed class PrintJob : Print
             throw new PrintJobAlreadyRequeuedException(Id);
         }
 
+        if (WrittenOffAtUtc is not null)
+        {
+            throw new PrintJobNotEligibleForRequeueException(Id);
+        }
+
         RequeuedAsJobId = replacementJobId;
+    }
+
+    /// <summary>The second remedy for a lost plate (FR-025): accept the loss instead of reprinting. Final, like a requeue.</summary>
+    public void WriteOff()
+    {
+        if (!IsUnresolvedLoss)
+        {
+            throw new PrintJobNotEligibleForWriteOffException(Id);
+        }
+
+        WrittenOffAtUtc = DateTimeOffset.UtcNow;
     }
 
     public void SetFilamentRequirements(IReadOnlyList<JobFilamentRequirementSpec> requirements, bool isOverride = true)

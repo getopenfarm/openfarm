@@ -11,7 +11,8 @@ public sealed class RemovePrinterCommandHandler(
     IPrintJobRepository jobs,
     IExternalPrintRepository externalPrints,
     JobFilamentAutoDeduction filamentDeduction,
-    IProductionEventPublisher publisher) : ICommandHandler<RemovePrinterCommand, bool>
+    IProductionEventPublisher publisher,
+    IProductionRunRepository? runs = null) : ICommandHandler<RemovePrinterCommand, bool>
 {
     public async Task<bool> HandleAsync(RemovePrinterCommand command, CancellationToken cancellationToken)
     {
@@ -28,6 +29,12 @@ public sealed class RemovePrinterCommandHandler(
             if (job.Status == PrintJobStatus.Queued) job.RevertDispatch();
             else closed.Add(job);
         }
+
+        // A pin to a printer that no longer exists would hold its jobs forever; they go to whichever printer matches.
+        // After the revert above, so a pinned job only dispatched here is unsent again by now.
+        foreach (var pinned in await jobs.ListQueuedPinnedToAsync(printer.Id, cancellationToken)) pinned.Unpin();
+        if (runs is not null)
+            foreach (var line in await runs.ListLinesPinnedToAsync(printer.Id, cancellationToken)) line.Unpin();
 
         if (await externalPrints.GetOpenByPrinterIdAsync(printer.Id, cancellationToken) is { } external)
         {

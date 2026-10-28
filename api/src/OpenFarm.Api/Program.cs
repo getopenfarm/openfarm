@@ -95,7 +95,7 @@ using FailPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<Open
 using ReorderPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.ReorderPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using PinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.PinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 using UnpinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.UnpinPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
-using SetRunLineRevisionModeHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.SetRunLineRevisionModeCommand, OpenFarm.Domain.Production.RunLine>;
+using WriteOffPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.WriteOffPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -416,7 +416,10 @@ builder.Services.AddScoped<EditAssemblyHandlerType, EditAssemblyCommandHandler>(
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<EditPartCommand, OpenFarm.Domain.Parts.Part>, EditPartCommandHandler>();
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<EditFilamentCommand, OpenFarm.Domain.FilamentTracking.Filament>, EditFilamentCommandHandler>();
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<EditSpoolCommand, OpenFarm.Domain.FilamentTracking.Spool>, EditSpoolCommandHandler>();
-builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SetRunBackfillLimitsCommand, OpenFarm.Domain.Production.ProductionRun>, SetRunBackfillLimitsCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<UpdateProductionRunCommand, OpenFarm.Domain.Production.ProductionRun>, UpdateProductionRunCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<AddRunLinesCommand, OpenFarm.Domain.Production.ProductionRun>, AddRunLinesCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<MoveRunToTopCommand, OpenFarm.Domain.Production.ProductionRun>, MoveRunToTopCommandHandler>();
+builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<RequeueFailedJobsCommand, int>, RequeueFailedJobsCommandHandler>();
 builder.Services.AddScoped<DeleteAssemblyHandlerType, DeleteAssemblyCommandHandler>();
 builder.Services.AddScoped<CreateNonPrintedComponentHandlerType, CreateNonPrintedComponentCommandHandler>();
 builder.Services.AddScoped<EditNonPrintedComponentHandlerType, EditNonPrintedComponentCommandHandler>();
@@ -447,7 +450,7 @@ builder.Services.AddScoped<FailPrintJobHandlerType, FailPrintJobCommandHandler>(
 builder.Services.AddScoped<ReorderPrintJobHandlerType, ReorderPrintJobCommandHandler>();
 builder.Services.AddScoped<PinPrintJobHandlerType, PinPrintJobCommandHandler>();
 builder.Services.AddScoped<UnpinPrintJobHandlerType, UnpinPrintJobCommandHandler>();
-builder.Services.AddScoped<SetRunLineRevisionModeHandlerType, SetRunLineRevisionModeCommandHandler>();
+builder.Services.AddScoped<WriteOffPrintJobHandlerType, WriteOffPrintJobCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProductionRunsQuery, ProductionRunsPage>, GetProductionRunsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>, GetProductionRunDetailQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetQueueJobsQuery, QueueJobsPage>, GetQueueJobsQueryHandler>();
@@ -468,12 +471,6 @@ builder.Services
         // /api/v1/{tag}/... -> group generated Orval hooks/files by resource.
         o.AutoTagPathSegmentIndex = 3;
         o.ShortSchemaNames = true;
-        o.DocumentSettings = settings => settings.AddOperationFilter(context =>
-        {
-            if (context.OperationDescription.Path.EndsWith("/revision-mode", StringComparison.Ordinal))
-                context.OperationDescription.Operation.IsDeprecated = true;
-            return true;
-        });
     });
 
 var app = builder.Build();

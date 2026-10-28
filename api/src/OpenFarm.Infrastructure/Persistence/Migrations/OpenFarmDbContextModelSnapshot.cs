@@ -1878,6 +1878,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SnapshotUnavailableAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("WrittenOffAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasIndex("PartRequirementId");
 
                     b.HasIndex("PinnedPrinterId")

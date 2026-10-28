@@ -148,6 +148,9 @@ public sealed class PrintJobResponse
 
     public Guid? RequeuedAsJobId { get; set; }
 
+    /// <summary>Set when this lost plate was accepted instead of reprinted.</summary>
+    public DateTimeOffset? WrittenOffAtUtc { get; set; }
+
     public List<JobFilamentConsumptionResponse> FilamentConsumption { get; set; } = [];
 
     public DateTimeOffset CreatedAtUtc { get; set; }
@@ -185,6 +188,7 @@ public sealed class PrintJobResponse
         ActualDurationMinutes = detail.ActualDurationMinutes,
         CancelRequestedAtUtc = detail.CancelRequestedAtUtc,
         RequeuedAsJobId = detail.RequeuedAsJobId,
+        WrittenOffAtUtc = detail.WrittenOffAtUtc,
         FilamentConsumption = detail.FilamentConsumption.Select(JobFilamentConsumptionResponse.FromDetail).ToList(),
         CreatedAtUtc = detail.CreatedAtUtc,
         SnapshotState = detail.SnapshotState,

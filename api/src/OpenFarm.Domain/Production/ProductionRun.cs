@@ -1,9 +1,8 @@
 namespace OpenFarm.Domain.Production;
 
 /// <summary>
-/// The demand container (spec Key Entities). <see cref="Name"/>/<see cref="DueDate"/>/
-/// <see cref="Priority"/> are all optional display metadata — none of the three feed the
-/// dispatcher (FR-008a, research.md R3).
+/// The demand container (spec Key Entities). <see cref="Name"/>/<see cref="DueDate"/>/<see cref="Notes"/> are optional
+/// display metadata — none feeds the dispatcher (FR-008a, research.md R3); a run moves ahead only by queue order.
 /// </summary>
 public sealed class ProductionRun
 {
@@ -30,6 +29,7 @@ public sealed class ProductionRun
 
     public DateOnly? DueDate { get; private set; }
 
+    /// <summary>Legacy free text from before runs moved by queue order alone; no longer set or shown.</summary>
     public string? Priority { get; private set; }
 
     public string? Notes { get; private set; }
@@ -42,15 +42,16 @@ public sealed class ProductionRun
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
-    public static ProductionRun Create(
-        string? name, DateOnly? dueDate, string? priority, string? notes, IReadOnlyList<RunLineSpec> lines)
+    public bool IsOpen => Status is ProductionRunStatus.Active or ProductionRunStatus.Complete;
+
+    public static ProductionRun Create(string? name, DateOnly? dueDate, string? notes, IReadOnlyList<RunLineSpec> lines)
     {
         if (lines.Count == 0)
         {
             throw new ProductionRunMustHaveAtLeastOneLineException();
         }
 
-        var run = new ProductionRun(Guid.NewGuid(), name, dueDate, priority, notes, DateTimeOffset.UtcNow);
+        var run = new ProductionRun(Guid.NewGuid(), BlankToNull(name), dueDate, null, BlankToNull(notes), DateTimeOffset.UtcNow);
         foreach (var spec in lines)
         {
             run._lines.Add(RunLine.Create(run.Id, spec));
@@ -59,20 +60,38 @@ public sealed class ProductionRun
         return run;
     }
 
-    /// <summary>
-    /// FR-016a — every finite requirement satisfied. The entity has no visibility into
-    /// PartRequirement/PrintJob completion state (separate aggregates), so the caller (Application
-    /// layer, which can query them) determines <paramref name="allFiniteRequirementsSatisfied"/>
-    /// and this method only enforces the resulting invariant plus the legal status transition.
-    /// </summary>
-    public void MarkComplete(bool allFiniteRequirementsSatisfied)
+    public void UpdateDetails(string? name, DateOnly? dueDate, string? notes)
     {
-        if (Status != ProductionRunStatus.Active)
+        EnsureOpen();
+        Name = BlankToNull(name);
+        DueDate = dueDate;
+        Notes = BlankToNull(notes);
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>More demand on an open run; a Complete run is Active again until the new plates are done.</summary>
+    public IReadOnlyList<RunLine> AddLines(IReadOnlyList<RunLineSpec> lines)
+    {
+        EnsureOpen();
+        if (lines.Count == 0)
         {
-            throw new InvalidRunCompletionException(Id);
+            throw new ProductionRunMustHaveAtLeastOneLineException();
         }
 
-        if (!allFiniteRequirementsSatisfied)
+        var added = lines.Select(spec => RunLine.Create(Id, spec)).ToList();
+        _lines.AddRange(added);
+        Status = ProductionRunStatus.Active;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+        return added;
+    }
+
+    /// <summary>
+    /// FR-016a — every finite requirement satisfied. The entity has no visibility into PartRequirement/PrintJob state
+    /// (separate aggregates), so the Application layer decides when to call this; it only enforces the transition.
+    /// </summary>
+    public void MarkComplete()
+    {
+        if (Status != ProductionRunStatus.Active)
         {
             throw new InvalidRunCompletionException(Id);
         }
@@ -81,10 +100,13 @@ public sealed class ProductionRun
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>The explicit operator action reaching the terminal state (spec Assumptions). Only valid from Complete (FR-016c).</summary>
-    public void Close()
+    /// <summary>
+    /// The operator's sign-off, reaching the terminal state. From Complete, or from Active when no finite work
+    /// remains — a run of unlimited lines only, which never completes on its own.
+    /// </summary>
+    public void Close(bool finiteWorkRemains)
     {
-        if (Status != ProductionRunStatus.Complete)
+        if (Status != ProductionRunStatus.Complete && (Status != ProductionRunStatus.Active || finiteWorkRemains))
         {
             throw new InvalidRunCompletionException(Id);
         }
@@ -104,4 +126,14 @@ public sealed class ProductionRun
         Status = ProductionRunStatus.Cancelled;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
+
+    private void EnsureOpen()
+    {
+        if (!IsOpen)
+        {
+            throw new ProductionRunNotOpenException(Id);
+        }
+    }
+
+    private static string? BlankToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

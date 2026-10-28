@@ -79,12 +79,11 @@ public sealed class RunLine
             spec.BackfillCumulativeUnitCeiling);
     }
 
-    /// <summary>Compatibility validation only; revision behavior is fixed by quantity.</summary>
-    public void SetRevisionMode(RevisionMode mode)
+    /// <summary>Its pinned printer is gone: the line's later jobs go to whichever printer matches.</summary>
+    public void Unpin()
     {
-        var expected = Quantity is null ? Production.RevisionMode.FollowLatest : Production.RevisionMode.Snapshot;
-        if (mode != expected) throw new InvalidRevisionModeException();
-        RevisionMode = expected;
+        DefaultAssignmentMode = AssignmentMode.Unassigned;
+        DefaultPinnedPrinterId = null;
     }
 
     /// <summary>FR-006c/d — meaningful only on an unlimited line; the caller enforces that (PrintJobNotEligibleForRequeueException's sibling check lives at the command handler).</summary>

@@ -19,7 +19,7 @@ public class ProductionSnapshotTests
         var parts = new InMemoryPartRepository(part);
         var handler = new CreateProductionRunCommandHandler(runs, requirements, jobs, parts,
             new FakeAssemblyGraphQueryService(new BomExplosionResult([], [])));
-        var run = await handler.HandleAsync(new CreateProductionRunCommand(null, null, null, null,
+        var run = await handler.HandleAsync(new CreateProductionRunCommand(null, null, null,
             [new RunLineInput(RunLineTargetKind.Part, part.Id, 5, null, AssignmentMode.Unassigned, null, 1, null)]), default);
         var requirement = (await requirements.ListByRunLineIdAsync(run.Lines[0].Id, default)).Single();
         var queued = await jobs.ListByPartRequirementIdAsync(requirement.Id, default);
@@ -39,7 +39,7 @@ public class ProductionSnapshotTests
         snapshot.UnitsPerPrint.Should().Be(4);
         snapshot.FilamentRequirements.Single().MaterialType.Should().Be("PLA");
         job.MarkCancelled();
-        var retry = await new RequeuePrintJobCommandHandler(jobs, requirements, parts)
+        var retry = await new RequeuePrintJobCommandHandler(jobs, requirements, runs, new InMemoryPrinterRepository())
             .HandleAsync(new RequeuePrintJobCommand(job.Id), default);
         retry.ProductionSnapshotJson.Should().Be(job.ProductionSnapshotJson);
         retry.PlateQuantity.Should().Be(4);
@@ -56,7 +56,7 @@ public class ProductionSnapshotTests
         var job = ProductionTestFixtures.CreateQueuedJob(requirement.Id);
         job.MarkCancelled();
         var handler = new RequeuePrintJobCommandHandler(new InMemoryPrintJobRepository(job),
-            new InMemoryPartRequirementRepository(requirement), new InMemoryPartRepository(part));
+            new InMemoryPartRequirementRepository(requirement), new InMemoryProductionRunRepository(), new InMemoryPrinterRepository());
         var act = () => handler.HandleAsync(new RequeuePrintJobCommand(job.Id), default);
         await act.Should().ThrowAsync<ProductionSnapshotUnavailableException>();
     }
@@ -80,7 +80,7 @@ public class ProductionSnapshotTests
     [InlineData(null, RevisionMode.Snapshot)]
     public void Quantity_RejectsConflictingRevisionModes(int? quantity, RevisionMode mode)
     {
-        var act = () => ProductionRun.Create(null, null, null, null,
+        var act = () => ProductionRun.Create(null, null, null,
             [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), quantity, mode, AssignmentMode.Unassigned, null, 1, null)]);
         act.Should().Throw<InvalidRevisionModeException>();
     }

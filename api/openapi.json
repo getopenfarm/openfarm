@@ -1994,6 +1994,22 @@
             }
           },
           {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": true,
@@ -2019,6 +2035,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListProductionRunsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -2076,14 +2102,12 @@
             "JWTBearerAuth": []
           }
         ]
-      }
-    },
-    "/api/v1/production-runs/{id}/backfill-limits": {
+      },
       "put": {
         "tags": [
           "Production-Runs"
         ],
-        "operationId": "OpenFarmApiEndpointsProductionRunsSetRunBackfillLimitsEndpoint",
+        "operationId": "OpenFarmApiEndpointsProductionRunsUpdateProductionRunEndpoint",
         "parameters": [
           {
             "name": "id",
@@ -2096,12 +2120,12 @@
           }
         ],
         "requestBody": {
-          "x-name": "SetRunBackfillLimitsRequest",
+          "x-name": "UpdateProductionRunRequest",
           "description": "",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SetRunBackfillLimitsRequest"
+                "$ref": "#/components/schemas/UpdateProductionRunRequest"
               }
             }
           },
@@ -2143,23 +2167,15 @@
         ]
       }
     },
-    "/api/v1/production-runs/{runId}/lines/{lineId}/revision-mode": {
-      "put": {
+    "/api/v1/production-runs/{id}/lines": {
+      "post": {
         "tags": [
           "Production-Runs"
         ],
-        "operationId": "OpenFarmApiEndpointsProductionRunsSetRunLineRevisionModeEndpoint",
+        "operationId": "OpenFarmApiEndpointsProductionRunsAddRunLinesEndpoint",
         "parameters": [
           {
-            "name": "runId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "lineId",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -2169,12 +2185,12 @@
           }
         ],
         "requestBody": {
-          "x-name": "SetRunLineRevisionModeRequest",
+          "x-name": "AddRunLinesRequest",
           "description": "",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SetRunLineRevisionModeRequest"
+                "$ref": "#/components/schemas/AddRunLinesRequest"
               }
             }
           },
@@ -2187,7 +2203,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunLineRevisionModeResponse"
+                  "$ref": "#/components/schemas/ProductionRunDetailResponse"
                 }
               }
             }
@@ -2209,7 +2225,90 @@
             "description": "Forbidden"
           }
         },
-        "deprecated": true,
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/production-runs/{id}/move-to-top": {
+      "post": {
+        "tags": [
+          "Production-Runs"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsMoveRunToTopEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionRunDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/production-runs/{id}/requeue-failed": {
+      "post": {
+        "tags": [
+          "Production-Runs"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsRequeueFailedJobsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionRunDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
         "security": [
           {
             "JWTBearerAuth": []
@@ -2993,6 +3092,48 @@
         ]
       }
     },
+    "/api/v1/print-jobs/{id}/write-off": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsWriteOffPrintJobEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/printers/{id}": {
       "patch": {
         "tags": [
@@ -3322,19 +3463,6 @@
             }
           }
         ],
-        "requestBody": {
-          "x-name": "MarkPrinterReadyRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MarkPrinterReadyRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
         "responses": {
           "200": {
             "description": "Success",
@@ -7382,6 +7510,9 @@
             "type": "string",
             "format": "guid"
           },
+          "displayLabel": {
+            "type": "string"
+          },
           "name": {
             "type": "string",
             "nullable": true
@@ -7391,16 +7522,16 @@
             "format": "date",
             "nullable": true
           },
-          "priority": {
-            "type": "string",
-            "nullable": true
-          },
           "notes": {
             "type": "string",
             "nullable": true
           },
           "status": {
             "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
           },
           "lines": {
             "type": "array",
@@ -7435,6 +7566,11 @@
           },
           "revisionMode": {
             "type": "string"
+          },
+          "pinnedPrinterId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
           },
           "backfillPrinterCap": {
             "type": "integer",
@@ -7483,27 +7619,112 @@
             "format": "decimal",
             "nullable": true
           },
-          "jobCount": {
+          "unitsPerPlate": {
             "type": "integer",
             "format": "int32"
           },
-          "completedJobCount": {
+          "completedUnits": {
             "type": "integer",
             "format": "int32"
           },
-          "jobsNeedingRequeue": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "guid"
-            }
+          "writtenOffUnits": {
+            "type": "integer",
+            "format": "int32"
           },
-          "jobsBlockedForRequeue": {
+          "plates": {
+            "$ref": "#/components/schemas/PlateCountsResponse"
+          },
+          "estimatedMinutesPerPlate": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "estimatedGramsPerPlate": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "blockingReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "jobs": {
             "type": "array",
             "items": {
-              "type": "string",
-              "format": "guid"
+              "$ref": "#/components/schemas/RunJobSummaryResponse"
             }
+          }
+        }
+      },
+      "PlateCountsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "printing": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "needsAction": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "writtenOff": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RunJobSummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "printerId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastBlockReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "requeuedAsJobId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "writtenOff": {
+            "type": "boolean"
+          },
+          "needsAction": {
+            "type": "boolean"
+          },
+          "canRequeue": {
+            "type": "boolean"
           }
         }
       },
@@ -7528,10 +7749,6 @@
             "format": "date",
             "nullable": true
           },
-          "priority": {
-            "type": "string",
-            "nullable": true
-          },
           "notes": {
             "type": "string",
             "nullable": true
@@ -7547,17 +7764,23 @@
       "CreateRunLineRequest": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "targetId"
+        ],
         "properties": {
           "targetKind": {
             "type": "string"
           },
           "targetId": {
             "type": "string",
-            "format": "guid"
+            "format": "guid",
+            "minLength": 1,
+            "nullable": false
           },
           "quantity": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1.0,
             "nullable": true
           },
           "revisionMode": {
@@ -7574,11 +7797,13 @@
           },
           "backfillPrinterCap": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "minimum": 1.0
           },
           "backfillCumulativeUnitCeiling": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1.0,
             "nullable": true
           }
         }
@@ -7596,6 +7821,13 @@
           "totalCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "statusCounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
           }
         }
       },
@@ -7610,6 +7842,10 @@
           "displayLabel": {
             "type": "string"
           },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
           "status": {
             "type": "string"
           },
@@ -7618,42 +7854,52 @@
             "format": "date",
             "nullable": true
           },
-          "lineCount": {
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunLineBriefResponse"
+            }
+          },
+          "targetUnits": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "completedUnits": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "writtenOffUnits": {
             "type": "integer",
             "format": "int32"
           },
-          "jobSummary": {
-            "$ref": "#/components/schemas/JobStatusSummaryResponse"
+          "producedUnits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plates": {
+            "$ref": "#/components/schemas/PlateCountsResponse"
+          },
+          "blockedCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
-      "JobStatusSummaryResponse": {
+      "RunLineBriefResponse": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "queued": {
-            "type": "integer",
-            "format": "int32"
+          "targetName": {
+            "type": "string"
           },
-          "printing": {
+          "quantity": {
             "type": "integer",
-            "format": "int32"
-          },
-          "paused": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "completed": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "failed": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "cancelled": {
-            "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           }
         }
       },
@@ -7661,10 +7907,50 @@
         "type": "object",
         "additionalProperties": false
       },
-      "SetRunBackfillLimitsRequest": {
+      "AddRunLinesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "minLength": 1,
+            "nullable": false,
+            "items": {
+              "$ref": "#/components/schemas/CreateRunLineRequest"
+            }
+          }
+        }
+      },
+      "MoveRunToTopRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "RequeueFailedJobsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "UpdateProductionRunRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 0,
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
           "lines": {
             "type": "array",
             "items": {
@@ -7689,28 +7975,6 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
-          }
-        }
-      },
-      "RunLineRevisionModeResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "revisionMode": {
-            "type": "string"
-          }
-        }
-      },
-      "SetRunLineRevisionModeRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "revisionMode": {
-            "type": "string"
           }
         }
       },
@@ -7828,6 +8092,11 @@
           "requeuedAsJobId": {
             "type": "string",
             "format": "guid",
+            "nullable": true
+          },
+          "writtenOffAtUtc": {
+            "type": "string",
+            "format": "date-time",
             "nullable": true
           },
           "filamentConsumption": {
@@ -8331,6 +8600,10 @@
             "nullable": true
           }
         }
+      },
+      "WriteOffPrintJobRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "PrinterSummaryResponse": {
         "type": "object",
@@ -8900,12 +9173,7 @@
       },
       "MarkPrinterReadyRequest": {
         "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "confirmRunCompletion": {
-            "type": "boolean"
-          }
-        }
+        "additionalProperties": false
       },
       "RegisterPrinterRequest": {
         "type": "object",

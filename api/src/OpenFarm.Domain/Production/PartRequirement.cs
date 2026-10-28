@@ -35,6 +35,15 @@ public sealed class PartRequirement
     public decimal? Quantity { get; }
 
     /// <summary>
+    /// FR-016a: done when every lost plate was reprinted or written off and completed plus written-off units reach the
+    /// target. An unlimited requirement never holds its run open.
+    /// </summary>
+    public bool IsSatisfiedBy(IReadOnlyCollection<PrintJob> jobs) =>
+        Quantity is not { } target
+        || (!jobs.Any(j => j.IsUnresolvedLoss)
+            && jobs.Where(j => j.Status == PrintJobStatus.Completed || j.WrittenOffAtUtc is not null).Sum(j => j.PlateQuantity) >= target);
+
+    /// <summary>
     /// A standalone aggregate root, not a <see cref="ProductionRun"/>/<see cref="RunLine"/> child
     /// collection (mirrors <c>Spool.Create</c>'s own standalone-root shape, not <c>BomLine.Create</c>'s
     /// owned-child one) — deliberately public: resolving a RunLine's exploded part demand

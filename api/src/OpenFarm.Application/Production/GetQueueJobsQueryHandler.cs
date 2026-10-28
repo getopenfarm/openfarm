@@ -1,7 +1,5 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
-using OpenFarm.Application.Printers;
-using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
@@ -11,9 +9,8 @@ public sealed class GetQueueJobsQueryHandler(
     IPartRequirementRepository requirementRepository,
     IPartRepository partRepository,
     IProductionRunRepository runRepository,
-    IPrinterRepository printerRepository,
     ProductionRunDisplayLabelResolver labelResolver,
-    IPrintJobEligibilityQuery? eligibilityQuery = null,
+    IPrintJobEligibilityQuery eligibilityQuery,
     IExternalPrintRepository? externalPrintRepository = null) : IQueryHandler<GetQueueJobsQuery, QueueJobsPage>
 {
     public async Task<QueueJobsPage> HandleAsync(GetQueueJobsQuery query, CancellationToken cancellationToken)
@@ -22,9 +19,8 @@ public sealed class GetQueueJobsQueryHandler(
 
         var (jobs, totalCount, statusCounts) = await jobRepository.ListQueueAsync(query.BackfillOnly, query.Page, query.PageSize, cancellationToken, query.Status, query.Search);
 
-        var eligibleIds = eligibilityQuery is null ? null : await eligibilityQuery.GetEligibleJobIdsAsync(jobs, cancellationToken);
+        var eligibleIds = await eligibilityQuery.GetEligibleJobIdsAsync(jobs, cancellationToken);
         var runLabelCache = new Dictionary<Guid, (Guid RunId, string DisplayLabel)>();
-        var printerStatusCache = new Dictionary<Guid, PrinterStatus?>();
         var items = new List<QueueJobRow>();
 
         foreach (var job in jobs)
@@ -45,28 +41,14 @@ public sealed class GetQueueJobsQueryHandler(
                 runLabelCache[requirement.RunLineId] = runInfo;
             }
 
-            // FR-007c — blocked iff Pinned and the target printer isn't currently Idle (offline,
-            // maintenance/AwaitingClear, or missing entirely).
-            var isBlocked = false;
-            if (job.AssignmentMode == AssignmentMode.Pinned && job.PinnedPrinterId is { } pinnedPrinterId)
-            {
-                if (!printerStatusCache.TryGetValue(pinnedPrinterId, out var status))
-                {
-                    var printer = await printerRepository.GetByIdAsync(pinnedPrinterId, cancellationToken);
-                    status = printer?.Status;
-                    printerStatusCache[pinnedPrinterId] = status;
-                }
-
-                isBlocked = status != PrinterStatus.Idle;
-            }
-
-            if (eligibleIds is not null) isBlocked = job.Status == PrintJobStatus.Queued && job.DispatchedAtUtc is null && !eligibleIds.Contains(job.Id);
+            // FR-007c and the rest of matching: a queued, unsent job no printer can take now.
+            var isBlocked = job.Status == PrintJobStatus.Queued && job.DispatchedAtUtc is null && !eligibleIds.Contains(job.Id);
 
             items.Add(new QueueJobRow(
                 job.Id, job.QueuePosition, job.Status, job.AssignmentMode, job.PinnedPrinterId, job.PrinterId,
                 isBlocked, requirement.PartId, job.GetProductionPart()?.Name ?? requirement.PartName ?? part?.Name ?? "Unknown part", job.PlateQuantity,
                 requirement.RunLineId, runInfo.RunId, runInfo.DisplayLabel,
-                isBlocked && eligibilityQuery is not null ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null, part is not null, job.GetSnapshotState(), job.SnapshotRecoveryReason,
+                isBlocked ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null, part is not null, job.GetSnapshotState(), job.SnapshotRecoveryReason,
                 job.Source, job.StartedAtUtc, job.EndedAtUtc, job.Status == PrintJobStatus.Queued ? job.LastBlockReason : null));
         }
 

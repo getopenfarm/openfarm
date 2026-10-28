@@ -27,7 +27,7 @@ public class AwaitingClearGatingTests(ProductionTestFactory factory) : Productio
     }
 
     [Fact]
-    public async Task NamedRun_StaysActiveUntilMarkReadyExplicitlyConfirmsCompletion()
+    public async Task NamedRun_CompletesWithItsLastPlate_AndMarkReadyOnlyClearsThePlate()
     {
         var client = await ClientAsync();
         var part = await PartAsync();
@@ -35,10 +35,8 @@ public class AwaitingClearGatingTests(ProductionTestFactory factory) : Productio
         var run = await RunAsync(client, part.Id, name: "Named order");
         await AssignAsync((await JobsAsync(run.Id)).Single().Id, printer.Id);
         await PostAsync(client, $"/api/v1/print-jobs/{(await JobsAsync(run.Id)).Single().Id}/complete");
-        (await DetailAsync(client, run.Id)).Status.Should().Be("Active");
-        await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready", HttpStatusCode.Conflict);
-        await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready", body: new { confirmRunCompletion = true });
         (await DetailAsync(client, run.Id)).Status.Should().Be("Complete");
+        await PostAsync(client, $"/api/v1/printers/{printer.Id}/mark-ready");
         await PostAsync(client, $"/api/v1/production-runs/{run.Id}/close");
         (await DetailAsync(client, run.Id)).Status.Should().Be("Closed");
     }

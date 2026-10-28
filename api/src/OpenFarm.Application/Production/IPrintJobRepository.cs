@@ -14,8 +14,8 @@ public interface IPrintJobRepository
 
     Task<IReadOnlyList<PrintJob>> ListByProductionRunIdAsync(Guid productionRunId, CancellationToken cancellationToken);
 
-    /// <summary>The dispatcher's own reported-state lookup (research.md R12) — the job currently dispatched to this printer, non-terminal status.</summary>
-    Task<PrintJob?> GetLastJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) => Task.FromResult<PrintJob?>(null);
+    /// <summary>Queued jobs pinned to this printer — what removing the printer must release.</summary>
+    Task<IReadOnlyList<PrintJob>> ListQueuedPinnedToAsync(Guid printerId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<PrintJob>>([]);
 
     Task<PrintJob?> GetActiveJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken);
 

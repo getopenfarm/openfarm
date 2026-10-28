@@ -16,7 +16,7 @@ public sealed class CloseProductionRunRequest : IActivityLoggable
     public string EventType => "ProductionRunClosed";
 }
 
-/// <summary>POST /api/v1/production-runs/{id}/close — FR-016c, the only path to the terminal Closed state. 409 unless Status == Complete.</summary>
+/// <summary>POST /api/v1/production-runs/{id}/close — FR-016c, the operator's sign-off. 409 unless Complete, or Active with no finite work left.</summary>
 [Permission("production-runs:close")]
 public sealed class CloseProductionRunEndpoint(CloseProductionRunHandler handler, IQueryHandler<GetProductionRunDetailQuery, RunDetailView?> getDetail)
     : Endpoint<CloseProductionRunRequest, ProductionRunDetailResponse>
@@ -30,7 +30,7 @@ public sealed class CloseProductionRunEndpoint(CloseProductionRunHandler handler
     public override async Task HandleAsync(CloseProductionRunRequest req, CancellationToken ct)
     {
         req.Id = Route<Guid>("id");
-        var run = await handler.HandleAsync(new CloseProductionRunCommand(req.Id), ct);
+        var run = await handler.HandleAsync(new CloseProductionRunCommand(req.Id, Guid.TryParse(User.FindFirst("sub")?.Value, out var actorId) ? actorId : null), ct);
 
         var detail = await getDetail.HandleAsync(new GetProductionRunDetailQuery(run.Id), ct);
         Response = ProductionRunDetailResponse.FromView(detail!);

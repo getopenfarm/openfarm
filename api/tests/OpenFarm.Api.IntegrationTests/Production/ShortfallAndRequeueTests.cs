@@ -20,15 +20,16 @@ public class ShortfallAndRequeueTests(ProductionTestFactory factory) : Productio
         var run = await RunAsync(client, part.Id, 8, name);
         var original = (await JobsAsync(run.Id))[0];
         await PostAsync(client, $"/api/v1/print-jobs/{original.Id}/cancel");
-        (await DetailAsync(client, run.Id)).Lines.Single().Requirements.Single().JobsNeedingRequeue.Should().Equal(original.Id);
+        (await DetailAsync(client, run.Id)).Lines.Single().Requirements.Single().Jobs.Where(j => j.NeedsAction).Select(j => j.Id).Should().Equal(original.Id);
         await PostAsync(client, $"/api/v1/production-runs/{run.Id}/close", HttpStatusCode.Conflict);
         var response = await client.PostAsJsonAsync($"/api/v1/print-jobs/{original.Id}/requeue", new { });
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         var replacement = (await response.Content.ReadFromJsonAsync<PrintJobResponse>())!;
         replacement.PartRequirementId.Should().Be(original.PartRequirementId);
         replacement.PlateQuantity.Should().Be(4);
+        replacement.QueuePosition.Should().Be(original.QueuePosition, "a reprint retries in place, inside its run's block");
         (await JobsAsync(run.Id)).Should().HaveCount(3);
-        (await DetailAsync(client, run.Id)).Lines.Single().Requirements.Single().JobsNeedingRequeue.Should().BeEmpty();
+        (await DetailAsync(client, run.Id)).Lines.Single().Requirements.Single().Jobs.Should().NotContain(j => j.NeedsAction);
         await PostAsync(client, $"/api/v1/print-jobs/{original.Id}/requeue", HttpStatusCode.Conflict);
     }
 
@@ -49,7 +50,7 @@ public class ShortfallAndRequeueTests(ProductionTestFactory factory) : Productio
             await repo.SaveChangesAsync(default);
             id = job.Id;
         }
-        (await DetailAsync(client, run.Id)).Lines.Single().Requirements.Single().JobsNeedingRequeue.Should().BeEmpty();
+        (await DetailAsync(client, run.Id)).Lines.Single().Requirements.Single().Jobs.Should().NotContain(j => j.NeedsAction);
         await PostAsync(client, $"/api/v1/print-jobs/{id}/requeue", HttpStatusCode.Conflict);
     }
 }

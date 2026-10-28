@@ -3,11 +3,11 @@ namespace OpenFarm.Application.Common;
 /// <summary>A validated single-column ordering for paged resource lists.</summary>
 public sealed record ListSort(string Field, bool Descending)
 {
-    public static ListSort? Parse(string? field, string? direction, string allowedField)
+    public static ListSort? Parse(string? field, string? direction, params string[] allowedFields)
     {
         if (field is null && direction is null) return null;
-        if (field != allowedField || direction is not (null or "asc" or "desc"))
-            throw new InvalidListSortException($"Use sortBy={allowedField} with sortDirection=asc or desc.");
+        if (field is null || !allowedFields.Contains(field) || direction is not (null or "asc" or "desc"))
+            throw new InvalidListSortException($"Use sortBy={string.Join(" or ", allowedFields)} with sortDirection=asc or desc.");
         return new(field, direction == "desc");
     }
 

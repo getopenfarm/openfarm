@@ -40,8 +40,6 @@ public class ProductionRunQueueActivityLogTests(ProductionTestFactory factory) :
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/pin", body: new { printerId = printer.Id });
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/unpin");
         await PostAsync(client, $"/api/v1/print-jobs/{job.Id}/pin", body: new { printerId = printer.Id });
-        var revision = await client.PutAsJsonAsync($"/api/v1/production-runs/{run.Id}/lines/{run.Lines.Single().Id}/revision-mode", new { revisionMode = "Snapshot" });
-        revision.EnsureSuccessStatusCode();
         using var worker = Worker();
         await worker.StartAsync(default);
         try
@@ -59,7 +57,7 @@ public class ProductionRunQueueActivityLogTests(ProductionTestFactory factory) :
             using var scope = Factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var entries = await db.ActivityLogEntries.ToListAsync();
-            foreach (var type in new[] { "PrintJobReordered", "PrintJobPinned", "PrintJobUnpinned", "PrintJobPauseRequested", "PrintJobResumeRequested", "PrintJobCancelRequested", "PrintJobRequeued", "RunLineRevisionModeChanged", "ProductionRunCancelled", "PrintJobCancelled" })
+            foreach (var type in new[] { "PrintJobReordered", "PrintJobPinned", "PrintJobUnpinned", "PrintJobPauseRequested", "PrintJobResumeRequested", "PrintJobCancelRequested", "PrintJobRequeued", "ProductionRunCancelled", "PrintJobCancelled" })
                 entries.Should().Contain(e => e.EventType == type && e.ActorType == ActorType.Operator && e.ActorId != null && e.TimestampUtc != default);
             entries.Should().Contain(e => e.EntityId == job.Id.ToString() && e.EventType == "PrintJobDispatched" && e.ActorType == ActorType.System);
         }

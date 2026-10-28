@@ -26,6 +26,34 @@ public sealed class CreateRunLineRequest
     public int BackfillPrinterCap { get; set; } = 1;
 
     public int? BackfillCumulativeUnitCeiling { get; set; }
+
+    public RunLineInput ToInput() => new(
+        Enum.Parse<RunLineTargetKind>(TargetKind),
+        TargetId,
+        Quantity,
+        RevisionMode is null ? null : Enum.Parse<RevisionMode>(RevisionMode),
+        Enum.Parse<AssignmentMode>(AssignmentMode),
+        PinnedPrinterId,
+        BackfillPrinterCap,
+        BackfillCumulativeUnitCeiling);
+}
+
+public sealed class CreateRunLineRequestValidator : AbstractValidator<CreateRunLineRequest>
+{
+    public CreateRunLineRequestValidator()
+    {
+        RuleFor(l => l.TargetKind).Must(k => Enum.GetNames<RunLineTargetKind>().Contains(k))
+            .WithMessage("targetKind must be one of Part, Assembly.");
+        RuleFor(l => l.AssignmentMode).Must(k => Enum.GetNames<AssignmentMode>().Contains(k));
+        RuleFor(l => l.RevisionMode).Must(k => k is null || (Enum.GetNames<RevisionMode>().Contains(k)));
+        RuleFor(l => l.TargetId).NotEmpty();
+        RuleFor(l => l.BackfillPrinterCap).GreaterThanOrEqualTo(1);
+        RuleFor(l => l.BackfillCumulativeUnitCeiling).GreaterThanOrEqualTo(1).When(l => l.BackfillCumulativeUnitCeiling is not null);
+        RuleFor(l => l.Quantity).GreaterThanOrEqualTo(1).When(l => l.Quantity is not null);
+        RuleFor(l => l.PinnedPrinterId).NotNull()
+            .When(l => l.AssignmentMode == "Pinned")
+            .WithMessage("pinnedPrinterId is required when assignmentMode is Pinned.");
+    }
 }
 
 public sealed class CreateProductionRunRequest : IActivityLoggable
@@ -33,8 +61,6 @@ public sealed class CreateProductionRunRequest : IActivityLoggable
     public string? Name { get; set; }
 
     public DateOnly? DueDate { get; set; }
-
-    public string? Priority { get; set; }
 
     public string? Notes { get; set; }
 
@@ -50,20 +76,7 @@ public sealed class CreateProductionRunRequestValidator : AbstractValidator<Crea
     public CreateProductionRunRequestValidator()
     {
         RuleFor(x => x.Lines).NotEmpty();
-        RuleForEach(x => x.Lines).ChildRules(line =>
-        {
-            line.RuleFor(l => l.TargetKind).Must(k => Enum.GetNames<RunLineTargetKind>().Contains(k))
-                .WithMessage("targetKind must be one of Part, Assembly.");
-            line.RuleFor(l => l.AssignmentMode).Must(k => Enum.GetNames<AssignmentMode>().Contains(k));
-            line.RuleFor(l => l.RevisionMode).Must(k => k is null || (Enum.GetNames<RevisionMode>().Contains(k)));
-            line.RuleFor(l => l.TargetId).NotEmpty();
-            line.RuleFor(l => l.BackfillPrinterCap).GreaterThanOrEqualTo(1);
-            line.RuleFor(l => l.BackfillCumulativeUnitCeiling).GreaterThanOrEqualTo(1).When(l => l.BackfillCumulativeUnitCeiling is not null);
-            line.RuleFor(l => l.Quantity).GreaterThanOrEqualTo(1).When(l => l.Quantity is not null);
-            line.RuleFor(l => l.PinnedPrinterId).NotNull()
-                .When(l => l.AssignmentMode == "Pinned")
-                .WithMessage("pinnedPrinterId is required when assignmentMode is Pinned.");
-        });
+        RuleForEach(x => x.Lines).SetValidator(new CreateRunLineRequestValidator());
     }
 }
 
@@ -81,19 +94,7 @@ public sealed class CreateProductionRunEndpoint(
 
     public override async Task HandleAsync(CreateProductionRunRequest req, CancellationToken ct)
     {
-        var lines = req.Lines
-            .Select(l => new RunLineInput(
-                Enum.Parse<RunLineTargetKind>(l.TargetKind),
-                l.TargetId,
-                l.Quantity,
-                l.RevisionMode is null ? null : Enum.Parse<RevisionMode>(l.RevisionMode),
-                Enum.Parse<AssignmentMode>(l.AssignmentMode),
-                l.PinnedPrinterId,
-                l.BackfillPrinterCap,
-                l.BackfillCumulativeUnitCeiling))
-            .ToList();
-
-        var run = await handler.HandleAsync(new CreateProductionRunCommand(req.Name, req.DueDate, req.Priority, req.Notes, lines), ct);
+        var run = await handler.HandleAsync(new CreateProductionRunCommand(req.Name, req.DueDate, req.Notes, req.Lines.Select(l => l.ToInput()).ToList()), ct);
 
         var detail = await getDetail.HandleAsync(new GetProductionRunDetailQuery(run.Id), ct);
         Response = ProductionRunDetailResponse.FromView(detail!);

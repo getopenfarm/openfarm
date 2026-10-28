@@ -19,7 +19,7 @@ public class TerminalSnapshotDeletionTests(ProductionTestFactory factory) : Prod
         var printer = await PrinterAsync();
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var run = ProductionRun.Create("Legacy dependency", null, null, null,
+        var run = ProductionRun.Create("Legacy dependency", null, null,
             [new RunLineSpec(RunLineTargetKind.Part, part.Id, unlimited ? null : 1, null, AssignmentMode.Unassigned, null, 1, null)]);
         var requirement = PartRequirement.Create(run.Lines[0].Id, part.Id, unlimited ? null : 1);
         var job = PrintJob.Create("Test part", requirement.Id, 1024, part.UnitsPerPrint,
@@ -70,9 +70,9 @@ public class TerminalSnapshotDeletionTests(ProductionTestFactory factory) : Prod
         run.Lines.Single().TargetName.Should().Be(part.Name);
         var requirement = run.Lines.Single().Requirements.Single();
         requirement.PartName.Should().Be(part.Name);
-        requirement.JobsNeedingRequeue.Should().BeEmpty();
+        requirement.Jobs.Should().NotContain(j => j.CanRequeue);
         if (status is PrintJobStatus.Cancelled or PrintJobStatus.Failed)
-            requirement.JobsBlockedForRequeue.Should().Contain(jobId);
+            requirement.Jobs.Should().Contain(j => j.Id == jobId && j.NeedsAction, "only a write-off resolves it now");
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var persisted = await db.PrintJobs.SingleAsync(j => j.Id == jobId);

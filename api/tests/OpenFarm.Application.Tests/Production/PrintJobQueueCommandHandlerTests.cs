@@ -140,8 +140,7 @@ public class RequeuePrintJobCommandHandlerTests
 
         var jobRepository = new InMemoryPrintJobRepository(job);
         var requirementRepository = new InMemoryPartRequirementRepository(requirementWithPart);
-        var partRepository = new InMemoryPartRepository(part);
-        var handler = new RequeuePrintJobCommandHandler(jobRepository, requirementRepository, partRepository);
+        var handler = new RequeuePrintJobCommandHandler(jobRepository, requirementRepository, new InMemoryProductionRunRepository(), new InMemoryPrinterRepository());
 
         var replacement = await handler.HandleAsync(new RequeuePrintJobCommand(job.Id), CancellationToken.None);
 
@@ -159,7 +158,7 @@ public class RequeuePrintJobCommandHandlerTests
         job.MarkRequeuedAs(Guid.NewGuid());
 
         var handler = new RequeuePrintJobCommandHandler(
-            new InMemoryPrintJobRepository(job), new InMemoryPartRequirementRepository(requirement), new InMemoryPartRepository());
+            new InMemoryPrintJobRepository(job), new InMemoryPartRequirementRepository(requirement), new InMemoryProductionRunRepository(), new InMemoryPrinterRepository());
 
         var act = () => handler.HandleAsync(new RequeuePrintJobCommand(job.Id), CancellationToken.None);
 
@@ -173,7 +172,7 @@ public class RequeuePrintJobCommandHandlerTests
         var job = ProductionTestFixtures.CreateQueuedJob(requirement.Id);
 
         var handler = new RequeuePrintJobCommandHandler(
-            new InMemoryPrintJobRepository(job), new InMemoryPartRequirementRepository(requirement), new InMemoryPartRepository());
+            new InMemoryPrintJobRepository(job), new InMemoryPartRequirementRepository(requirement), new InMemoryProductionRunRepository(), new InMemoryPrinterRepository());
 
         var act = () => handler.HandleAsync(new RequeuePrintJobCommand(job.Id), CancellationToken.None);
 
@@ -188,7 +187,7 @@ public class RequeuePrintJobCommandHandlerTests
         job.MarkCancelled();
 
         var handler = new RequeuePrintJobCommandHandler(
-            new InMemoryPrintJobRepository(job), new InMemoryPartRequirementRepository(requirement), new InMemoryPartRepository());
+            new InMemoryPrintJobRepository(job), new InMemoryPartRequirementRepository(requirement), new InMemoryProductionRunRepository(), new InMemoryPrinterRepository());
 
         var act = () => handler.HandleAsync(new RequeuePrintJobCommand(job.Id), CancellationToken.None);
 

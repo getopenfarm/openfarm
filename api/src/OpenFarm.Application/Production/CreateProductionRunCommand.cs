@@ -5,7 +5,6 @@ namespace OpenFarm.Application.Production;
 public sealed record CreateProductionRunCommand(
     string? Name,
     DateOnly? DueDate,
-    string? Priority,
     string? Notes,
     IReadOnlyList<RunLineInput> Lines);
 
@@ -17,4 +16,9 @@ public sealed record RunLineInput(
     AssignmentMode DefaultAssignmentMode,
     Guid? DefaultPinnedPrinterId,
     int BackfillPrinterCap,
-    int? BackfillCumulativeUnitCeiling);
+    int? BackfillCumulativeUnitCeiling)
+{
+    public RunLineSpec ToSpec() => new(
+        TargetKind, TargetId, Quantity, RevisionMode, DefaultAssignmentMode, DefaultPinnedPrinterId, BackfillPrinterCap,
+        BackfillCumulativeUnitCeiling);
+}

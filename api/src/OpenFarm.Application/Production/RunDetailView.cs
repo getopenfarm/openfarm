@@ -2,16 +2,13 @@ using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-/// <summary>
-/// The "by run" tree lens (single-level, lazily expanded — mirrors 013-assembly-bom's
-/// AssemblyDetailPage pattern). Job-level detail is fetched separately, paginated, via the
-/// print-jobs endpoints — not one deeply nested payload.
-/// </summary>
+/// <summary>The run lens: run → line → requirement → its plates (jobs), in one payload.</summary>
 public sealed record RunDetailView(
     Guid Id,
+    string DisplayLabel,
     string? Name,
     DateOnly? DueDate,
-    string? Priority,
     string? Notes,
     ProductionRunStatus Status,
+    DateTimeOffset CreatedAtUtc,
     IReadOnlyList<RunLineSummary> Lines);

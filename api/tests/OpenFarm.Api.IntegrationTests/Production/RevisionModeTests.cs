@@ -60,8 +60,6 @@ public class RevisionModeTests(ProductionTestFactory factory) : ProductionTestCo
         var printer = await PrinterAsync();
         var job = (await JobsAsync(finite.Id)).Single();
         await AssignAsync(job.Id, printer.Id);
-        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{finite.Id}/lines/{finite.Lines.Single().Id}/revision-mode", new { revisionMode = "FollowLatest" });
-        response.StatusCode.Should().Be(System.Net.HttpStatusCode.UnprocessableEntity);
         (await JobsAsync(finite.Id)).Single().FileRevisionHash.Should().Be(job.FileRevisionHash);
         (await DetailAsync(client, finite.Id)).Lines.Single().SpansMultipleRevisions.Should().BeFalse();
     }

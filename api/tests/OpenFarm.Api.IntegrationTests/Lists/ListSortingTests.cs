@@ -140,17 +140,17 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
             var assembly = Assembly.Create("Legacy assembly", null,
                 [new(BomLineTargetKind.NonPrintedComponent, null, null, component.Id, 1)]);
             db.AddRange(part, component, assembly);
-            var named = ProductionRun.Create("Zulu named", null, null, null, [Line(part.Id)]);
-            var finite = ProductionRun.Create(null, null, null, null, [Line(part.Id, 20)]);
+            var named = ProductionRun.Create("Zulu named", null, null, [Line(part.Id)]);
+            var finite = ProductionRun.Create(null, null, null, [Line(part.Id, 20)]);
             finite.Lines[0].CaptureTargetName("alpha captured");
-            var unlimited = ProductionRun.Create(null, null, null, null, [Line(part.Id, null)]);
-            var missing = ProductionRun.Create(null, null, null, null, [Line(Guid.NewGuid(), 2)]);
-            var missingAssembly = ProductionRun.Create(null, null, null, null, [Line(Guid.NewGuid(), null, RunLineTargetKind.Assembly)]);
-            var assemblyRun = ProductionRun.Create(null, null, null, null, [Line(assembly.Id, 3, RunLineTargetKind.Assembly)]);
-            var multiple = ProductionRun.Create(null, null, null, null, [Line(part.Id), Line(assembly.Id, null, RunLineTargetKind.Assembly)]);
+            var unlimited = ProductionRun.Create(null, null, null, [Line(part.Id, null)]);
+            var missing = ProductionRun.Create(null, null, null, [Line(Guid.NewGuid(), 2)]);
+            var missingAssembly = ProductionRun.Create(null, null, null, [Line(Guid.NewGuid(), null, RunLineTargetKind.Assembly)]);
+            var assemblyRun = ProductionRun.Create(null, null, null, [Line(assembly.Id, 3, RunLineTargetKind.Assembly)]);
+            var multiple = ProductionRun.Create(null, null, null, [Line(part.Id), Line(assembly.Id, null, RunLineTargetKind.Assembly)]);
             multiple.Lines[0].CaptureTargetName("First captured");
             multiple.Lines[1].CaptureTargetName("Second captured");
-            var empty = ProductionRun.Create(null, null, null, null, [Line(part.Id)]);
+            var empty = ProductionRun.Create(null, null, null, [Line(part.Id)]);
             db.AddRange(named, finite, unlimited, missing, missingAssembly, assemblyRun, multiple, empty);
             await db.SaveChangesAsync();
             // Old persisted data can contain an empty run even though new domain creation rejects it.

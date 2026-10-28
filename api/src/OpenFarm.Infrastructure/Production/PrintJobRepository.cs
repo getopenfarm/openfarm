@@ -28,7 +28,8 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
     public async Task<IReadOnlyList<PrintJob>> ListByPartRequirementIdAsync(Guid partRequirementId, CancellationToken cancellationToken) =>
         await dbContext.PrintJobs.Include(j => j.Filaments)
             .Where(j => j.PartRequirementId == partRequirementId)
-            .OrderBy(j => j.QueuePosition)
+            // A reprint takes its lost plate's position; creation order puts it right after the plate it replaces.
+            .OrderBy(j => j.QueuePosition).ThenBy(j => j.CreatedAtUtc).ThenBy(j => j.Id)
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<PrintJob>> ListByProductionRunIdAsync(Guid productionRunId, CancellationToken cancellationToken) =>
@@ -37,15 +38,14 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
             join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
             join line in dbContext.RunLines on requirement.RunLineId equals line.Id
             where line.ProductionRunId == productionRunId
-            orderby job.QueuePosition
+            orderby job.QueuePosition, job.CreatedAtUtc, job.Id
             select job)
             .Include(j => j.Filaments)
             .ToListAsync(cancellationToken);
 
     /// <summary>The dispatcher's own reported-state lookup (research.md R12) — non-terminal, dispatched to this printer.</summary>
-    public Task<PrintJob?> GetLastJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) =>
-        dbContext.PrintJobs.Where(j => j.PrinterId == printerId)
-            .OrderByDescending(j => j.EndedAtUtc).FirstOrDefaultAsync(cancellationToken);
+    public async Task<IReadOnlyList<PrintJob>> ListQueuedPinnedToAsync(Guid printerId, CancellationToken cancellationToken) =>
+        await dbContext.PrintJobs.Where(j => j.Status == PrintJobStatus.Queued && j.PinnedPrinterId == printerId).ToListAsync(cancellationToken);
 
     public Task<PrintJob?> GetActiveJobByDispatchedPrinterIdAsync(Guid printerId, CancellationToken cancellationToken) =>
         dbContext.PrintJobs.Include(j => j.Filaments)

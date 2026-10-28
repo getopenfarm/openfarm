@@ -10,7 +10,9 @@ public sealed class GetProductionRunDetailQueryHandler(
     IPartRequirementRepository requirementRepository,
     IPrintJobRepository jobRepository,
     IPartRepository partRepository,
-    IAssemblyRepository assemblyRepository) : IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>
+    IAssemblyRepository assemblyRepository,
+    ProductionRunDisplayLabelResolver labelResolver,
+    IPrintJobEligibilityQuery eligibilityQuery) : IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>
 {
     public async Task<RunDetailView?> HandleAsync(GetProductionRunDetailQuery query, CancellationToken cancellationToken)
     {
@@ -32,27 +34,25 @@ public sealed class GetProductionRunDetailQueryHandler(
             var revisionHashes = new HashSet<string>();
             foreach (var requirement in await requirementRepository.ListByRunLineIdAsync(line.Id, cancellationToken))
             {
-                var part = await partRepository.GetByIdAsync(requirement.PartId, cancellationToken);
+                var libraryPart = await partRepository.GetByIdAsync(requirement.PartId, cancellationToken);
                 var jobs = await jobRepository.ListByPartRequirementIdAsync(requirement.Id, cancellationToken);
-
-                // research.md R13 — a plain filter, never a stored/computed aggregate.
-                var jobsNeedingRequeue = (requirement.Quantity is null ? [] : jobs)
-                    .Where(j => j.Status is PrintJobStatus.Cancelled or PrintJobStatus.Failed && j.RequeuedAsJobId is null
-                        && j.ProductionSnapshotJson != null)
-                    .Select(j => j.Id)
-                    .ToList();
-
-                var jobsBlockedForRequeue = (requirement.Quantity is null ? [] : jobs)
-                    .Where(j => j.Status is PrintJobStatus.Cancelled or PrintJobStatus.Failed && j.RequeuedAsJobId is null
-                        && j.ProductionSnapshotJson == null)
-                    .Select(j => j.Id).ToList();
+                var part = jobs.Select(j => j.GetProductionPart()).FirstOrDefault(p => p is not null) ?? libraryPart;
+                var completedUnits = jobs.Where(j => j.Status == PrintJobStatus.Completed).Sum(j => j.PlateQuantity);
 
                 requirements.Add(new PartRequirementSummary(
                     requirement.Id, requirement.PartId, requirement.PartName ?? part?.Name ?? "Unknown part", requirement.Quantity,
-                    jobs.Count, jobs.Count(j => j.Status == PrintJobStatus.Completed), jobsNeedingRequeue, part is not null, jobsBlockedForRequeue));
+                    libraryPart is not null, (jobs.Count > 0 ? jobs[0].PlateQuantity : part?.UnitsPerPrint ?? 1), completedUnits,
+                    jobs.Where(j => j.WrittenOffAtUtc is not null).Sum(j => j.PlateQuantity), PlateCounts.Of(jobs),
+                    part?.EstimatedPrintTimeMinutes, part?.EstimatedFilamentWeightGrams,
+                    await NextPlateBlockingReasonAsync(jobs, cancellationToken),
+                    jobs.Select(j => new RunJobSummary(
+                        j.Id, j.Status, j.PrinterId, j.StartedAtUtc, j.EndedAtUtc,
+                        j.Status == PrintJobStatus.Queued ? j.LastBlockReason : null, j.RequeuedAsJobId, j.WrittenOffAtUtc is not null,
+                        requirement.Quantity is not null && j.IsUnresolvedLoss,
+                        requirement.Quantity is not null && j.IsUnresolvedLoss && run.IsOpen && j.ProductionSnapshotJson is not null)).ToList()));
 
                 // FR-006e — coarse cumulative count, research.md R4's own occupancy/ceiling formula.
-                cumulativeProducedUnits += jobs.Where(j => j.Status == PrintJobStatus.Completed).Sum(j => j.PlateQuantity);
+                cumulativeProducedUnits += completedUnits;
 
                 // FR-009e — computed, never stored: distinct revisions across every requirement on this line.
                 foreach (var job in jobs.Where(j => j.StartedAtUtc is not null))
@@ -62,11 +62,24 @@ public sealed class GetProductionRunDetailQueryHandler(
             }
 
             lines.Add(new RunLineSummary(
-                line.Id, line.TargetKind, line.TargetId, targetName, line.Quantity, line.RevisionMode,
+                line.Id, line.TargetKind, line.TargetId, targetName, line.Quantity, line.RevisionMode, line.DefaultPinnedPrinterId,
                 line.BackfillPrinterCap, line.BackfillCumulativeUnitCeiling, cumulativeProducedUnits,
                 revisionHashes.Count > 1, requirements));
         }
 
-        return new RunDetailView(run.Id, run.Name, run.DueDate, run.Priority, run.Notes, run.Status, lines);
+        return new RunDetailView(
+            run.Id, await labelResolver.ResolveAsync(run, cancellationToken), run.Name, run.DueDate, run.Notes, run.Status, run.CreatedAtUtc, lines);
+    }
+
+    /// <summary>One eligibility check per requirement, on its next waiting plate: the plates of one part share their needs.</summary>
+    private async Task<string?> NextPlateBlockingReasonAsync(IReadOnlyList<PrintJob> jobs, CancellationToken cancellationToken)
+    {
+        var next = jobs.FirstOrDefault(j => j.Status == PrintJobStatus.Queued && j.DispatchedAtUtc is null);
+        if (next is null || (await eligibilityQuery.GetEligibleJobIdsAsync([next], cancellationToken)).Contains(next.Id))
+        {
+            return null;
+        }
+
+        return await eligibilityQuery.GetBlockingReasonAsync(next, cancellationToken) ?? "No printer matches.";
     }
 }

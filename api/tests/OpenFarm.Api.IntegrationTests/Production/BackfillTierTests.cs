@@ -43,7 +43,7 @@ public class BackfillTierTests(ProductionTestFactory factory) : ProductionTestCo
         var printer = await PrinterAsync();
         var finite = await RunAsync(client, part.Id, quantity: 4, pinned: printer.Id);
         var backfill = await RunAsync(client, part.Id, quantity: null);
-        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{backfill.Id}/backfill-limits",
+        var response = await client.PutAsJsonAsync($"/api/v1/production-runs/{backfill.Id}",
             new { lines = new[] { new { lineId = backfill.Lines.Single().Id, backfillPrinterCap = 1, backfillCumulativeUnitCeiling = 4 } } });
         response.EnsureSuccessStatusCode();
         using var worker = Worker();

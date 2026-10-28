@@ -29,6 +29,7 @@ public sealed class PrintJobConfiguration : IEntityTypeConfiguration<PrintJob>
         builder.Property(j => j.LastBlockReason);
         builder.Property(j => j.LastBlockedAtUtc);
         builder.Property(j => j.BlockFailureCount).HasDefaultValue(0);
+        builder.Property(j => j.WrittenOffAtUtc);
 
         builder.HasOne<PartRequirement>().WithMany().HasForeignKey(j => j.PartRequirementId).OnDelete(DeleteBehavior.Cascade);
 
