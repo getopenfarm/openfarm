@@ -96,7 +96,6 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
 
     expect(screen.getAllByText('Operate').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Materials').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Library').length).toBeGreaterThan(0);
   });
 

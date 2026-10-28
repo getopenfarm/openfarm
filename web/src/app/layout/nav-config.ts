@@ -75,11 +75,17 @@ const activityLog: NavItem = {
 };
 
 export const navSections: NavSection[] = [
-  { label: 'Operate', items: [dashboard, printers, runs, jobs, stats] },
-  { label: 'Materials', items: [filament] },
+  { label: 'Operate', items: [dashboard, printers, jobs, runs, stats] },
   {
     label: 'Library',
-    items: [parts, assemblies, nonPrintedComponents, profiles, maintenance],
+    items: [
+      filament,
+      parts,
+      assemblies,
+      nonPrintedComponents,
+      profiles,
+      maintenance,
+    ],
   },
 ];
 
