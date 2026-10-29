@@ -72,6 +72,6 @@ describe('NonPrintedComponentsPage', () => {
     renderPage();
 
     expect(await screen.findByText('M3x8 screw')).toBeInTheDocument();
-    expect(screen.getByText('0.02')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.02')).toBeInTheDocument();
   });
 });

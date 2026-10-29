@@ -1,3 +1,4 @@
+import { useCurrency } from '@/features/settings/generalSettings';
 import type { CatalogPricing } from '@/lib/api/generated/endpoints.schemas';
 import {
   effectiveRate,
@@ -9,6 +10,7 @@ import {
 
 // Cost per unit, with the purchase it comes from when the price covers a pack.
 export function CostPricingSummary({ pricing }: { pricing: CatalogPricing }) {
+  const currency = useCurrency();
   const rate = effectiveRate(pricing);
   const validDimensions =
     (pricing.length == null && pricing.width == null) ||
@@ -25,11 +27,11 @@ export function CostPricingSummary({ pricing }: { pricing: CatalogPricing }) {
       {validRate ? (
         <>
           <span className="font-medium tabular-nums">
-            {formatRate(rate)} / {unitLabels[pricing.unit ?? 'Piece']}
+            {formatRate(rate, currency)} / {unitLabels[pricing.unit ?? 'Piece']}
           </span>
           {pricing.pricingMode === 'Package' && (
             <span className="text-muted-foreground tabular-nums">
-              {formatRate(pricing.packagePrice)} for{' '}
+              {formatRate(pricing.packagePrice, currency)} for{' '}
               {quantityLabel(quantity ?? 0, pricing.unit)}
             </span>
           )}

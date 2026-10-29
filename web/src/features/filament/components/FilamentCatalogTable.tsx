@@ -10,6 +10,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
+import { useCurrency } from '@/features/settings/generalSettings';
 import type {
   FilamentResponse,
   FilamentShortageResponse,
@@ -34,6 +35,7 @@ export function FilamentCatalogTable({
   stock,
   shortages = [],
 }: FilamentCatalogTableProps) {
+  const currency = useCurrency();
   const navigate = useNavigate();
   const byVariant = new Map(stock.map((row) => [row.filamentVariantId, row]));
   const shortOf = (filament: FilamentResponse) => {
@@ -91,7 +93,7 @@ export function FilamentCatalogTable({
       cell: ({ row }) =>
         row.original.pricePerKg == null
           ? '—'
-          : formatCost(row.original.pricePerKg),
+          : formatCost(row.original.pricePerKg, currency),
     },
     {
       id: 'onHand',
@@ -135,7 +137,7 @@ export function FilamentCatalogTable({
         if (activeSpools === 0) return '—';
         return (
           <span className="flex items-center gap-2 whitespace-nowrap">
-            <span className="tabular-nums">{formatCost(value)}</span>
+            <span className="tabular-nums">{formatCost(value, currency)}</span>
             {unpricedSpools > 0 && <StatusBadge kind="amber" label="Partial" />}
           </span>
         );

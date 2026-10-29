@@ -23,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
@@ -43,6 +44,7 @@ import {
 import { categories, categoryLabel, defaultUnit, isService } from './costing';
 
 export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
+  const currency = useCurrency();
   const { id } = useParams();
   const navigate = useNavigate();
   const client = useQueryClient();
@@ -274,6 +276,7 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
                   <div className="flex flex-wrap items-start gap-4">
                     <NumberField
                       label="Price"
+                      description={`Currency: ${currency}`}
                       className="w-full sm:w-44"
                       value={pricing.packagePrice}
                       onChange={(packagePrice) => patch({ packagePrice })}

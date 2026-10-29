@@ -69,17 +69,21 @@ export function usage(line: AssemblyCostInput, unit?: string | null) {
       : (line.quantity ?? 0);
   return unit === 'Hour' ? quantity / 60 : quantity;
 }
-export function formatRate(value: number | null | undefined): string {
+export function formatRate(
+  value: number | null | undefined,
+  currency = 'USD',
+): string {
   if (value == null) return 'Unknown';
-  if (value !== 0 && Math.abs(value) < 1e-20) return value.toExponential(6);
+  if (value !== 0 && Math.abs(value) < 1e-20)
+    return `${currency} ${value.toExponential(6)}`;
   const digits =
     value === 0
       ? 2
       : Math.min(20, Math.max(2, 9 - Math.floor(Math.log10(Math.abs(value)))));
-  return new Intl.NumberFormat('en', {
+  return `${currency} ${new Intl.NumberFormat('en', {
     minimumFractionDigits: 2,
     maximumFractionDigits: digits,
-  }).format(value);
+  }).format(value)}`;
 }
 export const formatQuantity = (value: number) =>
   new Intl.NumberFormat('en', { maximumSignificantDigits: 10 }).format(value);

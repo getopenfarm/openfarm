@@ -12,12 +12,6 @@ public sealed class ConnectionSecretRepository(OpenFarmDbContext dbContext) : IC
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ConnectionSecret>> ListAsync(CancellationToken cancellationToken) =>
-        await dbContext.ConnectionSecrets
-            .AsNoTracking()
-            .OrderByDescending(s => s.CreatedAtUtc)
-            .ToListAsync(cancellationToken);
-
     public Task<ConnectionSecret?> GetByPrinterSerialNumberAsync(string printerSerialNumber, CancellationToken cancellationToken) =>
         dbContext.ConnectionSecrets
             .AsNoTracking()

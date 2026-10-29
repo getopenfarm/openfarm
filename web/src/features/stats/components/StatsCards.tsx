@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { downloadFile } from '@/lib/api/downloadFile';
 import type {
   FailureCode,
@@ -316,6 +317,7 @@ export function MaterialsCard({
 }: {
   range: { from: string; to: string };
 }) {
+  const currency = useCurrency();
   const query = useOpenFarmApiEndpointsReportsGetMaterialsReportEndpoint(
     range,
     { query: serverListQueryOptions },
@@ -376,7 +378,7 @@ export function MaterialsCard({
                 [
                   'Spend',
                   <>
-                    {formatCost(total?.cost ?? 0)}
+                    {formatCost(total?.cost ?? 0, currency)}
                     {unpriced > 0 && (
                       <span className="block text-xs text-muted-foreground">
                         Partial · {formatWeight(unpriced)} unpriced

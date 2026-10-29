@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import {
   Select,
   SelectContent,
@@ -301,7 +302,7 @@ function MaterialFields({
             <FormItem>
               <FormLabel>Price per kg</FormLabel>
               <FormControl>
-                <Input
+                <MoneyInput
                   type="number"
                   min="0"
                   step="any"

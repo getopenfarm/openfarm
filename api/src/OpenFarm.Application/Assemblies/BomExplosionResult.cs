@@ -9,7 +9,8 @@ public sealed record BomExplosionResult(
     IReadOnlyList<ExplodedPartQuantity> PrintedParts,
     IReadOnlyList<ExplodedNonPrintedComponentQuantity> NonPrintedComponents,
     IReadOnlyList<AssemblyCostContribution>? ProductionCosts = null,
-    IReadOnlyList<AssemblyCostContribution>? FinalProductCosts = null);
+    IReadOnlyList<AssemblyCostContribution>? FinalProductCosts = null,
+    IReadOnlyList<AssemblyMachineCostContribution>? MachineCosts = null);
 
 public sealed record ExplodedPartQuantity(Guid PartId, string PartName, decimal Quantity);
 

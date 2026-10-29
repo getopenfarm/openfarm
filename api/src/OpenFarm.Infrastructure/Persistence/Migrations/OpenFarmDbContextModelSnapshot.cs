@@ -1198,6 +1198,37 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.ToTable("PrinterActivitySpans", (string)null);
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Printers.PrinterModelCost", b =>
+                {
+                    b.Property<string>("Brand")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ModelCode")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("AveragePrintingWatts")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("LifetimePrintingHours")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("LifetimeServiceCost")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("PrinterPurchasePrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("PrinterUpfrontCost")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Brand", "ModelCode");
+
+                    b.ToTable("PrinterModelCosts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PrinterModelCosts_Values", "\"PrinterPurchasePrice\" >= 0 AND \"PrinterUpfrontCost\" >= 0 AND \"LifetimeServiceCost\" >= 0 AND \"LifetimePrintingHours\" > 0 AND \"AveragePrintingWatts\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Production.PartRequirement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1662,6 +1693,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("USD");
+
                     b.Property<string>("DefaultSlicerEngine")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1669,17 +1707,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("DefaultSlicerVersion")
                         .HasColumnType("text");
 
-                    b.Property<string>("EstimationBuildPlateType")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("EstimationFilamentProfileId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("EstimationMachineProfileId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("EstimationProcessProfileId")
-                        .HasColumnType("uuid");
+                    b.Property<decimal?>("ElectricityPricePerKwh")
+                        .HasColumnType("numeric");
 
                     b.HasKey("Id");
 

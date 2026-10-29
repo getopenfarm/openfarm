@@ -10,6 +10,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { filamentIndicator } from '@/features/dashboard/lib/filamentIndicator';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { FillMeter } from '@/features/spools/components/FillMeter';
 import { groupShelf } from '@/features/spools/lib/groupShelf';
 import type {
@@ -367,18 +368,19 @@ function ColorPanel({
   row: ColorRowData;
   filament: FilamentResponse;
 }) {
+  const currency = useCurrency();
   const name = row.variant.colorName ?? 'color';
   const inPrinters = row.spools.filter((s) => s.state === 'Using');
   const shelf = groupShelf(row.spools.filter((s) => s.state === 'InStorage'));
   const price = row.variant.pricePerKg ?? filament.pricePerKg;
   const value =
     row.stock?.activeSpoolCount && row.stock.stockValue != null
-      ? `Value ${formatCost(row.stock.stockValue)}${(row.stock.unpricedSpoolCount ?? 0) > 0 ? ' · Partial' : ''}`
+      ? `Value ${formatCost(row.stock.stockValue, currency)}${(row.stock.unpricedSpoolCount ?? 0) > 0 ? ' · Partial' : ''}`
       : null;
   const priceText =
     price == null
       ? 'No price'
-      : `${formatCost(price)}/kg${row.variant.pricePerKg == null ? ' default' : ''}`;
+      : `${formatCost(price, currency)}/kg${row.variant.pricePerKg == null ? ' default' : ''}`;
 
   return (
     <div className="flex flex-col gap-3 text-[13px]">

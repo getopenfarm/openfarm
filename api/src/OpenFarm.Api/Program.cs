@@ -51,7 +51,6 @@ using OpenFarm.Infrastructure.Seed;
 using Serilog;
 // FastEndpoints and OpenFarm.Application.Common both define an ICommandHandler<,> — alias ours.
 using LoginCommandHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Auth.LoginCommand, OpenFarm.Application.Auth.LoginResult?>;
-using CreateConnectionSecretHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.ConnectionSecrets.CreateConnectionSecretCommand, OpenFarm.Domain.ConnectionSecrets.ConnectionSecret>;
 using RegisterPrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RegisterPrinterCommand, OpenFarm.Domain.Printers.Printer>;
 using EditPrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.EditPrinterCommand, OpenFarm.Domain.Printers.Printer>;
 using RemovePrinterHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.RemovePrinterCommand, bool>;
@@ -222,8 +221,6 @@ builder.Services.AddScoped<LoginCommandHandlerType, LoginCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<WhoAmIQuery, WhoAmIResult?>, WhoAmIQueryHandler>();
 
 builder.Services.AddScoped<IConnectionSecretRepository, ConnectionSecretRepository>();
-builder.Services.AddScoped<CreateConnectionSecretHandlerType, CreateConnectionSecretCommandHandler>();
-builder.Services.AddScoped<IQueryHandler<ListConnectionSecretsQuery, IReadOnlyList<ConnectionSecretResult>>, ListConnectionSecretsQueryHandler>();
 
 builder.Services.AddScoped<IPrinterRepository, PrinterRepository>();
 // Singleton so the simulator's in-memory per-serial state is shared across the long-lived
@@ -317,6 +314,8 @@ builder.Services.Configure<SlicerOptions>(builder.Configuration.GetSection(Slice
 builder.Services.Configure<SlicerBundleOptions>(builder.Configuration.GetSection(SlicerBundleOptions.SectionName));
 
 builder.Services.AddScoped<IFarmSettingsRepository, FarmSettingsRepository>();
+builder.Services.AddScoped<IPrinterCostRepository, PrinterCostRepository>();
+builder.Services.AddScoped<AssemblyMachineCosts>();
 builder.Services.AddScoped<IPartRepository, PartRepository>();
 builder.Services.AddScoped<IPartDeletionEligibilityReader, PartDeletionEligibilityReader>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();

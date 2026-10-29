@@ -25,6 +25,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             OpenFarm.Application.Common.InvalidListSortException => (StatusCodes.Status400BadRequest, "Invalid list sorting"),
             DuplicatePrinterSerialNumberException => (StatusCodes.Status409Conflict, "Duplicate printer serial number"),
             PrinterConnectionVerificationFailedException => (StatusCodes.Status422UnprocessableEntity, "Printer connection could not be verified"),
+            PrinterModelCostsInUseException => (StatusCodes.Status409Conflict, "Printer model is still in the fleet"),
             UnknownPrinterModelException => (StatusCodes.Status422UnprocessableEntity, "Unknown printer model"),
             IncompatibleBuildPlateException => (StatusCodes.Status422UnprocessableEntity, "Build plate incompatible with printer model"),
             ImmutablePrinterFieldMismatchException => (StatusCodes.Status422UnprocessableEntity, "Printer identity fields cannot be changed"),

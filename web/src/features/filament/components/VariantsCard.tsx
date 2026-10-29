@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useCurrency } from '@/features/settings/generalSettings';
 import type {
   FilamentProfileAssignmentInput,
   FilamentProfileAssignmentIssue,
@@ -50,12 +51,15 @@ function VariantPrice({
   price: number | null;
   inherited: number | null;
 }) {
+  const currency = useCurrency();
   if (price != null) {
-    return <span>{formatCost(price)}/kg</span>;
+    return <span>{formatCost(price, currency)}/kg</span>;
   }
   return (
     <span className="text-muted-foreground">
-      {inherited == null ? 'No price' : `${formatCost(inherited)}/kg default`}
+      {inherited == null
+        ? 'No price'
+        : `${formatCost(inherited, currency)}/kg default`}
     </span>
   );
 }

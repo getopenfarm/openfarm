@@ -29,21 +29,22 @@ public sealed class FarmSettings
     /// <summary>The version half of the optional default pair; <c>null</c> ⇒ no explicit default set.</summary>
     public string? DefaultSlicerVersion { get; private set; }
 
-    public Guid? EstimationMachineProfileId { get; private set; }
-    public Guid? EstimationProcessProfileId { get; private set; }
-    public Guid? EstimationFilamentProfileId { get; private set; }
-    public OpenFarm.Domain.Printers.BuildPlateType? EstimationBuildPlateType { get; private set; }
+    public string CurrencyCode { get; private set; } = "USD";
 
-    public void SetEstimationProfiles(Guid? machineId, Guid? processId, Guid? filamentId,
-        OpenFarm.Domain.Printers.BuildPlateType? buildPlate)
+    public void SetCurrency(string code)
     {
-        if ((machineId is null || processId is null || filamentId is null || buildPlate is null)
-            && (machineId is not null || processId is not null || filamentId is not null || buildPlate is not null))
-            throw new ArgumentException("Estimation profiles must be configured together or cleared together.");
-        EstimationMachineProfileId = machineId;
-        EstimationProcessProfileId = processId;
-        EstimationFilamentProfileId = filamentId;
-        EstimationBuildPlateType = buildPlate;
+        if (!SupportedCurrencies.Contains(code)) throw new ArgumentException("Unsupported currency.", nameof(code));
+        CurrencyCode = code;
+    }
+
+    public static readonly string[] SupportedCurrencies = ["USD", "MYR", "EUR", "GBP", "SGD", "AUD", "CAD", "NZD", "JPY", "CNY", "HKD", "TWD", "KRW", "INR", "IDR", "THB", "PHP", "VND", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "TRY", "AED", "SAR", "ZAR", "BRL", "MXN"];
+
+    public decimal? ElectricityPricePerKwh { get; private set; }
+
+    public void SetElectricityPrice(decimal? pricePerKwh)
+    {
+        if (pricePerKwh < 0) throw new ArgumentOutOfRangeException(nameof(pricePerKwh));
+        ElectricityPricePerKwh = pricePerKwh;
     }
 
     public DateTimeOffset CreatedAtUtc { get; }

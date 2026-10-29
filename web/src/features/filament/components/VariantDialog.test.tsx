@@ -94,7 +94,7 @@ describe('VariantDialog', () => {
     const { onSave } = renderDialog({ variant: SAVED_BLACK });
 
     const price = screen.getByLabelText('Price per kg');
-    expect(price).toHaveAttribute('placeholder', 'Default: 25.50');
+    expect(price).toHaveAttribute('placeholder', 'Default: USD 25.50');
     // Saved variants keep their name and color.
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
     expect(

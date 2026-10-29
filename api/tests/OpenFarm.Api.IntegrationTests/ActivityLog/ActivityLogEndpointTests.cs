@@ -4,7 +4,7 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using OpenFarm.Api.Endpoints.ActivityLog;
 using OpenFarm.Api.Endpoints.Auth;
-using OpenFarm.Api.Endpoints.ConnectionSecrets;
+using OpenFarm.Api.Endpoints.Vendors;
 using OpenFarm.Application.Auth;
 
 namespace OpenFarm.Api.IntegrationTests.ActivityLog;
@@ -31,9 +31,9 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
         var serialNumber = $"AC-{Guid.NewGuid():N}";
 
         var createResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/connection-secrets", UriKind.Relative),
-            new CreateConnectionSecretRequest { PrinterSerialNumber = serialNumber, PlainAccessCode = "real-secret-value" });
-        var created = await createResponse.Content.ReadFromJsonAsync<ConnectionSecretResponse>();
+            new Uri("/api/v1/vendors", UriKind.Relative),
+            new CreateVendorRequest { Name = serialNumber });
+        var created = await createResponse.Content.ReadFromJsonAsync<VendorResponse>();
 
         var response = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
 
@@ -42,8 +42,8 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
         page.Should().NotBeNull();
 
         var entry = page!.Items.Should().ContainSingle(e => e.EntityId == created!.Id.ToString()).Subject;
-        entry.EntityType.Should().Be("ConnectionSecret");
-        entry.EventType.Should().Be("Created");
+        entry.EntityType.Should().Be("Vendor");
+        entry.EventType.Should().Be("VendorCreated");
         entry.ActorType.Should().Be("Operator");
         entry.ActorDisplayName.Should().Be("admin");
         entry.TimestampUtc.Should().BeOnOrAfter(DateTimeOffset.UtcNow.AddMinutes(-1));
@@ -59,8 +59,8 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
         for (var i = 0; i < 3; i++)
         {
             await client.PostAsJsonAsync(
-                new Uri("/api/v1/connection-secrets", UriKind.Relative),
-                new CreateConnectionSecretRequest { PrinterSerialNumber = $"AC-{Guid.NewGuid():N}", PlainAccessCode = "real-secret-value" });
+                new Uri("/api/v1/vendors", UriKind.Relative),
+                new CreateVendorRequest { Name = $"AC-{Guid.NewGuid():N}" });
         }
 
         var response = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=2", UriKind.Relative));
@@ -82,8 +82,8 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
         var before = await beforeResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
 
         var createResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/connection-secrets", UriKind.Relative),
-            new CreateConnectionSecretRequest { PrinterSerialNumber = "AC12345", PlainAccessCode = string.Empty });
+            new Uri("/api/v1/vendors", UriKind.Relative),
+            new CreateVendorRequest { Name = string.Empty });
         createResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var afterResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=1", UriKind.Relative));

@@ -10,9 +10,8 @@ public sealed class PartFileProcessor(
     IAlreadySlicedFileMetadataParser slicedMetadataParser,
     IUnslicedProjectMaterialResolver unslicedProjectMaterialResolver,
     ISlicerEngine slicerEngine,
-    ResolveEstimationProfiles? estimationProfiles = null,
     ResolveSlicerSelection? slicerSelection = null,
-    IFarmSettingsRepository? farmSettings = null, IHostPlatformProvider? hostPlatform = null,
+    IHostPlatformProvider? hostPlatform = null,
     ResolveProjectEstimationProfiles? projectProfiles = null) : IPartFileProcessor
 {
     public async Task<PartMaterialResolution> ResolveMaterialAsync(PartProcessingJob job, Stream fileStream, CancellationToken cancellationToken)
@@ -42,24 +41,11 @@ public sealed class PartFileProcessor(
                 project.MaterialMetadataComplete, reason, project.Thumbnails, project.Estimation ?? new("EmbeddedProject"), configuration);
         }
 
-        EstimationConfiguration? defaults = null;
-        EstimationDetails details = new("DefaultProfiles");
-        string? unavailable = null;
-        try
-        {
-            var settings = farmSettings is null ? null : await farmSettings.GetAsync(cancellationToken);
-            var selection = settings is null ? null : UpdateSlicingDefaultsCommandHandler.GetSelection(settings);
-            if (selection is null || estimationProfiles is null)
-                unavailable = "Estimation unavailable: select default estimation profiles in Settings → Slicing Defaults.";
-            else if (job.SlicerEngineUsed is { } engine && job.SlicerVersionUsed is { } version)
-                (defaults, details) = await estimationProfiles.ResolveAsync(selection, new SlicerRef(engine, version), cancellationToken);
-            unavailable ??= AvailabilityReason(job, embedded: false);
-        }
-        catch (SlicingProfileUnconfiguredException ex) { unavailable = $"Estimation unavailable: {ex.Message}"; }
         IReadOnlyList<PreviewFilamentRequirement> wildcard = [new(0, null, null, null)];
-        return new(defaults?.NozzleDiameterMm,
-            wildcard, FilamentRequirementGrouper.Plates(wildcard, project.Plates), null, defaults?.MaterialType,
-            EstimateUnavailableReason: unavailable, Thumbnails: project.Thumbnails, Estimation: details, EstimationConfiguration: defaults);
+        return new(null, wildcard, FilamentRequirementGrouper.Plates(wildcard, project.Plates), null,
+            EstimateUnavailableReason: "Estimation unavailable: this file does not contain embedded slicing settings or estimates.",
+            Thumbnails: project.Thumbnails);
+
     }
 
     private string? AvailabilityReason(PartProcessingJob job, bool embedded)

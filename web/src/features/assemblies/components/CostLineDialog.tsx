@@ -19,6 +19,7 @@ import {
   unitLabels,
   usage,
 } from '@/features/cost-catalog/costing';
+import { useCurrency } from '@/features/settings/generalSettings';
 import type {
   AssemblyCostInput,
   CostItemResponse,
@@ -91,6 +92,7 @@ export function CostLineDialog({
   item,
   onSave,
 }: CostLineDialogProps) {
+  const currency = useCurrency();
   const [draft, setDraft] = useState<Draft>(() =>
     line ? toDraft(line) : toDraft({ catalogItemId: '' }),
   );
@@ -117,7 +119,9 @@ export function CostLineDialog({
   const name = item?.name ?? 'Item unavailable';
   const category = categoryLabel(item?.pricing?.category ?? 'Other');
   const rateText =
-    rate == null ? 'Not priced' : `${formatRate(rate)} / ${unitLabels[unit]}`;
+    rate == null
+      ? 'Not priced'
+      : `${formatRate(rate, currency)} / ${unitLabels[unit]}`;
   const usageLabel =
     unit === 'Hour'
       ? 'Minutes'
@@ -231,9 +235,10 @@ export function CostLineDialog({
             {valid && (
               <FieldDescription>
                 {unit === 'Hour'
-                  ? `${formatQuantity(draft.quantity ?? 0)} min × ${formatRate(rate)} / hour`
-                  : `${formatQuantity(consumed)} ${unitLabels[unit]} × ${formatRate(rate)}`}{' '}
-                = {cost == null ? 'Not priced' : formatCost(cost)} per product
+                  ? `${formatQuantity(draft.quantity ?? 0)} min × ${formatRate(rate, currency)} / hour`
+                  : `${formatQuantity(consumed)} ${unitLabels[unit]} × ${formatRate(rate, currency)}`}{' '}
+                = {cost == null ? 'Not priced' : formatCost(cost, currency)} per
+                product
               </FieldDescription>
             )}
             {sized && (

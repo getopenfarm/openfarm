@@ -300,17 +300,23 @@ export interface GetSlicingReadinessRequest {
   [key: string]: unknown;
 }
 
+export interface GeneralSettingsResponse {
+  currencyCode?: string;
+  /** @nullable */
+  electricityPricePerKwh?: number | null;
+  supportedCurrencies?: string[];
+}
+
+export interface GeneralSettingsRequest {
+  currencyCode?: string;
+  /** @nullable */
+  electricityPricePerKwh?: number | null;
+}
+
 export interface EffectiveSlicerDefaultResponse {
   engine?: string;
   version?: string;
   isExplicit?: boolean;
-}
-
-export interface EstimationProfilesRequest {
-  machineProfileId?: string;
-  processProfileId?: string;
-  filamentProfileId?: string;
-  buildPlateType?: string;
 }
 
 export interface AvailableSlicerResponse {
@@ -322,14 +328,62 @@ export interface AvailableSlicerResponse {
 export interface SlicingDefaultsResponse {
   id?: string;
   default?: EffectiveSlicerDefaultResponse | null;
-  estimationProfiles?: EstimationProfilesRequest | null;
   available?: AvailableSlicerResponse[];
+}
+
+export interface PrinterModelCostResponse {
+  brand?: string;
+  modelCode?: string;
+  /** @nullable */
+  printerPurchasePrice?: number | null;
+  /** @nullable */
+  printerUpfrontCost?: number | null;
+  /** @nullable */
+  lifetimeServiceCost?: number | null;
+  /** @nullable */
+  lifetimePrintingHours?: number | null;
+  /** @nullable */
+  averagePrintingWatts?: number | null;
+  canRemove?: boolean;
+  /** @nullable */
+  depreciationPerHour?: number | null;
+  /** @nullable */
+  electricityPerHour?: number | null;
+}
+
+export interface PrinterCostsResponse {
+  /** @nullable */
+  electricityPricePerKwh?: number | null;
+  models?: PrinterModelCostResponse[];
+}
+
+export interface UpdateElectricityPriceRequest {
+  /** @nullable */
+  electricityPricePerKwh?: number | null;
+}
+
+export interface UpdatePrinterModelCostRequest {
+  brand?: string;
+  modelCode?: string;
+  /** @nullable */
+  printerPurchasePrice?: number | null;
+  /** @nullable */
+  printerUpfrontCost?: number | null;
+  /** @nullable */
+  lifetimeServiceCost?: number | null;
+  /** @nullable */
+  lifetimePrintingHours?: number | null;
+  /** @nullable */
+  averagePrintingWatts?: number | null;
+}
+
+export interface RemovePrinterModelCostRequest {
+  [key: string]: unknown;
 }
 
 export interface UpdateSlicingDefaultsRequest {
   engine?: string;
   version?: string;
-  estimationProfiles?: EstimationProfilesRequest | null;
 }
 
 export interface ColorDailyUsageResponse {
@@ -1586,6 +1640,10 @@ export interface PartSummaryResponse {
   /** @nullable */
   estimateUnavailableReason?: string | null;
   estimation?: EstimationDetails | null;
+  /** @nullable */
+  estimationPrinterBrand?: string | null;
+  /** @nullable */
+  estimationPrinterModelCode?: string | null;
   estimateStatus?: string;
   /** @nullable */
   estimatedPrintTimeMinutes?: number | null;
@@ -2140,18 +2198,6 @@ export interface SaveCostItemRequest {
   pricing?: CatalogPricing;
 }
 
-export interface ConnectionSecretResponse {
-  id?: string;
-  printerSerialNumber?: string;
-  maskedAccessCode?: string;
-  createdAtUtc?: string;
-}
-
-export interface CreateConnectionSecretRequest {
-  printerSerialNumber?: string;
-  plainAccessCode?: string;
-}
-
 export interface LoginResponse {
   token?: string;
   expiresAtUtc?: string;
@@ -2238,6 +2284,20 @@ export interface EditAssemblyRequest {
   additionalCosts?: AssemblyCostInput[] | null;
 }
 
+export interface AssemblyMachineCostContribution {
+  partId?: string;
+  /** @nullable */
+  brand?: string | null;
+  /** @nullable */
+  modelCode?: string | null;
+  /** @nullable */
+  hours?: number | null;
+  /** @nullable */
+  printerDepreciation?: number | null;
+  /** @nullable */
+  electricity?: number | null;
+}
+
 export interface AssemblyCostContribution {
   catalogItemId?: string;
   name?: string;
@@ -2264,6 +2324,7 @@ export interface ExplodedNonPrintedComponentResponse {
 }
 
 export interface ExplodeAssemblyResponse {
+  machineCosts?: AssemblyMachineCostContribution[];
   productionCosts?: AssemblyCostContribution[];
   finalProductCosts?: AssemblyCostContribution[];
   printedParts?: ExplodedPartResponse[];

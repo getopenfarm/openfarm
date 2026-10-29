@@ -11,16 +11,13 @@ public sealed class FarmSettingsConfiguration : IEntityTypeConfiguration<FarmSet
         builder.ToTable("FarmSettings");
 
         builder.HasKey(s => s.Id);
+        builder.Property(s => s.CurrencyCode).HasMaxLength(3).HasDefaultValue("USD").IsRequired();
 
         builder.Property(s => s.DefaultSlicerEngine)
             .IsRequired()
             .HasConversion<string>();
 
         builder.Property(s => s.DefaultSlicerVersion);
-        builder.Property(s => s.EstimationMachineProfileId);
-        builder.Property(s => s.EstimationProcessProfileId);
-        builder.Property(s => s.EstimationFilamentProfileId);
-        builder.Property(s => s.EstimationBuildPlateType).HasConversion<string>();
 
         builder.Property(s => s.CreatedAtUtc)
             .IsRequired();

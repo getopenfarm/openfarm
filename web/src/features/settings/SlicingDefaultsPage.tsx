@@ -14,26 +14,15 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
 import { invalidateSlicingChecks } from '@/features/slicing/invalidateSlicingChecks';
 import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
-import type {
-  AvailableSlicerResponse,
-  EstimationProfilesRequest,
-} from '@/lib/api/generated/endpoints.schemas';
-import { useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint } from '@/lib/api/generated/profiles/profiles';
+import type { AvailableSlicerResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint,
   useOpenFarmApiEndpointsSettingsUpdateSlicingDefaultsEndpoint,
 } from '@/lib/api/generated/settings/settings';
-import {
-  SettingsHint,
-  SettingsRow,
-  SettingsRows,
-  SettingsSection,
-  SettingsSubhead,
-} from './SettingsParts';
+import { SettingsRow, SettingsRows, SettingsSection } from './SettingsParts';
 
 const FORM_ID = 'slicing-defaults-form';
 
@@ -51,28 +40,6 @@ export function SlicingDefaultsPage() {
   const effectiveDefault = data?.default;
 
   const [selection, setSelection] = useState('');
-  const [profiles, setProfiles] =
-    useState<Partial<EstimationProfilesRequest> | null>(null);
-  const [machineName, setMachineName] = useState<string | null>(null);
-  const [profilesDirty, setProfilesDirty] = useState(false);
-  useEffect(() => {
-    setProfiles(data?.estimationProfiles ?? null);
-    setProfilesDirty(false);
-  }, [data?.estimationProfiles]);
-  const machineQuery = useOpenFarmApiEndpointsProfilesGetMachineProfileEndpoint(
-    profiles?.machineProfileId ?? '',
-    {
-      query: { enabled: Boolean(profiles?.machineProfileId) && !machineName },
-    },
-  );
-  const effectiveMachineName = machineName ?? machineQuery.data?.data?.name;
-  const incompleteProfiles =
-    profiles !== null &&
-    (!profiles.machineProfileId ||
-      !profiles.processProfileId ||
-      !profiles.filamentProfileId ||
-      !profiles.buildPlateType);
-
   // Follows the effective default whenever it (re)loads — an admin who hasn't touched the picker
   // yet always sees the currently-effective slicer selected, explicit or auto-defaulted alike.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only re-syncs when the effective default's own identity changes, not on every query refetch.
@@ -117,14 +84,10 @@ export function SlicingDefaultsPage() {
       return;
     }
 
-    if (incompleteProfiles) return;
     updateMutation.mutate({
       data: {
         engine,
         version,
-        ...(profilesDirty
-          ? { estimationProfiles: profiles as EstimationProfilesRequest | null }
-          : {}),
       },
     });
   }
@@ -132,7 +95,7 @@ export function SlicingDefaultsPage() {
   return (
     <SettingsSection
       title="Slicing defaults"
-      description="Defaults for estimates. Project 3MF uses its embedded settings."
+      description="Choose the default slicer engine and version."
     >
       {query.isLoading ? (
         <Skeleton className="h-64 w-full" />
@@ -160,17 +123,7 @@ export function SlicingDefaultsPage() {
               }
               wide
             >
-              <Select
-                value={selection}
-                onValueChange={(next) => {
-                  if (next.split('::')[0] !== selection.split('::')[0]) {
-                    setProfiles(null);
-                    setMachineName(null);
-                    setProfilesDirty(true);
-                  }
-                  setSelection(next);
-                }}
-              >
+              <Select value={selection} onValueChange={setSelection}>
                 <SelectTrigger id="slicing-default-select" className="w-full">
                   <SelectValue placeholder="Slicer version" />
                 </SelectTrigger>
@@ -197,135 +150,15 @@ export function SlicingDefaultsPage() {
             />
           )}
 
-          <SettingsSubhead>Estimation profiles</SettingsSubhead>
-          <SettingsRows>
-            <SettingsRow
-              label="Machine profile"
-              htmlFor="estimation-machine"
-              help={profiles ? undefined : 'No estimation defaults.'}
-              wide
-            >
-              <ProfilePickerCombobox
-                kind="machine"
-                id="estimation-machine"
-                ariaLabel="Estimation machine profile"
-                value={profiles?.machineProfileId}
-                onChange={(id, name) => {
-                  setProfiles(id ? { machineProfileId: id } : null);
-                  setMachineName(name ?? null);
-                  setProfilesDirty(true);
-                }}
-              />
-            </SettingsRow>
-            <SettingsRow
-              label="Process profile"
-              htmlFor="estimation-process"
-              wide
-            >
-              <ProfilePickerCombobox
-                kind="process"
-                id="estimation-process"
-                ariaLabel="Estimation process profile"
-                value={profiles?.processProfileId}
-                disabled={!profiles?.machineProfileId}
-                compatibleWithMachineName={effectiveMachineName}
-                onChange={(id) => {
-                  setProfiles((p) => ({
-                    ...p,
-                    processProfileId: id ?? undefined,
-                  }));
-                  setProfilesDirty(true);
-                }}
-              />
-            </SettingsRow>
-            <SettingsRow
-              label="Filament profile"
-              htmlFor="estimation-filament"
-              help="Does not restrict production material."
-              wide
-            >
-              <ProfilePickerCombobox
-                kind="filament"
-                id="estimation-filament"
-                ariaLabel="Estimation filament profile"
-                value={profiles?.filamentProfileId}
-                disabled={!profiles?.machineProfileId}
-                compatibleWithMachineName={effectiveMachineName}
-                onChange={(id) => {
-                  setProfiles((p) => ({
-                    ...p,
-                    filamentProfileId: id ?? undefined,
-                  }));
-                  setProfilesDirty(true);
-                }}
-              />
-            </SettingsRow>
-            <SettingsRow label="Build plate" htmlFor="estimation-plate" wide>
-              <Select
-                value={profiles?.buildPlateType ?? ''}
-                disabled={!profiles?.machineProfileId}
-                onValueChange={(plate) => {
-                  setProfiles((p) => ({ ...p, buildPlateType: plate }));
-                  setProfilesDirty(true);
-                }}
-              >
-                <SelectTrigger id="estimation-plate" className="w-full">
-                  <SelectValue placeholder="Build plate" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {[
-                      ['Cool', 'Cool Plate'],
-                      ['Engineering', 'Engineering Plate'],
-                      ['HighTemp', 'High Temp Plate'],
-                      ['TexturedPei', 'Textured PEI Plate'],
-                      ['TexturedCool', 'Textured Cool Plate'],
-                      ['Supertack', 'Supertack Plate'],
-                    ].map(([id, label]) => (
-                      <SelectItem key={id} value={id}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </SettingsRow>
-          </SettingsRows>
-          <SettingsHint>
-            Optional. Set all four to estimate STL and geometry-only 3MF without
-            a printer. Changes apply to new estimates and Reprocess. Saved parts
-            are not recalculated.
-          </SettingsHint>
-          {incompleteProfiles && (
-            <SettingsHint>
-              Set machine, process, filament, and build plate to save.
-            </SettingsHint>
-          )}
-
           <div className="mt-4 flex items-center gap-2">
             <Button
               type="submit"
               form={FORM_ID}
-              disabled={
-                updateMutation.isPending || !selection || incompleteProfiles
-              }
+              disabled={updateMutation.isPending || !selection}
             >
               {updateMutation.isPending && <Spinner data-icon="inline-start" />}
               {updateMutation.isPending ? 'Saving…' : 'Save'}
             </Button>
-            {profiles && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setProfiles(null);
-                  setMachineName(null);
-                  setProfilesDirty(true);
-                }}
-              >
-                Clear estimation profiles
-              </Button>
-            )}
           </div>
           {/* Empty form: a form ancestor makes Radix Select render a native select. */}
           <form id={FORM_ID} onSubmit={handleSave} />

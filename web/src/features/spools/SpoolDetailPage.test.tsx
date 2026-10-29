@@ -239,7 +239,7 @@ describe('SpoolDetailPage', () => {
       expect(screen.getByLabelText('Supplier')).toHaveValue('Filament Shop');
       expect(screen.getByLabelText('Order number')).toHaveValue('PO-1042');
       expect(screen.getByLabelText('Received on')).toHaveValue('2026-10-20');
-      expect(screen.getByText('18.50 per kg')).toBeInTheDocument();
+      expect(screen.getByText('USD 18.50 per kg')).toBeInTheDocument();
     });
 
     it('saves a changed supplier with the label and weight in one PUT', async () => {

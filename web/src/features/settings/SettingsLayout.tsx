@@ -2,7 +2,8 @@ import { NavLink, Outlet } from 'react-router';
 import { cn } from '@/lib/utils';
 
 const sections = [
-  { title: 'Connection credentials', to: 'connection-secrets' },
+  { title: 'General', to: 'general' },
+  { title: 'Printer costs', to: 'printer-costs' },
   { title: 'Slicing defaults', to: 'slicing-defaults' },
 ];
 

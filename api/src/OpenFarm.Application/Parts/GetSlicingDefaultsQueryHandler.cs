@@ -21,6 +21,6 @@ public sealed class GetSlicingDefaultsQueryHandler(
             ? new EffectiveSlicerDefaultSummary(def.Engine, def.Version, effective.IsExplicit)
             : null;
 
-        return new SlicingDefaults(defaultSummary, available, UpdateSlicingDefaultsCommandHandler.GetSelection(settings));
+        return new SlicingDefaults(defaultSummary, available);
     }
 }

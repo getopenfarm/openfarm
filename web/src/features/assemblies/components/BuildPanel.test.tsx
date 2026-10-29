@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -138,7 +138,7 @@ describe('BuildPanel', () => {
     );
     expect(stat('Filament').getByText('20 g')).toBeInTheDocument();
     // 2 x 0.25 + 8 x 0.05
-    expect(stat('Hardware cost').getByText('0.90')).toBeInTheDocument();
+    expect(stat('Hardware cost').getByText('USD 0.90')).toBeInTheDocument();
     // Totals only — no per-line BOM rows.
     expect(screen.queryByText('Bracket')).not.toBeInTheDocument();
     expect(screen.queryByText('M3 screw')).not.toBeInTheDocument();
@@ -205,8 +205,8 @@ describe('BuildPanel', () => {
   });
 
   it.each([
-    { price: 0, rowCost: '0.00', subtotal: '0.00' },
-    { price: null, rowCost: 'Unavailable', subtotal: '3.00 (partial)' },
+    { price: 0, rowCost: 'USD 0.00', subtotal: 'USD 0.00' },
+    { price: null, rowCost: 'Unavailable', subtotal: 'USD 3.00 (partial)' },
   ])(
     'keeps zero and missing prices distinct in the build sheet ($price)',
     async ({ price, rowCost, subtotal }) => {
@@ -269,11 +269,11 @@ describe('BuildPanel', () => {
         within(row).getByRole('cell', { name: rowCost }),
       ).toBeInTheDocument();
       expect(
-        stat('Filament cost').getByText(price === 0 ? '3.00' : subtotal),
+        stat('Filament cost').getByText(price === 0 ? 'USD 3.00' : subtotal),
       ).toBeInTheDocument();
       expect(
         stat('Estimated total including shipping').getByText(
-          price === 0 ? '3.00' : subtotal,
+          price === 0 ? 'USD 3.00 (partial)' : subtotal,
         ),
       ).toBeInTheDocument();
     },
@@ -382,7 +382,7 @@ describe('BuildPanel', () => {
       within(basic).getByRole('cell', { name: '100 g' }),
     ).toBeInTheDocument();
     expect(
-      within(basic).getByRole('cell', { name: '2.00' }),
+      within(basic).getByRole('cell', { name: 'USD 2.00' }),
     ).toBeInTheDocument();
     const premium = within(table).getByRole('row', {
       name: /Polymaker PETG · Snow white/,
@@ -391,7 +391,7 @@ describe('BuildPanel', () => {
       within(premium).getByRole('cell', { name: '50 g' }),
     ).toBeInTheDocument();
     expect(
-      within(premium).getByRole('cell', { name: '1.50' }),
+      within(premium).getByRole('cell', { name: 'USD 1.50' }),
     ).toBeInTheDocument();
     expect(
       within(table).getByRole('row', { name: /PETG #FFFFFF/ }),
@@ -401,7 +401,7 @@ describe('BuildPanel', () => {
     ).toHaveTextContent('5 g');
     expect(stat('Filament').getByText('165 g')).toBeInTheDocument();
     expect(
-      stat('Filament cost').getByText('3.50 (partial)'),
+      stat('Filament cost').getByText('USD 3.50 (partial)'),
     ).toBeInTheDocument();
   });
 
@@ -489,14 +489,16 @@ describe('BuildPanel', () => {
     );
     renderPanel(LINES);
     await vi.waitFor(() =>
-      expect(stat('Filament cost').getByText('8.00')).toBeInTheDocument(),
+      expect(stat('Filament cost').getByText('USD 8.00')).toBeInTheDocument(),
     );
     expect(
-      stat('Estimated total including shipping').getByText('8.90'),
+      stat('Estimated total including shipping').getByText(
+        'USD 8.90 (partial)',
+      ),
     ).toBeInTheDocument();
     const colors = screen.getByRole('table', { name: 'Filament breakdown' });
-    expect(within(colors).getByText('6.00')).toBeInTheDocument();
-    expect(within(colors).getByText('2.00')).toBeInTheDocument();
+    expect(within(colors).getByText('USD 6.00')).toBeInTheDocument();
+    expect(within(colors).getByText('USD 2.00')).toBeInTheDocument();
   });
 
   it('keeps totals unavailable after catalog failure and supports keyboard retry', async () => {
@@ -523,7 +525,9 @@ describe('BuildPanel', () => {
     await user.keyboard('{Enter}');
     await vi.waitFor(() =>
       expect(
-        stat('Estimated total including shipping').getByText('0.90 (partial)'),
+        stat('Estimated total including shipping').getByText(
+          'USD 0.90 (partial)',
+        ),
       ).toBeInTheDocument(),
     );
     expect(stat('Filament cost').getByText('Unavailable')).toBeInTheDocument();
@@ -617,12 +621,12 @@ it('adds area packaging and shipping while inheriting only production costs', as
   );
   await vi.waitFor(() =>
     expect(
-      stat('Estimated total including shipping').getByText('14.04'),
+      stat('Estimated total including shipping').getByText('USD 14.04'),
     ).toBeInTheDocument(),
   );
-  expect(stat('Product cost').getByText('6.04')).toBeInTheDocument();
-  expect(stat('Labor cost').getByText('6.00')).toBeInTheDocument();
-  expect(stat('Shipping allowance').getByText('8.00')).toBeInTheDocument();
+  expect(stat('Product cost').getByText('USD 6.04')).toBeInTheDocument();
+  expect(stat('Labor cost').getByText('USD 6.00')).toBeInTheDocument();
+  expect(stat('Shipping allowance').getByText('USD 8.00')).toBeInTheDocument();
   rerender(
     <QueryClientProvider client={client}>
       <BuildPanel
@@ -643,7 +647,107 @@ it('adds area packaging and shipping while inheriting only production costs', as
     </QueryClientProvider>,
   );
   expect(
-    stat('Estimated total including shipping').getByText('6.08'),
+    stat('Estimated total including shipping').getByText('USD 6.08'),
+  ).toBeInTheDocument();
+  vi.unstubAllGlobals();
+});
+
+it('adds machine costs to live draft totals and keeps depreciation available without electricity', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes('/settings/printer-costs'))
+        return Promise.resolve(
+          jsonResponse({
+            models: [
+              {
+                brand: 'Bambu',
+                modelCode: 'P1S',
+                depreciationPerHour: 0.9,
+                electricityPerHour: 0.075,
+              },
+            ],
+          }),
+        );
+      if (url.includes('/parts'))
+        return Promise.resolve(
+          jsonResponse({
+            parts: [
+              {
+                id: 'p1',
+                unitsPerPrint: 2,
+                estimatedPrintTimeMinutes: 120,
+                estimationPrinterBrand: 'Bambu',
+                estimationPrinterModelCode: 'P1S',
+                filamentByColor: [{ grams: 10, narrowFilamentVariantId: 'v' }],
+              },
+            ],
+            totalCount: 1,
+          }),
+        );
+      if (url.includes('/filaments'))
+        return Promise.resolve(
+          jsonResponse({
+            filaments: [
+              { pricePerKg: 0, variants: [{ id: 'v', colorName: 'White' }] },
+            ],
+          }),
+        );
+      return Promise.resolve(jsonResponse({ items: [], totalCount: 0 }));
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const { rerender } = render(
+    <QueryClientProvider client={client}>
+      <BuildPanel lines={LINES.slice(0, 1)} />
+    </QueryClientProvider>,
+  );
+  await waitFor(() =>
+    expect(
+      stat('Printer depreciation').getByText('USD 1.80'),
+    ).toBeInTheDocument(),
+  );
+  expect(stat('Electricity').getByText('USD 0.15')).toBeInTheDocument();
+  expect(stat('Product cost').getByText('USD 1.95')).toBeInTheDocument();
+  expect(
+    stat('Estimated total including shipping').getByText('USD 1.95'),
+  ).toBeInTheDocument();
+  rerender(
+    <QueryClientProvider client={client}>
+      <BuildPanel lines={[{ ...LINES[0], quantity: 1 }]} />
+    </QueryClientProvider>,
+  );
+  await waitFor(() =>
+    expect(
+      stat('Printer depreciation').getByText('USD 0.90'),
+    ).toBeInTheDocument(),
+  );
+  expect(stat('Electricity').getByText('USD 0.07')).toBeInTheDocument();
+  await act(async () => {
+    client.setQueryData(['/api/v1/settings/printer-costs'], {
+      data: {
+        models: [
+          {
+            brand: 'Bambu',
+            modelCode: 'P1S',
+            depreciationPerHour: 0.9,
+            electricityPerHour: null,
+          },
+        ],
+      },
+    });
+  });
+  await waitFor(() =>
+    expect(stat('Electricity').getByText('Unavailable')).toBeInTheDocument(),
+  );
+  expect(
+    stat('Printer depreciation').getByText('USD 0.90'),
+  ).toBeInTheDocument();
+  expect(
+    stat('Product cost').getByText('USD 0.90 (partial)'),
   ).toBeInTheDocument();
   vi.unstubAllGlobals();
 });

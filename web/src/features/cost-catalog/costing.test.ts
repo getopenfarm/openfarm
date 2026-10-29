@@ -71,7 +71,9 @@ describe('measured material estimates', () => {
         packagePrice: null,
       }),
     ).toBeNull();
-    expect(formatRate(0.00001)).toBe('0.00001');
+    expect(formatRate(0.00001)).toBe('USD 0.00001');
+    expect(formatRate(0.00001, 'MYR')).toBe('MYR 0.00001');
+    expect(formatRate(0, 'JPY')).toBe('JPY 0.00');
     expect(formatRate(1e-24)).not.toBe('0.00');
     expect(usage({ quantity: 6 }, 'Hour') * 20).toBe(2);
   });

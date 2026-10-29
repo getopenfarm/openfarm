@@ -567,15 +567,15 @@ describe('FilamentFormPage', () => {
     ).toEqual(['pricePerKg', 'lowStockGrams', 'lowStockDays']);
     expect(screen.getByText('No price')).toBeInTheDocument();
     await user.type(price, '25.5');
-    expect(screen.getByText('25.50/kg default')).toBeInTheDocument();
+    expect(screen.getByText('USD 25.50/kg default')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Edit Galaxy Black' }));
     let dialog = within(screen.getByRole('dialog'));
     const override = dialog.getByLabelText('Price per kg');
-    expect(override).toHaveAttribute('placeholder', 'Default: 25.50');
+    expect(override).toHaveAttribute('placeholder', 'Default: USD 25.50');
     await user.type(override, '30');
     await user.click(dialog.getByRole('button', { name: 'Update variant' }));
-    expect(screen.getByText('30.00/kg')).toBeInTheDocument();
+    expect(screen.getByText('USD 30.00/kg')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(writes).toHaveLength(1));

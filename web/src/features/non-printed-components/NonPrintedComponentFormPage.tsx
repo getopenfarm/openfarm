@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
@@ -240,7 +241,12 @@ export function NonPrintedComponentFormPage({
                     <FormItem>
                       <FormLabel>Cost per piece (optional)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" min={0} {...field} />
+                        <MoneyInput
+                          type="number"
+                          step="any"
+                          min={0}
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

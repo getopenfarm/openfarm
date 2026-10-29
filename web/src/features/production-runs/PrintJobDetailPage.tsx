@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { PartFilamentRequirementsList } from '@/features/parts/components/PartFilamentRequirementsList';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
 import { downloadFile } from '@/lib/api/downloadFile';
 import type { PrintJobResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -227,6 +228,7 @@ const PRICE_SOURCE_LABEL: Record<string, string> = {
 };
 
 function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
+  const currency = useCurrency();
   const terminal = TERMINAL_STATUSES.includes(job.status ?? '');
   const lines = job.filamentConsumption ?? [];
   // The total adds the lines that have a cost. It is partial while any line has none: no price, or nothing deducted.
@@ -274,7 +276,7 @@ function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
                     <span className="flex items-center gap-2 tabular-nums">
                       <span>{formatGrams(line.gramsConsumed)}</span>
                       {line.cost != null ? (
-                        <span>{formatCost(line.cost)}</span>
+                        <span>{formatCost(line.cost, currency)}</span>
                       ) : (
                         line.gramsConsumed > 0 && (
                           <span className="text-muted-foreground">
@@ -287,7 +289,7 @@ function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
                       <span className="flex items-center gap-2 text-xs text-muted-foreground">
                         {line.pricePerKg != null && (
                           <span>
-                            {formatCost(line.pricePerKg)} per kg
+                            {formatCost(line.pricePerKg, currency)} per kg
                             {line.priceSource &&
                               ` · ${PRICE_SOURCE_LABEL[line.priceSource] ?? line.priceSource}`}
                           </span>
@@ -322,7 +324,9 @@ function JobFilamentSummary({ job }: { job: PrintJobResponse }) {
               Filament cost
               {partial && <Badge kind="amber">Partial</Badge>}
             </span>
-            <span className="tabular-nums">{formatCost(totalCost)}</span>
+            <span className="tabular-nums">
+              {formatCost(totalCost, currency)}
+            </span>
           </div>
         )}
       </CardContent>

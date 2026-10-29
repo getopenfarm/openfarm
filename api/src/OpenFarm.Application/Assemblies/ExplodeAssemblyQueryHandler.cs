@@ -4,7 +4,7 @@ using OpenFarm.Domain.Assemblies;
 namespace OpenFarm.Application.Assemblies;
 
 /// <summary>FR-009 — pure, side-effect-free. Validates quantity (FR-009e) before delegating to the recursive CTE (research.md R1).</summary>
-public sealed class ExplodeAssemblyQueryHandler(IAssemblyGraphQueryService graphQueryService, IAssemblyRepository assemblyRepository, INonPrintedComponentRepository items)
+public sealed class ExplodeAssemblyQueryHandler(IAssemblyGraphQueryService graphQueryService, IAssemblyRepository assemblyRepository, INonPrintedComponentRepository items, AssemblyMachineCosts machineCosts)
     : IQueryHandler<ExplodeAssemblyQuery, BomExplosionResult>
 {
     public async Task<BomExplosionResult> HandleAsync(ExplodeAssemblyQuery query, CancellationToken cancellationToken)
@@ -21,6 +21,11 @@ public sealed class ExplodeAssemblyQueryHandler(IAssemblyGraphQueryService graph
 
         var explosion = await graphQueryService.ExplodeAsync(query.AssemblyId, query.Quantity, cancellationToken);
         var costs = await new AssemblyCostRollup(assemblyRepository, items).CalculateAsync(query.AssemblyId, query.Quantity, cancellationToken);
-        return explosion with { ProductionCosts = costs.Production, FinalProductCosts = costs.FinalProduct };
+        return explosion with
+        {
+            ProductionCosts = costs.Production,
+            FinalProductCosts = costs.FinalProduct,
+            MachineCosts = await machineCosts.CalculateAsync(explosion.PrintedParts, cancellationToken)
+        };
     }
 }

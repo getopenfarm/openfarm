@@ -13,4 +13,4 @@ public sealed record AvailableSlicerSummary(SlicerEngine Engine, string Version,
 /// every host-platform-usable bundled slicer (contracts/slicer-management-api.md GET/PUT) — shared
 /// by both the read query and the "set default" command's response.
 /// </summary>
-public sealed record SlicingDefaults(EffectiveSlicerDefaultSummary? Default, IReadOnlyList<AvailableSlicerSummary> Available, EstimationProfileSelection? EstimationProfiles = null);
+public sealed record SlicingDefaults(EffectiveSlicerDefaultSummary? Default, IReadOnlyList<AvailableSlicerSummary> Available);

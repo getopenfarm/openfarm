@@ -279,7 +279,7 @@ describe('FilamentDetailPage', () => {
     expect(
       await screen.findByRole('heading', { name: 'Bambu · PLA Basic' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('PLA · 24.99/kg')).toBeInTheDocument();
+    expect(screen.getByText('PLA · USD 24.99/kg')).toBeInTheDocument();
     expect(screen.getByText('1 color low')).toBeInTheDocument();
     expect(screen.getByText('Partial · 1 spool unpriced')).toBeInTheDocument();
     expect(screen.queryByText('5 kg')).not.toBeInTheDocument();

@@ -26,6 +26,7 @@ import {
   unitLabels,
   usage,
 } from '@/features/cost-catalog/costing';
+import { useCurrency } from '@/features/settings/generalSettings';
 import type {
   AssemblyCostInput,
   CostItemResponse,
@@ -36,10 +37,10 @@ import { CostLineDialog } from './CostLineDialog';
 
 const usageId = (catalogItemId: string) => `cost-usage-${catalogItemId}`;
 
-const rateText = (item: CostItemResponse) =>
+const rateText = (item: CostItemResponse, currency: string) =>
   item.effectiveRate == null
     ? 'Not priced'
-    : `${formatRate(item.effectiveRate)} / ${unitLabels[item.pricing?.unit ?? 'Piece']}`;
+    : `${formatRate(item.effectiveRate, currency)} / ${unitLabels[item.pricing?.unit ?? 'Piece']}`;
 
 const byName = (a: string, b: string) => a.localeCompare(b);
 
@@ -200,6 +201,7 @@ function CostRow({
   onEdit: () => void;
   onRemove: () => void;
 }) {
+  const currency = useCurrency();
   const id = line.catalogItemId ?? '';
   const name = item?.name ?? 'Item unavailable';
   const unit = item?.pricing?.unit ?? 'Piece';
@@ -254,7 +256,7 @@ function CostRow({
           {item?.effectiveRate == null ? (
             <Badge variant="outline">Not priced</Badge>
           ) : consumed > 0 ? (
-            formatCost(consumed * item.effectiveRate)
+            formatCost(consumed * item.effectiveRate, currency)
           ) : (
             '—'
           )}
@@ -345,6 +347,7 @@ function CostItemPicker({
   triggerRef: Ref<HTMLButtonElement>;
   onPick: (item: CostItemResponse) => void;
 }) {
+  const currency = useCurrency();
   const [open, setOpen] = useState(false);
   const picked = useRef(false);
   const sorted = [...items].sort((a, b) => byName(a.name ?? '', b.name ?? ''));
@@ -404,7 +407,7 @@ function CostItemPicker({
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {reason ??
-                        `${categoryLabel(item.pricing?.category ?? 'Other')} · ${rateText(item)}`}
+                        `${categoryLabel(item.pricing?.category ?? 'Other')} · ${rateText(item, currency)}`}
                     </span>
                   </span>
                 </CommandItem>

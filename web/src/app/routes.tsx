@@ -1,11 +1,11 @@
 import { createBrowserRouter, Navigate } from 'react-router';
+import { GeneralSettingsPage } from '@/features/settings/GeneralSettingsPage';
+import { CurrencyProvider } from '@/features/settings/generalSettings';
 import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
 import { AssemblyDetailPage } from '../features/assemblies/AssemblyDetailPage';
 import { AssemblyFormPage } from '../features/assemblies/AssemblyFormPage';
 import { LoginPage } from '../features/auth/LoginPage';
-import { ConnectionSecretFormPage } from '../features/connection-secrets/ConnectionSecretFormPage';
-import { ConnectionSecretsPage } from '../features/connection-secrets/ConnectionSecretsPage';
 import { CostCatalogPage } from '../features/cost-catalog/CostCatalogPage';
 import { CostItemFormPage } from '../features/cost-catalog/CostItemFormPage';
 import { LegacyCostCatalogRedirect } from '../features/cost-catalog/LegacyCostCatalogRedirect';
@@ -29,6 +29,8 @@ import { QueuePage } from '../features/production-runs/QueuePage';
 import { ProfileDetailPage } from '../features/profiles/ProfileDetailPage';
 import { ProfilesImportPage } from '../features/profiles/ProfilesImportPage';
 import { ProfilesPage } from '../features/profiles/ProfilesPage';
+import { PrinterCostsPage } from '../features/settings/PrinterCostsPage';
+import { PrinterModelCostPage } from '../features/settings/PrinterModelCostPage';
 import { SettingsLayout } from '../features/settings/SettingsLayout';
 import { SlicingDefaultsPage } from '../features/settings/SlicingDefaultsPage';
 import { SpoolDetailPage } from '../features/spools/SpoolDetailPage';
@@ -46,7 +48,11 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute />,
     children: [
       {
-        element: <AppShell />,
+        element: (
+          <CurrencyProvider>
+            <AppShell />
+          </CurrencyProvider>
+        ),
         children: [
           {
             path: '/',
@@ -268,22 +274,24 @@ export const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <Navigate to="connection-secrets" replace />,
+                element: <Navigate to="general" replace />,
               },
               {
-                path: 'connection-secrets',
-                handle: { title: 'Connection credentials' },
-                children: [
-                  {
-                    index: true,
-                    element: <ConnectionSecretsPage />,
-                  },
-                  {
-                    path: 'new',
-                    element: <ConnectionSecretFormPage />,
-                    handle: { title: 'Add credential' },
-                  },
-                ],
+                path: 'general',
+                element: <GeneralSettingsPage />,
+                handle: { title: 'General' },
+              },
+              {
+                path: 'printer-costs',
+                element: <PrinterCostsPage />,
+              },
+              {
+                path: 'printer-costs/new',
+                element: <PrinterModelCostPage />,
+              },
+              {
+                path: 'printer-costs/models/:brand/:modelCode',
+                element: <PrinterModelCostPage />,
               },
               {
                 path: 'slicing-defaults',

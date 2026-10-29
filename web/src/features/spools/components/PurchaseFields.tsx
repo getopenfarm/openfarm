@@ -9,6 +9,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { formatCost } from '@/lib/formatUnits';
 
 const MAX_TEXT_LENGTH = 100;
@@ -64,6 +66,7 @@ export function PurchaseFields({
   spoolWeightGrams?: number;
   withPrice?: boolean;
 }) {
+  const currency = useCurrency();
   const { control, watch } = useFormContext<PurchaseValues>();
   const price = withPrice ? watch('price').trim() : '';
   const pricePerKg =
@@ -87,7 +90,7 @@ export function PurchaseFields({
             <FormItem>
               <FormLabel>Price per spool</FormLabel>
               <FormControl>
-                <Input
+                <MoneyInput
                   type="number"
                   inputMode="decimal"
                   step="any"
@@ -97,7 +100,7 @@ export function PurchaseFields({
               </FormControl>
               {pricePerKg !== null && (
                 <FormDescription>
-                  {formatCost(pricePerKg)} per kg
+                  {formatCost(pricePerKg, currency)} per kg
                 </FormDescription>
               )}
               <FormMessage />

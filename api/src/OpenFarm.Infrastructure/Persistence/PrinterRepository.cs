@@ -9,7 +9,7 @@ public sealed class PrinterRepository(OpenFarmDbContext dbContext) : IPrinterRep
     public async Task AddAsync(Printer printer, CancellationToken cancellationToken)
     {
         dbContext.Printers.Add(printer);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
     }
 
     public Task<Printer?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
@@ -30,6 +30,27 @@ public sealed class PrinterRepository(OpenFarmDbContext dbContext) : IPrinterRep
         return dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken) =>
-        dbContext.SaveChangesAsync(cancellationToken);
+    public async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        var models = dbContext.ChangeTracker.Entries<Printer>()
+            .Where(e => e.State == EntityState.Added)
+            .Select(e => (e.Entity.Brand, e.Entity.ModelCode)).Distinct().ToList();
+        if (models.Count == 0)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return;
+        }
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        foreach (var (brand, code) in models.OrderBy(m => m.Brand, StringComparer.Ordinal).ThenBy(m => m.ModelCode, StringComparer.Ordinal))
+        {
+            await PrinterModelCostLock.AcquireAsync(dbContext, brand, code, cancellationToken);
+            await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO "PrinterModelCosts" ("Brand", "ModelCode") VALUES ({brand}, {code})
+                ON CONFLICT ("Brand", "ModelCode") DO NOTHING
+                """, cancellationToken);
+        }
+        await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+    }
 }

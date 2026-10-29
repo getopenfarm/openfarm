@@ -1,5 +1,6 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { PackageIcon, PlusIcon } from 'lucide-react';
+import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
@@ -14,13 +15,17 @@ import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCurrency } from '@/features/settings/generalSettings';
 import type {
   ListNonPrintedComponentsResponse,
   NonPrintedComponentResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndpoint } from '@/lib/api/generated/non-printed-components/non-printed-components';
+import { formatCost } from '@/lib/formatUnits';
 
-const columns: ColumnDef<NonPrintedComponentResponse>[] = [
+const makeColumns = (
+  currency: string,
+): ColumnDef<NonPrintedComponentResponse>[] => [
   {
     id: 'name',
     accessorKey: 'name',
@@ -46,13 +51,17 @@ const columns: ColumnDef<NonPrintedComponentResponse>[] = [
     header: 'Cost per piece',
     cell: ({ row }) => (
       <span className="font-mono text-sm">
-        {row.original.unitCost != null ? row.original.unitCost.toFixed(2) : '—'}
+        {row.original.unitCost != null
+          ? formatCost(row.original.unitCost, currency)
+          : '—'}
       </span>
     ),
   },
 ];
 
 export function NonPrintedComponentsPage() {
+  const currency = useCurrency();
+  const columns = useMemo(() => makeColumns(currency), [currency]);
   const navigate = useNavigate();
   const list = useServerListState('name', 'name');
   const { page, pageSize, setPage, setPageSize } = list;

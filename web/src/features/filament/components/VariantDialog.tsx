@@ -17,7 +17,9 @@ import {
   FieldSet,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { UnitInput } from '@/features/spools/components/UnitInput';
 import type { FilamentProfileAssignmentInput } from '@/lib/api/generated/endpoints.schemas';
 import { formatCost, formatWeight } from '@/lib/formatUnits';
@@ -89,6 +91,7 @@ export function VariantDialog({
   assignments,
   onSave,
 }: VariantDialogProps) {
+  const currency = useCurrency();
   const [draft, setDraft] = useState<FilamentVariantDraft>(emptyVariant());
   // Row key -> profile id; a missing key inherits the row's default.
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -251,7 +254,7 @@ export function VariantDialog({
             <FieldGroup className="gap-4">
               <Field data-invalid={priceInvalid || undefined}>
                 <FieldLabel htmlFor="variant-price">Price per kg</FieldLabel>
-                <Input
+                <MoneyInput
                   id="variant-price"
                   type="number"
                   min="0"
@@ -263,7 +266,7 @@ export function VariantDialog({
                   placeholder={
                     inheritedPrice == null
                       ? 'No default price'
-                      : `Default: ${formatCost(inheritedPrice)}`
+                      : `Default: ${formatCost(inheritedPrice, currency)}`
                   }
                   value={draft.pricePerKg ?? ''}
                   onChange={(event) =>

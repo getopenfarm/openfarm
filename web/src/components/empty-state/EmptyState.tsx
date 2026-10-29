@@ -81,7 +81,7 @@ export function ErrorState({
     <EmptyState
       {...props}
       action={
-        <Button variant="outline" onClick={onRetry}>
+        <Button type="button" variant="outline" onClick={onRetry}>
           {retryLabel}
         </Button>
       }

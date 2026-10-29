@@ -28,6 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { ShelfGroups } from '@/features/spools/components/ShelfGroups';
 import { SpoolHistoryTable } from '@/features/spools/components/SpoolHistoryTable';
 import { SpoolsTable } from '@/features/spools/components/SpoolsTable';
@@ -106,6 +107,7 @@ function SectionTitle({ title, count }: { title: string; count: number }) {
  * load whole; finished ones, which pile up by the thousand, page from the server.
  */
 export function FilamentDetailPage() {
+  const currency = useCurrency();
   const { id = '' } = useParams<{ id: string }>();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<SpoolView>('active');
@@ -316,7 +318,7 @@ export function FilamentDetailPage() {
           filament.materialType,
           filament.pricePerKg == null
             ? null
-            : `${formatCost(filament.pricePerKg)}/kg`,
+            : `${formatCost(filament.pricePerKg, currency)}/kg`,
         ]
           .filter(Boolean)
           .join(' · ')}

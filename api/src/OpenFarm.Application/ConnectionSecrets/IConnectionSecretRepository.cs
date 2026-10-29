@@ -6,7 +6,6 @@ public interface IConnectionSecretRepository
 {
     Task AddAsync(ConnectionSecret connectionSecret, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<ConnectionSecret>> ListAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Natural-key lookup by printer serial — how a printer's connector resolves its LAN

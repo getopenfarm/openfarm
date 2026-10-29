@@ -12,9 +12,9 @@ function renderAt(path: string) {
         children: [
           {
             index: true,
-            element: <Navigate to="connection-secrets" replace />,
+            element: <Navigate to="general" replace />,
           },
-          { path: 'connection-secrets', element: <div>Credentials page</div> },
+          { path: 'general', element: <div>General page</div> },
           { path: 'slicing-defaults', element: <div>Slicing page</div> },
         ],
       },
@@ -29,20 +29,25 @@ describe('SettingsLayout', () => {
     renderAt('/settings/slicing-defaults');
 
     expect(
-      screen.getByRole('link', { name: 'Connection credentials' }),
-    ).toHaveAttribute('href', '/settings/connection-secrets');
+      screen.queryByRole('link', { name: 'Connection credentials' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Slicing defaults' }),
     ).toHaveAttribute('href', '/settings/slicing-defaults');
+    expect(screen.getByRole('link', { name: 'Printer costs' })).toHaveAttribute(
+      'href',
+      '/settings/printer-costs',
+    );
     expect(screen.getByText('Slicing page')).toBeInTheDocument();
   });
 
-  it('redirects the index to Connection credentials', () => {
+  it('redirects the index to General', () => {
     renderAt('/settings');
 
-    expect(screen.getByText('Credentials page')).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Connection credentials' }),
-    ).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText('General page')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'General' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 });

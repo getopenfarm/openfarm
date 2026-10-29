@@ -37,6 +37,8 @@ public sealed class PartSummaryResponse
     public List<string> ProcessingWarnings { get; set; } = [];
     public string? EstimateUnavailableReason { get; set; }
     public OpenFarm.Domain.Parts.EstimationDetails? Estimation { get; set; }
+    public string? EstimationPrinterBrand { get; set; }
+    public string? EstimationPrinterModelCode { get; set; }
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
@@ -85,6 +87,8 @@ public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> ha
                 ProcessingWarnings = p.ProcessingWarnings?.ToList() ?? [],
                 EstimateUnavailableReason = p.EstimateUnavailableReason,
                 Estimation = p.Estimation,
+                EstimationPrinterBrand = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.Brand.ToString(),
+                EstimationPrinterModelCode = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.ModelCode,
                 EstimateStatus = p.EstimateStatus,
                 EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
                 EstimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,

@@ -135,7 +135,7 @@ public class LibraryFallbackStlEstimateTests(CustomWebApplicationFactory factory
         // reaching the (always-broken, in this test environment) CLI invocation.
         finalJob.Status.Should().Be("ReadyForReview");
         finalJob.Preview!.EstimateStatus.Should().Be("Unavailable");
-        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("default estimation profiles");
+        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("embedded slicing settings");
         finalJob.Preview!.EstimateUnavailableReason.Should().NotContain("'PLA'");
     }
 }

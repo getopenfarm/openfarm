@@ -1,5 +1,6 @@
 import { KpiCard } from '@/components/kpi-card/KpiCard';
 import { KpiStrip } from '@/components/kpi-card/KpiStrip';
+import { useCurrency } from '@/features/settings/generalSettings';
 import type { VariantStockResponse } from '@/lib/api/generated/endpoints.schemas';
 import { formatCost, formatWeight } from '@/lib/formatUnits';
 import { pluralize } from '@/lib/pluralize';
@@ -16,6 +17,7 @@ export function StockTiles({
   stock: VariantStockResponse[];
   size?: 'default' | 'compact';
 }) {
+  const currency = useCurrency();
   const totals = sumStock(stock);
   const cells = [
     {
@@ -29,7 +31,7 @@ export function StockTiles({
     },
     {
       label: 'Value',
-      value: formatCost(totals.value),
+      value: formatCost(totals.value, currency),
       sub:
         totals.unpricedSpools > 0
           ? `Partial · ${pluralize(totals.unpricedSpools, 'spool')} unpriced`

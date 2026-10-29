@@ -11,6 +11,7 @@ import {
   type RefObject,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -32,6 +33,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { CostItemResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
@@ -60,7 +62,7 @@ interface RemovableCostItem {
   name: string;
 }
 
-const columns: ColumnDef<CostItemResponse>[] = [
+const makeColumns = (currency: string): ColumnDef<CostItemResponse>[] => [
   {
     id: 'name',
     accessorKey: 'name',
@@ -113,8 +115,8 @@ const columns: ColumnDef<CostItemResponse>[] = [
       return (
         <span className="tabular-nums">
           {quantity != null
-            ? `${formatRate(price)} for ${quantityLabel(quantity, unit)}`
-            : `${formatRate(price)} per ${unitLabels[unit]}`}
+            ? `${formatRate(price, currency)} for ${quantityLabel(quantity, unit)}`
+            : `${formatRate(price, currency)} per ${unitLabels[unit]}`}
         </span>
       );
     },
@@ -129,7 +131,7 @@ const columns: ColumnDef<CostItemResponse>[] = [
           <Badge variant="outline">Not priced</Badge>
         ) : (
           <span className="whitespace-nowrap font-mono tabular-nums">
-            {formatRate(row.original.effectiveRate)}{' '}
+            {formatRate(row.original.effectiveRate, currency)}{' '}
             <span className="text-muted-foreground">
               / {unitLabels[row.original.pricing?.unit ?? 'Piece']}
             </span>
@@ -205,7 +207,7 @@ function ActionsCell({ row }: CellContext<CostItemResponse, unknown>) {
 }
 
 // Stable cell component identities keep open menus and dialogs mounted during selection/mutations.
-const tableColumns: ColumnDef<CostItemResponse>[] = [
+const makeTableColumns = (currency: string): ColumnDef<CostItemResponse>[] => [
   {
     id: 'select',
     enableSorting: false,
@@ -213,7 +215,7 @@ const tableColumns: ColumnDef<CostItemResponse>[] = [
     header: SelectionHeader,
     cell: SelectionCell,
   },
-  ...columns,
+  ...makeColumns(currency),
   {
     id: 'actions',
     header: () => <span className="sr-only">Actions</span>,
@@ -232,6 +234,8 @@ export function CostItemsTable({
   fallbackFocusRef,
   onPendingChange,
 }: CostItemsTableProps) {
+  const currency = useCurrency();
+  const tableColumns = useMemo(() => makeTableColumns(currency), [currency]);
   const queryClient = useQueryClient();
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [targets, setTargets] = useState<RemovableCostItem[]>([]);

@@ -18,8 +18,9 @@ export const formatPercent = (share: number) => `${Math.round(share * 100)}%`;
 export const formatHours = (hours: number) =>
   `${trim(hours, hours < 100 ? 1 : 0)} h`;
 
-/** 0.125 -> "0.13"; no currency symbol — the app has no currency setting. */
-export const formatCost = (n: number) => n.toFixed(2);
+/** Monetary totals keep two decimals; currency codes are unambiguous. */
+export const formatCost = (n: number, currency = 'USD') =>
+  `${currency} ${n.toFixed(2)}`;
 
 /** 0.4 -> "0.4 mm"; keeps up to 2 decimals. */
 export const formatMm = (n: number) => `${trim(n, 2)} mm`;
@@ -35,3 +36,6 @@ export function formatFileSize(bytes: number): string {
     ? `${mb.toFixed(1)} MB`
     : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
+
+/** Average printing power, in watts. */
+export const formatWatts = (watts: number) => `${trim(watts, 2)} W`;

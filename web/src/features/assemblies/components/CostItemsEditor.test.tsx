@@ -128,12 +128,12 @@ describe('CostItemsEditor', () => {
     await openPicker(user);
     const options = await screen.findAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
-      'Assembly laborLabor · 24.00 / hour',
-      'Bubble wrapPackaging · 0.40 / m²',
-      'Courier bagPackaging · 0.30 / piece',
-      'M3 screwHardware · 0.05 / piece',
+      'Assembly laborLabor · USD 24.00 / hour',
+      'Bubble wrapPackaging · USD 0.40 / m²',
+      'Courier bagPackaging · USD 0.30 / piece',
+      'M3 screwHardware · USD 0.05 / piece',
       'Mystery glueConsumables · Not priced',
-      'TapeConsumables · 0.06 / m',
+      'TapeConsumables · USD 0.06 / m',
     ]);
   });
 
@@ -173,7 +173,7 @@ describe('CostItemsEditor', () => {
     expect(draft()).toContain('"purpose":"Production"');
     expect(screen.getByText('Hardware · Production')).toBeInTheDocument();
     expect(screen.getByLabelText('Quantity for M3 screw')).toHaveFocus();
-    expect(screen.getByText('0.05')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.05')).toBeInTheDocument();
     // The default is selected, so typing replaces it instead of making "14".
     await user.keyboard('4');
     expect(screen.getByLabelText('Quantity for M3 screw')).toHaveValue(4);
@@ -209,7 +209,7 @@ describe('CostItemsEditor', () => {
     await user.type(screen.getByLabelText('Quantity for Tape'), '0.5');
     expect(screen.getByLabelText('Quantity for Tape')).toHaveValue(0.5);
     expect(draft()).toContain('"quantity":0.5');
-    expect(screen.getByText('0.03')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.03')).toBeInTheDocument();
   });
 
   it('opens the dialog for area items and saves a cut', async () => {
@@ -226,7 +226,7 @@ describe('CostItemsEditor', () => {
     await user.type(screen.getByLabelText('Length'), '50');
     await user.type(screen.getByLabelText('Width'), '20');
     expect(
-      screen.getByText('0.1 m² × 0.40 = 0.04 per product'),
+      screen.getByText('0.1 m² × USD 0.40 = USD 0.04 per product'),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Update cost item' }));
     await waitFor(() =>
@@ -237,7 +237,7 @@ describe('CostItemsEditor', () => {
     expect(draft()).toContain('"width":20');
     expect(draft()).toContain('"pieces":1');
     expect(screen.getByText('50 × 20 cm')).toBeInTheDocument();
-    expect(screen.getByText('0.04')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.04')).toBeInTheDocument();
   });
 
   it('blocks Update until usage is valid', async () => {

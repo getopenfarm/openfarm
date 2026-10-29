@@ -908,6 +908,79 @@
         ]
       }
     },
+    "/api/v1/settings/general": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsGetGeneralSettingsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint",
+        "requestBody": {
+          "x-name": "GeneralSettingsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralSettingsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/settings/slicing-defaults": {
       "get": {
         "tags": [
@@ -966,6 +1039,167 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/printer-costs": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsGetPrinterCostsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrinterCostsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/printer-costs/electricity": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint",
+        "requestBody": {
+          "x-name": "UpdateElectricityPriceRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateElectricityPriceRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateElectricityPriceRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/printer-costs/models": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint",
+        "requestBody": {
+          "x-name": "UpdatePrinterModelCostRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrinterModelCostRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrinterModelCostResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/printer-costs/models/{brand}/{modelCode}": {
+      "delete": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint",
+        "parameters": [
+          {
+            "name": "brand",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "modelCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
           },
           "401": {
             "description": "Unauthorized"
@@ -5109,82 +5343,6 @@
         ]
       }
     },
-    "/api/v1/connection-secrets": {
-      "post": {
-        "tags": [
-          "Connection-Secrets"
-        ],
-        "operationId": "OpenFarmApiEndpointsConnectionSecretsCreateConnectionSecretEndpoint",
-        "requestBody": {
-          "x-name": "CreateConnectionSecretRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateConnectionSecretRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConnectionSecretResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      },
-      "get": {
-        "tags": [
-          "Connection-Secrets"
-        ],
-        "operationId": "OpenFarmApiEndpointsConnectionSecretsListConnectionSecretsEndpoint",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ConnectionSecretResponse"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -6320,6 +6478,40 @@
         "type": "object",
         "additionalProperties": false
       },
+      "GeneralSettingsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "currencyCode": {
+            "type": "string"
+          },
+          "electricityPricePerKwh": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "supportedCurrencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "GeneralSettingsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "currencyCode": {
+            "type": "string"
+          },
+          "electricityPricePerKwh": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
       "SlicingDefaultsResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -6333,14 +6525,6 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/EffectiveSlicerDefaultResponse"
-              }
-            ]
-          },
-          "estimationProfiles": {
-            "nullable": true,
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/EstimationProfilesRequest"
               }
             ]
           },
@@ -6367,27 +6551,6 @@
           }
         }
       },
-      "EstimationProfilesRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "machineProfileId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "processProfileId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "filamentProfileId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "buildPlateType": {
-            "type": "string"
-          }
-        }
-      },
       "AvailableSlicerResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -6403,6 +6566,125 @@
           }
         }
       },
+      "PrinterCostsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "electricityPricePerKwh": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrinterModelCostResponse"
+            }
+          }
+        }
+      },
+      "PrinterModelCostResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "brand": {
+            "type": "string"
+          },
+          "modelCode": {
+            "type": "string"
+          },
+          "printerPurchasePrice": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "printerUpfrontCost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lifetimeServiceCost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lifetimePrintingHours": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "averagePrintingWatts": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "canRemove": {
+            "type": "boolean"
+          },
+          "depreciationPerHour": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "electricityPerHour": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateElectricityPriceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "electricityPricePerKwh": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "UpdatePrinterModelCostRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "brand": {
+            "type": "string"
+          },
+          "modelCode": {
+            "type": "string"
+          },
+          "printerPurchasePrice": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "printerUpfrontCost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lifetimeServiceCost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "lifetimePrintingHours": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "averagePrintingWatts": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "RemovePrinterModelCostRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "UpdateSlicingDefaultsRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -6412,14 +6694,6 @@
           },
           "version": {
             "type": "string"
-          },
-          "estimationProfiles": {
-            "nullable": true,
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/EstimationProfilesRequest"
-              }
-            ]
           }
         }
       },
@@ -9671,6 +9945,14 @@
               }
             ]
           },
+          "estimationPrinterBrand": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimationPrinterModelCode": {
+            "type": "string",
+            "nullable": true
+          },
           "estimateStatus": {
             "type": "string"
           },
@@ -11168,38 +11450,6 @@
           }
         }
       },
-      "ConnectionSecretResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "printerSerialNumber": {
-            "type": "string"
-          },
-          "maskedAccessCode": {
-            "type": "string"
-          },
-          "createdAtUtc": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "CreateConnectionSecretRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "printerSerialNumber": {
-            "type": "string"
-          },
-          "plainAccessCode": {
-            "type": "string"
-          }
-        }
-      },
       "LoginResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -11442,6 +11692,12 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "machineCosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssemblyMachineCostContribution"
+            }
+          },
           "productionCosts": {
             "type": "array",
             "items": {
@@ -11465,6 +11721,39 @@
             "items": {
               "$ref": "#/components/schemas/ExplodedNonPrintedComponentResponse"
             }
+          }
+        }
+      },
+      "AssemblyMachineCostContribution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "partId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true
+          },
+          "modelCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "hours": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "printerDepreciation": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "electricity": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
           }
         }
       },

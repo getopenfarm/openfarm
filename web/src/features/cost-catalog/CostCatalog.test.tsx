@@ -87,7 +87,7 @@ describe('Cost catalog', () => {
     await user.clear(screen.getByLabelText('Width'));
     await user.type(screen.getByLabelText('Width'), '100');
     await choose(user, 'Width unit', 'cm');
-    expect(screen.getByText('0.40 / m²')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.40 / m²')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add cost item' }));
     await screen.findByText('Edit destination');
     expect(body).toMatchObject({
@@ -189,7 +189,7 @@ describe('Guided cost editor', () => {
     await user.type(screen.getByLabelText('Name'), 'Courier bag');
     await choose(user, 'Category', 'Packaging');
     await user.type(screen.getByLabelText('Price'), '0.3');
-    expect(screen.getByText('0.30 / piece')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.30 / piece')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add cost item' }));
     await screen.findByText('Edit destination');
     expect(saved.body).toMatchObject({
@@ -212,8 +212,8 @@ describe('Guided cost editor', () => {
     await user.type(screen.getByLabelText('Name'), 'Screw M3');
     await user.type(screen.getByLabelText('Price'), '8');
     await user.type(screen.getByLabelText('Quantity'), '200');
-    expect(screen.getByText('0.04 / piece')).toBeInTheDocument();
-    expect(screen.getByText('8.00 for 200 pieces')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.04 / piece')).toBeInTheDocument();
+    expect(screen.getByText('USD 8.00 for 200 pieces')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add cost item' }));
     await screen.findByText('Edit destination');
     expect(saved.body).toMatchObject({
@@ -236,7 +236,7 @@ describe('Guided cost editor', () => {
     await choose(user, 'Unit', 'Area (m²)');
     expect(screen.getByLabelText('Price')).toHaveValue(40);
     expect(screen.getByLabelText('Quantity')).toHaveValue(100);
-    expect(screen.getByText('0.40 / m²')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.40 / m²')).toBeInTheDocument();
   });
 
   it('offers hourly pricing for labor and hides quantity', async () => {
@@ -254,7 +254,7 @@ describe('Guided cost editor', () => {
     expect(screen.queryByLabelText('Quantity')).not.toBeInTheDocument();
     await user.type(screen.getByLabelText('Name'), 'Assembly labor');
     await user.type(screen.getByLabelText('Price'), '20');
-    expect(screen.getByText('20.00 / hour')).toBeInTheDocument();
+    expect(screen.getByText('USD 20.00 / hour')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add cost item' }));
     await screen.findByText('Edit destination');
     expect(saved.body).toMatchObject({
@@ -361,7 +361,7 @@ describe('Guided cost editor', () => {
     await screen.findByRole('heading', { name: 'Courier bag' });
     expect(screen.getByLabelText('Price')).toHaveValue(0.3);
     expect(screen.getByLabelText('Quantity')).toHaveValue(null);
-    expect(screen.getByText('0.30 / piece')).toBeInTheDocument();
+    expect(screen.getByText('USD 0.30 / piece')).toBeInTheDocument();
   });
 
   it('keeps a legacy package label when a package is saved', async () => {

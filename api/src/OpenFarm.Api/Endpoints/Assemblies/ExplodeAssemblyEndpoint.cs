@@ -32,6 +32,7 @@ public sealed class ExplodedNonPrintedComponentResponse
 
 public sealed class ExplodeAssemblyResponse
 {
+    public List<AssemblyMachineCostContribution> MachineCosts { get; set; } = [];
     public List<AssemblyCostContribution> ProductionCosts { get; set; } = [];
     public List<AssemblyCostContribution> FinalProductCosts { get; set; } = [];
 
@@ -59,6 +60,7 @@ public sealed class ExplodeAssemblyEndpoint(IQueryHandler<ExplodeAssemblyQuery, 
 
         Response = new ExplodeAssemblyResponse
         {
+            MachineCosts = result.MachineCosts?.ToList() ?? [],
             ProductionCosts = result.ProductionCosts?.ToList() ?? [],
             FinalProductCosts = result.FinalProductCosts?.ToList() ?? [],
             PrintedParts = result.PrintedParts

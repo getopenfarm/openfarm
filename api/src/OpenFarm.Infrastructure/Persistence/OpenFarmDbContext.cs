@@ -22,6 +22,8 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
 
     public DbSet<ActivityLogEntry> ActivityLogEntries => Set<ActivityLogEntry>();
 
+    public DbSet<PrinterModelCost> PrinterModelCosts => Set<PrinterModelCost>();
+
     public DbSet<Printer> Printers => Set<Printer>();
 
     public DbSet<PrinterActivitySpan> PrinterActivitySpans => Set<PrinterActivitySpan>();

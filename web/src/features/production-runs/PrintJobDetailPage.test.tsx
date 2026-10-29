@@ -429,16 +429,20 @@ it('shows each deducted line with its cost, price source and a link to its spool
 
   expect(await screen.findByText('Filament consumed')).toBeInTheDocument();
   expect(screen.getByText('50 g')).toBeInTheDocument();
-  expect(screen.getByText('1.00')).toBeInTheDocument();
-  expect(screen.getByText('20.00 per kg · spool price')).toBeInTheDocument();
-  expect(screen.getByText('30.00 per kg · color price')).toBeInTheDocument();
+  expect(screen.getByText('USD 1.00')).toBeInTheDocument();
+  expect(
+    screen.getByText('USD 20.00 per kg · spool price'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText('USD 30.00 per kg · color price'),
+  ).toBeInTheDocument();
   const links = screen.getAllByRole('link', { name: 'Spool' });
   expect(links.map((link) => link.getAttribute('href'))).toEqual([
     '/filament/spools/spool-1',
     '/filament/spools/spool-2',
   ]);
   expect(screen.getByText('Filament cost')).toBeInTheDocument();
-  expect(screen.getByText('1.90')).toBeInTheDocument();
+  expect(screen.getByText('USD 1.90')).toBeInTheDocument();
   expect(screen.queryByText('Partial')).not.toBeInTheDocument();
 });
 
@@ -464,7 +468,7 @@ it('marks the total partial when a line has no price or was not deducted, withou
   expect(screen.getByText('No price')).toBeInTheDocument();
   expect(screen.getByText('Not deducted')).toBeInTheDocument();
   // Only the priced line is added: the unpriced 10 g is not costed as free.
-  expect(screen.getAllByText('1.00')).toHaveLength(2);
+  expect(screen.getAllByText('USD 1.00')).toHaveLength(2);
 });
 
 it('shows no total when no line has a cost', async () => {
@@ -487,9 +491,9 @@ it('shows a spool priced at zero as a cost of 0.00, not as no price', async () =
   ]);
 
   expect(
-    await screen.findByText('0.00 per kg · spool price'),
+    await screen.findByText('USD 0.00 per kg · spool price'),
   ).toBeInTheDocument();
-  expect(screen.getAllByText('0.00')).toHaveLength(2);
+  expect(screen.getAllByText('USD 0.00')).toHaveLength(2);
   expect(screen.queryByText('No price')).not.toBeInTheDocument();
   expect(screen.queryByText('Partial')).not.toBeInTheDocument();
 });

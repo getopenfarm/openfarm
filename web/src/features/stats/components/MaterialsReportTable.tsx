@@ -12,11 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useCurrency } from '@/features/settings/generalSettings';
 import type { MaterialsReportRowResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsReportsGetMaterialsReportEndpoint } from '@/lib/api/generated/reports/reports';
 import { formatCost, formatPercent, formatWeight } from '@/lib/formatUnits';
 
 function Figures({ row }: { row: MaterialsReportRowResponse }) {
+  const currency = useCurrency();
   const unpriced = row.unpricedGrams ?? 0;
   return (
     <>
@@ -33,7 +35,7 @@ function Figures({ row }: { row: MaterialsReportRowResponse }) {
         {formatWeight(row.writtenOffGrams ?? 0)}
       </TableCell>
       <TableCell className="text-right tabular-nums">
-        {formatCost(row.cost ?? 0)}
+        {formatCost(row.cost ?? 0, currency)}
         {unpriced > 0 && (
           <span className="block text-xs text-muted-foreground">
             Partial · {formatWeight(unpriced)} unpriced

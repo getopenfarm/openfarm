@@ -267,7 +267,7 @@ describe('SpoolFormPage', () => {
 
     // The new line takes the delivery's spool weight and price.
     expect(within(line(2)).getByLabelText('Price per spool')).toHaveValue(24);
-    expect(screen.getByText('200 spools · 200 kg · 4800.00')).toBeVisible();
+    expect(screen.getByText('200 spools · 200 kg · USD 4800.00')).toBeVisible();
     await user.click(addButton('Add 200 spools'));
 
     await waitFor(() => expect(postedBody).toBeDefined());

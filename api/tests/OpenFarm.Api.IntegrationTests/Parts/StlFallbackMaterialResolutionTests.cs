@@ -38,7 +38,7 @@ public class StlFallbackMaterialResolutionWithPlaSeededTests(CustomWebApplicatio
         finalJob.Preview!.EstimateStatus.Should().Be("Unavailable");
         finalJob.Preview!.EstimateUnavailableReason.Should().NotContain("Generic PLA");
         finalJob.Preview!.EstimateUnavailableReason.Should().NotContain("Bambu PLA Basic");
-        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("default estimation profiles");
+        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("embedded slicing settings");
     }
 }
 
@@ -59,7 +59,7 @@ public class StlFallbackMaterialResolutionWithoutPlaSeededTests(CustomWebApplica
 
         finalJob.Status.Should().Be("ReadyForReview");
         finalJob.Preview!.EstimateStatus.Should().Be("Unavailable");
-        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("default estimation profiles");
+        finalJob.Preview!.EstimateUnavailableReason.Should().Contain("embedded slicing settings");
         finalJob.Preview!.EstimateUnavailableReason.Should().NotContain("Generic PLA");
     }
 }

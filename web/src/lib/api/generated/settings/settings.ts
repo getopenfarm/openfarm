@@ -22,7 +22,13 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
+  GeneralSettingsRequest,
+  GeneralSettingsResponse,
+  PrinterCostsResponse,
+  PrinterModelCostResponse,
   SlicingDefaultsResponse,
+  UpdateElectricityPriceRequest,
+  UpdatePrinterModelCostRequest,
   UpdateSlicingDefaultsRequest,
 } from '../endpoints.schemas';
 
@@ -44,6 +50,402 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
+export type openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse200 =
+  {
+    data: GeneralSettingsResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse401
+    | openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse =
+  | openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpointUrl =
+  () => {
+    return `/api/v1/settings/general`;
+  };
+
+export const openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpointQueryKey =
+  () => {
+    return [`/api/v1/settings/general`] as const;
+  };
+
+export const getOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint>
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+        >
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsSettingsGetGeneralSettingsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsGetGeneralSettingsEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetGeneralSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSettingsGetGeneralSettingsEndpointQueryOptions(
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse200 =
+  {
+    data: GeneralSettingsResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse401
+    | openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointUrl =
+  () => {
+    return `/api/v1/settings/general`;
+  };
+
+export const openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint = async (
+  generalSettingsRequest: GeneralSettingsRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointUrl(),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(generalSettingsRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint
+        >
+      >,
+      TError,
+      { data: GeneralSettingsRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint
+      >
+    >,
+    TError,
+    { data: GeneralSettingsRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint
+        >
+      >,
+      { data: GeneralSettingsRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointMutationBody =
+  GeneralSettingsRequest;
+export type OpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint
+        >
+      >,
+      TError,
+      { data: GeneralSettingsRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsUpdateGeneralSettingsEndpoint>
+  >,
+  TError,
+  { data: GeneralSettingsRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsUpdateGeneralSettingsEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsSettingsGetSlicingDefaultsEndpointResponse200 =
   {
     data: SlicingDefaultsResponse;
@@ -435,6 +837,690 @@ export const useOpenFarmApiEndpointsSettingsUpdateSlicingDefaultsEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsSettingsUpdateSlicingDefaultsEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse200 = {
+  data: PrinterCostsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponseError = (
+  | openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse401
+  | openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse =
+  | openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsGetPrinterCostsEndpointUrl = () => {
+  return `/api/v1/settings/printer-costs`;
+};
+
+export const openFarmApiEndpointsSettingsGetPrinterCostsEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsGetPrinterCostsEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsGetPrinterCostsEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsGetPrinterCostsEndpointQueryKey =
+  () => {
+    return [`/api/v1/settings/printer-costs`] as const;
+  };
+
+export const getOpenFarmApiEndpointsSettingsGetPrinterCostsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsSettingsGetPrinterCostsEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsSettingsGetPrinterCostsEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsSettingsGetPrinterCostsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsGetPrinterCostsEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsSettingsGetPrinterCostsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetPrinterCostsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetPrinterCostsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSettingsGetPrinterCostsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetPrinterCostsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSettingsGetPrinterCostsEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse200 =
+  {
+    data: UpdateElectricityPriceRequest;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse401
+    | openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpointUrl =
+  () => {
+    return `/api/v1/settings/printer-costs/electricity`;
+  };
+
+export const openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint =
+  async (
+    updateElectricityPriceRequest: UpdateElectricityPriceRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsSettingsUpdateElectricityPriceEndpointResponse>(
+      getOpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpointUrl(),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(updateElectricityPriceRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint
+        >
+      >,
+      TError,
+      { data: UpdateElectricityPriceRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint
+      >
+    >,
+    TError,
+    { data: UpdateElectricityPriceRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint
+        >
+      >,
+      { data: UpdateElectricityPriceRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpointMutationBody =
+  UpdateElectricityPriceRequest;
+export type OpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint
+        >
+      >,
+      TError,
+      { data: UpdateElectricityPriceRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsSettingsUpdateElectricityPriceEndpoint
+    >
+  >,
+  TError,
+  { data: UpdateElectricityPriceRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsUpdateElectricityPriceEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse200 =
+  {
+    data: PrinterModelCostResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse401
+    | openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointUrl =
+  () => {
+    return `/api/v1/settings/printer-costs/models`;
+  };
+
+export const openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint =
+  async (
+    updatePrinterModelCostRequest: UpdatePrinterModelCostRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointResponse>(
+      getOpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointUrl(),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(updatePrinterModelCostRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint
+        >
+      >,
+      TError,
+      { data: UpdatePrinterModelCostRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint
+      >
+    >,
+    TError,
+    { data: UpdatePrinterModelCostRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint
+        >
+      >,
+      { data: UpdatePrinterModelCostRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointMutationBody =
+  UpdatePrinterModelCostRequest;
+export type OpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint
+        >
+      >,
+      TError,
+      { data: UpdatePrinterModelCostRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsSettingsUpdatePrinterModelCostEndpoint
+    >
+  >,
+  TError,
+  { data: UpdatePrinterModelCostRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsUpdatePrinterModelCostEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse204 =
+  {
+    data: void;
+    status: 204;
+  };
+
+export type openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse401
+    | openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse =
+  | openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsRemovePrinterModelCostEndpointUrl =
+  (brand: string, modelCode: string) => {
+    return `/api/v1/settings/printer-costs/models/${brand}/${modelCode}`;
+  };
+
+export const openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint =
+  async (
+    brand: string,
+    modelCode: string,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsSettingsRemovePrinterModelCostEndpointResponse>(
+      getOpenFarmApiEndpointsSettingsRemovePrinterModelCostEndpointUrl(
+        brand,
+        modelCode,
+      ),
+      {
+        ...options,
+        method: 'DELETE',
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsSettingsRemovePrinterModelCostEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint
+        >
+      >,
+      TError,
+      { brand: string; modelCode: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint
+      >
+    >,
+    TError,
+    { brand: string; modelCode: string },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint
+        >
+      >,
+      { brand: string; modelCode: string }
+    > = (props) => {
+      const { brand, modelCode } = props ?? {};
+
+      return openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint(
+        brand,
+        modelCode,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsRemovePrinterModelCostEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint
+      >
+    >
+  >;
+
+export type OpenFarmApiEndpointsSettingsRemovePrinterModelCostEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint
+        >
+      >,
+      TError,
+      { brand: string; modelCode: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsSettingsRemovePrinterModelCostEndpoint
+    >
+  >,
+  TError,
+  { brand: string; modelCode: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsRemovePrinterModelCostEndpointMutationOptions(
       options,
     ),
     queryClient,

@@ -19,6 +19,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { categories, usage } from '@/features/cost-catalog/costing';
+import { useCurrency } from '@/features/settings/generalSettings';
+import { usePrinterCosts } from '@/features/settings/printerCosts';
 import { getOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointQueryOptions } from '@/lib/api/generated/assemblies/assemblies';
 import type { AssemblyCostInput } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
@@ -32,6 +34,7 @@ import {
   printTotals,
   rollUp,
 } from './bomRollup';
+import { machineCosts } from './machineCosts';
 import { useBomCatalog } from './useBomCatalog';
 
 interface BuildPanelProps {
@@ -56,7 +59,9 @@ export function BuildPanel({
   additionalCosts = [],
   className,
 }: BuildPanelProps) {
+  const currency = useCurrency();
   const catalog = useBomCatalog();
+  const machineQuery = usePrinterCosts();
   const filamentQuery = useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint();
 
   const subIds = [
@@ -83,6 +88,14 @@ export function BuildPanel({
 
   const total = rollUp(lines, subExplosions);
   const print = printTotals(total.parts, catalog.parts);
+  const machine = machineCosts(
+    total.parts,
+    catalog.parts,
+    machineQuery.data?.data.models ?? [],
+  );
+  const machineUnavailable =
+    total.parts.size > 0 && (machineQuery.isPending || machineQuery.isError);
+  const machinePartial = machine.incomplete || machineUnavailable;
   const cost = hardwareCost(total.components, catalog.components);
   const breakdown = new Map<string, number>();
   let missingAdditional = 0;
@@ -162,9 +175,20 @@ export function BuildPanel({
   const estimate = (amount: number, partial: boolean, available = true) =>
     incomplete || !available
       ? 'Unavailable'
-      : `${formatCost(amount)}${partial ? ' (partial)' : ''}`;
+      : `${formatCost(amount, currency)}${partial ? ' (partial)' : ''}`;
 
   const notes = [
+    total.parts.size > 0 && machineQuery.isPending && 'Loading printer costs…',
+    total.parts.size > 0 &&
+      machineQuery.isError &&
+      'Could not load printer costs. Retry to complete estimates.',
+    !machineUnavailable &&
+      machine.depreciation.missing > 0 &&
+      'Printer depreciation incomplete. Configure model costs in Settings → Printer costs; parts also need a known estimation model and print time.',
+    !machineUnavailable &&
+      machine.electricity.missing > 0 &&
+      'Electricity incomplete. Configure average printing power and electricity price in Settings → General (model power is in Settings → Printer costs); parts also need a known estimation model and print time.',
+
     (catalog.isPending || filamentQuery.isPending) && 'Loading catalog…',
     (catalog.isError || filamentQuery.isError) &&
       'Could not load catalog. Totals incomplete.',
@@ -289,6 +313,26 @@ export function BuildPanel({
               )}
               loading={loading}
             />
+            <Row
+              label="Printer depreciation"
+              value={estimate(
+                machine.depreciation.total,
+                machine.depreciation.missing > 0,
+                !machineUnavailable &&
+                  (machine.depreciation.priced > 0 || total.parts.size === 0),
+              )}
+              loading={loading}
+            />
+            <Row
+              label="Electricity"
+              value={estimate(
+                machine.electricity.total,
+                machine.electricity.missing > 0,
+                !machineUnavailable &&
+                  (machine.electricity.priced > 0 || total.parts.size === 0),
+              )}
+              loading={loading}
+            />
             {categories
               .filter(
                 (category) =>
@@ -306,8 +350,11 @@ export function BuildPanel({
             <Row
               label="Product cost"
               value={estimate(
-                filament.total + physicalAndAdditional - shipping,
-                filament.incomplete || costsPartial,
+                filament.total +
+                  physicalAndAdditional +
+                  machine.total -
+                  shipping,
+                filament.incomplete || costsPartial || machinePartial,
               )}
               loading={loading}
             />
@@ -323,9 +370,11 @@ export function BuildPanel({
             <Row
               label="Estimated total including shipping"
               value={estimate(
-                filament.total + physicalAndAdditional,
-                filament.incomplete || costsPartial,
-                filament.priced > 0 ||
+                filament.total + physicalAndAdditional + machine.total,
+                filament.incomplete || costsPartial || machinePartial,
+                machine.depreciation.priced > 0 ||
+                  machine.electricity.priced > 0 ||
+                  filament.priced > 0 ||
                   pricedAdditional > 0 ||
                   total.components.size > cost.missingCost ||
                   (total.parts.size === 0 && total.components.size === 0),
@@ -336,6 +385,11 @@ export function BuildPanel({
           </dl>
         </CardFooter>
       </Card>
+      {machineQuery.isError && total.parts.size > 0 && (
+        <Button variant="outline" onClick={() => void machineQuery.refetch()}>
+          Retry printer costs
+        </Button>
+      )}
       {notes.length > 0 && (
         <Alert role="status" className="mt-4">
           <AlertTitle>

@@ -20,10 +20,11 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
+import { useCurrency } from '@/features/settings/generalSettings';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { RegisterSpoolsResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -149,6 +150,7 @@ function firstLine(params: URLSearchParams): LineValues {
 }
 
 export function SpoolFormPage() {
+  const currency = useCurrency();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const filaments = useFilamentCatalog();
@@ -209,7 +211,7 @@ export function SpoolFormPage() {
       ? [
           pluralize(total, 'spool'),
           grams > 0 ? formatWeight(grams) : null,
-          cost !== null ? formatCost(cost) : null,
+          cost !== null ? formatCost(cost, currency) : null,
         ]
           .filter(Boolean)
           .join(' · ')
@@ -502,7 +504,7 @@ function SpoolLine({
             <FormItem>
               <FormLabel>Price per spool</FormLabel>
               <FormControl>
-                <Input
+                <MoneyInput
                   type="number"
                   inputMode="decimal"
                   step="any"

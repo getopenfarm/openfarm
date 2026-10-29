@@ -35,7 +35,7 @@ public class PartFileProcessorTests
         var result = await processor.ResolveMaterialAsync(job, new MemoryStream(), CancellationToken.None);
 
         result.NozzleDiameterMm.Should().BeNull();
-        result.EstimateUnavailableReason.Should().Contain("default estimation profiles");
+        result.EstimateUnavailableReason.Should().Contain("embedded slicing settings");
         result.ImmediateEstimate.Should().BeNull();
         result.FilamentRequirements.Should().ContainSingle();
         result.FilamentRequirements[0].MaterialType.Should().BeNull();
