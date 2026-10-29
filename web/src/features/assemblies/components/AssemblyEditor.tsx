@@ -36,8 +36,8 @@ function toFormValues(assembly?: AssemblyResponse): AssemblyFormValues {
     additionalCosts: assembly?.additionalCosts ?? [],
     name: assembly?.name ?? '',
     description: assembly?.description ?? '',
-    lines: (assembly?.lines ?? []).map((line) => ({
-      key: line.id ?? crypto.randomUUID(),
+    lines: (assembly?.lines ?? []).map((line, index) => ({
+      key: line.id ?? `line-${index}`,
       lineId: line.id,
       targetKind: (line.targetKind ?? 'Part') as EditableLine['targetKind'],
       targetId: line.targetId ?? '',

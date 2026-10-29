@@ -64,6 +64,8 @@ describe('BomLineEditor', () => {
       },
     });
 
+    // Plain http over a LAN IP is not a secure context: no crypto.randomUUID.
+    vi.stubGlobal('crypto', {});
     const onChange = vi.fn();
     renderEditor([], onChange);
 

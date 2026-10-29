@@ -42,6 +42,9 @@ export interface EditableLine {
   quantity: number;
 }
 
+// Not crypto.randomUUID: browsers expose it only on HTTPS or localhost, and farms are often opened over http://<lan-ip>.
+let lastNewKey = 0;
+
 const KIND_LABELS: Record<BomLineTargetKind, string> = {
   Part: 'Part',
   Assembly: 'Assembly',
@@ -114,7 +117,7 @@ export function BomLineEditor({
     onChange([
       ...lines,
       {
-        key: `new-${crypto.randomUUID()}`,
+        key: `new-${++lastNewKey}`,
         targetKind: kind,
         targetId: id,
         targetName: name,
