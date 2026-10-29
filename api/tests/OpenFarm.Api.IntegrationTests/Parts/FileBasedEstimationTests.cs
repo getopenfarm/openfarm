@@ -70,7 +70,7 @@ public sealed class FileBasedEstimationTests(EstimationTestFactory factory) : IC
     public async Task EmbeddedProject_PreservesCustomSettings_AndIncompleteProjectsNeverUseDefaults()
     {
         var client = await AuthenticatedClientAsync(_client);
-                (await client.PutAsJsonAsync("/api/v1/settings/slicing-defaults", new { engine = "OrcaSlicer", version = "2.2.0" })).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/v1/settings/slicing-defaults", new { engine = "OrcaSlicer", version = "2.2.0" })).EnsureSuccessStatusCode();
         const string config = """{"printer_model":"Bambu Lab P1S","printer_settings_id":"Custom Scrubbler","nozzle_diameter":["0.4"],"filament_type":["PETG"],"filament_settings_id":["Custom PETG"],"print_settings_id":"Custom process","curr_bed_type":"Textured PEI Plate","layer_height":"0.3"}""";
         var project = await UploadAsync(client, ThreeMf(config), "custom.3mf");
         project.Preview!.NozzleDiameterMm.Should().Be(0.4m);
