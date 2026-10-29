@@ -1,4 +1,6 @@
+using FluentValidation;
 using OpenFarm.Application.Assemblies;
+using OpenFarm.Domain.Assemblies;
 
 namespace OpenFarm.Api.Endpoints.Assemblies;
 
@@ -24,6 +26,30 @@ public sealed class BomLineResponse
     };
 }
 
+/// <summary>Selling price rule: <c>Price</c> (fixed amount), <c>Margin</c> (% of price kept after channel fees) or <c>Markup</c> (% on cost).</summary>
+public sealed class AssemblyPricingDto
+{
+    public string Mode { get; set; } = "Price";
+
+    public decimal Value { get; set; }
+
+    public AssemblyPricing ToDomain() => new(Mode, Value);
+
+    public static AssemblyPricingDto? From(AssemblyPricing? pricing) =>
+        pricing is null ? null : new() { Mode = pricing.Mode, Value = pricing.Value };
+}
+
+public sealed class AssemblyPricingDtoValidator : AbstractValidator<AssemblyPricingDto>
+{
+    public AssemblyPricingDtoValidator()
+    {
+        RuleFor(x => x.Mode).Must(m => AssemblyPricing.Modes.Contains(m))
+            .WithMessage("mode must be one of Price, Margin, Markup.");
+        RuleFor(x => x.Value).GreaterThanOrEqualTo(0m);
+        RuleFor(x => x.Value).LessThan(100m).When(x => x.Mode == "Margin").WithMessage("Margin must be below 100%.");
+    }
+}
+
 public sealed class AssemblyResponse
 {
     public Guid Id { get; set; }
@@ -36,6 +62,8 @@ public sealed class AssemblyResponse
 
     public List<OpenFarm.Domain.Assemblies.AssemblyCostInput> AdditionalCosts { get; set; } = [];
 
+    public AssemblyPricingDto? Pricing { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }
@@ -47,6 +75,7 @@ public sealed class AssemblyResponse
         Description = detail.Description,
         Lines = detail.Lines.Select(BomLineResponse.FromDetail).ToList(),
         AdditionalCosts = detail.AdditionalCosts?.ToList() ?? [],
+        Pricing = AssemblyPricingDto.From(detail.Pricing),
         CreatedAtUtc = detail.CreatedAtUtc,
         UpdatedAtUtc = detail.UpdatedAtUtc,
     };

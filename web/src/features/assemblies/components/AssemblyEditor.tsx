@@ -21,18 +21,41 @@ import type {
 import { BomLineEditor, type EditableLine } from './BomLineEditor';
 import { BuildPanel } from './BuildPanel';
 import { CostItemsEditor } from './CostItemsEditor';
+import { type PricingDraft, PricingSection } from './PricingSection';
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Name required'),
   description: z.string().optional(),
   lines: z.array(z.custom<EditableLine>()).min(1, 'Add at least one line.'),
   additionalCosts: z.array(z.custom<AssemblyCostInput>()),
+  pricing: z
+    .object({
+      mode: z.enum(['Price', 'Margin', 'Markup']),
+      value: z.string(),
+    })
+    .superRefine(({ mode, value }, ctx) => {
+      if (value.trim() === '') return;
+      if (!(Number(value) >= 0))
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Enter a nonnegative number.',
+        });
+      else if (mode === 'Margin' && Number(value) >= 100)
+        ctx.addIssue({ code: 'custom', message: 'Margin must be below 100%.' });
+    }),
 });
 
 export type AssemblyFormValues = z.infer<typeof schema>;
 
 function toFormValues(assembly?: AssemblyResponse): AssemblyFormValues {
+  const pricing = assembly?.pricing;
   return {
+    pricing: pricing
+      ? {
+          mode: pricing.mode as PricingDraft['mode'],
+          value: String(pricing.value),
+        }
+      : { mode: 'Price', value: '' },
     additionalCosts: assembly?.additionalCosts ?? [],
     name: assembly?.name ?? '',
     description: assembly?.description ?? '',
@@ -63,6 +86,11 @@ export function useAssemblyForm(assembly?: AssemblyResponse) {
     form,
     resetTo: (next: AssemblyResponse) => form.reset(toFormValues(next)),
   };
+}
+
+/** Blank value saves no pricing. */
+export function toPricingPayload({ mode, value }: PricingDraft) {
+  return value.trim() === '' ? null : { mode, value: Number(value) };
 }
 
 export function toLinePayload(line: EditableLine) {
@@ -172,6 +200,19 @@ export function AssemblyEditor({
                   structureItemIds={lines
                     .filter((line) => line.targetKind === 'NonPrintedComponent')
                     .map((line) => line.targetId)}
+                />
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="pricing"
+              render={({ field, fieldState }) => (
+                <PricingSection
+                  lines={lines}
+                  additionalCosts={additionalCosts}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
                 />
               )}
             />

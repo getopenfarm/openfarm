@@ -29,6 +29,8 @@ import { QueuePage } from '../features/production-runs/QueuePage';
 import { ProfileDetailPage } from '../features/profiles/ProfileDetailPage';
 import { ProfilesImportPage } from '../features/profiles/ProfilesImportPage';
 import { ProfilesPage } from '../features/profiles/ProfilesPage';
+import { FeeProfilePage } from '../features/settings/FeeProfilePage';
+import { FeesPage } from '../features/settings/FeesPage';
 import { PrinterCostsPage } from '../features/settings/PrinterCostsPage';
 import { PrinterModelCostPage } from '../features/settings/PrinterModelCostPage';
 import { SettingsLayout } from '../features/settings/SettingsLayout';
@@ -292,6 +294,21 @@ export const router = createBrowserRouter([
               {
                 path: 'printer-costs/models/:brand/:modelCode',
                 element: <PrinterModelCostPage />,
+              },
+              {
+                path: 'fees',
+                element: <FeesPage />,
+                handle: { title: 'Fees' },
+              },
+              {
+                path: 'fees/new',
+                element: <FeeProfilePage />,
+                handle: { title: 'Add fee profile' },
+              },
+              {
+                path: 'fees/:id',
+                element: <FeeProfilePage />,
+                handle: { title: 'Fee profile' },
               },
               {
                 path: 'slicing-defaults',

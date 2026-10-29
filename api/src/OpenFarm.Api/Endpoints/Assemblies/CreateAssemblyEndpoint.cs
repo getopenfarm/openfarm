@@ -28,6 +28,8 @@ public sealed class CreateAssemblyRequest : IActivityLoggable
 
     public List<AssemblyCostInput>? AdditionalCosts { get; set; }
 
+    public AssemblyPricingDto? Pricing { get; set; }
+
     public string EntityType => "Assembly";
 
     public string EventType => "AssemblyCreated";
@@ -45,6 +47,7 @@ public sealed class CreateAssemblyRequestValidator : AbstractValidator<CreateAss
                 .WithMessage("targetKind must be one of Part, Assembly, NonPrintedComponent.");
             line.RuleFor(l => l.Quantity).GreaterThan(0);
         });
+        RuleFor(x => x.Pricing!).SetValidator(new AssemblyPricingDtoValidator()).When(x => x.Pricing is not null);
     }
 }
 
@@ -64,7 +67,7 @@ public sealed class CreateAssemblyEndpoint(CreateAssemblyHandler handler, IQuery
         var lines = req.Lines
             .Select(l => new AssemblyLineInput(Enum.Parse<BomLineTargetKind>(l.TargetKind), l.TargetId, l.Quantity))
             .ToList();
-        var assembly = await handler.HandleAsync(new CreateAssemblyCommand(req.Name, req.Description, lines, req.AdditionalCosts), ct);
+        var assembly = await handler.HandleAsync(new CreateAssemblyCommand(req.Name, req.Description, lines, req.AdditionalCosts, req.Pricing?.ToDomain()), ct);
 
         var detail = await getAssembly.HandleAsync(new GetAssemblyQuery(assembly.Id), ct);
         Response = AssemblyResponse.FromDetail(detail!);

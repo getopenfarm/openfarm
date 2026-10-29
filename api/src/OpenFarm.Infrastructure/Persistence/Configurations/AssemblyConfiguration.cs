@@ -8,13 +8,18 @@ public sealed class AssemblyConfiguration : IEntityTypeConfiguration<Assembly>
 {
     public void Configure(EntityTypeBuilder<Assembly> builder)
     {
-        builder.ToTable("Assemblies");
+        builder.ToTable("Assemblies", t =>
+        {
+            t.HasCheckConstraint("CK_Assemblies_Pricing", "(\"PricingMode\" IS NULL) = (\"PricingValue\" IS NULL)");
+        });
 
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Name).IsRequired();
         builder.Property(a => a.Description);
         builder.Property(a => a.CreatedAtUtc).IsRequired();
         builder.Property(a => a.UpdatedAtUtc).IsRequired();
+        builder.Property(a => a.PricingMode).HasMaxLength(16);
+        builder.Ignore(a => a.Pricing);
 
         builder.HasMany(a => a.Lines)
             .WithOne()

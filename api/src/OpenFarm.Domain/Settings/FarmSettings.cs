@@ -47,6 +47,15 @@ public sealed class FarmSettings
         ElectricityPricePerKwh = pricePerKwh;
     }
 
+    /// <summary>Percent added to filament, depreciation and electricity estimates for failed prints.</summary>
+    public decimal FailureAllowancePercent { get; private set; }
+
+    public void SetFailureAllowance(decimal percent)
+    {
+        if (percent is < 0 or >= 100) throw new ArgumentOutOfRangeException(nameof(percent));
+        FailureAllowancePercent = percent;
+    }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public static FarmSettings Create() => new(DateTimeOffset.UtcNow);

@@ -315,6 +315,7 @@ builder.Services.Configure<SlicerBundleOptions>(builder.Configuration.GetSection
 
 builder.Services.AddScoped<IFarmSettingsRepository, FarmSettingsRepository>();
 builder.Services.AddScoped<IPrinterCostRepository, PrinterCostRepository>();
+builder.Services.AddScoped<IFeeProfileRepository, FeeProfileRepository>();
 builder.Services.AddScoped<AssemblyMachineCosts>();
 builder.Services.AddScoped<IPartRepository, PartRepository>();
 builder.Services.AddScoped<IPartDeletionEligibilityReader, PartDeletionEligibilityReader>();

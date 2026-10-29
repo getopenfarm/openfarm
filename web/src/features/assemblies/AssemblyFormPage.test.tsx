@@ -85,6 +85,7 @@ describe('AssemblyFormPage (add)', () => {
     await vi.waitFor(() => {
       expect(capturedBody).toEqual({
         additionalCosts: [],
+        pricing: null,
         name: 'Enclosure',
         description: null,
         lines: [{ targetKind: 'Part', targetId: 'p1', quantity: 1 }],

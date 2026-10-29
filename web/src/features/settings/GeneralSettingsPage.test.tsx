@@ -109,7 +109,11 @@ it('searches and selects currency by keyboard, saves zero, and updates existing 
   await user.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
     expect(writes).toEqual([
-      { currencyCode: 'MYR', electricityPricePerKwh: 0 },
+      {
+        currencyCode: 'MYR',
+        electricityPricePerKwh: 0,
+        failureAllowancePercent: 0,
+      },
     ]),
   );
   await waitFor(() =>
@@ -149,6 +153,7 @@ it('validates the tariff, retains a failed draft, and retries a blank tariff as 
   expect(writes[1]).toEqual({
     currencyCode: 'USD',
     electricityPricePerKwh: null,
+    failureAllowancePercent: 0,
   });
 });
 

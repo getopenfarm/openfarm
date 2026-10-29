@@ -82,12 +82,19 @@ const tariff = z
     (v) => v.trim() === '' || (Number.isFinite(Number(v)) && Number(v) >= 0),
     'Enter a nonnegative number.',
   );
+const percent = z
+  .string()
+  .refine(
+    (v) => v.trim() === '' || (Number(v) >= 0 && Number(v) < 100),
+    'Enter 0 to 99.99.',
+  );
 const valuesFor = (data: GeneralSettings) => ({
   currencyCode: data.currencyCode,
   price:
     data.electricityPricePerKwh == null
       ? ''
       : String(data.electricityPricePerKwh),
+  failure: String(data.failureAllowancePercent ?? 0),
 });
 function GeneralForm({ data }: { data: GeneralSettings }) {
   const client = useQueryClient();
@@ -100,6 +107,7 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
         'Select a supported currency.',
       ),
     price: tariff,
+    failure: percent,
   });
   const form = useForm({
     resolver: zodResolver(schema),
@@ -119,6 +127,7 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
           currencyCode: v.currencyCode,
           electricityPricePerKwh:
             v.price.trim() === '' ? null : Number(v.price),
+          failureAllowancePercent: Number(v.failure.trim() || 0),
         }),
       }),
     onSuccess: (result) => {
@@ -130,6 +139,7 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
   });
   const priceError = form.formState.errors.price?.message;
   const currencyError = form.formState.errors.currencyCode?.message;
+  const failureError = form.formState.errors.failure?.message;
   return (
     <form
       className="flex flex-1 flex-col gap-4"
@@ -227,6 +237,24 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
                 Leave blank when unknown. Zero is valid.
               </FieldDescription>
               <FieldError id="tariff-error">{priceError}</FieldError>
+            </Field>
+            <Field data-disabled={save.isPending} data-invalid={!!failureError}>
+              <FieldLabel htmlFor="failure">Failure allowance</FieldLabel>
+              <InputGroup className="w-40">
+                <InputGroupInput
+                  id="failure"
+                  inputMode="decimal"
+                  aria-invalid={!!failureError}
+                  aria-describedby="failure-description failure-error"
+                  disabled={save.isPending}
+                  {...form.register('failure')}
+                />
+                <InputGroupAddon align="inline-end">%</InputGroupAddon>
+              </InputGroup>
+              <FieldDescription id="failure-description">
+                Added to filament, depreciation and electricity estimates.
+              </FieldDescription>
+              <FieldError id="failure-error">{failureError}</FieldError>
             </Field>
           </FieldGroup>
         </CardContent>

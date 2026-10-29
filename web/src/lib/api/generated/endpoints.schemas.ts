@@ -300,10 +300,54 @@ export interface GetSlicingReadinessRequest {
   [key: string]: unknown;
 }
 
+export interface FeeDto {
+  name?: string;
+  type?: string;
+  amount?: number;
+}
+
+export interface FeeProfileDto {
+  /** @nullable */
+  id?: string | null;
+  name?: string;
+  fees?: FeeDto[];
+}
+
+export interface FeesResponse {
+  profiles?: FeeProfileDto[];
+}
+
+export interface UpdateFeesRequest {
+  profiles?: FeeProfileDto[];
+}
+
+export interface SaveFeeProfileRequest {
+  name?: string;
+  fees?: FeeDto[];
+}
+
+/**
+ * the collection of errors for the current context
+ */
+export type ErrorResponseErrors = { [key: string]: string[] };
+
+/**
+ * the dto used to send an error response to the client
+ */
+export interface ErrorResponse {
+  /** the http status code sent to the client. default is 400. */
+  statusCode?: number;
+  /** the message for the error response */
+  message?: string;
+  /** the collection of errors for the current context */
+  errors?: ErrorResponseErrors;
+}
+
 export interface GeneralSettingsResponse {
   currencyCode?: string;
   /** @nullable */
   electricityPricePerKwh?: number | null;
+  failureAllowancePercent?: number;
   supportedCurrencies?: string[];
 }
 
@@ -311,6 +355,8 @@ export interface GeneralSettingsRequest {
   currencyCode?: string;
   /** @nullable */
   electricityPricePerKwh?: number | null;
+  /** @nullable */
+  failureAllowancePercent?: number | null;
 }
 
 export interface EffectiveSlicerDefaultResponse {
@@ -2236,6 +2282,11 @@ export interface AssemblyCostInput {
   pieces?: number;
 }
 
+export interface AssemblyPricingDto {
+  mode?: string;
+  value?: number;
+}
+
 export interface AssemblyResponse {
   id?: string;
   name?: string;
@@ -2243,6 +2294,7 @@ export interface AssemblyResponse {
   description?: string | null;
   lines?: BomLineResponse[];
   additionalCosts?: AssemblyCostInput[];
+  pricing?: AssemblyPricingDto | null;
   createdAtUtc?: string;
   updatedAtUtc?: string;
 }
@@ -2260,6 +2312,7 @@ export interface CreateAssemblyRequest {
   lines?: CreateAssemblyLineRequest[];
   /** @nullable */
   additionalCosts?: AssemblyCostInput[] | null;
+  pricing?: AssemblyPricingDto | null;
 }
 
 export interface DeleteAssemblyRequest {
@@ -2282,6 +2335,7 @@ export interface EditAssemblyRequest {
   lines?: EditAssemblyLineRequest[] | null;
   /** @nullable */
   additionalCosts?: AssemblyCostInput[] | null;
+  pricing?: AssemblyPricingDto | null;
 }
 
 export interface AssemblyMachineCostContribution {

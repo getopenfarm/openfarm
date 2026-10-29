@@ -41,7 +41,8 @@ when they lack estimation metadata or print times.
 
 Estimates use current settings. Retaining a model preserves its configuration,
 not a historical price snapshot. This feature does not track actual energy,
-accounting depreciation, salvage value, idle power, failures, or selling prices.
+accounting depreciation, salvage value, or idle power. The failure allowance and
+selling prices are in `docs/PRICING.md`.
 
 ## API
 

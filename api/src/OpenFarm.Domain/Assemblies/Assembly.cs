@@ -3,8 +3,8 @@ namespace OpenFarm.Domain.Assemblies;
 /// <summary>
 /// A named description of a finished product (spec Key Entities) — one or more polymorphic
 /// <see cref="BomLine"/>s, each targeting a Part, a sub-Assembly, or a <see cref="NonPrintedComponent"/>.
-/// No status, no stock, no printer/job/run relationship — deliberately nothing beyond
-/// <see cref="Name"/>/<see cref="Description"/>/<see cref="Lines"/> (data-model.md).
+/// No status, no stock, no printer/job/run relationship — only <see cref="Name"/>/<see cref="Description"/>/<see cref="Lines"/>,
+/// additional costs and an optional selling <see cref="Pricing"/> (data-model.md, docs/PRICING.md).
 /// </summary>
 public sealed class Assembly
 {
@@ -57,6 +57,19 @@ public sealed class Assembly
     public string? Description { get; private set; }
 
     public IReadOnlyList<BomLine> Lines => _lines;
+
+    public string? PricingMode { get; private set; }
+
+    public decimal? PricingValue { get; private set; }
+
+    public AssemblyPricing? Pricing => PricingMode is { } mode && PricingValue is { } value ? new(mode, value) : null;
+
+    public void SetPricing(AssemblyPricing? pricing)
+    {
+        PricingMode = pricing?.Mode;
+        PricingValue = pricing?.Value;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
 
     public DateTimeOffset CreatedAtUtc { get; }
 

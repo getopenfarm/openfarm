@@ -51,6 +51,7 @@ public sealed class EditAssemblyCommandHandler(
                         assemblyRepository.StageCostLine(costLine);
                 }
                 assembly.ValidateCostDuplicates();
+                if (command.UpdatePricing) assembly.SetPricing(command.Pricing);
 
                 if (added.Any(l => l.TargetKind == BomLineTargetKind.Assembly))
                 {

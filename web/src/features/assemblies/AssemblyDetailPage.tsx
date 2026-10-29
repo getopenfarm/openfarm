@@ -27,6 +27,7 @@ import {
   AssemblyEditor,
   type AssemblyFormValues,
   toLinePayload,
+  toPricingPayload,
   useAssemblyForm,
 } from './components/AssemblyEditor';
 
@@ -144,6 +145,7 @@ export function AssemblyDetailPage() {
       id,
       data: {
         additionalCosts: values.additionalCosts,
+        pricing: toPricingPayload(values.pricing),
         name: values.name.trim(),
         description: values.description?.trim() || null,
         lines: values.lines.map((l) => ({

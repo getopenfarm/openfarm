@@ -63,9 +63,10 @@ unavailable.
 
 The Build panel separates category subtotals, product cost, shipping allowance,
 and estimated total including shipping. Standalone parts can use a one-part
-assembly for this workflow. No inventory, leftover rolls, purchasing, actual
-expenditure, batch allocation, shared parcels, electricity, or depreciation is
-tracked by these features.
+assembly for this workflow. Printer depreciation and electricity are separate
+Build lines (`docs/PRINTER_COSTS.md`); the failure allowance and selling prices
+are in `docs/PRICING.md`. No inventory, leftover rolls, purchasing, actual
+expenditure, batch allocation, or shared parcels are tracked by these features.
 
 ## API compatibility
 

@@ -29,7 +29,7 @@ public sealed class GetAssemblyQueryHandler(
             lines.Add(new BomLineDetail(line.Id, line.TargetKind, targetId, targetName, line.Quantity));
         }
 
-        return new AssemblyDetail(assembly.Id, assembly.Name, assembly.Description, lines, assembly.CreatedAtUtc, assembly.UpdatedAtUtc, assembly.AdditionalCosts.Select(l => l.Input).ToList());
+        return new AssemblyDetail(assembly.Id, assembly.Name, assembly.Description, lines, assembly.CreatedAtUtc, assembly.UpdatedAtUtc, assembly.AdditionalCosts.Select(l => l.Input).ToList(), assembly.Pricing);
     }
 
     private async Task<(Guid TargetId, string TargetName)> ResolveTargetAsync(BomLine line, CancellationToken cancellationToken)

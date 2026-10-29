@@ -12,4 +12,4 @@ public sealed record AssemblyDetail(
     string? Description,
     IReadOnlyList<BomLineDetail> Lines,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc, IReadOnlyList<AssemblyCostInput>? AdditionalCosts = null);
+    DateTimeOffset UpdatedAtUtc, IReadOnlyList<AssemblyCostInput>? AdditionalCosts = null, AssemblyPricing? Pricing = null);

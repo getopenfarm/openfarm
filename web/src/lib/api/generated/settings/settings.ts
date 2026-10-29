@@ -22,12 +22,17 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
+  ErrorResponse,
+  FeeProfileDto,
+  FeesResponse,
   GeneralSettingsRequest,
   GeneralSettingsResponse,
   PrinterCostsResponse,
   PrinterModelCostResponse,
+  SaveFeeProfileRequest,
   SlicingDefaultsResponse,
   UpdateElectricityPriceRequest,
+  UpdateFeesRequest,
   UpdatePrinterModelCostRequest,
   UpdateSlicingDefaultsRequest,
 } from '../endpoints.schemas';
@@ -50,6 +55,753 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
+export type openFarmApiEndpointsSettingsGetFeesEndpointResponse200 = {
+  data: FeesResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsGetFeesEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsGetFeesEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsGetFeesEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsGetFeesEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsGetFeesEndpointResponseError = (
+  | openFarmApiEndpointsSettingsGetFeesEndpointResponse401
+  | openFarmApiEndpointsSettingsGetFeesEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSettingsGetFeesEndpointResponse =
+  | openFarmApiEndpointsSettingsGetFeesEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsGetFeesEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsGetFeesEndpointUrl = () => {
+  return `/api/v1/settings/fees`;
+};
+
+export const openFarmApiEndpointsSettingsGetFeesEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsGetFeesEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsGetFeesEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsGetFeesEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsGetFeesEndpointQueryKey = () => {
+  return [`/api/v1/settings/fees`] as const;
+};
+
+export const getOpenFarmApiEndpointsSettingsGetFeesEndpointQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+  >,
+  TError = void,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getOpenFarmApiEndpointsSettingsGetFeesEndpointQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>>
+  > = ({ signal }) => openFarmApiEndpointsSettingsGetFeesEndpoint({ signal });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type OpenFarmApiEndpointsSettingsGetFeesEndpointQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>>
+  >;
+export type OpenFarmApiEndpointsSettingsGetFeesEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsSettingsGetFeesEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetFeesEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetFeesEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSettingsGetFeesEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsSettingsGetFeesEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSettingsGetFeesEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsSettingsUpdateFeesEndpointResponse200 = {
+  data: FeesResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsUpdateFeesEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsUpdateFeesEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsUpdateFeesEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdateFeesEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdateFeesEndpointResponseError = (
+  | openFarmApiEndpointsSettingsUpdateFeesEndpointResponse401
+  | openFarmApiEndpointsSettingsUpdateFeesEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSettingsUpdateFeesEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdateFeesEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdateFeesEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdateFeesEndpointUrl = () => {
+  return `/api/v1/settings/fees`;
+};
+
+export const openFarmApiEndpointsSettingsUpdateFeesEndpoint = async (
+  updateFeesRequest: UpdateFeesRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsUpdateFeesEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsUpdateFeesEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsUpdateFeesEndpointUrl(),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(updateFeesRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsUpdateFeesEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateFeesEndpoint>
+      >,
+      TError,
+      { data: UpdateFeesRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSettingsUpdateFeesEndpoint>>,
+    TError,
+    { data: UpdateFeesRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsSettingsUpdateFeesEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateFeesEndpoint>
+      >,
+      { data: UpdateFeesRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdateFeesEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdateFeesEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsSettingsUpdateFeesEndpoint>>
+  >;
+export type OpenFarmApiEndpointsSettingsUpdateFeesEndpointMutationBody =
+  UpdateFeesRequest;
+export type OpenFarmApiEndpointsSettingsUpdateFeesEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsSettingsUpdateFeesEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateFeesEndpoint>
+      >,
+      TError,
+      { data: UpdateFeesRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsSettingsUpdateFeesEndpoint>>,
+  TError,
+  { data: UpdateFeesRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsUpdateFeesEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse201 = {
+  data: FeeProfileDto;
+  status: 201;
+};
+
+export type openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse400 = {
+  data: ErrorResponse;
+  status: 400;
+};
+
+export type openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse201 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse400
+    | openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse401
+    | openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse =
+  | openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsCreateFeeProfileEndpointUrl =
+  () => {
+    return `/api/v1/settings/fees/profiles`;
+  };
+
+export const openFarmApiEndpointsSettingsCreateFeeProfileEndpoint = async (
+  saveFeeProfileRequest: SaveFeeProfileRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsCreateFeeProfileEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsCreateFeeProfileEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(saveFeeProfileRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsCreateFeeProfileEndpointMutationOptions =
+  <TError = ErrorResponse | void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsCreateFeeProfileEndpoint>
+      >,
+      TError,
+      { data: SaveFeeProfileRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsCreateFeeProfileEndpoint>
+    >,
+    TError,
+    { data: SaveFeeProfileRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsCreateFeeProfileEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsCreateFeeProfileEndpoint>
+      >,
+      { data: SaveFeeProfileRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsCreateFeeProfileEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsCreateFeeProfileEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsCreateFeeProfileEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsCreateFeeProfileEndpointMutationBody =
+  SaveFeeProfileRequest;
+export type OpenFarmApiEndpointsSettingsCreateFeeProfileEndpointMutationError =
+  ErrorResponse | void;
+
+export const useOpenFarmApiEndpointsSettingsCreateFeeProfileEndpoint = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsCreateFeeProfileEndpoint>
+      >,
+      TError,
+      { data: SaveFeeProfileRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsCreateFeeProfileEndpoint>
+  >,
+  TError,
+  { data: SaveFeeProfileRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsCreateFeeProfileEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse200 = {
+  data: FeeProfileDto;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse400 = {
+  data: ErrorResponse;
+  status: 400;
+};
+
+export type openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type openFarmApiEndpointsSettingsEditFeeProfileEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsEditFeeProfileEndpointResponseError = (
+  | openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse400
+  | openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse401
+  | openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse403
+  | openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse404
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse =
+  | openFarmApiEndpointsSettingsEditFeeProfileEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsEditFeeProfileEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsEditFeeProfileEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/settings/fees/profiles/${id}`;
+};
+
+export const openFarmApiEndpointsSettingsEditFeeProfileEndpoint = async (
+  id: string,
+  saveFeeProfileRequest: SaveFeeProfileRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsEditFeeProfileEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsEditFeeProfileEndpointUrl(id),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(saveFeeProfileRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsEditFeeProfileEndpointMutationOptions =
+  <TError = ErrorResponse | void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsEditFeeProfileEndpoint>
+      >,
+      TError,
+      { id: string; data: SaveFeeProfileRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsEditFeeProfileEndpoint>
+    >,
+    TError,
+    { id: string; data: SaveFeeProfileRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsSettingsEditFeeProfileEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsEditFeeProfileEndpoint>
+      >,
+      { id: string; data: SaveFeeProfileRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsEditFeeProfileEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsEditFeeProfileEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsEditFeeProfileEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsEditFeeProfileEndpointMutationBody =
+  SaveFeeProfileRequest;
+export type OpenFarmApiEndpointsSettingsEditFeeProfileEndpointMutationError =
+  ErrorResponse | void;
+
+export const useOpenFarmApiEndpointsSettingsEditFeeProfileEndpoint = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsEditFeeProfileEndpoint>
+      >,
+      TError,
+      { id: string; data: SaveFeeProfileRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsEditFeeProfileEndpoint>
+  >,
+  TError,
+  { id: string; data: SaveFeeProfileRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsEditFeeProfileEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse401
+    | openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse403
+    | openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse404
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse =
+  | openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsRemoveFeeProfileEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/settings/fees/profiles/${id}`;
+};
+
+export const openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsRemoveFeeProfileEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsRemoveFeeProfileEndpointUrl(id),
+    {
+      ...options,
+      method: 'DELETE',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsRemoveFeeProfileEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint>
+    >,
+    TError,
+    { id: string },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint>
+      >,
+      { id: string }
+    > = (props) => {
+      const { id } = props ?? {};
+
+      return openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint(id);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsRemoveFeeProfileEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint>
+    >
+  >;
+
+export type OpenFarmApiEndpointsSettingsRemoveFeeProfileEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsRemoveFeeProfileEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint>
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsRemoveFeeProfileEndpoint>
+  >,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsRemoveFeeProfileEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsSettingsGetGeneralSettingsEndpointResponse200 =
   {
     data: GeneralSettingsResponse;

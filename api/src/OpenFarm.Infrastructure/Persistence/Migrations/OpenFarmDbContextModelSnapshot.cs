@@ -181,6 +181,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("PricingMode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<decimal?>("PricingValue")
+                        .HasColumnType("numeric");
+
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -192,7 +199,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Assemblies", (string)null);
+                    b.ToTable("Assemblies", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Assemblies_Pricing", "(\"PricingMode\" IS NULL) = (\"PricingValue\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.AssemblyCostLine", b =>
@@ -1710,9 +1720,37 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("ElectricityPricePerKwh")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal>("FailureAllowancePercent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric")
+                        .HasDefaultValue(0m);
+
                     b.HasKey("Id");
 
                     b.ToTable("FarmSettings", (string)null);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Settings.FeeProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Fees")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("FeeProfiles", (string)null);
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.ApplicationRole", b =>

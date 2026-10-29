@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 const sections = [
   { title: 'General', to: 'general' },
   { title: 'Printer costs', to: 'printer-costs' },
+  { title: 'Fees', to: 'fees' },
   { title: 'Slicing defaults', to: 'slicing-defaults' },
 ];
 
