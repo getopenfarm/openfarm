@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import {
   createContext,
+  type ReactNode,
   type RefObject,
   useContext,
   useEffect,
@@ -35,6 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { TabsContent } from '@/components/ui/tabs';
 import type { PartLibraryRow } from '@/features/library/api';
 import {
   LibraryDragHandle,
@@ -50,19 +52,24 @@ import { LibraryItemCard } from '@/features/library/LibraryItemCard';
 import { LibraryItemLink } from '@/features/library/LibraryItemLink';
 import { MoveToDialog } from '@/features/library/MoveToDialog';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
-
 import { formatMm } from '@/lib/formatUnits';
+import { libraryFieldIds } from '@/lib/preferences/libraryFields';
 import type { ViewMode } from '@/lib/preferences/types';
+import { usePreferences } from '@/lib/preferences/usePreferences';
 import { formatPartFileType } from '../formatPartFileType';
 import { PartEstimate } from './PartEstimate';
 import {
   type PartRemovalNoticeData,
   PartRemovalToast,
 } from './PartRemovalToast';
+import { PartThumbnailMaterial } from './PartThumbnailMaterial';
 import { RemovePartsDialog } from './RemovePartsDialog';
 import type { RemovablePart } from './useRemoveParts';
 
 interface PartsTableProps {
+  folderNavigation?: ReactNode;
+  toolbarControls?: (fields: ReactNode) => ReactNode;
+  dragging?: boolean;
   libraryRows?: PartLibraryRow[];
   view?: ViewMode;
   folderId?: string | null;
@@ -185,7 +192,11 @@ function PartRowActions({
   onQueue,
   onRemove,
   onMove,
+  selected,
+  onSelect,
 }: {
+  selected: boolean;
+  onSelect: () => void;
   part: PartLibraryRow;
   disabled: boolean;
   onMove: (trigger: HTMLButtonElement | null) => void;
@@ -201,6 +212,9 @@ function PartRowActions({
       disabled={disabled || !part.id}
     >
       <DropdownMenuGroup>
+        <DropdownMenuItem onSelect={onSelect}>
+          {selected ? 'Deselect' : 'Select'}
+        </DropdownMenuItem>
         <DropdownMenuItem
           disabled={incomplete}
           title={
@@ -283,6 +297,8 @@ function ActionsCell({ row }: CellContext<PartLibraryRow, unknown>) {
     return <LibraryFolderActions folder={row.original.libraryFolder} />;
   return (
     <PartRowActions
+      selected={row.getIsSelected()}
+      onSelect={() => row.toggleSelected()}
       part={row.original}
       onMove={(trigger) => {
         if (row.original.id) actions.onMove([row.original.id], trigger);
@@ -326,6 +342,9 @@ const tableColumns: ColumnDef<PartLibraryRow>[] = [
 ];
 
 export function PartsTable({
+  folderNavigation,
+  toolbarControls,
+  dragging = false,
   libraryRows,
   view = 'table',
   folderId = null,
@@ -337,6 +356,7 @@ export function PartsTable({
   fallbackFocusRef,
   onPendingChange,
 }: PartsTableProps) {
+  const { getLibraryFields, setLibraryFields } = usePreferences();
   const [queuePart, setQueuePart] = useState<PartLibraryRow | null>(null);
   const [moveIds, setMoveIds] = useState<string[]>([]);
   const moveTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -428,6 +448,21 @@ export function PartsTable({
         }}
       >
         <DataTable
+          toolbarControls={toolbarControls}
+          renderContent={
+            toolbarControls
+              ? (content) => <TabsContent value={view}>{content}</TabsContent>
+              : undefined
+          }
+          showCardToolbar
+          viewOptionsLabel="Fields"
+          columnVisibility={getLibraryFields('parts', view)}
+          onColumnVisibilityChange={(updater) =>
+            setLibraryFields('parts', view, updater)
+          }
+          viewOptionColumnIds={libraryFieldIds('parts', view)}
+          modifierSelection={!!libraryRows}
+          selectionDisabled={interactionPending}
           serverSorting={sorting}
           serverPagination={
             pagination
@@ -449,13 +484,35 @@ export function PartsTable({
                           ? [row.original.thumbnailBase64]
                           : []
                       }
+                      fileTypeChip={
+                        row
+                          .getAllCells()
+                          .some(
+                            (c) =>
+                              c.column.id === 'fileType' &&
+                              c.column.getIsVisible(),
+                          ) ? (
+                          <Badge variant="secondary">
+                            {formatPartFileType(row.original)}
+                          </Badge>
+                        ) : undefined
+                      }
+                      materialChip={
+                        row
+                          .getAllCells()
+                          .some(
+                            (c) =>
+                              c.column.id === 'material' &&
+                              c.column.getIsVisible(),
+                          ) ? (
+                          <PartThumbnailMaterial
+                            part={row.original}
+                            disabled={interactionPending}
+                          />
+                        ) : undefined
+                      }
                       disabled={interactionPending}
-                    >
-                      <Badge variant="secondary">
-                        {formatPartFileType(row.original)}
-                      </Badge>
-                      <EstimateCell part={row.original} />
-                    </LibraryItemCard>
+                    />
                   )
               : undefined
           }
@@ -476,55 +533,64 @@ export function PartsTable({
             Boolean(row.original.id) && !row.original.libraryFolder
           }
           toolbar={
-            <DataTableSelectionBar
-              floating
-              selectedCount={selected.length}
-              pending={interactionPending}
-              label="Parts actions"
-              onClear={() => {
-                setSelection({});
-                setRemovalNotice(undefined);
-                selectionHeaderRef.current?.focus();
-              }}
-            >
-              <Button
-                ref={moveBulkRef}
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={interactionPending}
-                onClick={() => {
-                  moveTriggerRef.current = moveBulkRef.current;
-                  setMoveIds(
-                    selected.flatMap((item) => (item.id ? [item.id] : [])),
-                  );
-                }}
+            <>
+              {(selected.length === 0 || dragging) && folderNavigation}
+              <div
+                hidden={dragging}
+                className={dragging ? 'hidden' : 'contents'}
               >
-                <FolderInputIcon data-icon="inline-start" />
-                Move to
-              </Button>
-              <Button
-                ref={bulkTriggerRef}
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={interactionPending}
-                onClick={() => {
-                  removalTriggerRef.current = bulkTriggerRef.current;
-                  setRemovalBulk(true);
-                  setBulkTargets(
-                    selected.flatMap((part) =>
-                      part.id
-                        ? [{ id: part.id, name: part.name ?? 'this part' }]
-                        : [],
-                    ),
-                  );
-                  setBulkOpen(true);
-                }}
-              >
-                <Trash2Icon data-icon="inline-start" /> Remove selected
-              </Button>
-            </DataTableSelectionBar>
+                <DataTableSelectionBar
+                  selectedCount={selected.length}
+                  pending={interactionPending}
+                  label="Parts actions"
+                  onClear={() => {
+                    setSelection({});
+                    setRemovalNotice(undefined);
+                    (
+                      selectionHeaderRef.current ?? fallbackFocusRef?.current
+                    )?.focus();
+                  }}
+                >
+                  <Button
+                    ref={moveBulkRef}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={interactionPending}
+                    onClick={() => {
+                      moveTriggerRef.current = moveBulkRef.current;
+                      setMoveIds(
+                        selected.flatMap((item) => (item.id ? [item.id] : [])),
+                      );
+                    }}
+                  >
+                    <FolderInputIcon data-icon="inline-start" />
+                    Move to
+                  </Button>
+                  <Button
+                    ref={bulkTriggerRef}
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={interactionPending}
+                    onClick={() => {
+                      removalTriggerRef.current = bulkTriggerRef.current;
+                      setRemovalBulk(true);
+                      setBulkTargets(
+                        selected.flatMap((part) =>
+                          part.id
+                            ? [{ id: part.id, name: part.name ?? 'this part' }]
+                            : [],
+                        ),
+                      );
+                      setBulkOpen(true);
+                    }}
+                  >
+                    <Trash2Icon data-icon="inline-start" /> Remove selected
+                  </Button>
+                </DataTableSelectionBar>
+              </div>
+            </>
           }
         />
       </div>

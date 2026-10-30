@@ -6,10 +6,12 @@ export function LibraryPreview({
   images = [],
   kind,
   compact = false,
+  fill = false,
 }: {
   images?: string[];
   kind: 'folder' | 'assembly' | 'part';
   compact?: boolean;
+  fill?: boolean;
 }) {
   const previews = Array.from(new Set(images)).slice(0, 4);
   const Icon =
@@ -23,7 +25,7 @@ export function LibraryPreview({
       aria-hidden="true"
       className={cn(
         'flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground',
-        compact ? 'size-10' : 'size-full',
+        compact ? 'size-10' : fill ? 'self-stretch flex-1' : 'size-full',
       )}
     >
       {previews.length ? (

@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import {
   createContext,
-  Fragment,
   type ReactNode,
   useContext,
   useRef,
@@ -16,13 +15,6 @@ import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -47,22 +39,23 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import { type Folder, type LibraryKind, useLibraryMutation } from './api';
-import { LibraryBreadcrumbTarget, LibraryDragHandle } from './LibraryDnd';
+import { LibraryBreadcrumb } from './LibraryBreadcrumb';
+import { LibraryDragHandle } from './LibraryDnd';
 import { LibraryPreview } from './LibraryPreview';
 import { MoveToDialog } from './MoveToDialog';
 
 export function LibraryFolderControls({
   library,
   folderId,
-  ancestors,
   children,
+  header,
   disabled,
   onPendingChange,
 }: {
   library: LibraryKind;
   folderId: string | null;
-  ancestors: Folder[];
   children: ReactNode;
+  header: (addFolder: ReactNode) => ReactNode;
   disabled?: boolean;
   onPendingChange: (pending: boolean) => void;
 }) {
@@ -133,48 +126,7 @@ export function LibraryFolderControls({
       }}
     >
       <section aria-label="Library contents" className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Breadcrumb className="min-w-0 flex-1">
-            <BreadcrumbList className="min-w-0">
-              <BreadcrumbItem className="min-w-0">
-                <LibraryBreadcrumbTarget folderId={null} name="Root">
-                  <BreadcrumbLink asChild>
-                    <Link
-                      draggable={false}
-                      to={`/${library}`}
-                      onClick={(e) => {
-                        if (busy) e.preventDefault();
-                      }}
-                    >
-                      {library === 'parts' ? 'Part library' : 'Assemblies'}
-                    </Link>
-                  </BreadcrumbLink>
-                </LibraryBreadcrumbTarget>
-              </BreadcrumbItem>
-              {ancestors.map((a) => (
-                <Fragment key={a.id}>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem className="min-w-0">
-                    <LibraryBreadcrumbTarget folderId={a.id} name={a.name}>
-                      <BreadcrumbLink asChild>
-                        <Link
-                          draggable={false}
-                          to={`/${library}?folder=${a.id}`}
-                          className="max-w-48 truncate"
-                          aria-current={a.id === folderId ? 'page' : undefined}
-                          onClick={(e) => {
-                            if (busy) e.preventDefault();
-                          }}
-                        >
-                          {a.name}
-                        </Link>
-                      </BreadcrumbLink>
-                    </LibraryBreadcrumbTarget>
-                  </BreadcrumbItem>
-                </Fragment>
-              ))}
-            </BreadcrumbList>
-          </Breadcrumb>
+        {header(
           <Button
             ref={addRef}
             variant="outline"
@@ -183,8 +135,9 @@ export function LibraryFolderControls({
           >
             <PlusIcon data-icon="inline-start" />
             Add folder
-          </Button>
-        </div>
+          </Button>,
+        )}
+        <LibraryBreadcrumb library={library} ancestors={[]} disabled={!!busy} />
         {children}
         <Dialog
           open={editing !== null}
@@ -349,7 +302,7 @@ export function LibraryFolderName({
           if (busy) e.preventDefault();
         }}
         to={`/${library}?folder=${folder.id}`}
-        className="flex items-center gap-3 hover:underline"
+        className="flex items-center gap-3"
       >
         {preview && <LibraryPreview kind="folder" compact />}
         <span className="truncate">{folder.name}</span>
@@ -372,7 +325,10 @@ export function LibraryFolderActions({ folder }: { folder: Folder }) {
 export function LibraryFolderCard({ folder }: { folder: Folder }) {
   const { library, busy } = useFolderControls();
   return (
-    <Card size="sm" className="h-full">
+    <Card
+      size="sm"
+      className="h-full transition-colors group-hover/library-tile:bg-muted/50 group-focus-within/library-tile:bg-muted/50"
+    >
       <CardHeader>
         <div className="flex min-w-0 items-center gap-2">
           <CardTitle className="min-w-0">
@@ -383,7 +339,7 @@ export function LibraryFolderCard({ folder }: { folder: Folder }) {
           <LibraryFolderActions folder={folder} />
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex min-h-32 flex-1">
         <Link
           draggable={false}
           to={`/${library}?folder=${folder.id}`}
@@ -392,9 +348,9 @@ export function LibraryFolderCard({ folder }: { folder: Folder }) {
           onClick={(event) => {
             if (busy) event.preventDefault();
           }}
-          className="flex aspect-[4/3] items-center justify-center rounded-md bg-muted"
+          className="flex min-h-32 flex-1 items-center justify-center rounded-md bg-muted"
         >
-          <LibraryPreview kind="folder" />
+          <LibraryPreview kind="folder" fill />
         </Link>
       </CardContent>
     </Card>

@@ -10425,6 +10425,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "folderId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -12549,6 +12554,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "folderId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"

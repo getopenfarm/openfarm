@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { invalidateLibraryContents } from '@/features/library/api';
+import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
 import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
@@ -113,6 +114,7 @@ export function AssemblyDetailPage() {
         404;
     return (
       <Page>
+        <LibraryItemBreadcrumb library="assemblies" name="Assembly" />
         <PageHeader
           above={
             <BackLink to={location} className="mb-1">
@@ -165,6 +167,11 @@ export function AssemblyDetailPage() {
 
   return (
     <Page className="flex-1">
+      <LibraryItemBreadcrumb
+        library="assemblies"
+        folderId={assembly?.folderId}
+        name={assembly?.name ?? 'Assembly'}
+      />
       <AssemblyEditor
         form={form}
         onSubmit={onSubmit}

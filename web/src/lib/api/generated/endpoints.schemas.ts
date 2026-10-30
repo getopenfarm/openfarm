@@ -1619,6 +1619,8 @@ export interface ThumbnailResponse {
 }
 
 export interface PartResponse {
+  /** @nullable */
+  folderId?: string | null;
   id?: string;
   name?: string;
   fileFormat?: string;
@@ -2365,6 +2367,8 @@ export interface AssemblyPricingDto {
 }
 
 export interface AssemblyResponse {
+  /** @nullable */
+  folderId?: string | null;
   id?: string;
   name?: string;
   /** @nullable */

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 import { PartsTable } from './PartsTable';
 
 const parts: PartSummaryResponse[] = [
@@ -52,15 +53,17 @@ function setup(fetchMock = vi.fn(), checkMock?: (ids: string[]) => Response) {
   const onPendingChange = vi.fn();
   const view = (data: PartSummaryResponse[], selectionKey: string) => (
     <MemoryRouter>
-      <QueryClientProvider client={client}>
-        <PartsTable
-          parts={data}
-          selectionKey={selectionKey}
-          onRowClick={onRowClick}
-          onPendingChange={onPendingChange}
-        />
-        <Toaster />
-      </QueryClientProvider>
+      <PreferencesProvider>
+        <QueryClientProvider client={client}>
+          <PartsTable
+            parts={data}
+            selectionKey={selectionKey}
+            onRowClick={onRowClick}
+            onPendingChange={onPendingChange}
+          />
+          <Toaster />
+        </QueryClientProvider>
+      </PreferencesProvider>
     </MemoryRouter>
   );
   const result = render(view(parts, 'page-1'));
@@ -94,6 +97,7 @@ function success() {
 }
 
 afterEach(() => {
+  localStorage.clear();
   toast.dismiss();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();

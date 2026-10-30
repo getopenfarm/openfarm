@@ -1,3 +1,4 @@
+import type { OnChangeFn, VisibilityState } from '@tanstack/react-table';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   DEFAULT_DENSITY_MODE,
@@ -5,7 +6,14 @@ import {
   DEFAULT_VIEW_MODE,
   PREFERENCES_STORAGE_KEY,
 } from './defaultPreferences';
-import type { DensityMode, ListPageKey, Preferences, ViewMode } from './types';
+import { resolveLibraryFields } from './libraryFields';
+import type {
+  DensityMode,
+  LibraryPageKey,
+  ListPageKey,
+  Preferences,
+  ViewMode,
+} from './types';
 
 function loadPreferences(): Preferences {
   if (typeof window === 'undefined') return DEFAULT_PREFERENCES;
@@ -40,6 +48,12 @@ function savePreferences(preferences: Preferences) {
 }
 
 interface PreferencesContextValue {
+  getLibraryFields: (page: LibraryPageKey, view: ViewMode) => VisibilityState;
+  setLibraryFields: (
+    page: LibraryPageKey,
+    view: ViewMode,
+    updater: Parameters<OnChangeFn<VisibilityState>>[0],
+  ) => void;
   preferences: Preferences;
   getListView: (page: ListPageKey) => ViewMode;
   setListView: (page: ListPageKey, mode: ViewMode) => void;
@@ -63,6 +77,32 @@ export function PreferencesProvider({
   const value = useMemo<PreferencesContextValue>(
     () => ({
       preferences,
+      getLibraryFields: (page, view) =>
+        resolveLibraryFields(
+          page,
+          view,
+          preferences.libraryFields?.[page]?.[view],
+        ),
+      setLibraryFields: (page, view, updater) =>
+        setPreferences((prev) => {
+          const current = resolveLibraryFields(
+            page,
+            view,
+            prev.libraryFields?.[page]?.[view],
+          );
+          const next =
+            typeof updater === 'function' ? updater(current) : updater;
+          return {
+            ...prev,
+            libraryFields: {
+              ...prev.libraryFields,
+              [page]: {
+                ...prev.libraryFields?.[page],
+                [view]: resolveLibraryFields(page, view, next),
+              },
+            },
+          };
+        }),
       getListView: (page) => preferences.listViews[page] ?? DEFAULT_VIEW_MODE,
       setListView: (page, mode) =>
         setPreferences((prev) => ({

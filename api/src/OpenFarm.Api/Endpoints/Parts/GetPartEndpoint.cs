@@ -23,6 +23,7 @@ public sealed class PartFilamentRequirementResponse
 
 public sealed class PartResponse
 {
+    public Guid? FolderId { get; set; }
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string FileFormat { get; set; } = string.Empty;
@@ -49,6 +50,7 @@ public sealed class PartResponse
     public static PartResponse FromDetail(PartDetail detail) => new()
     {
         Id = detail.Id,
+        FolderId = detail.FolderId,
         Name = detail.Name,
         FileFormat = detail.FileFormat,
         RequiresSlicing = detail.RequiresSlicing,
@@ -90,6 +92,7 @@ public sealed class PartResponse
     public static PartResponse FromDomain(Part part) => new()
     {
         Id = part.Id,
+        FolderId = part.FolderId,
         Name = part.Name,
         FileFormat = part.FileFormat.ToString(),
         RequiresSlicing = part.RequiresSlicing,

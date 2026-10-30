@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
@@ -52,6 +52,46 @@ function renderPage() {
 }
 
 describe('AssemblyDetailPage', () => {
+  it('shows saved folder ancestry when opening an assembly directly', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/library/assemblies/folders'))
+          return Promise.resolve(
+            jsonResponse({
+              items: [],
+              totalCount: 0,
+              ancestors: [
+                {
+                  id: 'products',
+                  name: 'Products',
+                  parentId: null,
+                  library: 'assemblies',
+                },
+              ],
+            }),
+          );
+        if (url.endsWith('/assemblies/a1'))
+          return Promise.resolve(
+            jsonResponse({ ...ASSEMBLY, folderId: 'products' }),
+          );
+        return Promise.resolve(jsonResponse({ items: [], totalCount: 0 }));
+      }),
+    );
+    renderPage();
+    const breadcrumb = within(
+      screen.getByRole('navigation', { name: 'breadcrumb' }),
+    );
+    expect(
+      await breadcrumb.findByRole('link', { name: 'Products' }),
+    ).toHaveAttribute('href', '/assemblies?folder=products');
+    expect(breadcrumb.getByText('Enclosure')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   it('saves name and line changes in one PUT with the full line list', async () => {

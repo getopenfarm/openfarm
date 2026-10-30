@@ -5,6 +5,7 @@ import { Page } from '@/components/page/Page';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { invalidateLibraryContents } from '@/features/library/api';
+import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
 import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
@@ -67,6 +68,11 @@ export function AssemblyFormPage() {
 
   return (
     <Page className="flex-1">
+      <LibraryItemBreadcrumb
+        library="assemblies"
+        folderId={folderId}
+        name="Add assembly"
+      />
       <AssemblyEditor
         form={form}
         onSubmit={onSubmit}

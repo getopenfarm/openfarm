@@ -52,6 +52,7 @@ public sealed class AssemblyPricingDtoValidator : AbstractValidator<AssemblyPric
 
 public sealed class AssemblyResponse
 {
+    public Guid? FolderId { get; set; }
     public Guid Id { get; set; }
 
     public string Name { get; set; } = string.Empty;
@@ -71,6 +72,7 @@ public sealed class AssemblyResponse
     public static AssemblyResponse FromDetail(AssemblyDetail detail) => new()
     {
         Id = detail.Id,
+        FolderId = detail.FolderId,
         Name = detail.Name,
         Description = detail.Description,
         Lines = detail.Lines.Select(BomLineResponse.FromDetail).ToList(),

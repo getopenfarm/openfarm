@@ -1,4 +1,5 @@
-import { Layers3Icon, PlusIcon } from 'lucide-react';
+import { Columns3Icon, Layers3Icon, PlusIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -11,6 +12,7 @@ import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { AssembliesTable } from '@/features/assemblies/components/AssembliesTable';
 import { PartsTable } from '@/features/parts/components/PartsTable';
 import { usePartsHub } from '@/features/parts/hooks/usePartsHub';
@@ -22,6 +24,7 @@ import {
   type PartLibraryRow,
   useLibraryContents,
 } from './api';
+import { LibraryTrail } from './LibraryBreadcrumb';
 import { LibraryDnd } from './LibraryDnd';
 import { LibraryFolderControls } from './LibraryFolders';
 import { LibraryViewControls } from './LibraryViewControls';
@@ -110,6 +113,28 @@ function LibraryBrowserContents({ library }: { library: LibraryKind }) {
     list.pageSize,
     list.sorting,
   ]);
+  const folderNavigation = folderId ? (
+    <LibraryTrail
+      library={library}
+      ancestors={data?.ancestors ?? []}
+      sectionLabel={false}
+      disabled={blocked}
+      dropTargets
+    />
+  ) : null;
+  const hasTable =
+    !!data &&
+    entries.length > 0 &&
+    !(list.page > lastPage && !query.isPlaceholderData);
+  const toolbarControls = (fields: ReactNode) => (
+    <LibraryViewControls
+      view={view}
+      sorting={list.serverSorting}
+      columnId="name"
+      disabled={blocked}
+      fields={fields}
+    />
+  );
   const entity = library === 'parts' ? 'part' : 'assembly';
   return (
     <LibraryDnd
@@ -121,119 +146,150 @@ function LibraryBrowserContents({ library }: { library: LibraryKind }) {
       onPendingChange={setDropPending}
       fallbackFocusRef={addRef}
     >
-      <Page className="pb-[calc(14rem+env(safe-area-inset-bottom))]">
-        <PageHeader
-          title={library === 'parts' ? 'Part library' : 'Assemblies'}
-          description={
-            data ? pluralize(totalCount, 'entry', 'entries') : undefined
-          }
-          action={
-            <Button
-              ref={addRef}
-              disabled={blocked}
-              onClick={() => navigate(addLocation)}
-            >
-              <PlusIcon data-icon="inline-start" />
-              Add {entity}
-            </Button>
-          }
-        />
-        <LibraryViewControls
-          view={view}
-          onViewChange={(mode) => setListView(library, mode)}
-          sorting={list.serverSorting}
-          columnId="name"
-          disabled={blocked}
-        />
-        <LibraryFolderControls
-          library={library}
-          folderId={folderId}
-          ancestors={data?.ancestors ?? []}
-          disabled={blocked}
-          onPendingChange={setFolderPending}
-        >
-          {query.isError && data && (
-            <ErrorState
-              title="Could not refresh list"
-              description="Showing previous results."
-              onRetry={() => query.refetch()}
-            />
-          )}
-          {query.isPending && !data ? (
-            <Skeleton className="h-64 w-full" />
-          ) : query.isError && !data ? (
-            <ErrorState
-              title={`Could not load ${library}`}
-              onRetry={() => query.refetch()}
-            />
-          ) : list.page > lastPage && !query.isPlaceholderData ? (
-            <Skeleton className="h-64 w-full" />
-          ) : entries.length === 0 ? (
-            <EmptyState
-              icon={
-                library === 'assemblies' ? (
-                  <Layers3Icon className="size-8 text-muted-foreground" />
-                ) : undefined
-              }
-              title={
-                folderId
-                  ? 'This folder is empty'
-                  : library === 'parts'
-                    ? 'No parts'
-                    : 'No assemblies'
-              }
-              description={`Add a folder or ${entity} here, or use Move to to organize existing items.`}
-              action={
-                <Button
-                  disabled={blocked}
-                  onClick={() => navigate(addLocation)}
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  Add {entity}
-                </Button>
-              }
-            />
-          ) : library === 'parts' ? (
-            <PartsTable
-              parts={parts}
-              libraryRows={partRows}
-              view={view}
-              folderId={folderId}
-              pagination={pagination}
-              sorting={sorting}
-              selectionKey={selectionKey}
-              onPendingChange={setActionPending}
-              fallbackFocusRef={addRef}
-              onRowClick={(row) =>
-                navigate(
-                  row.libraryFolder
-                    ? `/parts?folder=${row.id}`
-                    : itemLocation(row.id ?? ''),
-                )
-              }
-            />
-          ) : (
-            <AssembliesTable
-              assemblies={assemblies}
-              libraryRows={assemblyRows}
-              view={view}
-              folderId={folderId}
-              pagination={pagination}
-              sorting={sorting}
-              selectionKey={selectionKey}
-              onPendingChange={setActionPending}
-              fallbackFocusRef={addRef}
-              onRowClick={(row) =>
-                navigate(
-                  row.libraryFolder
-                    ? `/assemblies?folder=${row.id}`
-                    : itemLocation(row.id ?? ''),
-                )
-              }
-            />
-          )}
-        </LibraryFolderControls>
-      </Page>
+      <Tabs
+        value={view}
+        onValueChange={(mode) => {
+          if (mode === 'table' || mode === 'grid') setListView(library, mode);
+        }}
+      >
+        <Page>
+          <LibraryFolderControls
+            header={(addFolder) => (
+              <PageHeader
+                title={library === 'parts' ? 'Part library' : 'Assemblies'}
+                description={
+                  data ? pluralize(totalCount, 'entry', 'entries') : undefined
+                }
+                action={
+                  <div className="flex flex-wrap items-center gap-2">
+                    {addFolder}
+                    <Button
+                      ref={addRef}
+                      disabled={blocked}
+                      onClick={() => navigate(addLocation)}
+                    >
+                      <PlusIcon data-icon="inline-start" />
+                      Add {entity}
+                    </Button>
+                  </div>
+                }
+              />
+            )}
+            library={library}
+            folderId={folderId}
+            disabled={blocked}
+            onPendingChange={setFolderPending}
+          >
+            {!hasTable && (
+              <div
+                data-slot="table-toolbar-row"
+                className="flex min-h-12 min-w-0 flex-wrap items-center gap-2 rounded-md border px-3 py-2"
+              >
+                {folderNavigation}
+                <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-3">
+                  {toolbarControls(
+                    <Button type="button" variant="outline" size="sm" disabled>
+                      <Columns3Icon data-icon="inline-start" /> Fields
+                    </Button>,
+                  )}
+                </div>
+              </div>
+            )}
+            {query.isError && data && (
+              <ErrorState
+                title="Could not refresh list"
+                description="Showing previous results."
+                onRetry={() => query.refetch()}
+              />
+            )}
+            {!hasTable && (
+              <TabsContent value={view}>
+                {query.isPending && !data ? (
+                  <Skeleton className="h-64 w-full" />
+                ) : query.isError && !data ? (
+                  <ErrorState
+                    title={`Could not load ${library}`}
+                    onRetry={() => query.refetch()}
+                  />
+                ) : list.page > lastPage && !query.isPlaceholderData ? (
+                  <Skeleton className="h-64 w-full" />
+                ) : entries.length === 0 ? (
+                  <EmptyState
+                    icon={
+                      library === 'assemblies' ? (
+                        <Layers3Icon className="size-8 text-muted-foreground" />
+                      ) : undefined
+                    }
+                    title={
+                      folderId
+                        ? 'This folder is empty'
+                        : library === 'parts'
+                          ? 'No parts'
+                          : 'No assemblies'
+                    }
+                    description={`Add a folder or ${entity} here, or use Move to to organize existing items.`}
+                    action={
+                      <Button
+                        disabled={blocked}
+                        onClick={() => navigate(addLocation)}
+                      >
+                        <PlusIcon data-icon="inline-start" />
+                        Add {entity}
+                      </Button>
+                    }
+                  />
+                ) : null}
+              </TabsContent>
+            )}
+            {hasTable &&
+              (library === 'parts' ? (
+                <PartsTable
+                  parts={parts}
+                  folderNavigation={folderNavigation}
+                  toolbarControls={toolbarControls}
+                  dragging={dragging}
+                  libraryRows={partRows}
+                  view={view}
+                  folderId={folderId}
+                  pagination={pagination}
+                  sorting={sorting}
+                  selectionKey={selectionKey}
+                  onPendingChange={setActionPending}
+                  fallbackFocusRef={addRef}
+                  onRowClick={(row) =>
+                    navigate(
+                      row.libraryFolder
+                        ? `/parts?folder=${row.id}`
+                        : itemLocation(row.id ?? ''),
+                    )
+                  }
+                />
+              ) : (
+                <AssembliesTable
+                  assemblies={assemblies}
+                  folderNavigation={folderNavigation}
+                  toolbarControls={toolbarControls}
+                  dragging={dragging}
+                  libraryRows={assemblyRows}
+                  view={view}
+                  folderId={folderId}
+                  pagination={pagination}
+                  sorting={sorting}
+                  selectionKey={selectionKey}
+                  onPendingChange={setActionPending}
+                  fallbackFocusRef={addRef}
+                  onRowClick={(row) =>
+                    navigate(
+                      row.libraryFolder
+                        ? `/assemblies?folder=${row.id}`
+                        : itemLocation(row.id ?? ''),
+                    )
+                  }
+                />
+              ))}
+          </LibraryFolderControls>
+        </Page>
+      </Tabs>
     </LibraryDnd>
   );
 }

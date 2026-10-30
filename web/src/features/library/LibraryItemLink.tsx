@@ -14,11 +14,7 @@ export function LibraryItemLink({
 }) {
   const { itemLocation } = useLibraryLocation(library);
   return (
-    <Link
-      draggable={false}
-      to={itemLocation(id ?? '')}
-      className="font-medium hover:underline"
-    >
+    <Link draggable={false} to={itemLocation(id ?? '')} className="font-medium">
       {children}
     </Link>
   );

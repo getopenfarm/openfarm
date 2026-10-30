@@ -10,12 +10,17 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect, useRef, useState } from 'react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  BreadcrumbOutlet,
+  BreadcrumbOutletProvider,
+} from '@/app/layout/BreadcrumbOutlet';
 import { Table, TableBody, TableCell } from '@/components/ui/table';
 import type { LibraryEntry } from './api';
 import { entryRowId } from './api';
+import { LibraryTrail } from './LibraryBreadcrumb';
 import {
-  LibraryBreadcrumbTarget,
   LibraryDnd,
   LibraryDragHandle,
   LibraryDragRow,
@@ -70,7 +75,11 @@ function setup({
     },
   );
   vi.stubGlobal('fetch', requests);
-  function Contents() {
+  function Contents({
+    pendingForBreadcrumb,
+  }: {
+    pendingForBreadcrumb: boolean;
+  }) {
     const manager = useDragDropManager();
     useEffect(() => {
       bridge.current = manager;
@@ -88,9 +97,30 @@ function setup({
             .sort()
             .join(',')}
         </output>
-        <LibraryBreadcrumbTarget folderId={null} name="Root">
-          <a href="/parts">Root</a>
-        </LibraryBreadcrumbTarget>
+        <LibraryTrail
+          sectionLabel={false}
+          library="parts"
+          ancestors={
+            parentId
+              ? [
+                  {
+                    id: 'f',
+                    name: 'Fixtures',
+                    parentId: null,
+                    library: 'parts',
+                  },
+                  {
+                    id: parentId,
+                    name: 'Current folder',
+                    parentId: 'f',
+                    library: 'parts',
+                  },
+                ]
+              : []
+          }
+          disabled={pendingForBreadcrumb}
+          dropTargets
+        />
         {view === 'table' ? (
           <Table>
             <TableBody>
@@ -151,7 +181,7 @@ function setup({
         </button>
         <output aria-label="Pending">{String(pending)}</output>
         <output aria-label="Dragging">{String(dragging)}</output>
-        <Contents />
+        <Contents pendingForBreadcrumb={pending} />
       </LibraryDnd>
     );
   }
@@ -160,7 +190,14 @@ function setup({
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <Harness />
+      <MemoryRouter>
+        <BreadcrumbOutletProvider>
+          <header>
+            <BreadcrumbOutlet fallback={null} />
+          </header>
+          <Harness />
+        </BreadcrumbOutletProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   function manager() {
@@ -340,16 +377,24 @@ describe('Library drag moves', () => {
     });
     expect(screen.getByLabelText('Selection')).toHaveTextContent('a,b');
   });
-  it('moves selected items to an ancestor breadcrumb', async () => {
-    const { requests, start, drop } = setup({ parentId: 'nested' });
-    await start('a');
-    await drop('breadcrumb:root');
-    await waitFor(() => expect(requests).toHaveBeenCalledTimes(1));
-    expect(JSON.parse(requests.mock.calls[0][1]?.body as string)).toEqual({
-      ids: ['a', 'b'],
-      folderId: null,
-    });
-  });
+  it.each(['root', 'f'])(
+    'moves selected items to the local breadcrumb %s',
+    async (target) => {
+      const { requests, start, drop } = setup({ parentId: 'nested' });
+      await start('a');
+      expect(
+        screen.getByRole('navigation', { name: 'Folder navigation' }),
+      ).toContainElement(
+        screen.getByRole('link', { name: 'Part library root' }),
+      );
+      await drop(`breadcrumb:${target}`);
+      await waitFor(() => expect(requests).toHaveBeenCalledTimes(1));
+      expect(JSON.parse(requests.mock.calls[0][1]?.body as string)).toEqual({
+        ids: ['a', 'b'],
+        folderId: target === 'root' ? null : target,
+      });
+    },
+  );
   it('retains selection and allows retry when the server rejects the move', async () => {
     const { requests, start, drop } = setup({ fail: true });
     await start('a');
@@ -362,6 +407,72 @@ describe('Library drag moves', () => {
     expect(screen.getByText('Destination changed.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Move Bracket' })).toBeEnabled();
   });
+  it('blocks local navigation during a drop and keeps selection available after failure', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { requests, start, drop } = setup({
+      parentId: 'nested',
+      fail: true,
+      gate,
+    });
+    await start('a');
+    await drop('breadcrumb:root');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Pending')).toHaveTextContent('true'),
+    );
+    expect(
+      screen.getByRole('link', { name: 'Part library root' }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    release();
+    await waitFor(() =>
+      expect(screen.getByLabelText('Pending')).toHaveTextContent('false'),
+    );
+    expect(screen.getByLabelText('Selection')).toHaveTextContent('a,b');
+    expect(
+      screen.getByRole('link', { name: 'Part library root' }),
+    ).not.toHaveAttribute('aria-disabled');
+    await start('a');
+    await drop('breadcrumb:f');
+    await waitFor(() => expect(requests).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText('Selection')).toHaveTextContent('a,b');
+  });
+  it.each(['table', 'grid'] as const)(
+    'cancels a pointer drag over its source without revealing a duplicate Move label in %s',
+    async (view) => {
+      const { requests, manager } = setup({ view });
+      const source = document.querySelector<HTMLElement>(
+        '[data-library-entry="c"]',
+      );
+      if (!source) throw new Error('Missing drag source');
+      screen.getByRole('button', { name: 'Library' }).focus();
+      await act(async () => {
+        manager().actions.start({ source: 'c', coordinates: { x: 0, y: 0 } });
+      });
+      await waitFor(() =>
+        expect(screen.getByLabelText('Dragging')).toHaveTextContent('true'),
+      );
+      expect(screen.queryByText('Move Lid')).not.toBeInTheDocument();
+      await act(async () => {
+        await manager().actions.setDropTarget('drop:folder:f');
+      });
+      await act(async () => {
+        await manager().actions.setDropTarget(null);
+      });
+      await act(async () => {
+        manager().actions.stop();
+      });
+      await waitFor(() =>
+        expect(screen.getByLabelText('Dragging')).toHaveTextContent('false'),
+      );
+      expect(requests).not.toHaveBeenCalled();
+      expect(screen.getByLabelText('Selection')).toHaveTextContent('a,b');
+      expect(source).toHaveFocus();
+      expect(screen.queryByText('Move Lid')).not.toBeInTheDocument();
+      expect(fireEvent.click(source)).toBe(false);
+    },
+  );
   it('starts and cancels with the keyboard without submitting a move', async () => {
     const { requests, user } = setup();
     const handle = screen.getByRole('button', { name: 'Move Bracket' });

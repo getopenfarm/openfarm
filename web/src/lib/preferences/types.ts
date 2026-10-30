@@ -12,7 +12,14 @@ export type ListPageKey =
   | 'profiles'
   | 'maintenance';
 
+export type LibraryPageKey = 'parts' | 'assemblies';
+export type FieldVisibility = Record<string, boolean>;
+export type LibraryFieldPreferences = Partial<
+  Record<LibraryPageKey, Partial<Record<ViewMode, FieldVisibility>>>
+>;
+
 export interface Preferences {
+  libraryFields: LibraryFieldPreferences;
   listViews: Partial<Record<ListPageKey, ViewMode>>;
   listDensities: Partial<Record<ListPageKey, DensityMode>>;
 }

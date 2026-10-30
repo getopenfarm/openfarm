@@ -132,8 +132,9 @@ left, daily use), and the shelf's groups of identical full rolls (`1 kg · full
 a list would otherwise repeat the same row dozens of times; Show expands a group
 to its rows. Row operations
 belong in accessible trailing ellipsis menus. Tables with bulk operations use
-DataTableSelectionBar, which floats at the bottom of the viewport when one or more
-rows are selected and shows the count, actions, and Clear selection. Reserve page
+DataTableSelectionBar, which shows the count, actions, and Clear selection when
+one or more rows are selected. Parts and Assemblies place it inline in the framed
+toolbar beside Fields in both views. Other lists retain the floating bar. Reserve page
 space after pagination, respect safe areas, and keep dialogs above the bar.
 Do not duplicate bulk controls above the table or add selection without a useful
 workflow. See [agent conventions](../AGENTS.md) for selection and safety rules.
@@ -247,13 +248,20 @@ press for touch, preserving ordinary scrolling and link/menu interactions.
 Highlight accepted targets during dragging and announce outcomes. Escape
 cancels. Keep source entries until server confirmation, block conflicting controls
 while saving, and preserve selection after failure. Keep Move to in menus and the
-floating selection bar as an accessible alternative and for off-page destinations.
+inline selection bar as an accessible alternative and for off-page destinations.
 Do not turn folder moves into manual row ordering or external-file upload.
 
 The shared DataTable owns rows, cards, column visibility and pagination; its row
 container slot adds dragging without changing native table/list structure. Library
-bulk actions use its selection bar in floating mode, with safe-area and wrapped
-control clearance below pagination. Other consumers retain their presentation.
+bulk actions use its selection bar inline beside Fields in the framed toolbar in
+both table and thumbnail views. The Fields menu controls metadata independently
+for Details and Thumbnails, saved in localStorage per library and view; names,
+previews and actions remain visible.
+Part thumbnails default to material chips on the left and file type aligned to
+the right below the preview; Estimate and Nozzle are optional. Tags are
+available only in Details. Assembly thumbnails default to the collage only, with
+Description and Lines optional. Table defaults remain unchanged. Other consumers
+retain their presentation.
 Assembly previews are batched collages of up to four distinct descendant parts;
 never fetch details once per card.
 
@@ -268,3 +276,44 @@ Folder and assembly row icons use the same 40px preview frame as part thumbnails
 Folders retain their own icon, including in thumbnail view; collage previews stay
 with assemblies in thumbnail view. Do not add a persistent drag indicator or a
 dedicated drag column. Dropping on another item does not reorder the collection.
+
+Library creation actions share the page header: outline Add folder followed by
+primary Add part/assembly. Browsing pages keep Library > Parts/Assemblies in the
+shell header. Inside folders, the framed row above table rows or thumbnails shows
+a folder icon for the library root followed by folder ancestors,
+replaced by selection actions whenever one or more items are selected. During
+dragging the local trail returns so root and ancestors remain drop targets.
+The root icon has a 32px target and a hover/focus tooltip and accessible name:
+Part library root or Assembly library root. It is a real link back to root.
+At root, hide the local trail and leave the toolbar left side empty while
+preserving its height, Fields and selection actions. Determine visibility from
+the current folder ID, including during loading and errors. Shell breadcrumbs retain text.
+Fields stays in the toolbar. Inside folders, empty, loading and error states also
+show the local trail. Other operations keep it visible with existing busy navigation guards.
+Detail and Add pages retain the full shell breadcrumb:
+Library > Parts/Assemblies > folder ancestors > opened item.
+Item pages resolve saved folder membership, including direct links. Long trails
+scroll horizontally without displacing shell utilities. The framed toolbar groups folder navigation or selection actions on the left and
+thumbnail sorting, Fields, and the icon-only Details/Thumbnails Tabs on the right.
+There is no separate view-controls row. Keep the tabs outside the active content
+panel, with controls wrapping on narrow screens. Loading, empty and error states
+retain the toolbar and view controls; Fields is disabled when no table is available.
+View icons have accessible names and hover/focus tooltips. Thumbnail cards use a
+responsive grid with six columns at desktop widths (1280px and above), stepping
+down to four, three, two, and one on smaller screens. Previews are 128px tall,
+with titles and actions above the previews, chips below, then optional metadata.
+There are no card checkboxes or select-all strip.
+Tiles show a neutral overlay on hover and keyboard focus. Folder previews stretch
+to fill available card height alongside item metadata. View tabs remain outside
+the active content panel and keep selection and field visibility when switching.
+
+Ordinary clicks still open library items in either view. Ctrl/Cmd-click toggles
+page-local item selection; Shift-click selects an inclusive range from the last
+modifier-selected item, excluding folders. Space toggles a focused entry,
+Ctrl/Cmd+A selects page items, Escape clears selection, and Enter opens a focused
+entry. Item menus include Select/Deselect for touch and keyboard users. Table
+checkboxes remain available. Selection and bulk operations are shared across
+views; keyboard shortcuts must not intercept menu, dialog or form controls.
+Pointer drag restoration focuses the source entry rather than revealing a text
+move handle. The keyboard-only move control is compact and icon-only; drag
+previews contain one item name or a selected-item count.

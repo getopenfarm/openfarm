@@ -11,6 +11,7 @@ import { MemoryRouter } from 'react-router';
 import { toast } from 'sonner';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 import { PartsTable } from './PartsTable';
 
 const part: PartSummaryResponse = {
@@ -66,7 +67,9 @@ function setup(
   render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <PartsTable parts={options.parts ?? [part]} onRowClick={onRowClick} />
+        <PreferencesProvider>
+          <PartsTable parts={options.parts ?? [part]} onRowClick={onRowClick} />
+        </PreferencesProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -84,6 +87,7 @@ async function openQueue() {
 
 describe('PartsTable queue action', () => {
   afterEach(() => {
+    localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -119,7 +123,7 @@ describe('PartsTable queue action', () => {
     expect(headers[2]).toHaveTextContent('File type');
     expect(within(headers[2]).queryByRole('button')).not.toBeInTheDocument();
 
-    screen.getByRole('button', { name: 'Columns' }).focus();
+    screen.getByRole('button', { name: 'Fields' }).focus();
     await user.keyboard('{Enter}');
     const option = screen.getByRole('menuitemcheckbox', { name: 'File type' });
     expect(option).toHaveAttribute('aria-checked', 'true');

@@ -1,4 +1,5 @@
 import { Grid2X2Icon, ListIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { ServerTableSorting } from '@/components/data-table/DataTable';
 import {
   Select,
@@ -8,21 +9,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { ViewMode } from '@/lib/preferences/types';
 
 export function LibraryViewControls({
   view,
-  onViewChange,
   sorting,
   columnId,
   disabled,
+  fields,
 }: {
   view: ViewMode;
-  onViewChange: (view: ViewMode) => void;
   sorting: ServerTableSorting;
   columnId: string;
   disabled?: boolean;
+  fields?: ReactNode;
 }) {
   const active = sorting.sorting[0];
   return (
@@ -49,25 +56,27 @@ export function LibraryViewControls({
           </SelectContent>
         </Select>
       )}
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        value={view}
-        disabled={disabled}
-        aria-label="Library view"
-        onValueChange={(value) => {
-          if (value === 'table' || value === 'grid') onViewChange(value);
-        }}
-      >
-        <ToggleGroupItem value="table" aria-label="Details view">
-          <ListIcon />
-          Details
-        </ToggleGroupItem>
-        <ToggleGroupItem value="grid" aria-label="Thumbnails view">
-          <Grid2X2Icon />
-          Thumbnails
-        </ToggleGroupItem>
-      </ToggleGroup>
+      {fields}
+      <TooltipProvider>
+        <TabsList aria-label="Library view" className="h-8">
+          <Tooltip>
+            <TabsTrigger value="table" asChild disabled={disabled}>
+              <TooltipTrigger aria-label="Details view">
+                <ListIcon />
+              </TooltipTrigger>
+            </TabsTrigger>
+            <TooltipContent>Details view</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TabsTrigger value="grid" asChild disabled={disabled}>
+              <TooltipTrigger aria-label="Thumbnails view">
+                <Grid2X2Icon />
+              </TooltipTrigger>
+            </TabsTrigger>
+            <TooltipContent>Thumbnails view</TooltipContent>
+          </Tooltip>
+        </TabsList>
+      </TooltipProvider>
     </div>
   );
 }

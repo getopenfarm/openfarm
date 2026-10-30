@@ -10,6 +10,7 @@ import {
   useDroppable,
 } from '@dnd-kit/react';
 import type { RowSelectionState } from '@tanstack/react-table';
+import { FolderInputIcon } from 'lucide-react';
 import {
   createContext,
   type Dispatch,
@@ -165,9 +166,9 @@ export function LibraryDnd({
           sourceFocus.current =
             focused instanceof HTMLElement && sourceElement?.contains(focused)
               ? focused
-              : (sourceElement?.querySelector<HTMLElement>(
-                  '[data-library-drag-handle]',
-                ) ?? null);
+              : sourceElement instanceof HTMLElement
+                ? sourceElement
+                : null;
           const next = {
             source,
             ids: dragItemIds(source, selection.current.ids),
@@ -283,12 +284,12 @@ export function LibraryDragHandle({ name }: { name: string }) {
       data-library-drag-handle
       type="button"
       variant="ghost"
-      size="sm"
-      className="sr-only focus:not-sr-only"
+      size="icon-sm"
+      className="sr-only focus-visible:not-sr-only"
       aria-label={`Move ${name}`}
       disabled={drag?.disabled}
     >
-      Move {name}
+      <FolderInputIcon />
     </Button>
   ) : null;
 }
@@ -299,6 +300,8 @@ export function LibraryDragRow({
   children,
   className,
   onClick,
+  onClickCapture,
+  ...interactionProps
 }: DataTableRowContainerProps) {
   const context = useContext(DragContext);
   const contextRef = useRef(context);
@@ -339,11 +342,16 @@ export function LibraryDragRow({
     [ref, drop.ref],
   );
   const props = {
+    ...interactionProps,
     ref: connect,
+    tabIndex: interactionProps.tabIndex ?? -1,
     'data-state': selected ? 'selected' : undefined,
     'data-drop-target': drop.isDropTarget || undefined,
     'data-library-entry': rowId,
-    onClickCapture: context?.suppressClick,
+    onClickCapture: (event: MouseEvent<HTMLElement>) => {
+      context?.suppressClick(event);
+      if (!event.isPropagationStopped()) onClickCapture?.(event);
+    },
     onClick,
     className: cn(
       className,
@@ -364,10 +372,12 @@ export function LibraryDragRow({
 export function LibraryBreadcrumbTarget({
   folderId,
   name,
+  icon = false,
   children,
 }: {
   folderId: string | null;
   name: string;
+  icon?: boolean;
   children: ReactNode;
 }) {
   const context = useContext(DragContext);
@@ -397,8 +407,10 @@ export function LibraryBreadcrumbTarget({
       ref={ref}
       onClickCapture={context?.suppressClick}
       className={cn(
-        'inline-flex min-w-0 rounded-sm',
+        'inline-flex min-w-0',
+        icon ? 'rounded-lg' : 'rounded-sm px-2',
         isDropTarget && 'bg-accent ring-2 ring-primary',
+        isDropTarget && icon && 'ring-inset',
       )}
     >
       {children}

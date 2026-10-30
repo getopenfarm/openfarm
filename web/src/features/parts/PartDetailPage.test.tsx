@@ -51,6 +51,49 @@ function partBody(id: string, name: string) {
 }
 
 describe('PartDetailPage', () => {
+  it('shows saved folder ancestry when opening a part directly', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/library/parts/folders'))
+          return Promise.resolve(
+            jsonResponse({
+              items: [],
+              totalCount: 0,
+              ancestors: [
+                {
+                  id: 'hardware',
+                  name: 'Hardware',
+                  parentId: null,
+                  library: 'parts',
+                },
+              ],
+            }),
+          );
+        if (url.endsWith('/parts/part-1'))
+          return Promise.resolve(
+            jsonResponse({
+              ...partBody('part-1', 'Bracket'),
+              folderId: 'hardware',
+            }),
+          );
+        return Promise.resolve(jsonResponse({ items: [], totalCount: 0 }));
+      }),
+    );
+    renderPage('part-1');
+    const breadcrumb = within(
+      screen.getByRole('navigation', { name: 'breadcrumb' }),
+    );
+    expect(
+      await breadcrumb.findByRole('link', { name: 'Hardware' }),
+    ).toHaveAttribute('href', '/parts?folder=hardware');
+    expect(breadcrumb.getByText('Bracket')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -119,7 +162,9 @@ describe('PartDetailPage', () => {
 
     renderPage(partId);
 
-    expect(await screen.findByText('Removable Part')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /Removable Part/ }),
+    ).toBeInTheDocument();
     const deleteButton = screen.getByRole('button', { name: 'Remove' });
     await user.click(deleteButton);
 
@@ -176,7 +221,9 @@ describe('PartDetailPage', () => {
 
     renderPage(partId);
 
-    expect(await screen.findByText('Kept Part')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /Kept Part/ }),
+    ).toBeInTheDocument();
     const deleteButton = screen.getByRole('button', { name: 'Remove' });
     await user.click(deleteButton);
 
@@ -188,7 +235,9 @@ describe('PartDetailPage', () => {
     await user.click(cancelButton);
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(screen.getByText('Kept Part')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Kept Part/ }),
+    ).toBeInTheDocument();
   });
   it.each([404, 503])(
     'distinguishes a missing part from a load failure (%s)',
@@ -218,7 +267,9 @@ describe('PartDetailPage', () => {
         ).toBeInTheDocument();
         recovered = true;
         await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
-        expect(await screen.findByText('Recovered part')).toBeInTheDocument();
+        expect(
+          await screen.findByRole('heading', { name: /Recovered part/ }),
+        ).toBeInTheDocument();
       }
     },
   );

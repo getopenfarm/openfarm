@@ -31,9 +31,11 @@ export function useFolders(
   parentId: string | null,
   page = 1,
   pageSize = 25,
+  enabled = true,
 ) {
   return useQuery({
     queryKey: ['/api/v1/library', library, parentId, page, pageSize],
+    enabled,
     queryFn: async ({ signal }): Promise<FolderPage> => {
       const response = (
         await httpClient<{ data: ApiFolderPage }>(

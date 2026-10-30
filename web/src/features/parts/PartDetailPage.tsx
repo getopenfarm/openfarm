@@ -37,6 +37,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { invalidateLibraryContents } from '@/features/library/api';
+import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
 import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
@@ -360,6 +361,11 @@ export function PartDetailPage() {
 
   return (
     <Page className="flex-1">
+      <LibraryItemBreadcrumb
+        library="parts"
+        folderId={part?.folderId}
+        name={part?.name ?? 'Part'}
+      />
       {partQuery.isLoading ? (
         <>
           <PageHeader above={backLink} title="Part" />

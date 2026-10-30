@@ -36,6 +36,50 @@ public class FolderEndpointTests(CustomWebApplicationFactory factory) : IClassFi
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<FolderDto>())!;
     }
+
+    [Theory]
+    [InlineData("parts")]
+    [InlineData("assemblies")]
+    public async Task DetailReportsSavedFolderMembership_ForDirectLinksAndAfterMoves(string library)
+    {
+        using var client = await ClientAsync();
+        var partId = await PartAsync();
+        var id = partId;
+        if (library == "assemblies")
+        {
+            var created = await client.PostAsJsonAsync(Url("/api/v1/assemblies"), new
+            {
+                name = "Breadcrumb assembly",
+                lines = new[] { new { targetKind = "Part", targetId = partId, quantity = 1 } },
+            });
+            created.StatusCode.Should().Be(HttpStatusCode.Created);
+            id = (await created.Content.ReadFromJsonAsync<OpenFarm.Api.Endpoints.Assemblies.AssemblyResponse>())!.Id;
+        }
+
+        async Task<Guid?> ReadFolderAsync()
+        {
+            using var response = await client.GetAsync(Url($"/api/v1/{library}/{id}"));
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return body.RootElement.GetProperty("folderId").ValueKind == System.Text.Json.JsonValueKind.Null
+                ? null
+                : body.RootElement.GetProperty("folderId").GetGuid();
+        }
+
+        (await ReadFolderAsync()).Should().BeNull();
+        var parent = await FolderAsync(client, library);
+        var child = await FolderAsync(client, library, parent.Id);
+        (await client.PostAsJsonAsync(Url($"/api/v1/library/{library}/items/move"), new { ids = new[] { id }, folderId = child.Id }))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await ReadFolderAsync()).Should().Be(child.Id);
+
+        var folders = await client.GetFromJsonAsync<FolderPageDto>(Url($"/api/v1/library/{library}/folders?parentId={child.Id}&page=1&pageSize=1"));
+        folders!.Ancestors.Select(f => f.Id).Should().Equal(parent.Id, child.Id);
+
+        (await client.PostAsJsonAsync(Url($"/api/v1/library/{library}/items/move"), new { ids = new[] { id }, folderId = (Guid?)null }))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await ReadFolderAsync()).Should().BeNull();
+    }
     private async Task<Guid> PartAsync(string? name = null)
     {
         using var scope = factory.Services.CreateScope();

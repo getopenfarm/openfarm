@@ -184,7 +184,7 @@ describe('PartsPage', () => {
     expect(screen.getByRole('button', { name: 'Page 1' })).toBeInTheDocument();
   });
 
-  it('clears the floating bar when switching pages and recovers after bulk-removing the last page', async () => {
+  it('clears the selection toolbar when switching pages and recovers after bulk-removing the last page', async () => {
     setup();
     await screen.findByText('1–25 of 26');
     await userEvent.click(

@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
 import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
 import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
@@ -141,6 +142,11 @@ export function PartFormPage() {
 
   return (
     <Page className="flex-1">
+      <LibraryItemBreadcrumb
+        library="parts"
+        folderId={folderId}
+        name="Add part"
+      />
       <PageHeader
         above={
           <BackLink to={location} className="mb-1">
