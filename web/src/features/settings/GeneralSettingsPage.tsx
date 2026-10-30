@@ -6,17 +6,9 @@ import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ErrorState } from '@/components/empty-state/EmptyState';
-import { FormFooter } from '@/components/form-footer/FormFooter';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import {
   Command,
   CommandEmpty,
@@ -111,6 +103,8 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
   });
   const form = useForm({
     resolver: zodResolver(schema),
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
     defaultValues: valuesFor(data),
   });
   const { ConfirmLeaveDialog } = useUnsavedChangesPrompt(
@@ -142,123 +136,110 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
   const failureError = form.formState.errors.failure?.message;
   return (
     <form
-      className="flex flex-1 flex-col gap-4"
+      className="flex max-w-[800px] flex-col gap-4"
       onSubmit={form.handleSubmit((v) => {
         if (!save.isPending) save.mutate(v);
       })}
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Pricing and electricity</CardTitle>
-          <CardDescription>
-            These settings apply throughout the application.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <Field
-              data-disabled={save.isPending}
-              data-invalid={!!currencyError}
-            >
-              <FieldLabel htmlFor="currency">Currency</FieldLabel>
-              <Controller
-                control={form.control}
-                name="currencyCode"
-                render={({ field }) => (
-                  <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="currency"
-                        ref={field.ref}
-                        type="button"
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        aria-invalid={!!currencyError}
-                        aria-describedby="currency-description currency-error"
-                        disabled={save.isPending}
-                        className="w-full justify-between sm:w-80"
-                      >
-                        {label(field.value)}
-                        <ChevronsUpDownIcon data-icon="inline-end" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[var(--radix-popover-trigger-width)] p-0"
-                      align="start"
-                    >
-                      <Command>
-                        <CommandInput placeholder="Search currencies" />
-                        <CommandList>
-                          <CommandEmpty>No currencies found.</CommandEmpty>
-                          <CommandGroup>
-                            {[...data.supportedCurrencies]
-                              .sort()
-                              .map((code) => (
-                                <CommandItem
-                                  key={code}
-                                  value={label(code)}
-                                  onSelect={() => {
-                                    field.onChange(code);
-                                    setOpen(false);
-                                  }}
-                                >
-                                  {label(code)}
-                                </CommandItem>
-                              ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                )}
-              />
-              <FieldDescription id="currency-description">
-                Changing currency relabels existing amounts without converting
-                their values.
-              </FieldDescription>
-              <FieldError id="currency-error">{currencyError}</FieldError>
-            </Field>
-            <Field data-disabled={save.isPending} data-invalid={!!priceError}>
-              <FieldLabel htmlFor="tariff">Price per kWh</FieldLabel>
-              <InputGroup className="w-64">
-                <InputGroupAddon>{currency}</InputGroupAddon>
-                <InputGroupInput
-                  id="tariff"
-                  inputMode="decimal"
-                  aria-invalid={!!priceError}
-                  aria-describedby="tariff-description tariff-error"
-                  disabled={save.isPending}
-                  {...form.register('price')}
-                />
-                <InputGroupAddon align="inline-end">/ kWh</InputGroupAddon>
-              </InputGroup>
-              <FieldDescription id="tariff-description">
-                Leave blank when unknown. Zero is valid.
-              </FieldDescription>
-              <FieldError id="tariff-error">{priceError}</FieldError>
-            </Field>
-            <Field data-disabled={save.isPending} data-invalid={!!failureError}>
-              <FieldLabel htmlFor="failure">Failure allowance</FieldLabel>
-              <InputGroup className="w-40">
-                <InputGroupInput
-                  id="failure"
-                  inputMode="decimal"
-                  aria-invalid={!!failureError}
-                  aria-describedby="failure-description failure-error"
-                  disabled={save.isPending}
-                  {...form.register('failure')}
-                />
-                <InputGroupAddon align="inline-end">%</InputGroupAddon>
-              </InputGroup>
-              <FieldDescription id="failure-description">
-                Added to filament, depreciation and electricity estimates.
-              </FieldDescription>
-              <FieldError id="failure-error">{failureError}</FieldError>
-            </Field>
-          </FieldGroup>
-        </CardContent>
-      </Card>
+      <FieldGroup>
+        <Field data-disabled={save.isPending} data-invalid={!!currencyError}>
+          <FieldLabel htmlFor="currency">Currency</FieldLabel>
+          <Controller
+            control={form.control}
+            name="currencyCode"
+            render={({ field }) => (
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="currency"
+                    ref={field.ref}
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    aria-invalid={!!currencyError}
+                    aria-describedby="currency-description currency-error"
+                    disabled={save.isPending}
+                    className="w-full justify-between sm:w-80"
+                  >
+                    {label(field.value)}
+                    <ChevronsUpDownIcon data-icon="inline-end" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                  align="start"
+                >
+                  <Command>
+                    <CommandInput placeholder="Search currencies" />
+                    <CommandList>
+                      <CommandEmpty>No currencies found.</CommandEmpty>
+                      <CommandGroup>
+                        {[...data.supportedCurrencies].sort().map((code) => (
+                          <CommandItem
+                            key={code}
+                            value={label(code)}
+                            onSelect={() => {
+                              field.onChange(code);
+                              setOpen(false);
+                            }}
+                          >
+                            {label(code)}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
+          />
+          <FieldDescription id="currency-description">
+            Changing currency relabels existing amounts without converting their
+            values.
+          </FieldDescription>
+          <FieldError id="currency-error">{currencyError}</FieldError>
+        </Field>
+        <Field data-disabled={save.isPending} data-invalid={!!priceError}>
+          <FieldLabel htmlFor="tariff">Electricity rate</FieldLabel>
+          <InputGroup className="w-full max-w-64">
+            <InputGroupAddon>{currency}</InputGroupAddon>
+            <InputGroupInput
+              id="tariff"
+              inputMode="decimal"
+              aria-invalid={!!priceError}
+              aria-describedby="tariff-description tariff-error"
+              disabled={save.isPending}
+              {...form.register('price')}
+            />
+            <InputGroupAddon align="inline-end">/ kWh</InputGroupAddon>
+          </InputGroup>
+          <FieldDescription id="tariff-description">
+            Used to estimate printing electricity costs. Leave blank if unknown;
+            enter 0 for no charge.
+          </FieldDescription>
+          <FieldError id="tariff-error">{priceError}</FieldError>
+        </Field>
+        <Field data-disabled={save.isPending} data-invalid={!!failureError}>
+          <FieldLabel htmlFor="failure">Failure allowance</FieldLabel>
+          <InputGroup className="w-full max-w-40">
+            <InputGroupInput
+              id="failure"
+              inputMode="decimal"
+              aria-invalid={!!failureError}
+              aria-describedby="failure-description failure-error"
+              disabled={save.isPending}
+              {...form.register('failure')}
+            />
+            <InputGroupAddon align="inline-end">%</InputGroupAddon>
+          </InputGroup>
+          <FieldDescription id="failure-description">
+            Adds a buffer to filament, printer depreciation, and electricity
+            estimates. Enter 0 for no allowance.
+          </FieldDescription>
+          <FieldError id="failure-error">{failureError}</FieldError>
+        </Field>
+      </FieldGroup>
       {save.isError && (
         <ErrorState
           title="Could not save general settings"
@@ -269,30 +250,26 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
           }
         />
       )}
-      <FormFooter
-        end={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={save.isPending}
-              onClick={() => {
-                form.reset(valuesFor(data));
-                save.reset();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!form.formState.isDirty || save.isPending}
-            >
-              {save.isPending && <Spinner data-icon="inline-start" />}
-              {save.isPending ? 'Saving…' : 'Save'}
-            </Button>
-          </>
-        }
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="submit"
+          disabled={!form.formState.isDirty || save.isPending}
+        >
+          {save.isPending && <Spinner data-icon="inline-start" />}
+          {save.isPending ? 'Saving…' : 'Save'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={save.isPending}
+          onClick={() => {
+            form.reset(valuesFor(data));
+            save.reset();
+          }}
+        >
+          Reset changes
+        </Button>
+      </div>
       <ConfirmLeaveDialog />
     </form>
   );

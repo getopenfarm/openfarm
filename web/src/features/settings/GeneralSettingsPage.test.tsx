@@ -103,7 +103,7 @@ it('searches and selects currency by keyboard, saves zero, and updates existing 
   await user.keyboard('{ArrowDown}{Enter}');
   expect(picker).toHaveFocus();
   expect(picker).toHaveTextContent('MYR');
-  const price = screen.getByLabelText('Price per kWh');
+  const price = screen.getByLabelText('Electricity rate');
   await user.clear(price);
   await user.type(price, '0');
   await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -131,7 +131,7 @@ it('searches and selects currency by keyboard, saves zero, and updates existing 
 it('validates the tariff, retains a failed draft, and retries a blank tariff as unknown', async () => {
   const user = userEvent.setup();
   const { writes, setFailSave } = setup();
-  const price = await screen.findByLabelText('Price per kWh');
+  const price = await screen.findByLabelText('Electricity rate');
   await user.clear(price);
   await user.type(price, '-1');
   await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -174,7 +174,7 @@ it('shows a retry instead of rendering prices under an assumed currency on initi
 it('keeps cached currency during a failed background refresh and protects unsaved edits', async () => {
   const user = userEvent.setup();
   const { fetch, router, client, failLoads } = setup();
-  const price = await screen.findByLabelText('Price per kWh');
+  const price = await screen.findByLabelText('Electricity rate');
   await user.clear(price);
   await user.type(price, '2');
   failLoads();
@@ -196,4 +196,82 @@ it('keeps cached currency during a failed background refresh and protects unsave
   );
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(price).toHaveValue('2');
+});
+
+it('validates only on Save and revalidates only on another submission', async () => {
+  const user = userEvent.setup();
+  const { writes } = setup();
+  const rate = await screen.findByLabelText('Electricity rate');
+  const failure = screen.getByLabelText('Failure allowance');
+  await user.clear(rate);
+  await user.type(rate, '-1');
+  await user.clear(failure);
+  await user.type(failure, '100');
+  await user.tab();
+  expect(rate).not.toBeInvalid();
+  expect(failure).not.toBeInvalid();
+  expect(
+    screen.queryByText('Enter a nonnegative number.'),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText('Enter 0 to 99.99.')).not.toBeInTheDocument();
+  const save = screen.getByRole('button', { name: 'Save' });
+  save.focus();
+  await user.keyboard('{Enter}');
+  expect(
+    await screen.findByText('Enter a nonnegative number.'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Enter 0 to 99.99.')).toBeInTheDocument();
+  expect(rate).toHaveFocus();
+  expect(writes).toHaveLength(0);
+  await user.clear(rate);
+  await user.type(rate, '1');
+  await user.clear(failure);
+  await user.type(failure, '10');
+  await user.tab();
+  expect(rate).toBeInvalid();
+  expect(failure).toBeInvalid();
+  save.focus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => expect(writes).toHaveLength(1));
+  await waitFor(() => expect(save).toBeDisabled());
+  expect(rate).not.toBeInvalid();
+  expect(failure).not.toBeInvalid();
+});
+
+it('resets every draft field and clears validation and save errors without a request', async () => {
+  const user = userEvent.setup();
+  const { writes, setFailSave, router } = setup();
+  const picker = await screen.findByRole('combobox', { name: 'Currency' });
+  await user.click(picker);
+  await user.type(screen.getByPlaceholderText('Search currencies'), 'ringgit');
+  await user.keyboard('{ArrowDown}{Enter}');
+  const rate = screen.getByLabelText('Electricity rate');
+  const failure = screen.getByLabelText('Failure allowance');
+  await user.clear(rate);
+  await user.type(rate, '2');
+  await user.clear(failure);
+  await user.type(failure, '10');
+  setFailSave(true);
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await screen.findByText('Could not save general settings');
+  await user.clear(rate);
+  await user.type(rate, '-1');
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await screen.findByText('Enter a nonnegative number.');
+  const reset = screen.getByRole('button', { name: 'Reset changes' });
+  reset.focus();
+  await user.keyboard('{Enter}');
+  expect(reset).toHaveFocus();
+  expect(picker).toHaveTextContent('USD');
+  expect(rate).toHaveValue('0.5');
+  expect(failure).toHaveValue('0');
+  expect(rate).not.toBeInvalid();
+  expect(
+    screen.queryByText('Could not save general settings'),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(writes).toHaveLength(1);
+  await act(() => router.navigate('/other'));
+  expect(await screen.findByText('Other page')).toBeInTheDocument();
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
 });

@@ -1,14 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronDownIcon, PlusIcon, XIcon } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { PlusIcon, XIcon } from 'lucide-react';
+import { useRef } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
-import { FormFooter } from '@/components/form-footer/FormFooter';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -20,16 +19,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import {
-  Field,
   FieldDescription,
   FieldError,
   FieldGroup,
-  FieldLabel,
   FieldLegend,
   FieldSet,
 } from '@/components/ui/field';
@@ -64,7 +56,6 @@ import type {
   FeesResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
-import { formatCost } from '@/lib/formatUnits';
 import { useFeeProfileRemoval } from './FeeProfileRemoval';
 import { feeSummary, feesKey, useFeeProfiles } from './fees';
 import { useCurrency } from './generalSettings';
@@ -161,6 +152,8 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
   const currency = useCurrency();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
     defaultValues: valuesFor(profile),
   });
   const fees = useFieldArray({ control: form.control, name: 'fees' });
@@ -274,7 +267,7 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
     else addRef.current?.focus();
   }
   return (
-    <Page className="flex-1">
+    <Page>
       <PageHeader
         title={profile?.name ?? 'Add fee profile'}
         size="section"
@@ -296,8 +289,8 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
         }
       />
       <Form {...form}>
-        <form className="flex flex-1 flex-col gap-4" onSubmit={submit}>
-          <FieldGroup className="max-w-[800px] flex-1">
+        <form className="flex max-w-[800px] flex-col gap-4" onSubmit={submit}>
+          <FieldGroup>
             <Card>
               <CardHeader>
                 <CardTitle className="sr-only">Fee profile</CardTitle>
@@ -385,10 +378,7 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
                                   </FormLabel>
                                   <Select
                                     value={field.value}
-                                    onValueChange={(value) => {
-                                      field.onChange(value);
-                                      void form.trigger('fees');
-                                    }}
+                                    onValueChange={field.onChange}
                                     disabled={pending}
                                   >
                                     <FormControl>
@@ -488,45 +478,12 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
                   <span className="text-sm tabular-nums">
                     {valid
                       ? feeSummary(total.feePercent, total.fixedFee, currency)
-                      : 'Enter valid fee amounts to see the total.'}
+                      : '—'}
                   </span>
                 </div>
                 <FieldError>{totalError}</FieldError>
               </CardFooter>
             </Card>
-            <FieldGroup className="gap-1">
-              <SaleExample
-                percent={total.feePercent}
-                fixed={total.fixedFee}
-                valid={valid}
-                currency={currency}
-                disabled={pending}
-              />
-              <Collapsible>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto max-w-full justify-start whitespace-normal text-left"
-                    disabled={pending}
-                  >
-                    <ChevronDownIcon
-                      data-icon="inline-start"
-                      className="-rotate-90 transition-transform [[data-state=open]>&]:rotate-0"
-                    />
-                    Include a monthly fee
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="px-2.5 pt-2 pb-3">
-                  <FieldDescription>
-                    Divide the monthly fee by your expected orders per month,
-                    then add it as a fixed fee per order. For example, 48 ÷ 400
-                    = 0.12 per order.
-                  </FieldDescription>
-                </CollapsibleContent>
-              </Collapsible>
-            </FieldGroup>
             {save.isError && (
               <ErrorState
                 title="Could not save fee profile"
@@ -535,121 +492,26 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
               />
             )}
           </FieldGroup>
-          <FormFooter
-            className="-mx-7 -mb-12 px-7"
-            end={
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => void navigate('/settings/fees')}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={pending || !form.formState.isDirty}
-                >
-                  {save.isPending && (
-                    <Spinner data-icon="inline-start" aria-hidden="true" />
-                  )}
-                  {save.isPending ? 'Saving…' : 'Save'}
-                </Button>
-              </>
-            }
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" disabled={pending || !form.formState.isDirty}>
+              {save.isPending && (
+                <Spinner data-icon="inline-start" aria-hidden="true" />
+              )}
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => void navigate('/settings/fees')}
+            >
+              Cancel
+            </Button>
+          </div>
         </form>
       </Form>
       {removal.dialog}
       <ConfirmLeaveDialog />
     </Page>
-  );
-}
-
-function SaleExample({
-  percent,
-  fixed,
-  valid,
-  currency,
-  disabled,
-}: {
-  percent: number;
-  fixed: number;
-  valid: boolean;
-  currency: string;
-  disabled: boolean;
-}) {
-  const [sale, setSale] = useState('100');
-  const saleValid =
-    sale.trim() !== '' && Number.isFinite(Number(sale)) && Number(sale) >= 0;
-  const fee =
-    valid && saleValid ? (Number(sale) * percent) / 100 + fixed : null;
-  return (
-    <Collapsible>
-      <CollapsibleTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-auto max-w-full justify-start whitespace-normal text-left"
-          disabled={disabled}
-        >
-          <ChevronDownIcon
-            data-icon="inline-start"
-            className="-rotate-90 transition-transform [[data-state=open]>&]:rotate-0"
-          />
-          Try a sale amount
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="px-2.5 pt-2 pb-3">
-        <FieldGroup className="gap-3">
-          <FieldDescription>
-            Check how these fees affect a sale. Production costs are excluded.
-          </FieldDescription>
-          <Field
-            data-invalid={!saleValid || undefined}
-            data-disabled={disabled || undefined}
-            className="max-w-48"
-          >
-            <FieldLabel htmlFor="fee-example-sale">Sale amount</FieldLabel>
-            <InputGroup>
-              <InputGroupInput
-                id="fee-example-sale"
-                value={sale}
-                onChange={(event) => setSale(event.target.value)}
-                inputMode="decimal"
-                aria-invalid={!saleValid}
-                aria-describedby={!saleValid ? 'fee-example-error' : undefined}
-                disabled={disabled}
-              />
-              <InputGroupAddon align="inline-end">{currency}</InputGroupAddon>
-            </InputGroup>
-            {!saleValid && (
-              <FieldError id="fee-example-error">
-                Enter a finite number of 0 or more.
-              </FieldError>
-            )}
-          </Field>
-          <dl
-            className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2"
-            aria-live="polite"
-          >
-            <div>
-              <dt className="text-muted-foreground">Total fees</dt>
-              <dd className="tabular-nums">
-                {fee === null ? '—' : formatCost(fee, currency)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Remaining after fees</dt>
-              <dd className="tabular-nums">
-                {fee === null ? '—' : formatCost(Number(sale) - fee, currency)}
-              </dd>
-            </div>
-          </dl>
-        </FieldGroup>
-      </CollapsibleContent>
-    </Collapsible>
   );
 }

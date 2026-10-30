@@ -101,9 +101,9 @@ describe('fee profile settings', () => {
     )[0];
     await user.clear(amount);
     await user.type(amount, '20');
-    await user.click(screen.getByRole('button', { name: 'Try a sale amount' }));
-    expect(screen.getByText('USD 20.50')).toBeInTheDocument();
-    expect(screen.getByText('USD 79.50')).toBeInTheDocument();
+    expect(
+      screen.getByText('20% of sale price + USD 0.50 per order'),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByRole('link', { name: 'Shop' });
     expect(writes).toHaveLength(1);
@@ -126,9 +126,7 @@ describe('fee profile settings', () => {
       await screen.findByRole('textbox', { name: 'Profile name' }),
       'Cash',
     );
-    await user.click(screen.getByRole('button', { name: 'Try a sale amount' }));
-    expect(screen.getByText('USD 0.00')).toBeInTheDocument();
-    expect(screen.getByText('USD 100.00')).toBeInTheDocument();
+    expect(screen.getByText('No fees')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByRole('link', { name: 'Cash' });
     expect(writes[0]).toMatchObject({
@@ -185,7 +183,6 @@ describe('fee profile settings', () => {
     const amount = (
       await screen.findAllByLabelText('Amount', { exact: true })
     )[0];
-    await user.click(screen.getByRole('button', { name: 'Try a sale amount' }));
     await user.clear(amount);
     await user.type(amount, 'Infinity');
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -193,7 +190,7 @@ describe('fee profile settings', () => {
     expect(amount).toHaveAccessibleDescription(
       'Enter a finite number of 0 or more.',
     );
-    expect(screen.queryByText('USD 89.50')).not.toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
     expect(writes).toHaveLength(0);
   });
   it('retains failed-save drafts and retries', async () => {
@@ -298,24 +295,6 @@ describe('fee profile settings', () => {
       await screen.findByText('Fee profile not found'),
     ).toBeInTheDocument();
   });
-  it('keeps example changes outside the saved draft and recalculates zero sales', async () => {
-    const user = userEvent.setup();
-    setup('/settings/fees/shop');
-    await user.click(
-      await screen.findByRole('button', { name: 'Try a sale amount' }),
-    );
-    const sale = screen.getByLabelText('Sale amount');
-    await user.clear(sale);
-    await user.type(sale, '0');
-    expect(screen.getByText('USD 0.50')).toBeInTheDocument();
-    expect(screen.getByText('USD -0.50')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-    await user.clear(sale);
-    expect(sale).toHaveAccessibleDescription(
-      'Enter a finite number of 0 or more.',
-    );
-    expect(screen.getAllByText('—')).toHaveLength(2);
-  });
   it('disables conflicting controls while saving and prevents repeat requests', async () => {
     const user = userEvent.setup();
     const { writes } = setup('/settings/fees/shop');
@@ -368,40 +347,60 @@ describe('fee profile settings', () => {
       { url: `${feesKey}/profiles/shop`, method: 'DELETE', body: undefined },
     ]);
   });
-  it('keeps optional help collapsed and supports keyboard disclosure without changing the draft', async () => {
-    const user = userEvent.setup();
+  it('places Save and Cancel after the content without optional disclosures or a sticky footer', async () => {
     setup('/settings/fees/new');
-    const example = await screen.findByRole('button', {
-      name: 'Try a sale amount',
-    });
-    const monthly = screen.getByRole('button', {
-      name: 'Include a monthly fee',
-    });
-    expect(example).toHaveAttribute('aria-expanded', 'false');
-    expect(monthly).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByLabelText('Sale amount')).not.toBeInTheDocument();
+    const save = await screen.findByRole('button', { name: 'Save' });
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(save.parentElement?.children).toHaveLength(2);
+    expect(save.nextElementSibling).toBe(cancel);
     expect(
-      screen.queryByText(/Divide the monthly fee/),
+      save.closest('form')?.querySelector('[data-slot="form-footer"]'),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Try a sale amount' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText('No fees added. This profile has no sale fees.'),
-    ).toBeInTheDocument();
-    example.focus();
-    await user.keyboard('{Enter}');
-    expect(example).toHaveAttribute('aria-expanded', 'true');
-    const amount = screen.getByLabelText('Sale amount');
+      screen.queryByRole('button', { name: 'Include a monthly fee' }),
+    ).not.toBeInTheDocument();
+  });
+  it('validates only on Save, including after a failed submission', async () => {
+    const user = userEvent.setup();
+    const { writes } = setup('/settings/fees/shop');
+    const amount = (
+      await screen.findAllByLabelText('Amount', { exact: true })
+    )[0];
     await user.clear(amount);
-    await user.type(amount, '50');
-    example.focus();
-    await user.keyboard(' ');
-    expect(example).toHaveAttribute('aria-expanded', 'false');
-    expect(example).toHaveFocus();
-    await user.keyboard('{Enter}');
-    expect(screen.getByLabelText('Sale amount')).toHaveValue('50');
-    monthly.focus();
-    await user.keyboard('{Enter}');
-    expect(screen.getByText(/Divide the monthly fee/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.type(amount, '100');
+    await user.tab();
+    const type = screen.getAllByRole('combobox')[1];
+    type.focus();
+    await user.keyboard('{Enter}{Home}{Enter}');
+    expect(screen.queryByText('Enter below 100%.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Percent fees must total below 100%.'),
+    ).not.toBeInTheDocument();
+    expect(amount).not.toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('—')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Enter below 100%.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Percent fees must total below 100%.'),
+    ).toBeInTheDocument();
+    expect(amount).toHaveAttribute('aria-invalid', 'true');
+    expect(writes).toHaveLength(0);
+    await user.clear(amount);
+    await user.type(amount, '20');
+    await user.tab();
+    type.focus();
+    await user.keyboard('{Enter}{End}{Enter}');
+    expect(screen.getByText('Enter below 100%.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Percent fees must total below 100%.'),
+    ).toBeInTheDocument();
+    expect(amount).toHaveAttribute('aria-invalid', 'true');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('link', { name: 'Shop' });
+    expect(writes).toHaveLength(1);
   });
   it('paginates complete collections and resets page when size changes', async () => {
     const user = userEvent.setup();
