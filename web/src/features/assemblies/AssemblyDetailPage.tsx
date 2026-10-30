@@ -11,6 +11,8 @@ import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { invalidateLibraryContents } from '@/features/library/api';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
@@ -32,6 +34,7 @@ import {
 } from './components/AssemblyEditor';
 
 export function AssemblyDetailPage() {
+  const { location } = useLibraryLocation('assemblies');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,11 +50,13 @@ export function AssemblyDetailPage() {
   const { isDirty } = form.formState;
   const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(isDirty);
 
-  const invalidateList = () =>
-    queryClient.invalidateQueries({
+  const invalidateList = () => {
+    void invalidateLibraryContents(queryClient);
+    return queryClient.invalidateQueries({
       queryKey:
         getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey(),
     });
+  };
 
   const editMutation = useOpenFarmApiEndpointsAssembliesEditAssemblyEndpoint({
     mutation: {
@@ -91,7 +96,7 @@ export function AssemblyDetailPage() {
           toast.success('Assembly removed.');
           invalidateList();
           markClean();
-          navigate('/assemblies');
+          navigate(location);
         },
         onError: async (error) => {
           toast.error(
@@ -110,7 +115,7 @@ export function AssemblyDetailPage() {
       <Page>
         <PageHeader
           above={
-            <BackLink to="/assemblies" className="mb-1">
+            <BackLink to={location} className="mb-1">
               Back to assemblies
             </BackLink>
           }
@@ -129,7 +134,7 @@ export function AssemblyDetailPage() {
             title="Assembly not found"
             description="Removed or invalid link."
             action={
-              <Button variant="outline" onClick={() => navigate('/assemblies')}>
+              <Button variant="outline" onClick={() => navigate(location)}>
                 Back to assemblies
               </Button>
             }
@@ -189,7 +194,7 @@ export function AssemblyDetailPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/assemblies')}
+              onClick={() => navigate(location)}
             >
               Cancel
             </Button>

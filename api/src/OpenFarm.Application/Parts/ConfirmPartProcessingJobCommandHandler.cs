@@ -115,6 +115,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                 parts.Add(part);
             }
 
+            foreach (var created in parts) created.MoveToFolder(command.FolderId);
             job.Confirm(parts[0].Id);
             await partRepository.AddRangeAsync(parts, cancellationToken);
             // The endpoint logs the first part; the others are logged here.

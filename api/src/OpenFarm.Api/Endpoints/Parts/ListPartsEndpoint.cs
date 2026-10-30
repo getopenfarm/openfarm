@@ -9,6 +9,8 @@ public sealed class ListPartsRequest
 {
     public List<string>? Tag { get; set; }
 
+    public string? Folder { get; set; }
+
     public string? SortBy { get; set; }
     public string? SortDirection { get; set; }
 
@@ -48,6 +50,29 @@ public sealed class PartSummaryResponse
     public List<string> Tags { get; set; } = [];
     /// <summary>Per-requirement grams (per plate set, purge included) for by-colour totals.</summary>
     public List<PartColorGramsResponse> FilamentByColor { get; set; } = [];
+
+    public static PartSummaryResponse FromSummary(PartSummary p) => new()
+    {
+        Id = p.Id,
+        Name = p.Name,
+        FileFormat = p.FileFormat,
+        RequiresSlicing = p.RequiresSlicing,
+        NozzleDiameterMm = p.NozzleDiameterMm,
+        PrintRequirementsStatus = p.PrintRequirementsStatus,
+        ProcessingWarnings = p.ProcessingWarnings?.ToList() ?? [],
+        EstimateUnavailableReason = p.EstimateUnavailableReason,
+        Estimation = p.Estimation,
+        EstimationPrinterBrand = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.Brand.ToString(),
+        EstimationPrinterModelCode = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.ModelCode,
+        EstimateStatus = p.EstimateStatus,
+        EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
+        EstimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,
+        UnitsPerPrint = p.UnitsPerPrint,
+        ThumbnailBase64 = p.ThumbnailBase64,
+        MaterialTypes = p.MaterialTypes.ToList(),
+        Tags = p.Tags.ToList(),
+        FilamentByColor = (p.FilamentByColor ?? []).Select(c => new PartColorGramsResponse { MaterialType = c.MaterialType, ColorHex = c.ColorHex, Grams = c.Grams, NarrowFilamentVariantId = c.NarrowFilamentVariantId }).ToList(),
+    };
 }
 
 public sealed class ListPartsResponse
@@ -58,8 +83,10 @@ public sealed class ListPartsResponse
 
 // GET /api/v1/parts (contracts/part-library-api.md).
 [Permission("parts:list")]
-public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> handler) : Endpoint<ListPartsRequest, ListPartsResponse>
+public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> handler, OpenFarm.Application.Library.ILibraryFolderService folders) : Endpoint<ListPartsRequest, ListPartsResponse>
 {
+    private static Guid? LibraryLocation(string folder) => OpenFarm.Domain.Library.LibraryFolder.ParseLocation(folder);
+
     public override void Configure()
     {
         Get("/api/v1/parts");
@@ -68,36 +95,17 @@ public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> ha
 
     public override async Task HandleAsync(ListPartsRequest req, CancellationToken ct)
     {
+        if (req.Folder is not null)
+            await folders.ValidateDestinationAsync("parts", LibraryLocation(req.Folder), ct);
         var page = Math.Max(req.Page, 1);
         var pageSize = req.PageSize is < 1 or > 200 ? 25 : req.PageSize;
 
-        var result = await handler.HandleAsync(new GetPartsQuery(req.Tag ?? [], page, pageSize, ListSort.Parse(req.SortBy, req.SortDirection, "name")), ct);
+        var result = await handler.HandleAsync(new GetPartsQuery(req.Tag ?? [], page, pageSize, ListSort.Parse(req.SortBy, req.SortDirection, "name"), req.Folder), ct);
 
         Response = new ListPartsResponse
         {
             TotalCount = result.TotalCount,
-            Parts = result.Parts.Select(p => new PartSummaryResponse
-            {
-                Id = p.Id,
-                Name = p.Name,
-                FileFormat = p.FileFormat,
-                RequiresSlicing = p.RequiresSlicing,
-                NozzleDiameterMm = p.NozzleDiameterMm,
-                PrintRequirementsStatus = p.PrintRequirementsStatus,
-                ProcessingWarnings = p.ProcessingWarnings?.ToList() ?? [],
-                EstimateUnavailableReason = p.EstimateUnavailableReason,
-                Estimation = p.Estimation,
-                EstimationPrinterBrand = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.Brand.ToString(),
-                EstimationPrinterModelCode = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.ModelCode,
-                EstimateStatus = p.EstimateStatus,
-                EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
-                EstimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,
-                UnitsPerPrint = p.UnitsPerPrint,
-                ThumbnailBase64 = p.ThumbnailBase64,
-                MaterialTypes = p.MaterialTypes.ToList(),
-                Tags = p.Tags.ToList(),
-                FilamentByColor = (p.FilamentByColor ?? []).Select(c => new PartColorGramsResponse { MaterialType = c.MaterialType, ColorHex = c.ColorHex, Grams = c.Grams, NarrowFilamentVariantId = c.NarrowFilamentVariantId }).ToList(),
-            }).ToList(),
+            Parts = result.Parts.Select(PartSummaryResponse.FromSummary).ToList(),
         };
     }
 }

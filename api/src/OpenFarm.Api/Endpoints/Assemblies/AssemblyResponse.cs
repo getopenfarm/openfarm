@@ -91,6 +91,8 @@ public sealed class AssemblySummaryResponse
 
     public int LineCount { get; set; }
 
+    public IReadOnlyList<string> PreviewThumbnails { get; set; } = [];
+
     public static AssemblySummaryResponse FromSummary(AssemblySummary summary) => new()
     {
         Id = summary.Id,

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import type {
   AssemblyCostInput,
   AssemblyResponse,
@@ -117,6 +118,7 @@ export function AssemblyEditor({
   headerAction,
   footerActions,
 }: AssemblyEditorProps) {
+  const { location } = useLibraryLocation('assemblies');
   const { isDirty } = form.formState;
   const lines = useWatch({ control: form.control, name: 'lines' });
   const additionalCosts = useWatch({
@@ -133,7 +135,7 @@ export function AssemblyEditor({
       >
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <BackLink to="/assemblies" className="mb-1">
+            <BackLink to={location} className="mb-1">
               Back to assemblies
             </BackLink>
             <FormField

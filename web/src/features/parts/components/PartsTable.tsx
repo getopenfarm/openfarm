@@ -4,7 +4,13 @@ import type {
   HeaderContext,
   RowSelectionState,
 } from '@tanstack/react-table';
-import { ImageOffIcon, ListPlusIcon, Trash2Icon } from 'lucide-react';
+import { flexRender } from '@tanstack/react-table';
+import {
+  FolderInputIcon,
+  ImageOffIcon,
+  ListPlusIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import {
   createContext,
   type RefObject,
@@ -13,7 +19,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Link } from 'react-router';
 import {
   DataTable,
   type ServerTablePagination,
@@ -30,9 +35,24 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import type { PartLibraryRow } from '@/features/library/api';
+import {
+  LibraryDragHandle,
+  LibraryDragRow,
+  useLibraryDragSelection,
+} from '@/features/library/LibraryDnd';
+import {
+  LibraryFolderActions,
+  LibraryFolderCard,
+  LibraryFolderName,
+} from '@/features/library/LibraryFolders';
+import { LibraryItemCard } from '@/features/library/LibraryItemCard';
+import { LibraryItemLink } from '@/features/library/LibraryItemLink';
+import { MoveToDialog } from '@/features/library/MoveToDialog';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
-import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
+
 import { formatMm } from '@/lib/formatUnits';
+import type { ViewMode } from '@/lib/preferences/types';
 import { formatPartFileType } from '../formatPartFileType';
 import { PartEstimate } from './PartEstimate';
 import {
@@ -43,16 +63,19 @@ import { RemovePartsDialog } from './RemovePartsDialog';
 import type { RemovablePart } from './useRemoveParts';
 
 interface PartsTableProps {
+  libraryRows?: PartLibraryRow[];
+  view?: ViewMode;
+  folderId?: string | null;
   pagination?: ServerTablePagination;
   sorting?: ServerTableSorting;
-  parts: PartSummaryResponse[];
-  onRowClick: (part: PartSummaryResponse) => void;
+  parts: PartLibraryRow[];
+  onRowClick: (part: PartLibraryRow) => void;
   selectionKey?: string;
   fallbackFocusRef?: RefObject<HTMLElement | null>;
   onPendingChange?: (pending: boolean) => void;
 }
 
-function EstimateCell({ part }: { part: PartSummaryResponse }) {
+function EstimateCell({ part }: { part: PartLibraryRow }) {
   return (
     <PartEstimate
       status={part.estimateStatus}
@@ -62,19 +85,22 @@ function EstimateCell({ part }: { part: PartSummaryResponse }) {
   );
 }
 
-const columns: ColumnDef<PartSummaryResponse>[] = [
+const columns: ColumnDef<PartLibraryRow>[] = [
   {
-    id: 'part',
+    id: 'name',
+    enableHiding: false,
     accessorKey: 'name',
-    meta: { label: 'Part' },
+    meta: { label: 'Name' },
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Part" />
+      <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
       <div className="flex items-center gap-3">
+        <LibraryDragHandle name={row.original.name ?? 'Part'} />
         <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
           {row.original.thumbnailBase64 ? (
             <img
+              draggable={false}
               src={`data:image/png;base64,${row.original.thumbnailBase64}`}
               alt=""
               className="size-full object-contain"
@@ -84,12 +110,9 @@ const columns: ColumnDef<PartSummaryResponse>[] = [
           )}
         </div>
         <div className="flex flex-col">
-          <Link
-            to={`/parts/${row.original.id}`}
-            className="font-medium hover:underline"
-          >
+          <LibraryItemLink library="parts" id={row.original.id}>
             {row.original.name}
-          </Link>
+          </LibraryItemLink>
         </div>
       </div>
     ),
@@ -161,9 +184,11 @@ function PartRowActions({
   disabled,
   onQueue,
   onRemove,
+  onMove,
 }: {
-  part: PartSummaryResponse;
+  part: PartLibraryRow;
   disabled: boolean;
+  onMove: (trigger: HTMLButtonElement | null) => void;
   onQueue: (trigger: HTMLButtonElement | null) => void;
   onRemove: (trigger: HTMLButtonElement | null) => void;
 }) {
@@ -187,6 +212,10 @@ function PartRowActions({
         >
           <ListPlusIcon /> Send to queue
         </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onMove(triggerRef.current)}>
+          <FolderInputIcon />
+          Move to
+        </DropdownMenuItem>
       </DropdownMenuGroup>
       <DropdownMenuSeparator />
       <DropdownMenuGroup>
@@ -202,17 +231,12 @@ function PartRowActions({
 }
 
 interface PartsTableActions {
+  onMove: (ids: string[], trigger: HTMLButtonElement | null) => void;
   pending: boolean;
   fallbackFocusRef?: RefObject<HTMLElement | null>;
   selectionHeaderRef: RefObject<HTMLButtonElement | null>;
-  onQueue: (
-    part: PartSummaryResponse,
-    trigger: HTMLButtonElement | null,
-  ) => void;
-  onRemove: (
-    part: PartSummaryResponse,
-    trigger: HTMLButtonElement | null,
-  ) => void;
+  onQueue: (part: PartLibraryRow, trigger: HTMLButtonElement | null) => void;
+  onRemove: (part: PartLibraryRow, trigger: HTMLButtonElement | null) => void;
   onPendingChange: (pending: boolean) => void;
 }
 const PartsTableContext = createContext<PartsTableActions | null>(null);
@@ -222,15 +246,15 @@ function usePartsTableActions() {
     throw new Error('Part table controls require PartsTableContext.');
   return actions;
 }
-function SelectionHeader({
-  table,
-}: HeaderContext<PartSummaryResponse, unknown>) {
+function SelectionHeader({ table }: HeaderContext<PartLibraryRow, unknown>) {
   const { pending, selectionHeaderRef } = usePartsTableActions();
   return (
     <Checkbox
       ref={selectionHeaderRef}
       aria-label="Select all parts on this page"
-      disabled={pending}
+      disabled={
+        pending || !table.getRowModel().rows.some((row) => row.getCanSelect())
+      }
       checked={
         table.getIsAllPageRowsSelected() ||
         (table.getIsSomePageRowsSelected() && 'indeterminate')
@@ -241,8 +265,9 @@ function SelectionHeader({
     />
   );
 }
-function SelectionCell({ row }: CellContext<PartSummaryResponse, unknown>) {
+function SelectionCell({ row }: CellContext<PartLibraryRow, unknown>) {
   const { pending } = usePartsTableActions();
+  if (row.original.libraryFolder) return null;
   return (
     <Checkbox
       aria-label={`Select ${row.original.name}`}
@@ -252,11 +277,16 @@ function SelectionCell({ row }: CellContext<PartSummaryResponse, unknown>) {
     />
   );
 }
-function ActionsCell({ row }: CellContext<PartSummaryResponse, unknown>) {
+function ActionsCell({ row }: CellContext<PartLibraryRow, unknown>) {
   const actions = usePartsTableActions();
+  if (row.original.libraryFolder)
+    return <LibraryFolderActions folder={row.original.libraryFolder} />;
   return (
     <PartRowActions
       part={row.original}
+      onMove={(trigger) => {
+        if (row.original.id) actions.onMove([row.original.id], trigger);
+      }}
       disabled={actions.pending}
       onQueue={(trigger) => actions.onQueue(row.original, trigger)}
       onRemove={(trigger) => actions.onRemove(row.original, trigger)}
@@ -265,7 +295,7 @@ function ActionsCell({ row }: CellContext<PartSummaryResponse, unknown>) {
 }
 
 // Stable cell component identities keep open menus and dialogs mounted during selection/mutations.
-const tableColumns: ColumnDef<PartSummaryResponse>[] = [
+const tableColumns: ColumnDef<PartLibraryRow>[] = [
   {
     id: 'select',
     enableSorting: false,
@@ -273,7 +303,19 @@ const tableColumns: ColumnDef<PartSummaryResponse>[] = [
     header: SelectionHeader,
     cell: SelectionCell,
   },
-  ...columns,
+  ...columns.map((column) => ({
+    ...column,
+    cell: (context: CellContext<PartLibraryRow, unknown>) =>
+      context.row.original.libraryFolder ? (
+        column.id === 'name' ? (
+          <LibraryFolderName folder={context.row.original.libraryFolder} />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )
+      ) : (
+        flexRender(column.cell, context)
+      ),
+  })),
   {
     id: 'actions',
     header: () => <span className="sr-only">Actions</span>,
@@ -284,6 +326,9 @@ const tableColumns: ColumnDef<PartSummaryResponse>[] = [
 ];
 
 export function PartsTable({
+  libraryRows,
+  view = 'table',
+  folderId = null,
   parts,
   pagination,
   sorting,
@@ -292,7 +337,11 @@ export function PartsTable({
   fallbackFocusRef,
   onPendingChange,
 }: PartsTableProps) {
-  const [queuePart, setQueuePart] = useState<PartSummaryResponse | null>(null);
+  const [queuePart, setQueuePart] = useState<PartLibraryRow | null>(null);
+  const [moveIds, setMoveIds] = useState<string[]>([]);
+  const moveTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const moveBulkRef = useRef<HTMLButtonElement>(null);
+  const [moving, setMoving] = useState(false);
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [bulkTargets, setBulkTargets] = useState<RemovablePart[]>([]);
   const [removalNotice, setRemovalNotice] = useState<PartRemovalNoticeData>();
@@ -302,6 +351,7 @@ export function PartsTable({
   const [pending, setPending] = useState(false);
   const interactionPending = !!(
     pending ||
+    moving ||
     pagination?.pending ||
     sorting?.pending ||
     pagination?.disabled ||
@@ -310,6 +360,8 @@ export function PartsTable({
   const queueTriggerRef = useRef<HTMLButtonElement | null>(null);
   const selectionHeaderRef = useRef<HTMLButtonElement>(null);
   const bulkTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useLibraryDragSelection(selection, setSelection);
 
   // A new server page or filter has a separate selection context.
   useEffect(() => {
@@ -345,6 +397,10 @@ export function PartsTable({
     <PartsTableContext.Provider
       value={{
         pending: interactionPending,
+        onMove: (ids, trigger) => {
+          moveTriggerRef.current = trigger;
+          setMoveIds(ids);
+        },
         fallbackFocusRef,
         selectionHeaderRef,
         onQueue: (part, trigger) => {
@@ -378,17 +434,50 @@ export function PartsTable({
               ? { ...pagination, pending: pending || pagination.pending }
               : undefined
           }
+          renderCard={
+            view === 'grid'
+              ? (row) =>
+                  row.original.libraryFolder ? (
+                    <LibraryFolderCard folder={row.original.libraryFolder} />
+                  ) : (
+                    <LibraryItemCard
+                      row={row}
+                      name={row.original.name ?? 'Part'}
+                      to={`/parts/${row.original.id}`}
+                      images={
+                        row.original.thumbnailBase64
+                          ? [row.original.thumbnailBase64]
+                          : []
+                      }
+                      disabled={interactionPending}
+                    >
+                      <Badge variant="secondary">
+                        {formatPartFileType(row.original)}
+                      </Badge>
+                      <EstimateCell part={row.original} />
+                    </LibraryItemCard>
+                  )
+              : undefined
+          }
           columns={tableColumns}
-          data={parts}
+          rowContainer={libraryRows ? LibraryDragRow : undefined}
+          data={libraryRows ?? parts}
           onRowClick={(part) => {
             if (!interactionPending) onRowClick(part);
           }}
-          getRowId={(part, index) => part.id ?? `missing-${index}`}
+          getRowId={(part, index) =>
+            part.libraryFolder
+              ? `folder:${part.id}`
+              : (part.id ?? `missing-${index}`)
+          }
           rowSelection={selection}
           onRowSelectionChange={setSelection}
-          enableRowSelection={(row) => Boolean(row.original.id)}
+          enableRowSelection={(row) =>
+            Boolean(row.original.id) && !row.original.libraryFolder
+          }
           toolbar={
             <DataTableSelectionBar
+              floating
               selectedCount={selected.length}
               pending={interactionPending}
               label="Parts actions"
@@ -398,6 +487,22 @@ export function PartsTable({
                 selectionHeaderRef.current?.focus();
               }}
             >
+              <Button
+                ref={moveBulkRef}
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={interactionPending}
+                onClick={() => {
+                  moveTriggerRef.current = moveBulkRef.current;
+                  setMoveIds(
+                    selected.flatMap((item) => (item.id ? [item.id] : [])),
+                  );
+                }}
+              >
+                <FolderInputIcon data-icon="inline-start" />
+                Move to
+              </Button>
               <Button
                 ref={bulkTriggerRef}
                 type="button"
@@ -423,6 +528,21 @@ export function PartsTable({
           }
         />
       </div>
+      {moveIds.length > 0 && (
+        <MoveToDialog
+          library="parts"
+          ids={moveIds}
+          initialParent={folderId}
+          onClose={() => setMoveIds([])}
+          onMoved={() => setSelection({})}
+          returnFocusRef={moveTriggerRef}
+          fallbackFocusRef={fallbackFocusRef}
+          onPendingChange={(value) => {
+            setMoving(value);
+            onPendingChange?.(value);
+          }}
+        />
+      )}
       {bulkOpen && (
         <RemovePartsDialog
           onNotice={setRemovalNotice}

@@ -26,8 +26,11 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
     public Task<Part?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         Include(dbContext.Parts).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
-    public async Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(
-        IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
+    public Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
+        ListInFolderAsync(tags, page, pageSize, sorting, null, cancellationToken);
+
+    public async Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListInFolderAsync(
+        IReadOnlyList<string> tags, int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken)
     {
         var query = Include(dbContext.Parts).AsQueryable();
 
@@ -36,6 +39,12 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
             // AND-semantics: narrows the query once per required tag rather than a single
             // "contains all" set comparison — simple, correct, and fine at this feature's row counts.
             query = query.Where(p => p.Tags.Any(t => t.Name == tag));
+        }
+
+        if (folder is not null)
+        {
+            var folderId = OpenFarm.Domain.Library.LibraryFolder.ParseLocation(folder);
+            query = query.Where(p => p.FolderId == folderId);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

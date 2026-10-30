@@ -1742,6 +1742,8 @@ export interface RelatedPartPlateRequest {
 
 export interface ConfirmPartProcessingJobRequest {
   /** @nullable */
+  folderId?: string | null;
+  /** @nullable */
   name?: string | null;
   /** @nullable */
   tags?: string[] | null;
@@ -1958,6 +1960,81 @@ export interface ListNonPrintedComponentsResponse {
 export interface ListNonPrintedComponentsRequest {
   [key: string]: unknown;
 }
+
+export interface LibraryFolder {
+  id?: string;
+  library?: string;
+  /** @nullable */
+  parentId?: string | null;
+  name?: string;
+  createdAtUtc?: string;
+  updatedAtUtc?: string;
+}
+
+export interface FolderPage {
+  items?: LibraryFolder[];
+  totalCount?: number;
+  ancestors?: LibraryFolder[];
+}
+
+export interface FolderLibraryRequest {
+  [key: string]: unknown;
+}
+
+export type ListFoldersRequest = FolderLibraryRequest & {
+  [key: string]: unknown;
+};
+
+export type CreateFolderRequest = FolderLibraryRequest & {
+  name?: string;
+  /** @nullable */
+  parentId?: string | null;
+};
+
+export type FolderIdRequest = FolderLibraryRequest & { [key: string]: unknown };
+
+export type RenameFolderRequest = FolderIdRequest & {
+  name?: string;
+};
+
+export type MoveFolderRequest = FolderIdRequest & {
+  /** @nullable */
+  parentId?: string | null;
+};
+
+export type MoveLibraryItemsRequest = FolderLibraryRequest & {
+  ids?: string[];
+  /** @nullable */
+  folderId?: string | null;
+};
+
+export interface AssemblySummaryResponse {
+  id?: string;
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  lineCount?: number;
+  previewThumbnails?: string[];
+}
+
+export interface LibraryEntryResponse {
+  id?: string;
+  name?: string;
+  kind?: string;
+  folder?: LibraryFolder | null;
+  part?: PartSummaryResponse | null;
+  assembly?: AssemblySummaryResponse | null;
+}
+
+export interface LibraryContentsResponse {
+  items?: LibraryEntryResponse[];
+  totalCount?: number;
+  ancestors?: LibraryFolder[];
+}
+
+export type ListLibraryContentsRequest = FolderLibraryRequest & {
+  [key: string]: unknown;
+};
 
 export interface FilamentProfileAssignmentInput {
   brand?: string;
@@ -2306,6 +2383,8 @@ export interface CreateAssemblyLineRequest {
 }
 
 export interface CreateAssemblyRequest {
+  /** @nullable */
+  folderId?: string | null;
   name?: string;
   /** @nullable */
   description?: string | null;
@@ -2387,14 +2466,6 @@ export interface ExplodeAssemblyResponse {
 
 export interface ExplodeAssemblyRequest {
   [key: string]: unknown;
-}
-
-export interface AssemblySummaryResponse {
-  id?: string;
-  name?: string;
-  /** @nullable */
-  description?: string | null;
-  lineCount?: number;
 }
 
 export interface ListAssembliesResponse {
@@ -2742,6 +2813,10 @@ export type OpenFarmApiEndpointsPartsListPartsEndpointParams = {
   /**
    * @nullable
    */
+  folder?: string | null;
+  /**
+   * @nullable
+   */
   sortBy?: string | null;
   /**
    * @nullable
@@ -2764,6 +2839,36 @@ export type OpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndp
     page: number;
     pageSize: number;
   };
+
+export type OpenFarmApiEndpointsLibraryListFoldersEndpointParams = {
+  /**
+   * @nullable
+   */
+  parentId?: string | null;
+  page: number;
+  pageSize: number;
+};
+
+export type OpenFarmApiEndpointsLibraryListLibraryContentsEndpointParams = {
+  /**
+   * @nullable
+   */
+  parentId?: string | null;
+  page: number;
+  pageSize: number;
+  /**
+   * @nullable
+   */
+  sortBy?: string | null;
+  /**
+   * @nullable
+   */
+  sortDirection?: string | null;
+  /**
+   * @nullable
+   */
+  includePreviews?: boolean | null;
+};
 
 export type OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams = {
   /**
@@ -2798,6 +2903,14 @@ export type OpenFarmApiEndpointsCostCatalogListCostItemsEndpointParams = {
 };
 
 export type OpenFarmApiEndpointsAssembliesListAssembliesEndpointParams = {
+  /**
+   * @nullable
+   */
+  includePreviews?: boolean | null;
+  /**
+   * @nullable
+   */
+  folder?: string | null;
   /**
    * @nullable
    */

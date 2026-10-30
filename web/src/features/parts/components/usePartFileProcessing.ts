@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { ChangeEvent, DragEvent } from 'react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { invalidateLibraryContents } from '@/features/library/api';
 import type {
   PartProcessingJobResponse,
   PartProcessingJobSubmittedResponse,
@@ -83,6 +84,7 @@ async function extractErrorDetail(
 
 export interface UsePartFileProcessingOptions {
   mode: 'add' | 'replace' | 'reprocess';
+  folderId?: string | null;
   /** Required for mode="replace" — the existing part's file/derived data are replaced against
    * this id; its name/tags are never touched (FR-004). */
   partId?: string;
@@ -109,6 +111,7 @@ export interface ConfirmValues {
  */
 export function usePartFileProcessing({
   mode,
+  folderId,
   partId,
   onConfirmed,
   currentPlateNumber,
@@ -230,6 +233,7 @@ export function usePartFileProcessing({
     useOpenFarmApiEndpointsPartProcessingJobsConfirmPartProcessingJobEndpoint({
       mutation: {
         onSuccess: () => {
+          void invalidateLibraryContents(queryClient);
           toast.success(
             mode === 'add'
               ? 'Part added.'
@@ -357,6 +361,7 @@ export function usePartFileProcessing({
       confirmMutation.mutate({
         id: jobId,
         data: {
+          ...(folderId ? { folderId } : {}),
           name: values.name,
           tags: tags.length > 0 ? tags : undefined,
           filamentRequirementOverrides,

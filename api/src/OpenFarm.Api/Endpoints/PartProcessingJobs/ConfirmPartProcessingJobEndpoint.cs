@@ -23,6 +23,8 @@ public sealed class RelatedPartPlateRequest
 
 public sealed class ConfirmPartProcessingJobRequest : IActivityLoggable
 {
+    public Guid? FolderId { get; set; }
+
     /// <summary>Required for an Add-kind job; must be omitted for a Replace-kind job (data-model.md).</summary>
     public string? Name { get; set; }
 
@@ -46,7 +48,7 @@ public sealed class ConfirmPartProcessingJobRequest : IActivityLoggable
 
 // POST /api/v1/part-processing-jobs/{id}/confirm — the Save action (contracts/part-library-api.md).
 [Permission("parts:create")]
-public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler) : Endpoint<ConfirmPartProcessingJobRequest, PartResponse>
+public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler, OpenFarm.Application.Library.ILibraryFolderService folders) : Endpoint<ConfirmPartProcessingJobRequest, PartResponse>
 {
     public override void Configure()
     {
@@ -56,6 +58,7 @@ public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler) : E
 
     public override async Task HandleAsync(ConfirmPartProcessingJobRequest req, CancellationToken ct)
     {
+        await folders.ValidateDestinationAsync("parts", req.FolderId, ct);
         var jobId = Route<Guid>("id");
         var sub = HttpContext.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         _ = Guid.TryParse(sub, out var userId);
@@ -65,7 +68,7 @@ public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler) : E
             .ToList();
 
         var command = new ConfirmPartProcessingJobCommand(jobId, req.Name, req.Tags, overrides, userId, req.PlateNumbers,
-            req.RelatedParts?.Select(r => new RelatedPartPlate(r.PartId, r.PlateNumber)).ToList());
+            req.RelatedParts?.Select(r => new RelatedPartPlate(r.PartId, r.PlateNumber)).ToList(), req.FolderId);
         var part = await handler.HandleAsync(command, ct);
 
         Response = PartResponse.FromDomain(part);

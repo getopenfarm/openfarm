@@ -221,3 +221,50 @@ last valid page only from a successful settled response, never placeholder data.
 - **Helpers** in `web/src/lib`: `pluralize`, `formatUnits` (grams, mm, °C,
   file size), `formatDateTime`, `formatMinutes`, `formatRelativeTime`. Do not
   format counts, units or dates inline.
+
+## Library folders and thumbnail views
+
+Parts and Assemblies have independent folder trees. Folder location lives in
+`?folder=`; the root contains unfiled items. Organization never changes BOM
+references. Breadcrumbs and folder names are real links. Only empty folders can
+be removed. Creating items in a folder carries that destination through confirmation,
+including every part created from a multi-plate upload.
+
+Each library uses one shared browser with a mixed folder/item collection, one
+Details/Thumbnails switch and one numbered pagination footer. Folders come first;
+newest-first or name sorting applies within each group, before server pagination.
+The Name column is shared; item-only columns show an em dash for folders. Both
+presentations share the same row model, selection and action controllers. Views
+are remembered independently through browser preferences, and switching views
+preserves state. Changing location, page, page size or sorting clears page-local
+item selection. Folders move individually and have no selection checkbox.
+
+Use dnd-kit for moves into visible folders or ancestor breadcrumbs, including root.
+Dragging a selected item moves the selected group; an unselected item moves alone.
+Allow dragging directly from item names, thumbnails and row/card surfaces onto
+folder rows/cards. Keep a keyboard move control that appears on focus. Use a long
+press for touch, preserving ordinary scrolling and link/menu interactions.
+Highlight accepted targets during dragging and announce outcomes. Escape
+cancels. Keep source entries until server confirmation, block conflicting controls
+while saving, and preserve selection after failure. Keep Move to in menus and the
+floating selection bar as an accessible alternative and for off-page destinations.
+Do not turn folder moves into manual row ordering or external-file upload.
+
+The shared DataTable owns rows, cards, column visibility and pagination; its row
+container slot adds dragging without changing native table/list structure. Library
+bulk actions use its selection bar in floating mode, with safe-area and wrapped
+control clearance below pagination. Other consumers retain their presentation.
+Assembly previews are batched collages of up to four distinct descendant parts;
+never fetch details once per card.
+
+`GET /api/v1/library/{library}/contents` supplies the combined page, total count and
+ancestors. It accepts `parentId`, pagination, name sorting, and optional assembly
+previews. Existing list APIs retain all-items behavior when `folder` is omitted;
+`folder=root` selects unfiled items and a folder ID selects direct contents.
+Catalog pickers continue using those all-items queries. Invalidate combined pages
+after mutations and part events, including assembly previews affected by part changes.
+
+Folder and assembly row icons use the same 40px preview frame as part thumbnails.
+Folders retain their own icon, including in thumbnail view; collage previews stay
+with assemblies in thumbnail view. Do not add a persistent drag indicator or a
+dedicated drag column. Dropping on another item does not reorder the collection.

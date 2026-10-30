@@ -273,7 +273,7 @@ describe('Part Library selection and bulk removal', () => {
     expect(
       screen.getByRole('checkbox', { name: 'Select Bracket' }).closest('tr'),
     ).toHaveAttribute('data-state', 'selected');
-    await userEvent.click(screen.getByRole('button', { name: 'Part' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Name' }));
     expect(
       screen.getByRole('checkbox', { name: 'Select Bracket' }),
     ).toBeChecked();

@@ -36,6 +36,8 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { invalidateLibraryContents } from '@/features/library/api';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
 import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
@@ -207,6 +209,7 @@ function toFormValues(part: PartResponse | undefined): FormValues {
 }
 
 export function PartDetailPage() {
+  const { location } = useLibraryLocation('parts');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -240,6 +243,7 @@ export function PartDetailPage() {
   const editMutation = useOpenFarmApiEndpointsPartsEditPartEndpoint({
     mutation: {
       onSuccess: (response) => {
+        void invalidateLibraryContents(queryClient);
         const saved = response.data as PartResponse;
         form.reset(toFormValues(saved));
         queryClient.setQueryData(
@@ -338,7 +342,7 @@ export function PartDetailPage() {
       : undefined;
 
   const backLink = (
-    <BackLink to="/parts" className="mb-1">
+    <BackLink to={location} className="mb-1">
       Back to parts
     </BackLink>
   );
@@ -347,7 +351,7 @@ export function PartDetailPage() {
       title="Part not found"
       description="Removed or invalid link."
       action={
-        <Button variant="outline" onClick={() => navigate('/parts')}>
+        <Button variant="outline" onClick={() => navigate(location)}>
           Back to parts
         </Button>
       }
@@ -420,7 +424,7 @@ export function PartDetailPage() {
                   onNotice={setRemovalNotice}
                   partId={part.id}
                   partName={part.name}
-                  onRemoved={() => navigate('/parts')}
+                  onRemoved={() => navigate(location)}
                 />
               </div>
             }
@@ -593,7 +597,7 @@ export function PartDetailPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => navigate('/parts')}
+                      onClick={() => navigate(location)}
                     >
                       Cancel
                     </Button>

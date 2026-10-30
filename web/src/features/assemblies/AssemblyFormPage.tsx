@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { Page } from '@/components/page/Page';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { invalidateLibraryContents } from '@/features/library/api';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
@@ -19,6 +21,7 @@ import {
 } from './components/AssemblyEditor';
 
 export function AssemblyFormPage() {
+  const { folderId, location, itemLocation } = useLibraryLocation('assemblies');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { form } = useAssemblyForm();
@@ -30,13 +33,14 @@ export function AssemblyFormPage() {
     useOpenFarmApiEndpointsAssembliesCreateAssemblyEndpoint({
       mutation: {
         onSuccess: (created) => {
+          void invalidateLibraryContents(queryClient);
           toast.success('Assembly added.');
           queryClient.invalidateQueries({
             queryKey:
               getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey(),
           });
           markClean();
-          navigate(`/assemblies/${created.data?.id}`);
+          navigate(itemLocation(created.data?.id ?? ''));
         },
         onError: async (error) => {
           toast.error(
@@ -49,6 +53,7 @@ export function AssemblyFormPage() {
   function onSubmit(values: AssemblyFormValues) {
     createMutation.mutate({
       data: {
+        ...(folderId ? { folderId } : {}),
         additionalCosts: values.additionalCosts,
         pricing: toPricingPayload(values.pricing),
         name: values.name.trim(),
@@ -70,7 +75,7 @@ export function AssemblyFormPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/assemblies')}
+              onClick={() => navigate(location)}
             >
               Cancel
             </Button>

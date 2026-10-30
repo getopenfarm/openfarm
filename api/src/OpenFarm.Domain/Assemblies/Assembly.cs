@@ -50,6 +50,10 @@ public sealed class Assembly
         UpdatedAtUtc = createdAtUtc;
     }
 
+    public Guid? FolderId { get; private set; }
+
+    public void MoveToFolder(Guid? folderId) => FolderId = folderId;
+
     public Guid Id { get; }
 
     public string Name { get; private set; }

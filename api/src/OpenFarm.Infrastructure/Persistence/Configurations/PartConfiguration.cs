@@ -10,6 +10,9 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
     {
         builder.ToTable("Parts");
 
+        builder.HasOne<OpenFarm.Domain.Library.LibraryFolder>().WithMany().HasForeignKey(p => p.FolderId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(p => p.FolderId);
+
         builder.HasKey(p => p.Id);
 
 

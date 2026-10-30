@@ -177,6 +177,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("FolderId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -198,6 +201,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnName("xmin");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FolderId");
 
                     b.ToTable("Assemblies", null, t =>
                         {
@@ -751,6 +756,43 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.ToTable("Vendors", (string)null);
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Library.LibraryFolder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Library")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentId");
+
+                    b.HasIndex("Library", "ParentId");
+
+                    b.ToTable("LibraryFolders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LibraryFolders_Library", "\"Library\" IN ('parts', 'assemblies')");
+                        });
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Parts.Part", b =>
                 {
                     b.Property<Guid>("Id")
@@ -788,6 +830,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("FileUploadedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("FolderId")
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("MaterialMetadataComplete")
                         .ValueGeneratedOnAdd()
@@ -847,6 +892,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnName("xmin");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FolderId");
 
                     b.ToTable("Parts", (string)null);
                 });
@@ -2011,6 +2058,14 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Assemblies.Assembly", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Library.LibraryFolder", null)
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Assemblies.AssemblyCostLine", b =>
                 {
                     b.HasOne("OpenFarm.Domain.Assemblies.Assembly", null)
@@ -2126,6 +2181,22 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasForeignKey("SpoolId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Library.LibraryFolder", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Library.LibraryFolder", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Parts.Part", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Library.LibraryFolder", null)
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Parts.PartFilamentRequirement", b =>

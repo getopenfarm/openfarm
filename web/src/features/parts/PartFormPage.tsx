@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
 import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
@@ -51,6 +52,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function PartFormPage() {
+  const { folderId, location } = useLibraryLocation('parts');
   const navigate = useNavigate();
   usePartsHub();
 
@@ -91,9 +93,10 @@ export function PartFormPage() {
     needsPlate,
   } = usePartFileProcessing({
     mode: 'add',
+    folderId,
     onConfirmed: () => {
       markCleanRef.current();
-      navigate('/parts');
+      navigate(location);
     },
   });
 
@@ -140,7 +143,7 @@ export function PartFormPage() {
     <Page className="flex-1">
       <PageHeader
         above={
-          <BackLink to="/parts" className="mb-1">
+          <BackLink to={location} className="mb-1">
             Back to parts
           </BackLink>
         }
@@ -317,7 +320,7 @@ export function PartFormPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => navigate('/parts')}
+                    onClick={() => navigate(location)}
                   >
                     Cancel
                   </Button>

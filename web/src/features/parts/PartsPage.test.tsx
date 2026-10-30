@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 import { PartsPage } from './PartsPage';
 
 vi.mock('./hooks/usePartsHub', () => ({ usePartsHub: () => {} }));
@@ -28,6 +29,8 @@ function setup({
   const requests = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), 'http://localhost');
+      if (url.pathname.endsWith('/folders'))
+        return json({ items: [], totalCount: 0, ancestors: [] });
       if (url.pathname === '/api/v1/tags')
         return json({ tags: [{ id: 'tag-1', name: 'Brackets' }] });
       if (input.toString().endsWith('/deletion-check')) {
@@ -61,12 +64,18 @@ function setup({
         : Math.max(0, Math.min(pageSize, total - (page - 1) * pageSize));
       return json({
         totalCount: filtered ? 0 : total,
-        parts: Array.from({ length }, (_, i) => ({
+        ancestors: [],
+        items: Array.from({ length }, (_, i) => ({
           id: `part-${(page - 1) * pageSize + i + 1}`,
           name: `Part ${(page - 1) * pageSize + i + 1}`,
           fileFormat: 'STL',
           printRequirementsStatus: 'Complete',
           tags: [],
+        })).map((part) => ({
+          id: part.id,
+          name: part.name,
+          kind: 'part',
+          part,
         })),
       });
     },
@@ -78,7 +87,9 @@ function setup({
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <PartsPage />
+        <PreferencesProvider>
+          <PartsPage />
+        </PreferencesProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -235,7 +246,7 @@ it('clears page-local selection on sort and preserves header focus while loading
   await screen.findByText('1–25 of 26');
   await user.click(screen.getByRole('checkbox', { name: 'Select Part 1' }));
   const release = holdSorting();
-  const header = screen.getByRole('button', { name: 'Part' });
+  const header = screen.getByRole('button', { name: 'Name' });
   header.focus();
   await user.keyboard('{Enter}');
   await waitFor(() => expect(header).toBeDisabled());
@@ -249,7 +260,7 @@ it('clears page-local selection on sort and preserves header focus while loading
   expect(header).toHaveFocus();
   const request = requests.mock.calls
     .map(([url]) => new URL(url.toString(), window.location.origin))
-    .findLast((url) => url.pathname === '/api/v1/parts');
+    .findLast((url) => url.pathname === '/api/v1/library/parts/contents');
   expect(request?.searchParams.get('sortBy')).toBe('name');
   expect(request?.searchParams.get('sortDirection')).toBe('asc');
   expect(request?.searchParams.get('page')).toBe('1');
@@ -264,7 +275,7 @@ it('keeps previous rows after a failed sort and retries the same requested order
   const user = userEvent.setup();
   await screen.findByText('Part 1');
   failRequests();
-  const header = screen.getByRole('button', { name: 'Part' });
+  const header = screen.getByRole('button', { name: 'Name' });
   await user.click(header);
   await screen.findByText('Could not refresh list');
   expect(screen.getByText('Part 1')).toBeInTheDocument();
@@ -277,7 +288,7 @@ it('keeps previous rows after a failed sort and retries the same requested order
   await waitFor(() => expect(header).toBeEnabled());
   const request = requests.mock.calls
     .map(([url]) => new URL(url.toString(), window.location.origin))
-    .findLast((url) => url.pathname === '/api/v1/parts');
+    .findLast((url) => url.pathname === '/api/v1/library/parts/contents');
   expect(request?.searchParams.get('sortDirection')).toBe('asc');
   expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
 });

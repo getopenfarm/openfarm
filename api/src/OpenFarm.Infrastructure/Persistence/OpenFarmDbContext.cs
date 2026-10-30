@@ -16,6 +16,8 @@ namespace OpenFarm.Infrastructure.Persistence;
 public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> options)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
+    public DbSet<OpenFarm.Domain.Library.LibraryFolder> LibraryFolders => Set<OpenFarm.Domain.Library.LibraryFolder>();
+
     public DbSet<FarmSettings> FarmSettings => Set<FarmSettings>();
 
     public DbSet<ConnectionSecret> ConnectionSecrets => Set<ConnectionSecret>();

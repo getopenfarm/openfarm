@@ -13,6 +13,9 @@ public sealed class AssemblyConfiguration : IEntityTypeConfiguration<Assembly>
             t.HasCheckConstraint("CK_Assemblies_Pricing", "(\"PricingMode\" IS NULL) = (\"PricingValue\" IS NULL)");
         });
 
+        builder.HasOne<OpenFarm.Domain.Library.LibraryFolder>().WithMany().HasForeignKey(p => p.FolderId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(p => p.FolderId);
+
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Name).IsRequired();
         builder.Property(a => a.Description);

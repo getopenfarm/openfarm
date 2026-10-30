@@ -123,7 +123,10 @@ describe('PartsTable queue action', () => {
     await user.keyboard('{Enter}');
     const option = screen.getByRole('menuitemcheckbox', { name: 'File type' });
     expect(option).toHaveAttribute('aria-checked', 'true');
-    await user.keyboard('{Home}{ArrowDown}');
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'Name' }),
+    ).not.toBeInTheDocument();
+    await user.keyboard('{Home}');
     expect(option).toHaveFocus();
     await user.keyboard('{Enter}{Escape}');
     expect(

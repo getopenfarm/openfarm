@@ -18,4 +18,4 @@ public sealed record ConfirmPartProcessingJobCommand(
     IReadOnlyList<FilamentRequirementOverride>? FilamentRequirementOverrides,
     Guid? ActingUserId,
     IReadOnlyList<int>? PlateNumbers = null,
-    IReadOnlyList<RelatedPartPlate>? RelatedParts = null);
+    IReadOnlyList<RelatedPartPlate>? RelatedParts = null, Guid? FolderId = null);

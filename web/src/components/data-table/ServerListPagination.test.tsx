@@ -1,3 +1,7 @@
+vi.mock('@/features/parts/hooks/usePartsHub', () => ({
+  usePartsHub: () => {},
+}));
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -7,6 +11,7 @@ import { AssembliesPage } from '@/features/assemblies/AssembliesPage';
 import { NonPrintedComponentsPage } from '@/features/non-printed-components/NonPrintedComponentsPage';
 import { ProductionRunsPage } from '@/features/production-runs/ProductionRunsPage';
 import { ProfilesPage } from '@/features/profiles/ProfilesPage';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 
 vi.mock('@/features/production-runs/hooks/useProductionHub', () => ({
   useProductionHub: () => {},
@@ -20,6 +25,11 @@ function setup(Page: typeof AssembliesPage, failSecondPage = false) {
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(input.toString(), 'http://localhost');
+      if (url.pathname.endsWith('/folders'))
+        return new Response(
+          JSON.stringify({ items: [], totalCount: 0, ancestors: [] }),
+          { headers: { 'Content-Type': 'application/json' } },
+        );
       requests.push(url);
       const page = Number(url.searchParams.get('page'));
       return new Response(
@@ -32,9 +42,19 @@ function setup(Page: typeof AssembliesPage, failSecondPage = false) {
                     id: `item-${page}`,
                     name: `Record ${page}`,
                     displayLabel: `Record ${page}`,
+                    ...(url.pathname.endsWith('/contents')
+                      ? {
+                          kind: 'assembly',
+                          assembly: {
+                            id: `item-${page}`,
+                            name: `Record ${page}`,
+                          },
+                        }
+                      : {}),
                   },
                 ],
                 totalCount: 26,
+                ancestors: [],
               },
         ),
         {
@@ -50,7 +70,9 @@ function setup(Page: typeof AssembliesPage, failSecondPage = false) {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <Page />
+        <PreferencesProvider>
+          <Page />
+        </PreferencesProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -83,7 +105,10 @@ describe('Server-paginated resource lists', () => {
       expect(
         requests.every(
           (url) =>
-            url.pathname === `/api/v1/${path}` &&
+            url.pathname ===
+              (path === 'assemblies'
+                ? '/api/v1/library/assemblies/contents'
+                : `/api/v1/${path}`) &&
             url.searchParams.get('pageSize') === '25',
         ),
       ).toBe(true);
@@ -125,7 +150,7 @@ describe('Server-paginated resource lists', () => {
 });
 
 it.each([
-  [AssembliesPage, 'Assembly', 'name'],
+  [AssembliesPage, 'Name', 'name'],
   [NonPrintedComponentsPage, 'Name', 'name'],
 ] as const)(
   'sorts a resource globally and resets its page (%s)',
