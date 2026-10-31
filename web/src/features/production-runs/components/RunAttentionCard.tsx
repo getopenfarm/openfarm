@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Card,
   CardAction,
@@ -122,6 +122,7 @@ export function RunAttentionCard({
         {requeueable > 1 && (
           <CardAction>
             <Button
+              permission="print-jobs:requeue"
               size="sm"
               variant="outline"
               disabled={pending}
@@ -165,6 +166,7 @@ export function RunAttentionCard({
               <div className="flex gap-2">
                 {job.canRequeue && (
                   <Button
+                    permission="print-jobs:requeue"
                     size="sm"
                     disabled={pending}
                     onClick={() => requeue.mutate({ id: job.id ?? '' })}

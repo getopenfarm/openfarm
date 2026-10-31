@@ -41,17 +41,26 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ProductionDispatchBackgroundService> _logger;
 
-    // A send that fails is tried again in place this many times, after these pauses, before the job is blocked and backs off.
+    // A send that fails is tried again in place this many times, after these pauses, before the job fails.
     private static readonly TimeSpan[] DefaultSendRetryDelays = [TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30)];
     private readonly IReadOnlyList<TimeSpan> _sendRetryDelays;
 
+    // How long an idle printer must keep reporting after an unconfirmed start before the start is known not to have happened.
+    private readonly TimeSpan _startConfirmGrace;
+
+    // Consecutive failed sends per printer, so a printer that cannot take a file does not fail the whole queue one job at a time.
+    // ponytail: in-memory, lost on restart; persist on Printer if restarts hide a flapping printer. Only the worker loop touches it.
+    private readonly Dictionary<Guid, (int Count, DateTimeOffset AtUtc)> _sendFailures = [];
+
     /// <param name="sendRetryDelays">Test seam: the pauses between send attempts (one fewer than the attempts).</param>
+    /// <param name="startConfirmGrace">Test seam: see <see cref="_startConfirmGrace"/>.</param>
     public ProductionDispatchBackgroundService(IServiceScopeFactory scopeFactory, ILogger<ProductionDispatchBackgroundService> logger,
-        IReadOnlyList<TimeSpan>? sendRetryDelays = null)
+        IReadOnlyList<TimeSpan>? sendRetryDelays = null, TimeSpan? startConfirmGrace = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _sendRetryDelays = sendRetryDelays ?? DefaultSendRetryDelays;
+        _startConfirmGrace = startConfirmGrace ?? TimeSpan.FromMinutes(3);
         _channel = Channel.CreateBounded<Guid>(new BoundedChannelOptions(100)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -121,7 +130,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             if (job.ObjectExecution is { StartRequested: true })
             {
-                job.RecordBlock("Print start is unconfirmed. Check the printer before confirming that it did not start.", DateTimeOffset.UtcNow);
+                // Left for the printer's own telemetry to settle (ProcessDispatchAttemptAsync); the first failure stays the anchor.
+                if (job.LastBlockReason is null) job.RecordBlock(StartUnconfirmedReason, DateTimeOffset.UtcNow);
                 continue;
             }
             job.RevertDispatch();
@@ -155,8 +165,27 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         var printer = await printerRepository.GetByIdAsync(printerId, cancellationToken);
         if (printer is null || printer.Status != PrinterStatus.Idle
-            || (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand) && !printer.IsReachable)
-            || await jobRepository.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken) is not null)
+            || (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand) && !printer.IsReachable))
+        {
+            return;
+        }
+
+        if (await jobRepository.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken) is { } active)
+        {
+            // A send that never became a print must not hold the printer: once the idle printer has kept reporting long enough
+            // without taking this job's file, the start did not happen.
+            if (StartNeverCame(active, printer, _startConfirmGrace))
+            {
+                active.FailSend(PrinterDidNotStartReason, DateTimeOffset.UtcNow);
+                await jobRepository.SaveChangesAsync(cancellationToken);
+                await PublishSendFailedAsync(services, active, cancellationToken);
+                RequestDispatchAttempt(printerId);
+            }
+
+            return;
+        }
+
+        if (_sendFailures.TryGetValue(printerId, out var failures) && DateTimeOffset.UtcNow < failures.AtUtc + SendCooldown(failures.Count))
         {
             return;
         }
@@ -403,6 +432,12 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             sent = await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleMm, revisionMode, jobRepository, cancellationToken);
         }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Nothing thrown before the send was confirmed may leave the job in flight, holding its printer until a restart.
+            LogDispatchAttemptFailed(_logger, printer.Id, ex);
+            await BlockAsync(job, "Unexpected error while sending. See the server log.", cancellationToken);
+        }
         finally
         {
             // Whatever stopped this attempt, pages showing its progress go back to the job's own state.
@@ -598,8 +633,6 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 using var stream = new MemoryStream(fileContent.Bytes);
                 if (job.ObjectExecution is { } execution)
                 {
-                    if (execution.PlannedExclusions.Count > 0)
-                        services.GetRequiredService<ObjectSkippingPolicy>().EnsureVerified(details, live: false);
                     var extension = fileContent.FileName.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase) ? ".gcode.3mf" : ".gcode";
                     var description = fileContent.FileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
                         ? fileContent.FileName[..^extension.Length] : Path.GetFileNameWithoutExtension(fileContent.FileName);
@@ -620,14 +653,22 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
                 await progress.FlushAsync();
-                // A lost start acknowledgement must not resend an exact-quantity plate, even after restart.
-                if (job.ObjectExecution is { StartRequested: true })
+                if (job.ObjectExecution is { StartRequested: true } requested)
                 {
-                    job.RecordBlock("Print start is unconfirmed. Check the printer before confirming that it did not start.", DateTimeOffset.UtcNow);
+                    // A lost start acknowledgement must not resend an exact-quantity plate, even after restart: the printer's
+                    // own telemetry settles it (ProcessDispatchAttemptAsync). A send that failed before the start command
+                    // left cannot have started anything, so it is retried like any other.
+                    if (progress.LastStage == PrintSendStage.Starting)
+                    {
+                        job.RecordBlock(StartUnconfirmedReason, DateTimeOffset.UtcNow);
+                        await jobRepository.SaveChangesAsync(cancellationToken);
+                        await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
+                        LogStartJobFailed(_logger, job.Id, printer.Id, ex);
+                        return false;
+                    }
+
+                    job.RecordObjectExecution(requested with { StartRequested = false });
                     await jobRepository.SaveChangesAsync(cancellationToken);
-                    await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
-                    LogStartJobFailed(_logger, job.Id, printer.Id, ex);
-                    return false;
                 }
                 // A blip (Wi-Fi, a busy broker) is retried here instead of costing a backoff and a new slice — but only while the
                 // printer is still idle: one that started meanwhile may have taken this very send, and it must not get it twice.
@@ -641,22 +682,45 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                     if (await IsStillIdleAsync(printer.Id, cancellationToken)) continue;
                 }
 
-                // The connector never confirmed the send — revert immediately rather than leaving this
-                // dispatch-in-flight until the next process restart's reconciliation pass.
-                job.RevertDispatch();
+                // Retries used up and the printer never took it: the job fails (requeue or write it off) and frees the printer,
+                // which itself pauses before the next job so a printer that cannot take files does not fail the whole queue.
+                job.FailSend(Truncate($"Send failed: {ex.Message}"), DateTimeOffset.UtcNow);
                 await jobRepository.SaveChangesAsync(cancellationToken);
                 LogStartJobFailed(_logger, job.Id, printer.Id, ex);
-                await BlockAsync(job, Truncate($"Send failed: {ex.Message}"), cancellationToken);
+                _sendFailures[printer.Id] = (_sendFailures.GetValueOrDefault(printer.Id).Count + 1, DateTimeOffset.UtcNow);
+                await PublishSendFailedAsync(services, job, cancellationToken);
                 return false;
             }
         }
 
-        job.ClearBlock();
-        await jobRepository.SaveChangesAsync(cancellationToken);
-        await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
-        await eventPublisher.PrintJobSendProgressAsync(job.Id, PrintSendStage.Sent, null, 1, null, cancellationToken);
+        _sendFailures.Remove(printer.Id);
+        try
+        {
+            job.ClearBlock();
+            await jobRepository.SaveChangesAsync(cancellationToken);
+            await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
+            await eventPublisher.PrintJobSendProgressAsync(job.Id, PrintSendStage.Sent, null, 1, null, cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The printer has the job and it is saved as dispatched; telemetry marks it started. Never undo a send that worked.
+            LogSendBookkeepingFailed(_logger, job.Id, ex);
+        }
+
         return true;
     }
+
+    /// <summary>A dispatched, unstarted job on an idle live printer that has kept reporting past the grace without taking its file.</summary>
+    internal static bool StartNeverCame(PrintJob job, Printer printer, TimeSpan grace) =>
+        job is { Status: PrintJobStatus.Queued, DispatchedAtUtc: { } dispatchedAt }
+        && PrinterModelCatalog.SupportsLiveIntegration(printer.Brand)
+        && printer is { Status: PrinterStatus.Idle, IsReachable: true, StateObservedAtUtc: { } observedAt }
+        && observedAt >= (job.LastBlockedAtUtc ?? dispatchedAt) + grace
+        && printer.CurrentGcodeFile?.Contains(job.Id.ToString("N"), StringComparison.Ordinal) != true
+        && printer.CurrentJobName?.Contains(job.Id.ToString("N"), StringComparison.Ordinal) != true;
+
+    /// <summary>1, 2, 4 … minutes after consecutive failed sends to one printer, at most an hour.</summary>
+    private static TimeSpan SendCooldown(int failures) => TimeSpan.FromMinutes(Math.Min(60, 1 << Math.Min(failures - 1, 6)));
 
     private async Task<bool> IsStillIdleAsync(Guid printerId, CancellationToken cancellationToken)
     {
@@ -674,8 +738,12 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         private Task _sending = Task.CompletedTask;
         private PrintSendProgress? _last;
 
+        /// <summary>The furthest the connector got: <see cref="PrintSendStage.Starting"/> means the start command may have left.</summary>
+        public PrintSendStage? LastStage { get; private set; }
+
         public void Report(PrintSendProgress value)
         {
+            LastStage = value.Stage;
             if (_last is { } last && last.Stage == value.Stage && (value.Percent ?? 0) - (last.Percent ?? 0) < 5 && value.Percent != 100) return;
             _last = value;
             _sending = _sending.ContinueWith(
@@ -692,6 +760,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     }
 
     private const string FeedMappingReason = "OpenFarm cannot map the filaments to the printer feed. Check the loaded spools.";
+    private const string StartUnconfirmedReason = "Print start is unconfirmed. Waiting for the printer to report.";
+    private const string PrinterDidNotStartReason = "Send failed: the printer did not start the print.";
 
     // Persists why an attempt failed through a fresh instance, so nothing half-prepared by this attempt is saved with it.
     // `slicedGrams`, per line, are what the file for this revision takes: kept so readiness checks them next time.
@@ -699,10 +769,14 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     {
         using var scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
-        if (await repository.GetByIdAsync(job.Id, cancellationToken) is not { Status: PrintJobStatus.Queued, DispatchedAtUtc: null } persisted)
+        if (await repository.GetByIdAsync(job.Id, cancellationToken) is not { Status: PrintJobStatus.Queued } persisted
+            || persisted.DispatchedAtUtc is not null && (persisted.PrinterId != job.PrinterId || persisted.ObjectExecution is { StartRequested: true }))
         {
             return;
         }
+
+        // This attempt's own dispatch, saved before a failure that sent nothing: the printer is let go.
+        persisted.RevertDispatch();
 
         if (slicedGrams is not null && persisted.FileRevisionHash == job.FileRevisionHash)
             persisted.BindFilamentUsage(slicedGrams.Select(grams => ((Guid?)null, grams, (FilamentUsageCurve?)null)).ToList());
@@ -716,6 +790,16 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         ? ex.Message : "Unexpected error while preparing the file. See the server log.");
 
     private static string Truncate(string text) => text.Length > 500 ? text[..500] : text;
+
+    private static async Task PublishSendFailedAsync(IServiceProvider services, PrintJob job, CancellationToken cancellationToken)
+    {
+        await services.GetRequiredService<IActivityLogWriter>().WriteAsync(ActivityLogEntry.Create(
+            entityType: "PrintJob", entityId: job.Id.ToString(),
+            eventType: "PrintJobSendFailed", actorId: null, actorType: ActorType.System), cancellationToken);
+        var publisher = services.GetRequiredService<IProductionEventPublisher>();
+        await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
+        await publisher.NotificationsChangedAsync(cancellationToken);
+    }
 
     private static async Task PublishDispatchedAsync(IServiceProvider services, PrintJob job, Guid printerId, CancellationToken cancellationToken)
     {
@@ -759,6 +843,9 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     [LoggerMessage(Level = LogLevel.Warning, Message = "Sending job {JobId} to printer {PrinterId} failed (attempt {Attempt}); retrying.")]
     private static partial void LogSendRetrying(ILogger logger, Guid jobId, Guid printerId, int attempt, Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Sending job {JobId} to printer {PrinterId} failed — reverted to Queued/Unassigned.")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Job {JobId} was sent but recording it failed; telemetry will mark it started.")]
+    private static partial void LogSendBookkeepingFailed(ILogger logger, Guid jobId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Sending job {JobId} to printer {PrinterId} failed.")]
     private static partial void LogStartJobFailed(ILogger logger, Guid jobId, Guid printerId, Exception exception);
 }

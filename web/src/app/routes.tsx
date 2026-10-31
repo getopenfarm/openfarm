@@ -1,4 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router';
+import { ProfilePage } from '@/features/accounts/ProfilePage';
+import { UserFormPage } from '@/features/accounts/UserFormPage';
+import { UsersGroupsPage } from '@/features/accounts/UsersGroupsPage';
 import { GeneralSettingsPage } from '@/features/settings/GeneralSettingsPage';
 import { CurrencyProvider } from '@/features/settings/generalSettings';
 import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
@@ -56,6 +59,29 @@ export const router = createBrowserRouter([
           </CurrencyProvider>
         ),
         children: [
+          {
+            path: '/profile',
+            element: <ProfilePage />,
+            handle: { title: 'My Profile' },
+          },
+          { path: '/account', element: <Navigate to="/profile" replace /> },
+          {
+            path: '/users-groups',
+            handle: { title: 'Users & Groups' },
+            children: [
+              { index: true, element: <UsersGroupsPage /> },
+              {
+                path: 'users/new',
+                element: <UserFormPage />,
+                handle: { title: 'Add user' },
+              },
+              {
+                path: 'users/:id',
+                element: <UserFormPage />,
+                handle: { title: 'User' },
+              },
+            ],
+          },
           {
             path: '/',
             element: <DashboardPage />,

@@ -17,14 +17,12 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsTrigger } from '@/components/ui/tabs';
 import type {
@@ -229,19 +227,26 @@ export function ProductionRunsPage() {
               Open
             </DropdownMenuItem>
             {open && (run.plates?.queued ?? 0) > 0 && (
-              <DropdownMenuItem onSelect={() => actions.moveToTop(id)}>
+              <DropdownMenuItem
+                permission="print-jobs:reorder"
+                onSelect={() => actions.moveToTop(id)}
+              >
                 Move to top of queue
               </DropdownMenuItem>
             )}
             {open && (
               <DropdownMenuItem
+                permission="production-runs:edit"
                 onSelect={() => navigate(`/production-runs/${id}/edit`)}
               >
                 Edit
               </DropdownMenuItem>
             )}
             {canCloseRun(run.status, (run.targetUnits ?? 0) > 0) && (
-              <DropdownMenuItem onSelect={() => actions.close(id)}>
+              <DropdownMenuItem
+                permission="production-runs:close"
+                onSelect={() => actions.close(id)}
+              >
                 Close run
               </DropdownMenuItem>
             )}
@@ -249,6 +254,7 @@ export function ProductionRunsPage() {
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  permission="production-runs:cancel"
                   variant="destructive"
                   onSelect={() => actions.cancel(id, run.displayLabel ?? 'run')}
                 >
@@ -269,7 +275,10 @@ export function ProductionRunsPage() {
         title="Runs"
         description="Orders and batches · progress updates live"
         action={
-          <Button onClick={() => navigate('/production-runs/new')}>
+          <Button
+            permission="production-runs:create"
+            onClick={() => navigate('/production-runs/new')}
+          >
             <PlusIcon data-icon="inline-start" /> Add run
           </Button>
         }
@@ -328,7 +337,10 @@ export function ProductionRunsPage() {
             title="No open runs"
             description="Add a run, or send a part or assembly to the queue."
             action={
-              <Button onClick={() => navigate('/production-runs/new')}>
+              <Button
+                permission="production-runs:create"
+                onClick={() => navigate('/production-runs/new')}
+              >
                 <PlusIcon data-icon="inline-start" /> Add run
               </Button>
             }

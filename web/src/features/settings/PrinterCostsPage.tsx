@@ -8,13 +8,11 @@ import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCurrency } from '@/features/settings/generalSettings';
 import type { PrinterModelCostResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -162,7 +160,10 @@ export function PrinterCostsPage() {
           }}
         >
           <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
+            <DropdownMenuItem
+              permission="settings:printer-costs:update"
+              asChild
+            >
               <Link
                 to={printerCostPath(row.original.brand, row.original.modelCode)}
               >
@@ -171,6 +172,7 @@ export function PrinterCostsPage() {
             </DropdownMenuItem>
             {row.original.canRemove === true && (
               <DropdownMenuItem
+                permission="settings:printer-costs:update"
                 variant="destructive"
                 onSelect={() => {
                   remove.reset();
@@ -193,7 +195,7 @@ export function PrinterCostsPage() {
         size="section"
         description="Model costs remain available after printers are removed."
         action={
-          <Button asChild>
+          <Button permission="settings:printer-costs:update" asChild>
             <Link to="new" ref={fallbackFocusRef}>
               Add printer model
             </Link>

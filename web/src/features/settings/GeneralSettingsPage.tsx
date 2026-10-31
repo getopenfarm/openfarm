@@ -6,9 +6,9 @@ import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import {
   Command,
   CommandEmpty,
@@ -127,6 +127,9 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
     onSuccess: (result) => {
       form.reset(valuesFor(result.data));
       client.setQueryData([generalSettingsKey], result);
+      client.setQueryData(['/api/v1/auth/display-preferences'], {
+        data: { currencyCode: result.data.currencyCode },
+      });
       invalidatePrinterCosts(client);
       toast.success('General settings saved.');
     },
@@ -252,6 +255,7 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Button
+          permission="settings:general:update"
           type="submit"
           disabled={!form.formState.isDirty || save.isPending}
         >

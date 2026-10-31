@@ -1,9 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, Navigate, RouterProvider } from 'react-router';
 import { describe, expect, it } from 'vitest';
+import { AccessContext } from '@/lib/auth/AccessContext';
 import { SettingsLayout } from './SettingsLayout';
 
-function renderAt(path: string) {
+function renderAt(path: string, access?: ReadonlySet<string>) {
   const router = createMemoryRouter(
     [
       {
@@ -14,14 +15,25 @@ function renderAt(path: string) {
             index: true,
             element: <Navigate to="general" replace />,
           },
-          { path: 'general', element: <div>General page</div> },
+          {
+            path: 'general',
+            element: (
+              <div>
+                General page <input aria-label="Farm name" />
+              </div>
+            ),
+          },
           { path: 'slicing-defaults', element: <div>Slicing page</div> },
         ],
       },
     ],
     { initialEntries: [path] },
   );
-  return render(<RouterProvider router={router} />);
+  return render(
+    <AccessContext.Provider value={access}>
+      <RouterProvider router={router} />
+    </AccessContext.Provider>,
+  );
 }
 
 describe('SettingsLayout', () => {
@@ -49,5 +61,24 @@ describe('SettingsLayout', () => {
       'aria-current',
       'page',
     );
+  });
+
+  it('shows a read-only note and disables controls without the update key', () => {
+    renderAt('/settings/general', new Set(['settings:general:read']));
+
+    expect(
+      screen.getByText(/Settings › General › Change permission/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Farm name' })).toBeDisabled();
+  });
+
+  it('keeps controls enabled with the update key', () => {
+    renderAt(
+      '/settings/general',
+      new Set(['settings:general:read', 'settings:general:update']),
+    );
+
+    expect(screen.queryByText(/not change them/)).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Farm name' })).toBeEnabled();
   });
 });

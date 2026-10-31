@@ -11,6 +11,7 @@ import {
   PackageIcon,
   PrinterIcon,
   SlidersHorizontalIcon,
+  UsersIcon,
   WrenchIcon,
 } from 'lucide-react';
 
@@ -89,4 +90,10 @@ export const navSections: NavSection[] = [
   },
 ];
 
-export const bottomNavItems: NavItem[] = [activityLog];
+export const adminNavSection: NavSection = {
+  label: 'Administration',
+  items: [
+    { title: 'Users & Groups', url: '/users-groups', icon: UsersIcon },
+    activityLog,
+  ],
+};

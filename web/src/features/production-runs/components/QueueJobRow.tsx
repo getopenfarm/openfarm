@@ -8,8 +8,8 @@ import {
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Popover,
   PopoverContent,
@@ -189,6 +189,7 @@ export function QueueJobRow({
         <div className="shrink-0">
           {job.assignmentMode === 'Pinned' ? (
             <Button
+              permission="print-jobs:pin"
               type="button"
               size="sm"
               variant="ghost"
@@ -204,7 +205,12 @@ export function QueueJobRow({
           ) : (
             <Popover open={pinPickerOpen} onOpenChange={setPinPickerOpen}>
               <PopoverTrigger asChild>
-                <Button type="button" size="sm" variant="ghost">
+                <Button
+                  permission="print-jobs:pin"
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                >
                   <PinIcon data-icon="inline-start" className="" />
                   Pin
                 </Button>
@@ -228,6 +234,7 @@ export function QueueJobRow({
                   </SelectContent>
                 </Select>
                 <Button
+                  permission="print-jobs:pin"
                   type="button"
                   size="sm"
                   disabled={!selectedPrinterId || pinMutation.isPending}

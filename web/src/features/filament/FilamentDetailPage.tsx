@@ -13,10 +13,10 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Swatch } from '@/components/swatch/Swatch';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -301,7 +301,7 @@ export function FilamentDetailPage() {
   );
 
   const addSpools = (
-    <Button asChild>
+    <Button permission="filaments:create" asChild>
       <Link to={addSpoolUrl(filament)}>
         <PlusIcon data-icon="inline-start" />
         Add spools
@@ -324,7 +324,11 @@ export function FilamentDetailPage() {
           .join(' · ')}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline">
+            <Button
+              permission="filaments:assign-profiles"
+              asChild
+              variant="outline"
+            >
               <Link to={`/filament/${id}/edit`}>
                 <PencilIcon data-icon="inline-start" />
                 Edit

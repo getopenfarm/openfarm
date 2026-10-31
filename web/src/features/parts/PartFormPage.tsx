@@ -6,9 +6,9 @@ import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import {
@@ -331,6 +331,7 @@ export function PartFormPage() {
                     Cancel
                   </Button>
                   <Button
+                    permission="parts:create"
                     type="submit"
                     disabled={!canConfirm || isConfirmPending}
                   >

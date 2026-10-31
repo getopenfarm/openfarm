@@ -41,7 +41,10 @@ export function SettingsRows({
 }: React.ComponentProps<'div'>) {
   return (
     <div
-      className={cn('divide-y rounded-lg border bg-card px-[18px]', className)}
+      className={cn(
+        'divide-y rounded-lg border bg-card px-3.5 md:px-[18px]',
+        className,
+      )}
       {...props}
     />
   );
@@ -65,7 +68,7 @@ export function SettingsRow({
   children,
 }: SettingsRowProps) {
   return (
-    <div className="flex items-center justify-between gap-6 py-4">
+    <div className="flex flex-col gap-2.5 py-4 md:flex-row md:items-center md:justify-between md:gap-6">
       <div className="min-w-0">
         <label htmlFor={htmlFor} className="text-[13.5px] font-medium">
           {label}
@@ -74,7 +77,12 @@ export function SettingsRow({
           <p className="mt-0.5 text-xs text-muted-foreground">{help}</p>
         ) : null}
       </div>
-      <div className={cn('shrink-0', wide ? 'w-[260px]' : 'w-[220px]')}>
+      <div
+        className={cn(
+          'w-full shrink-0',
+          wide ? 'md:w-[260px]' : 'md:w-[220px]',
+        )}
+      >
         {children}
       </div>
     </div>

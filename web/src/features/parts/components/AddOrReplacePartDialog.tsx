@@ -1,5 +1,5 @@
 import { Upload } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Dialog,
   DialogDescription,
@@ -284,6 +284,7 @@ export function AddOrReplacePartDialog({
               Cancel
             </Button>
             <Button
+              permission="parts:replace-file"
               onClick={() => confirm()}
               disabled={!canConfirm || isConfirmPending}
             >

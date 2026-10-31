@@ -64,30 +64,15 @@ Reference implementations: [Bambu Studio live commands/telemetry](https://github
 [Snapmaker exclusion module](https://github.com/Snapmaker/u1-klipper/blob/main/klippy/extras/exclude_object.py),
 and [Klipper's reset and file contract](https://www.klipper3d.org/Exclude_Object.html).
 
-Both operations are disabled until hardware verification is recorded in deployment
-configuration. `ObjectSkipping:VerifiedStartPrinters` and
-`ObjectSkipping:VerifiedLivePrinters` are separate arrays of exact printer serial
-numbers, empty by default. For example, after validation:
+Skipping is enabled on every Bambu LAN and Snapmaker U1 printer; there is no
+per-printer allow-list. Check firmware support on your hardware before relying on
+it: file dialect, ordinary and multipart selections, multi-filament/tool mappings,
+exclusion telemetry, reconnection, and remaining output. Confirm that surplus
+objects receive **no object extrusion from the beginning**. Purge and shared
+structures may still print.
 
-```json
-"ObjectSkipping": {
-  "VerifiedStartPrinters": ["VALIDATED-SERIAL"],
-  "VerifiedLivePrinters": ["VALIDATED-SERIAL"]
-}
-```
-
-Before adding a serial, verify the installed firmware, file dialect, ordinary and
-multipart selections, multi-filament/tool mappings, exclusion telemetry,
-reconnection, and remaining output. Confirm that surplus objects receive **no
-object extrusion from the beginning**. Purge and shared structures may still
-print. Record firmware versions with deployment validation notes and remove the
-serial from these arrays after firmware/configuration changes until revalidated;
-OpenFarm does not currently track firmware identity automatically.
-
-Matching excludes unverified partial-plate destinations. Live skipping also
-requires the printer's reported file identity to match the job artifact. The UI
-shows availability before allowing selection. No physical printer verification
-was performed as part of implementation.
+Live skipping requires the printer's reported file identity to match the job
+artifact. The UI shows availability before allowing selection.
 
 ## Completion, recovery, and files
 

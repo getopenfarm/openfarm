@@ -1,7 +1,7 @@
 import { RotateCcwIcon } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Swatch } from '@/components/swatch/Swatch';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogDescription,
@@ -181,7 +181,12 @@ export function VariantDialog({
       >
         Cancel
       </Button>
-      <Button type="submit" form="variant-dialog-form" disabled={!canSave}>
+      <Button
+        permission="filaments:create|filaments:assign-profiles"
+        type="submit"
+        form="variant-dialog-form"
+        disabled={!canSave}
+      >
         {variant ? 'Update variant' : 'Add variant'}
       </Button>
     </>

@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { PackageIcon, PlusIcon } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -10,9 +9,9 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -25,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { ListCostItemsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { pluralize } from '@/lib/pluralize';
 import { catalogKey } from './api';
 import { CostItemsTable } from './CostItemsTable';
@@ -80,6 +80,7 @@ export function CostCatalogPage() {
         }
         action={
           <Button
+            permission="non-printed-components:create"
             ref={addRef}
             disabled={removalPending}
             onClick={() => navigate('/cost-catalog/new')}
@@ -170,7 +171,10 @@ export function CostCatalogPage() {
                   Clear filters
                 </Button>
               ) : (
-                <Button onClick={() => navigate('/cost-catalog/new')}>
+                <Button
+                  permission="non-printed-components:create"
+                  onClick={() => navigate('/cost-catalog/new')}
+                >
                   <PlusIcon data-icon="inline-start" />
                   Add cost item
                 </Button>

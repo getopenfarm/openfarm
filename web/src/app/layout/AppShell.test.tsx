@@ -113,11 +113,11 @@ describe('AppShell', () => {
     const user = userEvent.setup();
     renderShell();
 
-    await user.click(await screen.findByRole('button', { name: /admin/ }));
+    await user.click(await screen.findByRole('button', { name: 'User menu' }));
     expect(screen.getAllByText('admin@openfarm.local').length).toBeGreaterThan(
       0,
     );
-    await user.click(screen.getByRole('menuitem', { name: 'Log out' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Sign out' }));
 
     expect(await screen.findByText('Login screen')).toBeInTheDocument();
   });

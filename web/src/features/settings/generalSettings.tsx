@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
 import { createContext, type ReactNode, useContext } from 'react';
 import { ErrorState } from '@/components/empty-state/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { GeneralSettingsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 export const generalSettingsKey = '/api/v1/settings/general';
 export type GeneralSettings = Required<GeneralSettingsResponse>;
 export const useGeneralSettings = () =>
@@ -15,7 +15,13 @@ export const useGeneralSettings = () =>
 const CurrencyContext = createContext('USD');
 export const useCurrency = () => useContext(CurrencyContext);
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const query = useGeneralSettings();
+  const query = useQuery({
+    queryKey: ['/api/v1/auth/display-preferences'],
+    queryFn: () =>
+      httpClient<{ data: { currencyCode: string } }>(
+        '/api/v1/auth/display-preferences',
+      ),
+  });
   if (!query.data)
     return query.isError ? (
       <ErrorState

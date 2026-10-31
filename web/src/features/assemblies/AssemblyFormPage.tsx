@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
-import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { invalidateLibraryContents } from '@/features/library/api';
 import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
@@ -85,7 +85,11 @@ export function AssemblyFormPage() {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button
+              permission="assemblies:create"
+              type="submit"
+              disabled={pending}
+            >
               {pending && <Spinner data-icon="inline-start" />}
               {pending ? 'Adding…' : 'Add assembly'}
             </Button>

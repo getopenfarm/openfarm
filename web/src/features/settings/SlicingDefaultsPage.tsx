@@ -3,7 +3,7 @@ import { PackageIcon } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Select,
   SelectContent,
@@ -152,6 +152,7 @@ export function SlicingDefaultsPage() {
 
           <div className="mt-4 flex items-center gap-2">
             <Button
+              permission="settings:slicing-defaults:update"
               type="submit"
               form={FORM_ID}
               disabled={updateMutation.isPending || !selection}

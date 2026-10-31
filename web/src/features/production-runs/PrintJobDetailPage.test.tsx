@@ -257,7 +257,7 @@ it('shows a printer-started print without the job-only controls', async () => {
     screen.queryByRole('button', { name: 'Download print file' }),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole('button', { name: 'Job diagnosis' }),
+    screen.queryByRole('button', { name: 'Printer matching' }),
   ).not.toBeInTheDocument();
 });
 
@@ -278,7 +278,10 @@ it.each([undefined, '', 'https://farm.example/'])(
     await waitFor(() =>
       expect(requests).toHaveBeenCalledWith(
         `${base ? 'https://farm.example' : ''}/api/v1/print-jobs/job-1/file`,
-        { headers: { Authorization: 'Bearer download-token' } },
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer download-token' },
+          credentials: 'include',
+        }),
       ),
     );
   },
@@ -307,7 +310,7 @@ it('offers manual status on a printer whose model has no driver', async () => {
 it('does not show a stale block reason once the job is no longer queued', async () => {
   setup('Printing', undefined, 'Ready', { lastBlockReason: BLOCK_REASON });
 
-  await screen.findByRole('button', { name: 'Job diagnosis' });
+  await screen.findByRole('button', { name: 'Printer matching' });
   expect(screen.queryByText('Last attempt failed')).not.toBeInTheDocument();
 });
 
@@ -357,7 +360,7 @@ it('shows the slicer and the profiles a job was sliced with', async () => {
 it('shows no slicing provenance for a job that was never sliced', async () => {
   setup('Queued');
 
-  await screen.findByRole('button', { name: 'Job diagnosis' });
+  await screen.findByRole('button', { name: 'Printer matching' });
   expect(screen.queryByText(/^Sliced with/)).not.toBeInTheDocument();
   expect(
     screen.getByRole('button', { name: 'Download print file' }),

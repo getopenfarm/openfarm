@@ -217,6 +217,13 @@ public sealed class PrintJob : Print
         BlockFailureCount = 0;
     }
 
+    /// <summary>The send failed and the printer did not start the print: closed as Failed, to be requeued or written off.</summary>
+    public void FailSend(string reason, DateTimeOffset atUtc)
+    {
+        RecordBlock(reason, atUtc);
+        MarkFailed();
+    }
+
     /// <summary>How long to leave a job alone after <paramref name="failureCount"/> failed attempts in a row: 1, 2, 4, then at most 5 minutes — a fix is never waited on long.</summary>
     public static TimeSpan RetryDelay(int failureCount) =>
         failureCount <= 0 ? TimeSpan.Zero : TimeSpan.FromMinutes(Math.Min(5, 1 << Math.Min(failureCount - 1, 3)));

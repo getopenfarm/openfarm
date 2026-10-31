@@ -1,9 +1,9 @@
 import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -103,6 +103,7 @@ export function VariantsCard({
         <CardTitle>Variants ({variants.length})</CardTitle>
         <CardAction>
           <Button
+            permission="filaments:create|filaments:assign-profiles"
             type="button"
             variant="outline"
             size="sm"

@@ -7,11 +7,11 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -67,7 +67,9 @@ function JobFilamentDialog({ job }: { job: PrintJobResponse }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">Edit filament</Button>
+        <Button permission="print-jobs:pin" variant="outline">
+          Edit filament
+        </Button>
       </DialogTrigger>
       {open && <JobFilamentForm job={job} onDone={() => setOpen(false)} />}
     </Dialog>
@@ -117,7 +119,12 @@ function JobFilamentForm({
               Cancel
             </Button>
           </DialogClose>
-          <Button type="submit" form="job-filament-form" disabled={saving}>
+          <Button
+            permission="print-jobs:pin"
+            type="submit"
+            form="job-filament-form"
+            disabled={saving}
+          >
             {saving && <Spinner data-icon="inline-start" />}
             {saving ? 'Saving…' : 'Save'}
           </Button>
@@ -198,6 +205,7 @@ function JobFilamentForm({
                 />
               </Field>
               <Button
+                permission="print-jobs:pin"
                 type="button"
                 variant="outline"
                 onClick={() => fields.remove(index)}
@@ -210,6 +218,7 @@ function JobFilamentForm({
             <p role="alert">Enter valid filament lines.</p>
           )}
           <Button
+            permission="print-jobs:pin"
             type="button"
             variant="outline"
             className="self-start"
@@ -479,7 +488,10 @@ export function PrintJobDetailPage() {
                   {manual &&
                     job.status === 'Queued' &&
                     job.dispatchedPrinterId && (
-                      <Button onClick={() => started.mutate({ id })}>
+                      <Button
+                        permission="print-jobs:update-status"
+                        onClick={() => started.mutate({ id })}
+                      >
                         Mark started
                       </Button>
                     )}
@@ -502,7 +514,9 @@ export function PrintJobDetailPage() {
                   )}
                   <JobMatchingDialog
                     jobId={id}
-                    trigger={<Button variant="outline">Job diagnosis</Button>}
+                    trigger={
+                      <Button variant="outline">Printer matching</Button>
+                    }
                   />
                   <Button
                     variant="outline"

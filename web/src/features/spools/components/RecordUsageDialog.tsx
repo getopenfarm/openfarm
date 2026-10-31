@@ -4,7 +4,7 @@ import type { RefObject } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Dialog,
   DialogClose,
@@ -128,7 +128,11 @@ export function RecordUsageDialog({
                     Cancel
                   </Button>
                 </DialogClose>
-                <Button type="submit" disabled={recordUsageMutation.isPending}>
+                <Button
+                  permission="spools:record-usage"
+                  type="submit"
+                  disabled={recordUsageMutation.isPending}
+                >
                   {recordUsageMutation.isPending && (
                     <Spinner data-icon="inline-start" />
                   )}

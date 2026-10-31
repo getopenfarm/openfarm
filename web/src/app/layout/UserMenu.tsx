@@ -1,5 +1,7 @@
 import { LogOutIcon, MoreHorizontalIcon, UserIcon } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -16,14 +18,13 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useOpenFarmApiEndpointsAuthWhoAmIEndpoint } from '@/lib/api/generated/auth/auth';
-import type { WhoAmIResult } from '@/lib/api/generated/endpoints.schemas';
+import { useIdentity } from '@/lib/auth/permissions';
 import { useAuth } from '@/lib/auth/useAuth';
 import { cn } from '@/lib/utils';
 
 function initials(name: string) {
   return name
-    .split(/[\s._@-]+/)
+    .split(/[\s._-]/)
     .filter(Boolean)
     .map((part) => part[0])
     .join('')
@@ -66,16 +67,25 @@ function UserIdentity({
 
 export function UserMenu() {
   const auth = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
   const navigate = useNavigate();
   const { isMobile } = useSidebar();
-  const query = useOpenFarmApiEndpointsAuthWhoAmIEndpoint();
+  const query = useIdentity();
 
-  const user = query.data?.data as WhoAmIResult | undefined;
-  const name = user?.username || 'Account';
+  const user = query.data;
+  const name = user?.displayName || user?.username || 'User';
 
-  function handleLogout() {
-    auth.logout();
-    navigate('/login', { replace: true });
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await auth.logout();
+      navigate('/login', { replace: true });
+    } catch {
+      toast.error('Could not sign out.');
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   if (query.isLoading) {
@@ -90,7 +100,12 @@ export function UserMenu() {
     <SidebarMenuItem className="mt-1 border-t border-sidebar-border pt-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <SidebarMenuButton size="lg" tooltip={name} className="rounded-lg">
+          <SidebarMenuButton
+            size="lg"
+            tooltip={name}
+            aria-label="User menu"
+            className="rounded-lg"
+          >
             <UserIdentity name={name} email={user?.email} />
             <MoreHorizontalIcon className="ml-auto group-data-[collapsible=icon]:hidden" />
           </SidebarMenuButton>
@@ -107,13 +122,21 @@ export function UserMenu() {
               <UserIdentity name={name} email={user?.email} large />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="text-[13px]">
+              <Link to="/profile">
+                <UserIcon />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
               className="text-[13px]"
+              disabled={loggingOut}
               onSelect={handleLogout}
             >
               <LogOutIcon />
-              Log out
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>

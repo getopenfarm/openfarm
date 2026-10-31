@@ -1,11 +1,9 @@
 import { PauseIcon, PlayIcon, XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
+import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   useOpenFarmApiEndpointsPrintJobsCancelPrintJobEndpoint,
@@ -105,18 +103,28 @@ export function JobRemoteControls({
     return (
       <>
         {status === 'Printing' ? (
-          <DropdownMenuItem onSelect={handlePause}>
+          <DropdownMenuItem
+            permission="print-jobs:remote-control"
+            onSelect={handlePause}
+          >
             <PauseIcon />
             Pause
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem onSelect={handleResume}>
+          <DropdownMenuItem
+            permission="print-jobs:remote-control"
+            onSelect={handleResume}
+          >
             <PlayIcon />
             Resume
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={handleCancel}>
+        <DropdownMenuItem
+          permission="print-jobs:cancel"
+          variant="destructive"
+          onSelect={handleCancel}
+        >
           <XIcon />
           Cancel print
         </DropdownMenuItem>
@@ -130,6 +138,7 @@ export function JobRemoteControls({
           type="button"
           size="icon"
           variant="ghost"
+          permission="print-jobs:remote-control"
           aria-label="Pause"
           onClick={handlePause}
         >
@@ -141,6 +150,7 @@ export function JobRemoteControls({
           type="button"
           size="icon"
           variant="ghost"
+          permission="print-jobs:remote-control"
           aria-label="Resume"
           onClick={handleResume}
         >
@@ -151,6 +161,7 @@ export function JobRemoteControls({
         type="button"
         size="icon"
         variant="ghost"
+        permission="print-jobs:cancel"
         aria-label="Cancel job"
         onClick={handleCancel}
       >

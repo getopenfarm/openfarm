@@ -1322,6 +1322,8 @@ export interface QueueJobRowResponse {
   producedUnits?: number | null;
   /** @nullable */
   missingUnits?: number | null;
+  /** @nullable */
+  thumbnailBase64?: string | null;
   plateQuantity?: number;
   /** @nullable */
   runLineId?: string | null;
@@ -2549,6 +2551,124 @@ export interface SaveCostItemRequest {
   pricing?: CatalogPricing;
 }
 
+export interface GroupSummary {
+  id?: string;
+  name?: string;
+}
+
+export interface AccountResponse {
+  id?: string;
+  username?: string;
+  email?: string;
+  /** @nullable */
+  name?: string | null;
+  isEnabled?: boolean;
+  createdAtUtc?: string;
+  groups?: GroupSummary[];
+  extraGrants?: string[];
+  effectivePermissions?: string[];
+  isAdministrator?: boolean;
+  sessionCount?: number;
+}
+
+export interface GroupResponse {
+  id?: string;
+  name?: string;
+  description?: string;
+  isProtected?: boolean;
+  grants?: string[];
+  memberCount?: number;
+}
+
+export interface PermissionArea {
+  key?: string;
+  label?: string;
+  noun?: string;
+  administratorOnly?: boolean;
+}
+
+export interface PermissionDefinition {
+  key?: string;
+  area?: string;
+  label?: string;
+  description?: string;
+  isRead?: boolean;
+  isSensitive?: boolean;
+  isDestructive?: boolean;
+  isExplicit?: boolean;
+  /** @nullable */
+  verb?: string | null;
+  /** @nullable */
+  phrase?: string | null;
+}
+
+export interface PermissionCatalogResponse {
+  areas?: PermissionArea[];
+  permissions?: PermissionDefinition[];
+}
+
+export interface EntityIdResponse {
+  id?: string;
+}
+
+export interface AccountInput {
+  username?: string;
+  email?: string;
+  /** @nullable */
+  name?: string | null;
+  groupIds?: string[];
+  extraGrants?: string[];
+  isEnabled?: boolean;
+  /** @nullable */
+  password?: string | null;
+}
+
+export interface UpdateAccountRequest {
+  username?: string;
+  email?: string;
+  /** @nullable */
+  name?: string | null;
+  groupIds?: string[];
+  extraGrants?: string[];
+  isEnabled?: boolean;
+}
+
+export interface RevokeSessionRequest {
+  [key: string]: unknown;
+}
+
+export interface GroupInput {
+  name?: string;
+  description?: string;
+  grants?: string[];
+}
+
+export interface UpdateGroupRequest {
+  name?: string;
+  description?: string;
+  grants?: string[];
+}
+
+export interface ResetAccountPasswordRequest {
+  password?: string;
+}
+
+export interface PasswordInput {
+  currentPassword?: string;
+  newPassword?: string;
+}
+
+export interface ProfileInput {
+  /** @nullable */
+  name?: string | null;
+  email?: string;
+  username?: string;
+}
+
+export interface DisplayPreferencesResponse {
+  currencyCode?: string;
+}
+
 export interface LoginResponse {
   token?: string;
   expiresAtUtc?: string;
@@ -2559,10 +2679,32 @@ export interface LoginCommand {
   password?: string;
 }
 
+export interface CsrfResponse {
+  token?: string;
+}
+
+export interface SessionResponse {
+  id?: string;
+  device?: string;
+  createdAtUtc?: string;
+  lastSeenAtUtc?: string;
+  expiresAtUtc?: string;
+  isCurrent?: boolean;
+}
+
+export interface UserSessionRequest {
+  [key: string]: unknown;
+}
+
 export interface WhoAmIResult {
   userId?: string;
   username?: string;
   email?: string;
+  /** @nullable */
+  displayName?: string | null;
+  isAdministrator?: boolean;
+  groups?: string[];
+  permissions?: string[];
 }
 
 export interface BomLineResponse {

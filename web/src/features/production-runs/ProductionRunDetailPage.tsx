@@ -10,10 +10,10 @@ import { useNavigate, useParams } from 'react-router';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { KpiStrip, type KpiStripCell } from '@/components/kpi-card/KpiStrip';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -240,6 +240,7 @@ export function ProductionRunDetailPage() {
           <div className="flex flex-wrap gap-2">
             {open && waiting && (
               <Button
+                permission="print-jobs:reorder"
                 variant="outline"
                 disabled={actions.isPending}
                 onClick={() => actions.moveToTop(id)}
@@ -249,6 +250,7 @@ export function ProductionRunDetailPage() {
             )}
             {open && (
               <Button
+                permission="production-runs:edit"
                 variant="outline"
                 onClick={() => navigate(`/production-runs/${id}/edit`)}
               >
@@ -257,6 +259,7 @@ export function ProductionRunDetailPage() {
             )}
             {canCloseRun(run.status, hasFinite) && (
               <Button
+                permission="production-runs:close"
                 disabled={actions.isPending}
                 onClick={() => actions.close(id)}
               >
@@ -266,6 +269,7 @@ export function ProductionRunDetailPage() {
             )}
             {open && (
               <Button
+                permission="production-runs:cancel"
                 variant="destructive"
                 onClick={() => actions.cancel(id, run.displayLabel ?? 'run')}
               >
@@ -286,6 +290,7 @@ export function ProductionRunDetailPage() {
           {open && (
             <CardAction>
               <Button
+                permission="production-runs:create"
                 size="sm"
                 variant="outline"
                 onClick={() => setAdding(true)}

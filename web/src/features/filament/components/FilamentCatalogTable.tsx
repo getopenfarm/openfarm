@@ -4,12 +4,10 @@ import { Link, useNavigate } from 'react-router';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { useCurrency } from '@/features/settings/generalSettings';
 import type {
   FilamentResponse,
@@ -186,11 +184,13 @@ export function FilamentCatalogTable({
         >
           <DropdownMenuGroup>
             <DropdownMenuItem
+              permission="filaments:assign-profiles"
               onSelect={() => navigate(addSpoolUrl(row.original))}
             >
               <PlusIcon /> Add spools
             </DropdownMenuItem>
             <DropdownMenuItem
+              permission="filaments:assign-profiles"
               onSelect={() => navigate(`/filament/${row.original.id}/edit`)}
             >
               <PencilIcon /> Edit

@@ -6,7 +6,7 @@ using OpenFarm.Domain.Production;
 namespace OpenFarm.Api.Hubs;
 
 /// <summary>Mirrors <see cref="FarmHubPrinterEventPublisher"/>'s shape — pushes production-run/print-job events over the existing <c>/hubs/farm</c> hub.</summary>
-public sealed class FarmHubProductionEventPublisher(IHubContext<FarmHub> hubContext) : IProductionEventPublisher
+public sealed class FarmHubProductionEventPublisher(IFarmEventClients clients) : IProductionEventPublisher
 {
     public Task ProductionRunStatusChangedAsync(
         Guid productionRunId, ProductionRunStatus status, CancellationToken cancellationToken) =>
@@ -42,5 +42,5 @@ public sealed class FarmHubProductionEventPublisher(IHubContext<FarmHub> hubCont
             new { printJobId, stage = stage.ToString(), percent, attempt, error = failure },
             cancellationToken);
 
-    private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);
+    private IClientProxy Group => clients;
 }

@@ -17,7 +17,7 @@ public sealed class WriteOffPrintJobRequest : IActivityLoggable
 }
 
 /// <summary>POST /api/v1/print-jobs/{id}/write-off — FR-025's other remedy: accept a lost plate instead of reprinting it. 409 unless failed or cancelled, finite, and not yet requeued or written off.</summary>
-[Permission("print-jobs:requeue")]
+[Permission("print-jobs:write-off")]
 public sealed class WriteOffPrintJobEndpoint(WriteOffPrintJobHandler handler, IQueryHandler<GetPrintJobQuery, PrintJobDetail?> getDetail)
     : Endpoint<WriteOffPrintJobRequest, PrintJobResponse>
 {

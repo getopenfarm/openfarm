@@ -1,6 +1,7 @@
-import { skipToken, useQuery } from '@tanstack/react-query';
+import { skipToken } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import {
   type PrintJobSendProgress,
   sendProgressKey,

@@ -2,9 +2,9 @@ import { PlusIcon, PrinterIcon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MAINTENANCE_FLAG_SEEDS } from '@/features/maintenance/data/mockMaintenance';
 import { matchMaintenanceToFleet } from '@/features/maintenance/lib/matchMaintenanceToFleet';
@@ -75,7 +75,10 @@ export function PrintersPage() {
       <PageHeader
         title="Printers"
         action={
-          <Button onClick={() => navigate('/printers/new')}>
+          <Button
+            permission="printers:register"
+            onClick={() => navigate('/printers/new')}
+          >
             <PlusIcon data-icon="inline-start" /> Add printer
           </Button>
         }
@@ -95,7 +98,10 @@ export function PrintersPage() {
           title="No printers"
           description="Add one to see live status."
           action={
-            <Button onClick={() => navigate('/printers/new')}>
+            <Button
+              permission="printers:register"
+              onClick={() => navigate('/printers/new')}
+            >
               <PlusIcon data-icon="inline-start" /> Add printer
             </Button>
           }

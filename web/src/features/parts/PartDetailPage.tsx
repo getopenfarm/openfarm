@@ -14,11 +14,11 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Form,
@@ -405,6 +405,7 @@ export function PartDetailPage() {
             action={
               <div className="flex flex-wrap items-center gap-2">
                 <Button
+                  permission="production-runs:create"
                   disabled={incomplete || part.quantityNeedsReprocessing}
                   title={
                     incomplete
@@ -417,12 +418,17 @@ export function PartDetailPage() {
                   Send to queue
                 </Button>
                 <Button
+                  permission="parts:replace-file"
                   variant="outline"
                   onClick={() => setReprocessOpen(true)}
                 >
                   Reprocess
                 </Button>
-                <Button variant="outline" onClick={() => setReplaceOpen(true)}>
+                <Button
+                  permission="parts:replace-file"
+                  variant="outline"
+                  onClick={() => setReplaceOpen(true)}
+                >
                   Replace file
                 </Button>
                 <RemovePartButton
@@ -632,6 +638,7 @@ export function PartDetailPage() {
                       Cancel
                     </Button>
                     <Button
+                      permission="parts:edit"
                       type="submit"
                       disabled={!isDirty || editMutation.isPending}
                     >

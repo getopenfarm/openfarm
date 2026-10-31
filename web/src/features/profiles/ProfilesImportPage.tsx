@@ -7,9 +7,9 @@ import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
@@ -291,6 +291,7 @@ export function ProfilesImportPage() {
             </Button>
             {hasPreview && !nothingImportable ? (
               <Button
+                permission="profiles:confirm-import"
                 onClick={handleConfirm}
                 disabled={confirmMutation.isPending || nothingSelected}
               >

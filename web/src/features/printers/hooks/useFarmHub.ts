@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 import { getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey } from '@/lib/api/generated/activity-log/activity-log';
 import type {
   FeedReadingResponse,
@@ -16,6 +16,7 @@ import {
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
 } from '@/lib/api/generated/printers/printers';
 import { getOpenFarmApiEndpointsReportsStatsEndpointQueryKey } from '@/lib/api/generated/reports/reports';
+import { AccessContext } from '@/lib/auth/AccessContext';
 import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
 import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
 import { rfidKey, topologyKey } from '../lib/feedSlotView';
@@ -106,8 +107,11 @@ function invalidateNotificationQueries(
  */
 export function useFarmHub() {
   const queryClient = useQueryClient();
+  const access = useContext(AccessContext);
+  const enabled = access === undefined || access.size > 0;
 
   useEffect(() => {
+    if (!enabled) return;
     const topologyByPrinter = new Map<string, string>();
     const rfidByPrinter = new Map<string, string>();
     const nozzleByPrinter = new Map<string, string>();
@@ -379,5 +383,5 @@ export function useFarmHub() {
     return () => {
       stop();
     };
-  }, [queryClient]);
+  }, [queryClient, enabled]);
 }

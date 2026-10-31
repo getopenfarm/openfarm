@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Dialog,
   DialogDescription,
@@ -167,7 +167,12 @@ export function CostLineDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" form="cost-line-form" disabled={!valid}>
+            <Button
+              permission="assemblies:create|assemblies:edit"
+              type="submit"
+              form="cost-line-form"
+              disabled={!valid}
+            >
               Update cost item
             </Button>
           </>

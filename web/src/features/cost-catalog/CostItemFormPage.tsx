@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2Icon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -9,10 +9,10 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Field,
@@ -31,6 +31,7 @@ import type {
   CostItemResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { catalogKey } from './api';
 import { Choice, DimensionFields, NumberField, UnitSelect } from './CostFields';
 import { CostIconPicker } from './CostIconPicker';
@@ -185,6 +186,7 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
         action={
           mode === 'edit' ? (
             <Button
+              permission="non-printed-components:delete"
               type="button"
               variant="destructive"
               disabled={busy}
@@ -368,6 +370,11 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 Cancel
               </Button>
               <Button
+                permission={
+                  mode === 'add'
+                    ? 'non-printed-components:create'
+                    : 'non-printed-components:edit'
+                }
                 type="submit"
                 disabled={busy || (mode === 'edit' && !isDirty)}
               >

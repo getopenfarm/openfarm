@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -32,6 +32,7 @@ import {
   useOpenFarmApiEndpointsFeedUnitsAddFeedUnitEndpoint,
 } from '@/lib/api/generated/printers/printers';
 import { httpClient } from '@/lib/api/httpClient';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { configureReloader } from '../lib/reloaderApi';
 
 type Kind = 'AutomaticFilamentReloader' | 'ExternalSpool';
@@ -347,6 +348,7 @@ export function AddFeedUnitDialog({
             </Button>
           </DialogClose>
           <Button
+            permission="feed-units:add"
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit || isSaving}

@@ -6,9 +6,9 @@ import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { invalidateLibraryContents } from '@/features/library/api';
@@ -188,6 +188,7 @@ export function AssemblyDetailPage() {
               <ListPlusIcon data-icon="inline-start" /> Send to queue
             </Button>
             <Button
+              permission="assemblies:delete"
               type="button"
               variant="destructive"
               onClick={() => setConfirmDeleteOpen(true)}
@@ -205,7 +206,11 @@ export function AssemblyDetailPage() {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!isDirty || pending}>
+            <Button
+              permission="assemblies:edit"
+              type="submit"
+              disabled={!isDirty || pending}
+            >
               {pending && <Spinner data-icon="inline-start" />}
               {pending ? 'Saving…' : 'Save'}
             </Button>

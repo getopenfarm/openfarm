@@ -22,7 +22,7 @@ public class BambuLanProtocolTests
     public async Task StartAndLiveExclusions_UseNativeObjectIds()
     {
         await using var mqtt = new BambuMqttHarness();
-        var connector = mqtt.CreateConnector(mqtt.Options with { UploadFileAsync = (_, _, _, _) => Task.FromResult(FtpStatus.Success) });
+        var connector = mqtt.CreateConnector(mqtt.Options with { UploadFileAsync = (_, _, _, _, _) => Task.FromResult(FtpStatus.Success) });
         using var file = new MemoryStream("G28\n"u8.ToArray());
         await connector.StartSelectedJobAsync(mqtt.Details, file, "selected.gcode", 1, null, ["206"], CancellationToken.None);
         using var start = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
@@ -229,7 +229,7 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
-    public async Task Commands_UseSeparateConnectionsWhileTelemetryRemainsConnected()
+    public async Task Commands_PublishOnTheLiveTelemetryConnection()
     {
         await using var harness = new BambuMqttHarness();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -246,13 +246,13 @@ public class BambuLanProtocolTests
         foreach (var command in new[] { "pause", "resume", "stop" })
         {
             var request = await harness.NextRequestAsync();
-            request.ConnectionId.Should().NotBe(version.ConnectionId);
+            request.ConnectionId.Should().Be(version.ConnectionId);
             request.Topic.Should().Be("device/TEST-P1S/request");
             using var document = JsonDocument.Parse(request.Payload);
             document.RootElement.GetProperty("print").GetProperty("command").GetString().Should().Be(command);
         }
 
-        await WaitUntilAsync(() => harness.ActiveConnections == 1);
+        harness.ConnectionCount.Should().Be(1);
         // Command publication must not manufacture a status event.
         var nextEvent = events.MoveNextAsync().AsTask();
         await harness.PublishReportAsync("""{"print":{"gcode_state":"PAUSE"}}""");

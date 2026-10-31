@@ -8,7 +8,8 @@ import {
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import {
   Dialog,
   DialogClose,
@@ -19,7 +20,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -124,6 +124,7 @@ export function QueueJobActions({
         <DropdownMenuGroup>
           {job.canRequeue && (
             <DropdownMenuItem
+              permission="print-jobs:requeue"
               disabled={requeue.isPending}
               onSelect={() => requeue.mutate({ id: jobId })}
             >
@@ -136,6 +137,7 @@ export function QueueJobActions({
             <>
               {job.assignmentMode === 'Pinned' ? (
                 <DropdownMenuItem
+                  permission="print-jobs:pin"
                   disabled={unpin.isPending}
                   onSelect={() => unpin.mutate({ id: jobId })}
                 >
@@ -143,13 +145,19 @@ export function QueueJobActions({
                   Unpin
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onSelect={() => setPinOpen(true)}>
+                <DropdownMenuItem
+                  permission="print-jobs:pin"
+                  onSelect={() => setPinOpen(true)}
+                >
                   <PinIcon />
                   Pin to printer
                 </DropdownMenuItem>
               )}
               {onMoveToTop && (
-                <DropdownMenuItem onSelect={onMoveToTop}>
+                <DropdownMenuItem
+                  permission="print-jobs:reorder"
+                  onSelect={onMoveToTop}
+                >
                   <ArrowUpToLineIcon />
                   Move to top
                 </DropdownMenuItem>
@@ -161,6 +169,7 @@ export function QueueJobActions({
         <DropdownMenuGroup>
           {waiting && (
             <DropdownMenuItem
+              permission="print-jobs:cancel"
               variant="destructive"
               onSelect={() => setRemoveOpen(true)}
             >
@@ -210,6 +219,7 @@ export function QueueJobActions({
               <Button variant="outline">Cancel</Button>
             </DialogClose>
             <Button
+              permission="print-jobs:pin"
               disabled={!printerId || pin.isPending}
               onClick={() => pin.mutate({ id: jobId, data: { printerId } })}
             >

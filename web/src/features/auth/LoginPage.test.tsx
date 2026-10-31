@@ -9,6 +9,11 @@ import { AuthProvider } from '@/lib/auth/AuthProvider';
 import { clearToken, getToken } from '@/lib/auth/tokenStorage';
 import { LoginPage } from './LoginPage';
 
+vi.mock('@/lib/auth/session', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/session')>()),
+  refreshSession: vi.fn().mockResolvedValue(null),
+}));
+
 function renderLoginPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

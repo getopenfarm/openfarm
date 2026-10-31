@@ -2,8 +2,8 @@ import { keepPreviousData } from '@tanstack/react-query';
 import type { RefObject } from 'react';
 import { useState } from 'react';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Swatch } from '@/components/swatch/Swatch';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -201,6 +201,7 @@ export function ManageSlotDialog({
               </DialogClose>
               {view === 'empty' && (
                 <Button
+                  permission="spools:load"
                   type="button"
                   disabled={!spoolId || loadMutation.isPending}
                   onClick={() =>

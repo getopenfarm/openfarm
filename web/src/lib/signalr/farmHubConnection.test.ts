@@ -60,7 +60,7 @@ describe('farm hub recovery', () => {
         `${base ? 'https://farm.example' : window.location.origin}/hubs/farm`,
         expect.objectContaining({
           accessTokenFactory: expect.any(Function),
-          withCredentials: false,
+          withCredentials: true,
         }),
       );
       await session.stop();

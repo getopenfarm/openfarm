@@ -53,7 +53,7 @@ public sealed class MoveFolderEndpoint(ILibraryFolderService service) : Endpoint
     public override async Task HandleAsync(MoveFolderRequest req, CancellationToken ct) =>
         Response = await service.MoveFolderAsync(req.Library, req.Id, req.ParentId, ct);
 }
-[Permission("library:manage")]
+[Permission("library:delete")]
 public sealed class RemoveFolderEndpoint(ILibraryFolderService service) : Endpoint<FolderIdRequest>
 {
     public override void Configure() { Delete("/api/v1/library/{library}/folders/{id}"); Policies("Permission"); }

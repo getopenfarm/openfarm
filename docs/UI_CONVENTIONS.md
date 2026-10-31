@@ -51,6 +51,14 @@ protection when changing these flows.
 - **Wording**: "credential", not "secret", in user-visible text (route URLs
   unchanged).
 
+**Users & Groups and My Profile.** Users follow the rules above:
+`/users-groups/users/new` adds a user and `/users-groups/users/:id` edits one in
+place (Remove in the header, `FormFooter` Save, unsaved-change prompt). Two
+parts copy Akaun's `/users-groups` and `/profile` instead: groups edit inline
+beside the group list with a dirty-only Reset/Save footer and "Delete group",
+and My Profile saves each section on its own with inline form errors. The Users
+& Groups list loads with `Spinner` + "Loading…".
+
 Dialogs are appropriate for confirmations, quick actions on existing entities,
 and in-form pickers or sub-entity creation that must retain the parent form.
 Use the shared `ConfirmDialog` (AlertDialog) for destructive confirmations.

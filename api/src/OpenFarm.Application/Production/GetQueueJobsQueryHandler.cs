@@ -49,7 +49,8 @@ public sealed class GetQueueJobsQueryHandler(
                 isBlocked, requirement.PartId, job.GetProductionPart()?.Name ?? requirement.PartName ?? part?.Name ?? "Unknown part", job.PlateQuantity,
                 requirement.RunLineId, runInfo.RunId, runInfo.DisplayLabel,
                 isBlocked ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null, part is not null, job.GetSnapshotState(), job.SnapshotRecoveryReason,
-                job.Source, job.StartedAtUtc, job.EndedAtUtc, job.Status == PrintJobStatus.Queued ? job.LastBlockReason : null, demands is null ? null : (await demands.GetAsync(requirement.RunLineId, cancellationToken))?.Mode.ToString(), requirement.Quantity is not null && job.IsUnresolvedLoss && job.ProductionSnapshotJson is not null && runInfo.IsOpen && !(job.Status == PrintJobStatus.Completed && job.ObjectExecution is { Observed: false }), job.EffectiveTargetUnits, job.ProducedUnits, job.MissingUnits));
+                job.Source, job.StartedAtUtc, job.EndedAtUtc, job.Status == PrintJobStatus.Queued ? job.LastBlockReason : null, demands is null ? null : (await demands.GetAsync(requirement.RunLineId, cancellationToken))?.Mode.ToString(), requirement.Quantity is not null && job.IsUnresolvedLoss && job.ProductionSnapshotJson is not null && runInfo.IsOpen && !(job.Status == PrintJobStatus.Completed && job.ObjectExecution is { Observed: false }), job.EffectiveTargetUnits, job.ProducedUnits, job.MissingUnits,
+                part?.Thumbnails.OrderBy(t => t.PlateIndex).FirstOrDefault() is { } thumbnail ? Convert.ToBase64String(thumbnail.Bytes) : null));
         }
 
         return new QueueJobsPage(items, totalCount, statusCounts);

@@ -28,12 +28,12 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { TabsContent } from '@/components/ui/tabs';
@@ -52,6 +52,7 @@ import { LibraryItemCard } from '@/features/library/LibraryItemCard';
 import { LibraryItemLink } from '@/features/library/LibraryItemLink';
 import { MoveToDialog } from '@/features/library/MoveToDialog';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
+import { useAllowed } from '@/lib/auth/AccessContext';
 import { formatMm } from '@/lib/formatUnits';
 import { libraryFieldIds } from '@/lib/preferences/libraryFields';
 import type { ViewMode } from '@/lib/preferences/types';
@@ -207,6 +208,7 @@ function PartRowActions({
   const incomplete = part.printRequirementsStatus !== 'Complete';
   return (
     <DataTableRowActions
+      permission="parts:delete|production-runs:create|library:manage"
       label={part.name ?? 'part'}
       triggerRef={triggerRef}
       disabled={disabled || !part.id}
@@ -216,6 +218,7 @@ function PartRowActions({
           {selected ? 'Deselect' : 'Select'}
         </DropdownMenuItem>
         <DropdownMenuItem
+          permission="production-runs:create"
           disabled={incomplete}
           title={
             incomplete
@@ -226,7 +229,10 @@ function PartRowActions({
         >
           <ListPlusIcon /> Send to queue
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onMove(triggerRef.current)}>
+        <DropdownMenuItem
+          permission="library:manage"
+          onSelect={() => onMove(triggerRef.current)}
+        >
           <FolderInputIcon />
           Move to
         </DropdownMenuItem>
@@ -234,6 +240,7 @@ function PartRowActions({
       <DropdownMenuSeparator />
       <DropdownMenuGroup>
         <DropdownMenuItem
+          permission="parts:delete"
           variant="destructive"
           onSelect={() => onRemove(triggerRef.current)}
         >
@@ -362,7 +369,13 @@ export function PartsTable({
   const moveTriggerRef = useRef<HTMLButtonElement | null>(null);
   const moveBulkRef = useRef<HTMLButtonElement>(null);
   const [moving, setMoving] = useState(false);
+  const canSelect = useAllowed(
+    'parts:delete|production-runs:create|library:manage',
+  );
   const [selection, setSelection] = useState<RowSelectionState>({});
+  useEffect(() => {
+    if (!canSelect) setSelection({});
+  }, [canSelect]);
   const [bulkTargets, setBulkTargets] = useState<RemovablePart[]>([]);
   const [removalNotice, setRemovalNotice] = useState<PartRemovalNoticeData>();
   const [removalBulk, setRemovalBulk] = useState(false);
@@ -461,8 +474,8 @@ export function PartsTable({
             setLibraryFields('parts', view, updater)
           }
           viewOptionColumnIds={libraryFieldIds('parts', view)}
-          modifierSelection={!!libraryRows}
-          selectionDisabled={interactionPending}
+          modifierSelection={!!libraryRows && canSelect}
+          selectionDisabled={interactionPending || !canSelect}
           serverSorting={sorting}
           serverPagination={
             pagination
@@ -516,7 +529,11 @@ export function PartsTable({
                   )
               : undefined
           }
-          columns={tableColumns}
+          columns={
+            canSelect
+              ? tableColumns
+              : tableColumns.filter((column) => column.id !== 'select')
+          }
           rowContainer={libraryRows ? LibraryDragRow : undefined}
           data={libraryRows ?? parts}
           onRowClick={(part) => {
@@ -530,7 +547,7 @@ export function PartsTable({
           rowSelection={selection}
           onRowSelectionChange={setSelection}
           enableRowSelection={(row) =>
-            Boolean(row.original.id) && !row.original.libraryFolder
+            canSelect && Boolean(row.original.id) && !row.original.libraryFolder
           }
           toolbar={
             <>
@@ -552,6 +569,7 @@ export function PartsTable({
                   }}
                 >
                   <Button
+                    permission="library:manage"
                     ref={moveBulkRef}
                     type="button"
                     variant="outline"
@@ -568,6 +586,7 @@ export function PartsTable({
                     Move to
                   </Button>
                   <Button
+                    permission="parts:delete"
                     ref={bulkTriggerRef}
                     type="button"
                     variant="destructive"

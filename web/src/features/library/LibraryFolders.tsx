@@ -15,7 +15,8 @@ import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import {
   Card,
   CardAction,
@@ -30,10 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -128,6 +126,7 @@ export function LibraryFolderControls({
       <section aria-label="Library contents" className="flex flex-col gap-4">
         {header(
           <Button
+            permission="library:manage"
             ref={addRef}
             variant="outline"
             disabled={busy}
@@ -192,7 +191,11 @@ export function LibraryFolderControls({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={pending || !name.trim()}>
+                <Button
+                  permission="library:manage"
+                  type="submit"
+                  disabled={pending || !name.trim()}
+                >
                   {pending && <Spinner data-icon="inline-start" />}
                   {pending ? 'Saving…' : 'Save'}
                 </Button>
@@ -251,15 +254,22 @@ function FolderActions({
       disabled={disabled}
     >
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={() => onEdit(ref.current)}>
+        <DropdownMenuItem
+          permission="library:manage"
+          onSelect={() => onEdit(ref.current)}
+        >
           <PencilIcon />
           Rename
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onMove(ref.current)}>
+        <DropdownMenuItem
+          permission="library:manage"
+          onSelect={() => onMove(ref.current)}
+        >
           <FolderInputIcon />
           Move to
         </DropdownMenuItem>
         <DropdownMenuItem
+          permission="library:delete"
           variant="destructive"
           onSelect={() => onRemove(ref.current)}
         >

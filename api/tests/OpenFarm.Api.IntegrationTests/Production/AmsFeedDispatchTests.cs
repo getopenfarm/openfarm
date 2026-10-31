@@ -25,6 +25,9 @@ public sealed class FeedMappingRecorder : IPrinterConnectorFactory
     /// <summary>Runs before each send is recorded, with the printer serial number; throwing fails that send, standing in for a printer that does not answer.</summary>
     public Func<string, Task>? BeforeSend { get; set; }
 
+    /// <summary>Runs after the connector reported <see cref="PrintSendStage.Starting"/>; throwing fails the send once the start command may have left.</summary>
+    public Func<string, Task>? AfterStart { get; set; }
+
     /// <summary>The send progress dispatch pushed to the hub, per job.</summary>
     public ConcurrentQueue<(Guid JobId, PrintSendStage Stage, int? Percent, int Attempt)> SendProgress { get; } = [];
 
@@ -53,6 +56,7 @@ public sealed class FeedMappingRecorder : IPrinterConnectorFactory
             if (owner.BeforeSend is { } beforeSend) await beforeSend(details.SerialNumber);
             progress?.Report(new PrintSendProgress(PrintSendStage.Uploading, 100));
             progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
+            if (owner.AfterStart is { } afterStart) await afterStart(details.SerialNumber);
             owner.Started.Enqueue((details.SerialNumber, plate, feedMapping));
         }
 
@@ -303,13 +307,14 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         {
             await worker.StopAsync(default);
             Recorder.BeforeSend = null;
+            Recorder.AfterStart = null;
         }
     }
 
     private int SendAttemptsTo(Printer printer) => Recorder.SendAttempts.Count(serial => serial == printer.SerialNumber);
 
     [Fact]
-    public async Task SendTimingOut_EveryAttempt_BlocksTheJobInsteadOfLeavingItInFlight()
+    public async Task SendTimingOut_EveryAttempt_FailsTheJobAndFreesThePrinter()
     {
         // A printer that never answers the MQTT connect: the connector's own deadline cancels it, the host is still running.
         var client = await ClientAsync();
@@ -318,11 +323,12 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
 
         var job = await DispatchWithSendAsync(runId, _ => throw new OperationCanceledException("MQTT connect canceled."),
-            j => j.LastBlockReason is not null);
+            j => j.Status == PrintJobStatus.Failed);
 
-        job.DispatchedAtUtc.Should().BeNull();
-        job.PrinterId.Should().BeNull();
+        job.Status.Should().Be(PrintJobStatus.Failed);
+        job.PrinterId.Should().Be(printer.Id, "the failed job keeps the printer it was sent to");
         job.LastBlockReason.Should().Be("Send failed: MQTT connect canceled.");
+        (await ActiveJobOnAsync(printer.Id)).Should().BeNull("a failed send must not hold the printer");
         SendAttemptsTo(printer).Should().Be(3);
         Recorder.SendProgress.Where(p => p.JobId == job.Id).Select(p => p.Stage).Should()
             .ContainInOrder(PrintSendStage.Slicing, PrintSendStage.Retrying, PrintSendStage.Retrying, PrintSendStage.Ended);
@@ -380,5 +386,65 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
 
         SendAttemptsTo(printer).Should().Be(1);
         job.LastBlockReason.Should().Be("Send failed: Connection reset");
+        job.Status.Should().Be(PrintJobStatus.Failed, "a job that may be printing is never queued to be sent again");
+    }
+
+    [Fact]
+    public async Task ExactQuantityJob_UploadFailingEveryAttempt_IsRetriedThenFailsInsteadOfStayingDispatched()
+    {
+        // The reported case: the plate was marked "start requested" before the upload, so an upload that never finished held
+        // the printer as "Dispatching…" forever, restart included.
+        var client = await ClientAsync();
+        var part = await MappedPartAsync(1);
+        var printer = await PrinterAsync();
+        var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
+        (await JobsAsync(runId)).Single().ObjectExecution.Should().NotBeNull();
+
+        var job = await DispatchWithSendAsync(runId, _ => throw new IOException("Printer file upload did not succeed (Failed)."),
+            j => j.Status == PrintJobStatus.Failed);
+
+        job.Status.Should().Be(PrintJobStatus.Failed);
+        job.ObjectExecution!.StartRequested.Should().BeFalse("the start command never left");
+        SendAttemptsTo(printer).Should().Be(3);
+        (await ActiveJobOnAsync(printer.Id)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExactQuantityJob_StartUnconfirmed_IsNotResent_AndFailsOnceTheIdlePrinterShowsItNeverStarted()
+    {
+        var client = await ClientAsync();
+        var part = await MappedPartAsync(1);
+        var printer = await PrinterAsync();
+        var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
+        Recorder.AfterStart = _ => throw new IOException("Connection reset");
+        using var worker = Worker(startConfirmGrace: TimeSpan.Zero);
+        await worker.StartAsync(default);
+        try
+        {
+            var job = await WaitForJobAsync(runId, j => j.LastBlockReason is not null);
+            job.Status.Should().Be(PrintJobStatus.Queued);
+            job.PrinterId.Should().Be(printer.Id);
+            job.ObjectExecution!.StartRequested.Should().BeTrue();
+            SendAttemptsTo(printer).Should().Be(1, "a start that may have landed is never sent twice");
+
+            await ReportIdleAsync(printer.Id);
+            worker.RequestDispatchAttempt(printer.Id);
+
+            job = await WaitForJobAsync(runId, j => j.Status == PrintJobStatus.Failed);
+            job.Status.Should().Be(PrintJobStatus.Failed);
+            job.LastBlockReason.Should().Be("Send failed: the printer did not start the print.");
+            SendAttemptsTo(printer).Should().Be(1);
+        }
+        finally
+        {
+            await worker.StopAsync(default);
+            Recorder.AfterStart = null;
+        }
+    }
+
+    private async Task<PrintJob?> ActiveJobOnAsync(Guid printerId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IPrintJobRepository>().GetActiveJobByDispatchedPrinterIdAsync(printerId, default);
     }
 }

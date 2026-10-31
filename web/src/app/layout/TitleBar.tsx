@@ -11,6 +11,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { NotificationsBell } from '@/features/notifications/components/NotificationsBell';
+import { Can } from '@/lib/auth/permissions';
 import { BreadcrumbOutlet } from './BreadcrumbOutlet';
 import { FarmPulse } from './FarmPulse';
 import { useBreadcrumb } from './useBreadcrumb';
@@ -60,7 +61,9 @@ export function TitleBar() {
       <div className="ml-auto flex shrink-0 items-center gap-3">
         <FarmPulse />
         <Separator orientation="vertical" />
-        <NotificationsBell />
+        <Can permission="print-jobs:view,spools:list,filaments:list">
+          <NotificationsBell />
+        </Can>
       </div>
     </header>
   );

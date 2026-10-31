@@ -1,7 +1,7 @@
 import { CheckCircle2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { toast } from 'sonner';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import type { PrinterStatus } from '@/components/printer-tile/status';
-import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 
 interface PrinterDetailActionsProps {
@@ -33,7 +33,12 @@ export function PrinterDetailActions({
   onRemove,
 }: PrinterDetailActionsProps) {
   const removeButton = (
-    <Button variant="destructive" onClick={onRemove} disabled={isRemovePending}>
+    <Button
+      permission="printers:remove"
+      variant="destructive"
+      onClick={onRemove}
+      disabled={isRemovePending}
+    >
       {isRemovePending ? (
         <Spinner data-icon="inline-start" />
       ) : (
@@ -49,7 +54,11 @@ export function PrinterDetailActions({
         <Button variant="outline" onClick={() => notImplemented()}>
           Reconnect
         </Button>
-        <Button variant="outline" onClick={onEdit}>
+        <Button
+          permission="printers:edit-connection"
+          variant="outline"
+          onClick={onEdit}
+        >
           <PencilIcon data-icon="inline-start" /> Edit
         </Button>
         {removeButton}
@@ -60,7 +69,11 @@ export function PrinterDetailActions({
   if (status === 'AwaitingClear') {
     return (
       <div className="flex gap-2">
-        <Button onClick={onMarkReady} disabled={isMarkReadyPending}>
+        <Button
+          permission="printers:mark-ready"
+          onClick={onMarkReady}
+          disabled={isMarkReadyPending}
+        >
           {isMarkReadyPending ? (
             <Spinner data-icon="inline-start" />
           ) : (
@@ -79,10 +92,18 @@ export function PrinterDetailActions({
   if (status === 'Printing') {
     return (
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => notImplemented()}>
+        <Button
+          permission="print-jobs:remote-control"
+          variant="outline"
+          onClick={() => notImplemented()}
+        >
           Pause
         </Button>
-        <Button variant="ghost" onClick={() => notImplemented()}>
+        <Button
+          permission="print-jobs:remote-control"
+          variant="ghost"
+          onClick={() => notImplemented()}
+        >
           Stop
         </Button>
         {removeButton}
@@ -95,7 +116,11 @@ export function PrinterDetailActions({
       <Button variant="outline" onClick={() => notImplemented()}>
         Assign job
       </Button>
-      <Button variant="outline" onClick={onEdit}>
+      <Button
+        permission="printers:edit-connection"
+        variant="outline"
+        onClick={onEdit}
+      >
         <PencilIcon data-icon="inline-start" /> Edit
       </Button>
       {removeButton}

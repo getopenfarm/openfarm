@@ -8,9 +8,9 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -335,7 +335,11 @@ export function PrinterModelCostPage() {
                     Cancel
                   </Link>
                 </Button>
-                <Button type="submit" disabled={save.isPending}>
+                <Button
+                  permission="settings:printer-costs:update"
+                  type="submit"
+                  disabled={save.isPending}
+                >
                   {save.isPending && <Spinner data-icon="inline-start" />}
                   {save.isPending ? 'Saving…' : 'Save printer costs'}
                 </Button>

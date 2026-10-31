@@ -5,7 +5,7 @@ using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Api.Hubs;
 
-public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext, IPrinterCameraSnapshotStore snapshots) : IPrinterEventPublisher
+public sealed class FarmHubPrinterEventPublisher(IFarmEventClients clients, IPrinterCameraSnapshotStore snapshots) : IPrinterEventPublisher
 {
     public Task PrinterActivityChangedAsync(Guid printerId, CancellationToken cancellationToken) =>
         Group.SendAsync("PrinterActivityChanged", new { printerId }, cancellationToken);
@@ -63,5 +63,5 @@ public sealed class FarmHubPrinterEventPublisher(IHubContext<FarmHub> hubContext
             cancellationToken);
     }
 
-    private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);
+    private IClientProxy Group => clients;
 }

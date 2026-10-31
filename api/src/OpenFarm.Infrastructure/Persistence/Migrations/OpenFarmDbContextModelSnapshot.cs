@@ -1854,6 +1854,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("text");
 
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsProtected")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
@@ -1884,11 +1891,20 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .HasColumnType("text");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
                     b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("LockoutEnabled")
@@ -1934,6 +1950,61 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.BrowserSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Device")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LastSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ExpiresAtUtc");
+
+                    b.ToTable("BrowserSessions");
+                });
+
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.SessionCredential", b =>
+                {
+                    b.Property<string>("Hash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ProtectedSuccessor")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UsedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Hash");
+
+                    b.HasIndex("SessionId");
+
+                    b.ToTable("SessionCredentials");
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Persistence.Configurations.PartTagJoinRow", b =>
@@ -2369,6 +2440,24 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("BaseProfileId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.BrowserSession", b =>
+                {
+                    b.HasOne("OpenFarm.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.SessionCredential", b =>
+                {
+                    b.HasOne("OpenFarm.Infrastructure.Identity.BrowserSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Persistence.Configurations.PartTagJoinRow", b =>

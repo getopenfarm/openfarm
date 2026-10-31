@@ -5,13 +5,11 @@ import { Link } from 'react-router';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { feeTotals } from '@/features/assemblies/pricing';
 import type { FeeProfileDto } from '@/lib/api/generated/endpoints.schemas';
@@ -68,10 +66,11 @@ export function FeesPage() {
           }}
         >
           <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
+            <DropdownMenuItem permission="settings:fees:update" asChild>
               <Link to={`/settings/fees/${row.original.id}`}>Edit</Link>
             </DropdownMenuItem>
             <DropdownMenuItem
+              permission="settings:fees:update"
               variant="destructive"
               onSelect={() => removal.open(row.original)}
             >
@@ -83,7 +82,7 @@ export function FeesPage() {
     },
   ];
   const add = (
-    <Button asChild>
+    <Button permission="settings:fees:update" asChild>
       <Link ref={removal.fallbackFocusRef} to="/settings/fees/new">
         <PlusIcon data-icon="inline-start" />
         Add fee profile
@@ -109,7 +108,7 @@ export function FeesPage() {
               title="No fee profiles"
               description="Group the fees charged on each sale into a profile, such as Shopee or Direct. A profile can also have no fees."
               action={
-                <Button asChild>
+                <Button permission="settings:fees:update" asChild>
                   <Link to="/settings/fees/new">Add fee profile</Link>
                 </Button>
               }

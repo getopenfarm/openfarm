@@ -1,3 +1,8 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Net.Http.Headers;
+using OpenFarm.Api.Endpoints.Auth;
+using OpenFarm.Application.Auth;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -24,6 +29,11 @@ public class DemandMigrationTests(ProductionTestFactory factory) : ProductionTes
             await migrator.MigrateAsync("20261030071634_AddLibraryFolders");
             await migrator.MigrateAsync();
         }
+        // Rolling back beyond the session migration deliberately discards browser sessions.
+        (await client.GetAsync($"/api/v1/production-runs/{finite.Id}")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand("admin", "admin-openfarm"));
+        login.EnsureSuccessStatusCode();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", (await login.Content.ReadFromJsonAsync<LoginResponse>())!.Token);
         var after = await JobsAsync(finite.Id);
         after.Select(j => new { j.Id, j.PartRequirementId, j.QueuePosition, j.ProductionSnapshotJson, j.Status })
             .Should().BeEquivalentTo(before.Select(j => new { j.Id, j.PartRequirementId, j.QueuePosition, j.ProductionSnapshotJson, j.Status }));

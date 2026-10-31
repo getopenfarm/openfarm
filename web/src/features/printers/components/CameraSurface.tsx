@@ -1,8 +1,9 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { VideoOffIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint } from '@/lib/api/generated/printers/printers';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { formatDateTime } from '@/lib/formatDateTime';
 import { cn } from '@/lib/utils';
 import {

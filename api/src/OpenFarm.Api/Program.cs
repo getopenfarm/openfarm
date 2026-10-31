@@ -141,11 +141,13 @@ builder.Services
         options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
-        // Relaxed from Identity's defaults (uppercase/digit no longer required) so the seeded
-        // operator password can be a plain lowercase phrase; operators are expected to rotate it
-        // after first login regardless.
+        // One rule for temporary, reset and self-chosen passwords: at least 8 characters, no
+        // character classes, so a plain phrase works.
         options.Password.RequireUppercase = false;
         options.Password.RequireDigit = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequiredLength = 8;
     })
     .AddRoles<ApplicationRole>()
     .AddEntityFrameworkStores<OpenFarmDbContext>();
@@ -180,6 +182,13 @@ builder.Services
         // the JWT via the "access_token" query string for /hubs/* requests instead (standard pattern).
         options.Events = new JwtBearerEvents
         {
+            OnTokenValidated = async context =>
+            {
+                if (!Guid.TryParse(context.Principal?.FindFirst("sub")?.Value, out var userId)
+                    || !Guid.TryParse(context.Principal?.FindFirst("sid")?.Value, out var sessionId)
+                    || !await context.HttpContext.RequestServices.GetRequiredService<BrowserSessionService>().IsActiveAsync(userId, sessionId, context.HttpContext.RequestAborted))
+                    context.Fail("Session is no longer active.");
+            },
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
@@ -195,12 +204,28 @@ builder.Services
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Permission", p => p.Requirements.Add(new PermissionRequirement()));
-builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddScoped<BrowserSessionService>();
+builder.Services.AddHostedService<SessionCleanupService>();
+builder.Services.AddScoped<PermissionService>();
+builder.Services.AddScoped<AccountAdministrationService>();
+builder.Services.AddSingleton<FarmConnections>();
+builder.Services.AddSingleton<IFarmEventClients, AuthorizedFarmClients>();
+builder.Services.AddAntiforgery(o =>
+{
+    o.HeaderName = "X-CSRF-TOKEN";
+    if (builder.Configuration.GetValue("Auth:CrossSiteCookies", false))
+    {
+        o.Cookie.SameSite = SameSiteMode.None;
+        o.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    }
+});
 
 var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy => policy
         .WithOrigins(corsAllowedOrigins)
+        .AllowCredentials()
         .AllowAnyHeader()
         .AllowAnyMethod()
         // A page on another origin (VITE_API_BASE_URL) reads a download's file name from it.
@@ -434,8 +459,6 @@ builder.Services.AddScoped<IQueryHandler<ListNonPrintedComponentsQuery, NonPrint
 
 builder.Services.AddScoped<ProductionRunDisplayLabelResolver>();
 builder.Services.AddScoped<ProductionRunCompletionService>();
-builder.Services.AddScoped<ObjectSkippingPolicy>();
-builder.Services.AddScoped<IObjectSkippingPolicy>(sp => sp.GetRequiredService<ObjectSkippingPolicy>());
 builder.Services.AddScoped<PrintObjectControlService>();
 builder.Services.AddScoped<IPrintObjectManifestReader, PrintObjectManifestReader>();
 builder.Services.AddScoped<ProductionPlanner>();
@@ -521,6 +544,23 @@ if (serveSpa)
     app.UseStaticFiles(spaFileOptions);
 }
 
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/v1/auth") || context.Request.Path.StartsWithSegments("/api/v1/admin"))
+        context.Response.Headers.CacheControl = "no-store";
+    if (context.Request.Path.StartsWithSegments("/api/v1/auth") && context.Request.Method == "POST"
+        && context.Request.Headers.Origin is { Count: > 0 } origins)
+    {
+        var origin = origins.ToString();
+        var own = $"{context.Request.Scheme}://{context.Request.Host}";
+        if (origin != own && !corsAllowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+    }
+    await next();
+});
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -535,7 +575,7 @@ app.UseFastEndpoints(c =>
 });
 app.UseSwaggerGen();
 
-app.MapHub<FarmHub>("/hubs/farm");
+app.MapHub<FarmHub>("/hubs/farm", o => o.CloseOnAuthenticationExpiration = true);
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");

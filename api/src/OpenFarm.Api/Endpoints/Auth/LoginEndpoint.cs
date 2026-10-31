@@ -1,4 +1,7 @@
 using FastEndpoints;
+using OpenFarm.Api.Security;
+using OpenFarm.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using OpenFarm.Application.Auth;
 using LoginHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Auth.LoginCommand, OpenFarm.Application.Auth.LoginResult?>;
 
@@ -11,7 +14,7 @@ public sealed class LoginResponse
     public DateTimeOffset ExpiresAtUtc { get; set; }
 }
 
-public sealed class LoginEndpoint(LoginHandler handler) : Endpoint<LoginCommand, LoginResponse>
+public sealed class LoginEndpoint(LoginHandler handler, OpenFarmDbContext db) : Endpoint<LoginCommand, LoginResponse>
 {
     public override void Configure()
     {
@@ -33,6 +36,10 @@ public sealed class LoginEndpoint(LoginHandler handler) : Endpoint<LoginCommand,
             return;
         }
 
+        SessionCookies.Set(HttpContext, result);
+        var sid = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(result.Token).Claims.Single(c => c.Type == "sid").Value;
+        var device = HttpContext.Request.Headers.UserAgent.ToString();
+        await db.BrowserSessions.Where(s => s.Id == Guid.Parse(sid)).ExecuteUpdateAsync(s => s.SetProperty(x => x.Device, device.Length > 256 ? device.Substring(0, 256) : device), ct);
         Response = new LoginResponse { Token = result.Token, ExpiresAtUtc = result.ExpiresAtUtc };
     }
 }

@@ -49,7 +49,13 @@ export function LoginPage() {
           return;
         }
         auth.login(token);
-        navigate('/', { replace: true });
+        const target = new URLSearchParams(window.location.search).get(
+          'returnTo',
+        );
+        navigate(
+          target?.startsWith('/') && !target.startsWith('//') ? target : '/',
+          { replace: true },
+        );
       },
       onError: () => {
         toast.error('Could not sign in. Check username and password.');

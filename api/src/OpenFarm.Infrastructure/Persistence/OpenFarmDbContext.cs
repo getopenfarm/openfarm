@@ -18,6 +18,10 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
 {
     public DbSet<OpenFarm.Domain.Library.LibraryFolder> LibraryFolders => Set<OpenFarm.Domain.Library.LibraryFolder>();
 
+    public DbSet<BrowserSession> BrowserSessions => Set<BrowserSession>();
+
+    public DbSet<SessionCredential> SessionCredentials => Set<SessionCredential>();
+
     public DbSet<FarmSettings> FarmSettings => Set<FarmSettings>();
 
     public DbSet<ConnectionSecret> ConnectionSecrets => Set<ConnectionSecret>();

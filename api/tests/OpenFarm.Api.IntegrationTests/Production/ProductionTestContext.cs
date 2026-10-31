@@ -215,8 +215,18 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
     }
 
     // Failed sends are retried in place; tests do not wait the real pauses.
-    protected ProductionDispatchBackgroundService Worker() => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),
-        Factory.Services.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>(), [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50)]);
+    protected ProductionDispatchBackgroundService Worker(TimeSpan? startConfirmGrace = null) => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),
+        Factory.Services.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>(), [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50)],
+        startConfirmGrace);
+
+    /// <summary>The printer reports its state now, as idle telemetry would.</summary>
+    protected async Task ReportIdleAsync(Guid printerId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        (await db.Printers.SingleAsync(p => p.Id == printerId)).ObserveReportedState("IDLE", DateTimeOffset.UtcNow);
+        await db.SaveChangesAsync();
+    }
 
     protected async Task<PrintJob> WaitForAssignmentAsync(Guid runId, Guid? excludeJobId = null)
     {

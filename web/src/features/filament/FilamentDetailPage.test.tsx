@@ -499,7 +499,7 @@ describe('FilamentDetailPage', () => {
       filamentVariantId: 'v-black',
       source: 'WriteOff',
     });
-    expect(csv?.init?.headers).toHaveProperty('Authorization');
+    expect(csv?.init?.credentials).toBe('include');
     expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe(
       'from-server.csv',
     );

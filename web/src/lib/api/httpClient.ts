@@ -1,5 +1,4 @@
-import { apiUrl } from '@/lib/api/apiUrl';
-import { clearToken, getToken } from '@/lib/auth/tokenStorage';
+import { authenticatedFetch } from '@/lib/auth/session';
 
 // Orval's `httpClient: 'fetch'` mode expects the mutator to resolve to
 // `{ data, status, headers }`, not the bare parsed body.
@@ -9,7 +8,6 @@ export async function httpClient<T>(
   url: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = getToken();
   const method = options.method?.toUpperCase() ?? 'GET';
   // A bodyless mutation (e.g. mark-ready, driven entirely by the route) still needs a JSON
   // Content-Type — ASP.NET Core's minimal-API body binding returns 415 for POST/PUT/PATCH
@@ -23,23 +21,16 @@ export async function httpClient<T>(
   // `application/json` here would corrupt the upload.
   const isFormData = body instanceof FormData;
 
-  const response = await fetch(apiUrl(url), {
+  const response = await authenticatedFetch(url, {
     ...options,
     body,
     headers: {
       ...(body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
 
   if (!response.ok) {
-    // The stored token is invalid/expired — no page-level retry or error state can recover
-    // from that, so clear it and bounce back to login instead of leaving every query stuck.
-    if (response.status === 401 && window.location.pathname !== '/login') {
-      clearToken();
-      window.location.assign('/login');
-    }
     throw response;
   }
 

@@ -1,13 +1,12 @@
 import {
   keepPreviousData,
   useMutation,
-  useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import { type RefObject, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +31,7 @@ import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { ListProductionRunsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPartsGetPartEndpoint } from '@/lib/api/generated/parts/parts';
 import { useOpenFarmApiEndpointsProductionRunsListProductionRunsEndpoint } from '@/lib/api/generated/production-runs/production-runs';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { invalidateProductionQueries } from '../hooks/useProductionHub';
 import { PlanSummary } from './PlanSummary';
 import {
@@ -399,6 +399,7 @@ export function SendToQueueDialog({
               Cancel
             </Button>
             <Button
+              permission="production-runs:create"
               type="submit"
               disabled={!target || !valid || invalidPlan || pending}
             >

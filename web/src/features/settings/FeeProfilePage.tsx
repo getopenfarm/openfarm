@@ -8,9 +8,9 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -275,6 +275,7 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
         action={
           profile ? (
             <Button
+              permission="settings:fees:update"
               type="button"
               variant="destructive"
               disabled={pending}
@@ -450,6 +451,7 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
                       </>
                     )}
                     <Button
+                      permission="settings:fees:update"
                       ref={addRef}
                       type="button"
                       variant="outline"
@@ -493,7 +495,11 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
             )}
           </FieldGroup>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={pending || !form.formState.isDirty}>
+            <Button
+              permission="settings:fees:update"
+              type="submit"
+              disabled={pending || !form.formState.isDirty}
+            >
               {save.isPending && (
                 <Spinner data-icon="inline-start" aria-hidden="true" />
               )}

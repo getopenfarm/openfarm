@@ -62,7 +62,7 @@ export function ConfirmDialog({
         onCloseAutoFocus={(event) => {
           const preferred = returnFocusRef?.current;
           const target =
-            preferred && !preferred.matches(':disabled')
+            preferred?.isConnected && !preferred.matches(':disabled')
               ? preferred
               : fallbackFocusRef?.current;
           if (target) {

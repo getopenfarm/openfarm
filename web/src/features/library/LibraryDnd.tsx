@@ -29,6 +29,7 @@ import type { DataTableRowContainerProps } from '@/components/data-table/DataTab
 import { Button } from '@/components/ui/button';
 import { TableRow } from '@/components/ui/table';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
+import { useAllowed } from '@/lib/auth/AccessContext';
 import { cn } from '@/lib/utils';
 import {
   entryRowId,
@@ -121,6 +122,7 @@ export function LibraryDnd({
   fallbackFocusRef: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
+  const allowed = useAllowed('library:manage');
   const [active, setActive] = useState<DragContextValue['active']>(null);
   const [announcement, setAnnouncement] = useState('');
   const activeRef = useRef(active);
@@ -144,7 +146,7 @@ export function LibraryDnd({
     <DragContext.Provider
       value={{
         entries,
-        disabled: disabled || mutation.isPending,
+        disabled: disabled || !allowed || mutation.isPending,
         parentId,
         active,
         selection,
@@ -154,7 +156,8 @@ export function LibraryDnd({
       <DragDropProvider
         sensors={librarySensors}
         onBeforeDragStart={(event) => {
-          if (disabled || mutation.isPending) event.preventDefault();
+          if (disabled || !allowed || mutation.isPending)
+            event.preventDefault();
         }}
         onDragStart={(event) => {
           const source = entries.find(

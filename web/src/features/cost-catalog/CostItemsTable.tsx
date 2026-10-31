@@ -26,13 +26,11 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { useCurrency } from '@/features/settings/generalSettings';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { CostItemResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -192,10 +190,11 @@ function ActionsCell({ row }: CellContext<CostItemResponse, unknown>) {
       disabled={pending || !row.original.id}
     >
       <DropdownMenuGroup>
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem permission="non-printed-components:edit" asChild>
           <Link to={`/cost-catalog/${row.original.id}`}>Edit</Link>
         </DropdownMenuItem>
         <DropdownMenuItem
+          permission="non-printed-components:delete"
           variant="destructive"
           onSelect={() => onRemove(row.original, triggerRef.current)}
         >
@@ -379,6 +378,7 @@ export function CostItemsTable({
           }}
         >
           <Button
+            permission="non-printed-components:delete"
             ref={bulkTriggerRef}
             type="button"
             variant="destructive"

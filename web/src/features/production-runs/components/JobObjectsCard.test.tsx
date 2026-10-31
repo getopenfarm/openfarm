@@ -155,3 +155,14 @@ it('confirms only the physically finished units after an unverified completion',
   );
   expect(api.requeue).not.toHaveBeenCalled();
 });
+
+it('does not claim to await the printer before the start was sent', async () => {
+  api.read.mockResolvedValue({
+    data: { ...execution, observed: false, plannedExclusions: ['B'] },
+  });
+  setup('Queued');
+  await screen.findByRole('checkbox', { name: /Unit 1:/ });
+  expect(
+    screen.queryByText(/Waiting for the printer to confirm/),
+  ).not.toBeInTheDocument();
+});

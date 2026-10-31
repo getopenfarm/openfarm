@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Command,
   CommandEmpty,
@@ -419,7 +419,12 @@ function AddLinePicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" size="sm" className="ml-auto">
+        <Button
+          permission="assemblies:create|assemblies:edit"
+          type="button"
+          size="sm"
+          className="ml-auto"
+        >
           <PlusIcon data-icon="inline-start" /> Add line
           <kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1 text-xs sm:inline">
             /

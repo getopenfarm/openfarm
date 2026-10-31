@@ -4,7 +4,7 @@ using OpenFarm.Domain.FilamentTracking;
 
 namespace OpenFarm.Api.Hubs;
 
-public sealed class FarmHubFilamentTrackingEventPublisher(IHubContext<FarmHub> hubContext) : IFilamentTrackingEventPublisher
+public sealed class FarmHubFilamentTrackingEventPublisher(IFarmEventClients clients) : IFilamentTrackingEventPublisher
 {
     // ponytail: nothing raises this today. The web refreshes spool weights on NotificationsChanged (a print closing is
     // what changes them) and each mutating screen refreshes itself. Raise it per handler (register, edit, load,
@@ -35,5 +35,5 @@ public sealed class FarmHubFilamentTrackingEventPublisher(IHubContext<FarmHub> h
     public Task FeedUnitsChangedAsync(Guid printerId, CancellationToken cancellationToken) =>
         Group.SendAsync("FeedUnitsChanged", new { printerId }, cancellationToken);
 
-    private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);
+    private IClientProxy Group => clients;
 }

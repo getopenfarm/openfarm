@@ -16,7 +16,7 @@ import type {
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query';
-import { useQuery } from '@tanstack/react-query';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { httpClient } from '../../httpClient';
 import type { PingResponse } from '../endpoints.schemas';
 

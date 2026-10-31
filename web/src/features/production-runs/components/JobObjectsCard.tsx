@@ -1,9 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -19,6 +19,7 @@ import {
   openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint as skip,
   openFarmApiEndpointsPrintJobsWriteOffPrintJobEndpoint as writeOff,
 } from '@/lib/api/generated/print-jobs/print-jobs';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { invalidateProductionQueries } from '../hooks/useProductionHub';
 
 export function JobObjectsCard({
@@ -155,6 +156,7 @@ export function JobObjectsCard({
           )}
         {status === 'Queued' && execution.startRequested && (
           <Button
+            permission="print-jobs:remote-control"
             ref={trigger}
             variant="outline"
             disabled={mutation.isPending}
@@ -167,14 +169,15 @@ export function JobObjectsCard({
             Confirm print did not start
           </Button>
         )}
-        {!execution.observed && (
-          <Alert>
-            <AlertDescription>
-              {execution.requestError ??
-                'Waiting for the printer to confirm object exclusions. Output remains unverified until confirmation.'}
-            </AlertDescription>
-          </Alert>
-        )}
+        {!execution.observed &&
+          (execution.startRequested || status !== 'Queued') && (
+            <Alert>
+              <AlertDescription>
+                {execution.requestError ??
+                  'Waiting for the printer to confirm object exclusions. Output remains unverified until confirmation.'}
+              </AlertDescription>
+            </Alert>
+          )}
         <PrintObjectOutlines
           objects={execution.manifest?.objects ?? []}
           selected={units
@@ -284,6 +287,7 @@ export function JobObjectsCard({
               Select only the complete units physically finished on this plate.
             </p>
             <Button
+              permission="print-jobs:remote-control"
               ref={trigger}
               disabled={mutation.isPending}
               onClick={() => {
@@ -299,6 +303,7 @@ export function JobObjectsCard({
         {canResolve && outputKnown && (
           <div className="flex flex-wrap gap-2">
             <Button
+              permission="print-jobs:requeue"
               disabled={mutation.isPending || !canRequeue}
               onClick={() => {
                 setError(undefined);
@@ -309,6 +314,7 @@ export function JobObjectsCard({
               Requeue {missing} missing units
             </Button>
             <Button
+              permission="print-jobs:write-off"
               variant="outline"
               disabled={mutation.isPending}
               onClick={() => {
@@ -327,7 +333,7 @@ export function JobObjectsCard({
           title={title}
           description={
             action === 'notStarted'
-              ? 'Confirm that the printer is idle, no objects from this job were printed, and its bed is clear. The attempt will be cancelled so its missing quantity can be requeued.'
+              ? 'Confirm that the printer is idle, no objects from this job were printed, and its bed is clear. The job is marked Failed. Requeue or write off its units.'
               : action === 'output'
                 ? `Confirm that ${selected.length} complete units finished. The remainder will stay missing.`
                 : action === 'skip'

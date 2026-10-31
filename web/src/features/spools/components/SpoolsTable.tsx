@@ -8,16 +8,15 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import type { SpoolResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useAllowed } from '@/lib/auth/AccessContext';
 import { formatGrams } from '@/lib/formatUnits';
 import { useRestoreSpool } from '../hooks/useRestoreSpool';
 import { FinishSpoolsDialog, type FinishTarget } from './FinishSpoolsDialog';
@@ -92,7 +91,7 @@ interface SpoolsTableProps {
 
 export function SpoolsTable({
   spools,
-  selectable = false,
+  selectable: selectionRequested = false,
   serverPagination,
 }: SpoolsTableProps) {
   const navigate = useNavigate();
@@ -104,6 +103,8 @@ export function SpoolsTable({
     spoolId: string;
   } | null>(null);
   const [finishTargets, setFinishTargets] = useState<FinishTarget[]>([]);
+  const allowedToFinish = useAllowed('spools:unload');
+  const selectable = selectionRequested && allowedToFinish;
   const [selection, setSelection] = useState<RowSelectionState>({});
   const { mutate: restoreSpool } = useRestoreSpool();
 
@@ -220,6 +221,7 @@ export function SpoolsTable({
           if (!id) return null;
           return (
             <DataTableRowActions
+              permission="spools:load|spools:unload|spools:record-usage"
               label={spoolName(spool)}
               onOpen={(trigger) => {
                 dialogTriggerRef.current = trigger;
@@ -227,13 +229,17 @@ export function SpoolsTable({
             >
               <DropdownMenuGroup>
                 {spool.state === 'Finished' ? (
-                  <DropdownMenuItem onSelect={() => restoreSpool({ id })}>
+                  <DropdownMenuItem
+                    permission="spools:unload"
+                    onSelect={() => restoreSpool({ id })}
+                  >
                     Restore
                   </DropdownMenuItem>
                 ) : (
                   <>
                     {spool.state === 'InStorage' ? (
                       <DropdownMenuItem
+                        permission="spools:load"
                         onSelect={() =>
                           setDialog({ mode: 'load', spoolId: id })
                         }
@@ -243,6 +249,7 @@ export function SpoolsTable({
                     ) : (
                       <>
                         <DropdownMenuItem
+                          permission="spools:record-usage"
                           onSelect={() =>
                             setDialog({ mode: 'usage', spoolId: id })
                           }
@@ -250,6 +257,7 @@ export function SpoolsTable({
                           Record usage
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          permission="spools:unload"
                           onSelect={() =>
                             setDialog({ mode: 'unload', spoolId: id })
                           }
@@ -259,6 +267,7 @@ export function SpoolsTable({
                       </>
                     )}
                     <DropdownMenuItem
+                      permission="spools:unload"
                       onSelect={() => {
                         finishReturnRef.current = dialogTriggerRef.current;
                         setFinishTargets(finishTarget(spool));
@@ -296,6 +305,7 @@ export function SpoolsTable({
               onClear={() => setSelection({})}
             >
               <Button
+                permission="spools:unload"
                 ref={bulkTriggerRef}
                 type="button"
                 variant="outline"

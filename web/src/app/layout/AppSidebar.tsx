@@ -1,12 +1,12 @@
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  HistoryIcon,
   MoonIcon,
   SettingsIcon,
   SunIcon,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useContext } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
   Sidebar,
@@ -22,14 +22,28 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { AccessContext, useAllowed } from '@/lib/auth/AccessContext';
+import { routePermission, settingsPath } from '@/lib/auth/permissions';
 import { Logo } from './Logo';
-import { type NavItem, navSections } from './nav-config';
+import {
+  adminNavSection,
+  type NavItem,
+  type NavSection,
+  navSections,
+} from './nav-config';
 import { UserMenu } from './UserMenu';
 
-function NavLink({ item }: { item: NavItem }) {
+function NavLink({
+  item,
+  match = item.url,
+}: {
+  item: NavItem;
+  match?: string;
+}) {
   const { pathname } = useLocation();
-  const isActive =
-    item.url === '/' ? pathname === '/' : pathname.startsWith(item.url);
+  const allowed = useAllowed(routePermission(item.url) ?? undefined);
+  if (!allowed) return null;
+  const isActive = pathname === match || pathname.startsWith(`${match}/`);
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild tooltip={item.title} isActive={isActive}>
@@ -65,10 +79,7 @@ function CollapseButton() {
   const collapsed = state === 'collapsed';
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton
-        tooltip={collapsed ? 'Expand' : 'Collapse'}
-        onClick={toggleSidebar}
-      >
+      <SidebarMenuButton tooltip="Toggle sidebar" onClick={toggleSidebar}>
         {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
         <span>Collapse</span>
       </SidebarMenuButton>
@@ -76,38 +87,59 @@ function CollapseButton() {
   );
 }
 
+function NavGroup({
+  section,
+  className,
+}: {
+  section: NavSection;
+  className?: string;
+}) {
+  return (
+    <SidebarGroup className={className}>
+      <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {section.items.map((item) => (
+            <NavLink key={item.url} item={item} />
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 export function AppSidebar() {
+  const access = useContext(AccessContext);
+  const can = (key: string | null) =>
+    access === undefined || key === null || access.has(key);
+  const allowed = (section: NavSection) => ({
+    ...section,
+    items: section.items.filter((item) => can(routePermission(item.url))),
+  });
+  const sections = navSections
+    .map(allowed)
+    .filter((section) => section.items.length > 0);
+  const admin = allowed(adminNavSection);
+  const settings = settingsPath(can);
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <Logo />
       </SidebarHeader>
       <SidebarContent>
-        {navSections.map((section) => (
-          <SidebarGroup key={section.label}>
-            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {section.items.map((item) => (
-                  <NavLink key={item.url} item={item} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        {sections.map((section) => (
+          <NavGroup key={section.label} section={section} />
         ))}
       </SidebarContent>
       <SidebarFooter>
+        {admin.items.length > 0 && <NavGroup section={admin} className="p-0" />}
         <SidebarMenu>
-          <NavLink
-            item={{
-              title: 'Activity log',
-              url: '/activity-log',
-              icon: HistoryIcon,
-            }}
-          />
-          <NavLink
-            item={{ title: 'Settings', url: '/settings', icon: SettingsIcon }}
-          />
+          {settings && (
+            <NavLink
+              item={{ title: 'Settings', url: settings, icon: SettingsIcon }}
+              match="/settings"
+            />
+          )}
           <ThemeButton />
           <CollapseButton />
           <UserMenu />

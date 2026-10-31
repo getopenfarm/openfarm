@@ -4,7 +4,7 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Api.Hubs;
 
-public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext, IPartFileStorage? fileStorage = null) : IPartEventPublisher
+public sealed class FarmHubPartEventPublisher(IFarmEventClients clients, IPartFileStorage? fileStorage = null) : IPartEventPublisher
 {
     public async Task PartProcessingJobStatusChangedAsync(PartProcessingJob job, CancellationToken cancellationToken)
     {
@@ -70,5 +70,5 @@ public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext, I
         estimatedGrams = r.EstimatedGrams,
     };
 
-    private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);
+    private IClientProxy Group => clients;
 }

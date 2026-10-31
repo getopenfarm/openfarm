@@ -64,6 +64,21 @@ public class PrintJobBlockTests
     }
 
     [Fact]
+    public void FailSend_ClosesTheJobAsAFailedLossThatKeepsItsPrinterAndReason()
+    {
+        var job = Job();
+        var printerId = Guid.NewGuid();
+        job.Dispatch(printerId);
+
+        job.FailSend("Send failed: MQTT connect canceled.", Start);
+
+        job.Status.Should().Be(PrintJobStatus.Failed);
+        job.PrinterId.Should().Be(printerId);
+        job.LastBlockReason.Should().Be("Send failed: MQTT connect canceled.");
+        job.IsUnresolvedLoss.Should().BeTrue();
+    }
+
+    [Fact]
     public void OperatorEditsThatChangeWhatCouldBeSent_ClearTheBlock()
     {
         var job = Job();

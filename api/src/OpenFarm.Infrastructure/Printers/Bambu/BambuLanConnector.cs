@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -28,6 +29,13 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 {
     private const string MqttUsername = "bblp";
     private const string FtpsCacheDirectory = "/cache";
+
+    /// <summary>
+    /// The open telemetry session per printer. Commands go out on it: the printer's LAN broker accepts few clients, and a
+    /// second connection opened next to it often never gets a CONNACK ("MQTT connect canceled"). Static because
+    /// <see cref="PrinterConnectorFactory"/> creates a connector per call.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, IMqttClient> LiveClients = new();
 
     private static readonly JsonSerializerOptions IgnoreNullOptions = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
@@ -115,6 +123,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         var connectionToken = connectionCts.Token;
         var channel = Channel.CreateUnbounded<PrinterConnectorEvent>();
         using var client = _options.CreateMqttClient();
+        var liveKey = LiveKey(details);
         var lastReportTicks = DateTimeOffset.UtcNow.UtcTicks;
 
         client.ApplicationMessageReceivedAsync += e =>
@@ -143,11 +152,13 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             Interlocked.Exchange(ref lastReportTicks, DateTimeOffset.UtcNow.UtcTicks);
             channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionStarted: true));
             LogConnected(_logger, details.SerialNumber);
+            LiveClients[liveKey] = client;
             await SubscribeAndRequestAsync(client, details.SerialNumber, connectionToken);
         };
 
         client.DisconnectedAsync += e =>
         {
+            LiveClients.TryRemove(new KeyValuePair<string, IMqttClient>(liveKey, client));
             if (e.ClientWasConnected) LogDisconnected(_logger, details.SerialNumber, e.Reason, e.Exception);
             channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionEnded: true));
             return Task.CompletedTask;
@@ -165,6 +176,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         }
         finally
         {
+            LiveClients.TryRemove(new KeyValuePair<string, IMqttClient>(liveKey, client));
             await connectionCts.CancelAsync();
             channel.Writer.TryComplete();
             await maintainTask;
@@ -173,11 +185,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
     /// <summary>
     /// FTPS upload (port 990, implicit TLS — Bambu's LAN-mode FTP server convention) followed by an
-    /// MQTT <c>print.project_file</c> publish (research.md R5). Uses the same short-lived
-    /// connect/command/disconnect shape as <see cref="VerifyAsync"/> — whether the printer's broker
-    /// tolerates this alongside an already-open <see cref="ConnectAsync"/> streaming connection is a
-    /// real, open verification question for physical hardware (research.md R5's own documented risk),
-    /// not settled here.
+    /// MQTT <c>print.project_file</c> publish (research.md R5) on the printer's open
+    /// <see cref="ConnectAsync"/> session (see <see cref="PublishCommandAsync"/>).
     /// </summary>
     public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
         StartJobAsync(details, fileContent, jobName, plate, feedMapping, null, cancellationToken);
@@ -363,13 +372,21 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             yield return gcodeFile[card.Length..];
     }
 
-    /// <summary>Short-lived connect, publish one command, disconnect — mirrors <see cref="VerifyAsync"/>'s shape.</summary>
+    /// <summary>
+    /// Publishes one command on the printer's open telemetry session, like Bambu Studio and every reference client. Only
+    /// when none is open does it connect, publish and disconnect — mirroring <see cref="VerifyAsync"/>'s shape.
+    /// </summary>
     private async Task PublishCommandAsync(PrinterConnectionDetails details, string payload, CancellationToken cancellationToken)
     {
-        using var client = _options.CreateMqttClient();
         using var commandCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         commandCts.CancelAfter(_options.CommandTimeout);
+        if (LiveClients.TryGetValue(LiveKey(details), out var live) && live.IsConnected)
+        {
+            await PublishRequestAsync(live, details.SerialNumber, payload, commandCts.Token);
+            return;
+        }
 
+        using var client = _options.CreateMqttClient();
         try
         {
             await client.ConnectAsync(BuildClientOptions(details, _options), commandCts.Token);
@@ -481,6 +498,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 .WithCertificateValidationHandler(args => (options?.ValidateCertificate ?? BambuCertificateTrust.Validate)(args.Certificate))
                 .WithSslProtocols(System.Security.Authentication.SslProtocols.Tls12))
             .Build();
+
+    private string LiveKey(PrinterConnectionDetails details) => $"{details.IpAddress}:{_options.MqttPort}/{details.SerialNumber}";
 
     private static string ReportTopic(string serialNumber) => $"device/{serialNumber}/report";
 

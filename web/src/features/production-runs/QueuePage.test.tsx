@@ -483,7 +483,7 @@ describe('QueuePage', () => {
     ).toBeInTheDocument();
   });
 
-  it('says why a job is blocked right in its row, without the configuration sentence, and why its last attempt failed', async () => {
+  it('keeps a waiting job neutral with the reason on hover, and shows why its last attempt failed', async () => {
     stub((params) =>
       json({
         totalCount: params.get('view') === 'queue' ? 2 : 0,
@@ -511,12 +511,18 @@ describe('QueuePage', () => {
     const blocked = (await screen.findByText('Blocked part')).closest(
       '[role="row"]',
     ) as HTMLElement;
+    // Waiting is normal: a neutral link, the reason only on hover and in the dialog.
+    const matching = within(blocked).getByRole('button', {
+      name: 'Waiting for printer',
+    });
+    expect(matching).not.toHaveClass('text-destructive');
+    expect(matching).toHaveAttribute(
+      'title',
+      expect.stringContaining('Process profile'),
+    );
     expect(
-      within(blocked).getByText(
-        "Printer A: Process profile '0.20mm Standard @BBL X1C' is not in Bambu Studio 2.7.1. Select another profile, or pin the part to another slicer.",
-      ),
-    ).toBeInTheDocument();
-    expect(within(blocked).queryByText(/Configure in/)).not.toBeInTheDocument();
+      within(blocked).queryByText(/Process profile/),
+    ).not.toBeInTheDocument();
     const failed = screen
       .getByText('Failed part')
       .closest('[role="row"]') as HTMLElement;

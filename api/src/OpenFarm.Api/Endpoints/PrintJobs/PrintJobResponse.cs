@@ -32,6 +32,8 @@ public sealed class QueueJobRowResponse
     public int? TargetUnits { get; set; }
     public int? ProducedUnits { get; set; }
     public int? MissingUnits { get; set; }
+    /// <summary>The part's first plate preview as base64 PNG; null when the part has none.</summary>
+    public string? ThumbnailBase64 { get; set; }
     public int PlateQuantity { get; set; }
 
     public Guid? RunLineId { get; set; }
@@ -70,6 +72,7 @@ public sealed class QueueJobRowResponse
         TargetUnits = row.TargetUnits,
         ProducedUnits = row.ProducedUnits,
         MissingUnits = row.MissingUnits,
+        ThumbnailBase64 = row.ThumbnailBase64,
         RunLineId = row.RunLineId,
         DemandId = row.RunLineId,
         DemandMode = row.DemandMode,

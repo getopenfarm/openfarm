@@ -4,14 +4,10 @@ using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-public interface IObjectSkippingPolicy
-{
-    void EnsureVerified(PrinterConnectionDetails details, bool live);
-}
-
 public sealed class PrintObjectControlService(IPrintObjectManifestReader reader, IPartRepository parts,
     IPrintJobRepository jobs, IProductionDemandRepository transactions, ProductionRemoteControlResolver remote,
-    IPrinterConnectorFactory connectors, IObjectSkippingPolicy policy, ProductionRunCompletionService completion, IProductionEventPublisher publisher, IPrinterRepository printers)
+    IPrinterConnectorFactory connectors, ProductionRunCompletionService completion, IProductionEventPublisher publisher, IPrinterRepository printers,
+    IProductionDispatcher dispatcher)
 {
     public async Task<PrintObjectManifest> ReadPartAsync(Guid id, CancellationToken ct)
     {
@@ -43,12 +39,7 @@ public sealed class PrintObjectControlService(IPrintObjectManifestReader reader,
         if (printer is null) return execution with { CanSkipObjects = false };
         if (!MatchesExecution(job, printer))
             return execution with { CanSkipObjects = false, SkipUnavailableReason = "Waiting for the printer to identify this job's file." };
-        try
-        {
-            policy.EnsureVerified(new(printer.Brand, printer.ModelCode, printer.IpAddress, printer.SerialNumber, ""), true);
-            return execution with { CanSkipObjects = true };
-        }
-        catch (InvalidProductionDemandException ex) { return execution with { CanSkipObjects = false, SkipUnavailableReason = ex.Message }; }
+        return execution with { CanSkipObjects = true };
     }
 
     public async Task<PrintObjectExecution> ConfirmNotStartedAsync(Guid id, string artifactHash, CancellationToken ct)
@@ -59,9 +50,11 @@ public sealed class PrintObjectControlService(IPrintObjectManifestReader reader,
         if (!execution.StartRequested || job.DispatchedAtUtc is null || execution.ArtifactHash != artifactHash
             || printer?.Status != OpenFarm.Domain.Printers.PrinterStatus.Idle)
             throw new InvalidProductionDemandException("Only an unconfirmed start on an idle printer can be resolved this way.");
-        job.MarkCancelled();
+        // Not a user cancel: the send failed and the plate is a loss to requeue or write off, like any other failed send.
+        job.FailSend("Send failed: the operator confirmed the print did not start.", DateTimeOffset.UtcNow);
         await transactions.SaveAsync(ct);
         await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, ct);
+        dispatcher.RequestDispatchAttempt(printer.Id);
         return execution;
     }
 
@@ -94,7 +87,6 @@ public sealed class PrintObjectControlService(IPrintObjectManifestReader reader,
         await using var locked = await transactions.LockAsync(id, ct);
         var (job, printer, details) = await remote.ResolveAsync(id, [PrintJobStatus.Printing, PrintJobStatus.Paused], ct);
         if (printer is null || details is null) throw new InvalidProductionDemandException("Object skipping needs a live-integrated printer.");
-        policy.EnsureVerified(details, live: true);
         var execution = job.ObjectExecution ?? throw new InvalidProductionDemandException("This job has no verified object mapping.");
         if (!MatchesExecution(job, printer)) throw new InvalidProductionDemandException("The printer has not identified this job's execution file. Refresh its status before skipping objects.");
         if (execution.ArtifactHash is null || execution.ArtifactHash != artifactHash) throw new ProductionPlanConflictException();

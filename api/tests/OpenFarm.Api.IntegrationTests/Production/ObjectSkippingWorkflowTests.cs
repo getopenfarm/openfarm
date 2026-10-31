@@ -37,7 +37,7 @@ public class ObjectSkippingWorkflowTests(ProductionTestFactory factory) : Produc
     }
 
     [Fact]
-    public async Task OperatorCanResolveAnUnconfirmedStart_WithoutAutomaticallyResendingIt()
+    public async Task OperatorCanResolveAnUnconfirmedStart_AsAFailedSend_WithoutAutomaticallyResendingIt()
     {
         var client = await ClientAsync();
         var part = await MappedPartAsync(6);
@@ -54,7 +54,7 @@ public class ObjectSkippingWorkflowTests(ProductionTestFactory factory) : Produc
         }
         var response = await client.PostAsJsonAsync($"/api/v1/print-jobs/{source.Id}/confirm-not-started", new { artifactHash = "unconfirmed" });
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        (await JobsAsync(run.Id)).Single().Status.Should().Be(PrintJobStatus.Cancelled);
+        (await JobsAsync(run.Id)).Single().Status.Should().Be(PrintJobStatus.Failed, "cancel is only for a user cancel");
         var replacement = await client.PostAsJsonAsync($"/api/v1/print-jobs/{source.Id}/requeue", new { });
         replacement.StatusCode.Should().Be(HttpStatusCode.Created);
         (await replacement.Content.ReadFromJsonAsync<PrintJobResponse>())!.TargetUnits.Should().Be(4);

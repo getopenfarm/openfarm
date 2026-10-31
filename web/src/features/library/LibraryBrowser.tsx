@@ -8,9 +8,9 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { AssembliesTable } from '@/features/assemblies/components/AssembliesTable';
@@ -164,6 +164,11 @@ function LibraryBrowserContents({ library }: { library: LibraryKind }) {
                   <div className="flex flex-wrap items-center gap-2">
                     {addFolder}
                     <Button
+                      permission={
+                        library === 'parts'
+                          ? 'parts:create'
+                          : 'assemblies:create'
+                      }
                       ref={addRef}
                       disabled={blocked}
                       onClick={() => navigate(addLocation)}
@@ -230,6 +235,11 @@ function LibraryBrowserContents({ library }: { library: LibraryKind }) {
                     description={`Add a folder or ${entity} here, or use Move to to organize existing items.`}
                     action={
                       <Button
+                        permission={
+                          library === 'parts'
+                            ? 'parts:create'
+                            : 'assemblies:create'
+                        }
                         disabled={blocked}
                         onClick={() => navigate(addLocation)}
                       >

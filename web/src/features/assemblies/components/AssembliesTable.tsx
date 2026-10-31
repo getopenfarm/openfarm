@@ -26,12 +26,10 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { TabsContent } from '@/components/ui/tabs';
 import type { AssemblyLibraryRow } from '@/features/library/api';
 import { invalidateLibraryContents } from '@/features/library/api';
@@ -54,6 +52,7 @@ import {
   getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey,
   useOpenFarmApiEndpointsAssembliesDeleteAssemblyEndpoint,
 } from '@/lib/api/generated/assemblies/assemblies';
+import { useAllowed } from '@/lib/auth/AccessContext';
 import { libraryFieldIds } from '@/lib/preferences/libraryFields';
 import type { ViewMode } from '@/lib/preferences/types';
 import { usePreferences } from '@/lib/preferences/usePreferences';
@@ -178,6 +177,7 @@ function ActionsCell({ row }: CellContext<AssemblyLibraryRow, unknown>) {
     return <LibraryFolderActions folder={row.original.libraryFolder} />;
   return (
     <DataTableRowActions
+      permission="assemblies:delete|library:manage"
       label={row.original.name ?? 'assembly'}
       triggerRef={triggerRef}
       disabled={pending || !row.original.id}
@@ -190,6 +190,7 @@ function ActionsCell({ row }: CellContext<AssemblyLibraryRow, unknown>) {
           {row.getIsSelected() ? 'Deselect' : 'Select'}
         </DropdownMenuItem>
         <DropdownMenuItem
+          permission="library:manage"
           onSelect={() => {
             if (row.original.id) onMove([row.original.id], triggerRef.current);
           }}
@@ -198,6 +199,7 @@ function ActionsCell({ row }: CellContext<AssemblyLibraryRow, unknown>) {
           Move to
         </DropdownMenuItem>
         <DropdownMenuItem
+          permission="assemblies:delete"
           variant="destructive"
           onSelect={() => onRemove(row.original, triggerRef.current)}
         >
@@ -264,7 +266,11 @@ export function AssembliesTable({
   const moveTriggerRef = useRef<HTMLButtonElement | null>(null);
   const moveBulkRef = useRef<HTMLButtonElement>(null);
   const [moving, setMoving] = useState(false);
+  const canSelect = useAllowed('assemblies:delete|library:manage');
   const [selection, setSelection] = useState<RowSelectionState>({});
+  useEffect(() => {
+    if (!canSelect) setSelection({});
+  }, [canSelect]);
   const [targets, setTargets] = useState<RemovableAssembly[]>([]);
   const [bulk, setBulk] = useState(false);
   const [pending, setPending] = useState(false);
@@ -394,8 +400,8 @@ export function AssembliesTable({
           setLibraryFields('assemblies', view, updater)
         }
         viewOptionColumnIds={libraryFieldIds('assemblies', view)}
-        modifierSelection={!!libraryRows}
-        selectionDisabled={interactionPending}
+        modifierSelection={!!libraryRows && canSelect}
+        selectionDisabled={interactionPending || !canSelect}
         serverSorting={sorting}
         serverPagination={
           pagination
@@ -419,7 +425,11 @@ export function AssembliesTable({
                 )
             : undefined
         }
-        columns={tableColumns}
+        columns={
+          canSelect
+            ? tableColumns
+            : tableColumns.filter((column) => column.id !== 'select')
+        }
         rowContainer={libraryRows ? LibraryDragRow : undefined}
         data={libraryRows ?? assemblies}
         onRowClick={(assembly) => {
@@ -433,7 +443,7 @@ export function AssembliesTable({
         rowSelection={selection}
         onRowSelectionChange={setSelection}
         enableRowSelection={(row) =>
-          Boolean(row.original.id) && !row.original.libraryFolder
+          canSelect && Boolean(row.original.id) && !row.original.libraryFolder
         }
         toolbar={
           <>
@@ -451,6 +461,7 @@ export function AssembliesTable({
                 }}
               >
                 <Button
+                  permission="library:manage"
                   ref={moveBulkRef}
                   type="button"
                   variant="outline"
@@ -467,6 +478,7 @@ export function AssembliesTable({
                   Move to
                 </Button>
                 <Button
+                  permission="assemblies:delete"
                   ref={bulkTriggerRef}
                   type="button"
                   variant="destructive"

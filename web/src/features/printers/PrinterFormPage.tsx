@@ -8,9 +8,9 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -528,7 +528,11 @@ function AddPrinterForm({ prefill, onAdded }: AddPrinterFormProps) {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={adding || catalogUnavailable}>
+                  <Button
+                    permission="printers:register"
+                    type="submit"
+                    disabled={adding || catalogUnavailable}
+                  >
                     {adding && <Spinner data-icon="inline-start" />}
                     {adding ? 'Adding…' : 'Add printer'}
                   </Button>
@@ -988,7 +992,11 @@ function EditPrinterFormLoaded({
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={saveDisabled}>
+                  <Button
+                    permission="printers:edit-connection"
+                    type="submit"
+                    disabled={saveDisabled}
+                  >
                     {editMutation.isPending && (
                       <Spinner data-icon="inline-start" />
                     )}

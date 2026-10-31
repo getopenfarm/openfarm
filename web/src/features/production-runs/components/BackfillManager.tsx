@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router';
@@ -7,8 +7,9 @@ import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -17,10 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -34,6 +32,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 
 import { invalidateProductionQueries } from '../hooks/useProductionHub';
 import {
@@ -113,6 +112,7 @@ export function BackfillManager() {
         >
           <DropdownMenuGroup>
             <DropdownMenuItem
+              permission="production-runs:edit"
               onSelect={() =>
                 change.mutate({
                   id: row.original.id,
@@ -141,6 +141,7 @@ export function BackfillManager() {
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
+              permission="production-runs:edit"
               variant="destructive"
               onSelect={() =>
                 setConfirm({ demand: row.original, action: 'Remove' })
@@ -179,6 +180,7 @@ export function BackfillManager() {
             </DialogDescription>
           </DialogHeader>
           <Button
+            permission="production-runs:edit"
             ref={addTrigger}
             variant="outline"
             onClick={() => setAdd(true)}
@@ -273,6 +275,7 @@ export function BackfillManager() {
               Cancel
             </Button>
             <Button
+              permission="production-runs:edit"
               disabled={
                 change.isPending ||
                 !Number.isSafeInteger(Number(cap)) ||
