@@ -107,11 +107,17 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     /// 1.3+, websocket only), whose <c>map_table</c> routes each of the file's tools to the head its spool is loaded in.
     /// A sliced project is unwrapped first: the U1 prints plain G-code, and its own 3MF handling expects Snapmaker's slicer.
     /// </summary>
-    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+        StartJobAsync(details, fileContent, jobName, plate, feedMapping, null, cancellationToken);
+
+    /// <inheritdoc cref="StartJobAsync(PrinterConnectionDetails, Stream, string, int, FilamentFeedMapping?, CancellationToken)"/>
+    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken)
     {
         var gcode = await PlateGCodeAsync(fileContent, plate, cancellationToken);
         var fileName = PrintFileName.ForUpload(jobName, ".gcode");
-        await UploadAsync(details, gcode, fileName, cancellationToken);
+        await UploadAsync(details, gcode, fileName, progress, cancellationToken);
+        progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
 
         var path = $"{UploadFolder}/{fileName}";
         // No mapping keeps the firmware's identity map (tool n on head n).
@@ -163,7 +169,7 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
         return gcode.ToArray();
     }
 
-    private async Task UploadAsync(PrinterConnectionDetails details, byte[] gcode, string fileName, CancellationToken cancellationToken)
+    private async Task UploadAsync(PrinterConnectionDetails details, byte[] gcode, string fileName, IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken)
     {
         using var form = new MultipartFormDataContent();
         // Arguments before the file, so they are read before the upload completes.
@@ -171,7 +177,7 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
         form.Add(new StringContent(UploadFolder), "path");
         // Moonraker compares this against its own digest and rejects a corrupted transfer.
         form.Add(new StringContent(Convert.ToHexStringLower(SHA256.HashData(gcode))), "checksum");
-        var file = new ByteArrayContent(gcode);
+        var file = new UploadContent(gcode, progress);
         file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         form.Add(file, "file", fileName);
 
@@ -446,4 +452,30 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Moonraker connection to {IpAddress} ended; reconnecting.")]
     private static partial void LogSessionFailed(ILogger logger, string ipAddress, Exception exception);
+
+    /// <summary>The file part of an upload, reporting the share of it written to the printer.</summary>
+    internal sealed class UploadContent(byte[] bytes, IProgress<PrintSendProgress>? progress) : HttpContent
+    {
+        private const int ChunkSize = 64 * 1024;
+
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+        {
+            for (var sent = 0; sent < bytes.Length;)
+            {
+                var count = Math.Min(ChunkSize, bytes.Length - sent);
+                await stream.WriteAsync(bytes.AsMemory(sent, count), cancellationToken);
+                sent += count;
+                progress?.Report(new PrintSendProgress(PrintSendStage.Uploading, (int)(100L * sent / bytes.Length)));
+            }
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            SerializeToStreamAsync(stream, context, CancellationToken.None);
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = bytes.Length;
+            return true;
+        }
+    }
 }

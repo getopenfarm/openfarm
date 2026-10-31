@@ -85,6 +85,15 @@ public interface IPrinterConnector
     Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken);
 
     /// <summary>
+    /// <see cref="StartJobAsync(PrinterConnectionDetails, Stream, string, int, FilamentFeedMapping?, CancellationToken)"/>, reporting
+    /// how far the send is (<see cref="PrintSendStage.Uploading"/> with a percent, then <see cref="PrintSendStage.Starting"/>).
+    /// A connector that cannot tell sends without reporting.
+    /// </summary>
+    Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken) =>
+        StartJobAsync(details, fileContent, jobName, plate, feedMapping, cancellationToken);
+
+    /// <summary>
     /// Requests the printer pause its current print. A request, not a status change — see
     /// <see cref="StartJobAsync"/>'s doc comment; the same "printer's own telemetry is the only
     /// writer" rule applies (spec Clarifications, 2026-08-07; research.md R12).

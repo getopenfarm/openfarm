@@ -32,6 +32,7 @@ import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/gene
 import { cn } from '@/lib/utils';
 import { ExternalPrintCells } from './components/ExternalPrintCells';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
+import { JobSendDetail, JobSendLabel } from './components/JobSendProgress';
 import {
   QueueJobActions,
   type RemoteAction,
@@ -517,16 +518,26 @@ export function QueuePage() {
                                       )}
                                       title={job.blockingReason ?? undefined}
                                     >
-                                      {job.isBlocked
-                                        ? 'No matching printer'
-                                        : job.status === 'Queued'
-                                          ? job.dispatchedPrinterId
-                                            ? 'Dispatching…'
-                                            : 'Matching printer available'
-                                          : 'Job diagnosis'}
+                                      {job.isBlocked ? (
+                                        'No matching printer'
+                                      ) : job.status === 'Queued' ? (
+                                        <JobSendLabel
+                                          jobId={job.jobId ?? ''}
+                                          fallback={
+                                            job.dispatchedPrinterId
+                                              ? 'Dispatching…'
+                                              : 'Matching printer available'
+                                          }
+                                        />
+                                      ) : (
+                                        'Job diagnosis'
+                                      )}
                                     </Button>
                                   }
                                 />
+                                {job.status === 'Queued' && (
+                                  <JobSendDetail jobId={job.jobId ?? ''} />
+                                )}
                                 {job.isBlocked && job.blockingReason ? (
                                   <span
                                     className="line-clamp-2 text-destructive text-xs"

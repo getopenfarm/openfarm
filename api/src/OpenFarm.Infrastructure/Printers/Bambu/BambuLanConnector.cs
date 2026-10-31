@@ -179,7 +179,12 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     /// real, open verification question for physical hardware (research.md R5's own documented risk),
     /// not settled here.
     /// </summary>
-    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+        StartJobAsync(details, fileContent, jobName, plate, feedMapping, null, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken)
     {
         using var buffered = new MemoryStream();
         await fileContent.CopyToAsync(buffered, cancellationToken);
@@ -192,8 +197,10 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
         var remoteFileName = PrintFileName.ForUpload(jobName);
         var remotePath = $"{FtpsCacheDirectory}/{remoteFileName}";
+        var uploadProgress = progress is null ? null
+            : new InlineProgress<FtpProgress>(p => progress.Report(new PrintSendProgress(PrintSendStage.Uploading, (int)Math.Clamp(p.Progress, 0, 100))));
         var uploadStatus = await (_options.UploadFileAsync ?? UploadFileAsync)(
-            details, project, remotePath, cancellationToken);
+            details, project, remotePath, uploadProgress, cancellationToken);
         if (uploadStatus != FtpStatus.Success)
         {
             throw new IOException($"Printer file upload did not succeed ({uploadStatus}).");
@@ -228,6 +235,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 ams_mapping2 = mapping?.Targets.Select(t => new { ams_id = t.AmsId, slot_id = t.SlotId }),
             },
         }, IgnoreNullOptions);
+        progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
         await PublishCommandAsync(details, payload, cancellationToken);
     }
 
@@ -258,22 +266,22 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     }
 
     private async Task<FtpStatus> UploadFileAsync(
-        PrinterConnectionDetails details, Stream content, string remotePath, CancellationToken cancellationToken)
+        PrinterConnectionDetails details, Stream content, string remotePath, IProgress<FtpProgress>? progress, CancellationToken cancellationToken)
     {
         await using var ftp = new AsyncFtpClient(details.IpAddress, MqttUsername, details.AccessCode, _options.FtpsPort);
         ftp.Config.EncryptionMode = FtpEncryptionMode.Implicit;
         // Preserve the existing FTPS trust behavior. MQTT and camera use bundled Bambu trust.
         ftp.Config.ValidateAnyCertificate = true;
         await ftp.AutoConnect(cancellationToken);
-        return await UploadNewFileAsync(ftp, content, remotePath, cancellationToken);
+        return await UploadNewFileAsync(ftp, content, remotePath, cancellationToken, progress);
     }
 
     internal static Task<FtpStatus> UploadNewFileAsync(
-        AsyncFtpClient ftp, Stream content, string remotePath, CancellationToken cancellationToken) =>
+        AsyncFtpClient ftp, Stream content, string remotePath, CancellationToken cancellationToken, IProgress<FtpProgress>? progress = null) =>
         // StartJobAsync generates a distinct timestamped path for every upload. An existence check is
         // unnecessary and may reject unrelated printer filenames (e.g. slicer names containing
         // "....") when FileExists falls back to NLST. NoCheck still sanitizes our destination.
-        ftp.UploadStream(content, remotePath, existsMode: FtpRemoteExists.NoCheck, token: cancellationToken);
+        ftp.UploadStream(content, remotePath, existsMode: FtpRemoteExists.NoCheck, progress: progress, token: cancellationToken);
 
     /// <inheritdoc />
     public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
