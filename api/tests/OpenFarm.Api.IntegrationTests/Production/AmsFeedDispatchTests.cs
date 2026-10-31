@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using OpenFarm.Api.Hubs;
 using OpenFarm.Application.Printers;
+using OpenFarm.Application.Production;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
@@ -16,6 +18,15 @@ namespace OpenFarm.Api.IntegrationTests.Production;
 public sealed class FeedMappingRecorder : IPrinterConnectorFactory
 {
     public ConcurrentQueue<(string SerialNumber, int Plate, FilamentFeedMapping? Mapping)> Started { get; } = [];
+
+    /// <summary>Every send tried, failed ones included, by printer serial number.</summary>
+    public ConcurrentQueue<string> SendAttempts { get; } = [];
+
+    /// <summary>Runs before each send is recorded, with the printer serial number; throwing fails that send, standing in for a printer that does not answer.</summary>
+    public Func<string, Task>? BeforeSend { get; set; }
+
+    /// <summary>The send progress dispatch pushed to the hub, per job.</summary>
+    public ConcurrentQueue<(Guid JobId, PrintSendStage Stage, int? Percent, int Attempt)> SendProgress { get; } = [];
 
     public IPrinterConnector CreateConnector(PrinterConnectionDetails details) => new Connector(this);
 
@@ -31,10 +42,18 @@ public sealed class FeedMappingRecorder : IPrinterConnectorFactory
             yield break;
         }
 
-        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+        public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+            StartJobAsync(details, fileContent, jobName, plate, feedMapping, null, cancellationToken);
+
+        public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+            IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken)
         {
+            owner.SendAttempts.Enqueue(details.SerialNumber);
+            progress?.Report(new PrintSendProgress(PrintSendStage.Uploading, 50));
+            if (owner.BeforeSend is { } beforeSend) await beforeSend(details.SerialNumber);
+            progress?.Report(new PrintSendProgress(PrintSendStage.Uploading, 100));
+            progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
             owner.Started.Enqueue((details.SerialNumber, plate, feedMapping));
-            return Task.CompletedTask;
         }
 
         public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -42,6 +61,27 @@ public sealed class FeedMappingRecorder : IPrinterConnectorFactory
         public Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+}
+
+/// <summary>The hub publisher, also noting send progress for the test to read.</summary>
+public sealed class SendProgressRecorder(IProductionEventPublisher inner, FeedMappingRecorder recorder) : IProductionEventPublisher
+{
+    public Task ProductionRunStatusChangedAsync(Guid productionRunId, ProductionRunStatus status, CancellationToken cancellationToken) =>
+        inner.ProductionRunStatusChangedAsync(productionRunId, status, cancellationToken);
+
+    public Task PrintJobStatusChangedAsync(Guid printJobId, PrintJobStatus status, CancellationToken cancellationToken) =>
+        inner.PrintJobStatusChangedAsync(printJobId, status, cancellationToken);
+
+    public Task PrintJobDispatchedAsync(Guid printJobId, Guid printerId, CancellationToken cancellationToken) =>
+        inner.PrintJobDispatchedAsync(printJobId, printerId, cancellationToken);
+
+    public Task NotificationsChangedAsync(CancellationToken cancellationToken) => inner.NotificationsChangedAsync(cancellationToken);
+
+    public Task PrintJobSendProgressAsync(Guid printJobId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken)
+    {
+        recorder.SendProgress.Enqueue((printJobId, stage, percent, attempt));
+        return inner.PrintJobSendProgressAsync(printJobId, stage, percent, attempt, failure, cancellationToken);
     }
 }
 
@@ -56,6 +96,9 @@ public sealed class AmsFeedFactory : ProductionTestFactory
         {
             services.RemoveAll<IPrinterConnectorFactory>();
             services.AddSingleton<IPrinterConnectorFactory>(Recorder);
+            services.RemoveAll<IProductionEventPublisher>();
+            services.AddScoped<IProductionEventPublisher>(sp =>
+                new SendProgressRecorder(ActivatorUtilities.CreateInstance<FarmHubProductionEventPublisher>(sp), Recorder));
         });
     }
 }
@@ -235,5 +278,107 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         var mapping = await DispatchedMappingAsync(printer, async () => (await RunAsync(client, part.Id, pinned: printer.Id)).Id);
 
         mapping!.Tools.Should().OnlyContain(slot => slot == null || !slot.Value.IsMultiMaterialUnit);
+    }
+
+    private async Task<PrintJob> WaitForJobAsync(Guid runId, Func<PrintJob, bool> settled)
+    {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        PrintJob job;
+        do
+        {
+            await Task.Delay(100);
+            job = (await JobsAsync(runId)).Single();
+        }
+        while (!settled(job) && timer.Elapsed < TimeSpan.FromSeconds(10));
+        return job;
+    }
+
+    private async Task<PrintJob> DispatchWithSendAsync(Guid runId, Func<string, Task> beforeSend, Func<PrintJob, bool> settled)
+    {
+        Recorder.BeforeSend = beforeSend;
+        using var worker = Worker();
+        await worker.StartAsync(default);
+        try { return await WaitForJobAsync(runId, settled); }
+        finally
+        {
+            await worker.StopAsync(default);
+            Recorder.BeforeSend = null;
+        }
+    }
+
+    private int SendAttemptsTo(Printer printer) => Recorder.SendAttempts.Count(serial => serial == printer.SerialNumber);
+
+    [Fact]
+    public async Task SendTimingOut_EveryAttempt_BlocksTheJobInsteadOfLeavingItInFlight()
+    {
+        // A printer that never answers the MQTT connect: the connector's own deadline cancels it, the host is still running.
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var printer = await PrinterAsync();
+        var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
+
+        var job = await DispatchWithSendAsync(runId, _ => throw new OperationCanceledException("MQTT connect canceled."),
+            j => j.LastBlockReason is not null);
+
+        job.DispatchedAtUtc.Should().BeNull();
+        job.PrinterId.Should().BeNull();
+        job.LastBlockReason.Should().Be("Send failed: MQTT connect canceled.");
+        SendAttemptsTo(printer).Should().Be(3);
+        Recorder.SendProgress.Where(p => p.JobId == job.Id).Select(p => p.Stage).Should()
+            .ContainInOrder(PrintSendStage.Slicing, PrintSendStage.Retrying, PrintSendStage.Retrying, PrintSendStage.Ended);
+    }
+
+    [Fact]
+    public async Task SendFailingOnce_IsRetriedInPlaceAndSent()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var printer = await PrinterAsync();
+        var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
+        var failures = 1;
+
+        var job = await DispatchWithSendAsync(runId,
+            serial => serial == printer.SerialNumber && failures-- > 0 ? throw new IOException("Upload connection failed") : Task.CompletedTask,
+            // The printer is assigned before the send; wait for the send itself.
+            j => Recorder.SendProgress.Any(p => p.JobId == j.Id && p.Stage == PrintSendStage.Sent));
+
+        job.PrinterId.Should().Be(printer.Id);
+        job.LastBlockReason.Should().BeNull();
+        SendAttemptsTo(printer).Should().Be(2);
+        SentTo(printer).Should().ContainSingle();
+        Recorder.SendProgress.Where(p => p.JobId == job.Id).Select(p => (p.Stage, p.Percent, p.Attempt)).Should().Equal(
+            (PrintSendStage.Slicing, null, 1),
+            (PrintSendStage.Uploading, 50, 1),
+            (PrintSendStage.Retrying, null, 2),
+            (PrintSendStage.Uploading, 50, 2),
+            (PrintSendStage.Uploading, 100, 2),
+            (PrintSendStage.Starting, null, 2),
+            (PrintSendStage.Sent, null, 1));
+    }
+
+    [Fact]
+    public async Task SendFailing_WhilePrinterStartsPrinting_IsNotSentAgain()
+    {
+        // The start command may have landed before the call failed: a printer that is now printing must not get it twice.
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var printer = await PrinterAsync();
+        var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
+
+        var job = await DispatchWithSendAsync(runId, async serial =>
+        {
+            if (serial != printer.SerialNumber) return;
+            using (var scope = Factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+                (await db.Printers.SingleAsync(p => p.Id == printer.Id)).ObserveStatus("RUNNING");
+                await db.SaveChangesAsync();
+            }
+
+            throw new IOException("Connection reset");
+        }, j => j.LastBlockReason is not null);
+
+        SendAttemptsTo(printer).Should().Be(1);
+        job.LastBlockReason.Should().Be("Send failed: Connection reset");
     }
 }

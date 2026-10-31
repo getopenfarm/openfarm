@@ -42,6 +42,7 @@ import { formatCost, formatGrams } from '@/lib/formatUnits';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
 import { JobObjectsCard } from './components/JobObjectsCard';
 import { JobRemoteControls } from './components/JobRemoteControls';
+import { JobSendAlert } from './components/JobSendProgress';
 import { RemoveJobButton } from './components/RemoveJobButton';
 import { useProductionHub } from './hooks/useProductionHub';
 
@@ -555,6 +556,7 @@ export function PrintJobDetailPage() {
               </AlertDescription>
             </Alert>
           )}
+          {!external && job.status === 'Queued' && <JobSendAlert jobId={id} />}
           {!external && job.status === 'Queued' && job.lastBlockReason && (
             <Alert variant="destructive" id="job-last-attempt">
               <AlertTitle>Last attempt failed</AlertTitle>

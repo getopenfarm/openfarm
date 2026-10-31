@@ -214,8 +214,9 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         await scope.ServiceProvider.GetRequiredService<IJobTelemetrySync>().ObserveAsync(printerId, state, unseenSinceUtc, default);
     }
 
+    // Failed sends are retried in place; tests do not wait the real pauses.
     protected ProductionDispatchBackgroundService Worker() => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),
-        Factory.Services.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>());
+        Factory.Services.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>(), [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50)]);
 
     protected async Task<PrintJob> WaitForAssignmentAsync(Guid runId, Guid? excludeJobId = null)
     {

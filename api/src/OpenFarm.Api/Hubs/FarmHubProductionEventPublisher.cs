@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
 using OpenFarm.Domain.Production;
 
@@ -33,6 +34,13 @@ public sealed class FarmHubProductionEventPublisher(IHubContext<FarmHub> hubCont
 
     public Task NotificationsChangedAsync(CancellationToken cancellationToken) =>
         Group.SendAsync("NotificationsChanged", cancellationToken);
+
+    public Task PrintJobSendProgressAsync(
+        Guid printJobId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken) =>
+        Group.SendAsync(
+            "PrintJobSendProgress",
+            new { printJobId, stage = stage.ToString(), percent, attempt, error = failure },
+            cancellationToken);
 
     private IClientProxy Group => hubContext.Clients.Group(FarmHub.Group);
 }

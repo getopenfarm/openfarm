@@ -41,10 +41,17 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ProductionDispatchBackgroundService> _logger;
 
-    public ProductionDispatchBackgroundService(IServiceScopeFactory scopeFactory, ILogger<ProductionDispatchBackgroundService> logger)
+    // A send that fails is tried again in place this many times, after these pauses, before the job is blocked and backs off.
+    private static readonly TimeSpan[] DefaultSendRetryDelays = [TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30)];
+    private readonly IReadOnlyList<TimeSpan> _sendRetryDelays;
+
+    /// <param name="sendRetryDelays">Test seam: the pauses between send attempts (one fewer than the attempts).</param>
+    public ProductionDispatchBackgroundService(IServiceScopeFactory scopeFactory, ILogger<ProductionDispatchBackgroundService> logger,
+        IReadOnlyList<TimeSpan>? sendRetryDelays = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _sendRetryDelays = sendRetryDelays ?? DefaultSendRetryDelays;
         _channel = Channel.CreateBounded<Guid>(new BoundedChannelOptions(100)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -391,10 +398,28 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
-        await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleMm, revisionMode, jobRepository, cancellationToken);
+        var sent = false;
+        try
+        {
+            sent = await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleMm, revisionMode, jobRepository, cancellationToken);
+        }
+        finally
+        {
+            // Whatever stopped this attempt, pages showing its progress go back to the job's own state.
+            if (!sent)
+            {
+                try
+                {
+                    await services.GetRequiredService<IProductionEventPublisher>()
+                        .PrintJobSendProgressAsync(job.Id, PrintSendStage.Ended, null, 1, null, CancellationToken.None);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { LogSendProgressFailed(_logger, job.Id, ex); }
+            }
+        }
     }
 
-    private async Task DispatchToLiveIntegratedPrinterAsync(
+    /// <returns>Whether the job was sent.</returns>
+    private async Task<bool> DispatchToLiveIntegratedPrinterAsync(
         IServiceProvider services, Printer printer, PrintJob job, Part part, decimal nozzleDiameterMm, RevisionMode revisionMode,
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
@@ -409,7 +434,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             LogNoConnectionSecret(_logger, printer.Id);
             await BlockAsync(job, $"Printer '{printer.Name}' has no saved access code. Enter the access code in the printer settings.", cancellationToken);
-            return;
+            return false;
         }
 
         // Follow-latest: re-read the Part's current revision immediately before send (research.md R6)
@@ -418,9 +443,9 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             ? await partRepository.GetByIdAsync(part.Id, cancellationToken) ?? part
             : part;
 
-        if (dispatchPart.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
+        if (dispatchPart.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return false;
         if (revisionMode == RevisionMode.FollowLatest && !job.HasFilamentRequirementOverride
-            && !ProductionJobRequirements.FromPart(dispatchPart).SequenceEqual(job.Filaments.Select(c => c.Requirement))) return;
+            && !ProductionJobRequirements.FromPart(dispatchPart).SequenceEqual(job.Filaments.Select(c => c.Requirement))) return false;
         if (revisionMode == RevisionMode.FollowLatest)
         {
             job.ResetUnsentBackfillSnapshot(dispatchPart);
@@ -441,6 +466,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         string configurationStamp;
         var profileReadiness = services.GetRequiredService<ProductionProfileReadiness>();
         var materialRequirements = job.Filaments.Select(c => c.Requirement).ToList();
+        var eventPublisher = services.GetRequiredService<IProductionEventPublisher>();
+        await eventPublisher.PrintJobSendProgressAsync(job.Id, PrintSendStage.Slicing, null, 1, null, cancellationToken);
         try
         {
             // One resolution produces both the file and the stamp of the exact configuration it was made for.
@@ -448,13 +475,13 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             configurationStamp = fileContent.ConfigurationStamp
                 ?? await profileReadiness.GetConfigurationStampAsync(printer.Id, job.GetProductionPart()!, materialRequirements, cancellationToken, job.FileRevisionHash, job);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             // Resolving/slicing the output failed before any dispatch was recorded — nothing was sent. The job stays
             // Queued/Unassigned, says why, and is tried again after a growing pause.
             LogFileResolutionFailed(_logger, job.Id, ex);
             await BlockAsync(job, Describe(ex), cancellationToken);
-            return;
+            return false;
         }
 
         // Slicing can take minutes: confirm fresh persisted inventory and nozzle state immediately before sending.
@@ -477,7 +504,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                     || !job.HasFilamentRequirementOverride && !ProductionJobRequirements.FromPart(currentPart).SequenceEqual(materialRequirements)))
             {
                 job.RevertDispatch();
-                return;
+                return false;
             }
 
             // The spools loaded right now are the ones this job draws from; deduction on the terminal transition uses them.
@@ -488,16 +515,16 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 // The printer, spools or presets changed while the file was being made: what was made is not what is current.
                 job.RevertDispatch();
                 await BlockAsync(job, "Printer settings changed during slicing. The job will be tried again.", cancellationToken);
-                return;
+                return false;
             }
 
             loadedSelections = fresh.Selections;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             LogFileResolutionFailed(_logger, job.Id, ex);
             await BlockAsync(job, Describe(ex), cancellationToken);
-            return;
+            return false;
         }
 
         var fileUsage = job.ObjectExecution is { } objectExecution
@@ -515,7 +542,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             var reason = FilamentShortfall.Of(loadedSelections[shortfall.Line], shortfall.Estimated, shortfall.Needed, shortfall.Available)
                 .Describe(printer.Name);
             await BlockAsync(job, reason, cancellationToken, lineUsage.Select(u => u.Grams).ToList());
-            return;
+            return false;
         }
         job.BindFilamentUsage(loadedSelections.Select((s, i) => ((Guid?)s.SpoolId, lineUsage[i].Grams,
             FilamentUsageCurve.FromExtrusion(fileUsage.Extrusion.Marks,
@@ -531,7 +558,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 job.RevertDispatch();
                 LogFeedMappingUnavailable(_logger, job.Id);
                 await BlockAsync(job, FeedMappingReason, cancellationToken);
-                return;
+                return false;
             }
 
             mappedLines.Add(new MappedLine(lineUsage[i].Tools, placement));
@@ -543,7 +570,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             job.RevertDispatch();
             LogFeedMappingUnavailable(_logger, job.Id);
             await BlockAsync(job, FeedMappingReason, cancellationToken);
-            return;
+            return false;
         }
 
         var details = new PrinterConnectionDetails(
@@ -562,50 +589,106 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         await jobRepository.SaveChangesAsync(cancellationToken);
 
-        try
+        var connector = connectorFactory.CreateConnector(details);
+        for (var attempt = 1; ; attempt++)
         {
-            var connector = connectorFactory.CreateConnector(details);
-            using var stream = new MemoryStream(fileContent.Bytes);
-            if (job.ObjectExecution is { } execution)
+            var progress = new SendProgressRelay(eventPublisher, job.Id, attempt);
+            try
             {
-                if (execution.PlannedExclusions.Count > 0)
-                    services.GetRequiredService<ObjectSkippingPolicy>().EnsureVerified(details, live: false);
-                var extension = fileContent.FileName.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase) ? ".gcode.3mf" : ".gcode";
-                var description = fileContent.FileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
-                    ? fileContent.FileName[..^extension.Length] : Path.GetFileNameWithoutExtension(fileContent.FileName);
-                // Keep the human description first and the correlation ID inside the upload stem's 100-character limit.
-                var artifactName = $"{description[..Math.Min(description.Length, 45)]}-{job.Id:N}{extension}";
-                var hash = ObjectExecutionArtifact.Hash(fileContent.Bytes);
-                using var retained = new MemoryStream(fileContent.Bytes);
-                var path = await services.GetRequiredService<IPartFileStorage>().SaveAsync(hash, artifactName, retained, cancellationToken);
-                job.RecordObjectExecution(execution with { ArtifactPath = path, ArtifactHash = hash, ArtifactName = artifactName, StartRequested = true });
-                await jobRepository.SaveChangesAsync(cancellationToken);
-                var exclusions = execution.Manifest.Dialect == "Bambu" ? execution.PlannedExclusions : [];
-                await connector.StartSelectedJobAsync(details, stream, artifactName, fileContent.Plate, feedMapping, exclusions, cancellationToken);
+                using var stream = new MemoryStream(fileContent.Bytes);
+                if (job.ObjectExecution is { } execution)
+                {
+                    if (execution.PlannedExclusions.Count > 0)
+                        services.GetRequiredService<ObjectSkippingPolicy>().EnsureVerified(details, live: false);
+                    var extension = fileContent.FileName.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase) ? ".gcode.3mf" : ".gcode";
+                    var description = fileContent.FileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
+                        ? fileContent.FileName[..^extension.Length] : Path.GetFileNameWithoutExtension(fileContent.FileName);
+                    // Keep the human description first and the correlation ID inside the upload stem's 100-character limit.
+                    var artifactName = $"{description[..Math.Min(description.Length, 45)]}-{job.Id:N}{extension}";
+                    var hash = ObjectExecutionArtifact.Hash(fileContent.Bytes);
+                    using var retained = new MemoryStream(fileContent.Bytes);
+                    var path = await services.GetRequiredService<IPartFileStorage>().SaveAsync(hash, artifactName, retained, cancellationToken);
+                    job.RecordObjectExecution(execution with { ArtifactPath = path, ArtifactHash = hash, ArtifactName = artifactName, StartRequested = true });
+                    await jobRepository.SaveChangesAsync(cancellationToken);
+                    var exclusions = execution.Manifest.Dialect == "Bambu" ? execution.PlannedExclusions : [];
+                    await connector.StartSelectedJobAsync(details, stream, artifactName, fileContent.Plate, feedMapping, exclusions, progress, cancellationToken);
+                }
+                else await connector.StartJobAsync(details, stream, fileContent.FileName, fileContent.Plate, feedMapping, progress, cancellationToken);
+                await progress.FlushAsync();
+                break;
             }
-            else await connector.StartJobAsync(details, stream, fileContent.FileName, fileContent.Plate, feedMapping, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // A lost start acknowledgement must not resend an exact-quantity plate, even after restart.
-            if (job.ObjectExecution is { StartRequested: true })
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
-                job.RecordBlock("Print start is unconfirmed. Check the printer before confirming that it did not start.", DateTimeOffset.UtcNow);
+                await progress.FlushAsync();
+                // A lost start acknowledgement must not resend an exact-quantity plate, even after restart.
+                if (job.ObjectExecution is { StartRequested: true })
+                {
+                    job.RecordBlock("Print start is unconfirmed. Check the printer before confirming that it did not start.", DateTimeOffset.UtcNow);
+                    await jobRepository.SaveChangesAsync(cancellationToken);
+                    await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
+                    LogStartJobFailed(_logger, job.Id, printer.Id, ex);
+                    return false;
+                }
+                // A blip (Wi-Fi, a busy broker) is retried here instead of costing a backoff and a new slice — but only while the
+                // printer is still idle: one that started meanwhile may have taken this very send, and it must not get it twice.
+                // ponytail: the pause holds the single dispatch loop (~40 s worst case), so other printers wait too; move retries
+                // onto a per-printer task if a farm ever feels it.
+                if (attempt <= _sendRetryDelays.Count)
+                {
+                    LogSendRetrying(_logger, job.Id, printer.Id, attempt, ex);
+                    await eventPublisher.PrintJobSendProgressAsync(job.Id, PrintSendStage.Retrying, null, attempt + 1, Truncate(ex.Message), cancellationToken);
+                    await Task.Delay(_sendRetryDelays[attempt - 1], cancellationToken);
+                    if (await IsStillIdleAsync(printer.Id, cancellationToken)) continue;
+                }
+
+                // The connector never confirmed the send — revert immediately rather than leaving this
+                // dispatch-in-flight until the next process restart's reconciliation pass.
+                job.RevertDispatch();
                 await jobRepository.SaveChangesAsync(cancellationToken);
-                await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
                 LogStartJobFailed(_logger, job.Id, printer.Id, ex);
-                return;
+                await BlockAsync(job, Truncate($"Send failed: {ex.Message}"), cancellationToken);
+                return false;
             }
-            job.RevertDispatch();
-            await jobRepository.SaveChangesAsync(cancellationToken);
-            LogStartJobFailed(_logger, job.Id, printer.Id, ex);
-            await BlockAsync(job, Truncate($"Send failed: {ex.Message}"), cancellationToken);
-            return;
         }
 
         job.ClearBlock();
         await jobRepository.SaveChangesAsync(cancellationToken);
         await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
+        await eventPublisher.PrintJobSendProgressAsync(job.Id, PrintSendStage.Sent, null, 1, null, cancellationToken);
+        return true;
+    }
+
+    private async Task<bool> IsStillIdleAsync(Guid printerId, CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var current = await scope.ServiceProvider.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, cancellationToken);
+        return current is { IsReachable: true, Status: PrinterStatus.Idle };
+    }
+
+    /// <summary>
+    /// Forwards a connector's send progress as hub events: on a stage change, or every 5 % of the upload. The connector reports
+    /// synchronously; the events are chained so they leave in order.
+    /// </summary>
+    private sealed class SendProgressRelay(IProductionEventPublisher publisher, Guid jobId, int attempt) : IProgress<PrintSendProgress>
+    {
+        private Task _sending = Task.CompletedTask;
+        private PrintSendProgress? _last;
+
+        public void Report(PrintSendProgress value)
+        {
+            if (_last is { } last && last.Stage == value.Stage && (value.Percent ?? 0) - (last.Percent ?? 0) < 5 && value.Percent != 100) return;
+            _last = value;
+            _sending = _sending.ContinueWith(
+                _ => publisher.PrintJobSendProgressAsync(jobId, value.Stage, value.Percent, attempt, null, CancellationToken.None),
+                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default).Unwrap();
+        }
+
+        // Live feedback only: a lost event must never fail the send.
+        public async Task FlushAsync()
+        {
+            try { await _sending; }
+            catch (Exception) { /* the next event or a page reload shows the state again */ }
+        }
     }
 
     private const string FeedMappingReason = "OpenFarm cannot map the filaments to the printer feed. Check the loaded spools.";
@@ -669,6 +752,12 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Job {JobId} not sent (failed attempt {Attempts}, next try in {Delay}): {Reason}")]
     private static partial void LogJobBlocked(ILogger logger, Guid jobId, int attempts, TimeSpan delay, string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not publish send progress for job {JobId}.")]
+    private static partial void LogSendProgressFailed(ILogger logger, Guid jobId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Sending job {JobId} to printer {PrinterId} failed (attempt {Attempt}); retrying.")]
+    private static partial void LogSendRetrying(ILogger logger, Guid jobId, Guid printerId, int attempt, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Sending job {JobId} to printer {PrinterId} failed — reverted to Queued/Unassigned.")]
     private static partial void LogStartJobFailed(ILogger logger, Guid jobId, Guid printerId, Exception exception);

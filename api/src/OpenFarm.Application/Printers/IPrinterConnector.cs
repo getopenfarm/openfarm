@@ -90,9 +90,23 @@ public interface IPrinterConnector
         excludedObjects.Count == 0 ? StartJobAsync(details, fileContent, jobName, plate, feedMapping, cancellationToken)
             : throw new NotSupportedException("This connector cannot exclude objects at print start.");
 
+    Task StartSelectedJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate,
+        FilamentFeedMapping? feedMapping, IReadOnlyList<string> excludedObjects, IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken) =>
+        excludedObjects.Count == 0 ? StartJobAsync(details, fileContent, jobName, plate, feedMapping, progress, cancellationToken)
+            : StartSelectedJobAsync(details, fileContent, jobName, plate, feedMapping, excludedObjects, cancellationToken);
+
     Task SkipObjectsAsync(PrinterConnectionDetails details, IReadOnlyList<string> objectIds, CancellationToken ct) =>
         throw new NotSupportedException("This connector cannot skip objects.");
 
+
+    /// <summary>
+    /// <see cref="StartJobAsync(PrinterConnectionDetails, Stream, string, int, FilamentFeedMapping?, CancellationToken)"/>, reporting
+    /// how far the send is (<see cref="PrintSendStage.Uploading"/> with a percent, then <see cref="PrintSendStage.Starting"/>).
+    /// A connector that cannot tell sends without reporting.
+    /// </summary>
+    Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken) =>
+        StartJobAsync(details, fileContent, jobName, plate, feedMapping, cancellationToken);
 
     /// <summary>
     /// Requests the printer pause its current print. A request, not a status change — see
