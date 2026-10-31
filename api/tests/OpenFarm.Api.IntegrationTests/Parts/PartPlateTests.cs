@@ -108,7 +108,9 @@ public class PartPlateTests(EmptySlicerBundleWebApplicationFactory factory) : IC
                 """));
         var name = $"Kit {Guid.NewGuid():N}";
         var submitted = await SubmitAsync(client, "/api/v1/parts", "kit.gcode.3mf", file);
-        await WaitAsync(client, submitted.JobId);
+        var ready = await WaitAsync(client, submitted.JobId);
+        ready.Preview!.UnitsPerPrint.Should().BeNull("each plate has a different count");
+        ready.Preview.Plates.Select(p => p.UnitsPerPrint).Should().Equal(2, 1);
 
         var confirm = await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{submitted.JobId}/confirm",
             new ConfirmPartProcessingJobRequest { Name = name, PlateNumbers = [1, 2] });

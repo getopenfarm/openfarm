@@ -141,6 +141,12 @@ export function PartProcessingReviewSection({
             </p>
           )}
         </div>
+        {shown && (
+          <div>
+            <p className="text-muted-foreground">Units per print</p>
+            <p className="font-medium">{shown.unitsPerPrint ?? 'Unknown'}</p>
+          </div>
+        )}
       </div>
 
       {(preview.processingWarnings ?? []).length > 0 && (
@@ -245,6 +251,16 @@ function PlateName({ plate }: { plate: PlateResponse }) {
   );
 }
 
+function PlateUnits({ plate }: { plate: PlateResponse }) {
+  return (
+    <span className="text-xs text-muted-foreground">
+      {plate.unitsPerPrint != null
+        ? `${plate.unitsPerPrint} ${plate.unitsPerPrint === 1 ? 'unit' : 'units'} per print`
+        : 'Units unknown'}
+    </span>
+  );
+}
+
 function PlateThumb({
   thumbnail,
   className,
@@ -309,6 +325,7 @@ function PlatePicker({
           >
             <PlateThumb thumbnail={thumbnailOf(plate)} />
             <PlateName plate={plate} />
+            <PlateUnits plate={plate} />
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
@@ -353,6 +370,7 @@ function PlatePicker({
                   />
                   <PlateName plate={plate} />
                 </span>
+                <PlateUnits plate={plate} />
               </Field>
             </FieldLabel>
           );

@@ -29,9 +29,15 @@ public sealed class QueueJobRowResponse
 
     public string PartName { get; set; } = string.Empty;
 
+    public int? TargetUnits { get; set; }
+    public int? ProducedUnits { get; set; }
+    public int? MissingUnits { get; set; }
     public int PlateQuantity { get; set; }
 
     public Guid? RunLineId { get; set; }
+    public Guid? DemandId { get; set; }
+    public string? DemandMode { get; set; }
+    public bool CanRequeue { get; set; }
 
     public Guid? ProductionRunId { get; set; }
 
@@ -61,7 +67,13 @@ public sealed class QueueJobRowResponse
         PartId = row.PartId,
         PartName = row.PartName,
         PlateQuantity = row.PlateQuantity,
+        TargetUnits = row.TargetUnits,
+        ProducedUnits = row.ProducedUnits,
+        MissingUnits = row.MissingUnits,
         RunLineId = row.RunLineId,
+        DemandId = row.RunLineId,
+        DemandMode = row.DemandMode,
+        CanRequeue = row.CanRequeue,
         ProductionRunId = row.ProductionRunId,
         RunDisplayLabel = row.RunDisplayLabel,
         Source = row.Source.ToString(),
@@ -116,12 +128,16 @@ public sealed class JobFilamentConsumptionResponse
 
 public sealed class PrintJobResponse
 {
+    public bool CanResolveShortfall { get; set; }
     public Guid Id { get; set; }
 
     public Guid? PartRequirementId { get; set; }
 
     public double? QueuePosition { get; set; }
 
+    public int? TargetUnits { get; set; }
+    public int? ProducedUnits { get; set; }
+    public int? MissingUnits { get; set; }
     public int? PlateQuantity { get; set; }
 
     public string? AssignmentMode { get; set; }
@@ -176,6 +192,10 @@ public sealed class PrintJobResponse
         PartRequirementId = detail.PartRequirementId,
         QueuePosition = detail.QueuePosition,
         PlateQuantity = detail.PlateQuantity,
+        TargetUnits = detail.TargetUnits,
+        ProducedUnits = detail.ProducedUnits,
+        MissingUnits = detail.MissingUnits,
+        CanResolveShortfall = detail.CanResolveShortfall,
         AssignmentMode = detail.AssignmentMode?.ToString(),
         PinnedPrinterId = detail.PinnedPrinterId,
         DispatchedPrinterId = detail.DispatchedPrinterId,

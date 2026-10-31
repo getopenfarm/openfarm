@@ -4,10 +4,13 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Api.Hubs;
 
-public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext) : IPartEventPublisher
+public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext, IPartFileStorage? fileStorage = null) : IPartEventPublisher
 {
-    public Task PartProcessingJobStatusChangedAsync(PartProcessingJob job, CancellationToken cancellationToken) =>
-        Group.SendAsync(
+    public async Task PartProcessingJobStatusChangedAsync(PartProcessingJob job, CancellationToken cancellationToken)
+    {
+        var quantities = job.Status == PartProcessingJobStatus.ReadyForReview
+            ? await PartProcessingQuantity.ReadAsync(job, fileStorage, cancellationToken) : null;
+        await Group.SendAsync(
             "PartProcessingJobStatusChanged",
             new
             {
@@ -15,9 +18,10 @@ public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext) :
                 status = job.Status.ToString(),
                 partId = job.PartId,
                 errorMessage = job.ErrorMessage,
-                preview = job.Status == PartProcessingJobStatus.ReadyForReview ? BuildPreview(job) : null,
+                preview = quantities is not null ? BuildPreview(job, quantities) : null,
             },
             cancellationToken);
+    }
 
     public Task PartUpsertedAsync(Guid partId, CancellationToken cancellationToken) =>
         Group.SendAsync("PartUpserted", new { partId }, cancellationToken);
@@ -31,8 +35,9 @@ public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext) :
     public Task PartDeletedAsync(Guid partId, CancellationToken cancellationToken) =>
         Group.SendAsync("PartDeleted", new { partId }, cancellationToken);
 
-    private static object BuildPreview(PartProcessingJob job) => new
+    private static object BuildPreview(PartProcessingJob job, PartProcessingQuantity quantities) => new
     {
+        unitsPerPrint = quantities.UnitsPerPrint,
         nozzleDiameterMm = job.PreviewNozzleDiameterMm,
         filamentRequirements = job.PreviewFilamentRequirements.Select(Requirement),
         estimateStatus = job.PreviewEstimateStatus.ToString(),
@@ -40,6 +45,7 @@ public sealed class FarmHubPartEventPublisher(IHubContext<FarmHub> hubContext) :
         estimatedFilamentWeightGrams = job.PreviewEstimatedFilamentWeightGrams,
         plates = job.PreviewPlates.Select(p => new
         {
+            unitsPerPrint = quantities.Plates.GetValueOrDefault(p.Number),
             number = p.Number,
             name = p.Name,
             estimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,

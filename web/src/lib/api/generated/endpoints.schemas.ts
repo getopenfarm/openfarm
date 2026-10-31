@@ -839,6 +839,13 @@ export interface PlateCountsResponse {
 }
 
 export interface RunJobSummaryResponse {
+  /** @nullable */
+  targetUnits?: number | null;
+  /** @nullable */
+  producedUnits?: number | null;
+  /** @nullable */
+  missingUnits?: number | null;
+  outputVerified?: boolean;
   id?: string;
   status?: string;
   /** @nullable */
@@ -877,6 +884,7 @@ export interface PartRequirementSummaryResponse {
 }
 
 export interface RunLineSummaryResponse {
+  quantityBasis?: string;
   id?: string;
   targetKind?: string;
   targetId?: string;
@@ -926,6 +934,10 @@ export interface CreateRunLineRequest {
    */
   quantity?: number | null;
   /** @nullable */
+  planVersion?: string | null;
+  /** @nullable */
+  quantityBasis?: string | null;
+  /** @nullable */
   revisionMode?: string | null;
   assignmentMode?: string;
   /** @nullable */
@@ -940,6 +952,8 @@ export interface CreateRunLineRequest {
 }
 
 export interface CreateProductionRunRequest {
+  /** @nullable */
+  submissionId?: string | null;
   /** @nullable */
   name?: string | null;
   /** @nullable */
@@ -983,6 +997,95 @@ export interface ListProductionRunsResponse {
 
 export interface ListProductionRunsRequest {
   [key: string]: unknown;
+}
+
+export interface ProductionPlanPart {
+  partId?: string;
+  name?: string;
+  requiredUnits?: number;
+  unitsPerPlate?: number;
+  plates?: number;
+  plannedUnits?: number;
+  surplusUnits?: number;
+  /** @nullable */
+  minutes?: number | null;
+  /** @nullable */
+  grams?: number | null;
+  revision?: string;
+  updatedAtUtc?: string;
+  /** @nullable */
+  jobUnits?: number[] | null;
+  /** @nullable */
+  objectMappingVersion?: string | null;
+}
+
+export interface ProductionPlan {
+  version?: string;
+  parts?: ProductionPlanPart[];
+  plates?: number;
+  /** @nullable */
+  completeSets?: number | null;
+  /** @nullable */
+  minutes?: number | null;
+  /** @nullable */
+  grams?: number | null;
+}
+
+/**
+ * @nullable
+ */
+export type PreviewProductionPlanRequestPlateOverrides = {
+  [key: string]: number;
+} | null;
+
+export interface PreviewProductionPlanRequest {
+  line?: CreateRunLineRequest;
+  /** @nullable */
+  plateOverrides?: PreviewProductionPlanRequestPlateOverrides;
+}
+
+export interface ProductionDemandResponse {
+  id?: string;
+  /** @nullable */
+  productionRunId?: string | null;
+  name?: string;
+  mode?: string;
+  state?: string;
+  printerCap?: number;
+  /** @nullable */
+  pinnedPrinterId?: string | null;
+  targetKind?: string;
+  targetId?: string;
+}
+
+/**
+ * @nullable
+ */
+export type SubmitProductionDemandRequestPlateOverrides = {
+  [key: string]: number;
+} | null;
+
+export interface SubmitProductionDemandRequest {
+  /** @minLength 1 */
+  submissionId: string;
+  line?: CreateRunLineRequest;
+  /** @nullable */
+  planVersion?: string | null;
+  /** @nullable */
+  productionRunId?: string | null;
+  createRun?: boolean;
+  /** @nullable */
+  newRunName?: string | null;
+  /** @nullable */
+  plateOverrides?: SubmitProductionDemandRequestPlateOverrides;
+}
+
+export interface ChangeBackfillRequest {
+  action?: string;
+  /** @nullable */
+  printerCap?: number | null;
+  /** @nullable */
+  pinnedPrinterId?: string | null;
 }
 
 export interface AddRunLinesRequest {
@@ -1075,11 +1178,18 @@ export interface DispatchProvenanceResponse {
 }
 
 export interface PrintJobResponse {
+  canResolveShortfall?: boolean;
   id?: string;
   /** @nullable */
   partRequirementId?: string | null;
   /** @nullable */
   queuePosition?: number | null;
+  /** @nullable */
+  targetUnits?: number | null;
+  /** @nullable */
+  producedUnits?: number | null;
+  /** @nullable */
+  missingUnits?: number | null;
   /** @nullable */
   plateQuantity?: number | null;
   /** @nullable */
@@ -1206,9 +1316,20 @@ export interface QueueJobRowResponse {
   /** @nullable */
   partId?: string | null;
   partName?: string;
+  /** @nullable */
+  targetUnits?: number | null;
+  /** @nullable */
+  producedUnits?: number | null;
+  /** @nullable */
+  missingUnits?: number | null;
   plateQuantity?: number;
   /** @nullable */
   runLineId?: string | null;
+  /** @nullable */
+  demandId?: string | null;
+  /** @nullable */
+  demandMode?: string | null;
+  canRequeue?: boolean;
   /** @nullable */
   productionRunId?: string | null;
   runDisplayLabel?: string;
@@ -1240,6 +1361,102 @@ export interface PausePrintJobRequest {
 export interface PinPrintJobRequest {
   /** @nullable */
   printerId?: string | null;
+}
+
+export interface PrintObject {
+  id?: string;
+  name?: string;
+  /** @nullable */
+  polygon?: number[][] | null;
+}
+
+export interface PrintUnit {
+  id?: string;
+  objectIds?: string[];
+}
+
+export interface PrintObjectManifest {
+  revisionHash?: string;
+  plate?: number;
+  dialect?: string;
+  objects?: PrintObject[];
+  units?: PrintUnit[];
+  /** @nullable */
+  detectedCount?: number | null;
+  /** @nullable */
+  countSource?: string | null;
+  /** @nullable */
+  skipUnavailableReason?: string | null;
+}
+
+export interface PartObjectsRequest {
+  [key: string]: unknown;
+}
+
+export interface SetPartObjectGroupsRequest {
+  /** @minLength 1 */
+  revisionHash: string;
+  /** @minLength 1 */
+  units: PrintUnit[];
+}
+
+export interface ProgressMark {
+  layer?: number;
+  percent?: number;
+}
+
+/**
+ * @nullable
+ */
+export type PrintObjectExecutionExcludedAt = {
+  [key: string]: ProgressMark;
+} | null;
+
+export interface PrintObjectExecution {
+  manifest?: PrintObjectManifest;
+  selectedUnitIds?: string[];
+  requestedObjectIds?: string[];
+  confirmedObjectIds?: string[];
+  observed?: boolean;
+  /** @nullable */
+  artifactPath?: string | null;
+  /** @nullable */
+  artifactHash?: string | null;
+  /** @nullable */
+  artifactName?: string | null;
+  /** @nullable */
+  requestError?: string | null;
+  /** @nullable */
+  excludedAt?: PrintObjectExecutionExcludedAt;
+  startRequested?: boolean;
+  /** @nullable */
+  canSkipObjects?: boolean | null;
+  /** @nullable */
+  skipUnavailableReason?: string | null;
+  plannedExclusions?: string[];
+  goodUnits?: number;
+}
+
+export interface JobObjectsRequest {
+  [key: string]: unknown;
+}
+
+export interface SkipJobObjectsRequest {
+  /** @minLength 1 */
+  artifactHash: string;
+  /** @minLength 1 */
+  unitIds: string[];
+}
+
+export interface ConfirmObjectOutputRequest {
+  /** @minLength 1 */
+  artifactHash: string;
+  producedUnitIds: string[];
+}
+
+export interface ConfirmPrintNotStartedRequest {
+  /** @minLength 1 */
+  artifactHash: string;
 }
 
 export interface ReorderPrintJobResponse {
@@ -1646,6 +1863,11 @@ export interface PartResponse {
   /** @nullable */
   plateName?: string | null;
   unitsPerPrint?: number;
+  /** @nullable */
+  detectedUnitsPerPrint?: number | null;
+  /** @nullable */
+  quantityDetectionSource?: string | null;
+  quantityNeedsReprocessing?: boolean;
   thumbnails?: ThumbnailResponse[];
   tags?: string[];
 }
@@ -1778,6 +2000,8 @@ export interface PreviewFilamentRequirementResponse {
 }
 
 export interface PlateResponse {
+  /** @nullable */
+  unitsPerPrint?: number | null;
   number?: number;
   /** @nullable */
   name?: string | null;
@@ -1789,6 +2013,8 @@ export interface PlateResponse {
 }
 
 export interface PartProcessingJobPreviewResponse {
+  /** @nullable */
+  unitsPerPrint?: number | null;
   /** @nullable */
   nozzleDiameterMm?: number | null;
   filamentRequirements?: PreviewFilamentRequirementResponse[];

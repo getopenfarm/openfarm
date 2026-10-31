@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
+import { productionPlanFixture } from '@/test-utils/productionPlan';
 import { NewProductionRunPage } from './NewProductionRunPage';
 
 vi.mock('./hooks/useProductionHub', () => ({
@@ -27,6 +28,21 @@ it('builds a run from picked parts, with a live summary, in one POST', async () 
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
+      if (url.includes('/production-demands/preview')) {
+        const { line } = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify(
+            productionPlanFixture(
+              line.quantity ?? 1,
+              line.quantityBasis ?? 'Units',
+              4,
+              2,
+              90,
+            ),
+          ),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
       if (init?.method === 'POST') {
         posts.push(JSON.parse(String(init.body)));
         return new Response(JSON.stringify({ id: 'run-1' }), { status: 201 });
@@ -68,8 +84,10 @@ it('builds a run from picked parts, with a live summary, in one POST', async () 
   );
   await user.click(await screen.findByRole('option', { name: /Bracket/ }));
 
-  const units = await screen.findByLabelText('Units');
-  expect(units).toHaveValue(4);
+  const plates = await screen.findByLabelText('Plates');
+  expect(plates).toHaveValue(1);
+  await user.click(screen.getByRole('radio', { name: 'Unit target' }));
+  const units = await screen.findByLabelText('Unit target');
   await user.clear(units);
   await user.type(units, '10');
   const summary = within(
@@ -87,6 +105,7 @@ it('builds a run from picked parts, with a live summary, in one POST', async () 
   expect(await screen.findByText('Run page')).toBeInTheDocument();
   expect(posts).toEqual([
     {
+      submissionId: expect.any(String),
       name: 'Order #1042',
       dueDate: null,
       notes: null,
@@ -95,6 +114,8 @@ it('builds a run from picked parts, with a live summary, in one POST', async () 
           targetKind: 'Part',
           targetId: 'part-1',
           quantity: 10,
+          quantityBasis: 'Units',
+          planVersion: 'plan-Units-10',
           assignmentMode: 'Pinned',
           pinnedPrinterId: 'p1',
         },

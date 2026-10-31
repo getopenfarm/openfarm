@@ -124,6 +124,14 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
             throw new IOException($"The printer did not start the print: {result?["message"]?.ToString() ?? "no answer"}");
     }
 
+    public async Task SkipObjectsAsync(PrinterConnectionDetails details, IReadOnlyList<string> objectIds, CancellationToken ct)
+    {
+        if (objectIds.Any(id => id.Length == 0 || id.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '_' and not '.' and not '-')))
+            throw new InvalidOperationException("Invalid object name.");
+        await using var socket = await MoonrakerSocket.ConnectAsync(BaseUri(details), details.AccessCode, _options, ct);
+        await socket.CallAsync("printer.gcode.script", new { script = string.Join("\n", objectIds.Select(id => "EXCLUDE_OBJECT NAME=" + id)) }, _options.RequestTimeout, ct);
+    }
+
     public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
         PostAsync(details, "/printer/print/pause", cancellationToken);
 

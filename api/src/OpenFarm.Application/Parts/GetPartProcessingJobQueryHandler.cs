@@ -3,7 +3,8 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
 
-public sealed class GetPartProcessingJobQueryHandler(IPartProcessingJobRepository jobRepository, IPartRepository? partRepository = null)
+public sealed class GetPartProcessingJobQueryHandler(IPartProcessingJobRepository jobRepository, IPartRepository? partRepository = null,
+    IPartFileStorage? fileStorage = null)
     : IQueryHandler<GetPartProcessingJobQuery, PartProcessingJobDetail?>
 {
     public async Task<PartProcessingJobDetail?> HandleAsync(GetPartProcessingJobQuery query, CancellationToken cancellationToken)
@@ -25,6 +26,7 @@ public sealed class GetPartProcessingJobQueryHandler(IPartProcessingJobRepositor
                 && !job.PreviewFilamentRequirements.Any(p => p.MaterialType == r.MaterialType && p.DetectedColorHex == r.DetectedColorHex && p.DetectedSubBrand == r.DetectedSubBrand)) == true)
                 warnings.Add("Some previous filament selections no longer match the extracted requirements and will be cleared when you save.");
         }
+        var quantities = showPreview ? await PartProcessingQuantity.ReadAsync(job, fileStorage, cancellationToken) : null;
         var preview = showPreview
             ? new PartProcessingJobPreviewDetail(
                 job.PreviewNozzleDiameterMm,
@@ -33,9 +35,9 @@ public sealed class GetPartProcessingJobQueryHandler(IPartProcessingJobRepositor
                 job.PreviewEstimatedPrintTimeMinutes,
                 job.PreviewEstimatedFilamentWeightGrams,
                 job.PreviewPlates.Select(p => new PlateView(p.Number, p.Name, p.EstimatedPrintTimeMinutes, p.EstimatedFilamentWeightGrams,
-                    job.PlateRequirements(p))).ToList(),
+                    job.PlateRequirements(p), quantities!.Plates.GetValueOrDefault(p.Number))).ToList(),
                 job.PreviewThumbnails.Select(t => new ThumbnailView(t.PlateIndex, Convert.ToBase64String(t.Bytes))).ToList(),
-                job.PrintRequirementsStatus.ToString(), warnings, job.EstimateUnavailableReason, job.Estimation)
+                job.PrintRequirementsStatus.ToString(), warnings, job.EstimateUnavailableReason, job.Estimation, quantities!.UnitsPerPrint)
             : null;
 
         var slicer = job.SlicerEngineUsed is { } engine && job.SlicerVersionUsed is { } version

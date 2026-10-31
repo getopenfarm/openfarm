@@ -81,7 +81,7 @@ public class ProductionSnapshotTests
     public void Quantity_RejectsConflictingRevisionModes(int? quantity, RevisionMode mode)
     {
         var act = () => ProductionRun.Create(null, null, null,
-            [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), quantity, mode, AssignmentMode.Unassigned, null, 1, null)]);
+            [new ProductionDemandSpec(RunLineTargetKind.Part, Guid.NewGuid(), quantity, mode, AssignmentMode.Unassigned, null, 1, null)]);
         act.Should().Throw<InvalidRevisionModeException>();
     }
     [Theory]

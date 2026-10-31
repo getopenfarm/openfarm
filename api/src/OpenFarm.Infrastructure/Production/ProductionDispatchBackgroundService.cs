@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Threading.Channels;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
@@ -111,6 +112,11 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var inFlight = await jobRepository.ListDispatchInFlightAsync(stoppingToken);
         foreach (var job in inFlight)
         {
+            if (job.ObjectExecution is { StartRequested: true })
+            {
+                job.RecordBlock("Print start is unconfirmed. Check the printer before confirming that it did not start.", DateTimeOffset.UtcNow);
+                continue;
+            }
             job.RevertDispatch();
             LogDispatchReverted(_logger, job.Id);
         }
@@ -215,10 +221,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
-        var runRepository = services.GetRequiredService<IProductionRunRepository>();
-        var run = await runRepository.GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
-        var runLine = run?.Lines.FirstOrDefault(l => l.Id == requirement.RunLineId);
-        if (runLine is null)
+        var runLine = await services.GetRequiredService<IProductionDemandRepository>().GetAsync(requirement.RunLineId, cancellationToken);
+        if (runLine is null || !await queryService.CanDispatchDemandAsync(runLine.Id, cancellationToken))
         {
             LogMissingDispatchTarget(_logger, job.Id);
             return;
@@ -264,6 +268,18 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         IReadOnlyList<(string? MaterialType, string? ColorHex, decimal? NozzleMm)> loadedMaterials, ProductionDispatchQueryService queryService,
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
+        var retries = await queryService.FilterReadyAsync(printer.Id,
+            await queryService.GetBackfillRetryCandidatesAsync(printer.Id, cancellationToken), cancellationToken);
+        var retryId = ProductionDispatchMatcher.SelectNextJob(nozzlesMm, loadedMaterials, retries);
+        if (retryId is { } waitingId)
+        {
+            var waiting = await jobRepository.GetByIdAsync(waitingId, cancellationToken);
+            if (waiting is null) return;
+            var req = await services.GetRequiredService<IPartRequirementRepository>().GetByIdAsync(waiting.PartRequirementId, cancellationToken);
+            var current = req is null ? null : await services.GetRequiredService<IPartRepository>().GetByIdAsync(req.PartId, cancellationToken);
+            if (current is not null) await DispatchJobAsync(services, printer, waiting, current, RevisionMode.FollowLatest, jobRepository, cancellationToken);
+            return;
+        }
         var backfillCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id);
         var readyBackfill = new List<BackfillLineCandidate>();
         foreach (var candidate in backfillCandidates)
@@ -279,10 +295,10 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
+        var db = services.GetRequiredService<OpenFarm.Infrastructure.Persistence.OpenFarmDbContext>();
+        await using var claim = await db.Database.BeginTransactionAsync(cancellationToken);
         var requirementRepository = services.GetRequiredService<IPartRequirementRepository>();
         var partRepository = services.GetRequiredService<IPartRepository>();
-        var runRepository = services.GetRequiredService<IProductionRunRepository>();
-
         var requirement = await requirementRepository.GetByIdAsync(requirementId.Value, cancellationToken);
         var part = requirement is null ? null : await partRepository.GetByIdAsync(requirement.PartId, cancellationToken);
         if (requirement is null || part is null || part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete)
@@ -290,13 +306,17 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
-        var run = await runRepository.GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
-        var runLine = run?.Lines.FirstOrDefault(l => l.Id == requirement.RunLineId);
-        if (runLine is null)
+        var runLine = await services.GetRequiredService<IProductionDemandRepository>().GetAsync(requirement.RunLineId, cancellationToken);
+        if (runLine is null || !await queryService.CanDispatchDemandAsync(runLine.Id, cancellationToken))
         {
             return;
         }
 
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM \"RunLines\" WHERE \"Id\" = {runLine.Id} FOR UPDATE", cancellationToken);
+        await db.Entry(runLine).ReloadAsync(cancellationToken);
+        if (!await queryService.CanDispatchDemandAsync(runLine.Id, cancellationToken)) return;
+        var freshCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id);
+        if (!freshCandidates.Any(c => c.PartRequirementId == requirement.Id && c.CurrentOccupancy < c.BackfillPrinterCap)) return;
         var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(cancellationToken) ?? 0) + 1024;
         var filamentSpecs = part.FilamentRequirements
             .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId))
@@ -309,6 +329,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         await services.GetRequiredService<ProductionSnapshotFactory>().CaptureAsync(newJob, part, cancellationToken);
         await jobRepository.AddAsync(newJob, cancellationToken);
         await jobRepository.SaveChangesAsync(cancellationToken);
+        await claim.CommitAsync(cancellationToken);
 
         await DispatchJobAsync(services, printer, newJob, part, runLine.RevisionMode, jobRepository, cancellationToken);
     }
@@ -319,6 +340,17 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     {
         if (part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
         var effective = await services.GetRequiredService<ProductionJobRequirements>().ResolveAsync(job, part, cancellationToken);
+        var quantityStorage = services.GetRequiredService<IPartFileStorage>();
+        var quantityPath = effective.RevisionHash == part.RevisionHash ? part.StoragePath
+            : await quantityStorage.GetRevisionStoragePathAsync(effective.RevisionHash, part.OriginalFileName, cancellationToken);
+        var inventory = await PartObjectInventory.ReadAsync(quantityStorage, quantityPath, part.PlateNumber, cancellationToken);
+        var expectedCapacity = revisionMode == RevisionMode.FollowLatest ? part.UnitsPerPrint : job.PlateQuantity;
+        if (inventory.Count is { } count && count != expectedCapacity
+            || job.ObjectExecution is { } legacy && legacy.Manifest.Units.Any(u => u.ObjectIds.Count != 1))
+        {
+            await BlockAsync(job, "The saved quantity or object grouping disagrees with this file. Reprocess the Part and recreate this job.", cancellationToken);
+            return;
+        }
         var currentPrinter = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printer.Id, cancellationToken);
         if (currentPrinter is null || currentPrinter.Status != PrinterStatus.Idle
             || part.NozzleDiameterMm is not { } nozzleMm || !currentPrinter.ConfirmedNozzlesMm().Contains(nozzleMm)
@@ -392,6 +424,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         if (revisionMode == RevisionMode.FollowLatest)
         {
             job.ResetUnsentBackfillSnapshot(dispatchPart);
+            var manifest = await services.GetRequiredService<ProductionPlanner>().ReadObjectsAsync(dispatchPart, cancellationToken);
+            job.SetExactTarget(dispatchPart.UnitsPerPrint, manifest);
             await services.GetRequiredService<ProductionSnapshotFactory>().CaptureAsync(job, dispatchPart, cancellationToken);
         }
         if (revisionMode == RevisionMode.FollowLatest)
@@ -432,11 +466,11 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             var freshJobs = freshScope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
             var persistedJob = await freshJobs.GetByIdAsync(job.Id, cancellationToken);
             var requirement = await freshScope.ServiceProvider.GetRequiredService<IPartRequirementRepository>().GetByIdAsync(job.PartRequirementId, cancellationToken);
-            var run = requirement is null ? null : await freshScope.ServiceProvider.GetRequiredService<IProductionRunRepository>().GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
+            var demandAllowed = requirement is not null && await freshScope.ServiceProvider.GetRequiredService<IProductionDemandRepository>().CanDispatchAsync(requirement.RunLineId, cancellationToken);
             var currentPart = revisionMode == RevisionMode.FollowLatest
                 ? await freshScope.ServiceProvider.GetRequiredService<IPartRepository>().GetByIdAsync(dispatchPart.Id, cancellationToken)
                 : job.GetProductionPart();
-            if (run is null || run.Status is ProductionRunStatus.Cancelled or ProductionRunStatus.Closed
+            if (!demandAllowed
                 || persistedJob is not null && (persistedJob.Status != PrintJobStatus.Queued || persistedJob.DispatchedAtUtc is not null)
                 || currentPrinter is null || !currentPrinter.IsReachable || currentPrinter.Status != PrinterStatus.Idle || currentPart is null
                 || revisionMode == RevisionMode.FollowLatest && (currentPart.RevisionHash != dispatchPart.RevisionHash || currentPart.UpdatedAtUtc != dispatchPart.UpdatedAtUtc
@@ -466,7 +500,9 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             return;
         }
 
-        var fileUsage = JobFilamentUsageReader.Read(fileContent.Bytes, fileContent.Plate);
+        var fileUsage = job.ObjectExecution is { } objectExecution
+            ? JobFilamentUsageReader.ReadForExecution(fileContent.Bytes, fileContent.Plate, objectExecution)
+            : JobFilamentUsageReader.Read(fileContent.Bytes, fileContent.Plate);
         var lineUsage = JobFilamentUsageMatcher.Match(
             job.Filaments.Select(c => (c.MaterialType, c.DetectedColorHex)).ToList(), fileUsage.Usages);
 
@@ -530,12 +566,36 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             var connector = connectorFactory.CreateConnector(details);
             using var stream = new MemoryStream(fileContent.Bytes);
-            await connector.StartJobAsync(details, stream, fileContent.FileName, fileContent.Plate, feedMapping, cancellationToken);
+            if (job.ObjectExecution is { } execution)
+            {
+                if (execution.PlannedExclusions.Count > 0)
+                    services.GetRequiredService<ObjectSkippingPolicy>().EnsureVerified(details, live: false);
+                var extension = fileContent.FileName.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase) ? ".gcode.3mf" : ".gcode";
+                var description = fileContent.FileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
+                    ? fileContent.FileName[..^extension.Length] : Path.GetFileNameWithoutExtension(fileContent.FileName);
+                // Keep the human description first and the correlation ID inside the upload stem's 100-character limit.
+                var artifactName = $"{description[..Math.Min(description.Length, 45)]}-{job.Id:N}{extension}";
+                var hash = ObjectExecutionArtifact.Hash(fileContent.Bytes);
+                using var retained = new MemoryStream(fileContent.Bytes);
+                var path = await services.GetRequiredService<IPartFileStorage>().SaveAsync(hash, artifactName, retained, cancellationToken);
+                job.RecordObjectExecution(execution with { ArtifactPath = path, ArtifactHash = hash, ArtifactName = artifactName, StartRequested = true });
+                await jobRepository.SaveChangesAsync(cancellationToken);
+                var exclusions = execution.Manifest.Dialect == "Bambu" ? execution.PlannedExclusions : [];
+                await connector.StartSelectedJobAsync(details, stream, artifactName, fileContent.Plate, feedMapping, exclusions, cancellationToken);
+            }
+            else await connector.StartJobAsync(details, stream, fileContent.FileName, fileContent.Plate, feedMapping, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // The connector never confirmed the send — revert immediately rather than leaving this
-            // dispatch-in-flight until the next process restart's reconciliation pass.
+            // A lost start acknowledgement must not resend an exact-quantity plate, even after restart.
+            if (job.ObjectExecution is { StartRequested: true })
+            {
+                job.RecordBlock("Print start is unconfirmed. Check the printer before confirming that it did not start.", DateTimeOffset.UtcNow);
+                await jobRepository.SaveChangesAsync(cancellationToken);
+                await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
+                LogStartJobFailed(_logger, job.Id, printer.Id, ex);
+                return;
+            }
             job.RevertDispatch();
             await jobRepository.SaveChangesAsync(cancellationToken);
             LogStartJobFailed(_logger, job.Id, printer.Id, ex);

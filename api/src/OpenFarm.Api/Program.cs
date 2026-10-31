@@ -434,6 +434,13 @@ builder.Services.AddScoped<IQueryHandler<ListNonPrintedComponentsQuery, NonPrint
 
 builder.Services.AddScoped<ProductionRunDisplayLabelResolver>();
 builder.Services.AddScoped<ProductionRunCompletionService>();
+builder.Services.AddScoped<ObjectSkippingPolicy>();
+builder.Services.AddScoped<IObjectSkippingPolicy>(sp => sp.GetRequiredService<ObjectSkippingPolicy>());
+builder.Services.AddScoped<PrintObjectControlService>();
+builder.Services.AddScoped<IPrintObjectManifestReader, PrintObjectManifestReader>();
+builder.Services.AddScoped<ProductionPlanner>();
+builder.Services.AddScoped<IProductionDemandRepository, ProductionDemandRepository>();
+builder.Services.AddScoped<ProductionDemandService>();
 builder.Services.AddScoped<ProductionDispatchRequestService>();
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<SetPrintJobFilamentRequirementsCommand, OpenFarm.Domain.Production.PrintJob>, SetPrintJobFilamentRequirementsCommandHandler>();
 builder.Services.AddScoped<JobFilamentAutoDeduction>();

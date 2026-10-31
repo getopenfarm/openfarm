@@ -7,7 +7,7 @@ namespace OpenFarm.Application.Parts;
 public sealed class GetPartQueryHandler(
     IPartRepository partRepository,
     IFilamentRepository filamentRepository,
-    IFilamentProfileRepository filamentProfileRepository) : IQueryHandler<GetPartQuery, PartDetail?>
+    IFilamentProfileRepository filamentProfileRepository, IPartFileStorage? fileStorage = null) : IQueryHandler<GetPartQuery, PartDetail?>
 {
     public async Task<PartDetail?> HandleAsync(GetPartQuery query, CancellationToken cancellationToken)
     {
@@ -34,6 +34,13 @@ public sealed class GetPartQueryHandler(
             ? new SlicerSelectionView(engine.ToString(), version)
             : null;
 
+        PartObjectInventory? inventory = null;
+        if (fileStorage is not null)
+        {
+            try { inventory = await PartObjectInventory.ReadAsync(fileStorage, part.StoragePath, part.PlateNumber, cancellationToken); }
+            catch (IOException) { /* Missing historical bytes must not make catalog details inaccessible. */ }
+        }
+
         return new PartDetail(
             part.Id,
             part.Name,
@@ -50,6 +57,7 @@ public sealed class GetPartQueryHandler(
             part.PlateNumber,
             part.Thumbnails.OrderBy(t => t.PlateIndex).Select(t => new ThumbnailView(t.PlateIndex, Convert.ToBase64String(t.Bytes))).ToList(),
             part.Tags.Select(t => t.Name).ToList(), part.UnitsPerPrint,
-            part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation, part.PlateName, part.FolderId);
+            part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation, part.PlateName, part.FolderId,
+            inventory?.Count, inventory?.Source, inventory?.Count is { } count && count != part.UnitsPerPrint);
     }
 }

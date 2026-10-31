@@ -35,6 +35,18 @@ public class JobFilamentUsageReaderTests
         """;
 
     [Fact]
+    public void PackagedBareGcode_PreservesUnusedTrailingFilamentSlots()
+    {
+        var code = Encoding.UTF8.GetBytes("; filament_type = PLA;PETG;ABS\n; filament_colour = #FF0000;#0000FF;#FFFFFF\n; filament used [g] = 7.50, 0, 0\n");
+        var project = OpenFarm.Infrastructure.Printers.Bambu.BambuPrintFile.PrepareProject(code, "part.gcode", 1);
+        var original = JobFilamentUsageReader.Read(code, 1);
+        var packaged = JobFilamentUsageReader.Read(project, 1);
+        packaged.FilamentCount.Should().Be(3);
+        packaged.FilamentCount.Should().Be(original.FilamentCount);
+        packaged.Usages.Should().Equal(original.Usages);
+    }
+
+    [Fact]
     public void Read_ThreeMf_ReturnsPlateOnePerFilamentUsage_SkippingUnusedFilaments()
     {
         var file = ThreeMf(("Metadata/slice_info.config", TwoColourSliceInfo), ("Metadata/plate_1.gcode", "G1"));

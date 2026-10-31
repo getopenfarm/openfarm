@@ -90,7 +90,7 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         var removedAtUtc = DateTimeOffset.UtcNow;
         foreach (var job in unavailableJobs) job.MarkSnapshotUnavailable(removedAtUtc);
         var lineIds = references.Select(r => r.RunLineId).ToList();
-        var sourceLines = await dbContext.RunLines.Where(l => lineIds.Contains(l.Id)
+        var sourceLines = await dbContext.ProductionDemands.Where(l => lineIds.Contains(l.Id)
             && l.TargetKind == RunLineTargetKind.Part && l.TargetId == part.Id).ToListAsync(cancellationToken);
         foreach (var line in sourceLines) line.CaptureTargetName(part.Name);
         dbContext.Parts.Remove(part);

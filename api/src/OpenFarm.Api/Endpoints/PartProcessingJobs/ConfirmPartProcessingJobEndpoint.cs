@@ -3,6 +3,7 @@ using FastEndpoints;
 using OpenFarm.Api.Endpoints.Parts;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
+using OpenFarm.Application.Common;
 using OpenFarm.Application.Parts;
 using ConfirmHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Parts.ConfirmPartProcessingJobCommand, OpenFarm.Domain.Parts.Part>;
 
@@ -48,7 +49,8 @@ public sealed class ConfirmPartProcessingJobRequest : IActivityLoggable
 
 // POST /api/v1/part-processing-jobs/{id}/confirm — the Save action (contracts/part-library-api.md).
 [Permission("parts:create")]
-public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler, OpenFarm.Application.Library.ILibraryFolderService folders) : Endpoint<ConfirmPartProcessingJobRequest, PartResponse>
+public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler, OpenFarm.Application.Library.ILibraryFolderService folders,
+    IQueryHandler<GetPartQuery, PartDetail?> getPart) : Endpoint<ConfirmPartProcessingJobRequest, PartResponse>
 {
     public override void Configure()
     {
@@ -71,7 +73,8 @@ public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler, Ope
             req.RelatedParts?.Select(r => new RelatedPartPlate(r.PartId, r.PlateNumber)).ToList(), req.FolderId);
         var part = await handler.HandleAsync(command, ct);
 
-        Response = PartResponse.FromDomain(part);
+        var detail = await getPart.HandleAsync(new GetPartQuery(part.Id), ct);
+        Response = PartResponse.FromDetail(detail!);
         HttpContext.Response.StatusCode = StatusCodes.Status201Created;
     }
 }

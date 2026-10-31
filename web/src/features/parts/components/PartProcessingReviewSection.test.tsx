@@ -36,7 +36,12 @@ describe('PartProcessingReviewSection', () => {
         />
       </QueryClientProvider>,
     );
-    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(
+      screen.getByText('Nozzle diameter').nextElementSibling,
+    ).toHaveTextContent('Unknown');
+    expect(
+      screen.getByText('Units per print').nextElementSibling,
+    ).toHaveTextContent('Unknown');
     expect(
       screen.getByText('Time unavailable · Weight unavailable'),
     ).toBeInTheDocument();
@@ -45,6 +50,31 @@ describe('PartProcessingReviewSection', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/You can save this part/)).toBeInTheDocument();
     expect(screen.queryByText('Estimating…')).not.toBeInTheDocument();
+  });
+
+  it('shows detected units while the print estimate is still resolving', () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PartProcessingReviewSection
+          status="ReadyForReview"
+          preview={{
+            estimateStatus: 'Resolving',
+            unitsPerPrint: 4,
+            plates: [],
+            filamentRequirements: [],
+          }}
+          overrides={{}}
+          onNarrow={vi.fn()}
+          plateNumbers={[]}
+          onPlateNumbersChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.getByText('Units per print').nextElementSibling,
+    ).toHaveTextContent('4');
+    expect(screen.getByText('Estimating…')).toBeVisible();
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
   });
 
   it('shows the printer model and no estimate basis', () => {
@@ -100,6 +130,7 @@ describe('PartProcessingReviewSection', () => {
         {
           number: 1,
           name: 'Cover',
+          unitsPerPrint: 4,
           estimatedPrintTimeMinutes: 10,
           estimatedFilamentWeightGrams: 4,
           filamentRequirements: [
@@ -113,6 +144,7 @@ describe('PartProcessingReviewSection', () => {
         {
           number: 2,
           name: 'Handle',
+          unitsPerPrint: 2,
           estimatedPrintTimeMinutes: 30,
           estimatedFilamentWeightGrams: 9,
           filamentRequirements: [
@@ -162,6 +194,10 @@ describe('PartProcessingReviewSection', () => {
       .parentElement as HTMLElement;
     expect(within(estimate).getByText('30m · 9 g')).toBeInTheDocument();
     expect(screen.getByText(/PETG/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Units per print').nextElementSibling,
+    ).toHaveTextContent('2');
+    expect(screen.getByText('4 units per print')).toBeInTheDocument();
     expect(screen.queryByText(/PLA/)).not.toBeInTheDocument();
   });
 
@@ -194,12 +230,14 @@ describe('PartProcessingReviewSection', () => {
               {
                 number: 1,
                 name: 'Cover',
+                unitsPerPrint: 4,
                 estimatedFilamentWeightGrams: 4,
                 filamentRequirements: [pla(3)],
               },
               {
                 number: 2,
                 name: 'Handle',
+                unitsPerPrint: 2,
                 estimatedPrintTimeMinutes: 30,
                 estimatedFilamentWeightGrams: 9,
                 filamentRequirements: [
@@ -224,7 +262,10 @@ describe('PartProcessingReviewSection', () => {
 
     const cover = screen.getByRole('checkbox', { name: /Plate 1 · Cover/ });
     expect(cover).toBeChecked();
-    expect(cover.closest('label')).toHaveTextContent(/^Plate 1 · Cover$/);
+    expect(cover.closest('label')).toHaveTextContent(
+      'Plate 1 · Cover4 units per print',
+    );
+    expect(screen.getByText('2 units per print')).toBeVisible();
     expect(screen.queryByText(/unavailable/)).not.toBeInTheDocument();
 
     // Each filament once, its grams summed over the checked plates.

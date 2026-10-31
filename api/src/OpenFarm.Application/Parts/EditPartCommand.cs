@@ -25,12 +25,19 @@ public sealed class EditPartCommandHandler(
     ITagRepository tagRepository,
     IFilamentProfileRepository filamentProfileRepository,
     PartFilamentSelectionValidator filamentValidator,
-    ProductionDispatchRequestService dispatchRequests) : ICommandHandler<EditPartCommand, Part>
+    ProductionDispatchRequestService dispatchRequests, IPartFileStorage? fileStorage = null) : ICommandHandler<EditPartCommand, Part>
 {
     public async Task<Part> HandleAsync(EditPartCommand command, CancellationToken cancellationToken)
     {
         var part = await partRepository.GetByIdAsync(command.PartId, cancellationToken)
             ?? throw new PartNotFoundException(command.PartId);
+
+        if (fileStorage is not null && command.UnitsPerPrint != part.UnitsPerPrint)
+        {
+            var inventory = await PartObjectInventory.ReadAsync(fileStorage, part.StoragePath, part.PlateNumber, cancellationToken);
+            if (inventory.Count is not null)
+                throw new InvalidProductionDemandException("Units per print is detected automatically. Reprocess the Part to refresh its quantity.");
+        }
 
         var changedNarrowing = new List<PartFilamentRequirementNarrowingInput>();
         foreach (var input in command.FilamentRequirements)

@@ -26,6 +26,57 @@ public sealed class PrintJob : Print
         FileRevisionNumber = fileRevisionNumber;
     }
 
+    public int? TargetUnits { get; private set; }
+    public string? ObjectExecutionJson { get; private set; }
+    public PrintObjectExecution? ObjectExecution => PrintObjectExecution.Read(ObjectExecutionJson);
+    public int EffectiveTargetUnits => TargetUnits ?? PlateQuantity;
+    public int ProducedUnits => ProducedUnitsFor(Status, PlateQuantity, TargetUnits, ObjectExecutionJson);
+    public static int ProducedUnitsFor(PrintJobStatus status, int capacity, int? target, string? executionJson) =>
+        status == PrintJobStatus.Completed
+            ? PrintObjectExecution.Read(executionJson) is { } execution ? execution.Observed ? execution.GoodUnits : 0 : target ?? capacity : 0;
+    public int MissingUnits => Math.Max(0, EffectiveTargetUnits - ProducedUnits);
+    public int WrittenOffUnits => WrittenOffAtUtc is null ? 0 : MissingUnits;
+
+    public void SetExactTarget(int units, PrintObjectManifest? manifest)
+    {
+        EnsureQueued();
+        if (DispatchedAtUtc is not null) throw new InvalidOperationException("A dispatched selection is immutable.");
+        if (units < 1 || units > PlateQuantity) throw new ArgumentOutOfRangeException(nameof(units));
+        if (manifest is null && units != PlateQuantity)
+            throw new InvalidOperationException("This partial plate needs a verified complete-unit mapping.");
+        TargetUnits = units;
+        if (manifest is not null)
+        {
+            manifest.Validate(PlateQuantity);
+            if (manifest.RevisionHash != FileRevisionHash) throw new InvalidOperationException("Object mapping revision changed.");
+            ObjectExecutionJson = new PrintObjectExecution(manifest,
+                manifest.Units.OrderBy(u => u.Id, StringComparer.Ordinal).Take(units).Select(u => u.Id).ToArray(), [], [], Observed: units == PlateQuantity).ToJson();
+        }
+    }
+
+    public void RecordObjectExecution(PrintObjectExecution execution) => ObjectExecutionJson = execution.ToJson();
+
+    public void ObserveExcludedObjects(IReadOnlyList<string> ids, int? layer = null, int? percent = null)
+    {
+        if (ObjectExecution is not { } execution) return;
+        if (ids.Any(id => !execution.Manifest.Objects.Any(o => o.Id == id)))
+        {
+            RecordObjectExecution(execution with { Observed = false, RequestError = "Printer object IDs do not match this execution artifact." });
+            return;
+        }
+        var excludedAt = execution.ExcludedAt?.ToDictionary(p => p.Key, p => p.Value) ?? [];
+        foreach (var id in ids.Where(id => !execution.PlannedExclusions.Contains(id)))
+            excludedAt.TryAdd(id, new ProgressMark(layer ?? int.MaxValue, percent ?? 100));
+        // Keep prior confirmed losses across partial reports/reconnects; no unskip workflow is exposed.
+        RecordObjectExecution(execution with
+        {
+            Observed = execution.PlannedExclusions.Concat(execution.RequestedObjectIds).All(ids.Contains),
+            ConfirmedObjectIds = execution.ConfirmedObjectIds.Union(ids).ToArray(),
+            ExcludedAt = excludedAt,
+            RequestError = execution.RequestedObjectIds.All(ids.Contains) ? null : execution.RequestError
+        });
+    }
+
     public string? ProductionSnapshotJson { get; private set; }
 
     public string? SnapshotRecoveryReason { get; private set; }
@@ -88,6 +139,9 @@ public sealed class PrintJob : Print
         EnsureQueued();
         if (DispatchedAtUtc is not null) throw new InvalidOperationException("A dispatched snapshot is immutable.");
         ProductionSnapshotJson = null;
+        TargetUnits = null;
+        ObjectExecutionJson = null;
+        PlateQuantity = part.UnitsPerPrint;
         FileRevisionHash = part.RevisionHash;
         FileRevisionNumber = part.RevisionNumber;
     }
@@ -102,8 +156,8 @@ public sealed class PrintJob : Print
     /// <summary>Fractional index (research.md R3) — a reorder touches only the moved job's own row.</summary>
     public double QueuePosition { get; private set; }
 
-    /// <summary>== Part.UnitsPerPrint at creation time — informational, this plate's target count.</summary>
-    public int PlateQuantity { get; }
+    /// <summary>Original source plate capacity; EffectiveTargetUnits is this attempt's output commitment.</summary>
+    public int PlateQuantity { get; private set; }
 
     public AssignmentMode AssignmentMode { get; private set; }
 
@@ -128,7 +182,8 @@ public sealed class PrintJob : Print
 
     /// <summary>A failed or cancelled plate still waiting for the operator's decision: reprint it or write it off.</summary>
     public bool IsUnresolvedLoss =>
-        Status is PrintJobStatus.Failed or PrintJobStatus.Cancelled && RequeuedAsJobId is null && WrittenOffAtUtc is null;
+        (Status is PrintJobStatus.Failed or PrintJobStatus.Cancelled || Status == PrintJobStatus.Completed && MissingUnits > 0)
+        && RequeuedAsJobId is null && WrittenOffAtUtc is null;
 
     public bool HasFilamentRequirementOverride { get; private set; }
 

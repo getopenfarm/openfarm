@@ -24,4 +24,4 @@ public sealed record RunLineSummary(
     int? BackfillCumulativeUnitCeiling,
     int CumulativeProducedUnits,
     bool SpansMultipleRevisions,
-    IReadOnlyList<PartRequirementSummary> Requirements);
+    IReadOnlyList<PartRequirementSummary> Requirements, QuantityBasis QuantityBasis = QuantityBasis.Units);

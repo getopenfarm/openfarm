@@ -32,4 +32,5 @@ public sealed record PartDetail(
     int UnitsPerPrint = 1,
     string PrintRequirementsStatus = "Complete",
     IReadOnlyList<string>? ProcessingWarnings = null,
-    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null, string? PlateName = null, Guid? FolderId = null);
+    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null, string? PlateName = null, Guid? FolderId = null,
+    int? DetectedUnitsPerPrint = null, string? QuantityDetectionSource = null, bool QuantityNeedsReprocessing = false);

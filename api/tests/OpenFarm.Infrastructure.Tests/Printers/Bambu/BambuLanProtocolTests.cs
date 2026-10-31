@@ -17,6 +17,21 @@ namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
 
 public class BambuLanProtocolTests
 {
+    [Fact]
+    public async Task StartAndLiveExclusions_UseNativeObjectIds()
+    {
+        await using var mqtt = new BambuMqttHarness();
+        var connector = mqtt.CreateConnector(mqtt.Options with { UploadFileAsync = (_, _, _, _) => Task.FromResult(FtpStatus.Success) });
+        using var file = new MemoryStream("G28\n"u8.ToArray());
+        await connector.StartSelectedJobAsync(mqtt.Details, file, "selected.gcode", 1, null, ["206"], CancellationToken.None);
+        using var start = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
+        start.RootElement.GetProperty("print").GetProperty("skip_objects").EnumerateArray().Select(i => i.GetInt32()).Should().Equal(206);
+        await connector.SkipObjectsAsync(mqtt.Details, ["206", "300"], CancellationToken.None);
+        using var skip = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
+        skip.RootElement.GetProperty("print").GetProperty("command").GetString().Should().Be("skip_objects");
+        skip.RootElement.GetProperty("print").GetProperty("obj_list").EnumerateArray().Select(i => i.GetInt32()).Should().Equal(206, 300);
+    }
+
     [Theory]
     [InlineData("/cache/../escape.3mf")]
     [InlineData("/cache/file.3mf\r\nDELE other.3mf")]

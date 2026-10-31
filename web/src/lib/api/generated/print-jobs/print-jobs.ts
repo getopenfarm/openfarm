@@ -22,15 +22,19 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../httpClient';
 import type {
+  ConfirmObjectOutputRequest,
+  ConfirmPrintNotStartedRequest,
   JobMatchingDiagnostics,
   ListQueueJobsResponse,
   OpenFarmApiEndpointsPrintJobsListQueueJobsEndpointParams,
   PinPrintJobRequest,
   PrintJobResponse,
+  PrintObjectExecution,
   ProblemDetails,
   ReorderPrintJobRequest,
   ReorderPrintJobResponse,
   SetPrintJobFilamentRequirementsRequest,
+  SkipJobObjectsRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -1872,6 +1876,712 @@ export const useOpenFarmApiEndpointsPrintJobsPinPrintJobEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsPrintJobsPinPrintJobEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse200 = {
+  data: PrintObjectExecution;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponseError = (
+  | openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse401
+  | openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse =
+  | openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/print-jobs/${id}/objects`;
+};
+
+export const openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintJobsGetJobObjectsEndpointResponse>(
+    getOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpointUrl(id),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpointQueryKey = (
+  id: string,
+) => {
+  return [`/api/v1/print-jobs/${id}/objects`] as const;
+};
+
+export const getOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+    >,
+    TError = void,
+  >(
+    id: string,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpointQueryKey(id);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint(id, { signal });
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: id !== null && id !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsGetJobObjectsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPrintJobsGetJobObjectsEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsPrintJobsGetJobObjectsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsPrintJobsGetJobObjectsEndpointQueryOptions(
+      id,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse200 = {
+  data: PrintObjectExecution;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse400 = {
+  data: ProblemDetails;
+  status: 400;
+};
+
+export type openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponseError = (
+  | openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse400
+  | openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse401
+  | openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse =
+  | openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/print-jobs/${id}/skip-objects`;
+};
+
+export const openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint = async (
+  id: string,
+  skipJobObjectsRequest: SkipJobObjectsRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintJobsSkipJobObjectsEndpointResponse>(
+    getOpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpointUrl(id),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(skipJobObjectsRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpointMutationOptions =
+  <TError = ProblemDetails | void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint>
+      >,
+      TError,
+      { id: string; data: SkipJobObjectsRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint>
+    >,
+    TError,
+    { id: string; data: SkipJobObjectsRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint>
+      >,
+      { id: string; data: SkipJobObjectsRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpointMutationBody =
+  SkipJobObjectsRequest;
+export type OpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpointMutationError =
+  ProblemDetails | void;
+
+export const useOpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint = <
+  TError = ProblemDetails | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint>
+      >,
+      TError,
+      { id: string; data: SkipJobObjectsRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint>
+  >,
+  TError,
+  { id: string; data: SkipJobObjectsRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse200 =
+  {
+    data: PrintObjectExecution;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse400 =
+  {
+    data: ProblemDetails;
+    status: 400;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse400
+    | openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse401
+    | openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse =
+  | openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/print-jobs/${id}/object-output`;
+};
+
+export const openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint = async (
+  id: string,
+  confirmObjectOutputRequest: ConfirmObjectOutputRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointResponse>(
+    getOpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointUrl(id),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(confirmObjectOutputRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointMutationOptions =
+  <TError = ProblemDetails | void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: ConfirmObjectOutputRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: ConfirmObjectOutputRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint
+        >
+      >,
+      { id: string; data: ConfirmObjectOutputRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointMutationBody =
+  ConfirmObjectOutputRequest;
+export type OpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointMutationError =
+  ProblemDetails | void;
+
+export const useOpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint = <
+  TError = ProblemDetails | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: ConfirmObjectOutputRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint>
+  >,
+  TError,
+  { id: string; data: ConfirmObjectOutputRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse200 =
+  {
+    data: PrintObjectExecution;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse400 =
+  {
+    data: ProblemDetails;
+    status: 400;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse400
+    | openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse401
+    | openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse =
+  | openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointUrl =
+  (id: string) => {
+    return `/api/v1/print-jobs/${id}/confirm-not-started`;
+  };
+
+export const openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint =
+  async (
+    id: string,
+    confirmPrintNotStartedRequest: ConfirmPrintNotStartedRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointResponse>(
+      getOpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointUrl(id),
+      {
+        ...options,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(confirmPrintNotStartedRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointMutationOptions =
+  <TError = ProblemDetails | void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: ConfirmPrintNotStartedRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: ConfirmPrintNotStartedRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint
+        >
+      >,
+      { id: string; data: ConfirmPrintNotStartedRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint(
+        id,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointMutationBody =
+  ConfirmPrintNotStartedRequest;
+export type OpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointMutationError =
+  ProblemDetails | void;
+
+export const useOpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint = <
+  TError = ProblemDetails | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: ConfirmPrintNotStartedRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<
+      typeof openFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint
+    >
+  >,
+  TError,
+  { id: string; data: ConfirmPrintNotStartedRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpointMutationOptions(
+      options,
+    ),
     queryClient,
   );
 };

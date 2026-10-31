@@ -60,7 +60,7 @@ public sealed class Part
             snapshot.NozzleDiameterMm, snapshot.SlicerEngine, snapshot.SlicerVersion, snapshot.EstimateStatus,
             snapshot.EstimatedPrintTimeMinutes, snapshot.EstimatedFilamentWeightGrams, snapshot.PlateNumber,
             snapshot.UnitsPerPrint, snapshot.RevisionHash, snapshot.RevisionNumber, DateTimeOffset.UtcNow)
-        { MaterialMetadataComplete = snapshot.MaterialMetadataComplete };
+        { MaterialMetadataComplete = snapshot.MaterialMetadataComplete, ObjectManifestJson = snapshot.ObjectManifestJson };
         foreach (var requirement in snapshot.FilamentRequirements)
             part._filamentRequirements.Add(PartFilamentRequirement.Create(part.Id, requirement));
         return part;
@@ -93,6 +93,16 @@ public sealed class Part
     public Guid? ActiveProcessingJobId { get; private set; }
 
     public string? EstimateUnavailableReason { get; private set; }
+
+    public string? ObjectManifestJson { get; private set; }
+    public void SetObjectManifest(OpenFarm.Domain.Production.PrintObjectManifest manifest)
+    {
+        manifest.Validate(UnitsPerPrint);
+        if (manifest.RevisionHash != RevisionHash || manifest.Plate != (PlateNumber ?? 1))
+            throw new InvalidOperationException("The file or plate changed. Reload its objects.");
+        ObjectManifestJson = System.Text.Json.JsonSerializer.Serialize(manifest);
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
 
     public string? MetadataWarningsJson { get; private set; }
     public IReadOnlyList<string> MetadataWarnings => MetadataWarningsJson is null ? []

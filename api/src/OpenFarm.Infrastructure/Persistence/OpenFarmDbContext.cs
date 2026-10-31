@@ -72,7 +72,7 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
 
     public DbSet<ProductionRun> ProductionRuns => Set<ProductionRun>();
 
-    public DbSet<RunLine> RunLines => Set<RunLine>();
+    public DbSet<ProductionDemand> ProductionDemands => Set<ProductionDemand>();
 
     public DbSet<PartRequirement> PartRequirements => Set<PartRequirement>();
 

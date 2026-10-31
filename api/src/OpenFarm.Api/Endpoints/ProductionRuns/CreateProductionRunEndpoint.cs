@@ -17,6 +17,10 @@ public sealed class CreateRunLineRequest
 
     public int? Quantity { get; set; }
 
+    public string? PlanVersion { get; set; }
+
+    public string? QuantityBasis { get; set; }
+
     public string? RevisionMode { get; set; }
 
     public string AssignmentMode { get; set; } = "Unassigned";
@@ -35,7 +39,7 @@ public sealed class CreateRunLineRequest
         Enum.Parse<AssignmentMode>(AssignmentMode),
         PinnedPrinterId,
         BackfillPrinterCap,
-        BackfillCumulativeUnitCeiling);
+        BackfillCumulativeUnitCeiling, QuantityBasis is null ? null : Enum.Parse<QuantityBasis>(QuantityBasis), PlanVersion);
 }
 
 public sealed class CreateRunLineRequestValidator : AbstractValidator<CreateRunLineRequest>
@@ -47,6 +51,9 @@ public sealed class CreateRunLineRequestValidator : AbstractValidator<CreateRunL
         RuleFor(l => l.AssignmentMode).Must(k => Enum.GetNames<AssignmentMode>().Contains(k));
         RuleFor(l => l.RevisionMode).Must(k => k is null || (Enum.GetNames<RevisionMode>().Contains(k)));
         RuleFor(l => l.TargetId).NotEmpty();
+        RuleFor(l => l.QuantityBasis).Must(k => k is null || Enum.GetNames<QuantityBasis>().Contains(k));
+        RuleFor(l => l).Must(l => l.QuantityBasis is null || (l.TargetKind == "Assembly" ? l.QuantityBasis == "Sets" : l.QuantityBasis != "Sets"))
+            .WithMessage("Quantity basis must match the target.");
         RuleFor(l => l.BackfillPrinterCap).GreaterThanOrEqualTo(1);
         RuleFor(l => l.BackfillCumulativeUnitCeiling).GreaterThanOrEqualTo(1).When(l => l.BackfillCumulativeUnitCeiling is not null);
         RuleFor(l => l.Quantity).GreaterThanOrEqualTo(1).When(l => l.Quantity is not null);
@@ -58,6 +65,8 @@ public sealed class CreateRunLineRequestValidator : AbstractValidator<CreateRunL
 
 public sealed class CreateProductionRunRequest : IActivityLoggable
 {
+    public Guid? SubmissionId { get; set; }
+
     public string? Name { get; set; }
 
     public DateOnly? DueDate { get; set; }
@@ -94,7 +103,7 @@ public sealed class CreateProductionRunEndpoint(
 
     public override async Task HandleAsync(CreateProductionRunRequest req, CancellationToken ct)
     {
-        var run = await handler.HandleAsync(new CreateProductionRunCommand(req.Name, req.DueDate, req.Notes, req.Lines.Select(l => l.ToInput()).ToList()), ct);
+        var run = await handler.HandleAsync(new CreateProductionRunCommand(req.Name, req.DueDate, req.Notes, req.Lines.Select(l => l.ToInput()).ToList(), req.SubmissionId), ct);
 
         var detail = await getDetail.HandleAsync(new GetProductionRunDetailQuery(run.Id), ct);
         Response = ProductionRunDetailResponse.FromView(detail!);

@@ -14,6 +14,13 @@ public sealed class PrintJobConfiguration : IEntityTypeConfiguration<PrintJob>
         builder.Property(j => j.PartRequirementId).IsRequired();
         builder.Property(j => j.QueuePosition).IsRequired();
         builder.Property(j => j.PlateQuantity).IsRequired();
+        builder.Property(j => j.TargetUnits);
+        builder.Property(j => j.ObjectExecutionJson).HasColumnType("jsonb");
+        builder.Ignore(j => j.ObjectExecution);
+        builder.Ignore(j => j.EffectiveTargetUnits);
+        builder.Ignore(j => j.ProducedUnits);
+        builder.Ignore(j => j.MissingUnits);
+        builder.Ignore(j => j.WrittenOffUnits);
         builder.Property(j => j.AssignmentMode).IsRequired().HasConversion<string>();
         builder.Property(j => j.PinnedPrinterId);
         builder.Property(j => j.FileRevisionHash).IsRequired();

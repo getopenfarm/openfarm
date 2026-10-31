@@ -84,7 +84,7 @@ public class ProductionContractTests(ProductionTestFactory factory) : Production
         var suggested = await handler.HandleAsync(new ConfirmPartProcessingJobCommand(add.Id, "Suggested part", [], [], null), default);
         suggested.UnitsPerPrint.Should().Be(3);
         var current = await handler.HandleAsync(new ConfirmPartProcessingJobCommand(replace.Id, null, null, [], null), default);
-        current.UnitsPerPrint.Should().Be(1, "replacement preserves the operator's existing default");
+        current.UnitsPerPrint.Should().Be(3, "replacement refreshes the automatically detected quantity");
         var content = await scope.ServiceProvider.GetRequiredService<OpenFarm.Application.Production.IJobFileResolver>().ResolveAsync(current, snapshot, printer.Id, 0.4m, default);
         Encoding.UTF8.GetString(content.Bytes).Should().Be("; revision one\n");
         var legacySnapshot = OpenFarm.Domain.Production.PrintJob.Create("Test part", snapshot.PartRequirementId, 1024, 1,

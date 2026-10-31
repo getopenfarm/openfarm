@@ -39,8 +39,10 @@ import type {
 import {
   getOpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryKey,
   useOpenFarmApiEndpointsPrintJobsPinPrintJobEndpoint,
+  useOpenFarmApiEndpointsPrintJobsRequeuePrintJobEndpoint,
   useOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
+import { invalidateProductionQueries } from '../hooks/useProductionHub';
 import { JobRemoteControls } from './JobRemoteControls';
 import { RemoveJobButton } from './RemoveJobButton';
 
@@ -90,18 +92,46 @@ export function QueueJobActions({
         toast.error(await extractErrorDetail(error, 'Could not unpin job.')),
     },
   });
+  const requeue = useOpenFarmApiEndpointsPrintJobsRequeuePrintJobEndpoint({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Plate requeued.');
+        invalidateProductionQueries(queryClient);
+      },
+      onError: async (error) =>
+        toast.error(
+          await extractErrorDetail(error, 'Could not requeue plate.'),
+        ),
+    },
+  });
   const jobId = job.jobId;
   if (!jobId) return null;
   const waiting = job.status === 'Queued' && !job.dispatchedPrinterId;
-  if (!waiting && job.status !== 'Printing' && job.status !== 'Paused')
+  if (
+    !waiting &&
+    job.status !== 'Printing' &&
+    job.status !== 'Paused' &&
+    !job.canRequeue
+  )
     return null;
   return (
     <>
       <DataTableRowActions
         label={job.partName ?? 'job'}
         triggerRef={triggerRef}
+        disabled={requeue.isPending || pin.isPending || unpin.isPending}
       >
         <DropdownMenuGroup>
+          {job.canRequeue && (
+            <DropdownMenuItem
+              disabled={requeue.isPending}
+              onSelect={() => requeue.mutate({ id: jobId })}
+            >
+              {job.targetUnits != null
+                ? 'Requeue missing units'
+                : 'Requeue plate'}
+            </DropdownMenuItem>
+          )}
           {waiting && (
             <>
               {job.assignmentMode === 'Pinned' ? (

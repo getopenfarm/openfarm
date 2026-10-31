@@ -18,5 +18,7 @@ public interface IProductionEventPublisher
     Task PrintJobDispatchedAsync(Guid printJobId, Guid printerId, CancellationToken cancellationToken);
 
     /// <summary>The action-required list may have changed; clients re-read it. A default no-op keeps existing implementations compiling.</summary>
+    Task DemandChangedAsync(Guid demandId, CancellationToken cancellationToken) => Task.CompletedTask;
+
     Task NotificationsChangedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

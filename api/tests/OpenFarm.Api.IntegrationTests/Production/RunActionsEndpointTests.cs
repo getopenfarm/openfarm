@@ -86,7 +86,7 @@ public class RunActionsEndpointTests(ProductionTestFactory factory) : Production
 
         var added = await client.PostAsJsonAsync($"/api/v1/production-runs/{run.Id}/lines", new
         {
-            lines = new[] { new { targetKind = "Part", targetId = (await PartAsync(2)).Id, quantity = 3, assignmentMode = "Unassigned" } },
+            lines = new[] { new { targetKind = "Part", targetId = (await MappedPartAsync(2)).Id, quantity = 3, assignmentMode = "Unassigned" } },
         });
 
         added.StatusCode.Should().Be(HttpStatusCode.OK, await added.Content.ReadAsStringAsync());
@@ -140,7 +140,7 @@ public class RunActionsEndpointTests(ProductionTestFactory factory) : Production
 
         (await JobsAsync(run.Id)).Should().OnlyContain(j => j.AssignmentMode == AssignmentMode.Unassigned && j.PinnedPrinterId == null);
         using var scope = Factory.Services.CreateScope();
-        var line = await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().RunLines.SingleAsync(l => l.ProductionRunId == run.Id);
+        var line = await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().ProductionDemands.SingleAsync(l => l.ProductionRunId == run.Id);
         line.DefaultAssignmentMode.Should().Be(AssignmentMode.Unassigned);
     }
 

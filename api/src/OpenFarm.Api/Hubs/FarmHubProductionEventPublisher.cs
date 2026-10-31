@@ -28,6 +28,9 @@ public sealed class FarmHubProductionEventPublisher(IHubContext<FarmHub> hubCont
             new { printJobId, printerId },
             cancellationToken);
 
+    public Task DemandChangedAsync(Guid demandId, CancellationToken cancellationToken) =>
+        Group.SendAsync("ProductionDemandChanged", new { demandId }, cancellationToken);
+
     public Task NotificationsChangedAsync(CancellationToken cancellationToken) =>
         Group.SendAsync("NotificationsChanged", cancellationToken);
 

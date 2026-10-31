@@ -42,6 +42,12 @@ public sealed class JobFileResolver(
             : await partFileStorage.GetRevisionStoragePathAsync(effective.RevisionHash, part.OriginalFileName, cancellationToken);
         await using var stored = await partFileStorage.OpenReadAsync(storagePath, cancellationToken);
         var fileName = Path.GetFileName(storagePath);
+        var inventory = PartObjectInventory.Read(stored, fileName, part.PlateNumber);
+        stored.Position = 0;
+        if (inventory.Count is { } count && count != job.PlateQuantity)
+            throw new InvalidProductionDemandException("This job's saved quantity disagrees with its file. Cancel and recreate the job after reprocessing the Part.");
+        if (job.ObjectExecution is { } old && old.Manifest.Units.Any(u => u.ObjectIds.Count != 1))
+            throw new InvalidProductionDemandException("This job uses an obsolete object grouping. Cancel and recreate it after reprocessing the Part.");
         var classification = classifier.Classify(stored, fileName);
         stored.Position = 0;
         if (!classification.RequiresSlicing)
@@ -52,7 +58,7 @@ public sealed class JobFileResolver(
                 effective.RevisionHash == part.RevisionHash ? part.EstimatedPrintTimeMinutes : null);
             var storedExtension = classification.Format == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
             var bytes = storedBuffer.ToArray();
-            return new JobFileContent(bytes, $"{description}{storedExtension}", PlateToPrint(bytes, part.PlateNumber)) { ConfigurationStamp = stamp };
+            return PrepareObjects(new JobFileContent(bytes, $"{description}{storedExtension}", PlateToPrint(bytes, part.PlateNumber)) { ConfigurationStamp = stamp }, job);
         }
 
         // A file that needs slicing never reaches the slicer without the presets that were resolved for the pin.
@@ -63,6 +69,13 @@ public sealed class JobFileResolver(
         var (projectSlots, unused) = classification.Format == PartFileFormat.ThreeMf ? await ProjectSlotsAsync(stored, plate, cancellationToken) : ([], []);
         stored.Position = 0;
         profiles = profiles with { Slots = FilamentSlots(projectSlots, effective.Requirements), Plate = plate };
+        if (job.ObjectExecution is not null && profiles.Pin.Engine == SlicerEngine.OrcaSlicer)
+        {
+            var process = System.Text.Json.Nodes.JsonNode.Parse(profiles.ProcessSettingsJson)!.AsObject();
+            process["gcode_label_objects"] = "1";
+            process["exclude_object"] = "1";
+            profiles = profiles with { ProcessSettingsJson = process.ToJsonString() };
+        }
         var result = await slicerEngine.SliceConfiguredAsync(profiles.Pin, stored, classification.Format, selections[0].MaterialType,
             nozzleDiameterMm, printerId, profiles, cancellationToken);
         var printed = PlateToPrint(result.OutputFileBytes, part.PlateNumber);
@@ -73,8 +86,22 @@ public sealed class JobFileResolver(
 
         var extension = result.OutputFileFormat == PartFileFormat.ThreeMf ? ".gcode.3mf" : ".gcode";
         var slicedDescription = PrintFileName.Describe(part.Name, selections.Select(s => s.MaterialType), result.EstimatedPrintTimeMinutes);
-        return new JobFileContent(result.OutputFileBytes, $"{slicedDescription}{extension}", printed)
-        { ConfigurationStamp = stamp, Profiles = profiles };
+        return PrepareObjects(new JobFileContent(result.OutputFileBytes, $"{slicedDescription}{extension}", printed)
+        { ConfigurationStamp = stamp, Profiles = profiles }, job);
+    }
+
+    private static JobFileContent PrepareObjects(JobFileContent file, PrintJob job)
+    {
+        if (job.ObjectExecution is not { } execution) return file;
+        var prepared = ObjectExecutionArtifact.Prepare(file.Bytes, file.Plate, execution);
+        if (execution.Manifest.Dialect == "Bambu")
+        {
+            // Retain the very archive the connector uploads, including its per-plate checksum.
+            prepared = OpenFarm.Infrastructure.Printers.Bambu.BambuPrintFile.PrepareProject(prepared, file.FileName, file.Plate);
+            if (!file.FileName.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase))
+                file = file with { FileName = Path.GetFileNameWithoutExtension(file.FileName) + ".gcode.3mf" };
+        }
+        return file with { Bytes = prepared };
     }
 
     /// <summary>

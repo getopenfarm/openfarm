@@ -37,7 +37,12 @@ function plateStatus(job: RunJobSummaryResponse) {
     return { label: 'Requeued', className: 'text-muted-foreground' };
   if (job.needsAction)
     return {
-      label: job.status ?? '',
+      label:
+        job.status === 'Completed'
+          ? job.outputVerified === false
+            ? 'Output unverified'
+            : 'Partial output'
+          : (job.status ?? ''),
       className: 'font-medium text-destructive',
     };
   if (job.status === 'Printing' || job.status === 'Paused')
@@ -71,6 +76,7 @@ function Plates({
         <TableRow>
           <TableHead className="w-24">Plate</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Units</TableHead>
           <TableHead>Printer</TableHead>
           <TableHead>Time</TableHead>
         </TableRow>
@@ -95,6 +101,13 @@ function Plates({
                     Send failed
                   </span>
                 )}
+              </TableCell>
+              <TableCell className="tabular-nums">
+                {job.targetUnits != null
+                  ? job.status === 'Completed'
+                    ? `${job.producedUnits ?? 0}/${job.targetUnits}`
+                    : job.targetUnits
+                  : '—'}
               </TableCell>
               <TableCell>
                 {job.printerId ? (
@@ -135,6 +148,15 @@ function RequirementRow({
   indent?: boolean;
 }) {
   const jobs = requirement.jobs ?? [];
+  const plannedUnits = jobs.reduce(
+    (sum, job) =>
+      sum +
+      (job.requeuedAsJobId
+        ? (job.producedUnits ?? 0)
+        : (job.targetUnits ?? requirement.unitsPerPlate ?? 1)),
+    0,
+  );
+  const surplus = plannedUnits - (requirement.quantity ?? plannedUnits);
   return (
     <Collapsible className="group/requirement">
       <CollapsibleTrigger
@@ -158,6 +180,7 @@ function RequirementRow({
           <span className="block text-xs text-muted-foreground">
             {requirement.unitsPerPlate ?? 1} per plate
             {!requirement.sourcePartAvailable && ' · removed from library'}
+            {!unlimited && surplus > 0 && ` · ${surplus} surplus units planned`}
           </span>
         </span>
         <span className="col-span-3 col-start-3 sm:col-span-1 sm:col-start-auto">

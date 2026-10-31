@@ -6,7 +6,7 @@ namespace OpenFarm.Domain.Production;
 /// </summary>
 public sealed class ProductionRun
 {
-    private readonly List<RunLine> _lines = [];
+    private readonly List<ProductionDemand> _lines = [];
 
     private ProductionRun(
         Guid id, string? name, DateOnly? dueDate, string? priority, string? notes,
@@ -36,7 +36,7 @@ public sealed class ProductionRun
 
     public ProductionRunStatus Status { get; private set; }
 
-    public IReadOnlyList<RunLine> Lines => _lines;
+    public IReadOnlyList<ProductionDemand> Lines => _lines;
 
     public DateTimeOffset CreatedAtUtc { get; }
 
@@ -44,7 +44,7 @@ public sealed class ProductionRun
 
     public bool IsOpen => Status is ProductionRunStatus.Active or ProductionRunStatus.Complete;
 
-    public static ProductionRun Create(string? name, DateOnly? dueDate, string? notes, IReadOnlyList<RunLineSpec> lines)
+    public static ProductionRun Create(string? name, DateOnly? dueDate, string? notes, IReadOnlyList<ProductionDemandSpec> lines)
     {
         if (lines.Count == 0)
         {
@@ -54,7 +54,7 @@ public sealed class ProductionRun
         var run = new ProductionRun(Guid.NewGuid(), BlankToNull(name), dueDate, null, BlankToNull(notes), DateTimeOffset.UtcNow);
         foreach (var spec in lines)
         {
-            run._lines.Add(RunLine.Create(run.Id, spec));
+            run._lines.Add(ProductionDemand.Create(run.Id, spec));
         }
 
         return run;
@@ -70,7 +70,7 @@ public sealed class ProductionRun
     }
 
     /// <summary>More demand on an open run; a Complete run is Active again until the new plates are done.</summary>
-    public IReadOnlyList<RunLine> AddLines(IReadOnlyList<RunLineSpec> lines)
+    public IReadOnlyList<ProductionDemand> AddLines(IReadOnlyList<ProductionDemandSpec> lines)
     {
         EnsureOpen();
         if (lines.Count == 0)
@@ -78,7 +78,7 @@ public sealed class ProductionRun
             throw new ProductionRunMustHaveAtLeastOneLineException();
         }
 
-        var added = lines.Select(spec => RunLine.Create(Id, spec)).ToList();
+        var added = lines.Select(spec => ProductionDemand.Create(Id, spec)).ToList();
         _lines.AddRange(added);
         Status = ProductionRunStatus.Active;
         UpdatedAtUtc = DateTimeOffset.UtcNow;

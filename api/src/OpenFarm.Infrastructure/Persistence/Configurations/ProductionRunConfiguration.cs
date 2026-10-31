@@ -22,7 +22,7 @@ public sealed class ProductionRunConfiguration : IEntityTypeConfiguration<Produc
         builder.HasMany(r => r.Lines)
             .WithOne()
             .HasForeignKey(l => l.ProductionRunId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
         builder.Navigation(r => r.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         // Postgres system column; the Npgsql provider auto-maps a "xmin"-named uint row-version

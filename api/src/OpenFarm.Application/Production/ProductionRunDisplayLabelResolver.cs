@@ -35,7 +35,7 @@ public sealed class ProductionRunDisplayLabelResolver(IPartRepository partReposi
         return $"{run.Lines.Count} lines — {string.Join(", ", names)}";
     }
 
-    private async Task<string> ResolveTargetNameAsync(RunLine line, CancellationToken cancellationToken)
+    private async Task<string> ResolveTargetNameAsync(ProductionDemand line, CancellationToken cancellationToken)
     {
         if (line.TargetName is not null) return line.TargetName;
         if (line.TargetKind == RunLineTargetKind.Part)

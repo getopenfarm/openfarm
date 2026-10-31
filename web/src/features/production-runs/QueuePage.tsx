@@ -30,6 +30,7 @@ import {
 } from '@/lib/api/generated/print-jobs/print-jobs';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { cn } from '@/lib/utils';
+import { BackfillManager } from './components/BackfillManager';
 import { ExternalPrintCells } from './components/ExternalPrintCells';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
 import {
@@ -236,6 +237,7 @@ export function QueuePage() {
     <Page className="min-h-0 flex-1">
       <PageHeader
         title="Queue"
+        action={<BackfillManager />}
         description="Finite, backfill and printer-started jobs · status updates live."
       />
       <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -381,7 +383,7 @@ export function QueuePage() {
                               description={
                                 group === 'external'
                                   ? 'Prints started on the printer appear here.'
-                                  : 'Try another status or queue a production run.'
+                                  : 'Try another status or send a Part or Assembly to queue.'
                               }
                             />
                           )
@@ -447,12 +449,14 @@ export function QueuePage() {
                                   >
                                     {job.partName}
                                   </Link>
-                                  <Link
-                                    to={`/production-runs/${job.productionRunId}`}
-                                    className="mt-0.5 block text-xs text-muted-foreground hover:underline"
-                                  >
-                                    {job.runDisplayLabel}
-                                  </Link>
+                                  {job.productionRunId && (
+                                    <Link
+                                      to={`/production-runs/${job.productionRunId}`}
+                                      className="mt-0.5 block text-xs text-muted-foreground hover:underline"
+                                    >
+                                      {job.runDisplayLabel}
+                                    </Link>
+                                  )}
                                 </div>
                               </QueueTableCell>
                               <QueueTableCell className="flex items-center tabular-nums">

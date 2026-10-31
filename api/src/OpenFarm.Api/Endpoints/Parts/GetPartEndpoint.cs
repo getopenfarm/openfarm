@@ -44,6 +44,9 @@ public sealed class PartResponse
     public int? PlateNumber { get; set; }
     public string? PlateName { get; set; }
     public int UnitsPerPrint { get; set; } = 1;
+    public int? DetectedUnitsPerPrint { get; set; }
+    public string? QuantityDetectionSource { get; set; }
+    public bool QuantityNeedsReprocessing { get; set; }
     public List<ThumbnailResponse> Thumbnails { get; set; } = [];
     public List<string> Tags { get; set; } = [];
 
@@ -68,6 +71,9 @@ public sealed class PartResponse
         PlateNumber = detail.PlateNumber,
         PlateName = detail.PlateName,
         UnitsPerPrint = detail.UnitsPerPrint,
+        DetectedUnitsPerPrint = detail.DetectedUnitsPerPrint,
+        QuantityDetectionSource = detail.QuantityDetectionSource,
+        QuantityNeedsReprocessing = detail.QuantityNeedsReprocessing,
         FilamentRequirements = detail.FilamentRequirements.Select(r => new PartFilamentRequirementResponse
         {
             Id = r.Id,
@@ -85,9 +91,8 @@ public sealed class PartResponse
     };
 
     /// <summary>
-    /// Used by Confirm/Replace, which return the domain entity directly rather than round-tripping
-    /// through <c>GetPartQuery</c>. Doesn't compute the narrow-override unresolved flags (defaults
-    /// false) — acceptable since a just-confirmed override was, by definition, valid a moment ago.
+    /// Compatibility projection without file detection or narrowing-reference resolution.
+    /// Interactive responses use <see cref="FromDetail"/> to include current quantity evidence.
     /// </summary>
     public static PartResponse FromDomain(Part part) => new()
     {

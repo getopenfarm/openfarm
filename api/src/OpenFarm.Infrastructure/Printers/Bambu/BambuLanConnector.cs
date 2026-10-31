@@ -179,7 +179,13 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     /// real, open verification question for physical hardware (research.md R5's own documented risk),
     /// not settled here.
     /// </summary>
-    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+        StartSelectedJobAsync(details, fileContent, jobName, plate, feedMapping, [], cancellationToken);
+
+    public Task SkipObjectsAsync(PrinterConnectionDetails details, IReadOnlyList<string> objectIds, CancellationToken ct) =>
+        PublishCommandAsync(details, JsonSerializer.Serialize(new { print = new { sequence_id = "0", command = "skip_objects", obj_list = objectIds.Select(id => int.Parse(id, System.Globalization.CultureInfo.InvariantCulture)).ToArray() } }), ct);
+
+    public async Task StartSelectedJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, IReadOnlyList<string> excludedObjects, CancellationToken cancellationToken)
     {
         using var buffered = new MemoryStream();
         await fileContent.CopyToAsync(buffered, cancellationToken);
@@ -207,6 +213,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             {
                 sequence_id = "0",
                 command = "project_file",
+                skip_objects = excludedObjects.Count == 0 ? null : excludedObjects.Select(id => int.Parse(id, System.Globalization.CultureInfo.InvariantCulture)).ToArray(),
                 param = BambuPrintFile.PlatePath(plate),
                 project_id = "0",
                 profile_id = "0",

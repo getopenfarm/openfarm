@@ -405,7 +405,7 @@ export function PartDetailPage() {
             action={
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  disabled={incomplete}
+                  disabled={incomplete || part.quantityNeedsReprocessing}
                   title={
                     incomplete
                       ? 'Complete this part’s print requirements before queueing.'
@@ -528,29 +528,53 @@ export function PartDetailPage() {
                             requirements.every((r) => r.estimatedGrams != null)
                           }
                         />
-                        <FormField
-                          control={form.control}
-                          name="unitsPerPrint"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Units per print</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  className="w-28"
-                                  {...field}
-                                  value={
-                                    Number.isNaN(field.value) ? '' : field.value
-                                  }
-                                  onChange={(event) =>
-                                    field.onChange(event.target.valueAsNumber)
-                                  }
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        {part.detectedUnitsPerPrint != null ? (
+                          <div>
+                            <dl>
+                              <div>
+                                <dt className="text-xs text-muted-foreground">
+                                  Units per print
+                                </dt>
+                                <dd className="font-heading text-2xl font-semibold tabular-nums">
+                                  {part.unitsPerPrint ?? 1}
+                                </dd>
+                              </div>
+                            </dl>
+                            {part.quantityNeedsReprocessing && (
+                              <p className="text-sm text-muted-foreground">
+                                Detected {part.detectedUnitsPerPrint} objects.
+                                Reprocess to update the saved quantity before
+                                queueing.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <FormField
+                            control={form.control}
+                            name="unitsPerPrint"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Units per print</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    className="w-28"
+                                    {...field}
+                                    value={
+                                      Number.isNaN(field.value)
+                                        ? ''
+                                        : field.value
+                                    }
+                                    onChange={(event) =>
+                                      field.onChange(event.target.valueAsNumber)
+                                    }
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
                       </div>
                       {(part.estimateUnavailableReason ?? perUnit) && (
                         <p className="-mt-2 text-sm text-muted-foreground">

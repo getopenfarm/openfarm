@@ -40,6 +40,7 @@ import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/gene
 import { formatDateTime } from '@/lib/formatDateTime';
 import { formatCost, formatGrams } from '@/lib/formatUnits';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
+import { JobObjectsCard } from './components/JobObjectsCard';
 import { JobRemoteControls } from './components/JobRemoteControls';
 import { RemoveJobButton } from './components/RemoveJobButton';
 import { useProductionHub } from './hooks/useProductionHub';
@@ -530,6 +531,16 @@ export function PrintJobDetailPage() {
             <ExternalPrintSummary job={job} printerName={printer?.name} />
           ) : (
             <JobRemoteControls jobId={id} status={job.status ?? ''} />
+          )}
+          {!external && (
+            <JobObjectsCard
+              jobId={id}
+              status={job.status ?? ''}
+              produced={job.producedUnits}
+              target={job.targetUnits}
+              canResolve={job.canResolveShortfall}
+              canRequeue={job.snapshotState === 'Ready'}
+            />
           )}
           {!external && job.snapshotState !== 'Ready' && (
             <Alert id="job-source-warning">

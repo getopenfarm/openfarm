@@ -11,7 +11,7 @@ public sealed class GetQueueJobsQueryHandler(
     IProductionRunRepository runRepository,
     ProductionRunDisplayLabelResolver labelResolver,
     IPrintJobEligibilityQuery eligibilityQuery,
-    IExternalPrintRepository? externalPrintRepository = null) : IQueryHandler<GetQueueJobsQuery, QueueJobsPage>
+    IExternalPrintRepository? externalPrintRepository = null, IProductionDemandRepository? demands = null) : IQueryHandler<GetQueueJobsQuery, QueueJobsPage>
 {
     public async Task<QueueJobsPage> HandleAsync(GetQueueJobsQuery query, CancellationToken cancellationToken)
     {
@@ -20,7 +20,7 @@ public sealed class GetQueueJobsQueryHandler(
         var (jobs, totalCount, statusCounts) = await jobRepository.ListQueueAsync(query.BackfillOnly, query.Page, query.PageSize, cancellationToken, query.Status, query.Search);
 
         var eligibleIds = await eligibilityQuery.GetEligibleJobIdsAsync(jobs, cancellationToken);
-        var runLabelCache = new Dictionary<Guid, (Guid RunId, string DisplayLabel)>();
+        var runLabelCache = new Dictionary<Guid, (Guid? RunId, string DisplayLabel, bool IsOpen)>();
         var items = new List<QueueJobRow>();
 
         foreach (var job in jobs)
@@ -36,8 +36,8 @@ public sealed class GetQueueJobsQueryHandler(
             if (!runLabelCache.TryGetValue(requirement.RunLineId, out var runInfo))
             {
                 var run = await runRepository.GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
-                var displayLabel = run is null ? "Unknown run" : await labelResolver.ResolveAsync(run, cancellationToken);
-                runInfo = (run?.Id ?? Guid.Empty, displayLabel);
+                var displayLabel = run is null ? "" : await labelResolver.ResolveAsync(run, cancellationToken);
+                runInfo = (run?.Id, displayLabel, run?.IsOpen ?? true);
                 runLabelCache[requirement.RunLineId] = runInfo;
             }
 
@@ -49,7 +49,7 @@ public sealed class GetQueueJobsQueryHandler(
                 isBlocked, requirement.PartId, job.GetProductionPart()?.Name ?? requirement.PartName ?? part?.Name ?? "Unknown part", job.PlateQuantity,
                 requirement.RunLineId, runInfo.RunId, runInfo.DisplayLabel,
                 isBlocked ? await eligibilityQuery.GetBlockingReasonAsync(job, cancellationToken) : null, part is not null, job.GetSnapshotState(), job.SnapshotRecoveryReason,
-                job.Source, job.StartedAtUtc, job.EndedAtUtc, job.Status == PrintJobStatus.Queued ? job.LastBlockReason : null));
+                job.Source, job.StartedAtUtc, job.EndedAtUtc, job.Status == PrintJobStatus.Queued ? job.LastBlockReason : null, demands is null ? null : (await demands.GetAsync(requirement.RunLineId, cancellationToken))?.Mode.ToString(), requirement.Quantity is not null && job.IsUnresolvedLoss && job.ProductionSnapshotJson is not null && runInfo.IsOpen && !(job.Status == PrintJobStatus.Completed && job.ObjectExecution is { Observed: false }), job.EffectiveTargetUnits, job.ProducedUnits, job.MissingUnits));
         }
 
         return new QueueJobsPage(items, totalCount, statusCounts);

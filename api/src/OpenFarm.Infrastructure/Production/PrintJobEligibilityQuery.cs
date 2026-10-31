@@ -71,8 +71,10 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
         var libraryPart = requirement is not null && requirement.Quantity is null && job.DispatchedAtUtc is null
             ? await parts.GetByIdAsync(requirement.PartId, ct) : null;
         var part = ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
+        var demandAllowed = requirement is not null && await dispatchQuery.CanDispatchDemandAsync(requirement.RunLineId, ct);
         var jobChecks = new List<MatchingCheck>
         {
+            Check("demand-state", "Demand is enabled", demandAllowed, "Enabled", demandAllowed ? "Enabled" : "Paused, removed, or its Run is closed"),
             Check("job-state", "Job is waiting for assignment", job.Status == PrintJobStatus.Queued && job.DispatchedAtUtc is null,
                 "Queued, not dispatched", job.DispatchedAtUtc is null ? job.Status.ToString() : "Already dispatched"),
             Check("part-requirements", "Production print requirements", part?.PrintRequirementsStatus == OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete,
@@ -157,7 +159,9 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
                 "Requires complete part requirements and a matching confirmed nozzle."));
             var eligible = jobChecks.All(c => c.Status == "Passed") && checks.All(c => c.Status == "Passed");
             string? scheduling = null;
-            if (includeScheduling && eligible)
+            if (includeScheduling && eligible && requirement?.Quantity is null)
+                scheduling = "Backfill waits for compatible idle capacity after finite work.";
+            if (includeScheduling && eligible && requirement?.Quantity is not null)
             {
                 var candidates = await dispatchQuery.FilterReadyAsync(printer.Id, await dispatchQuery.GetUnassignedCandidatesAsync(ct), ct);
                 var pinned = await dispatchQuery.FilterReadyAsync(printer.Id, await dispatchQuery.GetPinnedCandidatesAsync(printer.Id, ct), ct);

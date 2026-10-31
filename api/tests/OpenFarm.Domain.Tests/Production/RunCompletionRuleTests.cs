@@ -108,7 +108,7 @@ public class RunCompletionRuleTests
     public void Close_FromActive_OnlyWhenNoFiniteWorkRemains()
     {
         var run = ProductionRun.Create(null, null, null,
-            [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), null, null, AssignmentMode.Unassigned, null, 1, null)]);
+            [new ProductionDemandSpec(RunLineTargetKind.Part, Guid.NewGuid(), null, null, AssignmentMode.Unassigned, null, 1, null)]);
 
         run.Invoking(r => r.Close(finiteWorkRemains: true)).Should().Throw<InvalidRunCompletionException>();
         run.Close(finiteWorkRemains: false);
@@ -119,7 +119,7 @@ public class RunCompletionRuleTests
     [Fact]
     public void AddLines_ReopensACompleteRun_AndIsRefusedOnceClosed()
     {
-        var spec = new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), 4, null, AssignmentMode.Unassigned, null, 1, null);
+        var spec = new ProductionDemandSpec(RunLineTargetKind.Part, Guid.NewGuid(), 4, null, AssignmentMode.Unassigned, null, 1, null);
         var run = ProductionRun.Create(null, null, null, [spec]);
         run.MarkComplete();
 
@@ -138,7 +138,7 @@ public class RunCompletionRuleTests
     public void UpdateDetails_TrimsBlanksToNull_AndIsRefusedOnceCancelled()
     {
         var run = ProductionRun.Create("Old", null, null,
-            [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), 4, null, AssignmentMode.Unassigned, null, 1, null)]);
+            [new ProductionDemandSpec(RunLineTargetKind.Part, Guid.NewGuid(), 4, null, AssignmentMode.Unassigned, null, 1, null)]);
 
         run.UpdateDetails("  Order #1042 ", new DateOnly(2026, 10, 31), "  ");
 

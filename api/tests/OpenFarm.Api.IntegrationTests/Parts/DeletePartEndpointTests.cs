@@ -78,7 +78,7 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var part = NewPart("unused-test-path.gcode");
             var run = ProductionRun.Create("History", null, null,
-                [new RunLineSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
+                [new ProductionDemandSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
             if (completed) run.MarkComplete();
             db.Parts.Add(part);
             db.ProductionRuns.Add(run);
@@ -105,7 +105,7 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var part = NewPart("unused-test-path.gcode");
         var run = ProductionRun.Create("History", null, null,
-            [new RunLineSpec(RunLineTargetKind.Part, part.Id, null, null, AssignmentMode.Unassigned, null, 1, null)]);
+            [new ProductionDemandSpec(RunLineTargetKind.Part, part.Id, null, null, AssignmentMode.Unassigned, null, 1, null)]);
         db.Parts.Add(part);
         db.ProductionRuns.Add(run);
         db.PartRequirements.Add(PartRequirement.Create(run.Lines[0].Id, part.Id, null));
@@ -131,7 +131,7 @@ public class DeletePartEndpointTests(ProductionTestFactory factory) : IClassFixt
             var assembly = OpenFarm.Domain.Assemblies.Assembly.Create("Slab Ass", null,
                 [new OpenFarm.Domain.Assemblies.BomLineSpec(OpenFarm.Domain.Assemblies.BomLineTargetKind.Part, blocked.Id, null, null, 1)]);
             var run = ProductionRun.Create("Unlimited slabs", null, null,
-                [new RunLineSpec(RunLineTargetKind.Part, blocked.Id, null, null, AssignmentMode.Unassigned, null, 1, null)]);
+                [new ProductionDemandSpec(RunLineTargetKind.Part, blocked.Id, null, null, AssignmentMode.Unassigned, null, 1, null)]);
             var requirement = PartRequirement.Create(run.Lines[0].Id, blocked.Id, null);
             db.Parts.AddRange(blocked, eligible);
             db.Assemblies.Add(assembly);

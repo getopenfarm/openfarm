@@ -20,7 +20,7 @@ public class TerminalSnapshotDeletionTests(ProductionTestFactory factory) : Prod
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var run = ProductionRun.Create("Legacy dependency", null, null,
-            [new RunLineSpec(RunLineTargetKind.Part, part.Id, unlimited ? null : 1, null, AssignmentMode.Unassigned, null, 1, null)]);
+            [new ProductionDemandSpec(RunLineTargetKind.Part, part.Id, unlimited ? null : 1, null, AssignmentMode.Unassigned, null, 1, null)]);
         var requirement = PartRequirement.Create(run.Lines[0].Id, part.Id, unlimited ? null : 1);
         var job = PrintJob.Create("Test part", requirement.Id, 1024, part.UnitsPerPrint,
             AssignmentMode.Pinned, printer.Id, part.RevisionHash, part.RevisionNumber, [new JobFilamentRequirementSpec("PLA", null)]);

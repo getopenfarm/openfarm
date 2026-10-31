@@ -367,6 +367,48 @@ describe('PartDetailPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
+  it.each([false, true])(
+    'displays detected units as a stat and explains reprocessing (%s)',
+    async (stale) => {
+      const part = {
+        ...partBody('detected-part', 'Four clips'),
+        printRequirementsStatus: 'Complete',
+        unitsPerPrint: stale ? 1 : 4,
+        detectedUnitsPerPrint: 4,
+        quantityDetectionSource: 'GcodeLabels',
+        quantityNeedsReprocessing: stale,
+      };
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: RequestInfo | URL) =>
+          input.toString().includes('/hubs/farm')
+            ? Promise.reject(new Error('No hub'))
+            : Promise.resolve(jsonResponse(part)),
+        ),
+      );
+      renderPage('detected-part');
+      const label = await screen.findByText('Units per print');
+      expect(label.tagName).toBe('DT');
+      expect(label.nextElementSibling).toHaveTextContent(stale ? '1' : '4');
+      expect(
+        screen.queryByRole('spinbutton', { name: 'Units per print' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /Map print units/ }),
+      ).not.toBeInTheDocument();
+      const queue = screen.getByRole('button', { name: 'Send to queue' });
+      if (stale) {
+        expect(queue).toBeDisabled();
+        expect(screen.getByText(/Detected 4 objects. Reprocess/)).toBeVisible();
+      } else {
+        expect(queue).toBeEnabled();
+        expect(
+          screen.queryByText(/Reprocess to update/),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
+
   it('blocks queueing an incomplete part', async () => {
     const partId = '44444444-4444-4444-4444-444444444444';
     const part = {

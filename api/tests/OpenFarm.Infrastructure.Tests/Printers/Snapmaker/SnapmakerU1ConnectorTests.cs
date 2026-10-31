@@ -14,6 +14,15 @@ namespace OpenFarm.Infrastructure.Tests.Printers.Snapmaker;
 public class SnapmakerU1ConnectorTests
 {
     [Fact]
+    public async Task LiveSkipping_SendsNamedExclusionsThroughMoonraker()
+    {
+        await using var harness = new MoonrakerHarness();
+        await harness.CreateConnector().SkipObjectsAsync(harness.Details(), ["PART_A", "PART_B"], CancellationToken.None);
+        var request = await harness.NextRequestAsync("printer.gcode.script");
+        request.Params!["script"]!.GetValue<string>().Should().Be("EXCLUDE_OBJECT NAME=PART_A\nEXCLUDE_OBJECT NAME=PART_B");
+    }
+
+    [Fact]
     public async Task Verify_AU1_WithOrWithoutItsSerial_Succeeds()
     {
         await using var harness = new MoonrakerHarness();

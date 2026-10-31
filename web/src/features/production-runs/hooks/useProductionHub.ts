@@ -25,7 +25,8 @@ export function invalidateProductionQueries(
     predicate: (query) =>
       typeof query.queryKey[0] === 'string' &&
       (query.queryKey[0].startsWith('/api/v1/production-runs') ||
-        query.queryKey[0].startsWith('/api/v1/print-jobs')),
+        query.queryKey[0].startsWith('/api/v1/print-jobs') ||
+        query.queryKey[0].startsWith('/api/v1/production-demands')),
   });
 }
 
@@ -62,6 +63,10 @@ export function useProductionHub(
         statusChangedRef.current?.(payload.printJobId, payload.status);
         invalidateProductionQueries(queryClient);
       },
+    );
+
+    connection.on('ProductionDemandChanged', () =>
+      invalidateProductionQueries(queryClient),
     );
 
     connection.on('PartDeleted', () =>

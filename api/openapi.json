@@ -2631,6 +2631,213 @@
         ]
       }
     },
+    "/api/v1/production-demands/preview": {
+      "post": {
+        "tags": [
+          "Production-Demands"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsPreviewProductionPlanEndpoint",
+        "requestBody": {
+          "x-name": "PreviewProductionPlanRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewProductionPlanRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/production-demands": {
+      "post": {
+        "tags": [
+          "Production-Demands"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsSubmitProductionDemandEndpoint",
+        "requestBody": {
+          "x-name": "SubmitProductionDemandRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitProductionDemandRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionDemandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/production-demands/backfill": {
+      "get": {
+        "tags": [
+          "Production-Demands"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsListBackfillEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductionDemandResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/production-demands/{id}/backfill": {
+      "post": {
+        "tags": [
+          "Production-Demands"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsChangeBackfillEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ChangeBackfillRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBackfillRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionDemandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/production-runs/{id}/lines": {
       "post": {
         "tags": [
@@ -3302,6 +3509,350 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PrintJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/objects": {
+      "get": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsGetPartObjectsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectManifest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/object-groups": {
+      "put": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SetPartObjectGroupsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPartObjectGroupsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectManifest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/objects": {
+      "get": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsGetJobObjectsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectExecution"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/skip-objects": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SkipJobObjectsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkipJobObjectsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectExecution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/object-output": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ConfirmObjectOutputRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmObjectOutputRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectExecution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/confirm-not-started": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ConfirmPrintNotStartedRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmPrintNotStartedRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectExecution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -8611,6 +9162,9 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "quantityBasis": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8752,6 +9306,24 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "targetUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "producedUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "missingUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "outputVerified": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8806,6 +9378,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "submissionId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "name": {
             "type": "string",
             "nullable": true
@@ -8847,6 +9424,14 @@
             "type": "integer",
             "format": "int32",
             "minimum": 1.0,
+            "nullable": true
+          },
+          "planVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantityBasis": {
+            "type": "string",
             "nullable": true
           },
           "revisionMode": {
@@ -8973,6 +9558,220 @@
         "type": "object",
         "additionalProperties": false
       },
+      "ProductionPlan": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionPlanPart"
+            }
+          },
+          "plates": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completeSets": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "minutes": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "grams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "ProductionPlanPart": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "partId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "requiredUnits": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "unitsPerPlate": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plates": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plannedUnits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "surplusUnits": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "minutes": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "grams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "revision": {
+            "type": "string"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "jobUnits": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "objectMappingVersion": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PreviewProductionPlanRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "line": {
+            "$ref": "#/components/schemas/CreateRunLineRequest"
+          },
+          "plateOverrides": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "ProductionDemandResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "productionRunId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "printerCap": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pinnedPrinterId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "targetKind": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "SubmitProductionDemandRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "submissionId"
+        ],
+        "properties": {
+          "submissionId": {
+            "type": "string",
+            "format": "guid",
+            "minLength": 1,
+            "nullable": false
+          },
+          "line": {
+            "$ref": "#/components/schemas/CreateRunLineRequest"
+          },
+          "planVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "productionRunId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "createRun": {
+            "type": "boolean"
+          },
+          "newRunName": {
+            "type": "string",
+            "nullable": true
+          },
+          "plateOverrides": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "ChangeBackfillRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "printerCap": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pinnedPrinterId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
       "AddRunLinesRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -9085,6 +9884,9 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "canResolveShortfall": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -9097,6 +9899,21 @@
           "queuePosition": {
             "type": "number",
             "format": "double",
+            "nullable": true
+          },
+          "targetUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "producedUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "missingUnits": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "plateQuantity": {
@@ -9539,6 +10356,21 @@
           "partName": {
             "type": "string"
           },
+          "targetUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "producedUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "missingUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "plateQuantity": {
             "type": "integer",
             "format": "int32"
@@ -9547,6 +10379,18 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "demandId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "demandMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "canRequeue": {
+            "type": "boolean"
           },
           "productionRunId": {
             "type": "string",
@@ -9591,6 +10435,263 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          }
+        }
+      },
+      "PrintObjectManifest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revisionHash": {
+            "type": "string"
+          },
+          "plate": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dialect": {
+            "type": "string"
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrintObject"
+            }
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrintUnit"
+            }
+          },
+          "detectedCount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "countSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "skipUnavailableReason": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PrintObject": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "polygon": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "decimal"
+              }
+            }
+          }
+        }
+      },
+      "PrintUnit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "objectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PartObjectsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SetPartObjectGroupsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revisionHash",
+          "units"
+        ],
+        "properties": {
+          "revisionHash": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": false
+          },
+          "units": {
+            "type": "array",
+            "minLength": 1,
+            "nullable": false,
+            "items": {
+              "$ref": "#/components/schemas/PrintUnit"
+            }
+          }
+        }
+      },
+      "PrintObjectExecution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/PrintObjectManifest"
+          },
+          "selectedUnitIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requestedObjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confirmedObjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "observed": {
+            "type": "boolean"
+          },
+          "artifactPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "artifactHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "artifactName": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestError": {
+            "type": "string",
+            "nullable": true
+          },
+          "excludedAt": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ProgressMark"
+            }
+          },
+          "startRequested": {
+            "type": "boolean"
+          },
+          "canSkipObjects": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "skipUnavailableReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "plannedExclusions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "goodUnits": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ProgressMark": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "layer": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "percent": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "JobObjectsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SkipJobObjectsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactHash",
+          "unitIds"
+        ],
+        "properties": {
+          "artifactHash": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": false
+          },
+          "unitIds": {
+            "type": "array",
+            "minLength": 1,
+            "nullable": false,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ConfirmObjectOutputRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactHash",
+          "producedUnitIds"
+        ],
+        "properties": {
+          "artifactHash": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": false
+          },
+          "producedUnitIds": {
+            "type": "array",
+            "nullable": false,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ConfirmPrintNotStartedRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactHash"
+        ],
+        "properties": {
+          "artifactHash": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": false
           }
         }
       },
@@ -10516,6 +11617,18 @@
             "type": "integer",
             "format": "int32"
           },
+          "detectedUnitsPerPrint": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "quantityDetectionSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantityNeedsReprocessing": {
+            "type": "boolean"
+          },
           "thumbnails": {
             "type": "array",
             "items": {
@@ -10984,6 +12097,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "unitsPerPrint": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "nozzleDiameterMm": {
             "type": "number",
             "format": "decimal",
@@ -11084,6 +12202,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "unitsPerPrint": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "number": {
             "type": "integer",
             "format": "int32"

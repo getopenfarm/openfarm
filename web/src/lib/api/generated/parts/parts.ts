@@ -30,8 +30,11 @@ import type {
   OpenFarmApiEndpointsPartsListPartsEndpointParams,
   PartProcessingJobSubmittedResponse,
   PartResponse,
+  PrintObjectManifest,
+  ProblemDetails,
   ReplacePartFileRequest,
   ReprocessPartRequest,
+  SetPartObjectGroupsRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -52,6 +55,411 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
+export type openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse200 = {
+  data: PrintObjectManifest;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponseError = (
+  | openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse401
+  | openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse =
+  | openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/parts/${id}/objects`;
+};
+
+export const openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintJobsGetPartObjectsEndpointResponse>(
+    getOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpointUrl(id),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpointQueryKey = (
+  id: string,
+) => {
+  return [`/api/v1/parts/${id}/objects`] as const;
+};
+
+export const getOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+    >,
+    TError = void,
+  >(
+    id: string,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpointQueryKey(id);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint(id, { signal });
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: id !== null && id !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsGetPartObjectsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPrintJobsGetPartObjectsEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsPrintJobsGetPartObjectsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsPrintJobsGetPartObjectsEndpointQueryOptions(
+      id,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse200 =
+  {
+    data: PrintObjectManifest;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse400 =
+  {
+    data: ProblemDetails;
+    status: 400;
+  };
+
+export type openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponseSuccess =
+  openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse400
+    | openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse401
+    | openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse =
+  | openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponseSuccess
+  | openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/parts/${id}/object-groups`;
+};
+
+export const openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint = async (
+  id: string,
+  setPartObjectGroupsRequest: SetPartObjectGroupsRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointResponse>(
+    getOpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointUrl(id),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(setPartObjectGroupsRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointMutationOptions =
+  <TError = ProblemDetails | void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: SetPartObjectGroupsRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: SetPartObjectGroupsRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint
+        >
+      >,
+      { id: string; data: SetPartObjectGroupsRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint(id, data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointMutationBody =
+  SetPartObjectGroupsRequest;
+export type OpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointMutationError =
+  ProblemDetails | void;
+
+export const useOpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint = <
+  TError = ProblemDetails | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: SetPartObjectGroupsRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint>
+  >,
+  TError,
+  { id: string; data: SetPartObjectGroupsRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsPartsCheckPartDeletionEndpointResponse200 = {
   data: CheckPartDeletionResponse;
   status: 200;

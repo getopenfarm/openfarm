@@ -24,6 +24,8 @@ public sealed class WriteOffPrintJobCommandHandler(
         if (requirement?.Quantity is null)
             throw new PrintJobNotEligibleForWriteOffException(job.Id);
 
+        if (job.Status == PrintJobStatus.Completed && job.ObjectExecution is { Observed: false })
+            throw new InvalidProductionDemandException("Confirm the produced units before writing off an unverified print.");
         job.WriteOff();
         await jobRepository.SaveChangesAsync(cancellationToken);
         await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);

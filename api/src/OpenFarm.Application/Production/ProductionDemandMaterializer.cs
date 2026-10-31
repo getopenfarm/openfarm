@@ -13,7 +13,7 @@ namespace OpenFarm.Application.Production;
 /// every <c>Queued</c> <see cref="PrintJob"/> (<c>ceil(Quantity / Part.UnitsPerPrint)</c>) at the end of the queue.
 /// An unlimited (backfill) line creates zero jobs now; dispatch creates them lazily (US3). Nothing is saved here.
 /// </summary>
-internal sealed class RunLineMaterializer(
+internal sealed class ProductionDemandMaterializer(
     IPartRequirementRepository requirementRepository,
     IPrintJobRepository jobRepository,
     IPartRepository partRepository,
@@ -21,11 +21,11 @@ internal sealed class RunLineMaterializer(
     IPrinterRepository? printerRepository,
     IAssemblyRepository? assemblyRepository,
     IPartFileStorage? fileStorage,
-    ProductionSnapshotFactory? snapshotFactory)
+    ProductionSnapshotFactory? snapshotFactory, ProductionPlanner? planner = null)
 {
     /// <summary>Checks every line before anything is staged, so one bad line rejects the whole request.</summary>
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<ExplodedPartQuantity>>> ExplodeAsync(
-        IReadOnlyList<RunLine> lines, CancellationToken cancellationToken)
+        IReadOnlyList<ProductionDemand> lines, CancellationToken cancellationToken)
     {
         var explodedByLine = new Dictionary<Guid, IReadOnlyList<ExplodedPartQuantity>>();
         foreach (var line in lines)
@@ -34,13 +34,17 @@ internal sealed class RunLineMaterializer(
                 && await printerRepository.GetByIdAsync(printerId, cancellationToken) is null)
                 throw new PrinterNotFoundException(printerId);
 
-            var exploded = await ResolveExplodedPartsAsync(line, cancellationToken);
+            var exploded = planner is not null && line.Quantity is { } quantity
+                ? (await planner.PlanAsync(new(line.TargetKind, line.TargetId, quantity, line.QuantityBasis), cancellationToken)).Parts
+                    .Select(p => new ExplodedPartQuantity(p.PartId, p.Name, p.RequiredUnits)).ToList()
+                : await ResolveExplodedPartsAsync(line, cancellationToken);
             if (exploded.Count == 0)
                 throw new RunLineHasNoPrintedPartsException(line.TargetId);
             foreach (var item in exploded)
             {
                 var part = await partRepository.GetByIdAsync(item.PartId, cancellationToken) ?? throw new PartNotFoundException(item.PartId);
                 part.EnsurePrintRequirementsComplete();
+                if (planner is not null) await planner.ValidateQuantityAsync(part, cancellationToken);
             }
             line.CaptureTargetName(line.TargetKind == RunLineTargetKind.Part ? exploded[0].PartName
                 : assemblyRepository is null ? "Assembly" : (await assemblyRepository.GetByIdAsync(line.TargetId, cancellationToken))!.Name);
@@ -51,8 +55,8 @@ internal sealed class RunLineMaterializer(
     }
 
     public async Task StageAsync(
-        IReadOnlyList<RunLine> lines, IReadOnlyDictionary<Guid, IReadOnlyList<ExplodedPartQuantity>> explodedByLine,
-        CancellationToken cancellationToken)
+        IReadOnlyList<ProductionDemand> lines, IReadOnlyDictionary<Guid, IReadOnlyList<ExplodedPartQuantity>> explodedByLine,
+        CancellationToken cancellationToken, IReadOnlyDictionary<Guid, int>? plateCounts = null)
     {
         var nextQueuePosition = await jobRepository.GetMaxQueuePositionAsync(cancellationToken) ?? 0;
 
@@ -65,7 +69,11 @@ internal sealed class RunLineMaterializer(
                     line.Id, exploded.PartId, line.Quantity is null ? null : exploded.Quantity))
                 .ToList();
             foreach (var requirement in requirements)
-                requirement.CaptureName(explodedParts.First(p => p.PartId == requirement.PartId).PartName);
+            {
+                var source = explodedParts.First(p => p.PartId == requirement.PartId);
+                requirement.CaptureName(source.PartName);
+                if (line.Mode == DemandMode.Backfill) requirement.CaptureRecipeRatio(source.Quantity);
+            }
             await requirementRepository.AddRangeAsync(requirements, cancellationToken);
 
             // Resolve placeholders left by the upgrade migration from the actual stored bytes,
@@ -96,11 +104,12 @@ internal sealed class RunLineMaterializer(
                 var part = await partRepository.GetByIdAsync(requirement.PartId, cancellationToken)
                     ?? throw new PartNotFoundException(requirement.PartId);
 
-                var platesNeeded = (int)Math.Ceiling(requirement.Quantity!.Value / part.UnitsPerPrint);
+                var platesNeeded = plateCounts?.GetValueOrDefault(part.Id) ?? checked((int)Math.Ceiling(requirement.Quantity!.Value / part.UnitsPerPrint));
                 var filamentSpecs = part.FilamentRequirements
                     .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId))
                     .ToList();
 
+                var manifest = planner is null ? null : await planner.ReadObjectsAsync(part, cancellationToken);
                 var jobs = new List<PrintJob>(platesNeeded);
                 for (var i = 0; i < platesNeeded; i++)
                 {
@@ -110,6 +119,12 @@ internal sealed class RunLineMaterializer(
                         line.DefaultAssignmentMode, line.DefaultPinnedPrinterId, part.RevisionHash, part.RevisionNumber, filamentSpecs));
                 }
 
+                for (var i = 0; i < jobs.Count; i++)
+                {
+                    var target = Math.Min(part.UnitsPerPrint, checked((int)requirement.Quantity!.Value) - i * part.UnitsPerPrint);
+                    // Legacy callers without the new planner retain whole-plate materialization.
+                    if (planner is not null) jobs[i].SetExactTarget(target, manifest);
+                }
                 foreach (var job in jobs)
                     if (snapshotFactory is not null) await snapshotFactory.CaptureAsync(job, part, cancellationToken);
                     else job.CaptureProductionSnapshot(part);
@@ -118,7 +133,7 @@ internal sealed class RunLineMaterializer(
         }
     }
 
-    private async Task<IReadOnlyList<ExplodedPartQuantity>> ResolveExplodedPartsAsync(RunLine line, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<ExplodedPartQuantity>> ResolveExplodedPartsAsync(ProductionDemand line, CancellationToken cancellationToken)
     {
         if (line.TargetKind == RunLineTargetKind.Assembly)
         {
@@ -132,6 +147,6 @@ internal sealed class RunLineMaterializer(
 
         var part = await partRepository.GetByIdAsync(line.TargetId, cancellationToken)
             ?? throw new PartNotFoundException(line.TargetId);
-        return [new ExplodedPartQuantity(part.Id, part.Name, line.Quantity ?? 1)];
+        return [new ExplodedPartQuantity(part.Id, part.Name, line.QuantityBasis == QuantityBasis.Plates && line.Quantity is { } plates ? checked(plates * part.UnitsPerPrint) : line.Quantity ?? 1)];
     }
 }

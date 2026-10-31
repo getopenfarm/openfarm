@@ -114,6 +114,8 @@ public static class BambuMqttMessageParser
                 feedReadings.Add(new FeedUnitReading(FeedUnitKindCatalog.ExternalSpool, 0, [externalSpool]));
 
             return new PrinterTelemetrySnapshot(nozzleTempC, bedTempC, printProgressPercent, currentStageLabel, remainingTimeMinutes, currentJobName, feedReadings,
+                ExcludedObjectIds: print.TryGetProperty("s_obj", out var skipped) && skipped.ValueKind == JsonValueKind.Array
+                    ? skipped.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out var id) ? id.ToString(System.Globalization.CultureInfo.InvariantCulture) : "<unrecognized>").ToArray() : null,
                 CurrentLayer: TryGetInt(print, "layer_num"), TotalLayers: TryGetInt(print, "total_layer_num"),
                 ActiveSlots: ParseActiveSlots(print), CurrentGcodeFile: GetString(print, "gcode_file"), NozzleDiametersMm: ParseNozzleDiameters(print));
         }

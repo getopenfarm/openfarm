@@ -37,19 +37,20 @@ public sealed class GetProductionRunDetailQueryHandler(
                 var libraryPart = await partRepository.GetByIdAsync(requirement.PartId, cancellationToken);
                 var jobs = await jobRepository.ListByPartRequirementIdAsync(requirement.Id, cancellationToken);
                 var part = jobs.Select(j => j.GetProductionPart()).FirstOrDefault(p => p is not null) ?? libraryPart;
-                var completedUnits = jobs.Where(j => j.Status == PrintJobStatus.Completed).Sum(j => j.PlateQuantity);
+                var completedUnits = jobs.Sum(j => j.ProducedUnits);
 
                 requirements.Add(new PartRequirementSummary(
                     requirement.Id, requirement.PartId, requirement.PartName ?? part?.Name ?? "Unknown part", requirement.Quantity,
                     libraryPart is not null, (jobs.Count > 0 ? jobs[0].PlateQuantity : part?.UnitsPerPrint ?? 1), completedUnits,
-                    jobs.Where(j => j.WrittenOffAtUtc is not null).Sum(j => j.PlateQuantity), PlateCounts.Of(jobs),
+                    jobs.Sum(j => j.WrittenOffUnits), PlateCounts.Of(jobs),
                     part?.EstimatedPrintTimeMinutes, part?.EstimatedFilamentWeightGrams,
                     await NextPlateBlockingReasonAsync(jobs, cancellationToken),
                     jobs.Select(j => new RunJobSummary(
                         j.Id, j.Status, j.PrinterId, j.StartedAtUtc, j.EndedAtUtc,
                         j.Status == PrintJobStatus.Queued ? j.LastBlockReason : null, j.RequeuedAsJobId, j.WrittenOffAtUtc is not null,
                         requirement.Quantity is not null && j.IsUnresolvedLoss,
-                        requirement.Quantity is not null && j.IsUnresolvedLoss && run.IsOpen && j.ProductionSnapshotJson is not null)).ToList()));
+                        requirement.Quantity is not null && j.IsUnresolvedLoss && run.IsOpen && j.ProductionSnapshotJson is not null && !(j.Status == PrintJobStatus.Completed && j.ObjectExecution is { Observed: false }),
+                        j.EffectiveTargetUnits, j.ProducedUnits, j.MissingUnits, j.ObjectExecution?.Observed ?? true)).ToList()));
 
                 // FR-006e — coarse cumulative count, research.md R4's own occupancy/ceiling formula.
                 cumulativeProducedUnits += completedUnits;
@@ -64,7 +65,7 @@ public sealed class GetProductionRunDetailQueryHandler(
             lines.Add(new RunLineSummary(
                 line.Id, line.TargetKind, line.TargetId, targetName, line.Quantity, line.RevisionMode, line.DefaultPinnedPrinterId,
                 line.BackfillPrinterCap, line.BackfillCumulativeUnitCeiling, cumulativeProducedUnits,
-                revisionHashes.Count > 1, requirements));
+                revisionHashes.Count > 1, requirements, line.QuantityBasis));
         }
 
         return new RunDetailView(

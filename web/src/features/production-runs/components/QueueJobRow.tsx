@@ -131,16 +131,18 @@ export function QueueJobRow({
         >
           {job.partName}
         </Link>
-        <Link
-          to={`/production-runs/${job.productionRunId}`}
-          className="truncate text-xs text-muted-foreground hover:underline"
-        >
-          {job.runDisplayLabel}
-        </Link>
+        {job.productionRunId && (
+          <Link
+            to={`/production-runs/${job.productionRunId}`}
+            className="truncate text-xs text-muted-foreground hover:underline"
+          >
+            {job.runDisplayLabel}
+          </Link>
+        )}
       </div>
 
       <span className="w-16 shrink-0 text-xs text-muted-foreground">
-        ×{job.plateQuantity}
+        ×{job.targetUnits ?? job.plateQuantity}
       </span>
 
       {job.jobId && (

@@ -3,7 +3,7 @@ using OpenFarm.Domain.Production;
 namespace OpenFarm.Application.Production;
 
 /// <param name="Quantity">Target units; null on an unlimited line.</param>
-/// <param name="CompletedUnits">Units from completed plates (may pass the target when the last plate rounds up).</param>
+/// <param name="CompletedUnits">Units actually produced; historical whole-plate jobs may exceed the target.</param>
 /// <param name="EstimatedMinutesPerPlate">From the plate's snapshot, else the library part; null when unknown.</param>
 /// <param name="BlockingReason">Why the next waiting plate cannot go to any printer now; null when one can take it.</param>
 /// <param name="Jobs">Every plate, in queue order; a reprint sits next to the plate it replaces.</param>
@@ -33,4 +33,4 @@ public sealed record RunJobSummary(
     Guid? RequeuedAsJobId,
     bool WrittenOff,
     bool NeedsAction,
-    bool CanRequeue);
+    bool CanRequeue, int? TargetUnits = null, int? ProducedUnits = null, int? MissingUnits = null, bool OutputVerified = true);

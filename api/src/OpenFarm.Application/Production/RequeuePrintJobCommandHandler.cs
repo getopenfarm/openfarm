@@ -1,11 +1,12 @@
 using OpenFarm.Application.Common;
+using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
 /// <summary>
-/// FR-025a/research.md R13: reprints a lost plate — only a Cancelled/Failed job of a finite requirement on an open run,
+/// Reprints a lost finite plate, either direct or associated with an open Run,
 /// not already requeued or written off. The one replacement takes the lost job's own queue position, so it retries
 /// inside its run's block instead of behind runs queued later, and keeps its pin only while that printer exists.
 /// </summary>
@@ -14,7 +15,7 @@ public sealed class RequeuePrintJobCommandHandler(
     IPartRequirementRepository requirementRepository,
     IProductionRunRepository runRepository,
     IPrinterRepository printerRepository,
-    ProductionDispatchRequestService? dispatchRequests = null)
+    ProductionDispatchRequestService? dispatchRequests = null, IProductionEventPublisher? publisher = null, IPartFileStorage? fileStorage = null)
     : ICommandHandler<RequeuePrintJobCommand, PrintJob>
 {
     public async Task<PrintJob> HandleAsync(RequeuePrintJobCommand command, CancellationToken cancellationToken)
@@ -35,6 +36,12 @@ public sealed class RequeuePrintJobCommandHandler(
             throw new PrintJobNotEligibleForRequeueException(job.Id);
         }
 
+        if (job.Status == PrintJobStatus.Completed && job.ObjectExecution is { Observed: false })
+            throw new InvalidProductionDemandException("Confirm the produced units before requeueing an unverified print.");
+
+        if (job.ObjectExecution is { } old && old.Manifest.Units.Any(u => u.ObjectIds.Count != 1))
+            throw new InvalidProductionDemandException("This job uses an obsolete object grouping. Create new work after reprocessing the Part.");
+
         var requirement = await requirementRepository.GetByIdAsync(job.PartRequirementId, cancellationToken)
             ?? throw new PrintJobNotEligibleForRequeueException(job.Id);
 
@@ -51,6 +58,13 @@ public sealed class RequeuePrintJobCommandHandler(
         if (job.ProductionSnapshotJson is null)
             throw new ProductionSnapshotUnavailableException(job.Id, job.SnapshotRecoveryReason);
 
+        if (fileStorage is not null && job.GetProductionPart() is { } source)
+        {
+            var inventory = await PartObjectInventory.ReadAsync(fileStorage, source.StoragePath, source.PlateNumber, cancellationToken);
+            if (inventory.Count is { } count && count != job.PlateQuantity)
+                throw new InvalidProductionDemandException("This job's saved quantity disagrees with its file. Create new work after reprocessing the Part.");
+        }
+
         var pinnedPrinterId = job.AssignmentMode == AssignmentMode.Pinned && job.PinnedPrinterId is { } printerId
             && await printerRepository.GetByIdAsync(printerId, cancellationToken) is not null ? job.PinnedPrinterId : null;
         var filamentSpecs = job.Filaments
@@ -63,11 +77,14 @@ public sealed class RequeuePrintJobCommandHandler(
             job.FileRevisionHash, job.FileRevisionNumber, filamentSpecs);
 
         replacement.CopyProductionSnapshot(job);
+        if (job.TargetUnits is not null)
+            replacement.SetExactTarget(job.MissingUnits, job.ObjectExecution?.Manifest);
         if (job.HasFilamentRequirementOverride) replacement.SetFilamentRequirements(filamentSpecs);
         await jobRepository.AddAsync(replacement, cancellationToken);
         job.MarkRequeuedAs(replacement.Id);
         await jobRepository.SaveChangesAsync(cancellationToken);
 
+        if (publisher is not null) await publisher.DemandChangedAsync(requirement.RunLineId, cancellationToken);
         if (dispatchRequests is not null) await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);
         return replacement;
     }

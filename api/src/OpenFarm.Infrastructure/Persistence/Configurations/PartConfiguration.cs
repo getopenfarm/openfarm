@@ -31,6 +31,7 @@ public sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.Property(p => p.EstimateUnavailableReason);
         builder.Property(p => p.EstimationDetailsJson).HasColumnType("jsonb");
         builder.Ignore(p => p.Estimation);
+        builder.Property(p => p.ObjectManifestJson).HasColumnType("jsonb");
         builder.Property(p => p.MetadataWarningsJson).HasColumnType("jsonb");
         builder.Ignore(p => p.MetadataWarnings);
         builder.Ignore(p => p.PrintRequirementsStatus);

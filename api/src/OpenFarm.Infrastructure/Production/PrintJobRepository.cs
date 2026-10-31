@@ -36,7 +36,7 @@ public sealed class PrintJobRepository(OpenFarmDbContext dbContext) : IPrintJobR
         await (
             from job in dbContext.PrintJobs
             join requirement in dbContext.PartRequirements on job.PartRequirementId equals requirement.Id
-            join line in dbContext.RunLines on requirement.RunLineId equals line.Id
+            join line in dbContext.ProductionDemands on requirement.RunLineId equals line.Id
             where line.ProductionRunId == productionRunId
             orderby job.QueuePosition, job.CreatedAtUtc, job.Id
             select job)

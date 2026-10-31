@@ -10,7 +10,7 @@ public class SlicedFileUnitsPerPrintTests
     [Theory]
     [InlineData("; object_count = 4\n", 4)]
     [InlineData("EXCLUDE_OBJECT_DEFINE NAME=a\nEXCLUDE_OBJECT_DEFINE NAME=b\n", 2)]
-    [InlineData("; printing object part id:0 copy 0\n; printing object part id:0 copy 1\n; printing object part id:0 copy 0\n", 2)]
+    [InlineData("; printing object part id:0 copy 0\n; printing object part id:0 copy 1\n; printing object part id:0 copy 0\n", 1)]
     [InlineData("; nozzle_diameter = 0.4\n", 1)]
     [InlineData("; object_count = 0\n", 1)]
     public void Gcode_SuggestsDistinctObjectsOrDefault(string text, int expected)

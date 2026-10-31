@@ -101,7 +101,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
                     value.Minutes,
                     value.Grams,
                     plate?.Number,
-                    unitsPerPrint: fileStorage is not null && (!job.RequiresSlicing || plate is not null)
+                    unitsPerPrint: fileStorage is not null
                         ? await SlicedFileUnitsPerPrint.SuggestAsync(fileStorage, job.StoragePath, plate?.Number, cancellationToken) : 1,
                     revisionHash,
                     value.Requirements,
@@ -183,6 +183,13 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             value.Requirements,
             value.Thumbnails,
             plate?.Name);
+
+        if (fileStorage is not null)
+        {
+            var inventory = await PartObjectInventory.ReadAsync(fileStorage, job.StoragePath, plate?.Number, cancellationToken);
+            if (inventory.Count is { } count) part.SetUnitsPerPrint(count);
+            else if (job.Kind == PartProcessingJobKind.Replace) part.SetUnitsPerPrint(1);
+        }
 
         part.SetEstimation(job.Estimation);
         part.SetMetadataWarnings(job.MetadataWarnings);
