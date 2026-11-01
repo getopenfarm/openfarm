@@ -149,9 +149,9 @@ describe('QueueJobRow', () => {
         ),
       ).toBe(false);
       await user.click(screen.getByRole('button', { name: label }));
-      expect(await screen.findByText('Matching checked.')).toBeInTheDocument();
+      expect(await screen.findByText('No printers')).toBeInTheDocument();
       expect(
-        screen.getByRole('dialog', { name: 'Job diagnosis' }),
+        screen.getByRole('dialog', { name: 'Printer matching' }),
       ).toBeInTheDocument();
     },
   );

@@ -8,7 +8,8 @@ import {
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import {
   Dialog,
   DialogClose,
@@ -19,7 +20,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -39,8 +39,10 @@ import type {
 import {
   getOpenFarmApiEndpointsPrintJobsListQueueJobsEndpointQueryKey,
   useOpenFarmApiEndpointsPrintJobsPinPrintJobEndpoint,
+  useOpenFarmApiEndpointsPrintJobsRequeuePrintJobEndpoint,
   useOpenFarmApiEndpointsPrintJobsUnpinPrintJobEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
+import { invalidateProductionQueries } from '../hooks/useProductionHub';
 import { JobRemoteControls } from './JobRemoteControls';
 import { RemoveJobButton } from './RemoveJobButton';
 
@@ -90,22 +92,52 @@ export function QueueJobActions({
         toast.error(await extractErrorDetail(error, 'Could not unpin job.')),
     },
   });
+  const requeue = useOpenFarmApiEndpointsPrintJobsRequeuePrintJobEndpoint({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Plate requeued.');
+        invalidateProductionQueries(queryClient);
+      },
+      onError: async (error) =>
+        toast.error(
+          await extractErrorDetail(error, 'Could not requeue plate.'),
+        ),
+    },
+  });
   const jobId = job.jobId;
   if (!jobId) return null;
   const waiting = job.status === 'Queued' && !job.dispatchedPrinterId;
-  if (!waiting && job.status !== 'Printing' && job.status !== 'Paused')
+  if (
+    !waiting &&
+    job.status !== 'Printing' &&
+    job.status !== 'Paused' &&
+    !job.canRequeue
+  )
     return null;
   return (
     <>
       <DataTableRowActions
         label={job.partName ?? 'job'}
         triggerRef={triggerRef}
+        disabled={requeue.isPending || pin.isPending || unpin.isPending}
       >
         <DropdownMenuGroup>
+          {job.canRequeue && (
+            <DropdownMenuItem
+              permission="print-jobs:requeue"
+              disabled={requeue.isPending}
+              onSelect={() => requeue.mutate({ id: jobId })}
+            >
+              {job.targetUnits != null
+                ? 'Requeue missing units'
+                : 'Requeue plate'}
+            </DropdownMenuItem>
+          )}
           {waiting && (
             <>
               {job.assignmentMode === 'Pinned' ? (
                 <DropdownMenuItem
+                  permission="print-jobs:pin"
                   disabled={unpin.isPending}
                   onSelect={() => unpin.mutate({ id: jobId })}
                 >
@@ -113,13 +145,19 @@ export function QueueJobActions({
                   Unpin
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onSelect={() => setPinOpen(true)}>
+                <DropdownMenuItem
+                  permission="print-jobs:pin"
+                  onSelect={() => setPinOpen(true)}
+                >
                   <PinIcon />
                   Pin to printer
                 </DropdownMenuItem>
               )}
               {onMoveToTop && (
-                <DropdownMenuItem onSelect={onMoveToTop}>
+                <DropdownMenuItem
+                  permission="print-jobs:reorder"
+                  onSelect={onMoveToTop}
+                >
                   <ArrowUpToLineIcon />
                   Move to top
                 </DropdownMenuItem>
@@ -131,6 +169,7 @@ export function QueueJobActions({
         <DropdownMenuGroup>
           {waiting && (
             <DropdownMenuItem
+              permission="print-jobs:cancel"
               variant="destructive"
               onSelect={() => setRemoveOpen(true)}
             >
@@ -180,6 +219,7 @@ export function QueueJobActions({
               <Button variant="outline">Cancel</Button>
             </DialogClose>
             <Button
+              permission="print-jobs:pin"
               disabled={!printerId || pin.isPending}
               onClick={() => pin.mutate({ id: jobId, data: { printerId } })}
             >

@@ -39,7 +39,7 @@ describe('SlicingDefaultsPage', () => {
   });
 
   it('renders the available slicer list with the effective default preselected', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({
         default: { engine: 'OrcaSlicer', version: '2.3.0', isExplicit: false },
         available: [
@@ -54,8 +54,16 @@ describe('SlicingDefaultsPage', () => {
     renderPage();
 
     expect(await screen.findByText(/No explicit default/)).toBeInTheDocument();
-    expect(screen.getByText('OrcaSlicer 2.3.0 (Linux)')).toBeInTheDocument();
+    expect(screen.getByText('OrcaSlicer 2.3.0')).toBeInTheDocument();
     expect(screen.queryByText('Estimation profiles')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('slicer-readiness-warning'),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/slicing/readiness'),
+      ),
+    ).toBe(false);
   });
 
   it('submits the selected default via PUT', async () => {
@@ -89,12 +97,12 @@ describe('SlicingDefaultsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('OrcaSlicer 2.3.0 (Linux)');
+    await screen.findByText('OrcaSlicer 2.3.0');
 
     await user.click(screen.getByRole('combobox', { name: 'Default slicer' }));
     await user.click(
       await screen.findByRole('option', {
-        name: 'SuperSlicer 2.5.59.13 (Linux)',
+        name: 'SuperSlicer 2.5.59.13',
       }),
     );
     await user.click(screen.getByRole('button', { name: 'Save' }));

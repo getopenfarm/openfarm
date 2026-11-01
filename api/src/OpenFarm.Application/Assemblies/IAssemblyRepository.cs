@@ -4,6 +4,9 @@ namespace OpenFarm.Application.Assemblies;
 
 public interface IAssemblyRepository
 {
+    Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListInFolderAsync(int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken) =>
+        folder is null ? ListAsync(page, pageSize, cancellationToken, sorting) : throw new NotSupportedException("Folder queries require a persistent repository.");
+
     Task AddAsync(Assembly assembly, CancellationToken cancellationToken);
 
     Task<Assembly?> GetByIdAsync(Guid id, CancellationToken cancellationToken);

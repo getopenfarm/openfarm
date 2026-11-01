@@ -18,6 +18,7 @@ public sealed class PreviewFilamentRequirementResponse
 
 public sealed class PlateResponse
 {
+    public int? UnitsPerPrint { get; set; }
     public int Number { get; set; }
     public string? Name { get; set; }
     public int? EstimatedPrintTimeMinutes { get; set; }
@@ -42,6 +43,7 @@ public sealed class SlicerResponse
 
 public sealed class PartProcessingJobPreviewResponse
 {
+    public int? UnitsPerPrint { get; set; }
     public decimal? NozzleDiameterMm { get; set; }
     public List<PreviewFilamentRequirementResponse> FilamentRequirements { get; set; } = [];
     public string PrintRequirementsStatus { get; set; } = "Complete";
@@ -94,6 +96,7 @@ public sealed class PartProcessingJobResponse
         ErrorMessage = detail.ErrorMessage,
         Preview = detail.Preview is null ? null : new PartProcessingJobPreviewResponse
         {
+            UnitsPerPrint = detail.Preview.UnitsPerPrint,
             NozzleDiameterMm = detail.Preview.NozzleDiameterMm,
             PrintRequirementsStatus = detail.Preview.PrintRequirementsStatus,
             ProcessingWarnings = detail.Preview.ProcessingWarnings?.ToList() ?? [],
@@ -104,6 +107,7 @@ public sealed class PartProcessingJobResponse
             EstimatedFilamentWeightGrams = detail.Preview.EstimatedFilamentWeightGrams,
             Plates = detail.Preview.Plates.Select(p => new PlateResponse
             {
+                UnitsPerPrint = p.UnitsPerPrint,
                 Number = p.Number,
                 Name = p.Name,
                 EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,

@@ -9,6 +9,11 @@ import { AuthProvider } from '@/lib/auth/AuthProvider';
 import { clearToken, getToken } from '@/lib/auth/tokenStorage';
 import { LoginPage } from './LoginPage';
 
+vi.mock('@/lib/auth/session', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/session')>()),
+  refreshSession: vi.fn().mockResolvedValue(null),
+}));
+
 function renderLoginPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -88,7 +93,7 @@ describe('LoginPage', () => {
     await waitFor(() => expect(getToken()).toBe('test-token'));
   });
 
-  it('shows an error toast and does not store a token on invalid credentials', async () => {
+  it('shows an inline error and does not store a token on invalid credentials', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
@@ -102,7 +107,7 @@ describe('LoginPage', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText('Could not sign in. Check username and password.'),
+        screen.getByText('Check username and password.'),
       ).toBeInTheDocument(),
     );
     expect(getToken()).toBeNull();

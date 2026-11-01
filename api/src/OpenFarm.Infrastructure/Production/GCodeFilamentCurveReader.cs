@@ -24,7 +24,7 @@ internal static class GCodeFilamentCurveReader
     private const string BambuLayerMarker = "; layer num/total_layer_count:";
 
     /// <summary>Per tool: cumulative net filament (mm) at the end of each layer, index 0 being layer 1. Tools that never extruded are omitted.</summary>
-    public static GCodeExtrusion Read(TextReader reader)
+    public static GCodeExtrusion Read(TextReader reader, IReadOnlyDictionary<string, ProgressMark>? excludedAt = null)
     {
         var perLayer = new Dictionary<int, List<double>>();
         var prime = new Dictionary<int, double>();
@@ -38,6 +38,10 @@ internal static class GCodeFilamentCurveReader
         var relative = false;
         var lastE = 0.0;
         var bambuMarkers = false;
+        string? currentObject = null;
+        string? pendingBambuObject = null;
+        bool Excluded() => currentObject is not null && excludedAt is not null && excludedAt.TryGetValue(currentObject, out var at)
+            && (layer > at.Layer || layer == at.Layer && (at.Percent < 0 || percent >= at.Percent));
 
         void Mark()
         {
@@ -54,6 +58,8 @@ internal static class GCodeFilamentCurveReader
 
             if (line[0] == ';')
             {
+                const string startObject = "; start printing object, unique label id: ";
+                if (line.StartsWith(startObject, StringComparison.Ordinal)) pendingBambuObject = line[startObject.Length..].ToString().Trim();
                 if (line.StartsWith(BambuLayerMarker, StringComparison.Ordinal))
                 {
                     var number = line[BambuLayerMarker.Length..].TrimStart();
@@ -78,6 +84,11 @@ internal static class GCodeFilamentCurveReader
             var code = comment >= 0 ? line[..comment].TrimEnd() : line;
             if (code.IsEmpty) continue;
 
+            if (code.StartsWith("EXCLUDE_OBJECT_START NAME=", StringComparison.Ordinal))
+                currentObject = code["EXCLUDE_OBJECT_START NAME=".Length..].ToString().Trim().ToUpperInvariant();
+            else if (code.StartsWith("EXCLUDE_OBJECT_END", StringComparison.Ordinal) || IsWord(code, "M625")) currentObject = null;
+            else if (IsWord(code, "M624")) { currentObject = pendingBambuObject; pendingBambuObject = null; }
+
             switch (code[0])
             {
                 // The first print filament is selected by the AMS switch in the start G-code, with no T<n> of its own.
@@ -96,6 +107,7 @@ internal static class GCodeFilamentCurveReader
                 case 'G' when (IsWord(code, "G1") || IsWord(code, "G0") || IsWord(code, "G2") || IsWord(code, "G3")) && TryGetE(code, out var e):
                     var delta = relative ? e : e - lastE;
                     if (!relative) lastE = e;
+                    if (Excluded()) break;
                     if (layer >= 1)
                     {
                         Add(perLayer, tool, layer, delta);

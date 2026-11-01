@@ -1,6 +1,6 @@
 import { Trash2Icon } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   type PartRemovalNoticeData,
   PartRemovalToast,
@@ -29,6 +29,7 @@ export function RemovePartButton({
   return (
     <>
       <Button
+        permission="parts:delete"
         ref={buttonRef}
         type="button"
         variant="destructive"

@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { QueuePagination } from './QueuePagination';
 
 export const QUEUE_COLUMNS =
-  'minmax(220px, 2fr) 80px minmax(150px, 1fr) 110px minmax(220px, 1.5fr) 80px';
+  'minmax(260px, 2fr) 80px minmax(220px, 1.5fr) 140px 80px';
 
 export function QueueTableCell({ className, ...props }: ComponentProps<'div'>) {
   return <div role="cell" className={cn('p-2', className)} {...props} />;

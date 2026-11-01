@@ -11,6 +11,8 @@ import { MemoryRouter } from 'react-router';
 import { toast } from 'sonner';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PartSummaryResponse } from '@/lib/api/generated/endpoints.schemas';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
+import { productionPlanFixture } from '@/test-utils/productionPlan';
 import { PartsTable } from './PartsTable';
 
 const part: PartSummaryResponse = {
@@ -38,6 +40,21 @@ function setup(
   const requests = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
+      if (url.includes('/production-demands/preview')) {
+        const { line } = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify(
+            productionPlanFixture(
+              line.quantity ?? 1,
+              line.quantityBasis ?? 'Units',
+              4,
+              2,
+              60,
+            ),
+          ),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
       if (init?.method === 'POST') {
         return options.failure
           ? jsonResponse(
@@ -66,7 +83,9 @@ function setup(
   render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <PartsTable parts={options.parts ?? [part]} onRowClick={onRowClick} />
+        <PreferencesProvider>
+          <PartsTable parts={options.parts ?? [part]} onRowClick={onRowClick} />
+        </PreferencesProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -84,6 +103,7 @@ async function openQueue() {
 
 describe('PartsTable queue action', () => {
   afterEach(() => {
+    localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -119,11 +139,14 @@ describe('PartsTable queue action', () => {
     expect(headers[2]).toHaveTextContent('File type');
     expect(within(headers[2]).queryByRole('button')).not.toBeInTheDocument();
 
-    screen.getByRole('button', { name: 'Columns' }).focus();
+    screen.getByRole('button', { name: 'Fields' }).focus();
     await user.keyboard('{Enter}');
     const option = screen.getByRole('menuitemcheckbox', { name: 'File type' });
     expect(option).toHaveAttribute('aria-checked', 'true');
-    await user.keyboard('{Home}{ArrowDown}');
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'Name' }),
+    ).not.toBeInTheDocument();
+    await user.keyboard('{Home}');
     expect(option).toHaveFocus();
     await user.keyboard('{Enter}{Escape}');
     expect(
@@ -140,34 +163,38 @@ describe('PartsTable queue action', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     await openQueue();
     expect(onRowClick).not.toHaveBeenCalled();
-    const input = await screen.findByLabelText('Quantity (units)');
-    expect(input).toHaveValue(4);
-    expect(await screen.findByText(/1 plate · 4 units/)).toBeInTheDocument();
-    fireEvent.change(input, { target: { value: '5' } });
-    expect(await screen.findByText(/2 plates · 8 units/)).toBeInTheDocument();
+    const input = await screen.findByLabelText('Number of plates');
+    expect(input).toHaveValue(1);
+    expect(
+      await screen.findByText(/1 plate · 4 planned units/),
+    ).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: '2' } });
+    expect(
+      await screen.findByText(/2 plates · 8 planned units/),
+    ).toBeInTheDocument();
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
         name: 'Send to queue',
       }),
     );
     await waitFor(() =>
-      expect(requests).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/production-runs'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({
-            lines: [
-              {
-                targetKind: 'Part',
-                targetId: 'part-1',
-                quantity: 5,
-                assignmentMode: 'Unassigned',
-              },
-            ],
-          }),
-        }),
-      ),
+      expect(
+        requests.mock.calls.some(([url]) =>
+          String(url).endsWith('/api/v1/production-demands'),
+        ),
+      ).toBe(true),
     );
+    const submission = requests.mock.calls.find(([url]) =>
+      String(url).endsWith('/api/v1/production-demands'),
+    );
+    expect(JSON.parse(String(submission?.[1]?.body))).toMatchObject({
+      line: {
+        targetKind: 'Part',
+        targetId: 'part-1',
+        quantity: 2,
+        quantityBasis: 'Plates',
+      },
+    });
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
@@ -183,7 +210,7 @@ describe('PartsTable queue action', () => {
     expect(success).toHaveBeenCalledWith(
       'Bracket sent to the queue.',
       expect.objectContaining({
-        action: expect.objectContaining({ label: 'View run' }),
+        action: expect.objectContaining({ label: 'View queue' }),
       }),
     );
   });
@@ -195,7 +222,11 @@ describe('PartsTable queue action', () => {
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(
-      requests.mock.calls.some(([, init]) => init?.method === 'POST'),
+      requests.mock.calls.some(
+        ([url, init]) =>
+          init?.method === 'POST' &&
+          String(url).endsWith('/api/v1/production-demands'),
+      ),
     ).toBe(false);
   });
 
@@ -238,7 +269,7 @@ describe('PartsTable queue action', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Print requirements incomplete. Complete them before queueing.',
     );
-    expect(screen.queryByLabelText('Quantity (units)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Number of plates')).not.toBeInTheDocument();
   });
 
   it('shows server errors and preserves the quantity for retry', async () => {
@@ -246,8 +277,13 @@ describe('PartsTable queue action', () => {
     const { queryClient } = setup({ failure: true });
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     await openQueue();
-    const input = await screen.findByLabelText('Quantity (units)');
+    const input = await screen.findByLabelText('Number of plates');
     fireEvent.change(input, { target: { value: '9' } });
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Send to queue' }),
+      ).toBeEnabled(),
+    );
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
         name: 'Send to queue',
@@ -260,20 +296,24 @@ describe('PartsTable queue action', () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it('rejects a fractional number of units without creating jobs', async () => {
+  it('rejects a fractional number of plates without creating jobs', async () => {
     const { requests } = setup();
     await openQueue();
-    fireEvent.change(await screen.findByLabelText('Quantity (units)'), {
+    fireEvent.change(await screen.findByLabelText('Number of plates'), {
       target: { value: '1.5' },
     });
-    const form = screen.getByLabelText('Quantity (units)').closest('form');
+    const form = screen.getByLabelText('Number of plates').closest('form');
     if (!form) throw new Error('Queue form was not rendered.');
     fireEvent.submit(form);
     expect(
       await screen.findByText('Whole number, 1 or more.'),
     ).toBeInTheDocument();
     expect(
-      requests.mock.calls.some(([, init]) => init?.method === 'POST'),
+      requests.mock.calls.some(
+        ([url, init]) =>
+          init?.method === 'POST' &&
+          String(url).endsWith('/api/v1/production-demands'),
+      ),
     ).toBe(false);
   });
 });

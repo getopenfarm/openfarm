@@ -35,3 +35,18 @@ describe('filamentGrams', () => {
     expect(filamentGrams([], 9)).toBe(9);
   });
 });
+
+it('uses canonical completeness independently for time and filament', () => {
+  render(
+    <PartEstimate
+      size="lg"
+      estimate={{
+        time: { value: null, missing: 1 },
+        filament: { value: 0, missing: 0 },
+        approximate: false,
+      }}
+    />,
+  );
+  expect(screen.getByText('Unavailable')).toBeInTheDocument();
+  expect(screen.getByText('0 g')).toBeInTheDocument();
+});

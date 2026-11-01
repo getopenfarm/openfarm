@@ -21,9 +21,18 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Assemblies.AnyAsync(a => a.Id == id, cancellationToken);
 
-    public async Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
+    public Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
+        ListInFolderAsync(page, pageSize, sorting, null, cancellationToken);
+
+    public async Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListInFolderAsync(int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken)
     {
         var query = dbContext.Assemblies.Include(a => a.Lines).Include(a => a.AdditionalCosts).AsSplitQuery();
+
+        if (folder is not null)
+        {
+            var folderId = OpenFarm.Domain.Library.LibraryFolder.ParseLocation(folder);
+            query = query.Where(p => p.FolderId == folderId);
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
         var ordered = sorting is null ? query.OrderByDescending(a => a.CreatedAtUtc)

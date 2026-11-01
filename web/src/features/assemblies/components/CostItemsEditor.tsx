@@ -1,8 +1,8 @@
 import { PencilIcon, PlusIcon, XIcon } from 'lucide-react';
 import { type Ref, useEffect, useRef, useState } from 'react';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Command,
   CommandEmpty,
@@ -355,6 +355,7 @@ function CostItemPicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          permission="assemblies:create|assemblies:edit"
           ref={triggerRef}
           type="button"
           size="sm"

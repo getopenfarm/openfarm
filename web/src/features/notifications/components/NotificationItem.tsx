@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Swatch } from '@/components/swatch/Swatch';
-import { Button } from '@/components/ui/button';
 import { normalizeFilamentColor } from '@/features/printers/lib/feedSlotView';
 import type {
   LowStockNotificationResponse,
@@ -172,7 +172,13 @@ export function UnregisteredRfidSpoolNotification({
           {name}
           {item.remainPercent != null && ` · ${item.remainPercent}%`}
         </span>
-        <Button asChild type="button" variant="outline" size="xs">
+        <Button
+          permission="spools:record-usage"
+          asChild
+          type="button"
+          variant="outline"
+          size="xs"
+        >
           <Link to={registerRfidSpoolUrl(item)}>Register</Link>
         </Button>
       </div>

@@ -103,7 +103,7 @@ public class CancelProductionRunCommandHandlerTests
     {
         var run = ProductionRun.Create(
             null, null, null,
-            [new RunLineSpec(RunLineTargetKind.Part, Guid.NewGuid(), 5, null, AssignmentMode.Unassigned, null, 1, null)]);
+            [new ProductionDemandSpec(RunLineTargetKind.Part, Guid.NewGuid(), 5, null, AssignmentMode.Unassigned, null, 1, null)]);
         var requirementId = Guid.NewGuid();
 
         var queuedJob = ProductionTestFixtures.CreateQueuedJob(requirementId);
@@ -138,7 +138,7 @@ public class CancelProductionRunCommandHandlerTests
 
 public class CloseProductionRunCommandHandlerTests
 {
-    private static RunLineSpec Line(int? quantity) => new(RunLineTargetKind.Part, Guid.NewGuid(), quantity, null, AssignmentMode.Unassigned, null, 1, null);
+    private static ProductionDemandSpec Line(int? quantity) => new(RunLineTargetKind.Part, Guid.NewGuid(), quantity, null, AssignmentMode.Unassigned, null, 1, null);
 
     private static CloseProductionRunCommandHandler Handler(
         ProductionRun? run, RecordingProductionEventPublisher publisher, InMemoryPartRequirementRepository? requirements = null,

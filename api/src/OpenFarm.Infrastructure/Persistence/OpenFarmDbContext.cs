@@ -16,6 +16,12 @@ namespace OpenFarm.Infrastructure.Persistence;
 public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> options)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
+    public DbSet<OpenFarm.Domain.Library.LibraryFolder> LibraryFolders => Set<OpenFarm.Domain.Library.LibraryFolder>();
+
+    public DbSet<BrowserSession> BrowserSessions => Set<BrowserSession>();
+
+    public DbSet<SessionCredential> SessionCredentials => Set<SessionCredential>();
+
     public DbSet<FarmSettings> FarmSettings => Set<FarmSettings>();
 
     public DbSet<ConnectionSecret> ConnectionSecrets => Set<ConnectionSecret>();
@@ -23,6 +29,8 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
     public DbSet<ActivityLogEntry> ActivityLogEntries => Set<ActivityLogEntry>();
 
     public DbSet<PrinterModelCost> PrinterModelCosts => Set<PrinterModelCost>();
+
+    public DbSet<FeeProfile> FeeProfiles => Set<FeeProfile>();
 
     public DbSet<Printer> Printers => Set<Printer>();
 
@@ -68,7 +76,7 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
 
     public DbSet<ProductionRun> ProductionRuns => Set<ProductionRun>();
 
-    public DbSet<RunLine> RunLines => Set<RunLine>();
+    public DbSet<ProductionDemand> ProductionDemands => Set<ProductionDemand>();
 
     public DbSet<PartRequirement> PartRequirements => Set<PartRequirement>();
 

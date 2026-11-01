@@ -123,3 +123,23 @@ describe('QueueJobActions', () => {
     );
   });
 });
+
+it('requeues an eligible direct plate through the keyboard without a Run', async () => {
+  const fetchMock = stub();
+  const { invalidate } = renderActions({
+    ...base,
+    status: 'Failed',
+    productionRunId: null,
+    canRequeue: true,
+  });
+  const user = userEvent.setup();
+  const trigger = screen.getByRole('button', { name: 'Actions for Bracket' });
+  trigger.focus();
+  await user.keyboard('{Enter}');
+  const item = await screen.findByRole('menuitem', { name: 'Requeue plate' });
+  item.focus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+  expect(fetchMock.mock.calls[0][0].toString()).toContain('/j1/requeue');
+  await waitFor(() => expect(invalidate).toHaveBeenCalled());
+});

@@ -18,10 +18,12 @@ public sealed class PartRequirementConfiguration : IEntityTypeConfiguration<Part
         builder.Property(r => r.PartName);
         builder.Property(r => r.Quantity).HasColumnType("numeric");
 
-        builder.HasOne<RunLine>().WithMany().HasForeignKey(r => r.RunLineId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<ProductionDemand>().WithMany().HasForeignKey(r => r.RunLineId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Part>().WithMany().HasForeignKey(r => r.LibraryPartId).OnDelete(DeleteBehavior.Restrict);
 
-        // FR-004's grain rule, enforced structurally — exactly one PartRequirement per (RunLine, Part) pair.
-        builder.HasIndex(r => new { r.RunLineId, r.PartId }).IsUnique();
+        // FR-004's grain rule, enforced structurally — exactly one PartRequirement per (ProductionDemand, Part) pair.
+        builder.HasIndex(r => new { r.RunLineId, r.PartId }).IsUnique().HasFilter("\"RecipeActive\"");
+        builder.Property(r => r.UnitsPerSet).HasColumnType("numeric");
+        builder.Property(r => r.RecipeActive);
     }
 }

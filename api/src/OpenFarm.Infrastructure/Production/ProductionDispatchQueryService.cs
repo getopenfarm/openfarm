@@ -17,8 +17,13 @@ namespace OpenFarm.Infrastructure.Production;
 /// <c>AssemblyGraphQueryService</c>/<c>AssemblyGraph</c> already established for Assemblies.
 /// </summary>
 public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbContext, OpenFarm.Application.Production.ProductionProfileReadiness readiness,
-    OpenFarm.Application.Production.ProductionJobRequirements jobRequirements, ILogger<ProductionDispatchQueryService> logger)
+    OpenFarm.Application.Production.ProductionJobRequirements jobRequirements, ILogger<ProductionDispatchQueryService> logger, OpenFarm.Application.Parts.IPartFileStorage? fileStorage = null)
 {
+    public Task<bool> CanDispatchDemandAsync(Guid id, CancellationToken ct) =>
+        dbContext.ProductionDemands.AnyAsync(d => d.Id == id && d.State == DemandState.Enabled
+            && (d.ProductionRunId == null || dbContext.ProductionRuns.Any(r => r.Id == d.ProductionRunId
+                && (r.Status == ProductionRunStatus.Active || r.Status == ProductionRunStatus.Complete))), ct);
+
     // Persisted connection state, so callers cannot dispatch with an older tracked instance.
     private Task<Printer?> CurrentAsync(Printer printer, CancellationToken cancellationToken) =>
         dbContext.Printers.AsNoTracking().FirstOrDefaultAsync(p => p.Id == printer.Id, cancellationToken);
@@ -67,6 +72,16 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
         var part = job is null ? libraryPart : OpenFarm.Application.Production.ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
         if (job is not null && part is null) return new(job.SnapshotRecoveryReason ?? "Production snapshot needs recovery.");
         if (part is null) return new("Part not found.");
+        if (fileStorage is not null && job?.DispatchedAtUtc is null)
+        {
+            var inventory = await OpenFarm.Application.Parts.PartObjectInventory.ReadAsync(fileStorage, part.StoragePath, part.PlateNumber, ct);
+            if (inventory.Count is { } count && count != part.UnitsPerPrint)
+                return new(job is null || requirement?.Quantity is null
+                    ? "The saved quantity disagrees with this file. Reprocess the Part before queueing."
+                    : "This job's saved quantity disagrees with its file. Cancel and recreate it after reprocessing the Part.");
+            if (job?.ObjectExecution is { } old && old.Manifest.Units.Any(u => u.ObjectIds.Count != 1))
+                return new("This job uses an obsolete object grouping. Cancel and recreate it after reprocessing the Part.");
+        }
         if (job is null) return await readiness.GetIssueAsync(printerId, part,
             OpenFarm.Application.Production.ProductionJobRequirements.FromPart(part), ct);
         var effective = await jobRequirements.ResolveAsync(job, part, ct);
@@ -108,10 +123,34 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
                 && job.PinnedPrinterId == printerId && job.PrinterId == null,
             cancellationToken);
 
-    private async Task<IReadOnlyList<DispatchCandidate>> GetCandidatesAsync(
-        System.Linq.Expressions.Expression<Func<PrintJob, bool>> predicate, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DispatchCandidate>> GetBackfillRetryCandidatesAsync(Guid printerId, CancellationToken ct)
     {
-        var jobs = await dbContext.PrintJobs.Where(predicate).Include(j => j.Filaments)
+        var candidates = await GetCandidatesAsync(j => j.Status == PrintJobStatus.Queued && j.DispatchedAtUtc == null
+            && j.PrinterId == null && (j.AssignmentMode == AssignmentMode.Unassigned || j.PinnedPrinterId == printerId), ct, DemandMode.Backfill);
+        var ready = new List<DispatchCandidate>();
+        foreach (var candidate in candidates)
+        {
+            var job = await dbContext.PrintJobs.FirstAsync(j => j.Id == candidate.JobId, ct);
+            var requirement = await dbContext.PartRequirements.FirstAsync(r => r.Id == job.PartRequirementId, ct);
+            if (!requirement.RecipeActive) continue;
+            var demand = await dbContext.ProductionDemands.AsNoTracking().FirstAsync(d => d.Id == requirement.RunLineId, ct);
+            var requirementIds = dbContext.PartRequirements.Where(r => r.RunLineId == demand.Id).Select(r => r.Id);
+            var occupancy = await dbContext.PrintJobs.Where(j => j.Id != job.Id && requirementIds.Contains(j.PartRequirementId)
+                && (j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused
+                    || j.Status == PrintJobStatus.Queued && (j.DispatchedAtUtc != null || j.AssignmentMode == AssignmentMode.Pinned)))
+                .Select(j => j.PrinterId ?? j.PinnedPrinterId).Where(id => id != null).Distinct().CountAsync(ct);
+            if (occupancy < demand.BackfillPrinterCap) ready.Add(candidate);
+        }
+        return ready;
+    }
+
+    private async Task<IReadOnlyList<DispatchCandidate>> GetCandidatesAsync(
+        System.Linq.Expressions.Expression<Func<PrintJob, bool>> predicate, CancellationToken cancellationToken, DemandMode mode = DemandMode.Finite)
+    {
+        var jobs = await dbContext.PrintJobs.Where(predicate)
+            .Where(j => dbContext.PartRequirements.Any(r => r.Id == j.PartRequirementId
+                && dbContext.ProductionDemands.Any(d => d.Id == r.RunLineId && d.Mode == mode)))
+            .Include(j => j.Filaments)
             .OrderBy(j => j.QueuePosition).ToListAsync(cancellationToken);
         var candidates = new List<DispatchCandidate>();
         var now = DateTimeOffset.UtcNow;
@@ -143,11 +182,7 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
     private async Task<DispatchCandidate?> CandidateOrNullAsync(PrintJob job, CancellationToken cancellationToken)
     {
         var requirement = await dbContext.PartRequirements.FirstAsync(r => r.Id == job.PartRequirementId, cancellationToken);
-        var run = await (from line in dbContext.RunLines
-                         join productionRun in dbContext.ProductionRuns on line.ProductionRunId equals productionRun.Id
-                         where line.Id == requirement.RunLineId
-                         select productionRun).FirstAsync(cancellationToken);
-        if (run.Status is ProductionRunStatus.Cancelled or ProductionRunStatus.Closed) return null;
+        if (!await CanDispatchDemandAsync(requirement.RunLineId, cancellationToken)) return null;
         var libraryPart = requirement.Quantity is null && job.DispatchedAtUtc is null
             ? await dbContext.Parts.Include(p => p.FilamentRequirements).FirstOrDefaultAsync(p => p.Id == requirement.PartId, cancellationToken) : null;
         var part = OpenFarm.Application.Production.ProductionJobRequirements.ResolvePart(job, requirement, libraryPart);
@@ -200,7 +235,7 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
     }
 
     /// <summary>
-    /// research.md R4 step 5: every (RunLine, PartRequirement) pair belonging to an unlimited
+    /// research.md R4 step 5: every (ProductionDemand, PartRequirement) pair belonging to an unlimited
     /// (<c>Quantity IS NULL</c>) line, with the owning line's own occupancy
     /// (<c>COUNT(DISTINCT PrinterId)</c> over its <c>Printing</c>/dispatched-but-unconfirmed/
     /// Pinned-and-queued jobs) and cumulative units (<c>SUM(PlateQuantity)</c> over its
@@ -210,19 +245,19 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
     /// </summary>
     public async Task<IReadOnlyList<BackfillLineCandidate>> GetBackfillCandidatesAsync(CancellationToken cancellationToken, Guid? printerId = null)
     {
-        var lines = await (from line in dbContext.RunLines
-                           join run in dbContext.ProductionRuns on line.ProductionRunId equals run.Id
-                           where line.Quantity == null && (run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)
-                               && (printerId == null || line.DefaultAssignmentMode != AssignmentMode.Pinned || line.DefaultPinnedPrinterId == printerId)
-                           orderby run.CreatedAtUtc, line.Id
-                           select line).ToListAsync(cancellationToken);
+        var lines = await dbContext.ProductionDemands.AsNoTracking().Where(line => line.Mode == DemandMode.Backfill && line.State == DemandState.Enabled
+            && (line.ProductionRunId == null || dbContext.ProductionRuns.Any(run => run.Id == line.ProductionRunId
+                && (run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)))
+            && (printerId == null || line.DefaultAssignmentMode != AssignmentMode.Pinned || line.DefaultPinnedPrinterId == printerId))
+            .OrderBy(line => line.CreatedAtUtc).ThenBy(line => line.Id).ToListAsync(cancellationToken);
         if (lines.Count == 0)
         {
             return [];
         }
 
         var lineIds = lines.Select(l => l.Id).ToList();
-        var requirements = await dbContext.PartRequirements.Where(r => lineIds.Contains(r.RunLineId)).ToListAsync(cancellationToken);
+        var allRequirements = await dbContext.PartRequirements.Where(r => lineIds.Contains(r.RunLineId)).ToListAsync(cancellationToken);
+        var requirements = allRequirements.Where(r => r.RecipeActive).ToList();
         if (requirements.Count == 0)
         {
             return [];
@@ -244,7 +279,7 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
 
         foreach (var line in lines)
         {
-            var requirementIdsForLine = requirements.Where(r => r.RunLineId == line.Id).Select(r => r.Id).ToList();
+            var requirementIdsForLine = allRequirements.Where(r => r.RunLineId == line.Id).Select(r => r.Id).ToList();
             if (requirementIdsForLine.Count == 0)
             {
                 occupancyByLine[line.Id] = 0;
@@ -277,14 +312,29 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
                 .Where(j => requirementIdsForLine.Contains(j.PartRequirementId) &&
                     (j.Status == PrintJobStatus.Completed || j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused ||
                      (j.Status == PrintJobStatus.Queued && j.DispatchedAtUtc != null)))
-                .Select(j => j.PlateQuantity)
+                .Select(j => new { j.Status, j.PlateQuantity, j.TargetUnits, j.ObjectExecutionJson })
                 .ToListAsync(cancellationToken);
-            cumulativeUnitsByLine[line.Id] = producedOrPrintingUnits.Sum();
+            cumulativeUnitsByLine[line.Id] = producedOrPrintingUnits.Sum(j => j.Status == PrintJobStatus.Completed
+                ? PrintJob.ProducedUnitsFor(j.Status, j.PlateQuantity, j.TargetUnits, j.ObjectExecutionJson) : j.TargetUnits ?? j.PlateQuantity);
         }
 
+        var coverage = new Dictionary<Guid, decimal>();
+        foreach (var line in lines)
+            foreach (var requirement in requirements.Where(r => r.RunLineId == line.Id))
+            {
+                var coverageJobs = await dbContext.PrintJobs.Where(j => j.PartRequirementId == requirement.Id
+                    && j.CreatedAtUtc >= line.BalanceSinceUtc
+                    && (j.Status == PrintJobStatus.Completed || j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused
+                        || j.Status == PrintJobStatus.Queued))
+                    .Select(j => new { j.Status, j.PlateQuantity, j.TargetUnits, j.ObjectExecutionJson })
+                    .ToListAsync(cancellationToken);
+                var units = coverageJobs.Sum(j => j.Status == PrintJobStatus.Completed
+                    ? PrintJob.ProducedUnitsFor(j.Status, j.PlateQuantity, j.TargetUnits, j.ObjectExecutionJson) : j.TargetUnits ?? j.PlateQuantity);
+                coverage[requirement.Id] = units / requirement.UnitsPerSet;
+            }
         var candidates = new List<BackfillLineCandidate>();
         // Oldest run first, so which unlimited line backfills next is decided, not left to row order.
-        foreach (var requirement in lines.SelectMany(l => requirements.Where(r => r.RunLineId == l.Id).OrderBy(r => r.Id)))
+        foreach (var requirement in lines.SelectMany(l => requirements.Where(r => r.RunLineId == l.Id).OrderBy(r => coverage[r.Id]).ThenBy(r => r.Id)))
         {
             if (!partsById.TryGetValue(requirement.PartId, out var part) || part.PrintRequirementsStatus != PrintRequirementsStatus.Complete)
             {
@@ -292,6 +342,8 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
             }
 
             var line = lines.First(l => l.Id == requirement.RunLineId);
+            var milestone = Math.Floor(requirements.Where(r => r.RunLineId == line.Id).Min(r => coverage[r.Id])) + 1;
+            if (coverage[requirement.Id] >= milestone) continue;
             if (linesWithAWaitingJob.Contains(line.Id))
             {
                 continue;

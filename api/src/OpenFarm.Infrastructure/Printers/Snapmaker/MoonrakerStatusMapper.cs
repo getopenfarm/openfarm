@@ -25,6 +25,7 @@ internal static class MoonrakerStatusMapper
     /// <summary>The objects and fields <c>printer.objects.subscribe</c> asks for.</summary>
     public static IReadOnlyDictionary<string, string[]> Subscription { get; } = new Dictionary<string, string[]>
     {
+        ["exclude_object"] = ["excluded_objects", "objects", "current_object"],
         ["print_stats"] = ["state", "filename", "print_duration", "info"],
         ["virtual_sdcard"] = ["progress"],
         ["display_status"] = ["progress"],
@@ -82,6 +83,7 @@ internal static class MoonrakerStatusMapper
             printing ? RemainingMinutes(Number(status["print_stats"], "print_duration"), progress) : 0,
             file is null ? null : Path.GetFileNameWithoutExtension(file),
             Toolheads(status["print_task_config"], active),
+            ExcludedObjectIds: status["exclude_object"]?["excluded_objects"] is JsonArray excluded ? excluded.Select(x => x!.ToString().ToUpperInvariant()).ToArray() : null,
             CurrentLayer: Integer(info, "current_layer"),
             TotalLayers: Integer(info, "total_layer"),
             // Only the picked-up head is feeding; a parked head's spool waits.

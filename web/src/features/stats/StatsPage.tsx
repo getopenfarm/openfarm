@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { serverListQueryOptions } from '@/components/data-table/useServerListState';
+import {
+  serverListQueryOptions,
+  useRetainedListData,
+} from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -46,7 +49,9 @@ export function StatsPage() {
     { ...instants, timeZone },
     { query: { ...serverListQueryOptions, refetchInterval: 60_000 } },
   );
-  const report = query.data?.status === 200 ? query.data.data : undefined;
+  const report = useRetainedListData(
+    query.data?.status === 200 ? query.data.data : undefined,
+  );
   const current = report?.current ?? {};
 
   return (
@@ -83,6 +88,13 @@ export function StatsPage() {
           )}
           aria-busy={query.isFetching || undefined}
         >
+          {query.isError && (
+            <ErrorState
+              title="Could not refresh stats"
+              description="Showing previous results."
+              onRetry={() => query.refetch()}
+            />
+          )}
           <StatsKpis report={report} />
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">

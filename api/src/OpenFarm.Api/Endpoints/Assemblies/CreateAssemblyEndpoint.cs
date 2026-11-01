@@ -20,6 +20,8 @@ public sealed class CreateAssemblyLineRequest
 
 public sealed class CreateAssemblyRequest : IActivityLoggable
 {
+    public Guid? FolderId { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     public string? Description { get; set; }
@@ -27,6 +29,8 @@ public sealed class CreateAssemblyRequest : IActivityLoggable
     public List<CreateAssemblyLineRequest> Lines { get; set; } = [];
 
     public List<AssemblyCostInput>? AdditionalCosts { get; set; }
+
+    public AssemblyPricingDto? Pricing { get; set; }
 
     public string EntityType => "Assembly";
 
@@ -45,12 +49,13 @@ public sealed class CreateAssemblyRequestValidator : AbstractValidator<CreateAss
                 .WithMessage("targetKind must be one of Part, Assembly, NonPrintedComponent.");
             line.RuleFor(l => l.Quantity).GreaterThan(0);
         });
+        RuleFor(x => x.Pricing!).SetValidator(new AssemblyPricingDtoValidator()).When(x => x.Pricing is not null);
     }
 }
 
 /// <summary>FR-001/FR-002 — creates a named assembly from one or more BOM lines (contracts/assembly-bom-api.md).</summary>
 [Permission("assemblies:create")]
-public sealed class CreateAssemblyEndpoint(CreateAssemblyHandler handler, IQueryHandler<GetAssemblyQuery, AssemblyDetail?> getAssembly)
+public sealed class CreateAssemblyEndpoint(CreateAssemblyHandler handler, IQueryHandler<GetAssemblyQuery, AssemblyDetail?> getAssembly, OpenFarm.Application.Library.ILibraryFolderService folders)
     : Endpoint<CreateAssemblyRequest, AssemblyResponse>
 {
     public override void Configure()
@@ -61,10 +66,11 @@ public sealed class CreateAssemblyEndpoint(CreateAssemblyHandler handler, IQuery
 
     public override async Task HandleAsync(CreateAssemblyRequest req, CancellationToken ct)
     {
+        await folders.ValidateDestinationAsync("assemblies", req.FolderId, ct);
         var lines = req.Lines
             .Select(l => new AssemblyLineInput(Enum.Parse<BomLineTargetKind>(l.TargetKind), l.TargetId, l.Quantity))
             .ToList();
-        var assembly = await handler.HandleAsync(new CreateAssemblyCommand(req.Name, req.Description, lines, req.AdditionalCosts), ct);
+        var assembly = await handler.HandleAsync(new CreateAssemblyCommand(req.Name, req.Description, lines, req.AdditionalCosts, req.Pricing?.ToDomain(), req.FolderId), ct);
 
         var detail = await getAssembly.HandleAsync(new GetAssemblyQuery(assembly.Id), ct);
         Response = AssemblyResponse.FromDetail(detail!);

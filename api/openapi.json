@@ -908,6 +908,236 @@
         ]
       }
     },
+    "/api/v1/settings/fees": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsGetFeesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsUpdateFeesEndpoint",
+        "requestBody": {
+          "x-name": "UpdateFeesRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFeesRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/fees/profiles": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsCreateFeeProfileEndpoint",
+        "requestBody": {
+          "x-name": "SaveFeeProfileRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFeeProfileRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeProfileDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/fees/profiles/{id}": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsEditFeeProfileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SaveFeeProfileRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFeeProfileRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeProfileDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "OpenFarmApiEndpointsSettingsRemoveFeeProfileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/settings/general": {
       "get": {
         "tags": [
@@ -2401,6 +2631,213 @@
         ]
       }
     },
+    "/api/v1/production-demands/preview": {
+      "post": {
+        "tags": [
+          "Production-Demands"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsPreviewProductionPlanEndpoint",
+        "requestBody": {
+          "x-name": "PreviewProductionPlanRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewProductionPlanRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/production-demands": {
+      "post": {
+        "tags": [
+          "Production-Demands"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsSubmitProductionDemandEndpoint",
+        "requestBody": {
+          "x-name": "SubmitProductionDemandRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitProductionDemandRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionDemandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/production-demands/backfill": {
+      "get": {
+        "tags": [
+          "Production-Demands"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsListBackfillEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductionDemandResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/production-demands/{id}/backfill": {
+      "post": {
+        "tags": [
+          "Production-Demands"
+        ],
+        "operationId": "OpenFarmApiEndpointsProductionRunsChangeBackfillEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ChangeBackfillRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBackfillRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionDemandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/production-runs/{id}/lines": {
       "post": {
         "tags": [
@@ -3072,6 +3509,350 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PrintJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/objects": {
+      "get": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsGetPartObjectsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectManifest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/{id}/object-groups": {
+      "put": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsSetPartObjectGroupsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SetPartObjectGroupsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPartObjectGroupsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectManifest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/objects": {
+      "get": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsGetJobObjectsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectExecution"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/skip-objects": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsSkipJobObjectsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SkipJobObjectsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkipJobObjectsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectExecution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/object-output": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsConfirmObjectOutputEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ConfirmObjectOutputRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmObjectOutputRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectExecution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/print-jobs/{id}/confirm-not-started": {
+      "post": {
+        "tags": [
+          "Print-Jobs"
+        ],
+        "operationId": "OpenFarmApiEndpointsPrintJobsConfirmPrintNotStartedEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ConfirmPrintNotStartedRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmPrintNotStartedRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintObjectExecution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -3893,6 +4674,14 @@
             }
           },
           {
+            "name": "folder",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
             "name": "sortBy",
             "in": "query",
             "schema": {
@@ -4061,6 +4850,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PartResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/parts/print-estimate": {
+      "post": {
+        "tags": [
+          "Parts"
+        ],
+        "operationId": "OpenFarmApiEndpointsPartsEstimatePrintedPartsEndpoint",
+        "requestBody": {
+          "x-name": "EstimatePrintedPartsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimatePrintedPartsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrintEstimate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -4599,6 +5442,432 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NonPrintedComponentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/library/{library}/folders": {
+      "get": {
+        "tags": [
+          "Library"
+        ],
+        "operationId": "OpenFarmApiEndpointsLibraryListFoldersEndpoint",
+        "parameters": [
+          {
+            "name": "library",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "parentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Library"
+        ],
+        "operationId": "OpenFarmApiEndpointsLibraryCreateFolderEndpoint",
+        "parameters": [
+          {
+            "name": "library",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "CreateFolderRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFolderRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryFolder"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/library/{library}/folders/{id}": {
+      "patch": {
+        "tags": [
+          "Library"
+        ],
+        "operationId": "OpenFarmApiEndpointsLibraryRenameFolderEndpoint",
+        "parameters": [
+          {
+            "name": "library",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "RenameFolderRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameFolderRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryFolder"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Library"
+        ],
+        "operationId": "OpenFarmApiEndpointsLibraryRemoveFolderEndpoint",
+        "parameters": [
+          {
+            "name": "library",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/library/{library}/folders/{id}/move": {
+      "post": {
+        "tags": [
+          "Library"
+        ],
+        "operationId": "OpenFarmApiEndpointsLibraryMoveFolderEndpoint",
+        "parameters": [
+          {
+            "name": "library",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "MoveFolderRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveFolderRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryFolder"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/library/{library}/items/move": {
+      "post": {
+        "tags": [
+          "Library"
+        ],
+        "operationId": "OpenFarmApiEndpointsLibraryMoveLibraryItemsEndpoint",
+        "parameters": [
+          {
+            "name": "library",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "MoveLibraryItemsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveLibraryItemsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/library/{library}/contents": {
+      "get": {
+        "tags": [
+          "Library"
+        ],
+        "operationId": "OpenFarmApiEndpointsLibraryListLibraryContentsEndpoint",
+        "parameters": [
+          {
+            "name": "library",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "parentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "includePreviews",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryContentsResponse"
                 }
               }
             }
@@ -5343,6 +6612,518 @@
         ]
       }
     },
+    "/api/v1/admin/users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthListUsersEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthCreateUserEndpoint",
+        "requestBody": {
+          "x-name": "AccountInput",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountInput"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityIdResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/groups": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthListGroupsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthCreateGroupEndpoint",
+        "requestBody": {
+          "x-name": "GroupInput",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupInput"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityIdResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/permissions": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthPermissionCatalogEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionCatalogResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/users/{id}": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthUpdateUserEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UpdateAccountRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityIdResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthRemoveUserEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/groups/{id}": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthUpdateGroupEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UpdateGroupRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGroupRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityIdResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthRemoveGroupEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/users/{id}/reset-password": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthResetAccountPasswordEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ResetAccountPasswordRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAccountPasswordRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthChangePasswordEndpoint",
+        "requestBody": {
+          "x-name": "PasswordInput",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordInput"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/profile": {
+      "put": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthUpdateProfileEndpoint",
+        "requestBody": {
+          "x-name": "ProfileInput",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileInput"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/display-preferences": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthDisplayPreferencesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplayPreferencesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -5374,6 +7155,274 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/auth/csrf": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthCsrfEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsrfResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthRefreshEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthLogoutEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthListSessionsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/sessions/{id}": {
+      "delete": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthRevokeSessionEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/sessions/revoke-all": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthRevokeAllSessionsEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/users/{id}/sessions": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthListUserSessionsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthRevokeUserSessionsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/users/{id}/sessions/{sessionId}": {
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthRevokeUserSessionEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/auth/whoami": {
@@ -5456,6 +7505,22 @@
         ],
         "operationId": "OpenFarmApiEndpointsAssembliesListAssembliesEndpoint",
         "parameters": [
+          {
+            "name": "includePreviews",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "nullable": true
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
           {
             "name": "sortBy",
             "in": "query",
@@ -6478,6 +8543,109 @@
         "type": "object",
         "additionalProperties": false
       },
+      "FeesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeeProfileDto"
+            }
+          }
+        }
+      },
+      "FeeProfileDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "fees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeeDto"
+            }
+          }
+        }
+      },
+      "FeeDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "UpdateFeesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeeProfileDto"
+            }
+          }
+        }
+      },
+      "SaveFeeProfileRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "fees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeeDto"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "the dto used to send an error response to the client",
+        "additionalProperties": false,
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "description": "the http status code sent to the client. default is 400.",
+            "format": "int32",
+            "default": 400
+          },
+          "message": {
+            "type": "string",
+            "description": "the message for the error response",
+            "default": "One or more errors occurred!"
+          },
+          "errors": {
+            "type": "object",
+            "description": "the collection of errors for the current context",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
       "GeneralSettingsResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -6489,6 +8657,10 @@
             "type": "number",
             "format": "decimal",
             "nullable": true
+          },
+          "failureAllowancePercent": {
+            "type": "number",
+            "format": "decimal"
           },
           "supportedCurrencies": {
             "type": "array",
@@ -6506,6 +8678,11 @@
             "type": "string"
           },
           "electricityPricePerKwh": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "failureAllowancePercent": {
             "type": "number",
             "format": "decimal",
             "nullable": true
@@ -7819,6 +9996,9 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "quantityBasis": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -7918,6 +10098,14 @@
             "format": "decimal",
             "nullable": true
           },
+          "remainingEstimate": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrintEstimate"
+              }
+            ]
+          },
           "blockingReason": {
             "type": "string",
             "nullable": true
@@ -7956,10 +10144,92 @@
           }
         }
       },
+      "PrintEstimate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "time": {
+            "$ref": "#/components/schemas/EstimateMetric"
+          },
+          "filament": {
+            "$ref": "#/components/schemas/EstimateMetric"
+          },
+          "approximate": {
+            "type": "boolean"
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EstimateColor"
+            }
+          }
+        }
+      },
+      "EstimateMetric": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "missing": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EstimateColor": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "variantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "grams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "missing": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "RunJobSummaryResponse": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "targetUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "producedUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "missingUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "outputVerified": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8014,6 +10284,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "submissionId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "name": {
             "type": "string",
             "nullable": true
@@ -8055,6 +10330,14 @@
             "type": "integer",
             "format": "int32",
             "minimum": 1.0,
+            "nullable": true
+          },
+          "planVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantityBasis": {
+            "type": "string",
             "nullable": true
           },
           "revisionMode": {
@@ -8181,6 +10464,236 @@
         "type": "object",
         "additionalProperties": false
       },
+      "ProductionPlan": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionPlanPart"
+            }
+          },
+          "plates": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completeSets": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "minutes": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "grams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "estimate": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrintEstimate"
+              }
+            ]
+          }
+        }
+      },
+      "ProductionPlanPart": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "partId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "requiredUnits": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "unitsPerPlate": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plates": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plannedUnits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "surplusUnits": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "minutes": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "grams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "revision": {
+            "type": "string"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "jobUnits": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "objectMappingVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimate": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrintEstimate"
+              }
+            ]
+          }
+        }
+      },
+      "PreviewProductionPlanRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "line": {
+            "$ref": "#/components/schemas/CreateRunLineRequest"
+          },
+          "plateOverrides": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "ProductionDemandResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "productionRunId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "printerCap": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pinnedPrinterId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "targetKind": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "SubmitProductionDemandRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "submissionId"
+        ],
+        "properties": {
+          "submissionId": {
+            "type": "string",
+            "format": "guid",
+            "minLength": 1,
+            "nullable": false
+          },
+          "line": {
+            "$ref": "#/components/schemas/CreateRunLineRequest"
+          },
+          "planVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "productionRunId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "createRun": {
+            "type": "boolean"
+          },
+          "newRunName": {
+            "type": "string",
+            "nullable": true
+          },
+          "plateOverrides": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "ChangeBackfillRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "printerCap": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pinnedPrinterId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
       "AddRunLinesRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -8293,6 +10806,9 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "canResolveShortfall": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -8305,6 +10821,21 @@
           "queuePosition": {
             "type": "number",
             "format": "double",
+            "nullable": true
+          },
+          "targetUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "producedUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "missingUnits": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "plateQuantity": {
@@ -8747,6 +11278,25 @@
           "partName": {
             "type": "string"
           },
+          "targetUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "producedUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "missingUnits": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "thumbnailBase64": {
+            "type": "string",
+            "nullable": true
+          },
           "plateQuantity": {
             "type": "integer",
             "format": "int32"
@@ -8755,6 +11305,18 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "demandId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "demandMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "canRequeue": {
+            "type": "boolean"
           },
           "productionRunId": {
             "type": "string",
@@ -8799,6 +11361,263 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          }
+        }
+      },
+      "PrintObjectManifest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revisionHash": {
+            "type": "string"
+          },
+          "plate": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dialect": {
+            "type": "string"
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrintObject"
+            }
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrintUnit"
+            }
+          },
+          "detectedCount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "countSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "skipUnavailableReason": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PrintObject": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "polygon": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "decimal"
+              }
+            }
+          }
+        }
+      },
+      "PrintUnit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "objectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PartObjectsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SetPartObjectGroupsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revisionHash",
+          "units"
+        ],
+        "properties": {
+          "revisionHash": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": false
+          },
+          "units": {
+            "type": "array",
+            "minLength": 1,
+            "nullable": false,
+            "items": {
+              "$ref": "#/components/schemas/PrintUnit"
+            }
+          }
+        }
+      },
+      "PrintObjectExecution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/PrintObjectManifest"
+          },
+          "selectedUnitIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requestedObjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confirmedObjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "observed": {
+            "type": "boolean"
+          },
+          "artifactPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "artifactHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "artifactName": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestError": {
+            "type": "string",
+            "nullable": true
+          },
+          "excludedAt": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ProgressMark"
+            }
+          },
+          "startRequested": {
+            "type": "boolean"
+          },
+          "canSkipObjects": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "skipUnavailableReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "plannedExclusions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "goodUnits": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ProgressMark": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "layer": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "percent": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "JobObjectsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SkipJobObjectsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactHash",
+          "unitIds"
+        ],
+        "properties": {
+          "artifactHash": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": false
+          },
+          "unitIds": {
+            "type": "array",
+            "minLength": 1,
+            "nullable": false,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ConfirmObjectOutputRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactHash",
+          "producedUnitIds"
+        ],
+        "properties": {
+          "artifactHash": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": false
+          },
+          "producedUnitIds": {
+            "type": "array",
+            "nullable": false,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ConfirmPrintNotStartedRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactHash"
+        ],
+        "properties": {
+          "artifactHash": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": false
           }
         }
       },
@@ -9633,6 +12452,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "folderId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -9679,6 +12503,22 @@
               }
             ]
           },
+          "printEstimate": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrintEstimate"
+              }
+            ]
+          },
+          "unitEstimate": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrintEstimate"
+              }
+            ]
+          },
           "estimateStatus": {
             "type": "string"
           },
@@ -9718,6 +12558,18 @@
           "unitsPerPrint": {
             "type": "integer",
             "format": "int32"
+          },
+          "detectedUnitsPerPrint": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "quantityDetectionSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantityNeedsReprocessing": {
+            "type": "boolean"
           },
           "thumbnails": {
             "type": "array",
@@ -9886,6 +12738,36 @@
           }
         }
       },
+      "EstimatePrintedPartsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "parts"
+        ],
+        "properties": {
+          "parts": {
+            "type": "array",
+            "nullable": false,
+            "items": {
+              "$ref": "#/components/schemas/PrintedPartEstimateInput"
+            }
+          }
+        }
+      },
+      "PrintedPartEstimateInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "partId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
       "ListPartsResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -9952,6 +12834,14 @@
           "estimationPrinterModelCode": {
             "type": "string",
             "nullable": true
+          },
+          "printEstimate": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrintEstimate"
+              }
+            ]
           },
           "estimateStatus": {
             "type": "string"
@@ -10058,6 +12948,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "folderId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "name": {
             "type": "string",
             "nullable": true
@@ -10182,6 +13077,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "unitsPerPrint": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "nozzleDiameterMm": {
             "type": "number",
             "format": "decimal",
@@ -10282,6 +13182,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "unitsPerPrint": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "number": {
             "type": "integer",
             "format": "int32"
@@ -10677,6 +13582,263 @@
       "ListNonPrintedComponentsRequest": {
         "type": "object",
         "additionalProperties": false
+      },
+      "FolderPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryFolder"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ancestors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryFolder"
+            }
+          }
+        }
+      },
+      "LibraryFolder": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "library": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ListFoldersRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FolderLibraryRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false
+          }
+        ]
+      },
+      "FolderLibraryRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "CreateFolderRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FolderLibraryRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "parentId": {
+                "type": "string",
+                "format": "guid",
+                "nullable": true
+              }
+            }
+          }
+        ]
+      },
+      "RenameFolderRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FolderIdRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "FolderIdRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FolderLibraryRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false
+          }
+        ]
+      },
+      "MoveFolderRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FolderIdRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "parentId": {
+                "type": "string",
+                "format": "guid",
+                "nullable": true
+              }
+            }
+          }
+        ]
+      },
+      "MoveLibraryItemsRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FolderLibraryRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "guid"
+                }
+              },
+              "folderId": {
+                "type": "string",
+                "format": "guid",
+                "nullable": true
+              }
+            }
+          }
+        ]
+      },
+      "LibraryContentsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryEntryResponse"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ancestors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryFolder"
+            }
+          }
+        }
+      },
+      "LibraryEntryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "folder": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LibraryFolder"
+              }
+            ]
+          },
+          "part": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartSummaryResponse"
+              }
+            ]
+          },
+          "assembly": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssemblySummaryResponse"
+              }
+            ]
+          }
+        }
+      },
+      "AssemblySummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "lineCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "previewThumbnails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ListLibraryContentsRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FolderLibraryRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false
+          }
+        ]
       },
       "FilamentResponse": {
         "type": "object",
@@ -11450,6 +14612,338 @@
           }
         }
       },
+      "AccountResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupSummary"
+            }
+          },
+          "extraGrants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "effectivePermissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isAdministrator": {
+            "type": "boolean"
+          },
+          "sessionCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "GroupSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "GroupResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isProtected": {
+            "type": "boolean"
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "memberCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PermissionCatalogResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "areas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionArea"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionDefinition"
+            }
+          }
+        }
+      },
+      "PermissionArea": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "noun": {
+            "type": "string"
+          },
+          "administratorOnly": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PermissionDefinition": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "area": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isRead": {
+            "type": "boolean"
+          },
+          "isSensitive": {
+            "type": "boolean"
+          },
+          "isDestructive": {
+            "type": "boolean"
+          },
+          "isExplicit": {
+            "type": "boolean"
+          },
+          "verb": {
+            "type": "string",
+            "nullable": true
+          },
+          "phrase": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "EntityIdResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "AccountInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "groupIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "extraGrants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateAccountRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "groupIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "extraGrants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RevokeSessionRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "GroupInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UpdateGroupRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ResetAccountPasswordRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "PasswordInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "ProfileInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "DisplayPreferencesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "currencyCode": {
+            "type": "string"
+          }
+        }
+      },
       "LoginResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -11475,6 +14969,47 @@
           }
         }
       },
+      "CsrfResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "device": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UserSessionRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "WhoAmIResult": {
         "type": "object",
         "additionalProperties": false,
@@ -11488,6 +15023,25 @@
           },
           "email": {
             "type": "string"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "isAdministrator": {
+            "type": "boolean"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -11495,6 +15049,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "folderId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -11517,6 +15076,14 @@
             "items": {
               "$ref": "#/components/schemas/AssemblyCostInput"
             }
+          },
+          "pricing": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssemblyPricingDto"
+              }
+            ]
           },
           "createdAtUtc": {
             "type": "string",
@@ -11592,10 +15159,28 @@
           }
         }
       },
+      "AssemblyPricingDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
       "CreateAssemblyRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "folderId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "name": {
             "type": "string"
           },
@@ -11615,6 +15200,14 @@
             "items": {
               "$ref": "#/components/schemas/AssemblyCostInput"
             }
+          },
+          "pricing": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssemblyPricingDto"
+              }
+            ]
           }
         }
       },
@@ -11663,6 +15256,14 @@
             "items": {
               "$ref": "#/components/schemas/AssemblyCostInput"
             }
+          },
+          "pricing": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssemblyPricingDto"
+              }
+            ]
           }
         }
       },
@@ -11842,27 +15443,6 @@
             }
           },
           "totalCount": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "AssemblySummaryResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "guid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "lineCount": {
             "type": "integer",
             "format": "int32"
           }

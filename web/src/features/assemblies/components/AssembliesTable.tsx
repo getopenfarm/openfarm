@@ -5,16 +5,17 @@ import type {
   HeaderContext,
   RowSelectionState,
 } from '@tanstack/react-table';
-import { Layers3Icon, Trash2Icon } from 'lucide-react';
+import { flexRender } from '@tanstack/react-table';
+import { FolderInputIcon, Trash2Icon } from 'lucide-react';
 import {
   createContext,
+  type ReactNode,
   type RefObject,
   useContext,
   useEffect,
   useRef,
   useState,
 } from 'react';
-import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import {
@@ -25,24 +26,49 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
+import { TabsContent } from '@/components/ui/tabs';
+import type { AssemblyLibraryRow } from '@/features/library/api';
+import { invalidateLibraryContents } from '@/features/library/api';
 import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+  LibraryDragHandle,
+  LibraryDragRow,
+  useLibraryDragSelection,
+} from '@/features/library/LibraryDnd';
+import {
+  LibraryFolderActions,
+  LibraryFolderCard,
+  LibraryFolderName,
+} from '@/features/library/LibraryFolders';
+import { LibraryItemCard } from '@/features/library/LibraryItemCard';
+import { LibraryItemLink } from '@/features/library/LibraryItemLink';
+import { LibraryPreview } from '@/features/library/LibraryPreview';
+import { MoveToDialog } from '@/features/library/MoveToDialog';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey,
   useOpenFarmApiEndpointsAssembliesDeleteAssemblyEndpoint,
 } from '@/lib/api/generated/assemblies/assemblies';
-import type { AssemblySummaryResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useAllowed } from '@/lib/auth/AccessContext';
+import { libraryFieldIds } from '@/lib/preferences/libraryFields';
+import type { ViewMode } from '@/lib/preferences/types';
+import { usePreferences } from '@/lib/preferences/usePreferences';
 
 interface AssembliesTableProps {
-  assemblies: AssemblySummaryResponse[];
+  folderNavigation?: ReactNode;
+  toolbarControls?: (fields: ReactNode) => ReactNode;
+  dragging?: boolean;
+  libraryRows?: AssemblyLibraryRow[];
+  onPendingChange?: (pending: boolean) => void;
+  view?: ViewMode;
+  folderId?: string | null;
+  assemblies: AssemblyLibraryRow[];
   pagination?: ServerTablePagination;
   sorting?: ServerTableSorting;
-  onRowClick: (assembly: AssemblySummaryResponse) => void;
+  onRowClick: (assembly: AssemblyLibraryRow) => void;
   selectionKey?: string;
   fallbackFocusRef?: RefObject<HTMLElement | null>;
 }
@@ -52,33 +78,34 @@ interface RemovableAssembly {
   name: string;
 }
 
-const columns: ColumnDef<AssemblySummaryResponse>[] = [
+const columns: ColumnDef<AssemblyLibraryRow>[] = [
   {
-    id: 'assembly',
+    id: 'name',
+    enableHiding: false,
     accessorKey: 'name',
-    meta: { label: 'Assembly' },
+    meta: { label: 'Name' },
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Assembly" />
+      <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
       <div className="flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Layers3Icon className="size-5" />
-        </div>
+        <LibraryDragHandle name={row.original.name ?? 'Assembly'} />
+        <LibraryPreview kind="assembly" compact />
         <div className="flex flex-col">
-          <Link
-            to={`/assemblies/${row.original.id}`}
-            className="font-medium hover:underline"
-          >
+          <LibraryItemLink library="assemblies" id={row.original.id}>
             {row.original.name}
-          </Link>
-          {row.original.description && (
-            <span className="text-xs text-muted-foreground">
-              {row.original.description}
-            </span>
-          )}
+          </LibraryItemLink>
         </div>
       </div>
+    ),
+  },
+  {
+    id: 'description',
+    header: 'Description',
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground">
+        {row.original.description || '—'}
+      </span>
     ),
   },
   {
@@ -93,10 +120,11 @@ const columns: ColumnDef<AssemblySummaryResponse>[] = [
 ];
 
 interface AssembliesTableActions {
+  onMove: (ids: string[], trigger: HTMLButtonElement | null) => void;
   pending: boolean;
   selectionHeaderRef: RefObject<HTMLButtonElement | null>;
   onRemove: (
-    assembly: AssemblySummaryResponse,
+    assembly: AssemblyLibraryRow,
     trigger: HTMLButtonElement | null,
   ) => void;
 }
@@ -111,13 +139,15 @@ function useAssembliesTableActions() {
 }
 function SelectionHeader({
   table,
-}: HeaderContext<AssemblySummaryResponse, unknown>) {
+}: HeaderContext<AssemblyLibraryRow, unknown>) {
   const { pending, selectionHeaderRef } = useAssembliesTableActions();
   return (
     <Checkbox
       ref={selectionHeaderRef}
       aria-label="Select all assemblies on this page"
-      disabled={pending}
+      disabled={
+        pending || !table.getRowModel().rows.some((row) => row.getCanSelect())
+      }
       checked={
         table.getIsAllPageRowsSelected() ||
         (table.getIsSomePageRowsSelected() && 'indeterminate')
@@ -128,8 +158,9 @@ function SelectionHeader({
     />
   );
 }
-function SelectionCell({ row }: CellContext<AssemblySummaryResponse, unknown>) {
+function SelectionCell({ row }: CellContext<AssemblyLibraryRow, unknown>) {
   const { pending } = useAssembliesTableActions();
+  if (row.original.libraryFolder) return null;
   return (
     <Checkbox
       aria-label={`Select ${row.original.name}`}
@@ -139,17 +170,36 @@ function SelectionCell({ row }: CellContext<AssemblySummaryResponse, unknown>) {
     />
   );
 }
-function ActionsCell({ row }: CellContext<AssemblySummaryResponse, unknown>) {
-  const { pending, onRemove } = useAssembliesTableActions();
+function ActionsCell({ row }: CellContext<AssemblyLibraryRow, unknown>) {
+  const { pending, onRemove, onMove } = useAssembliesTableActions();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  if (row.original.libraryFolder)
+    return <LibraryFolderActions folder={row.original.libraryFolder} />;
   return (
     <DataTableRowActions
+      permission="assemblies:delete|library:manage"
       label={row.original.name ?? 'assembly'}
       triggerRef={triggerRef}
       disabled={pending || !row.original.id}
     >
       <DropdownMenuGroup>
         <DropdownMenuItem
+          onSelect={() => row.toggleSelected()}
+          disabled={pending}
+        >
+          {row.getIsSelected() ? 'Deselect' : 'Select'}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          permission="library:manage"
+          onSelect={() => {
+            if (row.original.id) onMove([row.original.id], triggerRef.current);
+          }}
+        >
+          <FolderInputIcon />
+          Move to
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          permission="assemblies:delete"
           variant="destructive"
           onSelect={() => onRemove(row.original, triggerRef.current)}
         >
@@ -161,7 +211,7 @@ function ActionsCell({ row }: CellContext<AssemblySummaryResponse, unknown>) {
 }
 
 // Stable cell component identities keep open menus and dialogs mounted during selection/mutations.
-const tableColumns: ColumnDef<AssemblySummaryResponse>[] = [
+const tableColumns: ColumnDef<AssemblyLibraryRow>[] = [
   {
     id: 'select',
     enableSorting: false,
@@ -169,7 +219,19 @@ const tableColumns: ColumnDef<AssemblySummaryResponse>[] = [
     header: SelectionHeader,
     cell: SelectionCell,
   },
-  ...columns,
+  ...columns.map((column) => ({
+    ...column,
+    cell: (context: CellContext<AssemblyLibraryRow, unknown>) =>
+      context.row.original.libraryFolder ? (
+        column.id === 'name' ? (
+          <LibraryFolderName folder={context.row.original.libraryFolder} />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )
+      ) : (
+        flexRender(column.cell, context)
+      ),
+  })),
   {
     id: 'actions',
     header: () => <span className="sr-only">Actions</span>,
@@ -180,6 +242,13 @@ const tableColumns: ColumnDef<AssemblySummaryResponse>[] = [
 ];
 
 export function AssembliesTable({
+  folderNavigation,
+  toolbarControls,
+  dragging = false,
+  libraryRows,
+  onPendingChange,
+  view = 'table',
+  folderId = null,
   assemblies,
   pagination,
   sorting,
@@ -187,12 +256,21 @@ export function AssembliesTable({
   selectionKey,
   fallbackFocusRef,
 }: AssembliesTableProps) {
+  const { getLibraryFields, setLibraryFields } = usePreferences();
   const queryClient = useQueryClient();
   const deleteMutation =
     useOpenFarmApiEndpointsAssembliesDeleteAssemblyEndpoint({
       mutation: { retry: false },
     });
+  const [moveIds, setMoveIds] = useState<string[]>([]);
+  const moveTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const moveBulkRef = useRef<HTMLButtonElement>(null);
+  const [moving, setMoving] = useState(false);
+  const canSelect = useAllowed('assemblies:delete|library:manage');
   const [selection, setSelection] = useState<RowSelectionState>({});
+  useEffect(() => {
+    if (!canSelect) setSelection({});
+  }, [canSelect]);
   const [targets, setTargets] = useState<RemovableAssembly[]>([]);
   const [bulk, setBulk] = useState(false);
   const [pending, setPending] = useState(false);
@@ -201,11 +279,18 @@ export function AssembliesTable({
   const bulkTriggerRef = useRef<HTMLButtonElement>(null);
   const interactionPending = !!(
     pending ||
+    moving ||
     pagination?.pending ||
     sorting?.pending ||
     pagination?.disabled ||
     sorting?.disabled
   );
+
+  useEffect(() => {
+    onPendingChange?.(pending || moving);
+  }, [pending, moving, onPendingChange]);
+
+  useLibraryDragSelection(selection, setSelection);
 
   // A new server page or sort has a separate selection context.
   useEffect(() => {
@@ -225,7 +310,7 @@ export function AssembliesTable({
   }, [assemblies]);
 
   const selected = assemblies.filter((a) => a.id && selection[a.id]);
-  const toRemovable = (a: AssemblySummaryResponse): RemovableAssembly[] =>
+  const toRemovable = (a: AssemblyLibraryRow): RemovableAssembly[] =>
     a.id ? [{ id: a.id, name: a.name ?? 'this assembly' }] : [];
 
   async function execute() {
@@ -274,6 +359,7 @@ export function AssembliesTable({
           `${target.name}: ${await extractErrorDetail(error, 'Could not remove assembly.')}`,
         );
       }
+      await invalidateLibraryContents(queryClient);
       await queryClient.invalidateQueries({
         queryKey:
           getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey(),
@@ -288,6 +374,10 @@ export function AssembliesTable({
     <AssembliesTableContext.Provider
       value={{
         pending: interactionPending,
+        onMove: (ids, trigger) => {
+          moveTriggerRef.current = trigger;
+          setMoveIds(ids);
+        },
         selectionHeaderRef,
         onRemove: (assembly, trigger) => {
           removalTriggerRef.current = trigger;
@@ -297,48 +387,130 @@ export function AssembliesTable({
       }}
     >
       <DataTable
+        toolbarControls={toolbarControls}
+        renderContent={
+          toolbarControls
+            ? (content) => <TabsContent value={view}>{content}</TabsContent>
+            : undefined
+        }
+        showCardToolbar
+        viewOptionsLabel="Fields"
+        columnVisibility={getLibraryFields('assemblies', view)}
+        onColumnVisibilityChange={(updater) =>
+          setLibraryFields('assemblies', view, updater)
+        }
+        viewOptionColumnIds={libraryFieldIds('assemblies', view)}
+        modifierSelection={!!libraryRows && canSelect}
+        selectionDisabled={interactionPending || !canSelect}
         serverSorting={sorting}
         serverPagination={
           pagination
             ? { ...pagination, pending: pending || pagination.pending }
             : undefined
         }
-        columns={tableColumns}
-        data={assemblies}
+        renderCard={
+          view === 'grid'
+            ? (row) =>
+                row.original.libraryFolder ? (
+                  <LibraryFolderCard folder={row.original.libraryFolder} />
+                ) : (
+                  <LibraryItemCard
+                    row={row}
+                    name={row.original.name ?? 'Assembly'}
+                    to={`/assemblies/${row.original.id}`}
+                    images={row.original.previewThumbnails ?? []}
+                    assembly
+                    disabled={interactionPending}
+                  />
+                )
+            : undefined
+        }
+        columns={
+          canSelect
+            ? tableColumns
+            : tableColumns.filter((column) => column.id !== 'select')
+        }
+        rowContainer={libraryRows ? LibraryDragRow : undefined}
+        data={libraryRows ?? assemblies}
         onRowClick={(assembly) => {
           if (!interactionPending) onRowClick(assembly);
         }}
-        getRowId={(assembly, index) => assembly.id ?? `missing-${index}`}
+        getRowId={(assembly, index) =>
+          assembly.libraryFolder
+            ? `folder:${assembly.id}`
+            : (assembly.id ?? `missing-${index}`)
+        }
         rowSelection={selection}
         onRowSelectionChange={setSelection}
-        enableRowSelection={(row) => Boolean(row.original.id)}
+        enableRowSelection={(row) =>
+          canSelect && Boolean(row.original.id) && !row.original.libraryFolder
+        }
         toolbar={
-          <DataTableSelectionBar
-            selectedCount={selected.length}
-            pending={interactionPending}
-            label="Assemblies actions"
-            onClear={() => {
-              setSelection({});
-              selectionHeaderRef.current?.focus();
-            }}
-          >
-            <Button
-              ref={bulkTriggerRef}
-              type="button"
-              variant="destructive"
-              size="sm"
-              disabled={interactionPending}
-              onClick={() => {
-                removalTriggerRef.current = bulkTriggerRef.current;
-                setBulk(true);
-                setTargets(selected.flatMap(toRemovable));
-              }}
-            >
-              <Trash2Icon data-icon="inline-start" /> Remove selected
-            </Button>
-          </DataTableSelectionBar>
+          <>
+            {(selected.length === 0 || dragging) && folderNavigation}
+            <div hidden={dragging} className={dragging ? 'hidden' : 'contents'}>
+              <DataTableSelectionBar
+                selectedCount={selected.length}
+                pending={interactionPending}
+                label="Assemblies actions"
+                onClear={() => {
+                  setSelection({});
+                  (
+                    selectionHeaderRef.current ?? fallbackFocusRef?.current
+                  )?.focus();
+                }}
+              >
+                <Button
+                  permission="library:manage"
+                  ref={moveBulkRef}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={interactionPending}
+                  onClick={() => {
+                    moveTriggerRef.current = moveBulkRef.current;
+                    setMoveIds(
+                      selected.flatMap((item) => (item.id ? [item.id] : [])),
+                    );
+                  }}
+                >
+                  <FolderInputIcon data-icon="inline-start" />
+                  Move to
+                </Button>
+                <Button
+                  permission="assemblies:delete"
+                  ref={bulkTriggerRef}
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={interactionPending}
+                  onClick={() => {
+                    removalTriggerRef.current = bulkTriggerRef.current;
+                    setBulk(true);
+                    setTargets(selected.flatMap(toRemovable));
+                  }}
+                >
+                  <Trash2Icon data-icon="inline-start" /> Remove selected
+                </Button>
+              </DataTableSelectionBar>
+            </div>
+          </>
         }
       />
+      {moveIds.length > 0 && (
+        <MoveToDialog
+          library="assemblies"
+          ids={moveIds}
+          initialParent={folderId}
+          onClose={() => setMoveIds([])}
+          onMoved={() => setSelection({})}
+          returnFocusRef={moveTriggerRef}
+          fallbackFocusRef={fallbackFocusRef}
+          onPendingChange={(value) => {
+            setMoving(value);
+          }}
+        />
+      )}
       <ConfirmDialog
         open={targets.length > 0}
         onOpenChange={(open) => {

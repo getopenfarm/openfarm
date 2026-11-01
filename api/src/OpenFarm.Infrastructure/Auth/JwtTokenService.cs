@@ -10,7 +10,7 @@ public sealed record IssuedToken(string Token, DateTimeOffset ExpiresAtUtc);
 
 public sealed class JwtTokenService(IConfiguration configuration)
 {
-    public IssuedToken IssueToken(Guid userId)
+    public IssuedToken IssueToken(Guid userId, Guid sessionId)
     {
         var issuer = configuration["Jwt:Issuer"]
             ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
@@ -22,13 +22,14 @@ public sealed class JwtTokenService(IConfiguration configuration)
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim("sid", sessionId.ToString()),
         };
 
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
             SecurityAlgorithms.HmacSha256);
 
-        var expiresAtUtc = DateTimeOffset.UtcNow.AddHours(8);
+        var expiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(15);
 
         var token = new JwtSecurityToken(
             issuer,

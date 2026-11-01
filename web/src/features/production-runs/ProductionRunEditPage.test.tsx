@@ -41,6 +41,49 @@ const RUN = {
   ],
 };
 
+it.each([404, 500])(
+  'distinguishes a missing run from an edit request error (%s)',
+  async (status) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response('{}', {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ),
+    );
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/production-runs/:id/edit',
+          element: <ProductionRunEditPage />,
+        },
+      ],
+      { initialEntries: ['/production-runs/r1/edit'] },
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByText(
+        status === 404 ? 'Run not found' : 'Could not load run',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' }) !== null).toBe(
+      status !== 404,
+    );
+  },
+);
+
 it('saves the details and every unlimited line in one PUT', async () => {
   const puts: unknown[] = [];
   vi.stubGlobal(

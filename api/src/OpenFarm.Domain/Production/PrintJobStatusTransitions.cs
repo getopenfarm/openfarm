@@ -11,6 +11,7 @@ public static class PrintJobStatusTransitions
         (PrintJobStatus.Queued, PrintJobStatus.Printing),
         (PrintJobStatus.Printing, PrintJobStatus.Paused),
         (PrintJobStatus.Paused, PrintJobStatus.Printing),
+        (PrintJobStatus.Queued, PrintJobStatus.Failed),
         (PrintJobStatus.Printing, PrintJobStatus.Failed),
         (PrintJobStatus.Paused, PrintJobStatus.Failed),
         (PrintJobStatus.Printing, PrintJobStatus.Completed),

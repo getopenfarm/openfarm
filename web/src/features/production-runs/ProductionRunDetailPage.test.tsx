@@ -43,6 +43,12 @@ const RUN: ProductionRunDetailResponse = {
             needsAction: 1,
             writtenOff: 0,
           },
+          remainingEstimate: {
+            time: { value: 90, missing: 0 },
+            filament: { value: 40, missing: 0 },
+            approximate: false,
+            colors: [],
+          },
           estimatedMinutesPerPlate: 90,
           estimatedGramsPerPlate: 40,
           blockingReason: 'No printer has PETG loaded.',

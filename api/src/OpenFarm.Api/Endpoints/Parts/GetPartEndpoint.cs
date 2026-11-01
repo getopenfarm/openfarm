@@ -23,6 +23,7 @@ public sealed class PartFilamentRequirementResponse
 
 public sealed class PartResponse
 {
+    public Guid? FolderId { get; set; }
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string FileFormat { get; set; } = string.Empty;
@@ -34,6 +35,8 @@ public sealed class PartResponse
     public List<string> ProcessingWarnings { get; set; } = [];
     public string? EstimateUnavailableReason { get; set; }
     public OpenFarm.Domain.Parts.EstimationDetails? Estimation { get; set; }
+    public PrintEstimate? PrintEstimate { get; set; }
+    public PrintEstimate? UnitEstimate { get; set; }
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
@@ -43,12 +46,16 @@ public sealed class PartResponse
     public int? PlateNumber { get; set; }
     public string? PlateName { get; set; }
     public int UnitsPerPrint { get; set; } = 1;
+    public int? DetectedUnitsPerPrint { get; set; }
+    public string? QuantityDetectionSource { get; set; }
+    public bool QuantityNeedsReprocessing { get; set; }
     public List<ThumbnailResponse> Thumbnails { get; set; } = [];
     public List<string> Tags { get; set; } = [];
 
     public static PartResponse FromDetail(PartDetail detail) => new()
     {
         Id = detail.Id,
+        FolderId = detail.FolderId,
         Name = detail.Name,
         FileFormat = detail.FileFormat,
         RequiresSlicing = detail.RequiresSlicing,
@@ -59,6 +66,8 @@ public sealed class PartResponse
         ProcessingWarnings = detail.ProcessingWarnings?.ToList() ?? [],
         EstimateUnavailableReason = detail.EstimateUnavailableReason,
         Estimation = detail.Estimation,
+        PrintEstimate = PrintEstimates.Calculate(detail.UnitsPerPrint, detail.UnitsPerPrint, detail.EstimatedPrintTimeMinutes, detail.EstimatedFilamentWeightGrams, detail.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams)).ToArray()),
+        UnitEstimate = PrintEstimates.Calculate(1, detail.UnitsPerPrint, detail.EstimatedPrintTimeMinutes, detail.EstimatedFilamentWeightGrams, detail.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams)).ToArray()),
         EstimateStatus = detail.EstimateStatus,
         EstimatedPrintTimeMinutes = detail.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = detail.EstimatedFilamentWeightGrams,
@@ -66,6 +75,9 @@ public sealed class PartResponse
         PlateNumber = detail.PlateNumber,
         PlateName = detail.PlateName,
         UnitsPerPrint = detail.UnitsPerPrint,
+        DetectedUnitsPerPrint = detail.DetectedUnitsPerPrint,
+        QuantityDetectionSource = detail.QuantityDetectionSource,
+        QuantityNeedsReprocessing = detail.QuantityNeedsReprocessing,
         FilamentRequirements = detail.FilamentRequirements.Select(r => new PartFilamentRequirementResponse
         {
             Id = r.Id,
@@ -83,13 +95,13 @@ public sealed class PartResponse
     };
 
     /// <summary>
-    /// Used by Confirm/Replace, which return the domain entity directly rather than round-tripping
-    /// through <c>GetPartQuery</c>. Doesn't compute the narrow-override unresolved flags (defaults
-    /// false) — acceptable since a just-confirmed override was, by definition, valid a moment ago.
+    /// Compatibility projection without file detection or narrowing-reference resolution.
+    /// Interactive responses use <see cref="FromDetail"/> to include current quantity evidence.
     /// </summary>
     public static PartResponse FromDomain(Part part) => new()
     {
         Id = part.Id,
+        FolderId = part.FolderId,
         Name = part.Name,
         FileFormat = part.FileFormat.ToString(),
         RequiresSlicing = part.RequiresSlicing,
@@ -100,6 +112,8 @@ public sealed class PartResponse
         ProcessingWarnings = part.ProcessingWarnings.ToList(),
         EstimateUnavailableReason = part.EstimateUnavailableReason,
         Estimation = part.Estimation,
+        PrintEstimate = PrintEstimates.ForPart(part, part.UnitsPerPrint),
+        UnitEstimate = PrintEstimates.ForPart(part, 1),
         EstimateStatus = part.EstimateStatus.ToString(),
         EstimatedPrintTimeMinutes = part.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = part.EstimatedFilamentWeightGrams,

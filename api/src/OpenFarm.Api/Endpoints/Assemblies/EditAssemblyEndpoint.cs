@@ -34,6 +34,18 @@ public sealed class EditAssemblyRequest : IActivityLoggable
 
     public List<AssemblyCostInput>? AdditionalCosts { get; set; }
 
+    private AssemblyPricingDto? _pricing;
+
+    /// <summary>Omit to keep the saved pricing; null clears it.</summary>
+    public AssemblyPricingDto? Pricing
+    {
+        get => _pricing;
+        set { _pricing = value; HasPricing = true; }
+    }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasPricing { get; private set; }
+
     public string EntityType => "Assembly";
 
     public string EventType => "AssemblyEdited";
@@ -51,6 +63,7 @@ public sealed class EditAssemblyRequestValidator : AbstractValidator<EditAssembl
                 .WithMessage("targetKind must be one of Part, Assembly, NonPrintedComponent.");
             line.RuleFor(l => l.Quantity).GreaterThan(0);
         });
+        RuleFor(x => x.Pricing!).SetValidator(new AssemblyPricingDtoValidator()).When(x => x.Pricing is not null);
     }
 }
 
@@ -69,7 +82,7 @@ public sealed class EditAssemblyEndpoint(EditAssemblyHandler handler, IQueryHand
     {
         req.Id = Route<Guid>("id");
         var lines = req.Lines?.Select(l => new AssemblyLineEditInput(l.LineId, Enum.Parse<BomLineTargetKind>(l.TargetKind), l.TargetId, l.Quantity)).ToList();
-        await handler.HandleAsync(new EditAssemblyCommand(req.Id, req.Name, req.Description, lines, req.AdditionalCosts), ct);
+        await handler.HandleAsync(new EditAssemblyCommand(req.Id, req.Name, req.Description, lines, req.AdditionalCosts, req.Pricing?.ToDomain(), req.HasPricing), ct);
 
         var detail = await getAssembly.HandleAsync(new GetAssemblyQuery(req.Id), ct);
         Response = AssemblyResponse.FromDetail(detail!);

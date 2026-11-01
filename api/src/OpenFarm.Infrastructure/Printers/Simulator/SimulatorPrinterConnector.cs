@@ -81,8 +81,15 @@ public sealed class SimulatorPrinterConnector : IPrinterConnector
     /// <inheritdoc />
     /// <remarks>No real file transfer — begins a fake Printing → Finish sequence identical to
     /// <see cref="StartSimulatedJob"/>, through the interface real dispatch code calls (research.md R5).</remarks>
-    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+        StartJobAsync(details, fileContent, jobName, plate, feedMapping, null, cancellationToken);
+
+    /// <summary>Reports an instant upload, so the send stages run without a printer.</summary>
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken)
     {
+        progress?.Report(new PrintSendProgress(PrintSendStage.Uploading, 100));
+        progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
         var state = GetOrCreateState(details.SerialNumber);
         state.Status = PrinterStatus.Printing;
         state.IsPaused = false;

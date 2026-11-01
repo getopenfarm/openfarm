@@ -19,11 +19,17 @@ import type {
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { httpClient } from '../../httpClient';
 import type {
+  CsrfResponse,
+  DisplayPreferencesResponse,
   LoginCommand,
   LoginResponse,
+  PasswordInput,
+  ProfileInput,
+  SessionResponse,
   WhoAmIResult,
 } from '../endpoints.schemas';
 
@@ -44,6 +50,472 @@ const withQueryKey = <T extends object, K>(
   }
   return result;
 };
+
+export type openFarmApiEndpointsAuthChangePasswordEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsAuthChangePasswordEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthChangePasswordEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthChangePasswordEndpointResponseSuccess =
+  openFarmApiEndpointsAuthChangePasswordEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthChangePasswordEndpointResponseError = (
+  | openFarmApiEndpointsAuthChangePasswordEndpointResponse401
+  | openFarmApiEndpointsAuthChangePasswordEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthChangePasswordEndpointResponse =
+  | openFarmApiEndpointsAuthChangePasswordEndpointResponseSuccess
+  | openFarmApiEndpointsAuthChangePasswordEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthChangePasswordEndpointUrl = () => {
+  return `/api/v1/auth/change-password`;
+};
+
+export const openFarmApiEndpointsAuthChangePasswordEndpoint = async (
+  passwordInput: PasswordInput,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthChangePasswordEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthChangePasswordEndpointResponse>(
+    getOpenFarmApiEndpointsAuthChangePasswordEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(passwordInput),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthChangePasswordEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthChangePasswordEndpoint>
+      >,
+      TError,
+      { data: PasswordInput },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthChangePasswordEndpoint>>,
+    TError,
+    { data: PasswordInput },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsAuthChangePasswordEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthChangePasswordEndpoint>
+      >,
+      { data: PasswordInput }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsAuthChangePasswordEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsAuthChangePasswordEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthChangePasswordEndpoint>>
+  >;
+export type OpenFarmApiEndpointsAuthChangePasswordEndpointMutationBody =
+  PasswordInput;
+export type OpenFarmApiEndpointsAuthChangePasswordEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsAuthChangePasswordEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthChangePasswordEndpoint>
+      >,
+      TError,
+      { data: PasswordInput },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthChangePasswordEndpoint>>,
+  TError,
+  { data: PasswordInput },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsAuthChangePasswordEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsAuthUpdateProfileEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsAuthUpdateProfileEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthUpdateProfileEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthUpdateProfileEndpointResponseSuccess =
+  openFarmApiEndpointsAuthUpdateProfileEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthUpdateProfileEndpointResponseError = (
+  | openFarmApiEndpointsAuthUpdateProfileEndpointResponse401
+  | openFarmApiEndpointsAuthUpdateProfileEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthUpdateProfileEndpointResponse =
+  | openFarmApiEndpointsAuthUpdateProfileEndpointResponseSuccess
+  | openFarmApiEndpointsAuthUpdateProfileEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthUpdateProfileEndpointUrl = () => {
+  return `/api/v1/auth/profile`;
+};
+
+export const openFarmApiEndpointsAuthUpdateProfileEndpoint = async (
+  profileInput: ProfileInput,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthUpdateProfileEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthUpdateProfileEndpointResponse>(
+    getOpenFarmApiEndpointsAuthUpdateProfileEndpointUrl(),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(profileInput),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthUpdateProfileEndpointMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthUpdateProfileEndpoint>>,
+    TError,
+    { data: ProfileInput },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthUpdateProfileEndpoint>>,
+  TError,
+  { data: ProfileInput },
+  TContext
+> => {
+  const mutationKey = ['openFarmApiEndpointsAuthUpdateProfileEndpoint'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      'mutationKey' in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthUpdateProfileEndpoint>>,
+    { data: ProfileInput }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return openFarmApiEndpointsAuthUpdateProfileEndpoint(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenFarmApiEndpointsAuthUpdateProfileEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthUpdateProfileEndpoint>>
+  >;
+export type OpenFarmApiEndpointsAuthUpdateProfileEndpointMutationBody =
+  ProfileInput;
+export type OpenFarmApiEndpointsAuthUpdateProfileEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsAuthUpdateProfileEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsAuthUpdateProfileEndpoint>>,
+      TError,
+      { data: ProfileInput },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthUpdateProfileEndpoint>>,
+  TError,
+  { data: ProfileInput },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsAuthUpdateProfileEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse200 = {
+  data: DisplayPreferencesResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthDisplayPreferencesEndpointResponseSuccess =
+  openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthDisplayPreferencesEndpointResponseError = (
+  | openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse401
+  | openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse =
+  | openFarmApiEndpointsAuthDisplayPreferencesEndpointResponseSuccess
+  | openFarmApiEndpointsAuthDisplayPreferencesEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthDisplayPreferencesEndpointUrl = () => {
+  return `/api/v1/auth/display-preferences`;
+};
+
+export const openFarmApiEndpointsAuthDisplayPreferencesEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse>(
+    getOpenFarmApiEndpointsAuthDisplayPreferencesEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthDisplayPreferencesEndpointQueryKey =
+  () => {
+    return [`/api/v1/auth/display-preferences`] as const;
+  };
+
+export const getOpenFarmApiEndpointsAuthDisplayPreferencesEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsAuthDisplayPreferencesEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsAuthDisplayPreferencesEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsAuthDisplayPreferencesEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsAuthDisplayPreferencesEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsAuthDisplayPreferencesEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthDisplayPreferencesEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthDisplayPreferencesEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsAuthDisplayPreferencesEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthDisplayPreferencesEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsAuthDisplayPreferencesEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 export type openFarmApiEndpointsAuthLoginEndpointResponse200 = {
   data: LoginResponse;
@@ -141,6 +613,803 @@ export const useOpenFarmApiEndpointsAuthLoginEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsAuthLoginEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsAuthCsrfEndpointResponse200 = {
+  data: CsrfResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsAuthCsrfEndpointResponseSuccess =
+  openFarmApiEndpointsAuthCsrfEndpointResponse200 & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsAuthCsrfEndpointResponse =
+  openFarmApiEndpointsAuthCsrfEndpointResponseSuccess;
+
+export const getOpenFarmApiEndpointsAuthCsrfEndpointUrl = () => {
+  return `/api/v1/auth/csrf`;
+};
+
+export const openFarmApiEndpointsAuthCsrfEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthCsrfEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthCsrfEndpointResponse>(
+    getOpenFarmApiEndpointsAuthCsrfEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthCsrfEndpointQueryKey = () => {
+  return [`/api/v1/auth/csrf`] as const;
+};
+
+export const getOpenFarmApiEndpointsAuthCsrfEndpointQueryOptions = <
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getOpenFarmApiEndpointsAuthCsrfEndpointQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>
+  > = ({ signal }) => openFarmApiEndpointsAuthCsrfEndpoint({ signal });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type OpenFarmApiEndpointsAuthCsrfEndpointQueryResult = NonNullable<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>
+>;
+export type OpenFarmApiEndpointsAuthCsrfEndpointQueryError = unknown;
+
+export function useOpenFarmApiEndpointsAuthCsrfEndpoint<
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+          TError,
+          Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthCsrfEndpoint<
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+          TError,
+          Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthCsrfEndpoint<
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsAuthCsrfEndpoint<
+  TData = Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthCsrfEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsAuthCsrfEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsAuthRefreshEndpointResponse200 = {
+  data: LoginResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsAuthRefreshEndpointResponseSuccess =
+  openFarmApiEndpointsAuthRefreshEndpointResponse200 & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsAuthRefreshEndpointResponse =
+  openFarmApiEndpointsAuthRefreshEndpointResponseSuccess;
+
+export const getOpenFarmApiEndpointsAuthRefreshEndpointUrl = () => {
+  return `/api/v1/auth/refresh`;
+};
+
+export const openFarmApiEndpointsAuthRefreshEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthRefreshEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthRefreshEndpointResponse>(
+    getOpenFarmApiEndpointsAuthRefreshEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthRefreshEndpointMutationOptions = <
+  TError = unknown,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthRefreshEndpoint>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthRefreshEndpoint>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['openFarmApiEndpointsAuthRefreshEndpoint'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      'mutationKey' in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthRefreshEndpoint>>,
+    void
+  > = () => {
+    return openFarmApiEndpointsAuthRefreshEndpoint();
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenFarmApiEndpointsAuthRefreshEndpointMutationResult = NonNullable<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthRefreshEndpoint>>
+>;
+
+export type OpenFarmApiEndpointsAuthRefreshEndpointMutationError = unknown;
+
+export const useOpenFarmApiEndpointsAuthRefreshEndpoint = <
+  TError = unknown,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsAuthRefreshEndpoint>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthRefreshEndpoint>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsAuthRefreshEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsAuthLogoutEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsAuthLogoutEndpointResponseSuccess =
+  openFarmApiEndpointsAuthLogoutEndpointResponse204 & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsAuthLogoutEndpointResponse =
+  openFarmApiEndpointsAuthLogoutEndpointResponseSuccess;
+
+export const getOpenFarmApiEndpointsAuthLogoutEndpointUrl = () => {
+  return `/api/v1/auth/logout`;
+};
+
+export const openFarmApiEndpointsAuthLogoutEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthLogoutEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthLogoutEndpointResponse>(
+    getOpenFarmApiEndpointsAuthLogoutEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthLogoutEndpointMutationOptions = <
+  TError = unknown,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthLogoutEndpoint>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthLogoutEndpoint>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['openFarmApiEndpointsAuthLogoutEndpoint'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      'mutationKey' in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthLogoutEndpoint>>,
+    void
+  > = () => {
+    return openFarmApiEndpointsAuthLogoutEndpoint();
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenFarmApiEndpointsAuthLogoutEndpointMutationResult = NonNullable<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthLogoutEndpoint>>
+>;
+
+export type OpenFarmApiEndpointsAuthLogoutEndpointMutationError = unknown;
+
+export const useOpenFarmApiEndpointsAuthLogoutEndpoint = <
+  TError = unknown,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsAuthLogoutEndpoint>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthLogoutEndpoint>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsAuthLogoutEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsAuthListSessionsEndpointResponse200 = {
+  data: SessionResponse[];
+  status: 200;
+};
+
+export type openFarmApiEndpointsAuthListSessionsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthListSessionsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthListSessionsEndpointResponseSuccess =
+  openFarmApiEndpointsAuthListSessionsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthListSessionsEndpointResponseError = (
+  | openFarmApiEndpointsAuthListSessionsEndpointResponse401
+  | openFarmApiEndpointsAuthListSessionsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthListSessionsEndpointResponse =
+  | openFarmApiEndpointsAuthListSessionsEndpointResponseSuccess
+  | openFarmApiEndpointsAuthListSessionsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthListSessionsEndpointUrl = () => {
+  return `/api/v1/auth/sessions`;
+};
+
+export const openFarmApiEndpointsAuthListSessionsEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthListSessionsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthListSessionsEndpointResponse>(
+    getOpenFarmApiEndpointsAuthListSessionsEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthListSessionsEndpointQueryKey = () => {
+  return [`/api/v1/auth/sessions`] as const;
+};
+
+export const getOpenFarmApiEndpointsAuthListSessionsEndpointQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+  >,
+  TError = void,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getOpenFarmApiEndpointsAuthListSessionsEndpointQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>>
+  > = ({ signal }) => openFarmApiEndpointsAuthListSessionsEndpoint({ signal });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type OpenFarmApiEndpointsAuthListSessionsEndpointQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>>
+  >;
+export type OpenFarmApiEndpointsAuthListSessionsEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsAuthListSessionsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthListSessionsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthListSessionsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsAuthListSessionsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListSessionsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsAuthListSessionsEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsAuthRevokeSessionEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsAuthRevokeSessionEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthRevokeSessionEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthRevokeSessionEndpointResponseSuccess =
+  openFarmApiEndpointsAuthRevokeSessionEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthRevokeSessionEndpointResponseError = (
+  | openFarmApiEndpointsAuthRevokeSessionEndpointResponse401
+  | openFarmApiEndpointsAuthRevokeSessionEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthRevokeSessionEndpointResponse =
+  | openFarmApiEndpointsAuthRevokeSessionEndpointResponseSuccess
+  | openFarmApiEndpointsAuthRevokeSessionEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthRevokeSessionEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/auth/sessions/${id}`;
+};
+
+export const openFarmApiEndpointsAuthRevokeSessionEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthRevokeSessionEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthRevokeSessionEndpointResponse>(
+    getOpenFarmApiEndpointsAuthRevokeSessionEndpointUrl(id),
+    {
+      ...options,
+      method: 'DELETE',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthRevokeSessionEndpointMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthRevokeSessionEndpoint>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthRevokeSessionEndpoint>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ['openFarmApiEndpointsAuthRevokeSessionEndpoint'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      'mutationKey' in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthRevokeSessionEndpoint>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return openFarmApiEndpointsAuthRevokeSessionEndpoint(id);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenFarmApiEndpointsAuthRevokeSessionEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthRevokeSessionEndpoint>>
+  >;
+
+export type OpenFarmApiEndpointsAuthRevokeSessionEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsAuthRevokeSessionEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsAuthRevokeSessionEndpoint>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthRevokeSessionEndpoint>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsAuthRevokeSessionEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponseSuccess =
+  openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse204 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponseError = (
+  | openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse401
+  | openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse =
+  | openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponseSuccess
+  | openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthRevokeAllSessionsEndpointUrl = () => {
+  return `/api/v1/auth/sessions/revoke-all`;
+};
+
+export const openFarmApiEndpointsAuthRevokeAllSessionsEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthRevokeAllSessionsEndpointResponse>(
+    getOpenFarmApiEndpointsAuthRevokeAllSessionsEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthRevokeAllSessionsEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthRevokeAllSessionsEndpoint>
+      >,
+      TError,
+      void,
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsAuthRevokeAllSessionsEndpoint>
+    >,
+    TError,
+    void,
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsAuthRevokeAllSessionsEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthRevokeAllSessionsEndpoint>
+      >,
+      void
+    > = () => {
+      return openFarmApiEndpointsAuthRevokeAllSessionsEndpoint();
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsAuthRevokeAllSessionsEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsAuthRevokeAllSessionsEndpoint>
+    >
+  >;
+
+export type OpenFarmApiEndpointsAuthRevokeAllSessionsEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsAuthRevokeAllSessionsEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthRevokeAllSessionsEndpoint>
+      >,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthRevokeAllSessionsEndpoint>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsAuthRevokeAllSessionsEndpointMutationOptions(
+      options,
+    ),
     queryClient,
   );
 };

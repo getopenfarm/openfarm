@@ -85,19 +85,46 @@ internal static partial class JobFilamentUsageReader
         }
     }
 
+    /// <summary>Estimate from actual object-region extrusion; startup/shared extrusion is retained, including material used before live exclusion.</summary>
+    public static JobFilamentUsageReport ReadForExecution(byte[] file, int plate, OpenFarm.Domain.Production.PrintObjectExecution execution)
+    {
+        var original = Read(file, plate);
+        var exclusions = execution.ExcludedAt?.ToDictionary(p => p.Key, p => p.Value) ?? [];
+        foreach (var id in execution.PlannedExclusions) exclusions[id] = new(0, -1);
+        if (exclusions.Count == 0) return original;
+        string code;
+        if (file.Length > 1 && file[0] == 'P' && file[1] == 'K')
+        {
+            using var archive = new ZipArchive(new MemoryStream(file));
+            using var reader = new StreamReader(archive.GetEntry($"Metadata/plate_{plate}.gcode")!.Open());
+            code = reader.ReadToEnd();
+        }
+        else code = Encoding.UTF8.GetString(file);
+        using var filteredReader = new StringReader(code);
+        var filtered = GCodeFilamentCurveReader.Read(filteredReader, exclusions);
+        static double Total(OpenFarm.Domain.Production.ToolExtrusion t) => t.PrimeMm + t.CumulativeMm.LastOrDefault();
+        var usages = original.Usages.Select(u => original.Extrusion.Tools.TryGetValue(u.ToolIndex, out var before) && Total(before) > 0
+            ? u with { Grams = u.Grams * (decimal)(filtered.Tools.TryGetValue(u.ToolIndex, out var after) ? Math.Clamp(Total(after) / Total(before), 0, 1) : 0) }
+            : u).ToArray();
+        return new(usages, filtered, original.FilamentCount);
+    }
+
     /// <summary><see cref="Read(byte[], int)"/> for a 3mf that is already open.</summary>
     public static JobFilamentUsageReport Read(ZipArchive archive, int plate)
     {
         var gcode = SlicedPlateMetadata.Find(archive, $"Metadata/plate_{plate}.gcode");
         var usages = SlicedPlateMetadata.Find(archive, SliceInfo) is { } entry ? ReadSliceInfo(entry, plate) : [];
-        if (usages.Count == 0 && gcode is not null)
+        var filamentCount = ProjectFilamentCount(archive);
+        if ((usages.Count == 0 || filamentCount == 0) && gcode is not null)
         {
             using var footerReader = new StreamReader(gcode.Open());
-            usages = ReadFooter(footerReader.ReadToEnd());
+            var footer = footerReader.ReadToEnd();
+            if (usages.Count == 0) usages = ReadFooter(footer);
+            if (filamentCount == 0) filamentCount = GCodeMetadataHelper.ParseFilamentSlots(GCodeMetadataHelper.ParseComments(footer)).Count;
         }
 
         var extrusion = gcode is null ? GCodeExtrusion.Empty : ReadExtrusion(gcode.Open);
-        return new(WithPurge(usages, extrusion), extrusion, ProjectFilamentCount(archive));
+        return new(WithPurge(usages, extrusion), extrusion, filamentCount);
     }
 
     /// <summary>

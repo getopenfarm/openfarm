@@ -10,10 +10,10 @@ import { useNavigate, useParams } from 'react-router';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { KpiStrip, type KpiStripCell } from '@/components/kpi-card/KpiStrip';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -29,12 +29,11 @@ import type {
 import { getOpenFarmApiEndpointsPartsGetPartEndpointQueryOptions } from '@/lib/api/generated/parts/parts';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { useOpenFarmApiEndpointsProductionRunsGetProductionRunEndpoint } from '@/lib/api/generated/production-runs/production-runs';
-import { formatMinutes } from '@/lib/formatMinutes';
-import { formatWeight } from '@/lib/formatUnits';
+import { formatEstimateMetric, sumPrintEstimates } from '@/lib/printEstimates';
 import { cn } from '@/lib/utils';
 import { RunAttentionCard } from './components/RunAttentionCard';
 import { RunLines } from './components/RunLines';
-import { SendToQueueDialog } from './components/SendToQueueDialog';
+import { AddToRunDialog } from './components/SendToQueueDialog';
 import { useProductionHub } from './hooks/useProductionHub';
 import { useRunActions } from './hooks/useRunActions';
 import { describeDue } from './lib/dueDate';
@@ -54,9 +53,9 @@ function summarize(run: ProductionRunDetailResponse): KpiStripCell[] {
   let target = 0;
   let done = 0;
   let writtenOff = 0;
-  let minutes = 0;
-  let grams = 0;
-  let unestimated = false;
+  const estimate = sumPrintEstimates(
+    finite.map((requirement) => requirement.remainingEstimate),
+  );
   const plates = {
     completed: 0,
     printing: 0,
@@ -70,10 +69,6 @@ function summarize(run: ProductionRunDetailResponse): KpiStripCell[] {
     writtenOff += r.writtenOffUnits ?? 0;
     for (const key of Object.keys(plates) as (keyof typeof plates)[])
       plates[key] += r.plates?.[key] ?? 0;
-    const left = (r.plates?.queued ?? 0) + (r.plates?.printing ?? 0);
-    if (left > 0 && r.estimatedMinutesPerPlate == null) unestimated = true;
-    minutes += left * (r.estimatedMinutesPerPlate ?? 0);
-    grams += left * (r.estimatedGramsPerPlate ?? 0);
   }
   const total = Object.values(plates).reduce((a, b) => a + b, 0);
 
@@ -104,15 +99,23 @@ function summarize(run: ProductionRunDetailResponse): KpiStripCell[] {
     },
     {
       label: 'Machine time left',
-      value: formatMinutes(minutes),
-      sub: unestimated
-        ? 'Partial: some parts have no estimate'
-        : 'Sum of plate estimates',
+      value: formatEstimateMetric(
+        estimate.time,
+        'time',
+        !!estimate.approximate,
+      ),
+      sub: 'Queued and printing job targets; approximate, not a live countdown',
     },
     {
       label: 'Filament left',
-      value: formatWeight(grams),
-      sub: unestimated ? 'Partial' : undefined,
+      value: formatEstimateMetric(
+        estimate.filament,
+        'filament',
+        !!estimate.approximate,
+      ),
+      sub: estimate.approximate
+        ? 'Proportional partial-plate estimate'
+        : undefined,
     },
   ];
 }
@@ -240,6 +243,7 @@ export function ProductionRunDetailPage() {
           <div className="flex flex-wrap gap-2">
             {open && waiting && (
               <Button
+                permission="print-jobs:reorder"
                 variant="outline"
                 disabled={actions.isPending}
                 onClick={() => actions.moveToTop(id)}
@@ -249,6 +253,7 @@ export function ProductionRunDetailPage() {
             )}
             {open && (
               <Button
+                permission="production-runs:edit"
                 variant="outline"
                 onClick={() => navigate(`/production-runs/${id}/edit`)}
               >
@@ -257,6 +262,7 @@ export function ProductionRunDetailPage() {
             )}
             {canCloseRun(run.status, hasFinite) && (
               <Button
+                permission="production-runs:close"
                 disabled={actions.isPending}
                 onClick={() => actions.close(id)}
               >
@@ -266,6 +272,7 @@ export function ProductionRunDetailPage() {
             )}
             {open && (
               <Button
+                permission="production-runs:cancel"
                 variant="destructive"
                 onClick={() => actions.cancel(id, run.displayLabel ?? 'run')}
               >
@@ -286,6 +293,7 @@ export function ProductionRunDetailPage() {
           {open && (
             <CardAction>
               <Button
+                permission="production-runs:create"
                 size="sm"
                 variant="outline"
                 onClick={() => setAdding(true)}
@@ -317,9 +325,7 @@ export function ProductionRunDetailPage() {
         </Card>
       )}
 
-      {adding && (
-        <SendToQueueDialog runId={id} onClose={() => setAdding(false)} />
-      )}
+      {adding && <AddToRunDialog runId={id} onClose={() => setAdding(false)} />}
       {actions.cancelDialog}
     </Page>
   );

@@ -87,10 +87,16 @@ describe('PrintersPage', () => {
     await user.clear(search);
     await user.type(search, 'P1S');
     expect(screen.getByRole('table')).toHaveTextContent('Test Printer');
-    await user.click(screen.getByRole('radio', { name: /^Printing/ }));
+    screen.getByRole('tab', { name: /^All/ }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: /^Printing/ })).toHaveFocus();
+    expect(
+      screen.getByRole('tabpanel', { name: /^Printing/ }),
+    ).toHaveTextContent('No printers match');
     expect(screen.getByText('No printers match')).toBeInTheDocument();
-    await user.click(screen.getByRole('radio', { name: /^All/ }));
+    await user.click(screen.getByRole('tab', { name: /^All/ }));
     expect(screen.getByRole('table')).toHaveTextContent('Test Printer');
+    expect(search).toHaveValue('P1S');
   });
 
   it('shows an empty state when no printers are registered', async () => {

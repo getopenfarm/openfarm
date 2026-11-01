@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Dialog,
   DialogClose,
@@ -162,6 +162,7 @@ export function LoadSpoolDialog({
             </Button>
           </DialogClose>
           <Button
+            permission="spools:load"
             type="button"
             onClick={handleSubmit}
             disabled={!feedSlotId || loadMutation.isPending}

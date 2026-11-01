@@ -66,6 +66,16 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
     public async Task<ProductionResolution> ResolveAsync(Guid printerId, Part part,
         IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null, PrintJob? job = null)
     {
+        if (job?.ObjectExecution is { } execution)
+        {
+            var target = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
+            PrinterDriver? driver = PrinterModelCatalog.SupportsLiveIntegration(target.Brand) ? PrinterModelCatalog.Resolve(target.Brand, target.ModelCode).Driver : null;
+            if (execution.PlannedExclusions.Count > 0 && driver is not (PrinterDriver.BambuLan or PrinterDriver.SnapmakerMoonraker))
+                throw new SlicingProfileUnconfiguredException("Exact partial plates require a printer with object-skipping support.");
+            if ((driver == PrinterDriver.BambuLan && execution.Manifest.Dialect != "Bambu")
+                || (driver == PrinterDriver.SnapmakerMoonraker && execution.Manifest.Dialect != "Klipper"))
+                throw new SlicingProfileUnconfiguredException("The object's exclusion format does not match this printer. Supply a compatible sliced file.");
+        }
         var requiresSlicing = await RequiresSlicingAsync(part, revisionHash, ct);
         if (!requiresSlicing) await EnsureSlicedForPrinterAsync(printerId, part, revisionHash, ct);
         var estimates = requirements.Select(r => ProductionJobRequirements.EstimatedGrams(part, r, requirements.Count, job, revisionHash)).ToList();

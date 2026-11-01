@@ -4,7 +4,7 @@ import type { QueueJobRowResponse } from '@/lib/api/generated/endpoints.schemas'
 import { formatDateTime } from '@/lib/formatDateTime';
 import { QueueTableCell } from './QueueTableSection';
 
-/** Cells for a print the printer started itself: no units, queue slot, readiness or actions. */
+/** Cells for a print the printer started itself: no units, queue slot or actions. */
 export function ExternalPrintCells({
   job,
   printerName,
@@ -32,7 +32,7 @@ export function ExternalPrintCells({
           <span className="text-muted-foreground">Printer removed</span>
         )}
       </QueueTableCell>
-      <QueueTableCell className="flex items-center">
+      <QueueTableCell className="flex flex-col items-start justify-center gap-0.5 text-xs text-muted-foreground">
         <Badge
           variant={
             job.status === 'Failed'
@@ -44,8 +44,6 @@ export function ExternalPrintCells({
         >
           {job.status}
         </Badge>
-      </QueueTableCell>
-      <QueueTableCell className="flex flex-col justify-center text-xs text-muted-foreground">
         {job.startedAtUtc && (
           <span>Started {formatDateTime(job.startedAtUtc)}</span>
         )}

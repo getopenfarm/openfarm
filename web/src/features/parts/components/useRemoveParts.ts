@@ -42,6 +42,7 @@ export function useRemoveParts() {
     }
     await client.invalidateQueries({
       predicate: (query) =>
+        query.queryKey[0] === '/api/v1/library' ||
         query.queryKey[0] === '/api/v1/parts' ||
         query.queryKey[0] === '/api/v1/tags' ||
         (typeof query.queryKey[0] === 'string' &&

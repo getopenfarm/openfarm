@@ -1,6 +1,6 @@
 namespace OpenFarm.Application.Assemblies;
 
-public sealed record GetAssembliesQuery(int Page, int PageSize, OpenFarm.Application.Common.ListSort? Sorting = null);
+public sealed record GetAssembliesQuery(int Page, int PageSize, OpenFarm.Application.Common.ListSort? Sorting = null, string? Folder = null);
 
 public sealed record AssemblySummary(Guid Id, string Name, string? Description, int LineCount);
 

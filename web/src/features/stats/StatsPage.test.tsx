@@ -248,6 +248,31 @@ describe('StatsPage', () => {
     ).toBeVisible();
     expect(screen.getByText('None reported.')).toBeVisible();
   });
+
+  it('retains the previous figures and shows Retry when a range request fails', async () => {
+    stubFetch();
+    renderPage();
+    const prints = (
+      await screen.findByText('Prints', { selector: 'span' })
+    ).closest('[data-slot="card"]') as HTMLElement;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response('{}', {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ),
+    );
+    await userEvent.click(screen.getByRole('radio', { name: '7 d' }));
+    expect(await screen.findByText('Could not refresh stats')).toBeVisible();
+    expect(within(prints).getByText('10')).toBeVisible();
+    expect(
+      screen.getAllByRole('button', { name: 'Retry' }).length,
+    ).toBeGreaterThan(0);
+  });
 });
 
 function stubDownload() {

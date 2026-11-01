@@ -79,7 +79,7 @@ describe('AddOrReplacePartDialog (replace mode)', () => {
     renderDialog();
 
     expect(
-      await screen.findByText('Farm default (OrcaSlicer 2.2.0)'),
+      await screen.findByText('Default (OrcaSlicer 2.2.0)'),
     ).toBeInTheDocument();
   });
 
@@ -117,7 +117,7 @@ describe('AddOrReplacePartDialog (replace mode)', () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await screen.findByText('Farm default (OrcaSlicer 2.2.0)');
+    await screen.findByText('Default (OrcaSlicer 2.2.0)');
 
     await user.click(screen.getByRole('combobox'));
     await user.click(
@@ -187,38 +187,13 @@ describe('AddOrReplacePartDialog (a part keeps its slicer)', () => {
       if (url.includes('/settings/slicing-defaults')) {
         return Promise.resolve(jsonResponse(withBambu));
       }
-      if (url.includes('/api/v1/slicing/readiness')) {
-        return Promise.resolve(
-          jsonResponse({
-            engine: 'BambuStudio',
-            version: '2.7.1',
-            isReady: false,
-            printers: [
-              {
-                printerId: 'p1',
-                printerName: 'P1S Lab',
-                issues: [
-                  {
-                    kind: 'Process',
-                    code: 'Missing',
-                    message:
-                      "Process profile '0.20mm Standard @BBL X1C' is not in Bambu Studio 2.7.1.",
-                    link: '/printers/p1/edit',
-                  },
-                ],
-              },
-            ],
-            filaments: [],
-          }),
-        );
-      }
       return Promise.resolve(jsonResponse({}));
     });
     vi.stubGlobal('fetch', fetchMock);
     return fetchMock;
   }
 
-  it('offers to keep the current slicer instead of the farm default, and warns about what it cannot print', async () => {
+  it('keeps the current slicer without checking farm-wide readiness', async () => {
     const fetchMock = stubFetch();
 
     renderDialog({ currentSlicer: bambu });
@@ -226,13 +201,15 @@ describe('AddOrReplacePartDialog (a part keeps its slicer)', () => {
     expect(
       await screen.findByText('Keep current slicer (Bambu Studio 2.7.1)'),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/Farm default/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Default(?: \(|$)/)).not.toBeInTheDocument();
     expect(
-      await screen.findByText('Production is blocked with Bambu Studio 2.7.1'),
-    ).toBeInTheDocument();
-    expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain(
-      '/api/v1/slicing/readiness?engine=BambuStudio&version=2.7.1',
-    );
+      screen.queryByTestId('slicer-readiness-warning'),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/slicing/readiness'),
+      ),
+    ).toBe(false);
   });
 
   it('reprocesses with the part’s own slicer unless another is chosen', async () => {

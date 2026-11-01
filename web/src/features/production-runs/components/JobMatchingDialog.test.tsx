@@ -56,6 +56,34 @@ describe('JobMatchingDialog', () => {
                   actual: '0.6 mm',
                   configurationUrl: '/printers/printer-1',
                 },
+                {
+                  code: 'availability',
+                  label: 'Printer availability',
+                  status: 'Passed',
+                  required: 'Idle',
+                  actual: 'Idle',
+                },
+              ],
+            },
+            {
+              printerId: 'printer-2',
+              printerName: 'P03',
+              eligible: false,
+              checks: [
+                {
+                  code: 'availability',
+                  label: 'Printer availability',
+                  status: 'Failed',
+                  required: 'Idle',
+                  actual: 'Printing',
+                },
+                {
+                  code: 'reachability',
+                  label: 'Connection',
+                  status: 'Failed',
+                  required: 'Reachable',
+                  actual: 'Not reachable',
+                },
               ],
             },
           ],
@@ -66,25 +94,93 @@ describe('JobMatchingDialog', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderDialog();
     expect(fetchMock).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Job diagnosis' }));
+    await user.click(screen.getByRole('button', { name: 'Printer matching' }));
     expect(
-      await screen.findByRole('dialog', { name: 'Job diagnosis' }),
+      await screen.findByRole('dialog', { name: 'Printer matching' }),
     ).toBeInTheDocument();
+    expect(await screen.findByText('0/2 printers match')).toBeInTheDocument();
+    // Fewest failures first and selected: P02's one failure with needs/has.
+    expect(screen.getAllByText('Needs').at(-1)?.nextSibling).toHaveTextContent(
+      '0.4 mm',
+    );
+    expect(screen.getByText('Has').nextSibling).toHaveTextContent('0.6 mm');
     expect(
-      await screen.findByText('P02 has a nozzle mismatch.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Required: 0.4 mm')).toBeInTheDocument();
-    expect(screen.getByText('Actual: 0.6 mm')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Catalog color #27272a replaces file color #000000/),
-    ).toBeInTheDocument();
+      screen.getByText('PETG Basic · Black').closest('li'),
+    ).toHaveAttribute(
+      'title',
+      expect.stringContaining(
+        'Catalog color #27272a replaces file color #000000',
+      ),
+    );
     expect(
       screen.getByRole('link', { name: 'Review configuration' }),
     ).toHaveAttribute('href', '/printers/printer-1');
+    // All checks show, failed first, passed after with their value.
+    const rows = screen
+      .getAllByRole('listitem')
+      .map((item) => item.textContent ?? '');
+    expect(
+      rows.findIndex((text) => text.startsWith('Nozzle diameter')),
+    ).toBeLessThan(
+      rows.findIndex((text) => text.startsWith('Printer availability')),
+    );
+    expect(screen.getByRole('button', { name: /P02/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    // Another printer swaps the detail pane.
+    await user.click(screen.getByRole('button', { name: /P03/ }));
+    expect(screen.getByText('Not reachable')).toBeInTheDocument();
+    expect(screen.queryByText('Nozzle diameter')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps profile failures and configuration links in job diagnostics', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            jobId: 'job-1',
+            outcome: 'Blocked',
+            jobChecks: [],
+            printers: [
+              {
+                printerId: 'printer-1',
+                printerName: 'P02',
+                eligible: false,
+                checks: [
+                  {
+                    code: 'profile-resolution',
+                    label: 'Production profiles',
+                    status: 'Failed',
+                    message:
+                      'The process profile is missing from the pinned slicer catalog.',
+                    configurationUrl: '/printers/printer-1/edit',
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+    renderDialog();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Printer matching' }),
+    );
+    expect(
+      await screen.findByText(
+        'The process profile is missing from the pinned slicer catalog.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Review configuration' }),
+    ).toHaveAttribute('href', '/printers/printer-1/edit');
   });
 
   it('shows an actionable error when diagnostics cannot be loaded', async () => {
@@ -94,10 +190,10 @@ describe('JobMatchingDialog', () => {
     );
     renderDialog();
     await userEvent.click(
-      screen.getByRole('button', { name: 'Job diagnosis' }),
+      screen.getByRole('button', { name: 'Printer matching' }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not load matching diagnostics',
+      'Could not load printer matching',
     );
   });
 });

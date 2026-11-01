@@ -1,5 +1,5 @@
 import { useMatches } from 'react-router';
-import { navSections } from './nav-config';
+import { adminNavSection, navSections } from './nav-config';
 
 interface RouteHandle {
   title?: string;
@@ -21,7 +21,7 @@ export function useBreadcrumb(): BreadcrumbEntry[] {
   }>;
   const pathname = matches[matches.length - 1]?.pathname ?? '/';
 
-  const section = navSections.find((s) =>
+  const section = [...navSections, adminNavSection].find((s) =>
     s.items.some((item) =>
       item.url === '/' ? pathname === '/' : pathname.startsWith(item.url),
     ),

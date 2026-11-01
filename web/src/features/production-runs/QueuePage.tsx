@@ -1,12 +1,13 @@
 /** biome-ignore-all lint/a11y/useSemanticElements: ARIA table elements allow independently scrolling, virtualized row groups with a shared column header. */
 /** biome-ignore-all lint/a11y/useFocusableInteractive: This is a static table, not an interactive grid; links and action buttons provide keyboard access. */
 import { useQueryClient } from '@tanstack/react-query';
-import { GripVerticalIcon } from 'lucide-react';
+import { GripVerticalIcon, InfoIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { DataTableSearch } from '@/components/data-table/DataTableSearch';
 import {
+  DataTableTabCount,
   DataTableTabsList,
   DataTableToolbar,
 } from '@/components/data-table/DataTableToolbar';
@@ -17,7 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
-import { stripConfigurationLink } from '@/features/slicing/stripConfigurationLink';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
   ListQueueJobsResponse,
@@ -29,9 +29,10 @@ import {
   useOpenFarmApiEndpointsPrintJobsReorderPrintJobEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
-import { cn } from '@/lib/utils';
+import { BackfillManager } from './components/BackfillManager';
 import { ExternalPrintCells } from './components/ExternalPrintCells';
 import { JobMatchingDialog } from './components/JobMatchingDialog';
+import { JobSendDetail, JobSendLabel } from './components/JobSendProgress';
 import {
   QueueJobActions,
   type RemoteAction,
@@ -41,6 +42,7 @@ import {
   QueueTableCell,
   QueueTableSection,
 } from './components/QueueTableSection';
+import { TargetThumbnail } from './components/TargetPicker';
 import { useProductionHub } from './hooks/useProductionHub';
 
 const STATUSES = [
@@ -211,7 +213,7 @@ export function QueuePage() {
       !backfillData ||
       !externalData
     )
-      return '—';
+      return undefined;
     const statuses = value === 'InProgress' ? ['Printing', 'Paused'] : [value];
     return GROUPS.reduce(
       (total, group) =>
@@ -236,6 +238,7 @@ export function QueuePage() {
     <Page className="min-h-0 flex-1">
       <PageHeader
         title="Queue"
+        action={<BackfillManager />}
         description="Finite, backfill and printer-started jobs · status updates live."
       />
       <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -257,10 +260,8 @@ export function QueuePage() {
             <DataTableTabsList aria-label="Job status">
               {STATUSES.map(({ value, label }) => (
                 <TabsTrigger key={value} value={value}>
-                  {label}{' '}
-                  <span className="ml-1 tabular-nums opacity-70">
-                    {count(value)}
-                  </span>
+                  {label}
+                  <DataTableTabCount count={count(value)} />
                 </TabsTrigger>
               ))}
             </DataTableTabsList>
@@ -282,22 +283,17 @@ export function QueuePage() {
                     className="grid h-10"
                     style={{ gridTemplateColumns: QUEUE_COLUMNS }}
                   >
-                    {[
-                      'Job',
-                      'Units',
-                      'Printer',
-                      'Status',
-                      'Readiness',
-                      'Actions',
-                    ].map((label) => (
-                      <div
-                        role="columnheader"
-                        key={label}
-                        className="flex items-center px-2 font-medium"
-                      >
-                        {label}
-                      </div>
-                    ))}
+                    {['Job', 'Units', 'Printer', 'Status', 'Actions'].map(
+                      (label) => (
+                        <div
+                          role="columnheader"
+                          key={label}
+                          className="flex items-center px-2 font-medium"
+                        >
+                          {label}
+                        </div>
+                      ),
+                    )}
                   </div>
                 </div>
                 <div
@@ -381,7 +377,7 @@ export function QueuePage() {
                               description={
                                 group === 'external'
                                   ? 'Prints started on the printer appear here.'
-                                  : 'Try another status or queue a production run.'
+                                  : 'Try another status or send a Part or Assembly to queue.'
                               }
                             />
                           )
@@ -440,6 +436,10 @@ export function QueuePage() {
                                     className="size-4 shrink-0 text-muted-foreground"
                                   />
                                 )}
+                                <TargetThumbnail
+                                  kind="Part"
+                                  thumbnailBase64={job.thumbnailBase64}
+                                />
                                 <div className="min-w-0">
                                   <Link
                                     to={`/jobs/${job.jobId}`}
@@ -447,18 +447,20 @@ export function QueuePage() {
                                   >
                                     {job.partName}
                                   </Link>
-                                  <Link
-                                    to={`/production-runs/${job.productionRunId}`}
-                                    className="mt-0.5 block text-xs text-muted-foreground hover:underline"
-                                  >
-                                    {job.runDisplayLabel}
-                                  </Link>
+                                  {job.productionRunId && (
+                                    <Link
+                                      to={`/production-runs/${job.productionRunId}`}
+                                      className="mt-0.5 block text-xs text-muted-foreground hover:underline"
+                                    >
+                                      {job.runDisplayLabel}
+                                    </Link>
+                                  )}
                                 </div>
                               </QueueTableCell>
                               <QueueTableCell className="flex items-center tabular-nums">
                                 {job.plateQuantity ?? '—'}
                               </QueueTableCell>
-                              <QueueTableCell className="flex flex-col justify-center whitespace-normal">
+                              <QueueTableCell className="flex flex-col items-start justify-center gap-0.5 whitespace-normal">
                                 {printerId ? (
                                   <Link
                                     className="hover:underline"
@@ -477,6 +479,46 @@ export function QueuePage() {
                                       Pinned
                                     </span>
                                   )}
+                                <JobMatchingDialog
+                                  jobId={job.jobId ?? ''}
+                                  trigger={
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="h-auto justify-start gap-1 px-0 text-left text-xs whitespace-normal"
+                                      title={job.blockingReason ?? undefined}
+                                    >
+                                      <InfoIcon className="size-3.5" />
+                                      {job.isBlocked ? (
+                                        'Waiting for printer'
+                                      ) : job.status === 'Queued' ? (
+                                        <JobSendLabel
+                                          jobId={job.jobId ?? ''}
+                                          fallback={
+                                            job.dispatchedPrinterId
+                                              ? job.lastBlockReason
+                                                ? 'Waiting for printer to start'
+                                                : 'Dispatching…'
+                                              : 'Matching printer available'
+                                          }
+                                        />
+                                      ) : (
+                                        'Printer matching'
+                                      )}
+                                    </Button>
+                                  }
+                                />
+                                {job.status === 'Queued' && (
+                                  <JobSendDetail jobId={job.jobId ?? ''} />
+                                )}
+                                {!job.isBlocked && job.lastBlockReason && (
+                                  <span
+                                    className="line-clamp-2 text-status-attention text-xs"
+                                    title={job.lastBlockReason}
+                                  >
+                                    Last attempt failed: {job.lastBlockReason}
+                                  </span>
+                                )}
                               </QueueTableCell>
                               <QueueTableCell className="flex flex-col items-start justify-center gap-1 whitespace-normal">
                                 <Badge
@@ -502,47 +544,6 @@ export function QueuePage() {
                                         : 'Cancel'}{' '}
                                     requested…
                                   </span>
-                                )}
-                              </QueueTableCell>
-                              <QueueTableCell className="flex flex-col items-start justify-center gap-0.5 whitespace-normal">
-                                <JobMatchingDialog
-                                  jobId={job.jobId ?? ''}
-                                  trigger={
-                                    <Button
-                                      variant="link"
-                                      size="sm"
-                                      className={cn(
-                                        'h-auto justify-start px-0 text-left whitespace-normal',
-                                        job.isBlocked ? 'text-destructive' : '',
-                                      )}
-                                      title={job.blockingReason ?? undefined}
-                                    >
-                                      {job.isBlocked
-                                        ? 'No matching printer'
-                                        : job.status === 'Queued'
-                                          ? job.dispatchedPrinterId
-                                            ? 'Dispatching…'
-                                            : 'Matching printer available'
-                                          : 'Job diagnosis'}
-                                    </Button>
-                                  }
-                                />
-                                {job.isBlocked && job.blockingReason ? (
-                                  <span
-                                    className="line-clamp-2 text-destructive text-xs"
-                                    title={job.blockingReason}
-                                  >
-                                    {stripConfigurationLink(job.blockingReason)}
-                                  </span>
-                                ) : (
-                                  job.lastBlockReason && (
-                                    <span
-                                      className="line-clamp-2 text-destructive text-xs"
-                                      title={job.lastBlockReason}
-                                    >
-                                      Last attempt failed: {job.lastBlockReason}
-                                    </span>
-                                  )
                                 )}
                               </QueueTableCell>
                               <QueueTableCell className="flex items-center justify-end">

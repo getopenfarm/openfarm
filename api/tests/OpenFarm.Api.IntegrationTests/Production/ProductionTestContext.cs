@@ -83,6 +83,20 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         return part;
     }
 
+    protected async Task<OpenFarm.Domain.Parts.Part> MappedPartAsync(int count)
+    {
+        var code = string.Join("\n", Enumerable.Range(1, count).Select(i => $"EXCLUDE_OBJECT_START NAME=OBJECT_{i}\nG1 X{i} E1\nEXCLUDE_OBJECT_END NAME=OBJECT_{i}")) + "\n";
+        var part = await PartAsync(count, contents: code);
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var tracked = await db.Parts.SingleAsync(p => p.Id == part.Id);
+        var objects = Enumerable.Range(1, count).Select(i => new PrintObject($"OBJECT_{i}", $"OBJECT_{i}")).ToArray();
+        tracked.SetObjectManifest(new(part.RevisionHash, 1, "Klipper", objects,
+            objects.Select((o, i) => new PrintUnit((i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), [o.Id])).ToArray()));
+        await db.SaveChangesAsync();
+        return part;
+    }
+
     protected static async Task<ProductionRunDetailResponse> RunAsync(HttpClient client, Guid partId, int? quantity = 1,
         string? name = null, string? revisionMode = null, Guid? pinned = null)
     {
@@ -200,8 +214,19 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         await scope.ServiceProvider.GetRequiredService<IJobTelemetrySync>().ObserveAsync(printerId, state, unseenSinceUtc, default);
     }
 
-    protected ProductionDispatchBackgroundService Worker() => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),
-        Factory.Services.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>());
+    // Failed sends are retried in place; tests do not wait the real pauses.
+    protected ProductionDispatchBackgroundService Worker(TimeSpan? startConfirmGrace = null) => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),
+        Factory.Services.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>(), [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50)],
+        startConfirmGrace);
+
+    /// <summary>The printer reports its state now, as idle telemetry would.</summary>
+    protected async Task ReportIdleAsync(Guid printerId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        (await db.Printers.SingleAsync(p => p.Id == printerId)).ObserveReportedState("IDLE", DateTimeOffset.UtcNow);
+        await db.SaveChangesAsync();
+    }
 
     protected async Task<PrintJob> WaitForAssignmentAsync(Guid runId, Guid? excludeJobId = null)
     {

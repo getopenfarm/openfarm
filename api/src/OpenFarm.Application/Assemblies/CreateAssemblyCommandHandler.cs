@@ -33,6 +33,8 @@ public sealed class CreateAssemblyCommandHandler(
                 var lineSpecs = command.Lines.Select(l => BomLineTargets.ToSpec(l.TargetKind, l.TargetId, l.Quantity)).ToList();
                 var assembly = Assembly.Create(command.Name, command.Description, lineSpecs);
                 assembly.ReplaceAdditionalCosts(command.AdditionalCosts ?? []);
+                assembly.SetPricing(command.Pricing);
+                assembly.MoveToFolder(command.FolderId);
 
                 if (assembly.Lines.Any(l => l.TargetKind == BomLineTargetKind.Assembly))
                 {

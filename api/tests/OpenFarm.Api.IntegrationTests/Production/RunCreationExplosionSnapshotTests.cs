@@ -15,7 +15,7 @@ public class RunCreationExplosionSnapshotTests(ProductionTestFactory factory) : 
     public async Task NestedAssembly_AggregatesSharedLeaf_IgnoresNonPrintedParts_AndNeverReexplodes()
     {
         var client = await ClientAsync();
-        var part = await PartAsync(4);
+        var part = await MappedPartAsync(4);
         Guid rootId;
         using (var scope = Factory.Services.CreateScope())
         {

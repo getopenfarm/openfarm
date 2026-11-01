@@ -1,6 +1,13 @@
 import type { Control, FieldValues, Path } from 'react-hook-form';
 import { z } from 'zod';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { FieldGroup } from '@/components/ui/field';
 import {
   FormControl,
   FormField,
@@ -29,54 +36,72 @@ export const runDetailsRequest = (values: RunDetailsValues) => ({
 /** Name, due date and notes: display only — the queue order alone decides what prints next. */
 export function RunDetailsFields<T extends FieldValues & RunDetailsValues>({
   control,
+  optional = false,
+  disabled = false,
 }: {
   control: Control<T>;
+  optional?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Details</CardTitle>
+        <CardTitle>{optional ? 'Run details (optional)' : 'Details'}</CardTitle>
+        {optional && (
+          <CardDescription>
+            Give the run a name and due date to help track the order.
+          </CardDescription>
+        )}
       </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
-        <FormField
-          control={control}
-          name={'name' as Path<T>}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Blank = named after its parts" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={control}
-          name={'dueDate' as Path<T>}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Due</FormLabel>
-              <FormControl>
-                <Input type="date" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={control}
-          name={'notes' as Path<T>}
-          render={({ field }) => (
-            <FormItem className="sm:col-span-2">
-              <FormLabel>Notes</FormLabel>
-              <FormControl>
-                <Textarea rows={2} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <CardContent>
+        <FieldGroup className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
+          <FormField
+            control={control}
+            name={'name' as Path<T>}
+            render={({ field }) => (
+              <FormItem data-disabled={disabled || undefined}>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input
+                    disabled={disabled}
+                    placeholder="Named from its items when left blank"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name={'dueDate' as Path<T>}
+            render={({ field }) => (
+              <FormItem data-disabled={disabled || undefined}>
+                <FormLabel>Due</FormLabel>
+                <FormControl>
+                  <Input type="date" disabled={disabled} {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name={'notes' as Path<T>}
+            render={({ field }) => (
+              <FormItem
+                className="sm:col-span-2"
+                data-disabled={disabled || undefined}
+              >
+                <FormLabel>Notes</FormLabel>
+                <FormControl>
+                  <Textarea rows={2} disabled={disabled} {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </FieldGroup>
       </CardContent>
     </Card>
   );

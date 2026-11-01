@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -28,6 +29,13 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 {
     private const string MqttUsername = "bblp";
     private const string FtpsCacheDirectory = "/cache";
+
+    /// <summary>
+    /// The open telemetry session per printer. Commands go out on it: the printer's LAN broker accepts few clients, and a
+    /// second connection opened next to it often never gets a CONNACK ("MQTT connect canceled"). Static because
+    /// <see cref="PrinterConnectorFactory"/> creates a connector per call.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, IMqttClient> LiveClients = new();
 
     private static readonly JsonSerializerOptions IgnoreNullOptions = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
@@ -115,6 +123,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         var connectionToken = connectionCts.Token;
         var channel = Channel.CreateUnbounded<PrinterConnectorEvent>();
         using var client = _options.CreateMqttClient();
+        var liveKey = LiveKey(details);
         var lastReportTicks = DateTimeOffset.UtcNow.UtcTicks;
 
         client.ApplicationMessageReceivedAsync += e =>
@@ -143,11 +152,13 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             Interlocked.Exchange(ref lastReportTicks, DateTimeOffset.UtcNow.UtcTicks);
             channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionStarted: true));
             LogConnected(_logger, details.SerialNumber);
+            LiveClients[liveKey] = client;
             await SubscribeAndRequestAsync(client, details.SerialNumber, connectionToken);
         };
 
         client.DisconnectedAsync += e =>
         {
+            LiveClients.TryRemove(new KeyValuePair<string, IMqttClient>(liveKey, client));
             if (e.ClientWasConnected) LogDisconnected(_logger, details.SerialNumber, e.Reason, e.Exception);
             channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionEnded: true));
             return Task.CompletedTask;
@@ -165,6 +176,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         }
         finally
         {
+            LiveClients.TryRemove(new KeyValuePair<string, IMqttClient>(liveKey, client));
             await connectionCts.CancelAsync();
             channel.Writer.TryComplete();
             await maintainTask;
@@ -173,13 +185,25 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
     /// <summary>
     /// FTPS upload (port 990, implicit TLS — Bambu's LAN-mode FTP server convention) followed by an
-    /// MQTT <c>print.project_file</c> publish (research.md R5). Uses the same short-lived
-    /// connect/command/disconnect shape as <see cref="VerifyAsync"/> — whether the printer's broker
-    /// tolerates this alongside an already-open <see cref="ConnectAsync"/> streaming connection is a
-    /// real, open verification question for physical hardware (research.md R5's own documented risk),
-    /// not settled here.
+    /// MQTT <c>print.project_file</c> publish (research.md R5) on the printer's open
+    /// <see cref="ConnectAsync"/> session (see <see cref="PublishCommandAsync"/>).
     /// </summary>
-    public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken)
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
+        StartJobAsync(details, fileContent, jobName, plate, feedMapping, null, cancellationToken);
+
+    public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken) =>
+        StartSelectedJobAsync(details, fileContent, jobName, plate, feedMapping, [], progress, cancellationToken);
+
+    public Task SkipObjectsAsync(PrinterConnectionDetails details, IReadOnlyList<string> objectIds, CancellationToken ct) =>
+        PublishCommandAsync(details, JsonSerializer.Serialize(new { print = new { sequence_id = "0", command = "skip_objects", obj_list = objectIds.Select(id => int.Parse(id, System.Globalization.CultureInfo.InvariantCulture)).ToArray() } }), ct);
+
+    public Task StartSelectedJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IReadOnlyList<string> excludedObjects, CancellationToken cancellationToken) =>
+        StartSelectedJobAsync(details, fileContent, jobName, plate, feedMapping, excludedObjects, null, cancellationToken);
+
+    public async Task StartSelectedJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IReadOnlyList<string> excludedObjects, IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken)
     {
         using var buffered = new MemoryStream();
         await fileContent.CopyToAsync(buffered, cancellationToken);
@@ -192,8 +216,10 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
         var remoteFileName = PrintFileName.ForUpload(jobName);
         var remotePath = $"{FtpsCacheDirectory}/{remoteFileName}";
+        var uploadProgress = progress is null ? null
+            : new InlineProgress<FtpProgress>(p => progress.Report(new PrintSendProgress(PrintSendStage.Uploading, (int)Math.Clamp(p.Progress, 0, 100))));
         var uploadStatus = await (_options.UploadFileAsync ?? UploadFileAsync)(
-            details, project, remotePath, cancellationToken);
+            details, project, remotePath, uploadProgress, cancellationToken);
         if (uploadStatus != FtpStatus.Success)
         {
             throw new IOException($"Printer file upload did not succeed ({uploadStatus}).");
@@ -207,6 +233,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             {
                 sequence_id = "0",
                 command = "project_file",
+                skip_objects = excludedObjects.Count == 0 ? null : excludedObjects.Select(id => int.Parse(id, System.Globalization.CultureInfo.InvariantCulture)).ToArray(),
                 param = BambuPrintFile.PlatePath(plate),
                 project_id = "0",
                 profile_id = "0",
@@ -228,6 +255,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 ams_mapping2 = mapping?.Targets.Select(t => new { ams_id = t.AmsId, slot_id = t.SlotId }),
             },
         }, IgnoreNullOptions);
+        progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
         await PublishCommandAsync(details, payload, cancellationToken);
     }
 
@@ -258,22 +286,22 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     }
 
     private async Task<FtpStatus> UploadFileAsync(
-        PrinterConnectionDetails details, Stream content, string remotePath, CancellationToken cancellationToken)
+        PrinterConnectionDetails details, Stream content, string remotePath, IProgress<FtpProgress>? progress, CancellationToken cancellationToken)
     {
         await using var ftp = new AsyncFtpClient(details.IpAddress, MqttUsername, details.AccessCode, _options.FtpsPort);
         ftp.Config.EncryptionMode = FtpEncryptionMode.Implicit;
         // Preserve the existing FTPS trust behavior. MQTT and camera use bundled Bambu trust.
         ftp.Config.ValidateAnyCertificate = true;
         await ftp.AutoConnect(cancellationToken);
-        return await UploadNewFileAsync(ftp, content, remotePath, cancellationToken);
+        return await UploadNewFileAsync(ftp, content, remotePath, cancellationToken, progress);
     }
 
     internal static Task<FtpStatus> UploadNewFileAsync(
-        AsyncFtpClient ftp, Stream content, string remotePath, CancellationToken cancellationToken) =>
+        AsyncFtpClient ftp, Stream content, string remotePath, CancellationToken cancellationToken, IProgress<FtpProgress>? progress = null) =>
         // StartJobAsync generates a distinct timestamped path for every upload. An existence check is
         // unnecessary and may reject unrelated printer filenames (e.g. slicer names containing
         // "....") when FileExists falls back to NLST. NoCheck still sanitizes our destination.
-        ftp.UploadStream(content, remotePath, existsMode: FtpRemoteExists.NoCheck, token: cancellationToken);
+        ftp.UploadStream(content, remotePath, existsMode: FtpRemoteExists.NoCheck, progress: progress, token: cancellationToken);
 
     /// <inheritdoc />
     public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
@@ -344,13 +372,21 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             yield return gcodeFile[card.Length..];
     }
 
-    /// <summary>Short-lived connect, publish one command, disconnect — mirrors <see cref="VerifyAsync"/>'s shape.</summary>
+    /// <summary>
+    /// Publishes one command on the printer's open telemetry session, like Bambu Studio and every reference client. Only
+    /// when none is open does it connect, publish and disconnect — mirroring <see cref="VerifyAsync"/>'s shape.
+    /// </summary>
     private async Task PublishCommandAsync(PrinterConnectionDetails details, string payload, CancellationToken cancellationToken)
     {
-        using var client = _options.CreateMqttClient();
         using var commandCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         commandCts.CancelAfter(_options.CommandTimeout);
+        if (LiveClients.TryGetValue(LiveKey(details), out var live) && live.IsConnected)
+        {
+            await PublishRequestAsync(live, details.SerialNumber, payload, commandCts.Token);
+            return;
+        }
 
+        using var client = _options.CreateMqttClient();
         try
         {
             await client.ConnectAsync(BuildClientOptions(details, _options), commandCts.Token);
@@ -462,6 +498,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 .WithCertificateValidationHandler(args => (options?.ValidateCertificate ?? BambuCertificateTrust.Validate)(args.Certificate))
                 .WithSslProtocols(System.Security.Authentication.SslProtocols.Tls12))
             .Build();
+
+    private string LiveKey(PrinterConnectionDetails details) => $"{details.IpAddress}:{_options.MqttPort}/{details.SerialNumber}";
 
     private static string ReportTopic(string serialNumber) => $"device/{serialNumber}/report";
 

@@ -15,7 +15,7 @@ public sealed partial class ProductionSnapshotReconciler(OpenFarmDbContext db, I
         var recovered = 0;
         var unresolved = 0;
         var requirements = await db.PartRequirements.ToListAsync(ct);
-        var lines = await db.RunLines.ToListAsync(ct);
+        var lines = await db.ProductionDemands.ToListAsync(ct);
         foreach (var requirement in requirements)
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);

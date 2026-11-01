@@ -1,6 +1,9 @@
 import { LogOutIcon, MoreHorizontalIcon, UserIcon } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,14 +19,13 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useOpenFarmApiEndpointsAuthWhoAmIEndpoint } from '@/lib/api/generated/auth/auth';
-import type { WhoAmIResult } from '@/lib/api/generated/endpoints.schemas';
+import { useIdentity } from '@/lib/auth/permissions';
 import { useAuth } from '@/lib/auth/useAuth';
 import { cn } from '@/lib/utils';
 
 function initials(name: string) {
   return name
-    .split(/[\s._@-]+/)
+    .split(/[\s._-]/)
     .filter(Boolean)
     .map((part) => part[0])
     .join('')
@@ -66,16 +68,26 @@ function UserIdentity({
 
 export function UserMenu() {
   const auth = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
   const navigate = useNavigate();
-  const { isMobile } = useSidebar();
-  const query = useOpenFarmApiEndpointsAuthWhoAmIEndpoint();
+  const { isMobile, state } = useSidebar();
+  const collapsed = !isMobile && state === 'collapsed';
+  const query = useIdentity();
 
-  const user = query.data?.data as WhoAmIResult | undefined;
-  const name = user?.username || 'Account';
+  const user = query.data;
+  const name = user?.displayName || user?.username || 'User';
 
-  function handleLogout() {
-    auth.logout();
-    navigate('/login', { replace: true });
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await auth.logout();
+      navigate('/login', { replace: true });
+    } catch {
+      toast.error('Could not sign out.');
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   if (query.isLoading) {
@@ -89,17 +101,39 @@ export function UserMenu() {
   return (
     <SidebarMenuItem className="mt-1 border-t border-sidebar-border pt-2">
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <SidebarMenuButton size="lg" tooltip={name} className="rounded-lg">
+        {collapsed ? (
+          // The icon rail has no room for the … button, so the avatar opens the menu there.
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton
+              size="lg"
+              tooltip={name}
+              aria-label="User menu"
+              className="rounded-lg"
+            >
+              <UserIdentity name={name} email={user?.email} />
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+        ) : (
+          <div className="flex items-center gap-2 p-2">
             <UserIdentity name={name} email={user?.email} />
-            <MoreHorizontalIcon className="ml-auto group-data-[collapsible=icon]:hidden" />
-          </SidebarMenuButton>
-        </DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="User menu"
+                className="ml-auto text-muted-foreground"
+              >
+                <MoreHorizontalIcon />
+              </Button>
+            </DropdownMenuTrigger>
+          </div>
+        )}
         <DropdownMenuContent
           side={isMobile ? 'top' : 'right'}
           align="end"
-          // 12px sidebar padding + 8px gap, so the popup clears the sidebar edge like akaun's
-          sideOffset={20}
+          // Anchored on the … button: 8px card padding + 12px sidebar padding + 8px gap, so the
+          // popup clears the sidebar edge like akaun's. (The collapsed avatar sits 8px further out.)
+          sideOffset={collapsed ? 20 : 28}
           className="min-w-60"
         >
           <DropdownMenuGroup>
@@ -107,13 +141,21 @@ export function UserMenu() {
               <UserIdentity name={name} email={user?.email} large />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="text-[13px]">
+              <Link to="/profile">
+                <UserIcon />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
               className="text-[13px]"
+              disabled={loggingOut}
               onSelect={handleLogout}
             >
               <LogOutIcon />
-              Log out
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>

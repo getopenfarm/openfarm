@@ -33,7 +33,7 @@ export function DataTableSelectionBar({
         >
           <fieldset
             disabled={pending}
-            className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-2 [&>button]:h-auto [&>button]:min-h-8 [&>button]:min-w-0 [&>button]:max-w-full [&>button]:whitespace-normal"
           >
             <span
               aria-hidden="true"

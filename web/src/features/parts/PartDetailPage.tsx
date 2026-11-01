@@ -14,11 +14,11 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Form,
@@ -36,9 +36,11 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { invalidateLibraryContents } from '@/features/library/api';
+import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
-import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { PartResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -56,7 +58,7 @@ import {
   estimationSourceLabel,
   PRODUCTION_MAY_DIFFER,
 } from './components/estimationLabels';
-import { filamentGrams, PartEstimate } from './components/PartEstimate';
+import { PartEstimate } from './components/PartEstimate';
 import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
@@ -207,6 +209,7 @@ function toFormValues(part: PartResponse | undefined): FormValues {
 }
 
 export function PartDetailPage() {
+  const { location } = useLibraryLocation('parts');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -240,6 +243,7 @@ export function PartDetailPage() {
   const editMutation = useOpenFarmApiEndpointsPartsEditPartEndpoint({
     mutation: {
       onSuccess: (response) => {
+        void invalidateLibraryContents(queryClient);
         const saved = response.data as PartResponse;
         form.reset(toFormValues(saved));
         queryClient.setQueryData(
@@ -325,20 +329,22 @@ export function PartDetailPage() {
     }) ?? [];
 
   const incomplete = part?.printRequirementsStatus !== 'Complete';
-  const minutes = part?.estimatedPrintTimeMinutes;
-  const grams = part?.estimatedFilamentWeightGrams;
+  const minutes = part?.unitEstimate?.time?.value;
+  const grams = part?.unitEstimate?.filament?.value;
   const perUnit =
-    unitsPerPrint > 1 && (minutes != null || grams != null)
+    unitsPerPrint === part?.unitsPerPrint &&
+    unitsPerPrint > 1 &&
+    (minutes != null || grams != null)
       ? `About ${[
-          minutes != null && formatMinutes(minutes / unitsPerPrint),
-          grams != null && formatGrams(grams / unitsPerPrint),
+          minutes != null && formatMinutes(minutes),
+          grams != null && formatGrams(grams),
         ]
           .filter(Boolean)
           .join(' and ')} per unit.`
       : undefined;
 
   const backLink = (
-    <BackLink to="/parts" className="mb-1">
+    <BackLink to={location} className="mb-1">
       Back to parts
     </BackLink>
   );
@@ -347,7 +353,7 @@ export function PartDetailPage() {
       title="Part not found"
       description="Removed or invalid link."
       action={
-        <Button variant="outline" onClick={() => navigate('/parts')}>
+        <Button variant="outline" onClick={() => navigate(location)}>
           Back to parts
         </Button>
       }
@@ -356,6 +362,11 @@ export function PartDetailPage() {
 
   return (
     <Page className="flex-1">
+      <LibraryItemBreadcrumb
+        library="parts"
+        folderId={part?.folderId}
+        name={part?.name ?? 'Part'}
+      />
       {partQuery.isLoading ? (
         <>
           <PageHeader above={backLink} title="Part" />
@@ -395,7 +406,8 @@ export function PartDetailPage() {
             action={
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  disabled={incomplete}
+                  permission="production-runs:create"
+                  disabled={incomplete || part.quantityNeedsReprocessing}
                   title={
                     incomplete
                       ? 'Complete this part’s print requirements before queueing.'
@@ -407,12 +419,17 @@ export function PartDetailPage() {
                   Send to queue
                 </Button>
                 <Button
+                  permission="parts:replace-file"
                   variant="outline"
                   onClick={() => setReprocessOpen(true)}
                 >
                   Reprocess
                 </Button>
-                <Button variant="outline" onClick={() => setReplaceOpen(true)}>
+                <Button
+                  permission="parts:replace-file"
+                  variant="outline"
+                  onClick={() => setReplaceOpen(true)}
+                >
                   Replace file
                 </Button>
                 <RemovePartButton
@@ -420,19 +437,13 @@ export function PartDetailPage() {
                   onNotice={setRemovalNotice}
                   partId={part.id}
                   partName={part.name}
-                  onRemoved={() => navigate('/parts')}
+                  onRemoved={() => navigate(location)}
                 />
               </div>
             }
           />
 
           <PartRemovalToast notice={removalNotice} />
-          {part.slicer?.engine && part.slicer.version && (
-            <SlicerReadinessPanel
-              engine={part.slicer.engine}
-              version={part.slicer.version}
-            />
-          )}
           {(incomplete || (part?.processingWarnings ?? []).length > 0) && (
             <Alert role="status">
               <TriangleAlertIcon className="text-kind-amber" />
@@ -508,39 +519,59 @@ export function PartDetailPage() {
                         <PartEstimate
                           size="lg"
                           status={part.estimateStatus}
-                          minutes={part.estimatedPrintTimeMinutes}
-                          grams={filamentGrams(
-                            requirements,
-                            part.estimatedFilamentWeightGrams,
-                          )}
+                          estimate={part.printEstimate}
                           includesPurge={
                             requirements.length > 0 &&
                             requirements.every((r) => r.estimatedGrams != null)
                           }
                         />
-                        <FormField
-                          control={form.control}
-                          name="unitsPerPrint"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Units per print</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  className="w-28"
-                                  {...field}
-                                  value={
-                                    Number.isNaN(field.value) ? '' : field.value
-                                  }
-                                  onChange={(event) =>
-                                    field.onChange(event.target.valueAsNumber)
-                                  }
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        {part.detectedUnitsPerPrint != null ? (
+                          <div>
+                            <dl>
+                              <div>
+                                <dt className="text-xs text-muted-foreground">
+                                  Units per print
+                                </dt>
+                                <dd className="font-heading text-2xl font-semibold tabular-nums">
+                                  {part.unitsPerPrint ?? 1}
+                                </dd>
+                              </div>
+                            </dl>
+                            {part.quantityNeedsReprocessing && (
+                              <p className="text-sm text-muted-foreground">
+                                Detected {part.detectedUnitsPerPrint} objects.
+                                Reprocess to update the saved quantity before
+                                queueing.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <FormField
+                            control={form.control}
+                            name="unitsPerPrint"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Units per print</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    className="w-28"
+                                    {...field}
+                                    value={
+                                      Number.isNaN(field.value)
+                                        ? ''
+                                        : field.value
+                                    }
+                                    onChange={(event) =>
+                                      field.onChange(event.target.valueAsNumber)
+                                    }
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
                       </div>
                       {(part.estimateUnavailableReason ?? perUnit) && (
                         <p className="-mt-2 text-sm text-muted-foreground">
@@ -593,11 +624,12 @@ export function PartDetailPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => navigate('/parts')}
+                      onClick={() => navigate(location)}
                     >
                       Cancel
                     </Button>
                     <Button
+                      permission="parts:edit"
                       type="submit"
                       disabled={!isDirty || editMutation.isPending}
                     >

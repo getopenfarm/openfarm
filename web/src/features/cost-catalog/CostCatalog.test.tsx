@@ -575,6 +575,15 @@ describe('Cost catalog table', () => {
     expect(
       await screen.findByRole('region', { name: 'Cost items actions' }),
     ).toBeInTheDocument();
+    const toolbar = screen
+      .getByRole('region', { name: 'Cost items actions' })
+      .closest('[data-slot="table-toolbar-row"]');
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Remove selected' }),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Columns' }),
+    );
     expect(
       screen.getByRole('checkbox', {
         name: 'Select all cost items on this page',
@@ -591,7 +600,12 @@ describe('Cost catalog table', () => {
       }),
     ).toHaveFocus();
     await user.click(select);
-    await user.click(screen.getByRole('radio', { name: 'Physical' }));
+    screen.getByRole('tab', { name: 'All items' }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Physical' })).toHaveFocus();
+    expect(
+      screen.getByRole('tabpanel', { name: 'Physical' }),
+    ).toBeInTheDocument();
     await waitFor(() =>
       expect(
         screen.queryByRole('region', { name: 'Cost items actions' }),
@@ -690,7 +704,7 @@ it('disables conflicting table controls while removal is pending', async () => {
     screen.getByRole('checkbox', { name: 'Select Bubble wrap', hidden: true }),
   ).toBeDisabled();
   expect(
-    screen.getByRole('radio', { name: 'Physical', hidden: true }),
+    screen.getByRole('tab', { name: 'Physical', hidden: true }),
   ).toBeDisabled();
   await act(async () => {
     finish(json({ detail: 'Used by an assembly.' }, 409));

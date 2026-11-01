@@ -21,7 +21,7 @@ public class IndependentSnapshotTests(ProductionTestFactory factory) : Productio
         var client = await ClientAsync();
         var part = await PartAsync(units: 3);
         var printer = await PrinterAsync();
-        var run = await RunAsync(client, part.Id, quantity: 4, pinned: printer.Id);
+        var run = await RunAsync(client, part.Id, quantity: 6, pinned: printer.Id);
         var original = (await JobsAsync(run.Id)).First();
         var previewResponse = await client.PostAsJsonAsync("/api/v1/parts/deletion-check", new { partIds = new[] { part.Id } });
         var eligibility = (await previewResponse.Content.ReadFromJsonAsync<OpenFarm.Api.Endpoints.Parts.CheckPartDeletionResponse>())!.Parts[0];
@@ -98,7 +98,7 @@ public class IndependentSnapshotTests(ProductionTestFactory factory) : Productio
             foreach (var part in new[] { verified, changed, missing })
             {
                 var run = ProductionRun.Create("Legacy", null, null,
-                    [new RunLineSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
+                    [new ProductionDemandSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
                 var requirement = PartRequirement.Create(run.Lines.Single().Id, part.Id, 1);
                 var job = PrintJob.Create("Test part", requirement.Id, 1024, 1, AssignmentMode.Unassigned,
                     null, part.RevisionHash, part.RevisionNumber, [new JobFilamentRequirementSpec("PLA", null)]);

@@ -365,13 +365,11 @@ describe('FilamentDetailPage', () => {
     const groups = screen.getByRole('list', { name: 'Full rolls' });
     expect(within(groups).getByText('× 1')).toBeInTheDocument();
     expect(screen.getByText('Partial · 1')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /^Active/ })).toHaveTextContent(
-      '3',
-    );
+    expect(screen.getByRole('tab', { name: /^Active/ })).toHaveTextContent('3');
     await waitFor(() =>
-      expect(
-        screen.getByRole('radio', { name: /^Finished/ }),
-      ).toHaveTextContent('1'),
+      expect(screen.getByRole('tab', { name: /^Finished/ })).toHaveTextContent(
+        '1',
+      ),
     );
     expect(spoolRequests(requests)).toEqual(
       expect.arrayContaining([
@@ -396,7 +394,17 @@ describe('FilamentDetailPage', () => {
     const user = userEvent.setup();
     renderPage('/filament/f-1?tab=spools&color=v-black');
 
-    await user.click(await screen.findByRole('radio', { name: /^Finished/ }));
+    const active = await screen.findByRole('tab', { name: /^Active/ });
+    active.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: /^Finished/ })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: 'Spools' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(
+      screen.getByRole('tabpanel', { name: /^Finished/ }),
+    ).toBeInTheDocument();
 
     expect(await screen.findByText('Old roll')).toBeInTheDocument();
     expect(screen.queryByText('Shelf A')).not.toBeInTheDocument();
@@ -499,7 +507,7 @@ describe('FilamentDetailPage', () => {
       filamentVariantId: 'v-black',
       source: 'WriteOff',
     });
-    expect(csv?.init?.headers).toHaveProperty('Authorization');
+    expect(csv?.init?.credentials).toBe('include');
     expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe(
       'from-server.csv',
     );

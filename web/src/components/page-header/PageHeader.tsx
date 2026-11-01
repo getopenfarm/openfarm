@@ -32,15 +32,15 @@ export function PageHeader({
     <div
       data-slot="page-header"
       className={cn(
-        'flex shrink-0 flex-wrap items-center justify-between gap-4',
+        'flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-4',
         className,
       )}
     >
-      <div>
+      <div className="min-w-0">
         {above}
         <h2
           className={cn(
-            'font-heading font-semibold',
+            'break-words font-heading font-semibold',
             size === 'page' ? 'text-[22px] tracking-[-0.02em]' : 'text-base',
           )}
         >

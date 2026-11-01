@@ -1,4 +1,4 @@
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { Printer } from 'lucide-react';
 import { Link } from 'react-router';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
@@ -19,6 +19,7 @@ import {
   getOpenFarmApiEndpointsPrintersGetPrinterDetailEndpointQueryOptions,
   useOpenFarmApiEndpointsPrintersListFleetEndpoint,
 } from '@/lib/api/generated/printers/printers';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { MonitoringCard } from './components/MonitoringCard';
 import type { MonitoredPrinter } from './lib/monitoring';
 

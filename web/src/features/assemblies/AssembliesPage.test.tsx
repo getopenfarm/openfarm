@@ -1,3 +1,7 @@
+vi.mock('@/features/parts/hooks/usePartsHub', () => ({
+  usePartsHub: () => {},
+}));
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -5,13 +9,32 @@ import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { toast } from 'sonner';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PreferencesProvider } from '@/lib/preferences/usePreferences';
 import { AssembliesPage } from './AssembliesPage';
 
 function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return new Response(
+    JSON.stringify(
+      body && typeof body === 'object' && 'items' in body
+        ? {
+            ...body,
+            ancestors: [],
+            items: (
+              body as { items: Array<{ id: string; name: string }> }
+            ).items.map((assembly) => ({
+              id: assembly.id,
+              name: assembly.name,
+              kind: 'assembly',
+              assembly,
+            })),
+          }
+        : body,
+    ),
+    {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
 }
 
 function stubFetch(routes: Record<string, unknown>) {
@@ -20,8 +43,16 @@ function stubFetch(routes: Record<string, unknown>) {
   );
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input.toString();
+    if (url.includes('/folders'))
+      return Promise.resolve(
+        jsonResponse({ items: [], totalCount: 0, ancestors: [] }),
+      );
     for (const [path, body] of sortedRoutes) {
-      if (url.includes(path)) {
+      if (
+        url
+          .replace('/api/v1/library/assemblies/contents', '/api/v1/assemblies')
+          .includes(path)
+      ) {
         return Promise.resolve(jsonResponse(body));
       }
     }
@@ -44,7 +75,12 @@ function renderPage() {
     );
   }
 
-  return render(<AssembliesPage />, { wrapper: Wrapper });
+  return render(
+    <PreferencesProvider>
+      <AssembliesPage />
+    </PreferencesProvider>,
+    { wrapper: Wrapper },
+  );
 }
 
 describe('AssembliesPage', () => {
@@ -80,6 +116,10 @@ describe('AssembliesPage', () => {
     let childAttempts = 0;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
+      if (url.includes('/folders'))
+        return Promise.resolve(
+          jsonResponse({ items: [], totalCount: 0, ancestors: [] }),
+        );
       if (init?.method !== 'DELETE')
         return Promise.resolve(
           jsonResponse({

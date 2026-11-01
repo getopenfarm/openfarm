@@ -48,6 +48,35 @@ function puts(fetchMock: ReturnType<typeof vi.fn>) {
 }
 
 describe('SpoolsTable actions', () => {
+  it('clears inline selection with focus return and resets selection on page-size changes', async () => {
+    stubFetch();
+    renderTable(
+      Array.from({ length: 26 }, (_, index) => ({
+        id: String(index),
+        label: `Spool ${index}`,
+        state: 'InStorage',
+      })),
+      true,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Select Spool 0' }));
+    expect(
+      screen
+        .getByRole('region', { name: 'Spools actions' })
+        .closest('[data-slot="table-toolbar-row"]'),
+    ).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+    expect(
+      screen.getByRole('checkbox', { name: 'Select all spools on this page' }),
+    ).toHaveFocus();
+    await user.click(screen.getByRole('checkbox', { name: 'Select Spool 0' }));
+    await user.click(screen.getByRole('combobox', { name: 'Rows per page' }));
+    await user.click(screen.getByRole('option', { name: '10' }));
+    expect(
+      screen.queryByRole('region', { name: 'Spools actions' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('1–10 of 26')).toBeInTheDocument();
+  });
   it('offers eligible actions in menus and restores focus after cancelling a dialog', async () => {
     const fetchMock = stubFetch();
     renderTable([

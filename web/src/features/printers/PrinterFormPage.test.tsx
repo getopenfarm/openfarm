@@ -148,6 +148,25 @@ async function openManualEntry() {
   fireEvent.click(await screen.findByRole('button', { name: 'Add by IP' }));
 }
 
+it.each([404, 500])(
+  'distinguishes missing printers from edit request errors (%s)',
+  async (status) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse({ title: 'Error' }, status))),
+    );
+    renderRoute(`/printers/${PRINTER_ID}/edit`);
+    expect(
+      await screen.findByText(
+        status === 404 ? 'Printer not found' : 'Could not load printer',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' }) !== null).toBe(
+      status !== 404,
+    );
+  },
+);
+
 const DISCOVERED = [
   {
     serialNumber: '01P00A123456789',

@@ -1,4 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router';
+import { ProfilePage } from '@/features/accounts/ProfilePage';
+import { UserFormPage } from '@/features/accounts/UserFormPage';
+import { UsersGroupsPage } from '@/features/accounts/UsersGroupsPage';
 import { GeneralSettingsPage } from '@/features/settings/GeneralSettingsPage';
 import { CurrencyProvider } from '@/features/settings/generalSettings';
 import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
@@ -29,6 +32,8 @@ import { QueuePage } from '../features/production-runs/QueuePage';
 import { ProfileDetailPage } from '../features/profiles/ProfileDetailPage';
 import { ProfilesImportPage } from '../features/profiles/ProfilesImportPage';
 import { ProfilesPage } from '../features/profiles/ProfilesPage';
+import { FeeProfilePage } from '../features/settings/FeeProfilePage';
+import { FeesPage } from '../features/settings/FeesPage';
 import { PrinterCostsPage } from '../features/settings/PrinterCostsPage';
 import { PrinterModelCostPage } from '../features/settings/PrinterModelCostPage';
 import { SettingsLayout } from '../features/settings/SettingsLayout';
@@ -54,6 +59,29 @@ export const router = createBrowserRouter([
           </CurrencyProvider>
         ),
         children: [
+          {
+            path: '/profile',
+            element: <ProfilePage />,
+            handle: { title: 'My profile' },
+          },
+          { path: '/account', element: <Navigate to="/profile" replace /> },
+          {
+            path: '/users-groups',
+            handle: { title: 'Users & groups' },
+            children: [
+              { index: true, element: <UsersGroupsPage /> },
+              {
+                path: 'users/new',
+                element: <UserFormPage />,
+                handle: { title: 'Add user' },
+              },
+              {
+                path: 'users/:id',
+                element: <UserFormPage />,
+                handle: { title: 'User' },
+              },
+            ],
+          },
           {
             path: '/',
             element: <DashboardPage />,
@@ -292,6 +320,21 @@ export const router = createBrowserRouter([
               {
                 path: 'printer-costs/models/:brand/:modelCode',
                 element: <PrinterModelCostPage />,
+              },
+              {
+                path: 'fees',
+                element: <FeesPage />,
+                handle: { title: 'Fees' },
+              },
+              {
+                path: 'fees/new',
+                element: <FeeProfilePage />,
+                handle: { title: 'Add fee profile' },
+              },
+              {
+                path: 'fees/:id',
+                element: <FeeProfilePage />,
+                handle: { title: 'Fee profile' },
               },
               {
                 path: 'slicing-defaults',

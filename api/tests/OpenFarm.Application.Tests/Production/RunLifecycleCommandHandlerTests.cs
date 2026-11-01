@@ -25,7 +25,7 @@ public class RunLifecycleCommandHandlerTests
     {
         var part = ProductionTestFixtures.CreatePart();
         var run = ProductionRun.Create("Order #1042", null, null,
-            [new RunLineSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
+            [new ProductionDemandSpec(RunLineTargetKind.Part, part.Id, 1, null, AssignmentMode.Unassigned, null, 1, null)]);
         var requirement = PartRequirement.Create(run.Lines[0].Id, part.Id, 1);
         var job = PrintJob.Create(part.Name, requirement.Id, 5000, part.UnitsPerPrint, mode, pinnedPrinterId,
             part.RevisionHash, part.RevisionNumber, ProductionJobRequirements.FromPart(part));

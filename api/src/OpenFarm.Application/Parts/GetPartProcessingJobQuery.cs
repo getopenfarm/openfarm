@@ -8,7 +8,7 @@ public sealed record ThumbnailView(int PlateIndex, string ThumbnailBase64);
 
 /// <summary>One plate the file offers: its own estimate and the requirements it prints with (grams from it alone).</summary>
 public sealed record PlateView(int Number, string? Name, int? EstimatedPrintTimeMinutes, decimal? EstimatedFilamentWeightGrams,
-    IReadOnlyList<PreviewFilamentRequirement> FilamentRequirements);
+    IReadOnlyList<PreviewFilamentRequirement> FilamentRequirements, int? UnitsPerPrint = null);
 
 public sealed record PartProcessingJobPreviewDetail(
     decimal? NozzleDiameterMm,
@@ -20,7 +20,7 @@ public sealed record PartProcessingJobPreviewDetail(
     IReadOnlyList<ThumbnailView> Thumbnails,
     string PrintRequirementsStatus = "Complete",
     IReadOnlyList<string>? ProcessingWarnings = null,
-    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null);
+    string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null, int? UnitsPerPrint = null);
 
 /// <summary>Another part sharing the replaced part's file (split from the same upload), with the plate it prints.</summary>
 public sealed record RelatedPartView(Guid PartId, string Name, int? PlateNumber, string? PlateName);

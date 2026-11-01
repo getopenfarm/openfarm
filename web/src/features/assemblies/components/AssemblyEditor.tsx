@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import type {
   AssemblyCostInput,
   AssemblyResponse,
@@ -21,18 +22,41 @@ import type {
 import { BomLineEditor, type EditableLine } from './BomLineEditor';
 import { BuildPanel } from './BuildPanel';
 import { CostItemsEditor } from './CostItemsEditor';
+import { type PricingDraft, PricingSection } from './PricingSection';
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Name required'),
   description: z.string().optional(),
   lines: z.array(z.custom<EditableLine>()).min(1, 'Add at least one line.'),
   additionalCosts: z.array(z.custom<AssemblyCostInput>()),
+  pricing: z
+    .object({
+      mode: z.enum(['Price', 'Margin', 'Markup']),
+      value: z.string(),
+    })
+    .superRefine(({ mode, value }, ctx) => {
+      if (value.trim() === '') return;
+      if (!(Number(value) >= 0))
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Enter a nonnegative number.',
+        });
+      else if (mode === 'Margin' && Number(value) >= 100)
+        ctx.addIssue({ code: 'custom', message: 'Margin must be below 100%.' });
+    }),
 });
 
 export type AssemblyFormValues = z.infer<typeof schema>;
 
 function toFormValues(assembly?: AssemblyResponse): AssemblyFormValues {
+  const pricing = assembly?.pricing;
   return {
+    pricing: pricing
+      ? {
+          mode: pricing.mode as PricingDraft['mode'],
+          value: String(pricing.value),
+        }
+      : { mode: 'Price', value: '' },
     additionalCosts: assembly?.additionalCosts ?? [],
     name: assembly?.name ?? '',
     description: assembly?.description ?? '',
@@ -65,6 +89,11 @@ export function useAssemblyForm(assembly?: AssemblyResponse) {
   };
 }
 
+/** Blank value saves no pricing. */
+export function toPricingPayload({ mode, value }: PricingDraft) {
+  return value.trim() === '' ? null : { mode, value: Number(value) };
+}
+
 export function toLinePayload(line: EditableLine) {
   return {
     targetKind: line.targetKind,
@@ -89,6 +118,7 @@ export function AssemblyEditor({
   headerAction,
   footerActions,
 }: AssemblyEditorProps) {
+  const { location } = useLibraryLocation('assemblies');
   const { isDirty } = form.formState;
   const lines = useWatch({ control: form.control, name: 'lines' });
   const additionalCosts = useWatch({
@@ -105,7 +135,7 @@ export function AssemblyEditor({
       >
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <BackLink to="/assemblies" className="mb-1">
+            <BackLink to={location} className="mb-1">
               Back to assemblies
             </BackLink>
             <FormField
@@ -172,6 +202,19 @@ export function AssemblyEditor({
                   structureItemIds={lines
                     .filter((line) => line.targetKind === 'NonPrintedComponent')
                     .map((line) => line.targetId)}
+                />
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="pricing"
+              render={({ field, fieldState }) => (
+                <PricingSection
+                  lines={lines}
+                  additionalCosts={additionalCosts}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
                 />
               )}
             />

@@ -1,6 +1,7 @@
 import type { Preferences } from './types';
 
 export const DEFAULT_PREFERENCES: Preferences = {
+  libraryFields: {},
   listViews: {},
   listDensities: {},
 };

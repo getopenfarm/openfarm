@@ -1,5 +1,5 @@
 import { Upload } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Dialog,
   DialogDescription,
@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
-import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { formatFileSize } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
 import { PartProcessingReviewSection } from './PartProcessingReviewSection';
@@ -203,14 +202,6 @@ export function AddOrReplacePartDialog({
     </>
   );
 
-  // Replacing or reprocessing keeps the part's slicer unless the operator picks another: say which one will be used.
-  const [chosenEngine, chosenVersion] =
-    slicerSelection === USE_DEFAULT_SLICER
-      ? [
-          (currentSlicer ?? effectiveDefault)?.engine,
-          (currentSlicer ?? effectiveDefault)?.version,
-        ]
-      : slicerSelection.split('::');
   const slicerPicker = availableSlicers.length > 0 && (
     <Field className="flex flex-col gap-1.5">
       <FieldLabel htmlFor="part-slicer-override">Slicer</FieldLabel>
@@ -223,7 +214,7 @@ export function AddOrReplacePartDialog({
             <SelectItem value={USE_DEFAULT_SLICER}>
               {currentSlicer?.engine
                 ? `Keep current slicer (${formatSlicer(currentSlicer.engine, currentSlicer.version)})`
-                : `Farm default${
+                : `Default${
                     effectiveDefault
                       ? ` (${formatSlicer(effectiveDefault.engine, effectiveDefault.version)})`
                       : ''
@@ -244,9 +235,6 @@ export function AddOrReplacePartDialog({
         Only used for files that need slicing (STL or an unsliced 3MF) — ignored
         otherwise. The slicer uses only its own profiles.
       </p>
-      {chosenEngine && chosenVersion && (
-        <SlicerReadinessPanel engine={chosenEngine} version={chosenVersion} />
-      )}
     </Field>
   );
 
@@ -284,6 +272,7 @@ export function AddOrReplacePartDialog({
               Cancel
             </Button>
             <Button
+              permission="parts:replace-file"
               onClick={() => confirm()}
               disabled={!canConfirm || isConfirmPending}
             >

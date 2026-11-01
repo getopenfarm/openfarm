@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Card,
   CardAction,
@@ -122,6 +122,7 @@ export function RunAttentionCard({
         {requeueable > 1 && (
           <CardAction>
             <Button
+              permission="print-jobs:requeue"
               size="sm"
               variant="outline"
               disabled={pending}
@@ -146,19 +147,26 @@ export function RunAttentionCard({
                   plate {plate}
                 </Link>{' '}
                 <span className="text-destructive">
-                  {job.status === 'Failed' ? 'failed' : 'cancelled'}
+                  {job.status === 'Completed'
+                    ? `${job.missingUnits ?? 0} units missing`
+                    : job.status === 'Failed'
+                      ? 'failed'
+                      : 'cancelled'}
                 </span>
                 <span className="text-muted-foreground">
                   {printerName(job.printerId) &&
                     ` on ${printerName(job.printerId)}`}
                   {job.endedAtUtc &&
                     ` · ${formatShortDateTime(job.endedAtUtc)}`}
-                  {!job.canRequeue && ' · original inputs unavailable'}
+                  {job.outputVerified === false
+                    ? ' · confirm produced units on the job page'
+                    : !job.canRequeue && ' · original inputs unavailable'}
                 </span>
               </span>
               <div className="flex gap-2">
                 {job.canRequeue && (
                   <Button
+                    permission="print-jobs:requeue"
                     size="sm"
                     disabled={pending}
                     onClick={() => requeue.mutate({ id: job.id ?? '' })}
@@ -169,7 +177,7 @@ export function RunAttentionCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={pending}
+                  disabled={pending || job.outputVerified === false}
                   onClick={() =>
                     setWriteOff({ job, partName, plate, unitsPerPlate })
                   }
@@ -234,7 +242,7 @@ export function RunAttentionCard({
           if (!open) setWriteOff(null);
         }}
         title={`Write off ${writeOff?.partName ?? ''} plate ${writeOff?.plate ?? ''}?`}
-        description={`Not reprinted: the run can complete without its ${pluralize(writeOff?.unitsPerPlate ?? 1, 'unit')}.`}
+        description={`Not reprinted: the run can complete without its ${pluralize(writeOff?.job.missingUnits ?? writeOff?.unitsPerPlate ?? 1, 'missing unit')}.`}
         confirmLabel="Write off"
         destructive
         isPending={writeOffMutation.isPending}

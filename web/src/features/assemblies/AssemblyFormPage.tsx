@@ -1,9 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
-import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { invalidateLibraryContents } from '@/features/library/api';
+import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
@@ -14,10 +17,12 @@ import {
   AssemblyEditor,
   type AssemblyFormValues,
   toLinePayload,
+  toPricingPayload,
   useAssemblyForm,
 } from './components/AssemblyEditor';
 
 export function AssemblyFormPage() {
+  const { folderId, location, itemLocation } = useLibraryLocation('assemblies');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { form } = useAssemblyForm();
@@ -29,13 +34,14 @@ export function AssemblyFormPage() {
     useOpenFarmApiEndpointsAssembliesCreateAssemblyEndpoint({
       mutation: {
         onSuccess: (created) => {
+          void invalidateLibraryContents(queryClient);
           toast.success('Assembly added.');
           queryClient.invalidateQueries({
             queryKey:
               getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey(),
           });
           markClean();
-          navigate(`/assemblies/${created.data?.id}`);
+          navigate(itemLocation(created.data?.id ?? ''));
         },
         onError: async (error) => {
           toast.error(
@@ -48,7 +54,9 @@ export function AssemblyFormPage() {
   function onSubmit(values: AssemblyFormValues) {
     createMutation.mutate({
       data: {
+        ...(folderId ? { folderId } : {}),
         additionalCosts: values.additionalCosts,
+        pricing: toPricingPayload(values.pricing),
         name: values.name.trim(),
         description: values.description?.trim() || null,
         lines: values.lines.map(toLinePayload),
@@ -60,6 +68,11 @@ export function AssemblyFormPage() {
 
   return (
     <Page className="flex-1">
+      <LibraryItemBreadcrumb
+        library="assemblies"
+        folderId={folderId}
+        name="Add assembly"
+      />
       <AssemblyEditor
         form={form}
         onSubmit={onSubmit}
@@ -68,11 +81,15 @@ export function AssemblyFormPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/assemblies')}
+              onClick={() => navigate(location)}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button
+              permission="assemblies:create"
+              type="submit"
+              disabled={pending}
+            >
               {pending && <Spinner data-icon="inline-start" />}
               {pending ? 'Adding…' : 'Add assembly'}
             </Button>

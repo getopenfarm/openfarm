@@ -6,9 +6,9 @@ import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldGroup } from '@/components/ui/field';
 import {
@@ -253,7 +253,15 @@ function RawDataForm({
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={!isDirty || pending}>
+                  <Button
+                    permission={
+                      kind === 'machine'
+                        ? 'profiles:edit-machine-raw-data'
+                        : 'profiles:edit-filament-raw-data'
+                    }
+                    type="submit"
+                    disabled={!isDirty || pending}
+                  >
                     {pending && <Spinner data-icon="inline-start" />}
                     {pending ? 'Saving…' : 'Save'}
                   </Button>

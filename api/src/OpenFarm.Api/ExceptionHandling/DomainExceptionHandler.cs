@@ -22,7 +22,13 @@ public sealed class DomainExceptionHandler : IExceptionHandler
     {
         var (statusCode, title) = exception switch
         {
+            Microsoft.EntityFrameworkCore.DbUpdateException { InnerException: Npgsql.PostgresException { SqlState: "23503", ConstraintName: "FK_Parts_LibraryFolders_FolderId" or "FK_Assemblies_LibraryFolders_FolderId" } } => (StatusCodes.Status409Conflict, "Folder changed"),
+            OpenFarm.Domain.Library.LibraryItemNotFoundException => (StatusCodes.Status404NotFound, "Library item not found"),
+            OpenFarm.Domain.Library.LibraryFolderNotFoundException => (StatusCodes.Status404NotFound, "Folder not found"),
+            OpenFarm.Domain.Library.LibraryConflictException => (StatusCodes.Status409Conflict, "Library conflict"),
             OpenFarm.Application.Common.InvalidListSortException => (StatusCodes.Status400BadRequest, "Invalid list sorting"),
+            OpenFarm.Application.Production.ProductionPlanConflictException => (StatusCodes.Status409Conflict, "Production plan changed"),
+            OpenFarm.Application.Production.InvalidProductionDemandException => (StatusCodes.Status422UnprocessableEntity, "Invalid production demand"),
             DuplicatePrinterSerialNumberException => (StatusCodes.Status409Conflict, "Duplicate printer serial number"),
             PrinterConnectionVerificationFailedException => (StatusCodes.Status422UnprocessableEntity, "Printer connection could not be verified"),
             PrinterModelCostsInUseException => (StatusCodes.Status409Conflict, "Printer model is still in the fleet"),

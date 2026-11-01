@@ -70,7 +70,9 @@ describe('BomLineEditor', () => {
     renderEditor([], onChange);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /add line/i }));
+    await user.click(
+      screen.getByRole('button', { name: 'Add part or assembly' }),
+    );
     expect(
       await screen.findByRole('option', { name: 'Hinge' }),
     ).toBeInTheDocument();
@@ -116,7 +118,9 @@ describe('BomLineEditor', () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /add line/i }));
+    await user.click(
+      screen.getByRole('button', { name: 'Add part or assembly' }),
+    );
     await user.click(await screen.findByRole('option', { name: 'Bracket' }));
 
     expect(onChange).toHaveBeenCalledWith([

@@ -29,7 +29,7 @@ public sealed class GetProductionRunsQueryHandler(
             foreach (var requirement in requirements)
             {
                 var jobs = jobsByRequirement[requirement.Id].ToList();
-                var completed = jobs.Where(j => j.Status == PrintJobStatus.Completed).Sum(j => j.PlateQuantity);
+                var completed = jobs.Sum(j => j.ProducedUnits);
                 if (requirement.Quantity is not { } target)
                 {
                     producedUnits += completed;
@@ -38,7 +38,7 @@ public sealed class GetProductionRunsQueryHandler(
 
                 targetUnits += target;
                 completedUnits += Math.Min(completed, target);
-                writtenOffUnits += jobs.Where(j => j.WrittenOffAtUtc is not null).Sum(j => j.PlateQuantity);
+                writtenOffUnits += jobs.Sum(j => j.WrittenOffUnits);
                 plates = plates.Add(PlateCounts.Of(jobs));
             }
 

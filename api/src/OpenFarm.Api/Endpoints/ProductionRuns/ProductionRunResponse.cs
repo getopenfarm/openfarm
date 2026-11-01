@@ -86,6 +86,10 @@ public sealed class ProductionRunSummaryResponse
 
 public sealed class RunJobSummaryResponse
 {
+    public int? TargetUnits { get; set; }
+    public int? ProducedUnits { get; set; }
+    public int? MissingUnits { get; set; }
+    public bool OutputVerified { get; set; }
     public Guid Id { get; set; }
 
     public string Status { get; set; } = string.Empty;
@@ -121,6 +125,10 @@ public sealed class RunJobSummaryResponse
         WrittenOff = summary.WrittenOff,
         NeedsAction = summary.NeedsAction,
         CanRequeue = summary.CanRequeue,
+        TargetUnits = summary.TargetUnits,
+        ProducedUnits = summary.ProducedUnits,
+        MissingUnits = summary.MissingUnits,
+        OutputVerified = summary.OutputVerified,
     };
 }
 
@@ -148,6 +156,7 @@ public sealed class PartRequirementSummaryResponse
     public int? EstimatedMinutesPerPlate { get; set; }
 
     public decimal? EstimatedGramsPerPlate { get; set; }
+    public OpenFarm.Application.Parts.PrintEstimate? RemainingEstimate { get; set; }
 
     /// <summary>Why the next waiting plate cannot go to any printer now; null when one can take it.</summary>
     public string? BlockingReason { get; set; }
@@ -168,6 +177,7 @@ public sealed class PartRequirementSummaryResponse
         Plates = PlateCountsResponse.FromCounts(summary.Plates),
         EstimatedMinutesPerPlate = summary.EstimatedMinutesPerPlate,
         EstimatedGramsPerPlate = summary.EstimatedGramsPerPlate,
+        RemainingEstimate = summary.RemainingEstimate,
         BlockingReason = summary.BlockingReason,
         Jobs = summary.Jobs.Select(RunJobSummaryResponse.FromSummary).ToList(),
     };
@@ -175,6 +185,8 @@ public sealed class PartRequirementSummaryResponse
 
 public sealed class RunLineSummaryResponse
 {
+    public string QuantityBasis { get; set; } = "Units";
+
     public Guid Id { get; set; }
 
     public string TargetKind { get; set; } = string.Empty;
@@ -207,6 +219,7 @@ public sealed class RunLineSummaryResponse
         TargetId = summary.TargetId,
         TargetName = summary.TargetName,
         Quantity = summary.Quantity,
+        QuantityBasis = summary.QuantityBasis.ToString(),
         RevisionMode = summary.RevisionMode.ToString(),
         PinnedPrinterId = summary.PinnedPrinterId,
         BackfillPrinterCap = summary.BackfillPrinterCap,

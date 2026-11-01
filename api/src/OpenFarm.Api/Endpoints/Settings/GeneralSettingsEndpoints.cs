@@ -10,11 +10,14 @@ public sealed class GeneralSettingsRequest
 {
     public string CurrencyCode { get; set; } = string.Empty;
     public decimal? ElectricityPricePerKwh { get; set; }
+    /// <summary>Omit to keep the saved allowance.</summary>
+    public decimal? FailureAllowancePercent { get; set; }
 }
 public sealed class GeneralSettingsResponse
 {
     public string CurrencyCode { get; set; } = "USD";
     public decimal? ElectricityPricePerKwh { get; set; }
+    public decimal FailureAllowancePercent { get; set; }
     public string[] SupportedCurrencies { get; set; } = FarmSettings.SupportedCurrencies;
 }
 public sealed class GeneralSettingsValidator : AbstractValidator<GeneralSettingsRequest>
@@ -23,6 +26,7 @@ public sealed class GeneralSettingsValidator : AbstractValidator<GeneralSettings
     {
         RuleFor(x => x.CurrencyCode).Must(x => FarmSettings.SupportedCurrencies.Contains(x)).WithMessage("Select a supported currency.");
         RuleFor(x => x.ElectricityPricePerKwh).GreaterThanOrEqualTo(0m);
+        RuleFor(x => x.FailureAllowancePercent).GreaterThanOrEqualTo(0m).LessThan(100m);
     }
 }
 [Permission("settings:general:read")]
@@ -32,7 +36,7 @@ public sealed class GetGeneralSettingsEndpoint(IFarmSettingsRepository settings)
     public override async Task HandleAsync(CancellationToken ct)
     {
         var farm = await settings.GetAsync(ct);
-        Response = new() { CurrencyCode = farm.CurrencyCode, ElectricityPricePerKwh = farm.ElectricityPricePerKwh };
+        Response = new() { CurrencyCode = farm.CurrencyCode, ElectricityPricePerKwh = farm.ElectricityPricePerKwh, FailureAllowancePercent = farm.FailureAllowancePercent };
     }
 }
 [Permission("settings:general:update")]
@@ -44,7 +48,8 @@ public sealed class UpdateGeneralSettingsEndpoint(IFarmSettingsRepository settin
         var farm = await settings.GetAsync(ct);
         farm.SetCurrency(req.CurrencyCode);
         farm.SetElectricityPrice(req.ElectricityPricePerKwh);
+        if (req.FailureAllowancePercent is { } allowance) farm.SetFailureAllowance(allowance);
         await settings.SaveChangesAsync(ct);
-        Response = new() { CurrencyCode = farm.CurrencyCode, ElectricityPricePerKwh = farm.ElectricityPricePerKwh };
+        Response = new() { CurrencyCode = farm.CurrencyCode, ElectricityPricePerKwh = farm.ElectricityPricePerKwh, FailureAllowancePercent = farm.FailureAllowancePercent };
     }
 }

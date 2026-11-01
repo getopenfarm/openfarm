@@ -8,10 +8,10 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Form,
@@ -211,15 +211,27 @@ export function SpoolDetailPage() {
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               {spool.state === 'InStorage' ? (
-                <Button variant="outline" onClick={() => setDialog('load')}>
+                <Button
+                  permission="spools:load"
+                  variant="outline"
+                  onClick={() => setDialog('load')}
+                >
                   Load
                 </Button>
               ) : (
                 <>
-                  <Button variant="outline" onClick={() => setDialog('usage')}>
+                  <Button
+                    permission="spools:record-usage"
+                    variant="outline"
+                    onClick={() => setDialog('usage')}
+                  >
                     Record usage
                   </Button>
-                  <Button variant="outline" onClick={() => setDialog('unload')}>
+                  <Button
+                    permission="spools:unload"
+                    variant="outline"
+                    onClick={() => setDialog('unload')}
+                  >
                     Unload
                   </Button>
                 </>
@@ -315,6 +327,7 @@ export function SpoolDetailPage() {
                     Cancel
                   </Button>
                   <Button
+                    permission="spools:override-weight"
                     type="submit"
                     disabled={!isDirty || editMutation.isPending}
                   >

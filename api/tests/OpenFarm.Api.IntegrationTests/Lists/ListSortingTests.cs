@@ -43,7 +43,7 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
         0.4m, null, null, EstimateStatus.Available, 60, 20, 1, 1, Guid.NewGuid().ToString("N"),
         [new FilamentRequirementSpec("PLA", null, null, null, null)], [], tags ?? []);
 
-    private static RunLineSpec Line(Guid target, int? quantity = 1, RunLineTargetKind kind = RunLineTargetKind.Part) =>
+    private static ProductionDemandSpec Line(Guid target, int? quantity = 1, RunLineTargetKind kind = RunLineTargetKind.Part) =>
         new(kind, target, quantity, null, AssignmentMode.Unassigned, null, 1, null);
 
     private static async Task<JsonElement> GetAsync(HttpClient client, string url)
@@ -154,7 +154,7 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
             db.AddRange(named, finite, unlimited, missing, missingAssembly, assemblyRun, multiple, empty);
             await db.SaveChangesAsync();
             // Old persisted data can contain an empty run even though new domain creation rejects it.
-            await db.RunLines.Where(l => l.ProductionRunId == empty.Id).ExecuteDeleteAsync();
+            await db.ProductionDemands.Where(l => l.ProductionRunId == empty.Id).ExecuteDeleteAsync();
             expected[named.Id] = "Zulu named";
             expected[finite.Id] = "alpha captured ×20";
             expected[unlimited.Id] = "Legacy bracket";

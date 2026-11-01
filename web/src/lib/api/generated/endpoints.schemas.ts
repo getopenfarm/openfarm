@@ -300,10 +300,54 @@ export interface GetSlicingReadinessRequest {
   [key: string]: unknown;
 }
 
+export interface FeeDto {
+  name?: string;
+  type?: string;
+  amount?: number;
+}
+
+export interface FeeProfileDto {
+  /** @nullable */
+  id?: string | null;
+  name?: string;
+  fees?: FeeDto[];
+}
+
+export interface FeesResponse {
+  profiles?: FeeProfileDto[];
+}
+
+export interface UpdateFeesRequest {
+  profiles?: FeeProfileDto[];
+}
+
+export interface SaveFeeProfileRequest {
+  name?: string;
+  fees?: FeeDto[];
+}
+
+/**
+ * the collection of errors for the current context
+ */
+export type ErrorResponseErrors = { [key: string]: string[] };
+
+/**
+ * the dto used to send an error response to the client
+ */
+export interface ErrorResponse {
+  /** the http status code sent to the client. default is 400. */
+  statusCode?: number;
+  /** the message for the error response */
+  message?: string;
+  /** the collection of errors for the current context */
+  errors?: ErrorResponseErrors;
+}
+
 export interface GeneralSettingsResponse {
   currencyCode?: string;
   /** @nullable */
   electricityPricePerKwh?: number | null;
+  failureAllowancePercent?: number;
   supportedCurrencies?: string[];
 }
 
@@ -311,6 +355,8 @@ export interface GeneralSettingsRequest {
   currencyCode?: string;
   /** @nullable */
   electricityPricePerKwh?: number | null;
+  /** @nullable */
+  failureAllowancePercent?: number | null;
 }
 
 export interface EffectiveSlicerDefaultResponse {
@@ -792,7 +838,39 @@ export interface PlateCountsResponse {
   writtenOff?: number;
 }
 
+export interface EstimateMetric {
+  /** @nullable */
+  value?: number | null;
+  missing?: number;
+}
+
+export interface EstimateColor {
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  variantId?: string | null;
+  /** @nullable */
+  grams?: number | null;
+  missing?: number;
+}
+
+export interface PrintEstimate {
+  time?: EstimateMetric;
+  filament?: EstimateMetric;
+  approximate?: boolean;
+  colors?: EstimateColor[];
+}
+
 export interface RunJobSummaryResponse {
+  /** @nullable */
+  targetUnits?: number | null;
+  /** @nullable */
+  producedUnits?: number | null;
+  /** @nullable */
+  missingUnits?: number | null;
+  outputVerified?: boolean;
   id?: string;
   status?: string;
   /** @nullable */
@@ -825,12 +903,14 @@ export interface PartRequirementSummaryResponse {
   estimatedMinutesPerPlate?: number | null;
   /** @nullable */
   estimatedGramsPerPlate?: number | null;
+  remainingEstimate?: PrintEstimate | null;
   /** @nullable */
   blockingReason?: string | null;
   jobs?: RunJobSummaryResponse[];
 }
 
 export interface RunLineSummaryResponse {
+  quantityBasis?: string;
   id?: string;
   targetKind?: string;
   targetId?: string;
@@ -880,6 +960,10 @@ export interface CreateRunLineRequest {
    */
   quantity?: number | null;
   /** @nullable */
+  planVersion?: string | null;
+  /** @nullable */
+  quantityBasis?: string | null;
+  /** @nullable */
   revisionMode?: string | null;
   assignmentMode?: string;
   /** @nullable */
@@ -894,6 +978,8 @@ export interface CreateRunLineRequest {
 }
 
 export interface CreateProductionRunRequest {
+  /** @nullable */
+  submissionId?: string | null;
   /** @nullable */
   name?: string | null;
   /** @nullable */
@@ -937,6 +1023,97 @@ export interface ListProductionRunsResponse {
 
 export interface ListProductionRunsRequest {
   [key: string]: unknown;
+}
+
+export interface ProductionPlanPart {
+  partId?: string;
+  name?: string;
+  requiredUnits?: number;
+  unitsPerPlate?: number;
+  plates?: number;
+  plannedUnits?: number;
+  surplusUnits?: number;
+  /** @nullable */
+  minutes?: number | null;
+  /** @nullable */
+  grams?: number | null;
+  revision?: string;
+  updatedAtUtc?: string;
+  /** @nullable */
+  jobUnits?: number[] | null;
+  /** @nullable */
+  objectMappingVersion?: string | null;
+  estimate?: PrintEstimate | null;
+}
+
+export interface ProductionPlan {
+  version?: string;
+  parts?: ProductionPlanPart[];
+  plates?: number;
+  /** @nullable */
+  completeSets?: number | null;
+  /** @nullable */
+  minutes?: number | null;
+  /** @nullable */
+  grams?: number | null;
+  estimate?: PrintEstimate | null;
+}
+
+/**
+ * @nullable
+ */
+export type PreviewProductionPlanRequestPlateOverrides = {
+  [key: string]: number;
+} | null;
+
+export interface PreviewProductionPlanRequest {
+  line?: CreateRunLineRequest;
+  /** @nullable */
+  plateOverrides?: PreviewProductionPlanRequestPlateOverrides;
+}
+
+export interface ProductionDemandResponse {
+  id?: string;
+  /** @nullable */
+  productionRunId?: string | null;
+  name?: string;
+  mode?: string;
+  state?: string;
+  printerCap?: number;
+  /** @nullable */
+  pinnedPrinterId?: string | null;
+  targetKind?: string;
+  targetId?: string;
+}
+
+/**
+ * @nullable
+ */
+export type SubmitProductionDemandRequestPlateOverrides = {
+  [key: string]: number;
+} | null;
+
+export interface SubmitProductionDemandRequest {
+  /** @minLength 1 */
+  submissionId: string;
+  line?: CreateRunLineRequest;
+  /** @nullable */
+  planVersion?: string | null;
+  /** @nullable */
+  productionRunId?: string | null;
+  createRun?: boolean;
+  /** @nullable */
+  newRunName?: string | null;
+  /** @nullable */
+  plateOverrides?: SubmitProductionDemandRequestPlateOverrides;
+}
+
+export interface ChangeBackfillRequest {
+  action?: string;
+  /** @nullable */
+  printerCap?: number | null;
+  /** @nullable */
+  pinnedPrinterId?: string | null;
 }
 
 export interface AddRunLinesRequest {
@@ -1029,11 +1206,18 @@ export interface DispatchProvenanceResponse {
 }
 
 export interface PrintJobResponse {
+  canResolveShortfall?: boolean;
   id?: string;
   /** @nullable */
   partRequirementId?: string | null;
   /** @nullable */
   queuePosition?: number | null;
+  /** @nullable */
+  targetUnits?: number | null;
+  /** @nullable */
+  producedUnits?: number | null;
+  /** @nullable */
+  missingUnits?: number | null;
   /** @nullable */
   plateQuantity?: number | null;
   /** @nullable */
@@ -1160,9 +1344,22 @@ export interface QueueJobRowResponse {
   /** @nullable */
   partId?: string | null;
   partName?: string;
+  /** @nullable */
+  targetUnits?: number | null;
+  /** @nullable */
+  producedUnits?: number | null;
+  /** @nullable */
+  missingUnits?: number | null;
+  /** @nullable */
+  thumbnailBase64?: string | null;
   plateQuantity?: number;
   /** @nullable */
   runLineId?: string | null;
+  /** @nullable */
+  demandId?: string | null;
+  /** @nullable */
+  demandMode?: string | null;
+  canRequeue?: boolean;
   /** @nullable */
   productionRunId?: string | null;
   runDisplayLabel?: string;
@@ -1194,6 +1391,102 @@ export interface PausePrintJobRequest {
 export interface PinPrintJobRequest {
   /** @nullable */
   printerId?: string | null;
+}
+
+export interface PrintObject {
+  id?: string;
+  name?: string;
+  /** @nullable */
+  polygon?: number[][] | null;
+}
+
+export interface PrintUnit {
+  id?: string;
+  objectIds?: string[];
+}
+
+export interface PrintObjectManifest {
+  revisionHash?: string;
+  plate?: number;
+  dialect?: string;
+  objects?: PrintObject[];
+  units?: PrintUnit[];
+  /** @nullable */
+  detectedCount?: number | null;
+  /** @nullable */
+  countSource?: string | null;
+  /** @nullable */
+  skipUnavailableReason?: string | null;
+}
+
+export interface PartObjectsRequest {
+  [key: string]: unknown;
+}
+
+export interface SetPartObjectGroupsRequest {
+  /** @minLength 1 */
+  revisionHash: string;
+  /** @minLength 1 */
+  units: PrintUnit[];
+}
+
+export interface ProgressMark {
+  layer?: number;
+  percent?: number;
+}
+
+/**
+ * @nullable
+ */
+export type PrintObjectExecutionExcludedAt = {
+  [key: string]: ProgressMark;
+} | null;
+
+export interface PrintObjectExecution {
+  manifest?: PrintObjectManifest;
+  selectedUnitIds?: string[];
+  requestedObjectIds?: string[];
+  confirmedObjectIds?: string[];
+  observed?: boolean;
+  /** @nullable */
+  artifactPath?: string | null;
+  /** @nullable */
+  artifactHash?: string | null;
+  /** @nullable */
+  artifactName?: string | null;
+  /** @nullable */
+  requestError?: string | null;
+  /** @nullable */
+  excludedAt?: PrintObjectExecutionExcludedAt;
+  startRequested?: boolean;
+  /** @nullable */
+  canSkipObjects?: boolean | null;
+  /** @nullable */
+  skipUnavailableReason?: string | null;
+  plannedExclusions?: string[];
+  goodUnits?: number;
+}
+
+export interface JobObjectsRequest {
+  [key: string]: unknown;
+}
+
+export interface SkipJobObjectsRequest {
+  /** @minLength 1 */
+  artifactHash: string;
+  /** @minLength 1 */
+  unitIds: string[];
+}
+
+export interface ConfirmObjectOutputRequest {
+  /** @minLength 1 */
+  artifactHash: string;
+  producedUnitIds: string[];
+}
+
+export interface ConfirmPrintNotStartedRequest {
+  /** @minLength 1 */
+  artifactHash: string;
 }
 
 export interface ReorderPrintJobResponse {
@@ -1573,6 +1866,8 @@ export interface ThumbnailResponse {
 }
 
 export interface PartResponse {
+  /** @nullable */
+  folderId?: string | null;
   id?: string;
   name?: string;
   fileFormat?: string;
@@ -1586,6 +1881,8 @@ export interface PartResponse {
   /** @nullable */
   estimateUnavailableReason?: string | null;
   estimation?: EstimationDetails | null;
+  printEstimate?: PrintEstimate | null;
+  unitEstimate?: PrintEstimate | null;
   estimateStatus?: string;
   /** @nullable */
   estimatedPrintTimeMinutes?: number | null;
@@ -1598,6 +1895,11 @@ export interface PartResponse {
   /** @nullable */
   plateName?: string | null;
   unitsPerPrint?: number;
+  /** @nullable */
+  detectedUnitsPerPrint?: number | null;
+  /** @nullable */
+  quantityDetectionSource?: string | null;
+  quantityNeedsReprocessing?: boolean;
   thumbnails?: ThumbnailResponse[];
   tags?: string[];
 }
@@ -1615,6 +1917,15 @@ export interface EditPartRequest {
   tags?: string[];
   unitsPerPrint?: number;
   filamentRequirements?: EditPartFilamentRequirementRequest[];
+}
+
+export interface PrintedPartEstimateInput {
+  partId?: string;
+  quantity?: number;
+}
+
+export interface EstimatePrintedPartsRequest {
+  parts: PrintedPartEstimateInput[];
 }
 
 export interface PartColorGramsResponse {
@@ -1644,6 +1955,7 @@ export interface PartSummaryResponse {
   estimationPrinterBrand?: string | null;
   /** @nullable */
   estimationPrinterModelCode?: string | null;
+  printEstimate?: PrintEstimate | null;
   estimateStatus?: string;
   /** @nullable */
   estimatedPrintTimeMinutes?: number | null;
@@ -1696,6 +2008,8 @@ export interface RelatedPartPlateRequest {
 
 export interface ConfirmPartProcessingJobRequest {
   /** @nullable */
+  folderId?: string | null;
+  /** @nullable */
   name?: string | null;
   /** @nullable */
   tags?: string[] | null;
@@ -1728,6 +2042,8 @@ export interface PreviewFilamentRequirementResponse {
 }
 
 export interface PlateResponse {
+  /** @nullable */
+  unitsPerPrint?: number | null;
   number?: number;
   /** @nullable */
   name?: string | null;
@@ -1739,6 +2055,8 @@ export interface PlateResponse {
 }
 
 export interface PartProcessingJobPreviewResponse {
+  /** @nullable */
+  unitsPerPrint?: number | null;
   /** @nullable */
   nozzleDiameterMm?: number | null;
   filamentRequirements?: PreviewFilamentRequirementResponse[];
@@ -1912,6 +2230,81 @@ export interface ListNonPrintedComponentsResponse {
 export interface ListNonPrintedComponentsRequest {
   [key: string]: unknown;
 }
+
+export interface LibraryFolder {
+  id?: string;
+  library?: string;
+  /** @nullable */
+  parentId?: string | null;
+  name?: string;
+  createdAtUtc?: string;
+  updatedAtUtc?: string;
+}
+
+export interface FolderPage {
+  items?: LibraryFolder[];
+  totalCount?: number;
+  ancestors?: LibraryFolder[];
+}
+
+export interface FolderLibraryRequest {
+  [key: string]: unknown;
+}
+
+export type ListFoldersRequest = FolderLibraryRequest & {
+  [key: string]: unknown;
+};
+
+export type CreateFolderRequest = FolderLibraryRequest & {
+  name?: string;
+  /** @nullable */
+  parentId?: string | null;
+};
+
+export type FolderIdRequest = FolderLibraryRequest & { [key: string]: unknown };
+
+export type RenameFolderRequest = FolderIdRequest & {
+  name?: string;
+};
+
+export type MoveFolderRequest = FolderIdRequest & {
+  /** @nullable */
+  parentId?: string | null;
+};
+
+export type MoveLibraryItemsRequest = FolderLibraryRequest & {
+  ids?: string[];
+  /** @nullable */
+  folderId?: string | null;
+};
+
+export interface AssemblySummaryResponse {
+  id?: string;
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  lineCount?: number;
+  previewThumbnails?: string[];
+}
+
+export interface LibraryEntryResponse {
+  id?: string;
+  name?: string;
+  kind?: string;
+  folder?: LibraryFolder | null;
+  part?: PartSummaryResponse | null;
+  assembly?: AssemblySummaryResponse | null;
+}
+
+export interface LibraryContentsResponse {
+  items?: LibraryEntryResponse[];
+  totalCount?: number;
+  ancestors?: LibraryFolder[];
+}
+
+export type ListLibraryContentsRequest = FolderLibraryRequest & {
+  [key: string]: unknown;
+};
 
 export interface FilamentProfileAssignmentInput {
   brand?: string;
@@ -2198,6 +2591,124 @@ export interface SaveCostItemRequest {
   pricing?: CatalogPricing;
 }
 
+export interface GroupSummary {
+  id?: string;
+  name?: string;
+}
+
+export interface AccountResponse {
+  id?: string;
+  username?: string;
+  email?: string;
+  /** @nullable */
+  name?: string | null;
+  isEnabled?: boolean;
+  createdAtUtc?: string;
+  groups?: GroupSummary[];
+  extraGrants?: string[];
+  effectivePermissions?: string[];
+  isAdministrator?: boolean;
+  sessionCount?: number;
+}
+
+export interface GroupResponse {
+  id?: string;
+  name?: string;
+  description?: string;
+  isProtected?: boolean;
+  grants?: string[];
+  memberCount?: number;
+}
+
+export interface PermissionArea {
+  key?: string;
+  label?: string;
+  noun?: string;
+  administratorOnly?: boolean;
+}
+
+export interface PermissionDefinition {
+  key?: string;
+  area?: string;
+  label?: string;
+  description?: string;
+  isRead?: boolean;
+  isSensitive?: boolean;
+  isDestructive?: boolean;
+  isExplicit?: boolean;
+  /** @nullable */
+  verb?: string | null;
+  /** @nullable */
+  phrase?: string | null;
+}
+
+export interface PermissionCatalogResponse {
+  areas?: PermissionArea[];
+  permissions?: PermissionDefinition[];
+}
+
+export interface EntityIdResponse {
+  id?: string;
+}
+
+export interface AccountInput {
+  username?: string;
+  email?: string;
+  /** @nullable */
+  name?: string | null;
+  groupIds?: string[];
+  extraGrants?: string[];
+  isEnabled?: boolean;
+  /** @nullable */
+  password?: string | null;
+}
+
+export interface UpdateAccountRequest {
+  username?: string;
+  email?: string;
+  /** @nullable */
+  name?: string | null;
+  groupIds?: string[];
+  extraGrants?: string[];
+  isEnabled?: boolean;
+}
+
+export interface RevokeSessionRequest {
+  [key: string]: unknown;
+}
+
+export interface GroupInput {
+  name?: string;
+  description?: string;
+  grants?: string[];
+}
+
+export interface UpdateGroupRequest {
+  name?: string;
+  description?: string;
+  grants?: string[];
+}
+
+export interface ResetAccountPasswordRequest {
+  password?: string;
+}
+
+export interface PasswordInput {
+  currentPassword?: string;
+  newPassword?: string;
+}
+
+export interface ProfileInput {
+  /** @nullable */
+  name?: string | null;
+  email?: string;
+  username?: string;
+}
+
+export interface DisplayPreferencesResponse {
+  currencyCode?: string;
+}
+
 export interface LoginResponse {
   token?: string;
   expiresAtUtc?: string;
@@ -2208,10 +2719,32 @@ export interface LoginCommand {
   password?: string;
 }
 
+export interface CsrfResponse {
+  token?: string;
+}
+
+export interface SessionResponse {
+  id?: string;
+  device?: string;
+  createdAtUtc?: string;
+  lastSeenAtUtc?: string;
+  expiresAtUtc?: string;
+  isCurrent?: boolean;
+}
+
+export interface UserSessionRequest {
+  [key: string]: unknown;
+}
+
 export interface WhoAmIResult {
   userId?: string;
   username?: string;
   email?: string;
+  /** @nullable */
+  displayName?: string | null;
+  isAdministrator?: boolean;
+  groups?: string[];
+  permissions?: string[];
 }
 
 export interface BomLineResponse {
@@ -2236,13 +2769,21 @@ export interface AssemblyCostInput {
   pieces?: number;
 }
 
+export interface AssemblyPricingDto {
+  mode?: string;
+  value?: number;
+}
+
 export interface AssemblyResponse {
+  /** @nullable */
+  folderId?: string | null;
   id?: string;
   name?: string;
   /** @nullable */
   description?: string | null;
   lines?: BomLineResponse[];
   additionalCosts?: AssemblyCostInput[];
+  pricing?: AssemblyPricingDto | null;
   createdAtUtc?: string;
   updatedAtUtc?: string;
 }
@@ -2254,12 +2795,15 @@ export interface CreateAssemblyLineRequest {
 }
 
 export interface CreateAssemblyRequest {
+  /** @nullable */
+  folderId?: string | null;
   name?: string;
   /** @nullable */
   description?: string | null;
   lines?: CreateAssemblyLineRequest[];
   /** @nullable */
   additionalCosts?: AssemblyCostInput[] | null;
+  pricing?: AssemblyPricingDto | null;
 }
 
 export interface DeleteAssemblyRequest {
@@ -2282,6 +2826,7 @@ export interface EditAssemblyRequest {
   lines?: EditAssemblyLineRequest[] | null;
   /** @nullable */
   additionalCosts?: AssemblyCostInput[] | null;
+  pricing?: AssemblyPricingDto | null;
 }
 
 export interface AssemblyMachineCostContribution {
@@ -2333,14 +2878,6 @@ export interface ExplodeAssemblyResponse {
 
 export interface ExplodeAssemblyRequest {
   [key: string]: unknown;
-}
-
-export interface AssemblySummaryResponse {
-  id?: string;
-  name?: string;
-  /** @nullable */
-  description?: string | null;
-  lineCount?: number;
 }
 
 export interface ListAssembliesResponse {
@@ -2688,6 +3225,10 @@ export type OpenFarmApiEndpointsPartsListPartsEndpointParams = {
   /**
    * @nullable
    */
+  folder?: string | null;
+  /**
+   * @nullable
+   */
   sortBy?: string | null;
   /**
    * @nullable
@@ -2710,6 +3251,36 @@ export type OpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndp
     page: number;
     pageSize: number;
   };
+
+export type OpenFarmApiEndpointsLibraryListFoldersEndpointParams = {
+  /**
+   * @nullable
+   */
+  parentId?: string | null;
+  page: number;
+  pageSize: number;
+};
+
+export type OpenFarmApiEndpointsLibraryListLibraryContentsEndpointParams = {
+  /**
+   * @nullable
+   */
+  parentId?: string | null;
+  page: number;
+  pageSize: number;
+  /**
+   * @nullable
+   */
+  sortBy?: string | null;
+  /**
+   * @nullable
+   */
+  sortDirection?: string | null;
+  /**
+   * @nullable
+   */
+  includePreviews?: boolean | null;
+};
 
 export type OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams = {
   /**
@@ -2744,6 +3315,14 @@ export type OpenFarmApiEndpointsCostCatalogListCostItemsEndpointParams = {
 };
 
 export type OpenFarmApiEndpointsAssembliesListAssembliesEndpointParams = {
+  /**
+   * @nullable
+   */
+  includePreviews?: boolean | null;
+  /**
+   * @nullable
+   */
+  folder?: string | null;
   /**
    * @nullable
    */

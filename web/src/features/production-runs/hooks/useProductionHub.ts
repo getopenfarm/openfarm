@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
+import { type PrintJobSendProgress, sendProgressKey } from './sendProgress';
 
 interface ProductionRunStatusChangedPayload {
   productionRunId: string;
@@ -25,7 +26,8 @@ export function invalidateProductionQueries(
     predicate: (query) =>
       typeof query.queryKey[0] === 'string' &&
       (query.queryKey[0].startsWith('/api/v1/production-runs') ||
-        query.queryKey[0].startsWith('/api/v1/print-jobs')),
+        query.queryKey[0].startsWith('/api/v1/print-jobs') ||
+        query.queryKey[0].startsWith('/api/v1/production-demands')),
   });
 }
 
@@ -60,8 +62,15 @@ export function useProductionHub(
       'PrintJobStatusChanged',
       (payload: PrintJobStatusChangedPayload) => {
         statusChangedRef.current?.(payload.printJobId, payload.status);
+        queryClient.resetQueries({
+          queryKey: sendProgressKey(payload.printJobId),
+        });
         invalidateProductionQueries(queryClient);
       },
+    );
+
+    connection.on('ProductionDemandChanged', () =>
+      invalidateProductionQueries(queryClient),
     );
 
     connection.on('PartDeleted', () =>
@@ -74,6 +83,18 @@ export function useProductionHub(
         invalidateProductionQueries(queryClient);
       },
     );
+
+    connection.on('PrintJobSendProgress', (payload: PrintJobSendProgress) => {
+      if (payload.stage === 'Ended') {
+        // The attempt stopped without sending; the job's own row says why.
+        queryClient.resetQueries({
+          queryKey: sendProgressKey(payload.printJobId),
+        });
+        invalidateProductionQueries(queryClient);
+        return;
+      }
+      queryClient.setQueryData(sendProgressKey(payload.printJobId), payload);
+    });
 
     return () => {
       stop();

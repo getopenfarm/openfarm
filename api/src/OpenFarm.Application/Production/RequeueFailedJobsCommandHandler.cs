@@ -28,7 +28,8 @@ public sealed class RequeueFailedJobsCommandHandler(
         var finite = (await requirementRepository.ListByProductionRunIdAsync(run.Id, cancellationToken))
             .Where(r => r.Quantity is not null).Select(r => r.Id).ToHashSet();
         var lost = (await jobRepository.ListByProductionRunIdAsync(run.Id, cancellationToken))
-            .Where(j => finite.Contains(j.PartRequirementId) && j.IsUnresolvedLoss && j.ProductionSnapshotJson is not null)
+            .Where(j => finite.Contains(j.PartRequirementId) && j.IsUnresolvedLoss && j.ProductionSnapshotJson is not null
+                && !(j.Status == PrintJobStatus.Completed && j.ObjectExecution is { Observed: false }))
             .ToList();
         foreach (var job in lost)
         {

@@ -11,12 +11,28 @@ using MQTTnet;
 using MQTTnet.Adapter;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Bambu;
 
 namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
 
 public class BambuLanProtocolTests
 {
+    [Fact]
+    public async Task StartAndLiveExclusions_UseNativeObjectIds()
+    {
+        await using var mqtt = new BambuMqttHarness();
+        var connector = mqtt.CreateConnector(mqtt.Options with { UploadFileAsync = (_, _, _, _, _) => Task.FromResult(FtpStatus.Success) });
+        using var file = new MemoryStream("G28\n"u8.ToArray());
+        await connector.StartSelectedJobAsync(mqtt.Details, file, "selected.gcode", 1, null, ["206"], CancellationToken.None);
+        using var start = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
+        start.RootElement.GetProperty("print").GetProperty("skip_objects").EnumerateArray().Select(i => i.GetInt32()).Should().Equal(206);
+        await connector.SkipObjectsAsync(mqtt.Details, ["206", "300"], CancellationToken.None);
+        using var skip = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
+        skip.RootElement.GetProperty("print").GetProperty("command").GetString().Should().Be("skip_objects");
+        skip.RootElement.GetProperty("print").GetProperty("obj_list").EnumerateArray().Select(i => i.GetInt32()).Should().Equal(206, 300);
+    }
+
     [Theory]
     [InlineData("/cache/../escape.3mf")]
     [InlineData("/cache/file.3mf\r\nDELE other.3mf")]
@@ -36,7 +52,7 @@ public class BambuLanProtocolTests
         await using var ftp = new BambuFtpsHarness();
         var connector = mqtt.CreateConnector(mqtt.Options with
         {
-            UploadFileAsync = async (details, content, path, token) =>
+            UploadFileAsync = async (details, content, path, _, token) =>
             {
                 await using var client = new AsyncFtpClient(details.IpAddress, "bblp", details.AccessCode, ftp.Port);
                 client.Config.EncryptionMode = FtpEncryptionMode.Implicit;
@@ -213,7 +229,7 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
-    public async Task Commands_UseSeparateConnectionsWhileTelemetryRemainsConnected()
+    public async Task Commands_PublishOnTheLiveTelemetryConnection()
     {
         await using var harness = new BambuMqttHarness();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -230,13 +246,13 @@ public class BambuLanProtocolTests
         foreach (var command in new[] { "pause", "resume", "stop" })
         {
             var request = await harness.NextRequestAsync();
-            request.ConnectionId.Should().NotBe(version.ConnectionId);
+            request.ConnectionId.Should().Be(version.ConnectionId);
             request.Topic.Should().Be("device/TEST-P1S/request");
             using var document = JsonDocument.Parse(request.Payload);
             document.RootElement.GetProperty("print").GetProperty("command").GetString().Should().Be(command);
         }
 
-        await WaitUntilAsync(() => harness.ActiveConnections == 1);
+        harness.ConnectionCount.Should().Be(1);
         // Command publication must not manufacture a status event.
         var nextEvent = events.MoveNextAsync().AsTask();
         await harness.PublishReportAsync("""{"print":{"gcode_state":"PAUSE"}}""");
@@ -254,7 +270,7 @@ public class BambuLanProtocolTests
         var uploadCompleted = false;
         var connector = harness.CreateConnector(harness.Options with
         {
-            UploadFileAsync = async (details, content, path, token) =>
+            UploadFileAsync = async (details, content, path, _, token) =>
             {
                 details.Should().Be(harness.Details);
                 harness.ConnectionCount.Should().Be(0, "upload must precede MQTT command connection");
@@ -309,7 +325,7 @@ public class BambuLanProtocolTests
         byte[]? uploadedBytes = null;
         var connector = harness.CreateConnector(harness.Options with
         {
-            UploadFileAsync = async (_, content, path, token) =>
+            UploadFileAsync = async (_, content, path, _, token) =>
             {
                 uploadPath = path;
                 using var buffer = new MemoryStream();
@@ -332,13 +348,37 @@ public class BambuLanProtocolTests
     private static async Task<JsonElement> StartWithMappingAsync(FilamentFeedMapping? mapping, string model = "P1S")
     {
         await using var harness = new BambuMqttHarness();
-        var connector = harness.CreateConnector(harness.Options with { UploadFileAsync = (_, _, _, _) => Task.FromResult(FtpStatus.Success) });
+        var connector = harness.CreateConnector(harness.Options with { UploadFileAsync = (_, _, _, _, _) => Task.FromResult(FtpStatus.Success) });
         using var file = new MemoryStream(BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode", 1));
 
         await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", 1, mapping, default);
 
         using var request = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
         return request.RootElement.GetProperty("print").Clone();
+    }
+
+    [Fact]
+    public async Task StartJob_ReportsUploadPercentThenStarting()
+    {
+        await using var harness = new BambuMqttHarness();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            UploadFileAsync = (_, _, _, ftpProgress, _) =>
+            {
+                ftpProgress!.Report(new FtpProgress(42.4, 0, 0, TimeSpan.Zero, "", "", null));
+                ftpProgress.Report(new FtpProgress(100, 0, 0, TimeSpan.Zero, "", "", null));
+                return Task.FromResult(FtpStatus.Success);
+            },
+        });
+        using var file = new MemoryStream(BambuPrintFile.PrepareProject(Encoding.UTF8.GetBytes("G28\n"), "part.gcode", 1));
+        var reports = new List<PrintSendProgress>();
+
+        await connector.StartJobAsync(harness.Details, file, "part.gcode.3mf", 1, null, new InlineProgress<PrintSendProgress>(reports.Add), default);
+
+        reports.Should().Equal(
+            new PrintSendProgress(PrintSendStage.Uploading, 42),
+            new PrintSendProgress(PrintSendStage.Uploading, 100),
+            new PrintSendProgress(PrintSendStage.Starting));
     }
 
     private static FeedSlotRef AmsSlot(int unit, int slot) => new(FeedUnitKindCatalog.MultiMaterialUnit, unit, slot);
@@ -410,7 +450,7 @@ public class BambuLanProtocolTests
         await using var harness = new BambuMqttHarness();
         var connector = harness.CreateConnector(harness.Options with
         {
-            UploadFileAsync = async (_, content, _, token) =>
+            UploadFileAsync = async (_, content, _, _, token) =>
             {
                 using var copy = new MemoryStream();
                 await content.CopyToAsync(copy, token);
@@ -438,7 +478,7 @@ public class BambuLanProtocolTests
         await using var harness = new BambuMqttHarness();
         var connector = harness.CreateConnector(harness.Options with
         {
-            UploadFileAsync = (_, _, _, _) => { uploadCalled = true; return Task.FromResult(FtpStatus.Success); },
+            UploadFileAsync = (_, _, _, _, _) => { uploadCalled = true; return Task.FromResult(FtpStatus.Success); },
         });
         using var file = new MemoryStream();
         using (var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true)) archive.CreateEntry("3D/3dmodel.model");
@@ -458,7 +498,7 @@ public class BambuLanProtocolTests
         var connector = new BambuLanConnector(NullLogger<BambuLanConnector>.Instance, new BambuTransportOptions
         {
             CreateMqttClient = () => throw new InvalidOperationException("Must not publish after failed upload"),
-            UploadFileAsync = (_, _, _, _) => Task.FromResult(status),
+            UploadFileAsync = (_, _, _, _, _) => Task.FromResult(status),
         });
         using var file = new MemoryStream([1, 2, 3]);
 
@@ -473,7 +513,7 @@ public class BambuLanProtocolTests
         var connector = new BambuLanConnector(NullLogger<BambuLanConnector>.Instance, new BambuTransportOptions
         {
             CreateMqttClient = () => throw new InvalidOperationException("Must not publish"),
-            UploadFileAsync = (_, _, _, _) => throw new IOException("Upload connection failed"),
+            UploadFileAsync = (_, _, _, _, _) => throw new IOException("Upload connection failed"),
         });
         using var file = new MemoryStream([1, 2, 3]);
 
@@ -488,7 +528,7 @@ public class BambuLanProtocolTests
         var connector = new BambuLanConnector(NullLogger<BambuLanConnector>.Instance, new BambuTransportOptions
         {
             CreateMqttClient = () => throw new InvalidOperationException("Must not publish"),
-            UploadFileAsync = async (_, _, _, token) =>
+            UploadFileAsync = async (_, _, _, _, token) =>
             {
                 uploading.TrySetResult();
                 await Task.Delay(Timeout.InfiniteTimeSpan, token);

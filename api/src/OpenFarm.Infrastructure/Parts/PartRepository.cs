@@ -26,8 +26,14 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
     public Task<Part?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         Include(dbContext.Parts).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
-    public async Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(
-        IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null)
+    public async Task<IReadOnlyList<Part>> GetForEstimatesAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken) =>
+        await dbContext.Parts.AsNoTracking().Where(p => ids.Contains(p.Id)).Include(p => p.FilamentRequirements).ToListAsync(cancellationToken);
+
+    public Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
+        ListInFolderAsync(tags, page, pageSize, sorting, null, cancellationToken);
+
+    public async Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListInFolderAsync(
+        IReadOnlyList<string> tags, int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken)
     {
         var query = Include(dbContext.Parts).AsQueryable();
 
@@ -36,6 +42,12 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
             // AND-semantics: narrows the query once per required tag rather than a single
             // "contains all" set comparison — simple, correct, and fine at this feature's row counts.
             query = query.Where(p => p.Tags.Any(t => t.Name == tag));
+        }
+
+        if (folder is not null)
+        {
+            var folderId = OpenFarm.Domain.Library.LibraryFolder.ParseLocation(folder);
+            query = query.Where(p => p.FolderId == folderId);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -81,7 +93,7 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         var removedAtUtc = DateTimeOffset.UtcNow;
         foreach (var job in unavailableJobs) job.MarkSnapshotUnavailable(removedAtUtc);
         var lineIds = references.Select(r => r.RunLineId).ToList();
-        var sourceLines = await dbContext.RunLines.Where(l => lineIds.Contains(l.Id)
+        var sourceLines = await dbContext.ProductionDemands.Where(l => lineIds.Contains(l.Id)
             && l.TargetKind == RunLineTargetKind.Part && l.TargetId == part.Id).ToListAsync(cancellationToken);
         foreach (var line in sourceLines) line.CaptureTargetName(part.Name);
         dbContext.Parts.Remove(part);

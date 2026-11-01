@@ -19,18 +19,19 @@ public sealed class PartDeletionEligibilityReader(OpenFarmDbContext db) : IPartD
                                 select new { PartId = line.TargetPartId!.Value, assembly.Id, assembly.Name })
             .Distinct().ToListAsync(cancellationToken);
         var unlimited = await (from requirement in db.PartRequirements.AsNoTracking()
-                               join line in db.RunLines on requirement.RunLineId equals line.Id
-                               join run in db.ProductionRuns on line.ProductionRunId equals run.Id
+                               join line in db.ProductionDemands on requirement.RunLineId equals line.Id
+                               join owner in db.ProductionRuns on line.ProductionRunId equals owner.Id into owners
+                               from run in owners.DefaultIfEmpty()
                                where requirement.LibraryPartId != null && partIds.Contains(requirement.LibraryPartId.Value)
-                                   && line.Quantity == null && (run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)
-                               select new { PartId = requirement.LibraryPartId!.Value, run.Id, run.Name })
+                              && line.Mode == DemandMode.Backfill && line.State != DemandState.Removed && requirement.RecipeActive
+                              && (run == null || run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)
+                               select new { PartId = requirement.LibraryPartId!.Value, Id = run == null ? line.Id : run.Id, Name = run == null ? line.TargetName : run.Name ?? line.TargetName, EntityType = run == null ? "ProductionDemand" : "ProductionRun" })
             .Distinct().ToListAsync(cancellationToken);
         var legacyQuery = from job in db.PrintJobs.AsNoTracking()
                           join requirement in db.PartRequirements on job.PartRequirementId equals requirement.Id
-                          join line in db.RunLines on requirement.RunLineId equals line.Id
-                          join run in db.ProductionRuns on line.ProductionRunId equals run.Id
+                          join line in db.ProductionDemands on requirement.RunLineId equals line.Id
                           where requirement.LibraryPartId != null && partIds.Contains(requirement.LibraryPartId.Value) && job.ProductionSnapshotJson == null
-                          select new { PartId = requirement.LibraryPartId!.Value, job.Id, job.Status, RunId = run.Id, run.Name };
+                          select new { PartId = requirement.PartId, job.Id, job.Status, RunId = line.Id, Name = line.TargetName };
         var legacy = await legacyQuery.Where(j => j.Status != PrintJobStatus.Cancelled && j.Status != PrintJobStatus.Failed && j.Status != PrintJobStatus.Completed)
             .ToListAsync(cancellationToken);
         var terminalCounts = await legacyQuery.Where(j => j.Status == PrintJobStatus.Cancelled || j.Status == PrintJobStatus.Failed || j.Status == PrintJobStatus.Completed)
@@ -42,7 +43,7 @@ public sealed class PartDeletionEligibilityReader(OpenFarmDbContext db) : IPartD
             var blockers = assemblies.Where(a => a.PartId == id)
                 .Select(a => new PartDeletionBlocker("AssemblyReference", "Assembly", a.Id, a.Name))
                 .Concat(unlimited.Where(r => r.PartId == id)
-                    .Select(r => new PartDeletionBlocker("UnlimitedRun", "ProductionRun", r.Id, r.Name ?? r.Id.ToString())))
+                    .Select(r => new PartDeletionBlocker("UnlimitedRun", r.EntityType, r.Id, r.Name ?? r.Id.ToString())))
                 .Concat(legacy.Where(j => j.PartId == id)
                     .Select(j => new PartDeletionBlocker("UnfinishedLegacyJob", "PrintJob", j.Id, $"{j.Name ?? j.RunId.ToString()} — unfinished unresolved legacy job")))
                 .OrderBy(b => b.Code).ThenBy(b => b.Name).ThenBy(b => b.EntityId).ToList();

@@ -7,6 +7,7 @@ import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHe
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSearch } from '@/components/data-table/DataTableSearch';
 import {
+  DataTableTabCount,
   DataTableTabsList,
   DataTableToolbar,
 } from '@/components/data-table/DataTableToolbar';
@@ -17,16 +18,14 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import type {
   ListProductionRunsResponse,
   ProductionRunSummaryResponse,
@@ -229,19 +228,26 @@ export function ProductionRunsPage() {
               Open
             </DropdownMenuItem>
             {open && (run.plates?.queued ?? 0) > 0 && (
-              <DropdownMenuItem onSelect={() => actions.moveToTop(id)}>
+              <DropdownMenuItem
+                permission="print-jobs:reorder"
+                onSelect={() => actions.moveToTop(id)}
+              >
                 Move to top of queue
               </DropdownMenuItem>
             )}
             {open && (
               <DropdownMenuItem
+                permission="production-runs:edit"
                 onSelect={() => navigate(`/production-runs/${id}/edit`)}
               >
                 Edit
               </DropdownMenuItem>
             )}
             {canCloseRun(run.status, (run.targetUnits ?? 0) > 0) && (
-              <DropdownMenuItem onSelect={() => actions.close(id)}>
+              <DropdownMenuItem
+                permission="production-runs:close"
+                onSelect={() => actions.close(id)}
+              >
                 Close run
               </DropdownMenuItem>
             )}
@@ -249,6 +255,7 @@ export function ProductionRunsPage() {
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  permission="production-runs:cancel"
                   variant="destructive"
                   onSelect={() => actions.cancel(id, run.displayLabel ?? 'run')}
                 >
@@ -269,7 +276,10 @@ export function ProductionRunsPage() {
         title="Runs"
         description="Orders and batches · progress updates live"
         action={
-          <Button onClick={() => navigate('/production-runs/new')}>
+          <Button
+            permission="production-runs:create"
+            onClick={() => navigate('/production-runs/new')}
+          >
             <PlusIcon data-icon="inline-start" /> Add run
           </Button>
         }
@@ -293,68 +303,71 @@ export function ProductionRunsPage() {
             {TABS.map(({ value, label }) => (
               <TabsTrigger key={value} value={value}>
                 {label}
-                <span className="ml-1 tabular-nums opacity-70">
-                  {counts?.[value] ?? '—'}
-                </span>
+                <DataTableTabCount count={counts?.[value]} />
               </TabsTrigger>
             ))}
           </DataTableTabsList>
         </DataTableToolbar>
 
-        {runsQuery.isError && listData ? (
-          <ErrorState
-            title="Could not refresh list"
-            description="Showing previous results."
-            onRetry={() => runsQuery.refetch()}
-          />
-        ) : null}
-        {runsQuery.isLoading ? (
-          <Skeleton className="h-64 w-full" />
-        ) : runsQuery.isError && !listData ? (
-          <ErrorState
-            title="Could not load runs"
-            onRetry={() => runsQuery.refetch()}
-          />
-        ) : empty && search.trim() ? (
-          <EmptyState size="sm" title="No runs match search" />
-        ) : empty && tab !== 'Open' ? (
-          <EmptyState
-            size="sm"
-            title={tab === 'Closed' ? 'No closed runs' : 'No cancelled runs'}
-          />
-        ) : empty ? (
-          <EmptyState
-            icon={<ListChecksIcon className="size-8 text-muted-foreground" />}
-            title="No open runs"
-            description="Add a run, or send a part or assembly to the queue."
-            action={
-              <Button onClick={() => navigate('/production-runs/new')}>
-                <PlusIcon data-icon="inline-start" /> Add run
-              </Button>
-            }
-          />
-        ) : (
-          <DataTable
-            serverSorting={{
-              ...list.serverSorting,
-              disabled: runsQuery.isError,
-              pending: runsQuery.isFetching,
-            }}
-            serverPagination={{
-              page,
-              pageSize,
-              totalCount: listData?.totalCount ?? runs.length,
-              onPageChange: setPage,
-              onPageSizeChange: setPageSize,
-              disabled: runsQuery.isError,
-              pending: runsQuery.isFetching || runsQuery.isPlaceholderData,
-            }}
-            columns={columns}
-            data={runs}
-            getRowId={(row) => row.id ?? ''}
-            onRowClick={(row) => navigate(`/production-runs/${row.id}`)}
-          />
-        )}
+        <TabsContent value={tab} className="flex flex-col gap-4">
+          {runsQuery.isError && listData ? (
+            <ErrorState
+              title="Could not refresh list"
+              description="Showing previous results."
+              onRetry={() => runsQuery.refetch()}
+            />
+          ) : null}
+          {runsQuery.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : runsQuery.isError && !listData ? (
+            <ErrorState
+              title="Could not load runs"
+              onRetry={() => runsQuery.refetch()}
+            />
+          ) : empty && search.trim() ? (
+            <EmptyState size="sm" title="No runs match search" />
+          ) : empty && tab !== 'Open' ? (
+            <EmptyState
+              size="sm"
+              title={tab === 'Closed' ? 'No closed runs' : 'No cancelled runs'}
+            />
+          ) : empty ? (
+            <EmptyState
+              icon={<ListChecksIcon className="size-8 text-muted-foreground" />}
+              title="No open runs"
+              description="Add a run, or send a part or assembly to the queue."
+              action={
+                <Button
+                  permission="production-runs:create"
+                  onClick={() => navigate('/production-runs/new')}
+                >
+                  <PlusIcon data-icon="inline-start" /> Add run
+                </Button>
+              }
+            />
+          ) : (
+            <DataTable
+              serverSorting={{
+                ...list.serverSorting,
+                disabled: runsQuery.isError,
+                pending: runsQuery.isFetching,
+              }}
+              serverPagination={{
+                page,
+                pageSize,
+                totalCount: listData?.totalCount ?? runs.length,
+                onPageChange: setPage,
+                onPageSizeChange: setPageSize,
+                disabled: runsQuery.isError,
+                pending: runsQuery.isFetching || runsQuery.isPlaceholderData,
+              }}
+              columns={columns}
+              data={runs}
+              getRowId={(row) => row.id ?? ''}
+              onRowClick={(row) => navigate(`/production-runs/${row.id}`)}
+            />
+          )}
+        </TabsContent>
       </Tabs>
       {actions.cancelDialog}
     </Page>

@@ -153,7 +153,7 @@ public sealed class ListNotificationsResponse
 }
 
 /// <summary>GET /api/v1/notifications — action-required items, newest first; the 50 newest, with the total count.</summary>
-[Permission("print-jobs:view")]
+[Permission("print-jobs:view", "spools:list", "filaments:list")]
 public sealed class ListNotificationsEndpoint(IQueryHandler<ListNotificationsQuery, NotificationsPage> handler)
     : EndpointWithoutRequest<ListNotificationsResponse>
 {

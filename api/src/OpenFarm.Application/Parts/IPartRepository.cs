@@ -4,6 +4,9 @@ namespace OpenFarm.Application.Parts;
 
 public interface IPartRepository
 {
+    Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListInFolderAsync(IReadOnlyList<string> tags, int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken) =>
+        folder is null ? ListAsync(tags, page, pageSize, cancellationToken, sorting) : throw new NotSupportedException("Folder queries require a persistent repository.");
+
     Task AddAsync(Part part, CancellationToken cancellationToken);
 
     /// <summary>Adds the parts one upload was split into in one save, so all are kept or none. The default adds them one at a time, which suits in-memory stand-ins.</summary>
@@ -13,6 +16,15 @@ public interface IPartRepository
     }
 
     Task<Part?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Read-only batch for estimates; implementations need only scalar fields and filament requirements.</summary>
+    async Task<IReadOnlyList<Part>> GetForEstimatesAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken)
+    {
+        var result = new List<Part>();
+        foreach (var id in ids.Distinct())
+            if (await GetByIdAsync(id, cancellationToken) is { } part) result.Add(part);
+        return result;
+    }
 
     /// <summary><paramref name="tags"/> filters to parts carrying ALL given tag names (AND-semantics, FR of US5).</summary>
     Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(

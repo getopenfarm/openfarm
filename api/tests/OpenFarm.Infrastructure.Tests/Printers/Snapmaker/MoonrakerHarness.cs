@@ -241,6 +241,8 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
                 return (new JsonObject { ["state"] = "success", ["exceptions"] = Exceptions.DeepClone() }, null);
             case "server.files.start_local_print" when StartResult is not null:
                 return (StartResult.DeepClone(), null);
+            case "printer.gcode.script":
+                return (JsonValue.Create("ok"), null);
             case "camera.start_monitor":
                 return (new JsonObject { ["state"] = "success" }, null);
             default:

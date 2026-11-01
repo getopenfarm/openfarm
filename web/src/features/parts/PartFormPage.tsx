@@ -6,9 +6,9 @@ import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import {
@@ -29,8 +29,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
-import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { formatFileSize } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
@@ -51,6 +52,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function PartFormPage() {
+  const { folderId, location } = useLibraryLocation('parts');
   const navigate = useNavigate();
   usePartsHub();
 
@@ -91,9 +93,10 @@ export function PartFormPage() {
     needsPlate,
   } = usePartFileProcessing({
     mode: 'add',
+    folderId,
     onConfirmed: () => {
       markCleanRef.current();
-      navigate('/parts');
+      navigate(location);
     },
   });
 
@@ -138,9 +141,14 @@ export function PartFormPage() {
 
   return (
     <Page className="flex-1">
+      <LibraryItemBreadcrumb
+        library="parts"
+        folderId={folderId}
+        name="Add part"
+      />
       <PageHeader
         above={
-          <BackLink to="/parts" className="mb-1">
+          <BackLink to={location} className="mb-1">
             Back to parts
           </BackLink>
         }
@@ -179,7 +187,7 @@ export function PartFormPage() {
                           <SelectContent>
                             <SelectGroup>
                               <SelectItem value={USE_DEFAULT_SLICER}>
-                                Farm default
+                                Default
                                 {effectiveDefault
                                   ? ` (${formatSlicer(effectiveDefault.engine, effectiveDefault.version)})`
                                   : ''}
@@ -200,21 +208,6 @@ export function PartFormPage() {
                           unsliced 3MF) — ignored otherwise. The slicer uses
                           only its own profiles.
                         </p>
-                        {(() => {
-                          const [engine, version] =
-                            slicerSelection === USE_DEFAULT_SLICER
-                              ? [
-                                  effectiveDefault?.engine,
-                                  effectiveDefault?.version,
-                                ]
-                              : slicerSelection.split('::');
-                          return engine && version ? (
-                            <SlicerReadinessPanel
-                              engine={engine}
-                              version={version}
-                            />
-                          ) : null;
-                        })()}
                       </Field>
                     )}
                     <div className="flex flex-col gap-2">
@@ -317,11 +310,12 @@ export function PartFormPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => navigate('/parts')}
+                    onClick={() => navigate(location)}
                   >
                     Cancel
                   </Button>
                   <Button
+                    permission="parts:create"
                     type="submit"
                     disabled={!canConfirm || isConfirmPending}
                   >

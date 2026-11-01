@@ -1,6 +1,6 @@
 namespace OpenFarm.Application.Parts;
 
-public sealed record GetPartsQuery(IReadOnlyList<string> Tags, int Page, int PageSize, OpenFarm.Application.Common.ListSort? Sorting = null);
+public sealed record GetPartsQuery(IReadOnlyList<string> Tags, int Page, int PageSize, OpenFarm.Application.Common.ListSort? Sorting = null, string? Folder = null);
 
 public sealed record PartSummary(
     Guid Id,

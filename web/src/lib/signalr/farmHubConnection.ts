@@ -1,20 +1,19 @@
 import * as signalR from '@microsoft/signalr';
 import { apiUrl } from '@/lib/api/apiUrl';
-import { getToken } from '@/lib/auth/tokenStorage';
+import { validToken } from '@/lib/auth/session';
 
 function buildFarmHubConnection(): signalR.HubConnection {
-  return new signalR.HubConnectionBuilder()
+  const connection = new signalR.HubConnectionBuilder()
     .withUrl(new URL(apiUrl('/hubs/farm'), window.location.origin).href, {
-      accessTokenFactory: () => getToken() ?? '',
-      // Auth is via the JWT bearer token above, not cookies — disabling credentialed
-      // requests avoids requiring Access-Control-Allow-Credentials on the CORS policy.
-      withCredentials: false,
+      accessTokenFactory: async () => (await validToken()) ?? '',
+      withCredentials: true,
     })
     .withAutomaticReconnect({
       nextRetryDelayInMilliseconds: ({ previousRetryCount }) =>
         [0, 2000, 10000, 30000][Math.min(previousRetryCount, 3)],
     })
     .build();
+  return connection;
 }
 
 export interface ConnectFarmHubOptions {
@@ -44,6 +43,12 @@ export function connectFarmHub(options: ConnectFarmHubOptions = {}) {
     if (stopped || retryTimer !== undefined) return;
     retryTimer = setTimeout(() => {
       retryTimer = undefined;
+      const stopSession = () => {
+        stopped = true;
+        clearTimeout(retryTimer);
+        void startPromise.finally(() => connection.stop());
+      };
+      window.addEventListener('openfarm:logout', stopSession, { once: true });
       startPromise = start();
     }, 5000);
   };
@@ -83,12 +88,19 @@ export function connectFarmHub(options: ConnectFarmHubOptions = {}) {
     scheduleStart();
   });
 
+  const stopSession = () => {
+    stopped = true;
+    clearTimeout(retryTimer);
+    void startPromise.finally(() => connection.stop());
+  };
+  window.addEventListener('openfarm:logout', stopSession, { once: true });
   startPromise = start();
 
   return {
     connection,
     // Wait for negotiation to settle before stopping, including StrictMode cleanup.
     stop: () => {
+      window.removeEventListener('openfarm:logout', stopSession);
       stopped = true;
       clearTimeout(retryTimer);
       return startPromise.finally(() => connection.stop());

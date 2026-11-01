@@ -1,6 +1,8 @@
 import { LoaderIcon } from 'lucide-react';
+import type { PrintEstimate } from '@/lib/api/generated/endpoints.schemas';
 import { formatMinutes } from '@/lib/formatMinutes';
 import { formatGrams } from '@/lib/formatUnits';
+import { formatEstimateMetric } from '@/lib/printEstimates';
 
 /**
  * The part's filament total with start-of-print purge: the sum of its colours' grams when every colour has them,
@@ -17,6 +19,7 @@ export function filamentGrams(
 }
 
 interface PartEstimateProps {
+  estimate?: PrintEstimate | null;
   status?: string;
   minutes?: number | null;
   grams?: number | null;
@@ -28,6 +31,7 @@ interface PartEstimateProps {
 
 export function PartEstimate({
   status,
+  estimate,
   minutes,
   grams,
   size = 'inline',
@@ -41,13 +45,27 @@ export function PartEstimate({
       </span>
     );
   }
+  const timeText = estimate
+    ? formatEstimateMetric(estimate.time, 'time', !!estimate.approximate)
+    : minutes != null
+      ? formatMinutes(minutes)
+      : '—';
+  const gramsText = estimate
+    ? formatEstimateMetric(
+        estimate.filament,
+        'filament',
+        !!estimate.approximate,
+      )
+    : grams != null
+      ? formatGrams(grams)
+      : '—';
   if (size === 'lg') {
     return (
       <dl className="grid grid-cols-2 gap-4">
         <div>
           <dt className="text-xs text-muted-foreground">Print time</dt>
           <dd className="font-heading text-2xl font-semibold tabular-nums">
-            {minutes != null ? formatMinutes(minutes) : '—'}
+            {timeText}
           </dd>
         </div>
         <div>
@@ -55,7 +73,7 @@ export function PartEstimate({
             Filament{includesPurge && ' · incl. purge'}
           </dt>
           <dd className="font-heading text-2xl font-semibold tabular-nums">
-            {grams != null ? formatGrams(grams) : '—'}
+            {gramsText}
           </dd>
         </div>
       </dl>
@@ -63,8 +81,17 @@ export function PartEstimate({
   }
   return (
     <span className="font-mono text-sm">
-      {minutes != null ? formatMinutes(minutes) : 'Time unavailable'} ·{' '}
-      {grams != null ? formatGrams(grams) : 'Weight unavailable'}
+      {estimate
+        ? timeText
+        : minutes != null
+          ? formatMinutes(minutes)
+          : 'Time unavailable'}{' '}
+      ·{' '}
+      {estimate
+        ? gramsText
+        : grams != null
+          ? formatGrams(grams)
+          : 'Weight unavailable'}
     </span>
   );
 }

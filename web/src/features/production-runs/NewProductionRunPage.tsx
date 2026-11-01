@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { TrashIcon } from 'lucide-react';
+import { useRef } from 'react';
 import {
   type Control,
   useFieldArray,
@@ -11,18 +12,26 @@ import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
+import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
+import { EditorSectionHeader } from '@/components/editor-section/EditorSectionHeader';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Card,
-  CardAction,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -40,24 +49,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { Switch } from '@/components/ui/switch';
-import { useBomCatalog } from '@/features/assemblies/components/useBomCatalog';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { usePrintedTargetCatalog } from '@/features/assemblies/components/useBomCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import { useOpenFarmApiEndpointsProductionRunsCreateProductionRunEndpoint } from '@/lib/api/generated/production-runs/production-runs';
-import { formatMinutes } from '@/lib/formatMinutes';
-import { formatWeight } from '@/lib/formatUnits';
-import { pluralize } from '@/lib/pluralize';
+import { formatEstimateMetric } from '@/lib/printEstimates';
 import {
   RunDetailsFields,
   runDetailsRequest,
   runDetailsSchema,
 } from './components/RunDetailsFields';
-import { RunSlicerReadiness } from './components/RunSlicerReadiness';
+import { RunPlanPreview } from './components/RunPlanPreview';
 import { TargetPicker, TargetThumbnail } from './components/TargetPicker';
-import { type EstimateLine, useRunEstimate } from './components/useRunEstimate';
+import {
+  type EstimateLine,
+  type RunEstimate,
+  type RunLineEstimate,
+  useRunEstimate,
+} from './components/useRunEstimate';
 import { invalidateProductionQueries } from './hooks/useProductionHub';
 
 const AUTOMATIC = 'automatic';
@@ -70,29 +83,15 @@ const lineSchema = z
     targetId: z.string(),
     targetName: z.string(),
     quantity: z.string(),
-    unlimited: z.boolean(),
+    quantityBasis: z.enum(['Plates', 'Units', 'Sets']),
     printerId: z.string(),
-    cap: z.string(),
-    ceiling: z.string(),
   })
   .superRefine((line, ctx) => {
-    if (!line.unlimited && !isWhole(line.quantity, 1))
+    if (!isWhole(line.quantity, 1))
       ctx.addIssue({
         code: 'custom',
         path: ['quantity'],
         message: '1 or more.',
-      });
-    if (line.unlimited && !isWhole(line.cap, 1))
-      ctx.addIssue({ code: 'custom', path: ['cap'], message: '1 or more.' });
-    if (
-      line.unlimited &&
-      line.ceiling.trim() !== '' &&
-      !isWhole(line.ceiling, 1)
-    )
-      ctx.addIssue({
-        code: 'custom',
-        path: ['ceiling'],
-        message: '1 or more, or blank.',
       });
   });
 
@@ -103,25 +102,15 @@ const schema = runDetailsSchema.extend({
 type FormValues = z.infer<typeof schema>;
 type LineValues = FormValues['lines'][number];
 
-const toEstimateLine = (line: LineValues): EstimateLine => ({
+const toEstimateLine = (line: LineValues, lineId: string): EstimateLine => ({
+  lineId,
   targetKind: line.targetKind,
   targetId: line.targetId,
-  quantity: line.unlimited ? null : Number(line.quantity) || 0,
+  quantity: Number(line.quantity) || 0,
+  quantityBasis: line.quantityBasis,
+  assignmentMode: line.printerId === AUTOMATIC ? 'Unassigned' : 'Pinned',
+  pinnedPrinterId: line.printerId === AUTOMATIC ? null : line.printerId,
 });
-
-/** Plates this line makes, as the server rounds them: whole plates per part. */
-function LinePlates({ line }: { line: LineValues }) {
-  const estimate = useRunEstimate([toEstimateLine(line)]);
-  if (line.unlimited)
-    return (
-      <span className="text-xs text-muted-foreground">One plate at a time</span>
-    );
-  return (
-    <span className="text-xs text-muted-foreground tabular-nums">
-      {estimate.isPending ? '…' : `→ ${pluralize(estimate.plates, 'plate')}`}
-    </span>
-  );
-}
 
 function LineRow({
   control,
@@ -131,6 +120,8 @@ function LineRow({
   thumbnail,
   perPlate,
   onRemove,
+  estimate,
+  disabled,
 }: {
   control: Control<FormValues>;
   index: number;
@@ -139,9 +130,14 @@ function LineRow({
   thumbnail?: string | null;
   perPlate?: number;
   onRemove: () => void;
+  estimate?: RunLineEstimate;
+  disabled: boolean;
 }) {
   return (
-    <li className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] gap-x-3 gap-y-3 py-3 first:pt-0 last:pb-0 xl:grid-cols-[2.5rem_minmax(0,1fr)_14rem_11rem_auto] xl:items-start">
+    <li
+      aria-label={line.targetName}
+      className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] gap-x-3 gap-y-4 py-5 first:pt-0 last:pb-0"
+    >
       <TargetThumbnail kind={line.targetKind} thumbnailBase64={thumbnail} />
       <div className="min-w-0 pt-0.5">
         <span className="block truncate font-medium">{line.targetName}</span>
@@ -151,101 +147,90 @@ function LineRow({
             : `${perPlate ?? 1} per plate`}
         </span>
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="xl:order-last"
-        aria-label={`Remove ${line.targetName}`}
-        onClick={onRemove}
-      >
-        <TrashIcon />
-      </Button>
+      <DataTableRowActions label={line.targetName} disabled={disabled}>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={onRemove}>
+            <TrashIcon />
+            Remove {line.targetName}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DataTableRowActions>
 
-      {/* One row of controls under the name; on wide screens its two cells join the line's own row. */}
-      <div className="col-span-3 flex flex-wrap items-start gap-x-6 gap-y-3 pl-[3.25rem] xl:contents">
+      <FieldGroup className="col-span-3 flex flex-row flex-wrap items-start gap-4">
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-start gap-3">
-            {line.unlimited ? (
-              <div className="flex gap-2">
-                <FormField
-                  control={control}
-                  name={`lines.${index}.cap`}
-                  render={({ field }) => (
-                    <FormItem className="w-24">
-                      <FormLabel className="text-xs">
-                        Printers at once
-                      </FormLabel>
-                      <FormControl>
-                        <Input type="number" min={1} step={1} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={control}
-                  name={`lines.${index}.ceiling`}
-                  render={({ field }) => (
-                    <FormItem className="w-24">
-                      <FormLabel className="text-xs">Stop at units</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          placeholder="Never"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            ) : (
+          <div className="flex flex-wrap items-start gap-3">
+            <FormField
+              control={control}
+              name={`lines.${index}.quantity`}
+              render={({ field }) => (
+                <FormItem
+                  className="w-28"
+                  data-disabled={disabled || undefined}
+                >
+                  <FormLabel className="text-xs">
+                    {line.targetKind === 'Assembly'
+                      ? 'Sets'
+                      : line.quantityBasis === 'Plates'
+                        ? 'Plates'
+                        : 'Unit target'}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      disabled={disabled}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {line.targetKind === 'Part' && (
               <FormField
                 control={control}
-                name={`lines.${index}.quantity`}
+                name={`lines.${index}.quantityBasis`}
                 render={({ field }) => (
-                  <FormItem className="w-28">
-                    <FormLabel className="text-xs">
-                      {line.targetKind === 'Assembly' ? 'Sets' : 'Units'}
-                    </FormLabel>
+                  <FormItem data-disabled={disabled || undefined}>
+                    <FormLabel className="text-xs">Quantity basis</FormLabel>
                     <FormControl>
-                      <Input type="number" min={1} step={1} {...field} />
+                      <ToggleGroup
+                        type="single"
+                        disabled={disabled}
+                        variant="outline"
+                        value={field.value}
+                        onValueChange={(value) => {
+                          if (value) field.onChange(value);
+                        }}
+                      >
+                        <ToggleGroupItem value="Plates">Plates</ToggleGroupItem>
+                        <ToggleGroupItem value="Units">
+                          Unit target
+                        </ToggleGroupItem>
+                      </ToggleGroup>
                     </FormControl>
-                    <FormMessage />
                   </FormItem>
                 )}
               />
             )}
-            <FormField
-              control={control}
-              name={`lines.${index}.unlimited`}
-              render={({ field }) => (
-                <FormItem className="flex flex-col items-start gap-2">
-                  <FormLabel className="text-xs">Unlimited</FormLabel>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
           </div>
-          <LinePlates line={line} />
         </div>
 
         <FormField
           control={control}
           name={`lines.${index}.printerId`}
           render={({ field }) => (
-            <FormItem className="w-48 xl:w-auto">
+            <FormItem
+              className="w-48 max-w-full"
+              data-disabled={disabled || undefined}
+            >
               <FormLabel className="text-xs">Printer</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select
+                disabled={disabled}
+                value={field.value}
+                onValueChange={field.onChange}
+              >
                 <FormControl>
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -265,64 +250,127 @@ function LineRow({
             </FormItem>
           )}
         />
+      </FieldGroup>
+      <div className="col-span-3 min-w-0">
+        <RunPlanPreview
+          name={line.targetName}
+          estimate={estimate}
+          sets={
+            line.targetKind === 'Assembly' ? Number(line.quantity) : undefined
+          }
+        />
       </div>
     </li>
   );
 }
 
-function Summary({ lines }: { lines: LineValues[] }) {
-  const estimate = useRunEstimate(lines.map(toEstimateLine));
-  const unlimited = lines.filter((l) => l.unlimited).length;
-  const partIds = [
-    ...new Set(
-      lines.filter((l) => l.targetKind === 'Part').map((l) => l.targetId),
-    ),
-  ];
+function Summary({
+  lines,
+  ids,
+  estimate,
+}: {
+  lines: LineValues[];
+  ids: string[];
+  estimate: RunEstimate;
+}) {
   return (
-    <Card className="lg:sticky lg:top-4">
+    <Card className="min-w-0 xl:sticky xl:top-4">
       <CardHeader>
         <CardTitle>Summary</CardTitle>
+        <CardDescription>
+          What this run will make and send to the queue.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3 text-sm">
+      <CardContent className="flex flex-col gap-4 text-sm">
         {lines.length === 0 ? (
-          <p className="text-muted-foreground">Add a part or assembly.</p>
+          <EmptyState
+            size="sm"
+            bordered={false}
+            title="Nothing planned yet"
+            description="Add a part or assembly to see production totals."
+          />
         ) : (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 tabular-nums">
-            <dt className="text-muted-foreground">Plates</dt>
-            <dd className="text-right font-medium">{estimate.plates}</dd>
-            <dt className="text-muted-foreground">Units</dt>
-            <dd className="text-right font-medium">{estimate.units}</dd>
-            <dt className="text-muted-foreground">Machine time</dt>
-            <dd className="text-right font-medium">
-              ≈ {formatMinutes(estimate.minutes)}
-              {estimate.unestimated > 0 && '+'}
-            </dd>
-            <dt className="text-muted-foreground">Filament</dt>
-            <dd className="text-right font-medium">
-              ≈ {formatWeight(estimate.grams)}
-            </dd>
-          </dl>
+          <>
+            <ul className="flex flex-col gap-2" aria-label="Requested targets">
+              {lines.map((line, index) => (
+                <li key={ids[index]} className="flex justify-between gap-4">
+                  <span className="min-w-0 break-words">{line.targetName}</span>
+                  <span className="shrink-0 tabular-nums">
+                    {line.quantity || '—'}{' '}
+                    {line.quantityBasis === 'Sets'
+                      ? 'sets'
+                      : line.quantityBasis === 'Plates'
+                        ? 'plates'
+                        : 'units'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div aria-live="polite" aria-busy={estimate.isPending}>
+              {estimate.isError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    Production totals are unavailable. Retry the item previews
+                    to continue.
+                  </AlertDescription>
+                </Alert>
+              ) : estimate.isInvalid ? (
+                <Alert>
+                  <AlertDescription>
+                    Enter a valid quantity for every item to see production
+                    totals.
+                  </AlertDescription>
+                </Alert>
+              ) : !estimate.isReady ? (
+                <div role="status">
+                  <span className="sr-only">Updating production totals…</span>
+                  <Skeleton className="h-28 w-full" />
+                </div>
+              ) : (
+                <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 tabular-nums">
+                  <dt className="text-muted-foreground">Plates</dt>
+                  <dd className="text-right font-medium">{estimate.plates}</dd>
+                  <dt className="text-muted-foreground">
+                    Printed component units
+                  </dt>
+                  <dd className="text-right font-medium">{estimate.units}</dd>
+                  <dt className="text-muted-foreground">Machine time</dt>
+                  <dd className="text-right font-medium">
+                    {formatEstimateMetric(estimate.time, 'time')}
+                  </dd>
+                  <dt className="text-muted-foreground">Filament</dt>
+                  <dd className="text-right font-medium">
+                    {formatEstimateMetric(estimate.filament, 'filament')}
+                  </dd>
+                </dl>
+              )}
+            </div>
+            {estimate.isReady &&
+              ((estimate.time?.missing ?? 0) > 0 ||
+                (estimate.filament?.missing ?? 0) > 0) && (
+                <p className="text-muted-foreground">
+                  Estimates exclude components with missing data. Machine time
+                  is the combined printing time, not a completion date.
+                </p>
+              )}
+            {estimate.isReady && estimate.approximate && (
+              <p className="text-muted-foreground">
+                Partial-plate estimates are proportional approximations.
+                Startup, purge, and travel may not scale linearly.
+              </p>
+            )}
+          </>
         )}
-        {unlimited > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {pluralize(unlimited, 'unlimited line')} not counted: they fill idle
-            printers one plate at a time and use the latest part file.
-          </p>
-        )}
-        {estimate.unestimated > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {pluralize(estimate.unestimated, 'part')} without a time estimate.
-          </p>
-        )}
-        <RunSlicerReadiness partIds={partIds} />
       </CardContent>
     </Card>
   );
 }
 
-/** Page-first add (docs/UI_CONVENTIONS.md): details, the lines to make, and a live summary of what they queue. */
+/** One draft: production targets first, optional details, and a shared live server plan. */
 export function NewProductionRunPage() {
   const navigate = useNavigate();
+  const submission = useRef({ key: '', id: '' });
+  const submitting = useRef(false);
   const queryClient = useQueryClient();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -333,10 +381,16 @@ export function NewProductionRunPage() {
     name: 'lines',
   });
   const lines = useWatch({ control: form.control, name: 'lines' }) ?? [];
+  const preview = useRunEstimate(
+    fields.map((field, index) =>
+      toEstimateLine(lines[index] ?? field, field.id),
+    ),
+  );
+  const pickerRef = useRef<HTMLButtonElement>(null);
   const printers =
     useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data?.printers ??
     [];
-  const catalog = useBomCatalog();
+  const catalog = usePrintedTargetCatalog();
   const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
     form.formState.isDirty,
   );
@@ -344,23 +398,26 @@ export function NewProductionRunPage() {
     useOpenFarmApiEndpointsProductionRunsCreateProductionRunEndpoint();
 
   async function onSubmit(values: FormValues) {
+    if (!preview.isReady || submitting.current) return;
+    submitting.current = true;
     try {
+      const key = JSON.stringify(values);
+      if (submission.current.key !== key)
+        submission.current = { key, id: crypto.randomUUID() };
       const created = await create.mutateAsync({
         data: {
           ...runDetailsRequest(values),
-          lines: values.lines.map((line) => ({
+          submissionId: submission.current.id,
+          lines: values.lines.map((line, index) => ({
             targetKind: line.targetKind,
             targetId: line.targetId,
-            quantity: line.unlimited ? null : Number(line.quantity),
+            quantity: Number(line.quantity),
+            quantityBasis: line.quantityBasis,
+            planVersion: preview.byLine.get(fields[index].id)?.plan?.version,
             assignmentMode:
               line.printerId === AUTOMATIC ? 'Unassigned' : 'Pinned',
             pinnedPrinterId:
               line.printerId === AUTOMATIC ? null : line.printerId,
-            ...(line.unlimited && {
-              backfillPrinterCap: Number(line.cap),
-              backfillCumulativeUnitCeiling:
-                line.ceiling.trim() === '' ? null : Number(line.ceiling),
-            }),
           })),
         },
       });
@@ -370,6 +427,9 @@ export function NewProductionRunPage() {
       navigate(`/production-runs/${created.data?.id}`);
     } catch (error) {
       toast.error(await extractErrorDetail(error, 'Could not add run.'));
+      await preview.refetch();
+    } finally {
+      submitting.current = false;
     }
   }
 
@@ -392,41 +452,38 @@ export function NewProductionRunPage() {
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-1 flex-col gap-6"
         >
-          <div className="grid flex-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="grid flex-1 items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <div className="flex min-w-0 flex-col gap-6">
-              <RunDetailsFields control={form.control} />
               <Card>
-                <CardHeader>
-                  <CardTitle>Lines</CardTitle>
-                  <CardAction>
+                <EditorSectionHeader
+                  title="Items to make"
+                  count={fields.length}
+                  description="Choose parts in units or plates, and assemblies in complete sets."
+                  action={
                     <TargetPicker
+                      shortcuts
+                      triggerRef={pickerRef}
+                      disabled={create.isPending}
                       onPick={(target) =>
                         append({
                           targetKind: target.kind,
                           targetId: target.id,
                           targetName: target.name,
-                          quantity:
-                            target.kind === 'Part'
-                              ? String(
-                                  catalog.parts.find((p) => p.id === target.id)
-                                    ?.unitsPerPrint ?? 1,
-                                )
-                              : '1',
-                          unlimited: false,
+                          quantity: '1',
+                          quantityBasis:
+                            target.kind === 'Assembly' ? 'Sets' : 'Units',
                           printerId: AUTOMATIC,
-                          cap: '1',
-                          ceiling: '',
                         })
                       }
                     />
-                  </CardAction>
-                </CardHeader>
-                <CardContent>
+                  }
+                />
+                <CardContent className="flex min-w-0 flex-col gap-5">
                   {fields.length === 0 ? (
                     <EmptyState
                       size="sm"
                       bordered={false}
-                      title="No lines"
+                      title="No items yet"
                       description="Add the parts and assemblies this run makes."
                     />
                   ) : (
@@ -445,7 +502,14 @@ export function NewProductionRunPage() {
                             printers={printers}
                             thumbnail={part?.thumbnailBase64}
                             perPlate={part?.unitsPerPrint}
-                            onRemove={() => remove(index)}
+                            disabled={create.isPending}
+                            estimate={preview.byLine.get(field.id)}
+                            onRemove={() => {
+                              remove(index);
+                              requestAnimationFrame(() =>
+                                pickerRef.current?.focus(),
+                              );
+                            }}
                           />
                         );
                       })}
@@ -458,8 +522,17 @@ export function NewProductionRunPage() {
                   )}
                 </CardContent>
               </Card>
+              <RunDetailsFields
+                control={form.control}
+                optional
+                disabled={create.isPending}
+              />
             </div>
-            <Summary lines={lines} />
+            <Summary
+              lines={lines}
+              ids={fields.map((field) => field.id)}
+              estimate={preview}
+            />
           </div>
 
           <FormFooter
@@ -468,11 +541,18 @@ export function NewProductionRunPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={create.isPending}
                   onClick={() => navigate('/production-runs')}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={create.isPending}>
+                <Button
+                  permission="production-runs:create"
+                  type="submit"
+                  disabled={
+                    create.isPending || (fields.length > 0 && !preview.isReady)
+                  }
+                >
                   {create.isPending && <Spinner data-icon="inline-start" />}
                   {create.isPending ? 'Adding…' : 'Add run'}
                 </Button>

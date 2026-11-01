@@ -113,13 +113,26 @@ describe('AppShell', () => {
     const user = userEvent.setup();
     renderShell();
 
-    await user.click(await screen.findByRole('button', { name: /admin/ }));
+    await user.click(await screen.findByRole('button', { name: 'User menu' }));
     expect(screen.getAllByText('admin@openfarm.local').length).toBeGreaterThan(
       0,
     );
-    await user.click(screen.getByRole('menuitem', { name: 'Log out' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Sign out' }));
 
     expect(await screen.findByText('Login screen')).toBeInTheDocument();
+  });
+
+  it('opens the user menu only from the … button, not the user card', async () => {
+    const user = userEvent.setup();
+    renderShell();
+
+    const menuButton = await screen.findByRole('button', { name: 'User menu' });
+    await user.click(screen.getByText('admin@openfarm.local'));
+    expect(screen.queryByRole('menuitem', { name: 'Sign out' })).toBeNull();
+    await user.click(menuButton);
+    expect(
+      screen.getByRole('menuitem', { name: 'Sign out' }),
+    ).toBeInTheDocument();
   });
 
   it('collapses and expands the sidebar from the bottom button', async () => {

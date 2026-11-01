@@ -18,6 +18,8 @@
   --color-kind-zinc: var(--kind-zinc);
   --color-kind-green: var(--kind-green);
   --color-kind-amber: var(--kind-amber);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
   --color-kind-orange: var(--kind-orange);
   --color-kind-red: var(--kind-red);
   --color-kind-violet: var(--kind-violet);
@@ -122,6 +124,10 @@
   --kind-blue: #0369a1;
   --kind-orange: #9a3412;
 
+  /* explicit abilities and "handle with care" marks (Akaun parity) */
+  --amber: oklch(0.62 0.16 58);
+  --amber-soft: oklch(0.62 0.16 58 / 0.14);
+
   /* stats charts — fills, not text: print outcomes (status steps) and printer time (the printer-status hues, in an
      order validated for color-vision deficiency with adjacent segments; dataviz validate_palette.js) */
   --chart-completed: #0ca30c;
@@ -182,6 +188,8 @@
   --kind-violet: #c4b5fd;
   --kind-blue: #7dd3fc;
   --kind-orange: #fdba74;
+  --amber: oklch(0.79 0.14 70);
+  --amber-soft: oklch(0.79 0.14 70 / 0.16);
   --chart-printing: #3987e5;
   --chart-awaiting-clear: #c98500;
   --chart-paused: #9085e9;

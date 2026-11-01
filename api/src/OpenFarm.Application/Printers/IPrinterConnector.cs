@@ -33,7 +33,8 @@ public sealed record PrinterTelemetrySnapshot(
     string? CurrentGcodeFile = null,
     IReadOnlyList<decimal?>? NozzleDiametersMm = null,
     IReadOnlyList<decimal?>? ExtruderTempsC = null,
-    IReadOnlyList<ExtruderReading>? Extruders = null);
+    IReadOnlyList<ExtruderReading>? Extruders = null,
+    IReadOnlyList<string>? ExcludedObjectIds = null);
 
 /// <summary>
 /// One inbound message from a printer's live connection, already parsed into domain-shaped data —
@@ -83,6 +84,29 @@ public interface IPrinterConnector
     /// <param name="plate">The plate of a 3MF project to print (<c>Metadata/plate_&lt;n&gt;.gcode</c>); 1 for bare G-code.</param>
     /// <param name="feedMapping">Which feed each of the file's filaments uses; null keeps the printer's default (the external spool).</param>
     Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken);
+
+    Task StartSelectedJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate,
+        FilamentFeedMapping? feedMapping, IReadOnlyList<string> excludedObjects, CancellationToken cancellationToken) =>
+        excludedObjects.Count == 0 ? StartJobAsync(details, fileContent, jobName, plate, feedMapping, cancellationToken)
+            : throw new NotSupportedException("This connector cannot exclude objects at print start.");
+
+    Task StartSelectedJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate,
+        FilamentFeedMapping? feedMapping, IReadOnlyList<string> excludedObjects, IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken) =>
+        excludedObjects.Count == 0 ? StartJobAsync(details, fileContent, jobName, plate, feedMapping, progress, cancellationToken)
+            : StartSelectedJobAsync(details, fileContent, jobName, plate, feedMapping, excludedObjects, cancellationToken);
+
+    Task SkipObjectsAsync(PrinterConnectionDetails details, IReadOnlyList<string> objectIds, CancellationToken ct) =>
+        throw new NotSupportedException("This connector cannot skip objects.");
+
+
+    /// <summary>
+    /// <see cref="StartJobAsync(PrinterConnectionDetails, Stream, string, int, FilamentFeedMapping?, CancellationToken)"/>, reporting
+    /// how far the send is (<see cref="PrintSendStage.Uploading"/> with a percent, then <see cref="PrintSendStage.Starting"/>).
+    /// A connector that cannot tell sends without reporting.
+    /// </summary>
+    Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
+        IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken) =>
+        StartJobAsync(details, fileContent, jobName, plate, feedMapping, cancellationToken);
 
     /// <summary>
     /// Requests the printer pause its current print. A request, not a status change — see

@@ -47,7 +47,7 @@ public sealed class EditPartRequestValidator : AbstractValidator<EditPartRequest
 }
 
 /// <summary>PUT /api/v1/parts/{id} — name, tags, units per print and filament narrowing in one all-or-nothing save.</summary>
-[Permission("parts:replace-file")]
+[Permission("parts:edit")]
 public sealed class EditPartEndpoint(EditPartHandler handler, IQueryHandler<GetPartQuery, PartDetail?> getPart)
     : Endpoint<EditPartRequest, PartResponse>
 {

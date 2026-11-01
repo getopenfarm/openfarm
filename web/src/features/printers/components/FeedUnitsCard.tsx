@@ -5,14 +5,12 @@ import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { Spinner } from '@/components/ui/spinner';
 import { useFilamentCatalog } from '@/features/filament/data/useFilamentCatalog';
 import { FillMeter } from '@/features/spools/components/FillMeter';
@@ -314,12 +312,16 @@ function FeedUnitGroup({
           >
             <DropdownMenuGroup>
               {isReloader && (
-                <DropdownMenuItem onSelect={() => setConfigureOpen(true)}>
+                <DropdownMenuItem
+                  permission="feed-units:configure"
+                  onSelect={() => setConfigureOpen(true)}
+                >
                   Edit reloader
                 </DropdownMenuItem>
               )}
               {canRemove && (
                 <DropdownMenuItem
+                  permission="feed-units:remove"
                   variant="destructive"
                   onSelect={() => setRemoveOpen(true)}
                 >

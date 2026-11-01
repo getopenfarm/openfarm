@@ -105,14 +105,21 @@ describe('httpClient', () => {
 
     it('clears the stored token and redirects to /login', async () => {
       setToken('a-stale-token');
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)));
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(jsonResponse({}, 401))
+          .mockResolvedValueOnce(jsonResponse({ token: 'csrf' }))
+          .mockResolvedValueOnce(jsonResponse({}, 401)),
+      );
 
       await expect(httpClient('/api/v1/printers')).rejects.toMatchObject({
         status: 401,
       });
 
       expect(getToken()).toBeNull();
-      expect(assignSpy).toHaveBeenCalledWith('/login');
+      expect(assignSpy).toHaveBeenCalledWith('/login?returnTo=%2Fprinters');
     });
 
     it('does not redirect again when already on /login', async () => {

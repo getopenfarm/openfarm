@@ -1,90 +1,88 @@
 import { useQueries } from '@tanstack/react-query';
-import { rollUp } from '@/features/assemblies/components/bomRollup';
-import { getOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointQueryOptions } from '@/lib/api/generated/assemblies/assemblies';
-import type { PartResponse } from '@/lib/api/generated/endpoints.schemas';
-import { getOpenFarmApiEndpointsPartsGetPartEndpointQueryOptions } from '@/lib/api/generated/parts/parts';
+import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
+import { sumPrintEstimates } from '@/lib/printEstimates';
+import { demandKey, type PlanLine, previewPlan } from './productionPlanner';
 
 export type RunTargetKind = 'Part' | 'Assembly';
+export type EstimateLine = PlanLine & { lineId: string };
 
-export interface EstimateLine {
-  targetKind: RunTargetKind;
-  targetId: string;
-  /** null = unlimited: no plates up front, so nothing to estimate. */
-  quantity: number | null;
-}
-
-/**
- * What finite lines will queue, as the server makes it: each line's parts round up to whole plates (lines are not
- * pooled), from the parts' own per-plate estimates. Only the parts the lines use are fetched, one cached query each.
- * `unestimated` counts parts with no time estimate.
- */
+/** One observer per line; identity is kept even when another line is invalid or unresolved. */
 export function useRunEstimate(lines: EstimateLine[]) {
-  const assemblyIds = [
-    ...new Set(
-      lines.filter((l) => l.targetKind === 'Assembly').map((l) => l.targetId),
-    ),
+  const inputs = lines.map(({ lineId: _lineId, ...line }) => line);
+  const keys = inputs.map((line) => JSON.stringify(line));
+  const unique = [
+    ...new Map(inputs.map((line, index) => [keys[index], line])).entries(),
   ];
-  const explosions = useQueries({
-    queries: assemblyIds.map((id) =>
-      getOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointQueryOptions(id, {
-        quantity: 1,
-      }),
-    ),
+  const queries = useQueries({
+    queries: unique.map(([, line]) => ({
+      queryKey: [demandKey, 'preview', line],
+      queryFn: async ({ signal }: { signal: AbortSignal }) => {
+        try {
+          return await previewPlan(line, undefined, signal);
+        } catch (error) {
+          throw new Error(
+            await extractErrorDetail(
+              error,
+              error instanceof Error
+                ? error.message
+                : 'Check quantities and print requirements, then retry.',
+            ),
+          );
+        }
+      },
+      enabled: Number.isInteger(line.quantity) && (line.quantity ?? 0) > 0,
+      staleTime: 0,
+    })),
   });
-  const byAssembly = new Map(
-    assemblyIds.map((id, i) => [id, explosions[i]?.data?.data || undefined]),
+  const byLine = new Map(
+    lines.map((line, index) => {
+      const query = queries[unique.findIndex(([key]) => key === keys[index])];
+      const valid = Number.isInteger(line.quantity) && (line.quantity ?? 0) > 0;
+      return [
+        line.lineId,
+        {
+          valid,
+          plan:
+            valid && query.isSuccess && !query.isFetching
+              ? query.data
+              : undefined,
+          isPending: valid && (query.isPending || query.isFetching),
+          isError: valid && query.isError,
+          error: query.error,
+          refetch: query.refetch,
+        },
+      ] as const;
+    }),
   );
-  const partIds = [
-    ...new Set([
-      ...lines.filter((l) => l.targetKind === 'Part').map((l) => l.targetId),
-      ...[...byAssembly.values()].flatMap(
-        (e) => e?.printedParts?.map((p) => p.partId ?? '') ?? [],
-      ),
-    ]),
-  ].filter(Boolean);
-  const partQueries = useQueries({
-    queries: partIds.map((id) =>
-      getOpenFarmApiEndpointsPartsGetPartEndpointQueryOptions(id),
-    ),
-  });
-  const parts = new Map<string, PartResponse>();
-  partIds.forEach((id, i) => {
-    const part = partQueries[i]?.data?.data as PartResponse | undefined;
-    if (part?.id) parts.set(id, part);
-  });
-
-  let plates = 0;
-  let units = 0;
-  let minutes = 0;
-  let grams = 0;
-  let unestimated = 0;
-  for (const line of lines) {
-    if (line.quantity == null || !(line.quantity > 0)) continue;
-    const { parts: needs } = rollUp(
-      [{ ...line, quantity: line.quantity }],
-      byAssembly,
-    );
-    for (const [partId, need] of needs) {
-      const part = parts.get(partId);
-      const perPlate = Math.max(1, part?.unitsPerPrint ?? 1);
-      const count = Math.ceil(need / perPlate);
-      plates += count;
-      units += count * perPlate;
-      if (part?.estimatedPrintTimeMinutes == null) unestimated++;
-      minutes += count * (part?.estimatedPrintTimeMinutes ?? 0);
-      grams += count * (part?.estimatedFilamentWeightGrams ?? 0);
-    }
-  }
-
+  const states = [...byLine.values()];
+  const plans = states.flatMap((state) => (state.plan ? [state.plan] : []));
+  const components = plans.flatMap((plan) => plan.parts);
+  const total = sumPrintEstimates(plans.map((plan) => plan.estimate));
   return {
-    plates,
-    units,
-    minutes,
-    grams,
-    unestimated,
-    isPending:
-      explosions.some((q) => q.isPending) ||
-      partQueries.some((q) => q.isPending),
-    parts,
+    byLine,
+    plates: plans.reduce((sum, plan) => sum + plan.plates, 0),
+    units: components.reduce((sum, part) => sum + part.plannedUnits, 0),
+    time: total.time,
+    filament: total.filament,
+    approximate: total.approximate,
+    partIds: [...new Set(components.map((part) => part.partId))],
+    isReady: states.length > 0 && states.every((state) => !!state.plan),
+    isInvalid: states.some((state) => !state.valid),
+    isPending: states.some((state) => state.isPending),
+    isError: states.some((state) => state.isError),
+    refetch: () =>
+      Promise.all(
+        queries
+          .filter(
+            (_, index) =>
+              Number.isInteger(unique[index][1].quantity) &&
+              (unique[index][1].quantity ?? 0) > 0,
+          )
+          .map((query) => query.refetch()),
+      ),
   };
 }
+
+export type RunEstimate = ReturnType<typeof useRunEstimate>;
+export type RunLineEstimate =
+  RunEstimate['byLine'] extends Map<string, infer T> ? T : never;

@@ -7,12 +7,22 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Infrastructure.Printers;
 using OpenFarm.Infrastructure.Printers.Snapmaker;
 
 namespace OpenFarm.Infrastructure.Tests.Printers.Snapmaker;
 
 public class SnapmakerU1ConnectorTests
 {
+    [Fact]
+    public async Task LiveSkipping_SendsNamedExclusionsThroughMoonraker()
+    {
+        await using var harness = new MoonrakerHarness();
+        await harness.CreateConnector().SkipObjectsAsync(harness.Details(), ["PART_A", "PART_B"], CancellationToken.None);
+        var request = await harness.NextRequestAsync("printer.gcode.script");
+        request.Params!["script"]!.GetValue<string>().Should().Be("EXCLUDE_OBJECT NAME=PART_A\nEXCLUDE_OBJECT NAME=PART_B");
+    }
+
     [Fact]
     public async Task Verify_AU1_WithOrWithoutItsSerial_Succeeds()
     {
@@ -261,6 +271,20 @@ public class SnapmakerU1ConnectorTests
     private static EventStream Stream(MoonrakerHarness harness, PrinterConnectionDetails details) => new(harness.CreateConnector(), details);
 
     /// <summary>Reads a connector's event stream on a background task, so a test can await specific events with a deadline.</summary>
+    [Fact]
+    public async Task UploadContent_ReportsTheShareWrittenUpToAll()
+    {
+        var reports = new List<PrintSendProgress>();
+        using var content = new SnapmakerU1Connector.UploadContent(new byte[150 * 1024], new InlineProgress<PrintSendProgress>(reports.Add));
+        using var sink = new MemoryStream();
+
+        await content.CopyToAsync(sink);
+
+        sink.Length.Should().Be(150 * 1024);
+        reports.Select(r => r.Percent).Should().Equal(42, 85, 100);
+        reports.Should().OnlyContain(r => r.Stage == PrintSendStage.Uploading);
+    }
+
     private sealed class EventStream : IAsyncDisposable
     {
         private readonly CancellationTokenSource _cts = new();

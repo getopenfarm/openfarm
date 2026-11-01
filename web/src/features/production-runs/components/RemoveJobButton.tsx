@@ -3,7 +3,7 @@ import { Trash2Icon } from 'lucide-react';
 import { type RefObject, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
-import { Button } from '@/components/ui/button';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Spinner } from '@/components/ui/spinner';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import { useOpenFarmApiEndpointsPrintJobsCancelPrintJobEndpoint } from '@/lib/api/generated/print-jobs/print-jobs';
@@ -53,6 +53,7 @@ export function RemoveJobButton({
     <>
       {!hideTrigger && (
         <Button
+          permission="print-jobs:cancel"
           type="button"
           variant={compact ? 'ghost' : 'destructive'}
           size={compact ? 'sm' : 'default'}

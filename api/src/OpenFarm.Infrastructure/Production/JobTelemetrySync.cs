@@ -107,6 +107,8 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
         DateTimeOffset? endedAtUtc = unseenSinceUtc is { } lastHeard
             ? PrintEnd.Infer(outcome, lastHeard, printer?.RemainingTimeMinutes, DateTimeOffset.UtcNow)
             : null;
+        if (outcome == PrintJobStatus.Completed && unseenSinceUtc is not null && print is PrintJob { ObjectExecution: { } interrupted } interruptedJob)
+            interruptedJob.RecordObjectExecution(interrupted with { Observed = false, RequestError = "Confirm the finished units after the interrupted printer connection." });
         switch (outcome)
         {
             case PrintJobStatus.Completed: print.MarkCompleted(endedAtUtc); break;
@@ -114,6 +116,28 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
             default: print.MarkFailed(reason: "The printer reported a failed print.", endedAtUtc); break;
         }
 
+        if (print is PrintJob { ObjectExecution: { ArtifactPath: not null } execution } objectJob)
+        {
+            try
+            {
+                var storage = services.GetRequiredService<OpenFarm.Application.Parts.IPartFileStorage>();
+                await using var retained = await storage.OpenReadAsync(execution.ArtifactPath, cancellationToken);
+                using var buffer = new MemoryStream();
+                await retained.CopyToAsync(buffer, cancellationToken);
+                if (ObjectExecutionArtifact.Hash(buffer.ToArray()) != execution.ArtifactHash)
+                    throw new IOException("Retained execution artifact checksum changed.");
+                var usage = JobFilamentUsageReader.ReadForExecution(buffer.ToArray(), execution.Manifest.Plate, execution);
+                var lines = JobFilamentUsageMatcher.Match(objectJob.Filaments.Select(f => (f.MaterialType, f.DetectedColorHex)).ToArray(), usage.Usages);
+                objectJob.BindFilamentUsage(objectJob.Filaments.OrderBy(f => f.ToolIndex).Select((f, i) => (f.SpoolId, lines[i].Grams,
+                    FilamentUsageCurve.FromExtrusion(usage.Extrusion.Marks, lines[i].Tools.Where(usage.Extrusion.Tools.ContainsKey).Select(t => usage.Extrusion.Tools[t])))).ToArray());
+            }
+            catch (Exception ex) when (ex is IOException or System.Xml.XmlException)
+            {
+                // Retain the last known estimate; an unavailable artifact must never wedge terminal telemetry.
+                await services.GetRequiredService<IActivityLogWriter>().WriteAsync(ActivityLogEntry.Create(
+                    "PrintJob", objectJob.Id.ToString(), "ObjectFilamentEstimateUnavailable", null, ActorType.System), cancellationToken);
+            }
+        }
         await DeductFilamentAsync(print, printerId, cancellationToken);
         await SaveAndPublishAsync(jobRepository, print, cancellationToken);
 

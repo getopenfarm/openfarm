@@ -12,10 +12,12 @@ public sealed class PartRequirementRepository(OpenFarmDbContext dbContext) : IPa
 
     internal IQueryable<PartRequirement> GetBlockingReferences(Guid partId) =>
         from requirement in dbContext.PartRequirements
-        join line in dbContext.RunLines on requirement.RunLineId equals line.Id
-        join run in dbContext.ProductionRuns on line.ProductionRunId equals run.Id
+        join line in dbContext.ProductionDemands on requirement.RunLineId equals line.Id
+        join owner in dbContext.ProductionRuns on line.ProductionRunId equals owner.Id into owners
+        from run in owners.DefaultIfEmpty()
         where requirement.PartId == partId && (
-            line.Quantity == null && (run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)
+            line.Mode == DemandMode.Backfill && line.State != DemandState.Removed && requirement.RecipeActive
+                && (run == null || run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)
             || dbContext.PrintJobs.Any(j => j.PartRequirementId == requirement.Id && j.ProductionSnapshotJson == null
                 && j.Status != PrintJobStatus.Cancelled && j.Status != PrintJobStatus.Failed && j.Status != PrintJobStatus.Completed))
         select requirement;
@@ -35,7 +37,7 @@ public sealed class PartRequirementRepository(OpenFarmDbContext dbContext) : IPa
     public Task<IReadOnlyList<PartRequirement>> ListByProductionRunIdAsync(Guid productionRunId, CancellationToken cancellationToken) =>
         ToListAsync(
             from requirement in dbContext.PartRequirements
-            join line in dbContext.RunLines on requirement.RunLineId equals line.Id
+            join line in dbContext.ProductionDemands on requirement.RunLineId equals line.Id
             where line.ProductionRunId == productionRunId
             select requirement,
             cancellationToken);

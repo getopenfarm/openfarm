@@ -19,7 +19,8 @@ import type {
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { httpClient } from '../../httpClient';
 import type {
   AddRunLinesRequest,

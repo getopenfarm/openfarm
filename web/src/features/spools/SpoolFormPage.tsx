@@ -7,9 +7,9 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FieldGroup, FieldLegend, FieldSet } from '@/components/ui/field';
 import {
@@ -307,6 +307,7 @@ export function SpoolFormPage() {
             {!rfidId && (
               <div className="flex max-w-3xl flex-col gap-2">
                 <Button
+                  permission="spools:register"
                   type="button"
                   variant="outline"
                   className="self-start"
@@ -356,7 +357,11 @@ export function SpoolFormPage() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={registerMutation.isPending}>
+                  <Button
+                    permission="spools:override-weight"
+                    type="submit"
+                    disabled={registerMutation.isPending}
+                  >
                     {registerMutation.isPending && (
                       <Spinner data-icon="inline-start" />
                     )}

@@ -1,5 +1,8 @@
 import { ChartColumnIcon } from 'lucide-react';
-import { serverListQueryOptions } from '@/components/data-table/useServerListState';
+import {
+  serverListQueryOptions,
+  useRetainedListData,
+} from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -67,7 +70,9 @@ export function MaterialsReportTable({
     filamentId ? { ...range, filamentId } : range,
     { query: serverListQueryOptions },
   );
-  const report = query.data?.status === 200 ? query.data.data : undefined;
+  const report = useRetainedListData(
+    query.data?.status === 200 ? query.data.data : undefined,
+  );
   const rows = report?.rows ?? [];
 
   if (query.isLoading) return <Skeleton className="h-40 w-full" />;
@@ -79,6 +84,13 @@ export function MaterialsReportTable({
       />
     );
   }
+  if (query.isError && rows.length === 0)
+    return (
+      <ErrorState
+        title="Could not refresh report"
+        onRetry={() => query.refetch()}
+      />
+    );
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -92,6 +104,13 @@ export function MaterialsReportTable({
       className="flex flex-col gap-2"
       aria-busy={query.isFetching || undefined}
     >
+      {query.isError && (
+        <ErrorState
+          title="Could not refresh report"
+          description="Showing previous results."
+          onRetry={() => query.refetch()}
+        />
+      )}
       <div className="overflow-hidden rounded-md border">
         <Table
           aria-label={filamentId ? 'Filament by color' : 'Filament by material'}

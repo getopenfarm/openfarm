@@ -10,7 +10,7 @@ namespace OpenFarm.Infrastructure.Production;
 
 /// <summary>
 /// Implements <see cref="IProductionRunRepository"/>, mirroring <c>AssemblyRepository</c>'s shape.
-/// <see cref="AddAsync"/> only stages the run (and its cascaded <see cref="RunLine"/>s) — it does
+/// <see cref="AddAsync"/> only stages the run (and its cascaded <see cref="ProductionDemand"/>s) — it does
 /// NOT save, since creating a run also stages <see cref="PartRequirement"/>s and <see cref="PrintJob"/>s
 /// through the sibling repositories in the same command (data-model.md), all committed together by one
 /// <see cref="SaveChangesAsync"/> call sharing this same scoped <see cref="OpenFarmDbContext"/>.
@@ -29,10 +29,10 @@ public sealed class ProductionRunRepository(OpenFarmDbContext dbContext) : IProd
     public Task<ProductionRun?> GetByRunLineIdAsync(Guid runLineId, CancellationToken cancellationToken) =>
         dbContext.ProductionRuns.Include(r => r.Lines).FirstOrDefaultAsync(r => r.Lines.Any(l => l.Id == runLineId), cancellationToken);
 
-    public async Task<IReadOnlyList<RunLine>> ListLinesPinnedToAsync(Guid printerId, CancellationToken cancellationToken) =>
-        await dbContext.RunLines.Where(l => l.DefaultPinnedPrinterId == printerId).ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<ProductionDemand>> ListLinesPinnedToAsync(Guid printerId, CancellationToken cancellationToken) =>
+        await dbContext.ProductionDemands.Where(l => l.DefaultPinnedPrinterId == printerId).ToListAsync(cancellationToken);
 
-    public void TrackNewLines(IReadOnlyList<RunLine> lines) => dbContext.RunLines.AddRange(lines);
+    public void TrackNewLines(IReadOnlyList<ProductionDemand> lines) => dbContext.ProductionDemands.AddRange(lines);
 
     public async Task<(IReadOnlyList<ProductionRun> Runs, int TotalCount, IReadOnlyDictionary<string, int> StatusCounts)> ListAsync(
         int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null,
@@ -115,7 +115,7 @@ public sealed class ProductionRunRepository(OpenFarmDbContext dbContext) : IProd
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = dbContext.Database.CurrentTransaction is null ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var sourceIds = dbContext.ChangeTracker.Entries<PartRequirement>()
             .Where(e => e.State == EntityState.Added).Select(e => e.Entity.PartId).Distinct().Order().ToList();
         foreach (var id in sourceIds)
@@ -127,7 +127,7 @@ public sealed class ProductionRunRepository(OpenFarmDbContext dbContext) : IProd
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException ex)
         {

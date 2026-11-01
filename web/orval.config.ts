@@ -16,7 +16,10 @@ export default defineConfig({
       },
     },
     hooks: {
-      afterAllFilesWrite: 'biome check --write ./src/lib/api/generated',
+      afterAllFilesWrite: [
+        'python3 ../tools/generate-query-permissions.py',
+        'biome check --write ./src/lib/api/generated ./src/lib/auth/apiPermissions.generated.ts',
+      ],
     },
   },
 });

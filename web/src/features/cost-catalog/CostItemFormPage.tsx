@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2Icon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -9,10 +9,10 @@ import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Field,
@@ -31,6 +31,7 @@ import type {
   CostItemResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
+import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { catalogKey } from './api';
 import { Choice, DimensionFields, NumberField, UnitSelect } from './CostFields';
 import { CostIconPicker } from './CostIconPicker';
@@ -123,7 +124,9 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
       else client.setQueryData([catalogKey, id], response);
     },
     onError: async (error) =>
-      setSaveError(await extractErrorDetail(error, 'Save failed.')),
+      setSaveError(
+        await extractErrorDetail(error, 'Could not save cost item.'),
+      ),
   });
   const remove = useMutation({
     mutationFn: () => httpClient(`${catalogKey}/${id}`, { method: 'DELETE' }),
@@ -134,7 +137,9 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
       navigate('/cost-catalog');
     },
     onError: async (error) =>
-      toast.error(await extractErrorDetail(error, 'Removal failed.')),
+      toast.error(
+        await extractErrorDetail(error, 'Could not remove cost item.'),
+      ),
   });
   const busy = save.isPending || remove.isPending;
   const unit = pricing.unit ?? 'Piece';
@@ -160,7 +165,10 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
             action={backAction}
           />
         ) : (
-          <ErrorState title="Load failed" onRetry={() => query.refetch()} />
+          <ErrorState
+            title="Could not load cost item"
+            onRetry={() => query.refetch()}
+          />
         )}
       </Page>
     );
@@ -185,6 +193,7 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
         action={
           mode === 'edit' ? (
             <Button
+              permission="non-printed-components:delete"
               type="button"
               variant="destructive"
               disabled={busy}
@@ -215,7 +224,7 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
       >
         {saveError && (
           <Alert variant="destructive" role="alert">
-            <AlertTitle>Save failed</AlertTitle>
+            <AlertTitle>Could not save cost item</AlertTitle>
             <AlertDescription>{saveError}</AlertDescription>
           </Alert>
         )}
@@ -368,6 +377,11 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
                 Cancel
               </Button>
               <Button
+                permission={
+                  mode === 'add'
+                    ? 'non-printed-components:create'
+                    : 'non-printed-components:edit'
+                }
                 type="submit"
                 disabled={busy || (mode === 'edit' && !isDirty)}
               >

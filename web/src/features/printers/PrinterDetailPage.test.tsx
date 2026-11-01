@@ -7,10 +7,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { PrinterDetailPage } from './PrinterDetailPage';
 
-vi.mock('./components/PrinterSlicerReadinessCard', () => ({
-  PrinterSlicerReadinessCard: () => null,
-}));
-
 function renderPage(printerId: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -208,6 +204,12 @@ describe('PrinterDetailPage', () => {
       await screen.findByText('Printer status changed'),
     ).toBeInTheDocument();
     expect(screen.queryByText('Job queued')).not.toBeInTheDocument();
+    expect(screen.queryByText('Slicer readiness')).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/slicing/readiness'),
+      ),
+    ).toBe(false);
   });
 
   it('shows a graceful empty state when the printer is idle', async () => {

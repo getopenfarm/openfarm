@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using OpenFarm.Application.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -77,6 +78,9 @@ public sealed partial class FirstBootSeeder(
             throw new InvalidOperationException(
                 $"Failed to seed the administrator account: {string.Join(", ", result.Errors.Select(e => e.Description))}");
         }
+
+        var membership = await userManager.AddToRoleAsync(user, PermissionCatalog.Administrators);
+        if (!membership.Succeeded) throw new InvalidOperationException("Failed to assign the seeded administrator group.");
 
         if (generated)
         {

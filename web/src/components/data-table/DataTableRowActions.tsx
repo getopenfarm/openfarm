@@ -6,22 +6,27 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAllowed } from '@/lib/auth/AccessContext';
 
 /** Feature callers own menu groups, eligibility, and dialogs outside the menu. */
 export function DataTableRowActions({
   label,
+  permission,
   children,
   disabled,
   triggerRef,
   onOpen,
 }: {
   label: string;
+  permission?: string;
   children: ReactNode;
   disabled?: boolean;
   triggerRef?: Ref<HTMLButtonElement>;
   onOpen?: (trigger: HTMLButtonElement | null) => void;
 }) {
+  const allowed = useAllowed(permission);
   const localRef = useRef<HTMLButtonElement>(null);
+  if (!allowed) return null;
   return (
     <div className="flex justify-end">
       <DropdownMenu

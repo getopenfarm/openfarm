@@ -12,6 +12,7 @@ public sealed class FarmSettingsConfiguration : IEntityTypeConfiguration<FarmSet
 
         builder.HasKey(s => s.Id);
         builder.Property(s => s.CurrencyCode).HasMaxLength(3).HasDefaultValue("USD").IsRequired();
+        builder.Property(s => s.FailureAllowancePercent).HasDefaultValue(0m);
 
         builder.Property(s => s.DefaultSlicerEngine)
             .IsRequired()

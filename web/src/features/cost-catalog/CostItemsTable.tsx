@@ -26,13 +26,11 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
+import { PermissionButton as Button } from '@/components/PermissionButton';
+import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { useCurrency } from '@/features/settings/generalSettings';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { CostItemResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -192,10 +190,11 @@ function ActionsCell({ row }: CellContext<CostItemResponse, unknown>) {
       disabled={pending || !row.original.id}
     >
       <DropdownMenuGroup>
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem permission="non-printed-components:edit" asChild>
           <Link to={`/cost-catalog/${row.original.id}`}>Edit</Link>
         </DropdownMenuItem>
         <DropdownMenuItem
+          permission="non-printed-components:delete"
           variant="destructive"
           onSelect={() => onRemove(row.original, triggerRef.current)}
         >
@@ -312,7 +311,7 @@ export function CostItemsTable({
         const error = failures.get(target.id);
         if (error === undefined) continue;
         toast.error(
-          `${target.name}: ${await extractErrorDetail(error, 'Removal failed.')}`,
+          `${target.name}: ${await extractErrorDetail(error, 'Could not remove cost item.')}`,
         );
       }
       await queryClient.invalidateQueries({ queryKey: [catalogKey] });
@@ -360,41 +359,35 @@ export function CostItemsTable({
         rowSelection={selection}
         onRowSelectionChange={setSelection}
         enableRowSelection={(row) => Boolean(row.original.id)}
-        toolbar={null}
-      />
-      <div
-        className={
-          selected.length
-            ? 'fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-30 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 rounded-xl border bg-background p-3 shadow-lg'
-            : 'sr-only'
-        }
-      >
-        <DataTableSelectionBar
-          selectedCount={selected.length}
-          pending={interactionPending}
-          label="Cost items actions"
-          onClear={() => {
-            setSelection({});
-            selectionHeaderRef.current?.focus();
-          }}
-        >
-          <Button
-            ref={bulkTriggerRef}
-            type="button"
-            variant="destructive"
-            size="sm"
-            disabled={interactionPending}
-            onClick={() => {
-              removalTriggerRef.current = bulkTriggerRef.current;
-              setBulk(true);
-              setTargets(selected.flatMap(toRemovable));
+        toolbar={
+          <DataTableSelectionBar
+            selectedCount={selected.length}
+            pending={interactionPending}
+            label="Cost items actions"
+            onClear={() => {
+              setSelection({});
+              selectionHeaderRef.current?.focus();
             }}
           >
-            <Trash2Icon data-icon="inline-start" />
-            Remove selected
-          </Button>
-        </DataTableSelectionBar>
-      </div>
+            <Button
+              permission="non-printed-components:delete"
+              ref={bulkTriggerRef}
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={interactionPending}
+              onClick={() => {
+                removalTriggerRef.current = bulkTriggerRef.current;
+                setBulk(true);
+                setTargets(selected.flatMap(toRemovable));
+              }}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              Remove selected
+            </Button>
+          </DataTableSelectionBar>
+        }
+      />
       <ConfirmDialog
         open={targets.length > 0}
         onOpenChange={(open) => {

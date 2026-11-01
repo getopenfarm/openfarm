@@ -369,6 +369,25 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         // first snapshot), and a FINISH re-sent that way would put a printer marked ready back into Awaiting clear.
         var statusChanged = reportedStateChanged && printer.ObserveStatus(connectorEvent.GcodeState!, connectorEvent.ReceivedAtUtc);
 
+        if (connectorEvent.Telemetry is { ExcludedObjectIds: not null } objectTelemetry)
+        {
+            var objectJobs = services.GetRequiredService<OpenFarm.Application.Production.IPrintJobRepository>();
+            var active = await objectJobs.GetActiveJobByDispatchedPrinterIdAsync(printer.Id, cancellationToken);
+            // A stale pushall from the preceding print cannot confirm this job's exclusions.
+            if (active?.ObjectExecution is { } execution && execution.ArtifactName is not null
+                && ((objectTelemetry.CurrentGcodeFile ?? printer.CurrentGcodeFile)?.Contains(active.Id.ToString("N"), StringComparison.Ordinal) == true
+                    || (objectTelemetry.CurrentJobName ?? printer.CurrentJobName)?.Contains(active.Id.ToString("N"), StringComparison.Ordinal) == true))
+            {
+                var beforeObjects = active.ObjectExecutionJson;
+                active.ObserveExcludedObjects(objectTelemetry.ExcludedObjectIds, objectTelemetry.CurrentLayer ?? printer.CurrentLayer, objectTelemetry.PrintProgressPercent ?? printer.PrintProgressPercent);
+                if (active.ObjectExecutionJson != beforeObjects)
+                {
+                    await objectJobs.SaveChangesAsync(cancellationToken);
+                    await services.GetRequiredService<OpenFarm.Application.Production.IProductionEventPublisher>().PrintJobStatusChangedAsync(active.Id, active.Status, cancellationToken);
+                }
+            }
+        }
+
         if (connectorEvent.GcodeState is not null)
         {
             // Deliberately runs on every event, ahead of the flush-throttle gate below (research.md

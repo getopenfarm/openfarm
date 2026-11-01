@@ -6,11 +6,14 @@ import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { invalidateLibraryContents } from '@/features/library/api';
+import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
+import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
@@ -27,10 +30,12 @@ import {
   AssemblyEditor,
   type AssemblyFormValues,
   toLinePayload,
+  toPricingPayload,
   useAssemblyForm,
 } from './components/AssemblyEditor';
 
 export function AssemblyDetailPage() {
+  const { location } = useLibraryLocation('assemblies');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -46,11 +51,13 @@ export function AssemblyDetailPage() {
   const { isDirty } = form.formState;
   const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(isDirty);
 
-  const invalidateList = () =>
-    queryClient.invalidateQueries({
+  const invalidateList = () => {
+    void invalidateLibraryContents(queryClient);
+    return queryClient.invalidateQueries({
       queryKey:
         getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey(),
     });
+  };
 
   const editMutation = useOpenFarmApiEndpointsAssembliesEditAssemblyEndpoint({
     mutation: {
@@ -90,7 +97,7 @@ export function AssemblyDetailPage() {
           toast.success('Assembly removed.');
           invalidateList();
           markClean();
-          navigate('/assemblies');
+          navigate(location);
         },
         onError: async (error) => {
           toast.error(
@@ -107,9 +114,10 @@ export function AssemblyDetailPage() {
         404;
     return (
       <Page>
+        <LibraryItemBreadcrumb library="assemblies" name="Assembly" />
         <PageHeader
           above={
-            <BackLink to="/assemblies" className="mb-1">
+            <BackLink to={location} className="mb-1">
               Back to assemblies
             </BackLink>
           }
@@ -128,7 +136,7 @@ export function AssemblyDetailPage() {
             title="Assembly not found"
             description="Removed or invalid link."
             action={
-              <Button variant="outline" onClick={() => navigate('/assemblies')}>
+              <Button variant="outline" onClick={() => navigate(location)}>
                 Back to assemblies
               </Button>
             }
@@ -144,6 +152,7 @@ export function AssemblyDetailPage() {
       id,
       data: {
         additionalCosts: values.additionalCosts,
+        pricing: toPricingPayload(values.pricing),
         name: values.name.trim(),
         description: values.description?.trim() || null,
         lines: values.lines.map((l) => ({
@@ -158,6 +167,11 @@ export function AssemblyDetailPage() {
 
   return (
     <Page className="flex-1">
+      <LibraryItemBreadcrumb
+        library="assemblies"
+        folderId={assembly?.folderId}
+        name={assembly?.name ?? 'Assembly'}
+      />
       <AssemblyEditor
         form={form}
         onSubmit={onSubmit}
@@ -174,6 +188,7 @@ export function AssemblyDetailPage() {
               <ListPlusIcon data-icon="inline-start" /> Send to queue
             </Button>
             <Button
+              permission="assemblies:delete"
               type="button"
               variant="destructive"
               onClick={() => setConfirmDeleteOpen(true)}
@@ -187,11 +202,15 @@ export function AssemblyDetailPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/assemblies')}
+              onClick={() => navigate(location)}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!isDirty || pending}>
+            <Button
+              permission="assemblies:edit"
+              type="submit"
+              disabled={!isDirty || pending}
+            >
               {pending && <Spinner data-icon="inline-start" />}
               {pending ? 'Saving…' : 'Save'}
             </Button>

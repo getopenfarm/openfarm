@@ -1,10 +1,10 @@
 import { PackageIcon, PlusIcon } from 'lucide-react';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type {
   ListFilamentShortagesResponse,
@@ -58,13 +58,17 @@ export function FilamentPage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button
+              permission="filaments:create"
               variant="outline"
               onClick={() => navigate('/filament/spools/new')}
             >
               <PlusIcon data-icon="inline-start" />
               Add spools
             </Button>
-            <Button onClick={() => navigate('/filament/new')}>
+            <Button
+              permission="filaments:create"
+              onClick={() => navigate('/filament/new')}
+            >
               <PlusIcon data-icon="inline-start" />
               Add filament
             </Button>
@@ -73,19 +77,39 @@ export function FilamentPage() {
       />
       {filamentsQuery.isLoading ? (
         <Skeleton className="h-64 w-full" />
+      ) : filamentsQuery.isError && !list ? (
+        <ErrorState
+          title="Could not load filaments"
+          onRetry={() => filamentsQuery.refetch()}
+        />
+      ) : filamentsQuery.isError && filaments.length === 0 ? (
+        <ErrorState
+          title="Could not refresh filaments"
+          onRetry={() => filamentsQuery.refetch()}
+        />
       ) : filaments.length === 0 ? (
         <EmptyState
           icon={<PackageIcon className="size-8 text-muted-foreground" />}
           title="No filaments"
           description="Add a filament to start a catalog."
           action={
-            <Button onClick={() => navigate('/filament/new')}>
+            <Button
+              permission="filaments:create"
+              onClick={() => navigate('/filament/new')}
+            >
               Add filament
             </Button>
           }
         />
       ) : (
         <div className="flex flex-col gap-4">
+          {filamentsQuery.isError && (
+            <ErrorState
+              title="Could not refresh filaments"
+              description="Showing previous results."
+              onRetry={() => filamentsQuery.refetch()}
+            />
+          )}
           <StockTiles stock={list?.stock ?? []} />
           <FilamentCatalogTable
             filaments={filaments}

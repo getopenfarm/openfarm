@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { BackLink } from '@/components/back-link/BackLink';
 import { DataTableSearch } from '@/components/data-table/DataTableSearch';
 import {
+  DataTableTabCount,
   DataTableTabsList,
   DataTableToolbar,
 } from '@/components/data-table/DataTableToolbar';
@@ -13,10 +14,10 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Swatch } from '@/components/swatch/Swatch';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -27,7 +28,6 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useCurrency } from '@/features/settings/generalSettings';
 import { ShelfGroups } from '@/features/spools/components/ShelfGroups';
 import { SpoolHistoryTable } from '@/features/spools/components/SpoolHistoryTable';
@@ -301,7 +301,7 @@ export function FilamentDetailPage() {
   );
 
   const addSpools = (
-    <Button asChild>
+    <Button permission="filaments:create" asChild>
       <Link to={addSpoolUrl(filament)}>
         <PlusIcon data-icon="inline-start" />
         Add spools
@@ -324,7 +324,11 @@ export function FilamentDetailPage() {
           .join(' · ')}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline">
+            <Button
+              permission="filaments:assign-profiles"
+              asChild
+              variant="outline"
+            >
               <Link to={`/filament/${id}/edit`}>
                 <PencilIcon data-icon="inline-start" />
                 Edit
@@ -343,16 +347,6 @@ export function FilamentDetailPage() {
         className="gap-4"
       >
         <DataTableToolbar
-          search={
-            tab === 'spools' ? (
-              <DataTableSearch
-                value={search}
-                onValueChange={setSearch}
-                label="Search spools by label or color"
-                placeholder="Search spools…"
-              />
-            ) : undefined
-          }
           actions={
             tab === 'usage' || tab === 'history' ? (
               <Button
@@ -387,33 +381,6 @@ export function FilamentDetailPage() {
             <TabsTrigger value="usage">Usage</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </DataTableTabsList>
-          {tab === 'spools' && (
-            <>
-              <ToggleGroup
-                aria-label="Show spools"
-                type="single"
-                variant="outline"
-                value={view}
-                onValueChange={(next) => {
-                  if (next) setView(next as SpoolView);
-                }}
-              >
-                <ToggleGroupItem value="active">
-                  Active
-                  <span className="ml-1 tabular-nums opacity-70">
-                    {activeCount}
-                  </span>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="finished">
-                  Finished
-                  <span className="ml-1 tabular-nums opacity-70">
-                    {finishedTotal}
-                  </span>
-                </ToggleGroupItem>
-              </ToggleGroup>
-              {colorSelect}
-            </>
-          )}
           {(tab === 'usage' || tab === 'history') && (
             <RangeFilter value={range} onChange={setRange} />
           )}
@@ -448,90 +415,140 @@ export function FilamentDetailPage() {
           />
         </TabsContent>
         <TabsContent value="spools">
-          {view === 'finished' ? (
-            finishedQuery.isLoading ? (
-              <Skeleton className="h-64 w-full" />
-            ) : finishedQuery.isError && !finished ? (
-              <ErrorState
-                title="Could not load spools"
-                onRetry={() => finishedQuery.refetch()}
-              />
-            ) : finishedTotal === 0 ? (
-              <EmptyState
-                title={
-                  color || finishedSearch
-                    ? 'No spools match'
-                    : 'No finished spools'
-                }
-                description={
-                  color || finishedSearch
-                    ? 'Change the search or filter.'
-                    : undefined
-                }
-              />
-            ) : (
-              <SpoolsTable
-                spools={finished?.spools ?? []}
-                serverPagination={{
-                  page: finishedPage,
-                  pageSize: finishedPageSize,
-                  totalCount: finishedTotal,
-                  onPageChange: setFinishedPage,
-                  onPageSizeChange: (size) => {
-                    setFinishedPageSize(size);
-                    setFinishedPage(1);
-                  },
-                  label: 'Finished spools',
-                  pending: finishedQuery.isFetching,
-                }}
-              />
-            )
-          ) : spoolsLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : spoolsFailed ? (
-            <ErrorState
-              title="Could not load spools"
-              onRetry={() => {
-                usingQuery.refetch();
-                shelfQuery.refetch();
-              }}
-            />
-          ) : using.length + onShelf.length === 0 ? (
-            <EmptyState
-              icon={<Package2Icon className="size-8 text-muted-foreground" />}
-              title="No spools"
-              description="Add spools to track this filament."
-              action={addSpools}
-            />
-          ) : activeCount === 0 ? (
-            <EmptyState
-              title="No spools match"
-              description="Change the search or filter."
-            />
-          ) : (
-            <div className="flex flex-col gap-6">
-              {inPrinters.length > 0 && (
-                <section className="flex flex-col gap-2">
-                  <SectionTitle title="In printers" count={inPrinters.length} />
-                  <SpoolsTable spools={inPrinters} selectable />
-                </section>
+          <Tabs
+            value={view}
+            onValueChange={(next) => setView(next as SpoolView)}
+            className="gap-4"
+          >
+            <DataTableToolbar
+              search={
+                <DataTableSearch
+                  value={search}
+                  onValueChange={setSearch}
+                  label="Search spools by label or color"
+                  placeholder="Search spools…"
+                />
+              }
+            >
+              <DataTableTabsList aria-label="Show spools">
+                <TabsTrigger value="active">
+                  Active{' '}
+                  <DataTableTabCount
+                    count={spoolsLoading ? undefined : activeCount}
+                  />
+                </TabsTrigger>
+                <TabsTrigger value="finished">
+                  Finished{' '}
+                  <DataTableTabCount
+                    count={finishedQuery.isLoading ? undefined : finishedTotal}
+                  />
+                </TabsTrigger>
+              </DataTableTabsList>
+              {colorSelect}
+            </DataTableToolbar>
+            <TabsContent value={view}>
+              {view === 'finished' && finishedQuery.isError && finished && (
+                <ErrorState
+                  title="Could not refresh spools"
+                  description="Showing previous results."
+                  onRetry={() => finishedQuery.refetch()}
+                />
               )}
-              {shelfCount > 0 && (
-                <section className="flex flex-col gap-2">
-                  <SectionTitle title="On the shelf" count={shelfCount} />
-                  {shelf.full.length > 0 && <ShelfGroups groups={shelf.full} />}
-                  {shelf.partial.length > 0 && (
-                    <>
-                      <h4 className="pt-2 text-xs text-muted-foreground">
-                        Partial · {shelf.partial.length}
-                      </h4>
-                      <SpoolsTable spools={shelf.partial} selectable />
-                    </>
+
+              {view === 'finished' ? (
+                finishedQuery.isLoading ? (
+                  <Skeleton className="h-64 w-full" />
+                ) : finishedQuery.isError && !finished ? (
+                  <ErrorState
+                    title="Could not load spools"
+                    onRetry={() => finishedQuery.refetch()}
+                  />
+                ) : finishedTotal === 0 ? (
+                  <EmptyState
+                    title={
+                      color || finishedSearch
+                        ? 'No spools match'
+                        : 'No finished spools'
+                    }
+                    description={
+                      color || finishedSearch
+                        ? 'Change the search or filter.'
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <SpoolsTable
+                    spools={finished?.spools ?? []}
+                    serverPagination={{
+                      page: finishedPage,
+                      pageSize: finishedPageSize,
+                      totalCount: finishedTotal,
+                      onPageChange: setFinishedPage,
+                      onPageSizeChange: (size) => {
+                        setFinishedPageSize(size);
+                        setFinishedPage(1);
+                      },
+                      label: 'Finished spools',
+                      pending: finishedQuery.isFetching,
+                      disabled: finishedQuery.isError,
+                    }}
+                  />
+                )
+              ) : spoolsLoading ? (
+                <Skeleton className="h-64 w-full" />
+              ) : spoolsFailed ? (
+                <ErrorState
+                  title="Could not load spools"
+                  onRetry={() => {
+                    usingQuery.refetch();
+                    shelfQuery.refetch();
+                  }}
+                />
+              ) : using.length + onShelf.length === 0 ? (
+                <EmptyState
+                  icon={
+                    <Package2Icon className="size-8 text-muted-foreground" />
+                  }
+                  title="No spools"
+                  description="Add spools to track this filament."
+                  action={addSpools}
+                />
+              ) : activeCount === 0 ? (
+                <EmptyState
+                  title="No spools match"
+                  description="Change the search or filter."
+                />
+              ) : (
+                <div className="flex flex-col gap-6">
+                  {inPrinters.length > 0 && (
+                    <section className="flex flex-col gap-2">
+                      <SectionTitle
+                        title="In printers"
+                        count={inPrinters.length}
+                      />
+                      <SpoolsTable spools={inPrinters} selectable />
+                    </section>
                   )}
-                </section>
+                  {shelfCount > 0 && (
+                    <section className="flex flex-col gap-2">
+                      <SectionTitle title="On the shelf" count={shelfCount} />
+                      {shelf.full.length > 0 && (
+                        <ShelfGroups groups={shelf.full} />
+                      )}
+                      {shelf.partial.length > 0 && (
+                        <>
+                          <h4 className="pt-2 text-xs text-muted-foreground">
+                            Partial · {shelf.partial.length}
+                          </h4>
+                          <SpoolsTable spools={shelf.partial} selectable />
+                        </>
+                      )}
+                    </section>
+                  )}
+                </div>
               )}
-            </div>
-          )}
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         <TabsContent value="usage">
           <MaterialsReportTable range={instants} filamentId={id} />

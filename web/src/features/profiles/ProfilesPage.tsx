@@ -11,9 +11,9 @@ import {
   useServerPageRecovery,
 } from '@/components/data-table/useServerListState';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import type {
@@ -101,7 +101,10 @@ export function ProfilesPage() {
         title="Profiles"
         description="Imported from slicer bundles."
         action={
-          <Button onClick={() => navigate('/profiles/import')}>
+          <Button
+            permission="profiles:preview-import"
+            onClick={() => navigate('/profiles/import')}
+          >
             <UploadIcon data-icon="inline-start" />
             Import profiles
           </Button>
@@ -114,7 +117,7 @@ export function ProfilesPage() {
             <TabsTrigger value="filament">Filament</TabsTrigger>
           </DataTableTabsList>
         </DataTableToolbar>
-        <TabsContent value="machine" className="flex flex-col gap-3">
+        <TabsContent value="machine" className="flex flex-col gap-4">
           {machineListQuery.isError && machineData ? (
             <ErrorState
               title="Could not refresh profiles"
@@ -134,7 +137,10 @@ export function ProfilesPage() {
               title="No machine profiles"
               description="Import a slicer bundle."
               action={
-                <Button onClick={() => navigate('/profiles/import')}>
+                <Button
+                  permission="profiles:preview-import"
+                  onClick={() => navigate('/profiles/import')}
+                >
                   Import profiles
                 </Button>
               }
@@ -165,7 +171,7 @@ export function ProfilesPage() {
             />
           )}
         </TabsContent>
-        <TabsContent value="filament" className="flex flex-col gap-3">
+        <TabsContent value="filament" className="flex flex-col gap-4">
           {filamentListQuery.isError && filamentData ? (
             <ErrorState
               title="Could not refresh profiles"
@@ -185,7 +191,10 @@ export function ProfilesPage() {
               title="No filament profiles"
               description="Import a slicer bundle."
               action={
-                <Button onClick={() => navigate('/profiles/import')}>
+                <Button
+                  permission="profiles:preview-import"
+                  onClick={() => navigate('/profiles/import')}
+                >
                   Import profiles
                 </Button>
               }
