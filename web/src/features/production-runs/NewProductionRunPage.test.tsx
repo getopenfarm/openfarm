@@ -84,10 +84,8 @@ it('builds a run from picked parts, with a live summary, in one POST', async () 
   );
   await user.click(await screen.findByRole('option', { name: /Bracket/ }));
 
-  const plates = await screen.findByLabelText('Plates');
-  expect(plates).toHaveValue(1);
-  await user.click(screen.getByRole('radio', { name: 'Unit target' }));
   const units = await screen.findByLabelText('Unit target');
+  expect(units).toHaveValue(1);
   await user.clear(units);
   await user.type(units, '10');
   const summary = within(

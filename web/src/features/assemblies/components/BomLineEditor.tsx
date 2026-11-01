@@ -1,29 +1,21 @@
 import {
-  BoxesIcon,
   ChevronRightIcon,
-  ImageOffIcon,
   MinusIcon,
   NutIcon,
   PlusIcon,
   XIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
+import { EditorSectionHeader } from '@/components/editor-section/EditorSectionHeader';
+import { EmptyState } from '@/components/empty-state/EmptyState';
+import {
+  LibraryItemPicker,
+  TargetThumbnail,
+} from '@/components/library-item-picker/LibraryItemPicker';
 import { PermissionButton as Button } from '@/components/PermissionButton';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOpenFarmApiEndpointsAssembliesGetAssemblyEndpoint } from '@/lib/api/generated/assemblies/assemblies';
 import { cn } from '@/lib/utils';
@@ -60,17 +52,18 @@ function LineThumb({
   thumbnail?: string | null;
   className?: string;
 }) {
-  const Icon =
-    kind === 'Assembly'
-      ? BoxesIcon
-      : kind === 'NonPrintedComponent'
-        ? NutIcon
-        : ImageOffIcon;
+  if (kind !== 'NonPrintedComponent')
+    return (
+      <TargetThumbnail
+        kind={kind}
+        thumbnailBase64={thumbnail}
+        className={className}
+      />
+    );
   return (
     <div
       className={cn(
         'flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground',
-        kind === 'Assembly' && 'bg-primary/10 text-primary',
         className,
       )}
     >
@@ -81,7 +74,7 @@ function LineThumb({
           className="size-full object-contain"
         />
       ) : (
-        <Icon className="size-4" />
+        <NutIcon className="size-4" />
       )}
     </div>
   );
@@ -139,141 +132,137 @@ export function BomLineEditor({
   }
 
   return (
-    <section
-      aria-labelledby="bom-structure-heading"
-      className="rounded-lg border bg-card"
-    >
-      <div className="flex items-center gap-3 border-b px-4 py-3">
-        <h3 id="bom-structure-heading" className="font-medium">
-          Structure
-        </h3>
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {lines.length} {lines.length === 1 ? 'line' : 'lines'}
-        </span>
-        <AddLinePicker catalog={catalog} onPick={handlePick} />
-      </div>
-
-      {lines.length === 0 ? (
-        <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
-          <p className="font-medium">No lines</p>
-          <p className="text-sm text-muted-foreground">
-            Add parts or sub-assemblies. Press{' '}
-            <kbd className="rounded border bg-muted px-1 text-xs">/</kbd> to
-            search.
-          </p>
-        </div>
-      ) : (
-        <ul className="divide-y">
-          {lines.map((line) => {
-            const isAssembly = line.targetKind === 'Assembly';
-            const isOpen = expanded.has(line.key);
-            const name = line.targetName || line.targetId;
-            return (
-              <li key={line.key}>
-                <div className="flex items-center gap-3 px-2 py-2 sm:px-3">
-                  {isAssembly ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-expanded={isOpen}
-                      aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${name}`}
-                      onClick={() => toggle(line.key)}
-                    >
-                      <ChevronRightIcon
-                        className={cn(
-                          'transition-transform motion-reduce:transition-none',
-                          isOpen && 'rotate-90',
-                        )}
-                      />
-                    </Button>
-                  ) : (
-                    <span className="size-7 shrink-0" />
-                  )}
-                  <LineThumb
-                    kind={line.targetKind}
-                    thumbnail={catalog.thumbnailFor(line.targetId)}
-                  />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span
-                      title={name}
-                      className="line-clamp-2 text-sm font-medium break-words"
-                    >
-                      {name}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {KIND_LABELS[line.targetKind]}
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Decrease ${name}`}
-                      disabled={line.quantity <= 1}
-                      onClick={() => setQuantity(line.key, line.quantity - 1)}
-                    >
-                      <MinusIcon />
-                    </Button>
-                    <Input
-                      type="number"
-                      min={
-                        line.targetKind === 'NonPrintedComponent' &&
-                        (catalog.components.find((c) => c.id === line.targetId)
-                          ?.pricing?.unit ?? 'Piece') !== 'Piece'
-                          ? '0.000000001'
-                          : 1
-                      }
-                      step={
-                        line.targetKind === 'NonPrintedComponent' &&
-                        (catalog.components.find((c) => c.id === line.targetId)
-                          ?.pricing?.unit ?? 'Piece') !== 'Piece'
-                          ? 'any'
-                          : 1
-                      }
-                      value={line.quantity}
-                      onChange={(e) =>
-                        setQuantity(line.key, Number(e.target.value))
-                      }
-                      className="h-8 w-16 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                      aria-label={`Quantity for ${name}`}
+    <Card role="region" aria-labelledby="bom-structure-heading">
+      <EditorSectionHeader
+        title="Structure"
+        titleId="bom-structure-heading"
+        count={lines.length}
+        description="Choose parts and sub-assemblies to define this assembly."
+        action={<AddLinePicker catalog={catalog} onPick={handlePick} />}
+      />
+      <CardContent className="px-0">
+        {lines.length === 0 ? (
+          <EmptyState
+            size="sm"
+            bordered={false}
+            title="No items yet"
+            description="Add the parts and sub-assemblies this assembly needs."
+          />
+        ) : (
+          <ul className="divide-y">
+            {lines.map((line) => {
+              const isAssembly = line.targetKind === 'Assembly';
+              const isOpen = expanded.has(line.key);
+              const name = line.targetName || line.targetId;
+              return (
+                <li key={line.key}>
+                  <div className="flex items-center gap-3 px-2 py-2 sm:px-3">
+                    {isAssembly ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-expanded={isOpen}
+                        aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${name}`}
+                        onClick={() => toggle(line.key)}
+                      >
+                        <ChevronRightIcon
+                          className={cn(
+                            'transition-transform motion-reduce:transition-none',
+                            isOpen && 'rotate-90',
+                          )}
+                        />
+                      </Button>
+                    ) : (
+                      <span className="size-7 shrink-0" />
+                    )}
+                    <LineThumb
+                      kind={line.targetKind}
+                      thumbnail={catalog.thumbnailFor(line.targetId)}
                     />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span
+                        title={name}
+                        className="line-clamp-2 text-sm font-medium break-words"
+                      >
+                        {name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {KIND_LABELS[line.targetKind]}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Decrease ${name}`}
+                        disabled={line.quantity <= 1}
+                        onClick={() => setQuantity(line.key, line.quantity - 1)}
+                      >
+                        <MinusIcon />
+                      </Button>
+                      <Input
+                        type="number"
+                        min={
+                          line.targetKind === 'NonPrintedComponent' &&
+                          (catalog.components.find(
+                            (c) => c.id === line.targetId,
+                          )?.pricing?.unit ?? 'Piece') !== 'Piece'
+                            ? '0.000000001'
+                            : 1
+                        }
+                        step={
+                          line.targetKind === 'NonPrintedComponent' &&
+                          (catalog.components.find(
+                            (c) => c.id === line.targetId,
+                          )?.pricing?.unit ?? 'Piece') !== 'Piece'
+                            ? 'any'
+                            : 1
+                        }
+                        value={line.quantity}
+                        onChange={(e) =>
+                          setQuantity(line.key, Number(e.target.value))
+                        }
+                        className="h-8 w-16 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                        aria-label={`Quantity for ${name}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Increase ${name}`}
+                        onClick={() => setQuantity(line.key, line.quantity + 1)}
+                      >
+                        <PlusIcon />
+                      </Button>
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Increase ${name}`}
-                      onClick={() => setQuantity(line.key, line.quantity + 1)}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        onChange(lines.filter((l) => l.key !== line.key))
+                      }
+                      aria-label={`Remove ${name}`}
                     >
-                      <PlusIcon />
+                      <XIcon />
                     </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() =>
-                      onChange(lines.filter((l) => l.key !== line.key))
-                    }
-                    aria-label={`Remove ${name}`}
-                  >
-                    <XIcon />
-                  </Button>
-                </div>
-                {isAssembly && isOpen && (
-                  <SubAssemblyLines
-                    assemblyId={line.targetId}
-                    catalog={catalog}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+                  {isAssembly && isOpen && (
+                    <SubAssemblyLines
+                      assemblyId={line.targetId}
+                      catalog={catalog}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -358,14 +347,6 @@ function SubAssemblyLines({
   );
 }
 
-function isTypingTarget(target: EventTarget | null) {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable ||
-      ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
-  );
-}
-
 function AddLinePicker({
   catalog,
   onPick,
@@ -373,102 +354,34 @@ function AddLinePicker({
   catalog: BomCatalog;
   onPick: (kind: BomLineTargetKind, id: string, name: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const modK = e.key === 'k' && (e.metaKey || e.ctrlKey);
-      const slash = e.key === '/' && !isTypingTarget(e.target);
-      if (modK || slash) {
-        e.preventDefault();
-        setOpen(true);
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  const groups: {
-    kind: BomLineTargetKind;
-    heading: string;
-    items: {
-      id: string;
-      name: string;
-      thumbnail?: string | null;
-    }[];
-  }[] = [
-    {
-      kind: 'Part',
-      heading: 'Parts',
-      items: catalog.parts.map((p) => ({
-        id: p.id ?? '',
-        name: p.name ?? '',
-        thumbnail: p.thumbnailBase64,
-      })),
-    },
-    {
-      kind: 'Assembly',
-      heading: 'Assemblies',
-      items: catalog.assemblies.map((a) => ({
-        id: a.id ?? '',
-        name: a.name ?? '',
-      })),
-    },
-  ];
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          permission="assemblies:create|assemblies:edit"
-          type="button"
-          size="sm"
-          className="ml-auto"
-        >
-          <PlusIcon data-icon="inline-start" /> Add line
-          <kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1 text-xs sm:inline">
-            /
-          </kbd>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
-        <Command>
-          <CommandInput autoFocus placeholder="Search parts, assemblies" />
-          <CommandList>
-            <CommandEmpty>No matches.</CommandEmpty>
-            {groups.map(
-              (group) =>
-                group.items.length > 0 && (
-                  <CommandGroup key={group.kind} heading={group.heading}>
-                    {group.items.map((item) => (
-                      <CommandItem
-                        key={item.id}
-                        value={`${group.kind}:${item.id}`}
-                        keywords={[item.name]}
-                        onSelect={() => {
-                          onPick(group.kind, item.id, item.name);
-                          setOpen(false);
-                        }}
-                      >
-                        <LineThumb
-                          kind={group.kind}
-                          thumbnail={item.thumbnail}
-                          className="size-7"
-                        />
-                        <span
-                          title={item.name}
-                          className="line-clamp-2 flex-1 break-words"
-                        >
-                          {item.name}
-                        </span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                ),
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <LibraryItemPicker
+      label="Add part or assembly"
+      permission="assemblies:create|assemblies:edit"
+      shortcuts
+      isPending={catalog.targets.isPending}
+      isError={catalog.targets.isError}
+      onRetry={catalog.targets.retry}
+      onPick={(target) => onPick(target.kind, target.id, target.name)}
+      groups={[
+        {
+          kind: 'Part',
+          heading: 'Parts',
+          items: catalog.parts.map((part) => ({
+            id: part.id ?? '',
+            name: part.name ?? '',
+            thumbnailBase64: part.thumbnailBase64,
+          })),
+        },
+        {
+          kind: 'Assembly',
+          heading: 'Assemblies',
+          items: catalog.assemblies.map((assembly) => ({
+            id: assembly.id ?? '',
+            name: assembly.name ?? '',
+          })),
+        },
+      ]}
+    />
   );
 }

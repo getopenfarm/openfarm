@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { printEstimateFixture } from '@/test-utils/printEstimate';
 import type { EditableLine } from './BomLineEditor';
 import { BuildPanel } from './BuildPanel';
 
@@ -11,6 +12,27 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+// Adapt existing catalog scenarios into fake HTTP estimate responses. New backend tests cover the actual calculator.
+function stubGlobal(name: string, handler: typeof fetch) {
+  vi.stubGlobal(
+    name,
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input.toString().includes('/parts/print-estimate')) {
+        const catalog = await handler('/api/v1/parts?page=1&pageSize=200');
+        if (!catalog.ok) return catalog;
+        const body = await catalog.json();
+        return jsonResponse(
+          printEstimateFixture(
+            JSON.parse(String(init?.body)).parts,
+            body.parts ?? [],
+          ),
+        );
+      }
+      return handler(input, init);
+    }),
+  );
 }
 
 const ROUTES: [string, unknown][] = [
@@ -116,7 +138,7 @@ const stat = (label: string) =>
 
 describe('BuildPanel', () => {
   beforeEach(() => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
         const url = input.toString();
@@ -145,7 +167,7 @@ describe('BuildPanel', () => {
   });
 
   it('lists filament grams by colour, adding up to the total', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
         const url = input.toString();
@@ -189,7 +211,9 @@ describe('BuildPanel', () => {
     );
 
     rerender(<BuildPanel lines={[{ ...LINES[0], quantity: 6 }]} />);
-    expect(stat('Print time').getByText('3h')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(stat('Print time').getByText('3h')).toBeInTheDocument(),
+    );
   });
 
   it('shows unattributed weight even when no known colors are available', async () => {
@@ -210,7 +234,7 @@ describe('BuildPanel', () => {
   ])(
     'keeps zero and missing prices distinct in the build sheet ($price)',
     async ({ price, rowCost, subtotal }) => {
-      vi.stubGlobal(
+      stubGlobal(
         'fetch',
         vi.fn((input: RequestInfo | URL) => {
           const url = input.toString();
@@ -280,7 +304,7 @@ describe('BuildPanel', () => {
   );
 
   it('flags parts without an estimate and components without a cost', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
         const url = input.toString();
@@ -297,13 +321,13 @@ describe('BuildPanel', () => {
     );
     renderPanel(LINES.slice(0, 2));
     expect(
-      await screen.findByText('1 part not estimated.'),
+      await screen.findByText('Some print time estimates are unavailable.'),
     ).toBeInTheDocument();
     expect(screen.getByText('1 component without cost.')).toBeInTheDocument();
   });
 
   it('shows catalog names and keeps same-color variants and unselected material separate', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
         const url = input.toString();
@@ -406,9 +430,9 @@ describe('BuildPanel', () => {
   });
 
   it('marks totals as loading while a sub-assembly explodes', () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
-      vi.fn(() => new Promise(() => {})),
+      vi.fn(() => new Promise<Response>(() => {})),
     );
     renderPanel(LINES.slice(2, 3));
     expect(screen.getByText('Loading sub-assemblies…')).toBeInTheDocument();
@@ -424,7 +448,7 @@ describe('BuildPanel', () => {
   });
 
   it('marks totals incomplete when a sub-assembly explosion fails', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
         const url = input.toString();
@@ -442,7 +466,7 @@ describe('BuildPanel', () => {
     ).toBeInTheDocument();
   });
   it('shows selected filament costs, color breakdown and combined hardware total', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
         const url = input.toString();
@@ -504,7 +528,7 @@ describe('BuildPanel', () => {
   it('keeps totals unavailable after catalog failure and supports keyboard retry', async () => {
     const user = userEvent.setup();
     let fail = true;
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
         const url = input.toString();
@@ -519,6 +543,10 @@ describe('BuildPanel', () => {
     expect(
       stat('Estimated total including shipping').getByText('Unavailable'),
     ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(stat('Print time').getByText('2h')).toBeInTheDocument(),
+    );
+    expect(stat('Filament').getByText('20 g')).toBeInTheDocument();
     fail = false;
     await user.tab();
     expect(retry).toHaveFocus();
@@ -535,7 +563,7 @@ describe('BuildPanel', () => {
 });
 
 it('adds area packaging and shipping while inheriting only production costs', async () => {
-  vi.stubGlobal(
+  stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
@@ -653,7 +681,7 @@ it('adds area packaging and shipping while inheriting only production costs', as
 });
 
 it('adds machine costs to live draft totals and keeps depreciation available without electricity', async () => {
-  vi.stubGlobal(
+  stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();

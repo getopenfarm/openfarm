@@ -13,7 +13,14 @@ export function productionPlanFixture(
         ? quantity * perSet
         : quantity;
   const plates = basis === 'Plates' ? quantity : Math.ceil(required / perPlate);
+  const estimate = {
+    time: { value: plates * minutes, missing: 0 },
+    filament: { value: plates * 40, missing: 0 },
+    approximate: false,
+    colors: [],
+  };
   return {
+    estimate,
     version: `plan-${basis}-${quantity}`,
     plates,
     completeSets:
@@ -22,6 +29,11 @@ export function productionPlanFixture(
     grams: plates * 40,
     parts: [
       {
+        estimate,
+        revision: 'fixture',
+        updatedAtUtc: '2026-11-01T00:00:00Z',
+        jobUnits: Array.from({ length: plates }, () => perPlate),
+        objectMappingVersion: null,
         partId: 'part-1',
         name: 'Bracket',
         requiredUnits: required,

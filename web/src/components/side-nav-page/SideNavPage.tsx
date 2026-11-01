@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 /** Class for one side-nav entry (a NavLink or a tab button). */
 export function sideNavItemClass(active: boolean) {
   return cn(
-    'shrink-0 whitespace-nowrap rounded-lg px-3 py-[7px] text-left text-[13px] md:px-[11px] md:py-2 md:text-[13.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+    'shrink-0 whitespace-nowrap rounded-lg px-3 py-[7px] text-left text-[13px] md:px-[11px] md:py-2 md:text-[13.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
     active && 'bg-accent text-foreground',
   );
 }

@@ -2,19 +2,23 @@ import type { ColumnDef } from '@tanstack/react-table';
 import {
   MonitorIcon,
   PencilIcon,
+  PlusIcon,
   ShieldCheckIcon,
   ShieldIcon,
   Trash2Icon,
   TriangleAlertIcon,
-  UserPlusIcon,
 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
-import { DataTableTabsList } from '@/components/data-table/DataTableToolbar';
+import {
+  DataTableTabCount,
+  DataTableTabsList,
+  DataTableToolbar,
+} from '@/components/data-table/DataTableToolbar';
 import { ErrorState } from '@/components/empty-state/EmptyState';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -25,8 +29,8 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { Spinner } from '@/components/ui/spinner';
-import { Tabs, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
@@ -36,7 +40,6 @@ import {
   useRemoveUser,
 } from './api';
 import { GroupPanel } from './GroupPanel';
-import { adminPill } from './styles';
 
 const initials = (u: AccountResponse) =>
   (u.name || u.email || '')
@@ -55,9 +58,12 @@ function UserCell({ u }: { u: AccountResponse }) {
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0">
-        <span className="block text-[13.5px] font-medium">
+        <Link
+          to={`/users-groups/users/${u.id}`}
+          className="block font-medium hover:underline"
+        >
           {u.name || 'Unnamed user'}
-        </span>
+        </Link>
         <span className="block truncate text-xs text-muted-foreground">
           {u.email}
         </span>
@@ -104,10 +110,10 @@ function Access({ u }: { u: AccountResponse }) {
   if (!u.isEnabled) return <span className={muted}>Disabled</span>;
   if (u.isAdministrator)
     return (
-      <span className={adminPill}>
-        <ShieldCheckIcon className="size-[13px]" />
+      <Badge kind="blue">
+        <ShieldCheckIcon />
         Administrator
-      </span>
+      </Badge>
     );
   if (!u.groups?.length)
     return (
@@ -208,102 +214,113 @@ export function UsersGroupsPage() {
       ),
     },
   ];
-  const count = (n: number) =>
-    query.data && (
-      <span className="rounded-full bg-accent px-1.5 text-[11px] tabular-nums in-data-[state=active]:bg-primary/10 in-data-[state=active]:text-primary">
-        {n}
-      </span>
-    );
   const noGroup = users.filter((u) => !u.groups?.length).length;
 
   return (
-    <Page className="gap-4">
+    <Page>
       <PageHeader
-        title="Users & Groups"
+        title="Users & groups"
         description="Access control for your farm · Administrator area"
-      />
-      <Tabs
-        value={tab}
-        onValueChange={setTab}
-        className="items-center gap-4 data-horizontal:flex-row"
-      >
-        <DataTableTabsList aria-label="Users and groups">
-          <TabsTrigger value="users">Users {count(users.length)}</TabsTrigger>
-          <TabsTrigger value="groups">
-            Groups {count(groups.length)}
-          </TabsTrigger>
-        </DataTableTabsList>
-        {tab === 'groups' && (
-          <span className="ml-auto hidden text-xs text-muted-foreground md:inline">
-            Administrators hold every permission · a user has everything any of
-            their groups grants
-          </span>
-        )}
-      </Tabs>
-      {query.isError && !query.data ? (
-        <ErrorState
-          title="Could not load users and groups"
-          onRetry={() => void query.refetch()}
-        />
-      ) : !query.data ? (
-        <div className="flex items-center gap-2.5 px-6 py-10 text-muted-foreground">
-          <Spinner />
-          Loading…
-        </div>
-      ) : tab === 'users' ? (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-0.5 py-2.5 text-[12.5px] whitespace-nowrap text-muted-foreground max-md:text-xs">
-            <div>
-              <b className="font-semibold text-foreground">{users.length}</b>{' '}
-              user
-              {users.length === 1 ? '' : 's'} ·{' '}
-              <b className="font-semibold text-foreground">{noGroup}</b> without
-              a group
-            </div>
-            <Button size="sm" onClick={() => navigate('users/new')}>
-              <UserPlusIcon data-icon="inline-start" />
+        action={
+          tab === 'users' ? (
+            <Button onClick={() => navigate('users/new')}>
+              <PlusIcon data-icon="inline-start" />
               Add user
             </Button>
-          </div>
-          <DataTable
-            data={users}
-            columns={columns}
-            getRowId={(u) => u.id ?? ''}
-            onRowClick={openUser}
-            className={
-              isMobile
-                ? 'rounded-none border-0 [&_ul]:gap-2.5 [&_ul]:p-0 sm:[&_ul]:grid-cols-1'
-                : 'bg-card [&_th]:px-3.5 [&_th]:py-[11px] [&_th]:text-[11.5px] [&_th]:font-semibold [&_th]:tracking-[.04em] [&_th]:text-muted-foreground [&_th]:uppercase [&_thead]:bg-card'
-            }
-            cellClassName="px-3.5 py-[13px]"
-            renderCard={
-              isMobile
-                ? ({ original: u }) => (
-                    <div className="flex flex-col gap-2.5 rounded-lg border bg-card p-3.5 shadow-sm">
-                      <UserCell u={u} />
-                      <GroupChips u={u} groups={groups} />
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <Access u={u} />
-                          <Sessions u={u} />
+          ) : undefined
+        }
+      />
+      <Tabs value={tab} onValueChange={setTab} className="gap-4">
+        <DataTableToolbar>
+          <DataTableTabsList aria-label="Users and groups">
+            <TabsTrigger value="users">
+              Users{' '}
+              <DataTableTabCount
+                count={query.data ? users.length : undefined}
+              />
+            </TabsTrigger>
+            <TabsTrigger value="groups">
+              Groups{' '}
+              <DataTableTabCount
+                count={query.data ? groups.length : undefined}
+              />
+            </TabsTrigger>
+          </DataTableTabsList>
+          {tab === 'groups' && (
+            <span className="ml-auto hidden text-xs text-muted-foreground md:inline">
+              Administrators hold every permission · a user has everything any
+              of their groups grants
+            </span>
+          )}
+        </DataTableToolbar>
+        <TabsContent value={tab} className="flex flex-col gap-4">
+          {query.isError && query.data && (
+            <ErrorState
+              title="Could not refresh users and groups"
+              description="Showing previous results."
+              onRetry={() => query.refetch()}
+            />
+          )}
+          {query.isError && !query.data ? (
+            <ErrorState
+              title="Could not load users and groups"
+              onRetry={() => void query.refetch()}
+            />
+          ) : !query.data ? (
+            <Skeleton className="h-64 w-full" />
+          ) : tab === 'users' ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-0.5 py-2.5 text-[12.5px] whitespace-nowrap text-muted-foreground max-md:text-xs">
+                <div>
+                  <b className="font-semibold text-foreground">
+                    {users.length}
+                  </b>{' '}
+                  user
+                  {users.length === 1 ? '' : 's'} ·{' '}
+                  <b className="font-semibold text-foreground">{noGroup}</b>{' '}
+                  without a group
+                </div>
+              </div>
+              <DataTable
+                data={users}
+                columns={columns}
+                getRowId={(u) => u.id ?? ''}
+                onRowClick={openUser}
+                className={
+                  isMobile
+                    ? 'rounded-none border-0 [&_ul]:gap-2.5 [&_ul]:p-0 sm:[&_ul]:grid-cols-1'
+                    : undefined
+                }
+                renderCard={
+                  isMobile
+                    ? ({ original: u }) => (
+                        <div className="flex flex-col gap-2.5 rounded-lg border bg-card p-3.5 shadow-sm">
+                          <UserCell u={u} />
+                          <GroupChips u={u} groups={groups} />
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <Access u={u} />
+                              <Sessions u={u} />
+                            </div>
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {u.createdAtUtc?.slice(0, 10)}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {u.createdAtUtc?.slice(0, 10)}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                : undefined
-            }
-          />
-        </div>
-      ) : (
-        <GroupPanel
-          groups={groups}
-          selectedId={groupId}
-          onSelect={setSelectedGroupId}
-        />
-      )}
+                      )
+                    : undefined
+                }
+              />
+            </div>
+          ) : (
+            <GroupPanel
+              groups={groups}
+              selectedId={groupId}
+              onSelect={setSelectedGroupId}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
       <ConfirmDialog
         open={removeOpen}
         onOpenChange={setRemoveOpen}
@@ -318,12 +335,12 @@ export function UsersGroupsPage() {
           removeUser
             .mutateAsync(removing.id)
             .then(() => {
-              toast.success('User removed');
+              toast.success('User removed.');
               setRemoveOpen(false);
             })
             .catch(async (e) =>
               toast.error(
-                await extractErrorDetail(e, 'Could not remove the user'),
+                await extractErrorDetail(e, 'Could not remove user.'),
               ),
             );
         }}

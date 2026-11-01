@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -123,7 +124,7 @@ export function FeeProfilePage() {
       <PageHeader
         title={id ? 'Fee profile' : 'Add fee profile'}
         size="section"
-        above={<BackLink to="/settings/fees">Back to Fees</BackLink>}
+        above={<BackLink to="/settings/fees">Back to fees</BackLink>}
       />
       {query.isError ? (
         <ErrorState
@@ -135,7 +136,7 @@ export function FeeProfilePage() {
           title="Fee profile not found"
           action={
             <Button asChild>
-              <Link to="/settings/fees">Back to Fees</Link>
+              <Link to="/settings/fees">Back to fees</Link>
             </Button>
           }
         />
@@ -267,11 +268,11 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
     else addRef.current?.focus();
   }
   return (
-    <Page>
+    <Page className="flex-1">
       <PageHeader
         title={profile?.name ?? 'Add fee profile'}
         size="section"
-        above={<BackLink to="/settings/fees">Back to Fees</BackLink>}
+        above={<BackLink to="/settings/fees">Back to fees</BackLink>}
         action={
           profile ? (
             <Button
@@ -290,8 +291,8 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
         }
       />
       <Form {...form}>
-        <form className="flex max-w-[800px] flex-col gap-4" onSubmit={submit}>
-          <FieldGroup>
+        <form className="flex flex-1 flex-col gap-4" onSubmit={submit}>
+          <FieldGroup className="max-w-[800px] flex-1">
             <Card>
               <CardHeader>
                 <CardTitle className="sr-only">Fee profile</CardTitle>
@@ -494,26 +495,30 @@ function FeeProfileEditor({ profile }: { profile?: FeeProfileDto }) {
               />
             )}
           </FieldGroup>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              permission="settings:fees:update"
-              type="submit"
-              disabled={pending || !form.formState.isDirty}
-            >
-              {save.isPending && (
-                <Spinner data-icon="inline-start" aria-hidden="true" />
-              )}
-              {save.isPending ? 'Saving…' : 'Save'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={() => void navigate('/settings/fees')}
-            >
-              Cancel
-            </Button>
-          </div>
+          <FormFooter
+            end={
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => void navigate('/settings/fees')}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  permission="settings:fees:update"
+                  type="submit"
+                  disabled={pending || !form.formState.isDirty}
+                >
+                  {save.isPending && (
+                    <Spinner data-icon="inline-start" aria-hidden="true" />
+                  )}
+                  {save.isPending ? 'Saving…' : 'Save'}
+                </Button>
+              </>
+            }
+          />
         </form>
       </Form>
       {removal.dialog}

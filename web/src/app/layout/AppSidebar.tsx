@@ -32,6 +32,7 @@ import {
   navSections,
 } from './nav-config';
 import { UserMenu } from './UserMenu';
+import { APP_VERSION_LABEL } from './version';
 
 function NavLink({
   item,
@@ -144,6 +145,12 @@ export function AppSidebar() {
           <CollapseButton />
           <UserMenu />
         </SidebarMenu>
+        <div
+          title={APP_VERSION_LABEL}
+          className="-mt-1 truncate px-2 text-center text-[10.5px] text-muted-foreground group-data-[collapsible=icon]:hidden"
+        >
+          {APP_VERSION_LABEL}
+        </div>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

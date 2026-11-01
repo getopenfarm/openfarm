@@ -4,7 +4,11 @@ import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import { DataTableSearch } from './DataTableSearch';
-import { DataTableTabsList, DataTableToolbar } from './DataTableToolbar';
+import {
+  DataTableTabCount,
+  DataTableTabsList,
+  DataTableToolbar,
+} from './DataTableToolbar';
 
 function SearchExample() {
   const [value, setValue] = useState('');
@@ -25,6 +29,25 @@ function SearchExample() {
 }
 
 describe('Table controls', () => {
+  it('separates the tab label and count in its accessible name', () => {
+    render(
+      <Tabs defaultValue="printing">
+        <DataTableTabsList aria-label="Status">
+          <TabsTrigger value="printing">
+            In progress
+            <DataTableTabCount count={12} />
+          </TabsTrigger>
+        </DataTableTabsList>
+        <TabsContent value="printing">Jobs</TabsContent>
+      </Tabs>,
+    );
+    expect(
+      screen.getByRole('tab', { name: 'In progress 12' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('tabpanel', { name: 'In progress 12' }),
+    ).toHaveTextContent('Jobs');
+  });
   it('provides a named controlled search after the filters in keyboard order', async () => {
     const user = userEvent.setup();
     render(<SearchExample />);

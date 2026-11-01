@@ -138,6 +138,51 @@ describe('JobMatchingDialog', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('keeps profile failures and configuration links in job diagnostics', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            jobId: 'job-1',
+            outcome: 'Blocked',
+            jobChecks: [],
+            printers: [
+              {
+                printerId: 'printer-1',
+                printerName: 'P02',
+                eligible: false,
+                checks: [
+                  {
+                    code: 'profile-resolution',
+                    label: 'Production profiles',
+                    status: 'Failed',
+                    message:
+                      'The process profile is missing from the pinned slicer catalog.',
+                    configurationUrl: '/printers/printer-1/edit',
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+    renderDialog();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Printer matching' }),
+    );
+    expect(
+      await screen.findByText(
+        'The process profile is missing from the pinned slicer catalog.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Review configuration' }),
+    ).toHaveAttribute('href', '/printers/printer-1/edit');
+  });
+
   it('shows an actionable error when diagnostics cannot be loaded', async () => {
     vi.stubGlobal(
       'fetch',

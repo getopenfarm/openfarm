@@ -4,6 +4,7 @@ import {
   SideNavPage,
   sideNavItemClass,
 } from '@/components/side-nav-page/SideNavPage';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AccessContext } from '@/lib/auth/AccessContext';
 import { routePermission } from '@/lib/auth/permissions';
 
@@ -48,11 +49,13 @@ export function SettingsLayout() {
         ))}
     >
       {readOnly && (
-        <p className="mb-4 max-w-[640px] rounded-lg border bg-muted px-3 py-2.5 text-[13px] text-muted-foreground">
-          You can see these settings but not change them. An administrator can
-          give you the Settings › {current?.title} › Change permission on Users
-          &amp; Groups.
-        </p>
+        <Alert className="mb-4 max-w-[640px]" role="status">
+          <AlertDescription>
+            You can see these settings but not change them. An administrator can
+            give you the Settings › {current?.title} › Change permission on
+            Users &amp; groups.
+          </AlertDescription>
+        </Alert>
       )}
       {/* Greys the controls out only; the server refuses the saves anyway. */}
       <fieldset disabled={readOnly} className="contents">

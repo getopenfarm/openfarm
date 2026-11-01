@@ -838,6 +838,31 @@ export interface PlateCountsResponse {
   writtenOff?: number;
 }
 
+export interface EstimateMetric {
+  /** @nullable */
+  value?: number | null;
+  missing?: number;
+}
+
+export interface EstimateColor {
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  variantId?: string | null;
+  /** @nullable */
+  grams?: number | null;
+  missing?: number;
+}
+
+export interface PrintEstimate {
+  time?: EstimateMetric;
+  filament?: EstimateMetric;
+  approximate?: boolean;
+  colors?: EstimateColor[];
+}
+
 export interface RunJobSummaryResponse {
   /** @nullable */
   targetUnits?: number | null;
@@ -878,6 +903,7 @@ export interface PartRequirementSummaryResponse {
   estimatedMinutesPerPlate?: number | null;
   /** @nullable */
   estimatedGramsPerPlate?: number | null;
+  remainingEstimate?: PrintEstimate | null;
   /** @nullable */
   blockingReason?: string | null;
   jobs?: RunJobSummaryResponse[];
@@ -1017,6 +1043,7 @@ export interface ProductionPlanPart {
   jobUnits?: number[] | null;
   /** @nullable */
   objectMappingVersion?: string | null;
+  estimate?: PrintEstimate | null;
 }
 
 export interface ProductionPlan {
@@ -1029,6 +1056,7 @@ export interface ProductionPlan {
   minutes?: number | null;
   /** @nullable */
   grams?: number | null;
+  estimate?: PrintEstimate | null;
 }
 
 /**
@@ -1853,6 +1881,8 @@ export interface PartResponse {
   /** @nullable */
   estimateUnavailableReason?: string | null;
   estimation?: EstimationDetails | null;
+  printEstimate?: PrintEstimate | null;
+  unitEstimate?: PrintEstimate | null;
   estimateStatus?: string;
   /** @nullable */
   estimatedPrintTimeMinutes?: number | null;
@@ -1889,6 +1919,15 @@ export interface EditPartRequest {
   filamentRequirements?: EditPartFilamentRequirementRequest[];
 }
 
+export interface PrintedPartEstimateInput {
+  partId?: string;
+  quantity?: number;
+}
+
+export interface EstimatePrintedPartsRequest {
+  parts: PrintedPartEstimateInput[];
+}
+
 export interface PartColorGramsResponse {
   /** @nullable */
   narrowFilamentVariantId?: string | null;
@@ -1916,6 +1955,7 @@ export interface PartSummaryResponse {
   estimationPrinterBrand?: string | null;
   /** @nullable */
   estimationPrinterModelCode?: string | null;
+  printEstimate?: PrintEstimate | null;
   estimateStatus?: string;
   /** @nullable */
   estimatedPrintTimeMinutes?: number | null;

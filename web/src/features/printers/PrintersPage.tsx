@@ -6,6 +6,7 @@ import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { MAINTENANCE_FLAG_SEEDS } from '@/features/maintenance/data/mockMaintenance';
 import { matchMaintenanceToFleet } from '@/features/maintenance/lib/matchMaintenanceToFleet';
 import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -84,53 +85,65 @@ export function PrintersPage() {
         }
       />
 
-      {fleetQuery.isLoading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : fleetQuery.isError ? (
-        <ErrorState
-          icon={<TriangleAlertIcon className="size-8 text-destructive" />}
-          description="Could not load printers."
-          onRetry={() => fleetQuery.refetch()}
+      <Tabs
+        value={statusFilter}
+        onValueChange={(next) => setStatusFilter(next as PrinterStatusFilter)}
+        className="gap-4"
+      >
+        <PrinterFilterBar
+          query={query}
+          onQueryChange={setQuery}
+          counts={fleetQuery.data ? counts : undefined}
         />
-      ) : printers.length === 0 ? (
-        <EmptyState
-          icon={<PrinterIcon className="size-8 text-muted-foreground" />}
-          title="No printers"
-          description="Add one to see live status."
-          action={
-            <Button
-              permission="printers:register"
-              onClick={() => navigate('/printers/new')}
-            >
-              <PlusIcon data-icon="inline-start" /> Add printer
-            </Button>
-          }
-        />
-      ) : (
-        <div className="flex flex-col gap-4">
-          <PrinterFilterBar
-            query={query}
-            onQueryChange={setQuery}
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            counts={counts}
-          />
-
-          {filteredPrinters.length === 0 ? (
-            <EmptyState
-              title="No printers match"
-              description="Change the search or filter."
-            />
-          ) : (
-            <PrintersTable
-              printers={filteredPrinters}
-              maintenanceByPrinterId={maintenanceByPrinterId}
-              density="medium"
-              onOpen={(id) => navigate(`/printers/${id}`)}
+        <TabsContent value={statusFilter} className="flex flex-col gap-4">
+          {fleetQuery.isError && fleetQuery.data && (
+            <ErrorState
+              title="Could not refresh printers"
+              description="Showing previous results."
+              onRetry={() => fleetQuery.refetch()}
             />
           )}
-        </div>
-      )}
+          {fleetQuery.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : fleetQuery.isError && !fleetQuery.data ? (
+            <ErrorState
+              icon={<TriangleAlertIcon className="size-8 text-destructive" />}
+              description="Could not load printers."
+              onRetry={() => fleetQuery.refetch()}
+            />
+          ) : printers.length === 0 ? (
+            <EmptyState
+              icon={<PrinterIcon className="size-8 text-muted-foreground" />}
+              title="No printers"
+              description="Add one to see live status."
+              action={
+                <Button
+                  permission="printers:register"
+                  onClick={() => navigate('/printers/new')}
+                >
+                  <PlusIcon data-icon="inline-start" /> Add printer
+                </Button>
+              }
+            />
+          ) : (
+            <div className="flex flex-col gap-4">
+              {filteredPrinters.length === 0 ? (
+                <EmptyState
+                  title="No printers match"
+                  description="Change the search or filter."
+                />
+              ) : (
+                <PrintersTable
+                  printers={filteredPrinters}
+                  maintenanceByPrinterId={maintenanceByPrinterId}
+                  density="medium"
+                  onOpen={(id) => navigate(`/printers/${id}`)}
+                />
+              )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </Page>
   );
 }

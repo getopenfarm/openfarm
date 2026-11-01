@@ -109,7 +109,9 @@ public sealed class ProductionDemand
             spec.BackfillCumulativeUnitCeiling);
         demand.Mode = spec.Quantity is null ? DemandMode.Backfill : DemandMode.Finite;
         demand.QuantityBasis = spec.QuantityBasis ?? (spec.TargetKind == RunLineTargetKind.Assembly ? QuantityBasis.Sets : QuantityBasis.Units);
-        if (spec.TargetKind == RunLineTargetKind.Assembly && demand.QuantityBasis != QuantityBasis.Sets
+        var componentPlates = spec.TargetKind == RunLineTargetKind.Assembly && demand.QuantityBasis == QuantityBasis.Plates;
+        if (componentPlates && (productionRunId is not null || spec.Quantity != 1)
+            || spec.TargetKind == RunLineTargetKind.Assembly && demand.QuantityBasis == QuantityBasis.Units
             || spec.TargetKind == RunLineTargetKind.Part && demand.QuantityBasis == QuantityBasis.Sets)
             throw new ArgumentException("Quantity basis does not match the target.");
         return demand;

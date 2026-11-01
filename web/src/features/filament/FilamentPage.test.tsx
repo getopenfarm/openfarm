@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -131,5 +132,43 @@ describe('FilamentPage', () => {
 
     expect(await screen.findByText(/3 vendors/)).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('distinguishes a failed catalog request from an empty catalog and retries', async () => {
+    let failed = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const isCatalog = input.toString().endsWith('/api/v1/filaments');
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              isCatalog
+                ? failed
+                  ? { title: 'Server error' }
+                  : { filaments: FILAMENTS }
+                : {},
+            ),
+            {
+              status: isCatalog && failed ? 500 : 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          ),
+        );
+      }),
+    );
+    renderPage();
+    expect(
+      await screen.findByText('Could not load filaments'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No filaments')).not.toBeInTheDocument();
+    failed = false;
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(
+      await screen.findByText('Bambu Lab · PLA Basic'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Could not load filaments'),
+    ).not.toBeInTheDocument();
   });
 });

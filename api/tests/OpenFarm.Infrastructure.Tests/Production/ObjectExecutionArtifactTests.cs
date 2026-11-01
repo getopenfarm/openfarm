@@ -67,4 +67,29 @@ public class ObjectExecutionArtifactTests
         var manifest = PrintObjectManifestReader.Read(buffer.ToArray(), "hash", 2, 1);
         manifest.Objects.Select(o => o.Id).Should().Equal("B");
     }
+    [Fact]
+    public void OrcaMissingInstanceMetadata_CreatesCompleteUnitsForEveryVerifiedPrintedObject()
+    {
+        var ids = Enumerable.Range(344, 20).ToArray();
+        using var buffer = new MemoryStream();
+        using (var archive = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var info = new StreamWriter(archive.CreateEntry("Metadata/slice_info.config").Open()))
+                info.Write("<config><plate><metadata key='index' value='2'/><object identify_id='344' name='Handle cover'/></plate></config>");
+            using var code = new StreamWriter(archive.CreateEntry("Metadata/plate_2.gcode").Open());
+            code.Write($"; model label id: {string.Join(',', ids)}\n");
+            foreach (var id in ids.Reverse())
+                code.Write($"; start printing object, unique label id: {id}\nM624 {Convert.ToBase64String(BitConverter.GetBytes(1UL << (id - 344)))}\n");
+        }
+        var manifest = PrintObjectManifestReader.Read(buffer.ToArray(), "hash", 2, 20);
+        manifest.Validate(20);
+        manifest.DetectedCount.Should().Be(20);
+        manifest.Objects.Should().HaveCount(20);
+        manifest.Units.Should().HaveCount(20);
+        manifest.Units.SelectMany(unit => unit.ObjectIds).Should().BeEquivalentTo(ids.Select(id => id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        var execution = new OpenFarm.Domain.Production.PrintObjectExecution(manifest,
+            manifest.Units.Take(3).Select(unit => unit.Id).ToArray(), [], []);
+        execution.PlannedExclusions.Should().HaveCount(17);
+    }
+
 }

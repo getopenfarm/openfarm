@@ -1,11 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { MonitorIcon, XIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import { useIdentity } from '@/lib/auth/permissions';
 import { forgetSession } from '@/lib/auth/session';
@@ -45,10 +47,11 @@ export function SessionList({
   const [error, setError] = useState('');
   const own = !userId || userId === identity.data?.userId;
   const busy = revokeOne.isPending || revokeAll.isPending;
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   async function confirm() {
+    if (busy) return;
     const target = confirming;
-    setOpen(false);
     setError('');
     try {
       if (target === 'all') await revokeAll.mutateAsync();
@@ -60,7 +63,10 @@ export function SessionList({
         navigate('/login');
         return;
       }
-      toast.success(target === 'all' ? 'Sessions revoked' : 'Session revoked');
+      setOpen(false);
+      toast.success(
+        target === 'all' ? 'Sessions revoked.' : 'Session revoked.',
+      );
     } catch (e) {
       setError(await extractErrorDetail(e, 'Could not revoke session.'));
     }
@@ -73,18 +79,16 @@ export function SessionList({
         onRetry={() => void sessions.refetch()}
       />
     ) : (
-      <span className="text-[12.5px] text-muted-foreground">
-        Loading sessions…
-      </span>
+      <Skeleton className="h-32 w-full" />
     );
 
   const list = sessions.data;
   return (
     <div className="flex flex-col gap-3">
-      {error && (
-        <p role="alert" className="text-[13px] text-destructive">
-          {error}
-        </p>
+      {error && !open && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
       {list.length === 0 ? (
         <EmptyState
@@ -110,7 +114,7 @@ export function SessionList({
                   </span>
                 )}
               </div>
-              <dl className="m-0 flex gap-5">
+              <dl className="m-0 flex flex-wrap gap-5">
                 {(
                   [
                     ['Signed in', s.createdAtUtc],
@@ -131,11 +135,12 @@ export function SessionList({
               <div className="-ml-2.5 flex md:ml-0">
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="destructive"
                   size="sm"
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                   disabled={busy}
-                  onClick={() => {
+                  onClick={(event) => {
+                    triggerRef.current = event.currentTarget;
+                    setError('');
                     setConfirming(s);
                     setOpen(true);
                   }}
@@ -148,17 +153,20 @@ export function SessionList({
         </ul>
       )}
       {list.length > 1 && (
-        <button
+        <Button
           type="button"
-          className="self-start text-[12.5px] text-muted-foreground underline underline-offset-3 hover:text-destructive"
+          variant="outline"
+          className="self-start"
           disabled={busy}
-          onClick={() => {
+          onClick={(event) => {
+            triggerRef.current = event.currentTarget;
+            setError('');
             setConfirming('all');
             setOpen(true);
           }}
         >
           Revoke all {list.length} sessions
-        </button>
+        </Button>
       )}
       <ConfirmDialog
         open={open}
@@ -177,6 +185,10 @@ export function SessionList({
         }
         confirmLabel={confirming === 'all' ? 'Revoke all' : 'Revoke'}
         destructive
+        isPending={busy}
+        closeOnConfirm={false}
+        error={error || undefined}
+        returnFocusRef={triggerRef}
         onConfirm={() => void confirm()}
       />
     </div>

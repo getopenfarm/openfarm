@@ -20,7 +20,7 @@ public sealed record PartRequirementSummary(
     int? EstimatedMinutesPerPlate,
     decimal? EstimatedGramsPerPlate,
     string? BlockingReason,
-    IReadOnlyList<RunJobSummary> Jobs);
+    IReadOnlyList<RunJobSummary> Jobs, OpenFarm.Application.Parts.PrintEstimate? RemainingEstimate = null);
 
 /// <param name="CanRequeue">A lost plate of a finite line on an open run, with the snapshot a reprint needs.</param>
 public sealed record RunJobSummary(

@@ -102,4 +102,54 @@ public class PartObjectInventoryTests
         result.Count.Should().Be(1);
         result.Objects.Select(o => o.Id).Should().Equal("10");
     }
+    private static PartObjectInventory Sliced(string metadataObjects, string header)
+    {
+        // OrcaSlicer can omit repeated model instances from slice_info while retaining all G-code labels.
+        const string code = "; start printing object, unique label id: 345\nM624 AgAAAAAAAAA=\n"
+            + "; start printing object, unique label id: 344\nM624 AQAAAAAAAAA=\n"
+            + "; start printing object, unique label id: 345\nM624 AgAAAAAAAAA=\n";
+        return Archive(2,
+            ("Metadata/slice_info.config", $"<config><plate><metadata key='index' value='2'/>{metadataObjects}</plate></config>"),
+            ("Metadata/plate_2.gcode", header + code));
+    }
+
+    [Fact]
+    public void OmittedSliceInstances_AreVerifiedByCompleteHeaderAndPrintedLabels()
+    {
+        var result = Sliced("<object identify_id='344' name='Handle cover'/>", "; model label id: 344,345\n");
+        result.Count.Should().Be(2);
+        result.Source.Should().Be("GcodeLabels");
+        result.SkipUnavailableReason.Should().BeNull();
+        result.Objects.Select(o => o.Id).Should().Equal("345", "344");
+        result.Objects.Single(o => o.Id == "344").Name.Should().Be("Handle cover");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("; model label id: 344\n")]
+    [InlineData("; model label id: 344,346\n")]
+    [InlineData("; model label id: 344,345,345\n")]
+    [InlineData("; model label id: 344,,345\n")]
+    [InlineData("; model label id: 344,345\n; model label id: 344,346\n")]
+    public void OmittedSliceInstances_WithoutOneMatchingHeader_KeepSkippingDisabled(string header)
+    {
+        Sliced("<object identify_id='344'/>", header).SkipUnavailableReason.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData("<object identify_id='346'/>")]
+    [InlineData("<object identify_id='344'/><object identify_id='344'/>")]
+    [InlineData("<object/>")]
+    public void CompleteHeader_DoesNotOverrideConflictingOrDuplicateSliceIdentities(string objects)
+    {
+        Sliced(objects, "; model label id: 344,345\n").SkipUnavailableReason.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void ConflictingHeader_IsRejectedEvenWhenSliceMetadataMatchesPrintedLabels()
+    {
+        Sliced("<object identify_id='344'/><object identify_id='345'/>", "; model label id: 344,346\n")
+            .SkipUnavailableReason.Should().NotBeNull();
+    }
+
 }

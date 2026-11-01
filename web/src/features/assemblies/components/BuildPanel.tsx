@@ -20,8 +20,8 @@ import {
 import { categories } from '@/features/cost-catalog/costing';
 import { useCurrency } from '@/features/settings/generalSettings';
 import type { AssemblyCostInput } from '@/lib/api/generated/endpoints.schemas';
-import { formatMinutes } from '@/lib/formatMinutes';
-import { formatCost, formatGrams } from '@/lib/formatUnits';
+import { formatCost } from '@/lib/formatUnits';
+import { formatEstimateMetric } from '@/lib/printEstimates';
 import type { EditableLine } from './BomLineEditor';
 import { filamentColorKey } from './bomRollup';
 import { useBuildEstimate } from './useBuildEstimate';
@@ -45,6 +45,9 @@ export function BuildPanel({
     machineQuery,
     filamentQuery,
     subQueries,
+    printQuery,
+    printLoading,
+    printIncomplete,
     loading,
     failed,
     incomplete,
@@ -83,21 +86,37 @@ export function BuildPanel({
           <dl className="grid grid-cols-2 gap-4">
             <Metric
               label="Print time"
-              value={incomplete ? 'Unavailable' : formatMinutes(print.minutes)}
-              loading={loading}
+              value={
+                printIncomplete
+                  ? 'Unavailable'
+                  : formatEstimateMetric(
+                      print.time,
+                      'time',
+                      !!print.approximate,
+                    )
+              }
+              loading={printLoading}
             />
             <Metric
               label="Filament"
-              value={incomplete ? 'Unavailable' : formatGrams(print.grams)}
-              loading={loading}
+              value={
+                printIncomplete
+                  ? 'Unavailable'
+                  : formatEstimateMetric(
+                      print.filament,
+                      'filament',
+                      !!print.approximate,
+                    )
+              }
+              loading={printLoading}
             />
           </dl>
-          {loading ? (
+          {printLoading ? (
             <Skeleton
               className="h-24 w-full"
               aria-label="Loading filament breakdown"
             />
-          ) : print.colors.length > 0 && !failed ? (
+          ) : (print.colors ?? []).length > 0 && !printIncomplete ? (
             <Table aria-label="Filament breakdown">
               <TableHeader>
                 <TableRow>
@@ -111,7 +130,7 @@ export function BuildPanel({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {print.colors.map((c) => {
+                {(print.colors ?? []).map((c) => {
                   const color = filament.colors.get(
                     filamentColorKey(c.materialType, c.colorHex, c.variantId),
                   );
@@ -148,7 +167,11 @@ export function BuildPanel({
                         </span>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatGrams(c.grams)}
+                        {formatEstimateMetric(
+                          { value: c.grams, missing: c.missing },
+                          'filament',
+                          false,
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {estimate(
@@ -250,7 +273,11 @@ export function BuildPanel({
       {notes.length > 0 && (
         <Alert role="status" className="mt-4">
           <AlertTitle>
-            {loading ? 'Calculating build…' : 'Build estimates incomplete'}
+            {loading
+              ? 'Calculating build…'
+              : incomplete || totalCost.partial
+                ? 'Build estimates incomplete'
+                : 'Estimate notes'}
           </AlertTitle>
           <AlertDescription>
             <ul className="flex flex-col gap-1">
@@ -264,6 +291,7 @@ export function BuildPanel({
                 variant="outline"
                 size="sm"
                 disabled={
+                  printQuery.isFetching ||
                   catalog.isFetching ||
                   filamentQuery.isFetching ||
                   subQueries.some((q) => q.isFetching)
@@ -271,6 +299,7 @@ export function BuildPanel({
                 onClick={() => {
                   catalog.retry();
                   void filamentQuery.refetch();
+                  void printQuery.refetch();
                   for (const query of subQueries) void query.refetch();
                 }}
               >

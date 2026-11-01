@@ -163,7 +163,7 @@ describe('PartsTable queue action', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     await openQueue();
     expect(onRowClick).not.toHaveBeenCalled();
-    const input = await screen.findByLabelText('Quantity (plates)');
+    const input = await screen.findByLabelText('Number of plates');
     expect(input).toHaveValue(1);
     expect(
       await screen.findByText(/1 plate · 4 planned units/),
@@ -194,7 +194,6 @@ describe('PartsTable queue action', () => {
         quantity: 2,
         quantityBasis: 'Plates',
       },
-      createRun: false,
     });
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
@@ -270,9 +269,7 @@ describe('PartsTable queue action', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Print requirements incomplete. Complete them before queueing.',
     );
-    expect(
-      screen.queryByLabelText('Quantity (plates)'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Number of plates')).not.toBeInTheDocument();
   });
 
   it('shows server errors and preserves the quantity for retry', async () => {
@@ -280,7 +277,7 @@ describe('PartsTable queue action', () => {
     const { queryClient } = setup({ failure: true });
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     await openQueue();
-    const input = await screen.findByLabelText('Quantity (plates)');
+    const input = await screen.findByLabelText('Number of plates');
     fireEvent.change(input, { target: { value: '9' } });
     await waitFor(() =>
       expect(
@@ -299,13 +296,13 @@ describe('PartsTable queue action', () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it('rejects a fractional number of units without creating jobs', async () => {
+  it('rejects a fractional number of plates without creating jobs', async () => {
     const { requests } = setup();
     await openQueue();
-    fireEvent.change(await screen.findByLabelText('Quantity (plates)'), {
+    fireEvent.change(await screen.findByLabelText('Number of plates'), {
       target: { value: '1.5' },
     });
-    const form = screen.getByLabelText('Quantity (plates)').closest('form');
+    const form = screen.getByLabelText('Number of plates').closest('form');
     if (!form) throw new Error('Queue form was not rendered.');
     fireEvent.submit(form);
     expect(

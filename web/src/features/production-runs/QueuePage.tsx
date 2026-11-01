@@ -7,6 +7,7 @@ import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { DataTableSearch } from '@/components/data-table/DataTableSearch';
 import {
+  DataTableTabCount,
   DataTableTabsList,
   DataTableToolbar,
 } from '@/components/data-table/DataTableToolbar';
@@ -212,7 +213,7 @@ export function QueuePage() {
       !backfillData ||
       !externalData
     )
-      return '—';
+      return undefined;
     const statuses = value === 'InProgress' ? ['Printing', 'Paused'] : [value];
     return GROUPS.reduce(
       (total, group) =>
@@ -259,10 +260,8 @@ export function QueuePage() {
             <DataTableTabsList aria-label="Job status">
               {STATUSES.map(({ value, label }) => (
                 <TabsTrigger key={value} value={value}>
-                  {label}{' '}
-                  <span className="ml-1 tabular-nums opacity-70">
-                    {count(value)}
-                  </span>
+                  {label}
+                  <DataTableTabCount count={count(value)} />
                 </TabsTrigger>
               ))}
             </DataTableTabsList>

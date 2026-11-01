@@ -41,7 +41,6 @@ import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
 import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
-import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { PartResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -59,7 +58,7 @@ import {
   estimationSourceLabel,
   PRODUCTION_MAY_DIFFER,
 } from './components/estimationLabels';
-import { filamentGrams, PartEstimate } from './components/PartEstimate';
+import { PartEstimate } from './components/PartEstimate';
 import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
@@ -330,13 +329,15 @@ export function PartDetailPage() {
     }) ?? [];
 
   const incomplete = part?.printRequirementsStatus !== 'Complete';
-  const minutes = part?.estimatedPrintTimeMinutes;
-  const grams = part?.estimatedFilamentWeightGrams;
+  const minutes = part?.unitEstimate?.time?.value;
+  const grams = part?.unitEstimate?.filament?.value;
   const perUnit =
-    unitsPerPrint > 1 && (minutes != null || grams != null)
+    unitsPerPrint === part?.unitsPerPrint &&
+    unitsPerPrint > 1 &&
+    (minutes != null || grams != null)
       ? `About ${[
-          minutes != null && formatMinutes(minutes / unitsPerPrint),
-          grams != null && formatGrams(grams / unitsPerPrint),
+          minutes != null && formatMinutes(minutes),
+          grams != null && formatGrams(grams),
         ]
           .filter(Boolean)
           .join(' and ')} per unit.`
@@ -443,12 +444,6 @@ export function PartDetailPage() {
           />
 
           <PartRemovalToast notice={removalNotice} />
-          {part.slicer?.engine && part.slicer.version && (
-            <SlicerReadinessPanel
-              engine={part.slicer.engine}
-              version={part.slicer.version}
-            />
-          )}
           {(incomplete || (part?.processingWarnings ?? []).length > 0) && (
             <Alert role="status">
               <TriangleAlertIcon className="text-kind-amber" />
@@ -524,11 +519,7 @@ export function PartDetailPage() {
                         <PartEstimate
                           size="lg"
                           status={part.estimateStatus}
-                          minutes={part.estimatedPrintTimeMinutes}
-                          grams={filamentGrams(
-                            requirements,
-                            part.estimatedFilamentWeightGrams,
-                          )}
+                          estimate={part.printEstimate}
                           includesPurge={
                             requirements.length > 0 &&
                             requirements.every((r) => r.estimatedGrams != null)

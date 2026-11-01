@@ -1,5 +1,6 @@
 import { TriangleAlertIcon } from 'lucide-react';
 import { useId, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type {
@@ -132,9 +133,7 @@ export function AccessEditor({
               </span>
             )}
             {fromGroup.has(leaf.key) && (
-              <span className="rounded-full border bg-card px-[7px] text-[11px] font-medium text-muted-foreground">
-                From a group
-              </span>
+              <Badge variant="outline">From a group</Badge>
             )}
           </span>
           <span className="text-xs leading-[1.4] text-muted-foreground">

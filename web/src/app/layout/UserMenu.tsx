@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,7 +70,8 @@ export function UserMenu() {
   const auth = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const navigate = useNavigate();
-  const { isMobile } = useSidebar();
+  const { isMobile, state } = useSidebar();
+  const collapsed = !isMobile && state === 'collapsed';
   const query = useIdentity();
 
   const user = query.data;
@@ -99,22 +101,39 @@ export function UserMenu() {
   return (
     <SidebarMenuItem className="mt-1 border-t border-sidebar-border pt-2">
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <SidebarMenuButton
-            size="lg"
-            tooltip={name}
-            aria-label="User menu"
-            className="rounded-lg"
-          >
+        {collapsed ? (
+          // The icon rail has no room for the … button, so the avatar opens the menu there.
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton
+              size="lg"
+              tooltip={name}
+              aria-label="User menu"
+              className="rounded-lg"
+            >
+              <UserIdentity name={name} email={user?.email} />
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+        ) : (
+          <div className="flex items-center gap-2 p-2">
             <UserIdentity name={name} email={user?.email} />
-            <MoreHorizontalIcon className="ml-auto group-data-[collapsible=icon]:hidden" />
-          </SidebarMenuButton>
-        </DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="User menu"
+                className="ml-auto text-muted-foreground"
+              >
+                <MoreHorizontalIcon />
+              </Button>
+            </DropdownMenuTrigger>
+          </div>
+        )}
         <DropdownMenuContent
           side={isMobile ? 'top' : 'right'}
           align="end"
-          // 12px sidebar padding + 8px gap, so the popup clears the sidebar edge like akaun's
-          sideOffset={20}
+          // Anchored on the … button: 8px card padding + 12px sidebar padding + 8px gap, so the
+          // popup clears the sidebar edge like akaun's. (The collapsed avatar sits 8px further out.)
+          sideOffset={collapsed ? 20 : 28}
           className="min-w-60"
         >
           <DropdownMenuGroup>

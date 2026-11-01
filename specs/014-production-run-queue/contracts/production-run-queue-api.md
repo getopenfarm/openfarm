@@ -283,3 +283,28 @@ Omitted sorting keeps newest-first order with ascending ID ties. Unsupported
 fields, invalid directions, and direction without a field return `400`.
 Existing page/pageSize limits and response shapes are unchanged. Queue position,
 reordering, and queue pagination are unaffected.
+
+## Direct assembly plate plans
+
+The existing `POST /api/v1/production-demands/preview` and
+`POST /api/v1/production-demands` requests support finite standalone assembly
+plate plans. Set `line.targetKind` to `Assembly`, `line.quantityBasis` to `Plates`,
+and `line.quantity` to `1`. Supply `plateOverrides` as a Part-ID-to-plate-count
+map. Missing components default to one plate, zero omits that component from
+production, and counts must be non-negative integers with at least one plate
+overall. Unknown Part IDs and output exceeding the supported integer range are
+rejected. Nested assembly occurrences aggregate into one distinct printed Part.
+
+Preview includes zero-count component rows. `requiredUnits` and `plannedUnits`
+are the selected full-plate output; `completeSets` uses the exploded BOM ratios
+and includes omitted components, so it can be zero. This is possible output from
+these printed components, without inventory or non-printed-component availability.
+The plan fingerprint includes the BOM ratios and component outputs. Submission
+uses the same overrides and returned `planVersion`, snapshots only positive-count
+requirements/jobs, remains atomic and idempotent, and creates no Production Run.
+
+Component plate overrides remain invalid for set-target plans and backfill.
+Assembly plate mode is invalid for run creation or attachment. Existing part
+unit/plate and assembly set APIs remain compatible; the web direct-queue flow
+exposes only plates and never sends run attachment fields. Run membership is
+immutable, and all run and standalone jobs use the same dispatch Queue.

@@ -16,7 +16,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
 import { invalidateSlicingChecks } from '@/features/slicing/invalidateSlicingChecks';
-import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import type { AvailableSlicerResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint,
@@ -133,8 +132,7 @@ export function SlicingDefaultsPage() {
                       const key = selectionKey(slicer);
                       return (
                         <SelectItem key={key} value={key}>
-                          {formatSlicer(slicer.engine, slicer.version)} (
-                          {slicer.platform})
+                          {formatSlicer(slicer.engine, slicer.version)}
                         </SelectItem>
                       );
                     })}
@@ -143,12 +141,6 @@ export function SlicingDefaultsPage() {
               </Select>
             </SettingsRow>
           </SettingsRows>
-          {selection && (
-            <SlicerReadinessPanel
-              engine={selection.split('::')[0]}
-              version={selection.split('::')[1]}
-            />
-          )}
 
           <div className="mt-4 flex items-center gap-2">
             <Button

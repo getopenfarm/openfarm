@@ -6,8 +6,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatMinutes } from '@/lib/formatMinutes';
 import { pluralize } from '@/lib/pluralize';
+import { formatEstimateMetric } from '@/lib/printEstimates';
 import type { ProductionPlan } from './productionPlanner';
 
 export function PlanSummary({ plan }: { plan: ProductionPlan }) {
@@ -18,7 +18,7 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
         {plan.parts.reduce((sum, p) => sum + p.plannedUnits, 0)} planned units
         {plan.completeSets != null &&
           ` · ${pluralize(plan.completeSets, 'complete set')}`}
-        {plan.minutes != null && ` · ≈ ${formatMinutes(plan.minutes)}`}
+        {` · ${formatEstimateMetric(plan.estimate?.time, 'time')} · ${formatEstimateMetric(plan.estimate?.filament, 'filament')}`}
       </p>
       <Table>
         <TableHeader>

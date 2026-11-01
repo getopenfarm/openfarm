@@ -8,6 +8,10 @@ COPY web/package.json web/bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
 COPY web/ ./
+# The version the sidebar shows. .git is dockerignored, so CI passes `git describe` in.
+# Declared after the install layer so a version change keeps it cached.
+ARG OPENFARM_VERSION=unknown
+ENV OPENFARM_VERSION=$OPENFARM_VERSION
 RUN bun run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS api

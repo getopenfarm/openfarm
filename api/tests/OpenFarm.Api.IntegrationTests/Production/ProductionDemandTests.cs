@@ -142,6 +142,84 @@ public class ProductionDemandTests(ProductionTestFactory factory) : ProductionTe
     }
 
     [Fact]
+    public async Task AssemblyPlateSubmission_OmitsZeroComponents_QueuesFullPlatesWithoutRun_AndIsIdempotent()
+    {
+        var client = await ClientAsync();
+        var (assembly, bracket, cover) = await AssemblyAsync();
+        var line = new { targetKind = "Assembly", targetId = assembly.Id, quantity = 1, quantityBasis = "Plates" };
+        var counts = new Dictionary<Guid, int> { [bracket.Id] = 2, [cover.Id] = 0 };
+        var plan = await PreviewAsync(client, line, counts);
+        plan.CompleteSets.Should().Be(0);
+        plan.Parts.Should().HaveCount(2);
+        var request = new { submissionId = Guid.NewGuid(), line, plateOverrides = counts, planVersion = plan.Version };
+        var responses = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => client.PostAsJsonAsync("/api/v1/production-demands", request)));
+        foreach (var response in responses) response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var demand = (await responses[0].Content.ReadFromJsonAsync<ProductionDemandResponse>())!;
+        demand.ProductionRunId.Should().BeNull();
+        (await responses[1].Content.ReadFromJsonAsync<ProductionDemandResponse>())!.Id.Should().Be(demand.Id);
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var requirement = await db.PartRequirements.SingleAsync(r => r.RunLineId == demand.Id);
+        requirement.PartId.Should().Be(bracket.Id);
+        requirement.Quantity.Should().Be(12);
+        var jobs = await db.PrintJobs.Where(j => j.PartRequirementId == requirement.Id).ToListAsync();
+        jobs.Should().HaveCount(2);
+        jobs.Should().OnlyContain(j => j.EffectiveTargetUnits == 6 && j.GetProductionPart() != null);
+        var queue = await client.GetFromJsonAsync<ListQueueJobsResponse>($"/api/v1/print-jobs?search={Uri.EscapeDataString(bracket.Name)}");
+        foreach (var job in jobs) queue!.Items.Should().Contain(j => j.JobId == job.Id && j.ProductionRunId == null);
+        var changedCounts = new Dictionary<Guid, int> { [bracket.Id] = 1, [cover.Id] = 0 };
+        (await client.PostAsJsonAsync("/api/v1/production-demands", new { submissionId = Guid.NewGuid(), line, plateOverrides = changedCounts, planVersion = plan.Version }))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task AssemblyPlatePlans_RejectInvalidCountsAndRunOwnership()
+    {
+        var client = await ClientAsync();
+        var (assembly, bracket, cover) = await AssemblyAsync();
+        var line = new { targetKind = "Assembly", targetId = assembly.Id, quantity = 1, quantityBasis = "Plates" };
+        foreach (var counts in new[] {
+            new Dictionary<Guid, int> { [bracket.Id] = -1 },
+            new Dictionary<Guid, int> { [bracket.Id] = 0, [cover.Id] = 0 },
+            new Dictionary<Guid, int> { [Guid.NewGuid()] = 1 } })
+        {
+            var response = await client.PostAsJsonAsync("/api/v1/production-demands/preview", new { line, plateOverrides = counts });
+            response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        }
+        var plan = await PreviewAsync(client, line);
+        var tracked = await client.PostAsJsonAsync("/api/v1/production-demands", new { submissionId = Guid.NewGuid(), line, planVersion = plan.Version, createRun = true });
+        tracked.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var newRun = await client.PostAsJsonAsync("/api/v1/production-runs", new { lines = new[] { line } });
+        newRun.IsSuccessStatusCode.Should().BeFalse();
+        ((int)newRun.StatusCode).Should().BeInRange(400, 499);
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        (await db.ProductionDemands.AnyAsync(d => d.TargetId == assembly.Id)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task NestedAssemblyPlatePlan_AggregatesRepeatedParts_AndComputesPossibleSets()
+    {
+        var client = await ClientAsync();
+        var (child, bracket, cover) = await AssemblyAsync();
+        var root = OpenFarm.Domain.Assemblies.Assembly.Create("Nested lamp", null, [
+            new(OpenFarm.Domain.Assemblies.BomLineTargetKind.Assembly, null, child.Id, null, 1),
+            new(OpenFarm.Domain.Assemblies.BomLineTargetKind.Part, bracket.Id, null, null, 1)]);
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            db.Assemblies.Add(root);
+            await db.SaveChangesAsync();
+        }
+        var plan = await PreviewAsync(client, new { targetKind = "Assembly", targetId = root.Id, quantity = 1, quantityBasis = "Plates" },
+            new Dictionary<Guid, int> { [bracket.Id] = 2, [cover.Id] = 2 });
+        plan.Parts.Should().HaveCount(2);
+        plan.Plates.Should().Be(4);
+        plan.CompleteSets.Should().Be(4);
+        plan.Parts.Single(p => p.PartId == bracket.Id).PlannedUnits.Should().Be(12);
+    }
+
+    [Fact]
     public async Task AssemblyBackfill_BalancesReservedAndCompletedOutput_AndRefreshRetainsOldRecipe()
     {
         var client = await ClientAsync();

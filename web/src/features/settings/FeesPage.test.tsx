@@ -347,15 +347,15 @@ describe('fee profile settings', () => {
       { url: `${feesKey}/profiles/shop`, method: 'DELETE', body: undefined },
     ]);
   });
-  it('places Save and Cancel after the content without optional disclosures or a sticky footer', async () => {
+  it('uses the shared footer with Cancel before Save and no optional disclosures', async () => {
     setup('/settings/fees/new');
     const save = await screen.findByRole('button', { name: 'Save' });
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     expect(save.parentElement?.children).toHaveLength(2);
-    expect(save.nextElementSibling).toBe(cancel);
+    expect(cancel.nextElementSibling).toBe(save);
     expect(
       save.closest('form')?.querySelector('[data-slot="form-footer"]'),
-    ).toBeNull();
+    ).not.toBeNull();
     expect(
       screen.queryByRole('button', { name: 'Try a sale amount' }),
     ).not.toBeInTheDocument();

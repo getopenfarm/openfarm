@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 /**
- * Printer, filament and default-slicer changes decide what each slicer can print, so the readiness checks and the
+ * Printer, filament and default-slicer changes decide what each slicer can print, so job matching diagnostics and the
  * queue's blocking reasons are stale the moment one is saved.
  */
 export function invalidateSlicingChecks(queryClient: QueryClient) {

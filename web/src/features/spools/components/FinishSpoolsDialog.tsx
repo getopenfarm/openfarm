@@ -25,6 +25,7 @@ interface FinishSpoolsDialogProps {
   /** The spools that finished, before the dialog closes. */
   onFinished?: (ids: string[]) => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
+  onPendingChange?: (pending: boolean) => void;
 }
 
 /** Finishes spools one after another, writing off what is left on each; a failure skips only that spool. */
@@ -33,6 +34,7 @@ export function FinishSpoolsDialog({
   onOpenChange,
   onFinished,
   returnFocusRef,
+  onPendingChange,
 }: FinishSpoolsDialogProps) {
   const queryClient = useQueryClient();
   const reasonId = useId();
@@ -41,7 +43,9 @@ export function FinishSpoolsDialog({
   const writeOff = targets.reduce((sum, t) => sum + t.remainingGrams, 0);
 
   async function finish() {
+    if (pending) return;
     setPending(true);
+    onPendingChange?.(true);
     const finished: string[] = [];
     try {
       for (const target of targets) {
@@ -68,6 +72,7 @@ export function FinishSpoolsDialog({
       invalidateFilamentTrackingQueries(queryClient);
     } finally {
       setPending(false);
+      onPendingChange?.(false);
       setReason('');
       onOpenChange(false);
     }

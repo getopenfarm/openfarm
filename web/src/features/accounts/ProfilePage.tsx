@@ -2,13 +2,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
+import { ErrorState } from '@/components/empty-state/EmptyState';
 import {
   SideNavPage,
   sideNavItemClass,
 } from '@/components/side-nav-page/SideNavPage';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import {
   SettingsRow,
   SettingsRows,
@@ -36,7 +40,7 @@ export function ProfilePage() {
   const identity = useIdentity();
   return (
     <SideNavPage
-      title="My Profile"
+      title="My profile"
       description="Manage your account details and access"
       navLabel="Profile"
       nav={tabs.map((t) => (
@@ -59,6 +63,11 @@ export function ProfilePage() {
       {tab === 'profile' &&
         (identity.data ? (
           <ProfileTab user={identity.data} />
+        ) : identity.isError ? (
+          <ErrorState
+            title="Could not load profile"
+            onRetry={() => identity.refetch()}
+          />
         ) : (
           <Skeleton className="h-48 max-w-[640px]" />
         ))}
@@ -84,10 +93,11 @@ function ProfileTab({ user }: { user: CurrentUser }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (update.isPending) return;
     setError('');
     try {
       await update.mutateAsync({ name, email, username });
-      toast.success('Profile updated');
+      toast.success('Profile saved.');
     } catch (e) {
       setError(await extractErrorDetail(e, 'Could not update profile.'));
     }
@@ -99,41 +109,44 @@ function ProfileTab({ user }: { user: CurrentUser }) {
       description="Update your display name, email, and username"
     >
       <form onSubmit={submit}>
-        <SettingsRows>
-          <SettingsRow label="Display name" htmlFor="profile-name">
-            <Input
-              id="profile-name"
-              placeholder="Your full name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </SettingsRow>
-          <SettingsRow label="Email" htmlFor="profile-email">
-            <Input
-              id="profile-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </SettingsRow>
-          <SettingsRow label="Username" htmlFor="profile-username">
-            <Input
-              id="profile-username"
-              required
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </SettingsRow>
-        </SettingsRows>
+        <fieldset disabled={update.isPending} className="contents">
+          <SettingsRows>
+            <SettingsRow label="Display name" htmlFor="profile-name">
+              <Input
+                id="profile-name"
+                placeholder="Your full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </SettingsRow>
+            <SettingsRow label="Email" htmlFor="profile-email">
+              <Input
+                id="profile-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </SettingsRow>
+            <SettingsRow label="Username" htmlFor="profile-username">
+              <Input
+                id="profile-username"
+                required
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </SettingsRow>
+          </SettingsRows>
+        </fieldset>
         {error && (
-          <p role="alert" className="mx-4 mt-2.5 text-xs text-destructive">
-            {error}
-          </p>
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
         <Button type="submit" className="mt-4" disabled={update.isPending}>
-          Save changes
+          {update.isPending && <Spinner data-icon="inline-start" />}
+          {update.isPending ? 'Saving…' : 'Save'}
         </Button>
       </form>
     </SettingsSection>
@@ -152,6 +165,7 @@ function SecurityTab() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (pending || mismatch) return;
     setError('');
     setPending(true);
     try {
@@ -160,7 +174,7 @@ function SecurityTab() {
         method: 'POST',
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      toast.success('Password changed');
+      toast.success('Password changed.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -175,56 +189,67 @@ function SecurityTab() {
 
   return (
     <SettingsSection
-      title="Change Password"
+      title="Change password"
       description="Choose a strong password of at least 8 characters"
     >
       <form onSubmit={submit}>
-        <SettingsRows>
-          <SettingsRow label="Current password" htmlFor="current-password">
-            <Input
-              id="current-password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-            />
-          </SettingsRow>
-          <SettingsRow label="New password" htmlFor="new-password">
-            <Input
-              id="new-password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </SettingsRow>
-          <SettingsRow label="Confirm new password" htmlFor="confirm-password">
-            <Input
-              id="confirm-password"
-              type="password"
-              required
-              autoComplete="new-password"
-              aria-invalid={mismatch}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-          </SettingsRow>
-          {mismatch && (
-            <p className="py-3 text-xs text-destructive">
-              Passwords do not match.
-            </p>
-          )}
-        </SettingsRows>
+        <fieldset disabled={pending} className="contents">
+          <SettingsRows>
+            <SettingsRow label="Current password" htmlFor="current-password">
+              <Input
+                id="current-password"
+                type="password"
+                required
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </SettingsRow>
+            <SettingsRow label="New password" htmlFor="new-password">
+              <Input
+                id="new-password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </SettingsRow>
+            <SettingsRow
+              label="Confirm new password"
+              htmlFor="confirm-password"
+              invalid={mismatch}
+              disabled={pending}
+            >
+              <Input
+                id="confirm-password"
+                type="password"
+                required
+                autoComplete="new-password"
+                aria-invalid={mismatch}
+                aria-describedby={
+                  mismatch ? 'confirm-password-error' : undefined
+                }
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+              {mismatch && (
+                <FieldError id="confirm-password-error">
+                  Passwords do not match.
+                </FieldError>
+              )}
+            </SettingsRow>
+          </SettingsRows>
+        </fieldset>
         {error && (
-          <p role="alert" className="mx-4 mt-2.5 text-xs text-destructive">
-            {error}
-          </p>
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
         <Button type="submit" className="mt-4" disabled={mismatch || pending}>
-          Change password
+          {pending && <Spinner data-icon="inline-start" />}
+          {pending ? 'Changing password…' : 'Change password'}
         </Button>
       </form>
     </SettingsSection>

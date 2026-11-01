@@ -7,8 +7,6 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { ErrorState } from '@/components/empty-state/EmptyState';
 import { PermissionButton as Button } from '@/components/PermissionButton';
-import { Page } from '@/components/page/Page';
-import { PageHeader } from '@/components/page-header/PageHeader';
 import {
   Command,
   CommandEmpty,
@@ -17,13 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { FieldError } from '@/components/ui/field';
 import {
   InputGroup,
   InputGroupAddon,
@@ -44,16 +36,20 @@ import {
   useGeneralSettings,
 } from './generalSettings';
 import { invalidatePrinterCosts } from './printerCosts';
+import {
+  SettingsRow,
+  SettingsRows,
+  SettingsSection,
+  SettingsSubhead,
+} from './SettingsParts';
 
 export function GeneralSettingsPage() {
   const query = useGeneralSettings();
   return (
-    <Page>
-      <PageHeader
-        title="General"
-        size="section"
-        description="Shared pricing and electricity settings for your farm."
-      />
+    <SettingsSection
+      title="General"
+      description="Currency and cost estimate defaults."
+    >
       {query.data ? (
         <GeneralForm data={query.data.data} />
       ) : query.isError ? (
@@ -64,7 +60,7 @@ export function GeneralSettingsPage() {
       ) : (
         <Skeleton className="h-40" />
       )}
-    </Page>
+    </SettingsSection>
   );
 }
 
@@ -139,14 +135,25 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
   const failureError = form.formState.errors.failure?.message;
   return (
     <form
-      className="flex max-w-[800px] flex-col gap-4"
+      className="flex flex-col"
       onSubmit={form.handleSubmit((v) => {
         if (!save.isPending) save.mutate(v);
       })}
     >
-      <FieldGroup>
-        <Field data-disabled={save.isPending} data-invalid={!!currencyError}>
-          <FieldLabel htmlFor="currency">Currency</FieldLabel>
+      <SettingsSubhead>Display</SettingsSubhead>
+      <SettingsRows>
+        <SettingsRow
+          label="Currency"
+          invalid={!!currencyError}
+          disabled={save.isPending}
+          htmlFor="currency"
+          wide
+          help={
+            <span id="currency-description">
+              Relabels existing amounts. No conversion.
+            </span>
+          }
+        >
           <Controller
             control={form.control}
             name="currencyCode"
@@ -163,7 +170,7 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
                     aria-invalid={!!currencyError}
                     aria-describedby="currency-description currency-error"
                     disabled={save.isPending}
-                    className="w-full justify-between sm:w-80"
+                    className="w-full justify-between"
                   >
                     {label(field.value)}
                     <ChevronsUpDownIcon data-icon="inline-end" />
@@ -197,15 +204,24 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
               </Popover>
             )}
           />
-          <FieldDescription id="currency-description">
-            Changing currency relabels existing amounts without converting their
-            values.
-          </FieldDescription>
-          <FieldError id="currency-error">{currencyError}</FieldError>
-        </Field>
-        <Field data-disabled={save.isPending} data-invalid={!!priceError}>
-          <FieldLabel htmlFor="tariff">Electricity rate</FieldLabel>
-          <InputGroup className="w-full max-w-64">
+          <FieldError id="currency-error" className="mt-1.5">
+            {currencyError}
+          </FieldError>
+        </SettingsRow>
+      </SettingsRows>
+      <SettingsSubhead>Cost estimates</SettingsSubhead>
+      <SettingsRows>
+        <SettingsRow
+          label="Electricity rate"
+          invalid={!!priceError}
+          disabled={save.isPending}
+          htmlFor="tariff"
+          wide
+          help={
+            <span id="tariff-description">Blank = unknown. 0 = no charge.</span>
+          }
+        >
+          <InputGroup className="w-full">
             <InputGroupAddon>{currency}</InputGroupAddon>
             <InputGroupInput
               id="tariff"
@@ -217,15 +233,23 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
             />
             <InputGroupAddon align="inline-end">/ kWh</InputGroupAddon>
           </InputGroup>
-          <FieldDescription id="tariff-description">
-            Used to estimate printing electricity costs. Leave blank if unknown;
-            enter 0 for no charge.
-          </FieldDescription>
-          <FieldError id="tariff-error">{priceError}</FieldError>
-        </Field>
-        <Field data-disabled={save.isPending} data-invalid={!!failureError}>
-          <FieldLabel htmlFor="failure">Failure allowance</FieldLabel>
-          <InputGroup className="w-full max-w-40">
+          <FieldError id="tariff-error" className="mt-1.5">
+            {priceError}
+          </FieldError>
+        </SettingsRow>
+        <SettingsRow
+          label="Failure allowance"
+          invalid={!!failureError}
+          disabled={save.isPending}
+          htmlFor="failure"
+          wide
+          help={
+            <span id="failure-description">
+              Buffer on filament, depreciation and electricity.
+            </span>
+          }
+        >
+          <InputGroup className="w-full">
             <InputGroupInput
               id="failure"
               inputMode="decimal"
@@ -236,13 +260,11 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
             />
             <InputGroupAddon align="inline-end">%</InputGroupAddon>
           </InputGroup>
-          <FieldDescription id="failure-description">
-            Adds a buffer to filament, printer depreciation, and electricity
-            estimates. Enter 0 for no allowance.
-          </FieldDescription>
-          <FieldError id="failure-error">{failureError}</FieldError>
-        </Field>
-      </FieldGroup>
+          <FieldError id="failure-error" className="mt-1.5">
+            {failureError}
+          </FieldError>
+        </SettingsRow>
+      </SettingsRows>
       {save.isError && (
         <ErrorState
           title="Could not save general settings"
@@ -253,7 +275,7 @@ function GeneralForm({ data }: { data: GeneralSettings }) {
           }
         />
       )}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button
           permission="settings:general:update"
           type="submit"

@@ -32,10 +32,18 @@ protection when changing these flows.
   on `/filament/:id/edit` (its page holds stock, spools, usage and history).
   Print jobs edit through header-triggered dialogs.
 - **Pending state**: `<Spinner data-icon="inline-start" />` plus an ellipsis
-  label (`Saving…`, `Removing…`, `Importing…`).
+  label (`Saving…`, `Removing…`, `Importing…`). Inline spinners are decorative
+  so the button retains its action name; standalone spinners announce loading.
 - **Create buttons** on list pages read `Add X` with
   `PlusIcon data-icon="inline-start"`, primary, in the header `action`. Add-page
   titles read `Add X`.
+- **Editor section actions**: Assembly Structure and Add run Items to make use
+  `EditorSectionHeader` with a count and one blue primary add action at the top
+  right. Let the action wrap below the title on narrow screens. Both use
+  `LibraryItemPicker`: the same Add part or assembly label, search, thumbnail
+  sizing, loading/error/retry states, and focus return. Page editors support `/`
+  and Ctrl/Cmd+K; shortcuts must not interrupt typing or other dialogs. Callers
+  retain their own item eligibility, duplicate handling, and quantity rules.
 - **Batch entry**: records that arrive in batches (spools from one delivery)
   are added as lines on one page: each line its own item and quantity, the
   fields the batch shares (supplier, order, date) once below them, and one
@@ -57,7 +65,7 @@ place (Remove in the header, `FormFooter` Save, unsaved-change prompt). Two
 parts copy Akaun's `/users-groups` and `/profile` instead: groups edit inline
 beside the group list with a dirty-only Reset/Save footer and "Delete group",
 and My Profile saves each section on its own with inline form errors. The Users
-& Groups list loads with `Spinner` + "Loading…".
+& Groups list uses shared Skeleton loading feedback.
 
 Dialogs are appropriate for confirmations, quick actions on existing entities,
 and in-form pickers or sub-entity creation that must retain the parent form.
@@ -89,15 +97,17 @@ footer must remain visible.
 - Profile search uses Radix Popover and Command. Server search remains
   authoritative (`shouldFilter={false}`), with debounce, loading, retry, and empty
   states. Support arrow keys, Enter, Escape, clearing, and trigger focus return.
-- Use ToggleGroup for selectable filters and expose selection state. Disable
+- Use segmented Tabs for primary single-choice list views (including status and
+  item type); use ToggleGroup for multi-select filters, date presets, and form
+  choices, exposing selection state. Disable
   repeated submissions while pending; use Spinner with a descriptive action label.
 
 ## Shared presentation
 
-- Every routed page roots in `Page` (`web/src/components/page/Page.tsx`) with a
-  `PageHeader` first. `Page` owns the header-to-content gap and the bottom
-  clearance for the table selection bar; pass only layout extras like `flex-1`
-  — never hand-roll the root `flex flex-col gap-*`.
+- Ordinary routed pages root in `Page` (`web/src/components/page/Page.tsx`) with
+  a `PageHeader` first. `Page` owns the header-to-content gap; pass only layout
+  extras like `flex-1`. Settings and My Profile retain `SideNavPage`, with shared
+  section headers and fields. Login retains its authentication layout.
 - Use semantic tokens from `web/src/index.css`; add theme-specific values there
   rather than raw status colors or per-page dark-mode overrides.
 - Badge `kind` variants own categorical foreground/background colors. StatusBadge
@@ -141,9 +151,11 @@ a list would otherwise repeat the same row dozens of times; Show expands a group
 to its rows. Row operations
 belong in accessible trailing ellipsis menus. Tables with bulk operations use
 DataTableSelectionBar, which shows the count, actions, and Clear selection when
-one or more rows are selected. Parts and Assemblies place it inline in the framed
-toolbar beside Fields in both views. Other lists retain the floating bar. Reserve page
-space after pagination, respect safe areas, and keep dialogs above the bar.
+one or more rows are selected. Place it inline in the persistent framed toolbar
+above table headers, beside Fields/Columns and view controls. Parts and Assemblies
+use the same row in both views. Keep that row mounted when selection is empty;
+wrap controls on narrow screens and keep dialogs outside menus. Do not add floating
+bars or reserve bottom space for bulk actions.
 Do not duplicate bulk controls above the table or add selection without a useful
 workflow. See [agent conventions](../AGENTS.md) for selection and safety rules.
 
@@ -157,11 +169,14 @@ wide. Let controls wrap when space runs out without clipping labels or focus
 rings. Keep DOM order consistent with the visible order.
 
 Use `DataTableTabsList` inside Tabs for switching content panels, preserving the
-default segmented appearance and keyboard navigation. A detail page with several
-views (the filament page) keeps one tab list above the panels, never inside one,
-and the active tab in `?tab=` so links can open it. Use outlined ToggleGroups
-for row filters: single selection for printer status and multiple selection for
-part tags. Preserve each feature's filtering, counts, pagination, selection, and
+default segmented appearance and keyboard navigation. Use them for primary
+single-choice list views, including printer status and cost item type. Every tab
+has an associated TabsContent panel. Preserve existing `?tab=` state and defaults.
+A detail page keeps its main tabs above the panels; secondary tabs such as
+Active/Finished spools belong inside their own panel with a separate Tabs root.
+Use DataTableTabCount for counts already supplied by the feature; do not invent
+counts or extra requests. Use outlined ToggleGroups for multi-select filters,
+date-range presets, and form choices. Category, color, and source remain Selects. Preserve each feature's filtering, counts, pagination, selection, and
 pending behavior. Do not add search to pages without it simply for consistency.
 `DataTableSearch` requires an accessible label and a descriptive placeholder and
 uses the shared InputGroup primitives. Profile picker search retains its
@@ -325,3 +340,50 @@ views; keyboard shortcuts must not intercept menu, dialog or form controls.
 Pointer drag restoration focuses the source entry rather than revealing a text
 move handle. The keyboard-only move control is compact and icon-only; drag
 previews contain one item name or a selected-item count.
+
+## Queueing and production targets
+
+Direct queueing from Parts and Assemblies creates standalone demand, with no Run
+picker or conversion action. Parts ask for full plates (default one); Assemblies
+show one plate count per distinct printed component, including nested components.
+Counts default to one, allow zero to omit a component, and require at least one
+plate overall. Complete sets are an estimate from these printed components only.
+A single Continuous backfill switch defaults off and requires explicit submission;
+assembly backfill uses the whole BOM recipe, independently of finite plate counts.
+
+Runs add planning and progress tracking above the same Queue used by standalone
+jobs. New part lines default to exact units and assembly lines to exact sets;
+partial final plates use object skipping. Explicit part plate quantities remain
+available. Run membership is fixed when demand is created; direct jobs do not
+appear in Runs. Keep run metadata editing and adding lines to open runs.
+
+## Route review checklist
+
+Source review for the UI consistency pass covers the routes below. This checklist
+records shared patterns and intentional layouts; it does not represent browser
+visual verification. Future additions should follow the same patterns.
+
+| Routes | Reviewed pattern / retained behavior |
+| --- | --- |
+| Dashboard | Shared header and feedback; retain camera grid and operational cards. |
+| Printers, printer detail, Add/Edit printer | Status tabs with counts and search; shared page/forms, retry, and confirmation. |
+| Queue, print job detail | Shared tabs/counts/search and dialogs; retain virtualized sections, live updates, ordering, and independent pagination. |
+| Runs, run detail, Add/Edit run | Associated status panels, shared headers/forms, production progress, and operational actions. |
+| Filament catalog, detail, Add/Edit filament | Explicit catalog request errors; main view tabs and separate Active/Finished spool tabs. |
+| Spool detail and Add spools | Shared forms; preserve batch entry, stock safety, and operational dialogs. Spool lists use inline selection actions. |
+| Parts and Assemblies, detail and Add pages | Shared library browser, framed inline actions, Fields/view controls, folder navigation, draft save, and modifier selection. |
+| Cost catalog and Add/Edit cost item | Type tabs plus category Select; framed inline selection actions, shared forms, confirmation, and request feedback. |
+| Profiles, profile detail, import | Shared tabs and spacing, in-place draft footer, import flow, and specialized profile pickers. |
+| Maintenance | Shared cards, tables, loading/error states; retain existing task-template and operational behavior. |
+| Stats | Shared cards and feedback; retain date-range presets and custom date inputs as parameter controls. |
+| Activity log | Shared loading/error/empty feedback and numbered pagination; retain chronological event layout. |
+| General, slicing defaults | Side-navigation shell, shared section headers/fields, section-level saves, validation, and pending labels. |
+| Fees, fee profile, printer costs, model costs | Shared list/forms; fee profile uses the same sticky Cancel/Save footer as other full-page drafts. |
+| Users & groups, Add/Edit user | Shared header action, segmented tabs/counts/panels, table styling, real user links, warnings, and form footer. Retain mobile cards and inline group editor. |
+| My profile and sessions | Side-navigation shell and section saves; shared errors/pending controls, password field associations, and session confirmation focus return. |
+| Login | Retain authentication layout; shared controls and accessible pending indicators. |
+
+Browser checks remain with the user: 375px, 768px, and 1440px, light/dark themes,
+200% zoom, long labels, keyboard focus, toolbar wrapping, horizontal scrolling,
+dialog scrolling, and menu/dialog stacking. Do not start browser verification
+unless explicitly requested.

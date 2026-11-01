@@ -450,7 +450,17 @@ export function DataTable<TData, TValue>({
             }
             label={serverPagination?.label}
             onPageSizeChange={
-              serverPagination ? serverPagination.onPageSizeChange : undefined
+              serverPagination && !serverPagination.onPageSizeChange
+                ? undefined
+                : (size) => {
+                    onRowSelectionChange?.({});
+                    if (serverPagination)
+                      serverPagination.onPageSizeChange?.(size);
+                    else {
+                      table.setPageSize(size);
+                      table.setPageIndex(0);
+                    }
+                  }
             }
           />
         </>

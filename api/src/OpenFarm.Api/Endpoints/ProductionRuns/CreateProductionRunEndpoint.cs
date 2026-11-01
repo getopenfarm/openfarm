@@ -52,7 +52,7 @@ public sealed class CreateRunLineRequestValidator : AbstractValidator<CreateRunL
         RuleFor(l => l.RevisionMode).Must(k => k is null || (Enum.GetNames<RevisionMode>().Contains(k)));
         RuleFor(l => l.TargetId).NotEmpty();
         RuleFor(l => l.QuantityBasis).Must(k => k is null || Enum.GetNames<QuantityBasis>().Contains(k));
-        RuleFor(l => l).Must(l => l.QuantityBasis is null || (l.TargetKind == "Assembly" ? l.QuantityBasis == "Sets" : l.QuantityBasis != "Sets"))
+        RuleFor(l => l).Must(l => l.QuantityBasis is null || (l.TargetKind == "Assembly" ? l.QuantityBasis != "Units" : l.QuantityBasis != "Sets"))
             .WithMessage("Quantity basis must match the target.");
         RuleFor(l => l.BackfillPrinterCap).GreaterThanOrEqualTo(1);
         RuleFor(l => l.BackfillCumulativeUnitCeiling).GreaterThanOrEqualTo(1).When(l => l.BackfillCumulativeUnitCeiling is not null);
@@ -86,6 +86,8 @@ public sealed class CreateProductionRunRequestValidator : AbstractValidator<Crea
     {
         RuleFor(x => x.Lines).NotEmpty();
         RuleForEach(x => x.Lines).SetValidator(new CreateRunLineRequestValidator());
+        RuleForEach(x => x.Lines).Must(l => l.TargetKind != "Assembly" || l.QuantityBasis != "Plates")
+            .WithMessage("Assembly plate counts are only available for standalone queueing; Run assemblies use sets.");
     }
 }
 

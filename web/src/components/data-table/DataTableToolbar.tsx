@@ -38,3 +38,15 @@ export function DataTableTabsList(
     />
   );
 }
+
+/** Counts share the same spacing and unavailable treatment across list tabs. */
+export function DataTableTabCount({ count }: { count?: number }) {
+  return (
+    <>
+      {' '}
+      <span className="ml-1 tabular-nums text-muted-foreground">
+        {count ?? '—'}
+      </span>
+    </>
+  );
+}

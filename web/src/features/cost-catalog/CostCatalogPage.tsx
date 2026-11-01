@@ -1,7 +1,10 @@
 import { PackageIcon, PlusIcon } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { DataTableToolbar } from '@/components/data-table/DataTableToolbar';
+import {
+  DataTableTabsList,
+  DataTableToolbar,
+} from '@/components/data-table/DataTableToolbar';
 import {
   serverListQueryOptions,
   useRetainedListData,
@@ -21,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import type { ListCostItemsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
 import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
@@ -70,7 +73,7 @@ export function CostCatalogPage() {
   }
 
   return (
-    <Page className="pb-[calc(10rem+env(safe-area-inset-bottom))]">
+    <Page>
       <PageHeader
         title="Cost catalog"
         description={
@@ -90,26 +93,26 @@ export function CostCatalogPage() {
           </Button>
         }
       />
-      <div className="flex min-w-0 flex-col gap-4">
+      <Tabs
+        value={itemType}
+        onValueChange={(value) => {
+          setItemType(value);
+          setPage(1);
+        }}
+        className="min-w-0 gap-4"
+      >
         <DataTableToolbar>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            value={itemType}
-            aria-label="Filter by type"
-            disabled={pending}
-            onValueChange={(value) => {
-              if (value) {
-                setItemType(value);
-                setPage(1);
-              }
-            }}
-          >
-            <ToggleGroupItem value="all">All items</ToggleGroupItem>
-            <ToggleGroupItem value="Physical">Physical</ToggleGroupItem>
-            <ToggleGroupItem value="Service">Service</ToggleGroupItem>
-          </ToggleGroup>
+          <DataTableTabsList aria-label="Filter by type">
+            <TabsTrigger value="all" disabled={pending}>
+              All items
+            </TabsTrigger>
+            <TabsTrigger value="Physical" disabled={pending}>
+              Physical
+            </TabsTrigger>
+            <TabsTrigger value="Service" disabled={pending}>
+              Service
+            </TabsTrigger>
+          </DataTableTabsList>
           <Select
             value={category}
             disabled={pending}
@@ -147,65 +150,72 @@ export function CostCatalogPage() {
             </Button>
           )}
         </DataTableToolbar>
-        {query.isError && data && (
-          <ErrorState
-            title="Refresh failed"
-            description="Previous results shown."
-            onRetry={() => query.refetch()}
-          />
-        )}
-        {query.isLoading ? (
-          <Skeleton className="h-64 w-full" />
-        ) : query.isError && !data ? (
-          <ErrorState
-            title="Catalog load failed"
-            onRetry={() => query.refetch()}
-          />
-        ) : items.length === 0 && page === 1 ? (
-          <EmptyState
-            icon={<PackageIcon className="size-8 text-muted-foreground" />}
-            title={filtered ? 'No matching cost items' : 'No cost items'}
-            action={
-              filtered ? (
-                <Button variant="outline" onClick={clearFilters}>
-                  Clear filters
-                </Button>
-              ) : (
-                <Button
-                  permission="non-printed-components:create"
-                  onClick={() => navigate('/cost-catalog/new')}
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  Add cost item
-                </Button>
-              )
-            }
-          />
-        ) : (
-          <CostItemsTable
-            items={items}
-            selectionKey={JSON.stringify([page, pageSize, itemType, category])}
-            onPendingChange={setRemovalPending}
-            fallbackFocusRef={addRef}
-            sorting={{
-              ...list.serverSorting,
-              disabled: query.isError,
-              pending,
-            }}
-            pagination={{
-              page,
-              pageSize,
-              totalCount: data?.totalCount ?? 0,
-              onPageChange: setPage,
-              onPageSizeChange: setPageSize,
-              disabled: query.isError,
-              pending: pending || query.isPlaceholderData,
-              label: 'Cost items',
-            }}
-            onRowClick={(item) => navigate(`/cost-catalog/${item.id}`)}
-          />
-        )}
-      </div>
+        <TabsContent value={itemType} className="flex flex-col gap-4">
+          {query.isError && data && (
+            <ErrorState
+              title="Could not refresh cost items"
+              description="Showing previous results."
+              onRetry={() => query.refetch()}
+            />
+          )}
+          {query.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : query.isError && !data ? (
+            <ErrorState
+              title="Could not load cost items"
+              onRetry={() => query.refetch()}
+            />
+          ) : items.length === 0 && page === 1 ? (
+            <EmptyState
+              icon={<PackageIcon className="size-8 text-muted-foreground" />}
+              title={filtered ? 'No matching cost items' : 'No cost items'}
+              action={
+                filtered ? (
+                  <Button variant="outline" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                ) : (
+                  <Button
+                    permission="non-printed-components:create"
+                    onClick={() => navigate('/cost-catalog/new')}
+                  >
+                    <PlusIcon data-icon="inline-start" />
+                    Add cost item
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <CostItemsTable
+              items={items}
+              selectionKey={JSON.stringify([
+                page,
+                pageSize,
+                itemType,
+                category,
+              ])}
+              onPendingChange={setRemovalPending}
+              fallbackFocusRef={addRef}
+              sorting={{
+                ...list.serverSorting,
+                disabled: query.isError,
+                pending,
+              }}
+              pagination={{
+                page,
+                pageSize,
+                totalCount: data?.totalCount ?? 0,
+                onPageChange: setPage,
+                onPageSizeChange: setPageSize,
+                disabled: query.isError,
+                pending: pending || query.isPlaceholderData,
+                label: 'Cost items',
+              }}
+              onRowClick={(item) => navigate(`/cost-catalog/${item.id}`)}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
     </Page>
   );
 }

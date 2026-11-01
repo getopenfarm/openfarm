@@ -35,6 +35,8 @@ public sealed class PartResponse
     public List<string> ProcessingWarnings { get; set; } = [];
     public string? EstimateUnavailableReason { get; set; }
     public OpenFarm.Domain.Parts.EstimationDetails? Estimation { get; set; }
+    public PrintEstimate? PrintEstimate { get; set; }
+    public PrintEstimate? UnitEstimate { get; set; }
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
@@ -64,6 +66,8 @@ public sealed class PartResponse
         ProcessingWarnings = detail.ProcessingWarnings?.ToList() ?? [],
         EstimateUnavailableReason = detail.EstimateUnavailableReason,
         Estimation = detail.Estimation,
+        PrintEstimate = PrintEstimates.Calculate(detail.UnitsPerPrint, detail.UnitsPerPrint, detail.EstimatedPrintTimeMinutes, detail.EstimatedFilamentWeightGrams, detail.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams)).ToArray()),
+        UnitEstimate = PrintEstimates.Calculate(1, detail.UnitsPerPrint, detail.EstimatedPrintTimeMinutes, detail.EstimatedFilamentWeightGrams, detail.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams)).ToArray()),
         EstimateStatus = detail.EstimateStatus,
         EstimatedPrintTimeMinutes = detail.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = detail.EstimatedFilamentWeightGrams,
@@ -108,6 +112,8 @@ public sealed class PartResponse
         ProcessingWarnings = part.ProcessingWarnings.ToList(),
         EstimateUnavailableReason = part.EstimateUnavailableReason,
         Estimation = part.Estimation,
+        PrintEstimate = PrintEstimates.ForPart(part, part.UnitsPerPrint),
+        UnitEstimate = PrintEstimates.ForPart(part, 1),
         EstimateStatus = part.EstimateStatus.ToString(),
         EstimatedPrintTimeMinutes = part.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = part.EstimatedFilamentWeightGrams,

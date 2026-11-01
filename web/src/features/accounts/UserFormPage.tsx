@@ -17,6 +17,8 @@ import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -35,7 +37,6 @@ import { Switch } from '@/components/ui/switch';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import { httpClient } from '@/lib/api/httpClient';
-import { cn } from '@/lib/utils';
 import { AccessEditor } from './AccessEditor';
 import {
   type AccountResponse,
@@ -45,7 +46,7 @@ import {
   whoAmIKey,
 } from './api';
 import { SessionList } from './SessionList';
-import { adminPill, sectionLabel } from './styles';
+import { sectionLabel } from './styles';
 
 const listUrl = '/users-groups';
 
@@ -70,7 +71,7 @@ export function UserFormPage() {
   const user = isNew ? undefined : query.data?.users.find((u) => u.id === id);
   const back = (
     <BackLink to={listUrl} className="mb-1">
-      Back to Users & Groups
+      Back to Users & groups
     </BackLink>
   );
 
@@ -101,7 +102,7 @@ export function UserFormPage() {
           description="It may have been removed."
           action={
             <Button variant="outline" asChild>
-              <Link to={listUrl}>Back to Users & Groups</Link>
+              <Link to={listUrl}>Back to Users & groups</Link>
             </Button>
           }
         />
@@ -197,7 +198,7 @@ function UserForm({
         }
         form.reset({ ...value, password: '' });
         await refresh();
-        toast.success('User saved');
+        toast.success('User saved.');
       } else {
         const created = await httpClient<{ data?: { id?: string } }>(
           `${adminKey}/users`,
@@ -208,14 +209,14 @@ function UserForm({
         );
         markClean();
         await refresh();
-        toast.success('User created');
+        toast.success('User added.');
         const newId = created?.data?.id;
         navigate(newId ? `${listUrl}/users/${newId}` : listUrl, {
           replace: true,
         });
       }
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not save the user'));
+      toast.error(await extractErrorDetail(e, 'Could not save user.'));
     }
   });
 
@@ -307,11 +308,13 @@ function UserForm({
           <section className="flex flex-col gap-3">
             <div className={sectionLabel}>Group membership</div>
             {groupIds.length === 0 && (
-              <div className="flex items-start gap-2 rounded-md border border-amber/40 bg-amber-soft px-3 py-2.5 text-[12.5px] text-amber">
-                <TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
-                With no groups this user can sign in but sees an empty app —
-                every screen is hidden.
-              </div>
+              <Alert role="status">
+                <TriangleAlertIcon />
+                <AlertDescription>
+                  With no groups this user can sign in but sees an empty app —
+                  every screen is hidden.
+                </AlertDescription>
+              </Alert>
             )}
             <div className="grid gap-1.5 md:grid-cols-2">
               {groups.map((g) => (
@@ -338,15 +341,10 @@ function UserForm({
                       <FieldTitle className="text-[13px]">
                         {g.name}
                         {g.isProtected && (
-                          <span
-                            className={cn(
-                              adminPill,
-                              'px-1.5 py-px text-[10.5px]',
-                            )}
-                          >
-                            <ShieldCheckIcon className="size-[11px]" />
+                          <Badge kind="blue">
+                            <ShieldCheckIcon />
                             Administrator
-                          </span>
+                          </Badge>
                         )}
                       </FieldTitle>
                       {g.description && (
@@ -432,13 +430,13 @@ function UserForm({
               .mutateAsync(user.id)
               .then(() => {
                 markClean();
-                toast.success('User removed');
+                toast.success('User removed.');
                 setRemoveOpen(false);
                 navigate(listUrl, { replace: true });
               })
               .catch(async (e) =>
                 toast.error(
-                  await extractErrorDetail(e, 'Could not remove the user'),
+                  await extractErrorDetail(e, 'Could not remove user.'),
                 ),
               );
           }}

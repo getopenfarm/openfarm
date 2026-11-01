@@ -9,6 +9,7 @@ namespace OpenFarm.Api.Endpoints.ProductionRuns;
 public sealed class PreviewProductionPlanRequest
 {
     public CreateRunLineRequest Line { get; set; } = new();
+    /// <summary>Finite standalone Assembly + Plates plans (quantity 1): plate counts by component Part ID. Missing entries default to 1; zero omits production. At least one plate is required.</summary>
     public Dictionary<Guid, int>? PlateOverrides { get; set; }
     public ProductionPlanInput ToInput() => new(Enum.Parse<RunLineTargetKind>(Line.TargetKind), Line.TargetId,
         Line.Quantity ?? 1, Line.QuantityBasis is null ? (Line.TargetKind == "Part" ? QuantityBasis.Plates : QuantityBasis.Sets)
@@ -32,6 +33,7 @@ public sealed class SubmitProductionDemandRequest : IActivityLoggable
     public Guid? ProductionRunId { get; set; }
     public bool CreateRun { get; set; }
     public string? NewRunName { get; set; }
+    /// <summary>Component plate counts from the preview. Only finite standalone Assembly + Plates plans accept overrides; run targets and backfill do not.</summary>
     public Dictionary<Guid, int>? PlateOverrides { get; set; }
     public string EntityType => "ProductionDemand";
     public string EventType => "ProductionDemandCreated";

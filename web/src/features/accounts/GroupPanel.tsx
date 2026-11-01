@@ -9,13 +9,17 @@ import {
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import {
   Sheet,
   SheetContent,
@@ -32,7 +36,7 @@ import { cn } from '@/lib/utils';
 import { AccessEditor } from './AccessEditor';
 import { adminKey, type GroupResponse, useAdministration } from './api';
 import { listOf } from './describe';
-import { adminPill, sectionLabel } from './styles';
+import { sectionLabel } from './styles';
 
 const members = (n = 0) => `${n} member${n === 1 ? '' : 's'}`;
 
@@ -70,7 +74,7 @@ export function GroupPanel({
       onSelect(result.data.id);
       if (isMobile) setSheetOpen(true);
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not create the group'));
+      toast.error(await extractErrorDetail(e, 'Could not add group.'));
     } finally {
       setCreating(false);
     }
@@ -86,15 +90,20 @@ export function GroupPanel({
         aria-label="Groups"
         className="flex flex-col gap-0.5 py-1 md:overflow-y-auto md:border-r md:py-3 md:pr-4"
       >
-        <button
+        <Button
           type="button"
+          variant="outline"
           disabled={creating}
           onClick={() => void createGroup()}
-          className="mb-1.5 flex w-full items-center gap-1.5 rounded-md border border-dashed px-3 py-2 text-[12.5px] text-muted-foreground hover:border-primary hover:text-primary"
+          className="mb-1.5 w-full"
         >
-          <PlusIcon className="size-[15px]" />
-          New group
-        </button>
+          {creating ? (
+            <Spinner data-icon="inline-start" />
+          ) : (
+            <PlusIcon data-icon="inline-start" />
+          )}
+          {creating ? 'Adding…' : 'Add group'}
+        </Button>
         {groups.map((g) => (
           <button
             type="button"
@@ -192,9 +201,9 @@ function GroupDetail({
         body: JSON.stringify(draft),
       });
       await client.invalidateQueries({ queryKey: [adminKey] });
-      toast.success('Group saved');
+      toast.success('Group saved.');
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not save the group'));
+      toast.error(await extractErrorDetail(e, 'Could not save group.'));
     } finally {
       setSaving(false);
     }
@@ -204,11 +213,11 @@ function GroupDetail({
     try {
       await httpClient(`${adminKey}/groups/${group.id}`, { method: 'DELETE' });
       setDeleteOpen(false);
-      toast.success('Group deleted');
+      toast.success('Group deleted.');
       onDeleted();
       await client.invalidateQueries({ queryKey: [adminKey] });
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not delete the group'));
+      toast.error(await extractErrorDetail(e, 'Could not delete group.'));
     } finally {
       setDeleting(false);
     }
@@ -226,24 +235,26 @@ function GroupDetail({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          variant="destructive"
-          disabled={locked || !!group.memberCount}
-          onSelect={() => setDeleteOpen(true)}
-        >
-          <Trash2Icon />
-          Delete group
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={locked || !!group.memberCount}
+            onSelect={() => setDeleteOpen(true)}
+          >
+            <Trash2Icon />
+            Delete group
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
   const badges = (
     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {locked && (
-        <span className={adminPill}>
-          <ShieldCheckIcon className="size-[13px]" />
+        <Badge kind="blue">
+          <ShieldCheckIcon />
           Administrator
-        </span>
+        </Badge>
       )}
       {locked && (
         <span className="inline-flex items-center gap-1">
@@ -255,12 +266,11 @@ function GroupDetail({
     </div>
   );
   const nameInput = (
-    <input
+    <Input
       aria-label="Group name"
       value={draft.name}
-      disabled={locked}
+      disabled={locked || saving}
       onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-      className="w-full border-b border-transparent bg-transparent p-0 text-lg font-semibold outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-70"
     />
   );
   const body = (
@@ -271,7 +281,7 @@ function GroupDetail({
         aria-label="Description"
         placeholder="Describe what this group is for…"
         value={draft.description}
-        disabled={locked}
+        disabled={locked || saving}
         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
         className="min-h-[60px]"
       />
@@ -294,18 +304,14 @@ function GroupDetail({
         )}
       </div>
       {locked ? (
-        <div className="flex items-start gap-3.5 rounded-md border border-primary/25 bg-primary/10 p-4">
-          <ShieldCheckIcon className="mt-0.5 size-5 shrink-0 text-primary" />
-          <div>
-            <div className="mb-1 text-[13px] font-semibold">
-              Every permission
-            </div>
-            <p className="text-[12.5px] leading-normal text-muted-foreground">
-              Administrators hold every permission, including managing users and
-              groups, which no other group can be given.
-            </p>
-          </div>
-        </div>
+        <Alert role="status">
+          <ShieldCheckIcon />
+          <AlertTitle>Every permission</AlertTitle>
+          <AlertDescription>
+            Administrators hold every permission, including managing users and
+            groups, which no other group can be given.
+          </AlertDescription>
+        </Alert>
       ) : (
         <>
           <AccessEditor
@@ -331,13 +337,14 @@ function GroupDetail({
       <Button
         variant="outline"
         size="sm"
+        disabled={saving}
         onClick={() => setDraft(draftOf(group))}
       >
         Reset
       </Button>
       <Button size="sm" disabled={saving} onClick={() => void save()}>
         {saving && <Spinner data-icon="inline-start" />}
-        Save changes
+        {saving ? 'Saving…' : 'Save'}
       </Button>
     </>
   );

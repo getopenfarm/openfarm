@@ -6,7 +6,7 @@ import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
@@ -564,6 +564,8 @@ function EditPrinterForm() {
   );
   const printer = detailQuery.data?.data as PrinterDetailResponse | undefined;
 
+  const queryError: unknown = detailQuery.error;
+
   if (detailQuery.isLoading || !printer) {
     return (
       <Page>
@@ -577,6 +579,12 @@ function EditPrinterForm() {
         />
         {detailQuery.isLoading ? (
           <Skeleton className="h-64 w-full" />
+        ) : detailQuery.isError &&
+          !(queryError instanceof Response && queryError.status === 404) ? (
+          <ErrorState
+            title="Could not load printer"
+            onRetry={() => detailQuery.refetch()}
+          />
         ) : (
           <EmptyState
             title="Printer not found"

@@ -32,7 +32,6 @@ import { Spinner } from '@/components/ui/spinner';
 import { LibraryItemBreadcrumb } from '@/features/library/LibraryBreadcrumb';
 import { useLibraryLocation } from '@/features/library/useLibraryLocation';
 import { formatSlicer } from '@/features/slicing/formatSlicer';
-import { SlicerReadinessPanel } from '@/features/slicing/SlicerReadinessPanel';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { formatFileSize } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
@@ -188,7 +187,7 @@ export function PartFormPage() {
                           <SelectContent>
                             <SelectGroup>
                               <SelectItem value={USE_DEFAULT_SLICER}>
-                                Farm default
+                                Default
                                 {effectiveDefault
                                   ? ` (${formatSlicer(effectiveDefault.engine, effectiveDefault.version)})`
                                   : ''}
@@ -209,21 +208,6 @@ export function PartFormPage() {
                           unsliced 3MF) — ignored otherwise. The slicer uses
                           only its own profiles.
                         </p>
-                        {(() => {
-                          const [engine, version] =
-                            slicerSelection === USE_DEFAULT_SLICER
-                              ? [
-                                  effectiveDefault?.engine,
-                                  effectiveDefault?.version,
-                                ]
-                              : slicerSelection.split('::');
-                          return engine && version ? (
-                            <SlicerReadinessPanel
-                              engine={engine}
-                              version={version}
-                            />
-                          ) : null;
-                        })()}
                       </Field>
                     )}
                     <div className="flex flex-col gap-2">

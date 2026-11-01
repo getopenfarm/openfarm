@@ -26,6 +26,9 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
     public Task<Part?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         Include(dbContext.Parts).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<Part>> GetForEstimatesAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken) =>
+        await dbContext.Parts.AsNoTracking().Where(p => ids.Contains(p.Id)).Include(p => p.FilamentRequirements).ToListAsync(cancellationToken);
+
     public Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListAsync(IReadOnlyList<string> tags, int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
         ListInFolderAsync(tags, page, pageSize, sorting, null, cancellationToken);
 

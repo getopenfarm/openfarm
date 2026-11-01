@@ -87,6 +87,7 @@ function EstimateCell({ part }: { part: PartLibraryRow }) {
   return (
     <PartEstimate
       status={part.estimateStatus}
+      estimate={part.printEstimate}
       minutes={part.estimatedPrintTimeMinutes}
       grams={part.estimatedFilamentWeightGrams}
     />

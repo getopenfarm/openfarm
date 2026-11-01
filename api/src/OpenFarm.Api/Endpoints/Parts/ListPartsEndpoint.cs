@@ -41,6 +41,7 @@ public sealed class PartSummaryResponse
     public OpenFarm.Domain.Parts.EstimationDetails? Estimation { get; set; }
     public string? EstimationPrinterBrand { get; set; }
     public string? EstimationPrinterModelCode { get; set; }
+    public PrintEstimate? PrintEstimate { get; set; }
     public string EstimateStatus { get; set; } = string.Empty;
     public int? EstimatedPrintTimeMinutes { get; set; }
     public decimal? EstimatedFilamentWeightGrams { get; set; }
@@ -64,6 +65,7 @@ public sealed class PartSummaryResponse
         Estimation = p.Estimation,
         EstimationPrinterBrand = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.Brand.ToString(),
         EstimationPrinterModelCode = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.ModelCode,
+        PrintEstimate = PrintEstimates.Calculate(p.UnitsPerPrint, p.UnitsPerPrint, p.EstimatedPrintTimeMinutes, p.EstimatedFilamentWeightGrams, (p.FilamentByColor ?? []).Select(c => new EstimateColor(c.MaterialType, c.ColorHex, c.NarrowFilamentVariantId, c.Grams)).ToArray()),
         EstimateStatus = p.EstimateStatus,
         EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,

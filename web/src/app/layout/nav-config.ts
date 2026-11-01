@@ -93,7 +93,7 @@ export const navSections: NavSection[] = [
 export const adminNavSection: NavSection = {
   label: 'Administration',
   items: [
-    { title: 'Users & Groups', url: '/users-groups', icon: UsersIcon },
+    { title: 'Users & groups', url: '/users-groups', icon: UsersIcon },
     activityLog,
   ],
 };

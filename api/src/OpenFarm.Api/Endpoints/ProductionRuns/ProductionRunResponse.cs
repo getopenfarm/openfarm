@@ -156,6 +156,7 @@ public sealed class PartRequirementSummaryResponse
     public int? EstimatedMinutesPerPlate { get; set; }
 
     public decimal? EstimatedGramsPerPlate { get; set; }
+    public OpenFarm.Application.Parts.PrintEstimate? RemainingEstimate { get; set; }
 
     /// <summary>Why the next waiting plate cannot go to any printer now; null when one can take it.</summary>
     public string? BlockingReason { get; set; }
@@ -176,6 +177,7 @@ public sealed class PartRequirementSummaryResponse
         Plates = PlateCountsResponse.FromCounts(summary.Plates),
         EstimatedMinutesPerPlate = summary.EstimatedMinutesPerPlate,
         EstimatedGramsPerPlate = summary.EstimatedGramsPerPlate,
+        RemainingEstimate = summary.RemainingEstimate,
         BlockingReason = summary.BlockingReason,
         Jobs = summary.Jobs.Select(RunJobSummaryResponse.FromSummary).ToList(),
     };

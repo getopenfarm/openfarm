@@ -5,10 +5,12 @@ import { usePrinterCosts } from '@/features/settings/printerCosts';
 import { getOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointQueryOptions } from '@/lib/api/generated/assemblies/assemblies';
 import type { AssemblyCostInput } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
+import { emptyPrintEstimate } from '@/lib/printEstimates';
 import type { EditableLine } from './BomLineEditor';
-import { filamentCost, hardwareCost, printTotals, rollUp } from './bomRollup';
+import { filamentCost, hardwareCost, rollUp } from './bomRollup';
 import { machineCosts } from './machineCosts';
 import { useBomCatalog } from './useBomCatalog';
+import { usePrintedPartsEstimate } from './usePrintedPartsEstimate';
 
 const plural = (n: number, one: string, many: string) =>
   `${n} ${n === 1 ? one : many}`;
@@ -46,12 +48,36 @@ export function useBuildEstimate(
   const subFailed = subQueries.filter((q) => q.isError).length;
   const subPending = subQueries.some((q) => q.isPending);
   // Missing explosions drop parts from every total, so nothing reads as final until all load.
-  const loading = subPending || catalog.isPending || filamentQuery.isPending;
-  const failed = subFailed > 0 || catalog.isError || filamentQuery.isError;
-  const incomplete = loading || failed;
-
   const total = rollUp(lines, subExplosions);
-  const print = printTotals(total.parts, catalog.parts);
+  const printQuery = usePrintedPartsEstimate(
+    total.parts,
+    total.parts.size > 0 && !subPending && subFailed === 0,
+  );
+  const print =
+    total.parts.size === 0
+      ? emptyPrintEstimate()
+      : (printQuery.data ?? emptyPrintEstimate());
+  const failed =
+    subFailed > 0 ||
+    catalog.isError ||
+    filamentQuery.isError ||
+    printQuery.isError;
+  const loading =
+    !failed &&
+    (subPending ||
+      catalog.isPending ||
+      filamentQuery.isPending ||
+      (total.parts.size > 0 &&
+        (printQuery.isPending || printQuery.isFetching)));
+  const incomplete = loading || failed;
+  const printLoading =
+    subFailed === 0 &&
+    !printQuery.isError &&
+    (subPending ||
+      (total.parts.size > 0 &&
+        (printQuery.isPending || printQuery.isFetching)));
+  const printIncomplete = subFailed > 0 || printQuery.isError || printLoading;
+
   const machine = machineCosts(
     total.parts,
     catalog.parts,
@@ -132,8 +158,7 @@ export function useBuildEstimate(
     ),
   );
   const filament = filamentCost(
-    total.parts,
-    catalog.parts,
+    print.colors ?? [],
     filamentQuery.data?.data?.filaments ?? [],
   );
   // Failed prints waste filament and machine time, never packaging or shipping.
@@ -174,7 +199,7 @@ export function useBuildEstimate(
     (catalog.isError || filamentQuery.isError) &&
       'Could not load catalog. Totals incomplete.',
     filament.missingSelection > 0 &&
-      'Select catalog filament on parts to estimate all filament costs.',
+      'Some filament weight has no selected catalog variant or color attribution.',
     filament.missingPrice > 0 &&
       'Selected filament has no price. Filament cost incomplete.',
     filament.missingGrams > 0 &&
@@ -182,8 +207,14 @@ export function useBuildEstimate(
     subPending && 'Loading sub-assemblies…',
     subFailed > 0 &&
       `Could not load ${plural(subFailed, 'sub-assembly', 'sub-assemblies')}. Totals incomplete.`,
-    print.unestimated > 0 &&
-      `${plural(print.unestimated, 'part', 'parts')} not estimated.`,
+    (print.time?.missing ?? 0) > 0 &&
+      'Some print time estimates are unavailable.',
+    (print.filament?.missing ?? 0) > 0 &&
+      'Some filament weight estimates are unavailable.',
+    printQuery.isError &&
+      'Could not calculate print estimates. Retry to complete estimates.',
+    print.approximate &&
+      'Partial-plate estimates are proportional approximations; startup, purge, and travel may not scale linearly.',
     missingAdditional > 0 && 'Cost items have missing prices or usage.',
     cost.missingCost > 0 &&
       `${plural(cost.missingCost, 'component', 'components')} without cost.`,
@@ -194,6 +225,9 @@ export function useBuildEstimate(
     machineQuery,
     filamentQuery,
     subQueries,
+    printQuery,
+    printLoading,
+    printIncomplete,
     subFailed,
     loading,
     failed,

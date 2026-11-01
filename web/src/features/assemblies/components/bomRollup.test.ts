@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filamentCost, hardwareCost, printTotals, rollUp } from './bomRollup';
+import { filamentCost, hardwareCost, rollUp } from './bomRollup';
 
 const part = (targetId: string, quantity: number) => ({
   targetKind: 'Part' as const,
@@ -67,153 +67,6 @@ describe('rollUp', () => {
   });
 });
 
-describe('printTotals', () => {
-  it('divides plate estimates by units per print without rounding', () => {
-    const totals = printTotals(
-      new Map([
-        ['p1', 5],
-        ['p2', 1],
-      ]),
-      [
-        {
-          id: 'p1',
-          unitsPerPrint: 2,
-          estimatedPrintTimeMinutes: 60,
-          estimatedFilamentWeightGrams: 10,
-        },
-        {
-          id: 'p2',
-          unitsPerPrint: 1,
-          estimatedPrintTimeMinutes: 30,
-          estimatedFilamentWeightGrams: 4.5,
-        },
-      ],
-    );
-    // p1: 5 units / 2 per plate = 2.5 plates, not 3.
-    expect(totals.minutes).toBe(180);
-    expect(totals.grams).toBe(29.5);
-    expect(totals.unestimated).toBe(0);
-  });
-
-  it('splits grams by colour, scaled by plates, and the colours add up to the total', () => {
-    const totals = printTotals(
-      new Map([
-        ['p1', 4],
-        ['p2', 1],
-      ]),
-      [
-        {
-          id: 'p1',
-          unitsPerPrint: 2,
-          estimatedFilamentWeightGrams: 10,
-          filamentByColor: [
-            { materialType: 'PLA', colorHex: '#000000', grams: 7 },
-            { materialType: 'PLA', colorHex: '#FFFFFF', grams: 3.5 },
-          ],
-        },
-        {
-          id: 'p2',
-          estimatedFilamentWeightGrams: 5,
-          filamentByColor: [
-            { materialType: 'PLA', colorHex: '#000000', grams: 5.4 },
-          ],
-        },
-      ],
-    );
-    // p1: 2 plates. Black 14 + 5.4, white 7 — purge-inclusive grams, not the slicer total.
-    expect(totals.colors).toEqual([
-      { materialType: 'PLA', colorHex: '#000000', grams: 19.4 },
-      { materialType: 'PLA', colorHex: '#FFFFFF', grams: 7 },
-    ]);
-    expect(totals.grams).toBeCloseTo(26.4);
-  });
-
-  it('puts grams it cannot attribute to a colour in one unknown bucket, last', () => {
-    const totals = printTotals(
-      new Map([
-        ['p1', 1],
-        ['p2', 1],
-        ['p3', 1],
-      ]),
-      [
-        // several colours, no split yet (not reprocessed)
-        {
-          id: 'p1',
-          estimatedFilamentWeightGrams: 8,
-          filamentByColor: [
-            { materialType: 'PLA', colorHex: '#000000', grams: null },
-            { materialType: 'PLA', colorHex: '#FFFFFF', grams: null },
-          ],
-        },
-        // one colour, no split yet: the total is that colour's
-        {
-          id: 'p2',
-          estimatedFilamentWeightGrams: 2,
-          filamentByColor: [
-            { materialType: 'PETG', colorHex: '#FF0000', grams: null },
-          ],
-        },
-        { id: 'p3', estimatedFilamentWeightGrams: 1 },
-      ],
-    );
-    expect(totals.colors).toEqual([
-      { materialType: 'PETG', colorHex: '#FF0000', grams: 2 },
-      { materialType: null, colorHex: null, grams: 9 },
-    ]);
-    expect(totals.grams).toBe(11);
-  });
-
-  it('counts parts without an estimate', () => {
-    const totals = printTotals(
-      new Map([
-        ['p1', 1],
-        ['p2', 1],
-      ]),
-      [{ id: 'p1', estimatedPrintTimeMinutes: 10 }],
-    );
-    expect(totals.minutes).toBe(10);
-    expect(totals.unestimated).toBe(1);
-  });
-
-  it('combines the same selected variant across file colors and preserves single-color fallback identity', () => {
-    const totals = printTotals(
-      new Map([
-        ['p1', 2],
-        ['p2', 1],
-      ]),
-      [
-        {
-          id: 'p1',
-          unitsPerPrint: 2,
-          filamentByColor: [
-            {
-              materialType: 'PETG',
-              colorHex: '#FFFFFF',
-              grams: 10,
-              narrowFilamentVariantId: 'white',
-            },
-          ],
-        },
-        {
-          id: 'p2',
-          estimatedFilamentWeightGrams: 5,
-          filamentByColor: [
-            {
-              materialType: 'PETG',
-              colorHex: '#FFFFFE',
-              grams: null,
-              narrowFilamentVariantId: 'white',
-            },
-          ],
-        },
-      ],
-    );
-    expect(totals.colors).toHaveLength(1);
-    expect(totals.colors[0]).toMatchObject({ variantId: 'white', grams: 15 });
-    expect(totals.grams).toBe(15);
-  });
-});
-
 describe('hardwareCost', () => {
   it('sums qty x cost per piece and counts components without cost', () => {
     const cost = hardwareCost(
@@ -244,100 +97,53 @@ describe('filamentCost', () => {
       ],
     },
   ];
-  const requirement = (variant: string | null, grams: number | null = 100) => ({
-    materialType: 'PLA',
-    colorHex: '#000000',
-    grams,
-    narrowFilamentVariantId: variant,
-  });
-
-  it('scales per-print grams by quantity and units per print, then applies overrides before grouping', () => {
+  it('prices the server-scaled rows using variant overrides before grouping', () => {
     const result = filamentCost(
-      new Map([['p', 3]]),
       [
-        {
-          id: 'p',
-          unitsPerPrint: 2,
-          filamentByColor: [requirement('base'), requirement('special')],
-        },
+        { variantId: 'base', grams: 150 },
+        { variantId: 'special', grams: 150 },
       ],
       prices,
     );
     expect(result.total).toBe(7.5);
     expect(result.incomplete).toBe(false);
-    expect([...result.colors.values()]).toEqual([
-      { total: 3, priced: 1, missing: 0 },
-      { total: 4.5, priced: 1, missing: 0 },
-    ]);
   });
-
-  it('keeps zero prices and falls back to aggregate weight only for one requirement', () => {
-    const result = filamentCost(
-      new Map([['p', 2]]),
-      [
-        {
-          id: 'p',
-          estimatedFilamentWeightGrams: 100,
-          filamentByColor: [requirement('free', null)],
-        },
-      ],
-      prices,
-    );
+  it('preserves zero prices', () => {
+    const result = filamentCost([{ variantId: 'free', grams: 200 }], prices);
     expect(result.total).toBe(0);
     expect(result.priced).toBe(1);
     expect(result.incomplete).toBe(false);
   });
-
-  it('reports partial prices without guessing a product from a color', () => {
+  it('reports missing selection, pricing, and weight independently', () => {
     const result = filamentCost(
-      new Map([['p', 1]]),
       [
-        {
-          id: 'p',
-          filamentByColor: [
-            requirement('base'),
-            requirement(null),
-            requirement('missing'),
-          ],
-        },
+        { variantId: 'base', grams: 100 },
+        { grams: 100 },
+        { variantId: 'missing', grams: 100 },
+        { variantId: 'special', grams: null },
       ],
       prices,
     );
     expect(result.total).toBe(2);
     expect(result.missingSelection).toBe(1);
     expect(result.missingPrice).toBe(1);
+    expect(result.missingGrams).toBe(1);
     expect(result.incomplete).toBe(true);
   });
-
-  it('does not divide an aggregate weight across unsplit requirements', () => {
+  it('preserves partial color completeness from the server', () => {
     const result = filamentCost(
-      new Map([['p', 1]]),
-      [
-        {
-          id: 'p',
-          estimatedFilamentWeightGrams: 200,
-          filamentByColor: [
-            requirement('base', null),
-            requirement('special', null),
-          ],
-        },
-      ],
+      [{ variantId: 'base', grams: 100, missing: 1 }],
       prices,
     );
-    expect(result.priced).toBe(0);
-    expect(result.missingGrams).toBe(2);
-    expect(result.missingSelection).toBe(0);
+    expect(result.total).toBe(2);
     expect(result.incomplete).toBe(true);
   });
-
-  it('recomputes inherited prices when a default changes or an override is cleared', () => {
-    const parts = new Map([['p', 1]]);
-    const catalog = [{ id: 'p', filamentByColor: [requirement('special')] }];
-    expect(filamentCost(parts, catalog, prices).total).toBe(3);
+  it('recomputes inherited pricing when an override is cleared', () => {
     expect(
-      filamentCost(parts, catalog, [
-        { pricePerKg: 40, variants: [{ id: 'special', pricePerKg: null }] },
-      ]).total,
+      filamentCost(
+        [{ variantId: 'special', grams: 100 }],
+        [{ pricePerKg: 40, variants: [{ id: 'special', pricePerKg: null }] }],
+      ).total,
     ).toBe(4);
   });
 });

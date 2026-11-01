@@ -1,7 +1,11 @@
 import { DataTableSearch } from '@/components/data-table/DataTableSearch';
-import { DataTableToolbar } from '@/components/data-table/DataTableToolbar';
+import {
+  DataTableTabCount,
+  DataTableTabsList,
+  DataTableToolbar,
+} from '@/components/data-table/DataTableToolbar';
 import { getStatusLabel, OFFLINE_META } from '@/components/printer-tile/status';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { TabsTrigger } from '@/components/ui/tabs';
 
 export type PrinterStatusFilter =
   | 'all'
@@ -32,16 +36,12 @@ const FILTERS: Array<{ value: PrinterStatusFilter; label: string }> = [
 interface PrinterFilterBarProps {
   query: string;
   onQueryChange: (query: string) => void;
-  statusFilter: PrinterStatusFilter;
-  onStatusFilterChange: (filter: PrinterStatusFilter) => void;
-  counts: PrinterFilterCounts;
+  counts?: PrinterFilterCounts;
 }
 
 export function PrinterFilterBar({
   query,
   onQueryChange,
-  statusFilter,
-  onStatusFilterChange,
   counts,
 }: PrinterFilterBarProps) {
   return (
@@ -55,25 +55,14 @@ export function PrinterFilterBar({
         />
       }
     >
-      <ToggleGroup
-        aria-label="Filter printers by status"
-        className="max-w-full flex-wrap justify-start"
-        type="single"
-        variant="outline"
-        value={statusFilter}
-        onValueChange={(next) => {
-          if (next) onStatusFilterChange(next as PrinterStatusFilter);
-        }}
-      >
+      <DataTableTabsList aria-label="Filter printers by status">
         {FILTERS.map((filter) => (
-          <ToggleGroupItem key={filter.value} value={filter.value}>
+          <TabsTrigger key={filter.value} value={filter.value}>
             {filter.label}
-            <span className="ml-1 tabular-nums opacity-70">
-              {counts[filter.value]}
-            </span>
-          </ToggleGroupItem>
+            <DataTableTabCount count={counts?.[filter.value]} />
+          </TabsTrigger>
         ))}
-      </ToggleGroup>
+      </DataTableTabsList>
     </DataTableToolbar>
   );
 }

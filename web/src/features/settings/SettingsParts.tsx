@@ -1,4 +1,11 @@
 import type { ReactNode } from 'react';
+import { PageHeader } from '@/components/page-header/PageHeader';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import { cn } from '@/lib/utils';
 
 interface SettingsSectionProps {
@@ -20,15 +27,13 @@ export function SettingsSection({
 }: SettingsSectionProps) {
   return (
     <section className={cn('flex max-w-[640px] flex-col', className)}>
-      <div className="mb-[18px] flex items-center justify-between gap-4">
-        <div>
-          <h2 className="font-heading text-base font-semibold">{title}</h2>
-          {description ? (
-            <p className="text-[13px] text-muted-foreground">{description}</p>
-          ) : null}
-        </div>
-        {action}
-      </div>
+      <PageHeader
+        size="section"
+        title={title}
+        description={description}
+        action={action}
+        className="mb-4"
+      />
       {children}
     </section>
   );
@@ -40,9 +45,9 @@ export function SettingsRows({
   ...props
 }: React.ComponentProps<'div'>) {
   return (
-    <div
+    <FieldGroup
       className={cn(
-        'divide-y rounded-lg border bg-card px-3.5 md:px-[18px]',
+        'gap-0 divide-y rounded-lg border bg-card px-3.5 md:px-[18px]',
         className,
       )}
       {...props}
@@ -57,6 +62,8 @@ interface SettingsRowProps {
   /** 260px control instead of 220px. */
   wide?: boolean;
   children: ReactNode;
+  invalid?: boolean;
+  disabled?: boolean;
 }
 
 /** Label and help on the left, control on the right. */
@@ -66,15 +73,20 @@ export function SettingsRow({
   htmlFor,
   wide,
   children,
+  invalid,
+  disabled,
 }: SettingsRowProps) {
   return (
-    <div className="flex flex-col gap-2.5 py-4 md:flex-row md:items-center md:justify-between md:gap-6">
+    <Field
+      orientation="horizontal"
+      data-invalid={invalid || undefined}
+      data-disabled={disabled || undefined}
+      className="flex-col items-stretch gap-2.5 py-4 md:flex-row md:items-center md:justify-between md:gap-6"
+    >
       <div className="min-w-0">
-        <label htmlFor={htmlFor} className="text-[13.5px] font-medium">
-          {label}
-        </label>
+        <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>
         {help ? (
-          <p className="mt-0.5 text-xs text-muted-foreground">{help}</p>
+          <FieldDescription className="mt-0.5">{help}</FieldDescription>
         ) : null}
       </div>
       <div
@@ -85,7 +97,7 @@ export function SettingsRow({
       >
         {children}
       </div>
-    </div>
+    </Field>
   );
 }
 

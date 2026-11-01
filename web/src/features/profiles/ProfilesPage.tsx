@@ -117,7 +117,7 @@ export function ProfilesPage() {
             <TabsTrigger value="filament">Filament</TabsTrigger>
           </DataTableTabsList>
         </DataTableToolbar>
-        <TabsContent value="machine" className="flex flex-col gap-3">
+        <TabsContent value="machine" className="flex flex-col gap-4">
           {machineListQuery.isError && machineData ? (
             <ErrorState
               title="Could not refresh profiles"
@@ -171,7 +171,7 @@ export function ProfilesPage() {
             />
           )}
         </TabsContent>
-        <TabsContent value="filament" className="flex flex-col gap-3">
+        <TabsContent value="filament" className="flex flex-col gap-4">
           {filamentListQuery.isError && filamentData ? (
             <ErrorState
               title="Could not refresh profiles"

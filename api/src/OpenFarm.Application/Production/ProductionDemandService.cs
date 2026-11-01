@@ -33,6 +33,11 @@ public sealed class ProductionDemandService(IProductionDemandRepository demands,
             return existing;
         }
         var input = command.Line;
+        if (command.PlateOverrides?.Count > 0 && (input.Quantity is null || command.ProductionRunId is not null || command.CreateRun))
+            throw new InvalidProductionDemandException("Component plate counts are only available for finite standalone demand.");
+        if (input.TargetKind == RunLineTargetKind.Assembly && input.QuantityBasis == QuantityBasis.Plates
+            && (input.Quantity is null || command.ProductionRunId is not null || command.CreateRun))
+            throw new InvalidProductionDemandException("Assembly plate plans must be finite standalone demand.");
         if (input.Quantity is null && (command.ProductionRunId is not null || command.CreateRun))
             throw new InvalidProductionDemandException("Create continuous backfill in Queue instead of a new Run.");
         if (command.ProductionRunId is not null && command.CreateRun)
@@ -69,7 +74,7 @@ public sealed class ProductionDemandService(IProductionDemandRepository demands,
         }
         demand.SetSubmissionId(command.SubmissionId, requestJson);
         var materializer = Materializer();
-        var exploded = await materializer.ExplodeAsync([demand], ct);
+        var exploded = await materializer.ExplodeAsync([demand], ct, plan);
         await materializer.StageAsync([demand], exploded, ct, plan?.Parts.ToDictionary(p => p.PartId, p => p.Plates));
         if (plan is not null) await demands.ValidateSourcesAsync(plan, ct);
         // Re-plan immediately before the atomic save; the repository also locks source Parts before saving.

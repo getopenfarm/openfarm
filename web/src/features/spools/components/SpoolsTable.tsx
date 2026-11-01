@@ -95,6 +95,8 @@ export function SpoolsTable({
   serverPagination,
 }: SpoolsTableProps) {
   const navigate = useNavigate();
+  const tableRef = useRef<HTMLFieldSetElement>(null);
+  const [finishing, setFinishing] = useState(false);
   const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const bulkTriggerRef = useRef<HTMLButtonElement>(null);
   const finishReturnRef = useRef<HTMLElement | null>(null);
@@ -288,41 +290,53 @@ export function SpoolsTable({
 
   return (
     <>
-      <DataTable
-        pageSize={serverPagination ? undefined : 25}
-        serverPagination={serverPagination}
-        columns={columns}
-        data={spools}
-        getRowId={(spool, index) => spool.id ?? `missing-${index}`}
-        rowSelection={selection}
-        onRowSelectionChange={setSelection}
-        enableRowSelection={selectable}
-        toolbar={
-          selectable ? (
-            <DataTableSelectionBar
-              selectedCount={selected.length}
-              label="Spools actions"
-              onClear={() => setSelection({})}
-            >
-              <Button
-                permission="spools:unload"
-                ref={bulkTriggerRef}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  finishReturnRef.current = bulkTriggerRef.current;
-                  setFinishTargets(selected.flatMap(finishTarget));
+      <fieldset ref={tableRef} disabled={finishing} className="min-w-0">
+        <DataTable
+          selectionDisabled={finishing}
+          pageSize={serverPagination ? undefined : 25}
+          serverPagination={serverPagination}
+          columns={columns}
+          data={spools}
+          getRowId={(spool, index) => spool.id ?? `missing-${index}`}
+          rowSelection={selection}
+          onRowSelectionChange={setSelection}
+          enableRowSelection={selectable}
+          toolbar={
+            selectable ? (
+              <DataTableSelectionBar
+                selectedCount={selected.length}
+                label="Spools actions"
+                pending={finishing}
+                onClear={() => {
+                  setSelection({});
+                  tableRef.current
+                    ?.querySelector<HTMLElement>('[role="checkbox"]')
+                    ?.focus();
                 }}
               >
-                Finish selected
-              </Button>
-            </DataTableSelectionBar>
-          ) : null
-        }
-        onRowClick={(spool) => navigate(`/filament/spools/${spool.id}`)}
-      />
+                <Button
+                  permission="spools:unload"
+                  ref={bulkTriggerRef}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    finishReturnRef.current = bulkTriggerRef.current;
+                    setFinishTargets(selected.flatMap(finishTarget));
+                  }}
+                >
+                  Finish selected
+                </Button>
+              </DataTableSelectionBar>
+            ) : null
+          }
+          onRowClick={(spool) => {
+            if (!finishing) navigate(`/filament/spools/${spool.id}`);
+          }}
+        />
+      </fieldset>
       <FinishSpoolsDialog
+        onPendingChange={setFinishing}
         targets={finishTargets}
         returnFocusRef={finishReturnRef}
         onOpenChange={(open) => {

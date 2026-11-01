@@ -123,9 +123,21 @@ public sealed record PartObjectInventory(int? Count, string? Source, string Dial
             : definitions.Length > 0 ? definitions.Length : declared.Length == 1 ? declared[0] : (int?)null;
         string? reason = null;
         if (declared.Length > 1 || (declared.Length == 1 && count != declared[0])) reason = "Declared quantity disagrees with object labels. Re-export the file.";
+        var headers = Regex.Matches(code, @"(?mi)^;[ \t]*model label id[ \t]*:[ \t]*([^\r\n]*)");
+        var headerIds = headers.Count == 1 ? headers[0].Groups[1].Value.Split(',', StringSplitOptions.TrimEntries) : [];
+        var verifiedHeader = dialect == "Bambu" && ids.Length > 0 && headerIds.Length == ids.Length
+            && headerIds.Distinct(StringComparer.Ordinal).Count() == headerIds.Length
+            && headerIds.Order(StringComparer.Ordinal).SequenceEqual(ids.Order(StringComparer.Ordinal));
+        if (dialect == "Bambu" && headers.Count > 0 && !verifiedHeader)
+            reason ??= "G-code header and printed object identities disagree. Re-export the file.";
         var metadataIds = metadata?.Select(o => (string?)o.Attribute("identify_id") ?? "").ToArray() ?? [];
-        if (metadataIds.Length > 0 && (metadataIds.Distinct().Count() != metadataIds.Length || !metadataIds.Order().SequenceEqual(ids.Order())))
-            reason = "Sliced metadata and G-code object identities disagree. Re-export the file.";
+        // OrcaSlicer can omit repeated model instances from slice_info.config (#14091).
+        // Only recover missing entries when the complete G-code header independently agrees
+        // with every printed label. Unknown or duplicate metadata identities remain conflicts.
+        var omittedInstancesVerified = packaged && verifiedHeader && metadataIds.All(id => ids.Contains(id, StringComparer.Ordinal));
+        if (metadataIds.Length > 0 && (metadataIds.Distinct(StringComparer.Ordinal).Count() != metadataIds.Length
+            || (!metadataIds.Order(StringComparer.Ordinal).SequenceEqual(ids.Order(StringComparer.Ordinal)) && !omittedInstancesVerified)))
+            reason ??= "Sliced metadata and G-code object identities disagree. Re-export the file.";
         if (dialect == "Klipper" && definitions.Length > 0 && !definitions.Order().SequenceEqual(ids.Order()))
             reason = "Defined and printed object identities disagree. Re-export the file.";
         var names = (metadata ?? []).Where(o => o.Attribute("identify_id") is not null).GroupBy(o => o.Attribute("identify_id")!.Value)

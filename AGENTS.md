@@ -26,13 +26,14 @@ navigation, forms, themes, and verification.
 - Add row selection only when it supports a meaningful existing workflow. Use
   stable entity IDs, an indeterminate select-all checkbox, and an explicit
   selection scope. Preserve selection through sorting and prune removed IDs.
-- For table bulk actions, use the shared `DataTableSelectionBar`: a floating bar
-  centered at the bottom of the viewport, showing the selected count, relevant
-  actions, and Clear selection. Show it for one or more selected rows; do not
-  duplicate bulk actions in a top-right toolbar.
-- Respect device safe areas and narrow screens. Reserve enough page space after
-  pagination for the bar (including wrapped controls) so final rows and pagination
-  can scroll clear of it. Keep it below menus and confirmation dialogs.
+- For table bulk actions, use the shared `DataTableSelectionBar` inline in the
+  persistent framed row above the table headers, showing the selected count,
+  relevant actions, and Clear selection. Show it for one or more selected rows;
+  keep Fields/view controls on the right and do not duplicate bulk actions.
+  Keep the toolbar row mounted without selection so selecting does not add a row.
+- Respect device safe areas and narrow screens. Let toolbar controls wrap without
+  clipping labels or focus rings. Bulk actions scroll with the table; do not add
+  floating positioning or extra bottom clearance. Keep menus and dialogs accessible.
 - Announce selection counts politely, preserve keyboard access, and restore focus
   when selection is cleared or a dialog closes. Disable repeated submissions and
   conflicting controls while a bulk request is pending.

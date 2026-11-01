@@ -124,7 +124,9 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
       else client.setQueryData([catalogKey, id], response);
     },
     onError: async (error) =>
-      setSaveError(await extractErrorDetail(error, 'Save failed.')),
+      setSaveError(
+        await extractErrorDetail(error, 'Could not save cost item.'),
+      ),
   });
   const remove = useMutation({
     mutationFn: () => httpClient(`${catalogKey}/${id}`, { method: 'DELETE' }),
@@ -135,7 +137,9 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
       navigate('/cost-catalog');
     },
     onError: async (error) =>
-      toast.error(await extractErrorDetail(error, 'Removal failed.')),
+      toast.error(
+        await extractErrorDetail(error, 'Could not remove cost item.'),
+      ),
   });
   const busy = save.isPending || remove.isPending;
   const unit = pricing.unit ?? 'Piece';
@@ -161,7 +165,10 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
             action={backAction}
           />
         ) : (
-          <ErrorState title="Load failed" onRetry={() => query.refetch()} />
+          <ErrorState
+            title="Could not load cost item"
+            onRetry={() => query.refetch()}
+          />
         )}
       </Page>
     );
@@ -217,7 +224,7 @@ export function CostItemFormPage({ mode }: { mode: 'add' | 'edit' }) {
       >
         {saveError && (
           <Alert variant="destructive" role="alert">
-            <AlertTitle>Save failed</AlertTitle>
+            <AlertTitle>Could not save cost item</AlertTitle>
             <AlertDescription>{saveError}</AlertDescription>
           </Alert>
         )}

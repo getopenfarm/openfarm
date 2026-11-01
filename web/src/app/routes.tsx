@@ -62,12 +62,12 @@ export const router = createBrowserRouter([
           {
             path: '/profile',
             element: <ProfilePage />,
-            handle: { title: 'My Profile' },
+            handle: { title: 'My profile' },
           },
           { path: '/account', element: <Navigate to="/profile" replace /> },
           {
             path: '/users-groups',
-            handle: { title: 'Users & Groups' },
+            handle: { title: 'Users & groups' },
             children: [
               { index: true, element: <UsersGroupsPage /> },
               {

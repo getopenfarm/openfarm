@@ -25,7 +25,7 @@ internal sealed class ProductionDemandMaterializer(
 {
     /// <summary>Checks every line before anything is staged, so one bad line rejects the whole request.</summary>
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<ExplodedPartQuantity>>> ExplodeAsync(
-        IReadOnlyList<ProductionDemand> lines, CancellationToken cancellationToken)
+        IReadOnlyList<ProductionDemand> lines, CancellationToken cancellationToken, ProductionPlan? validatedPlan = null)
     {
         var explodedByLine = new Dictionary<Guid, IReadOnlyList<ExplodedPartQuantity>>();
         foreach (var line in lines)
@@ -34,7 +34,9 @@ internal sealed class ProductionDemandMaterializer(
                 && await printerRepository.GetByIdAsync(printerId, cancellationToken) is null)
                 throw new PrinterNotFoundException(printerId);
 
-            var exploded = planner is not null && line.Quantity is { } quantity
+            var exploded = validatedPlan is not null
+                ? validatedPlan.Parts.Where(p => p.Plates > 0).Select(p => new ExplodedPartQuantity(p.PartId, p.Name, p.RequiredUnits)).ToList()
+                : planner is not null && line.Quantity is { } quantity
                 ? (await planner.PlanAsync(new(line.TargetKind, line.TargetId, quantity, line.QuantityBasis), cancellationToken)).Parts
                     .Select(p => new ExplodedPartQuantity(p.PartId, p.Name, p.RequiredUnits)).ToList()
                 : await ResolveExplodedPartsAsync(line, cancellationToken);

@@ -27,10 +27,12 @@ import type {
   CheckPartDeletionResponse,
   CreatePartRequest,
   EditPartRequest,
+  EstimatePrintedPartsRequest,
   ListPartsResponse,
   OpenFarmApiEndpointsPartsListPartsEndpointParams,
   PartProcessingJobSubmittedResponse,
   PartResponse,
+  PrintEstimate,
   PrintObjectManifest,
   ProblemDetails,
   ReplacePartFileRequest,
@@ -1378,6 +1380,147 @@ export function useOpenFarmApiEndpointsPartsGetPartEndpoint<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export type openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse200 = {
+  data: PrintEstimate;
+  status: 200;
+};
+
+export type openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse400 = {
+  data: ProblemDetails;
+  status: 400;
+};
+
+export type openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponseSuccess =
+  openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponseError =
+  (
+    | openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse400
+    | openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse401
+    | openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse =
+  | openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponseSuccess
+  | openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPartsEstimatePrintedPartsEndpointUrl =
+  () => {
+    return `/api/v1/parts/print-estimate`;
+  };
+
+export const openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint = async (
+  estimatePrintedPartsRequest: EstimatePrintedPartsRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPartsEstimatePrintedPartsEndpointResponse>(
+    getOpenFarmApiEndpointsPartsEstimatePrintedPartsEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(estimatePrintedPartsRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPartsEstimatePrintedPartsEndpointMutationOptions =
+  <TError = ProblemDetails | void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint>
+      >,
+      TError,
+      { data: EstimatePrintedPartsRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint>
+    >,
+    TError,
+    { data: EstimatePrintedPartsRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint>
+      >,
+      { data: EstimatePrintedPartsRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPartsEstimatePrintedPartsEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsPartsEstimatePrintedPartsEndpointMutationBody =
+  EstimatePrintedPartsRequest;
+export type OpenFarmApiEndpointsPartsEstimatePrintedPartsEndpointMutationError =
+  ProblemDetails | void;
+
+export const useOpenFarmApiEndpointsPartsEstimatePrintedPartsEndpoint = <
+  TError = ProblemDetails | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint>
+      >,
+      TError,
+      { data: EstimatePrintedPartsRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPartsEstimatePrintedPartsEndpoint>
+  >,
+  TError,
+  { data: EstimatePrintedPartsRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPartsEstimatePrintedPartsEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsPartsGetPartFileEndpointResponse204 = {
   data: void;
   status: 204;

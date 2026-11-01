@@ -44,28 +44,6 @@ export function rollUp(
   return { parts, components };
 }
 
-interface PartEstimate {
-  id?: string;
-  unitsPerPrint?: number;
-  estimatedPrintTimeMinutes?: number | null;
-  estimatedFilamentWeightGrams?: number | null;
-  /** Per-requirement grams per plate set, purge included. */
-  filamentByColor?: {
-    materialType?: string | null;
-    colorHex?: string | null;
-    grams?: number | null;
-    narrowFilamentVariantId?: string | null;
-  }[];
-}
-
-export interface ColorTotal {
-  variantId?: string;
-  materialType: string | null;
-  /** null = grams we cannot attribute to a colour (part not reprocessed, or several colours without a split). */
-  colorHex: string | null;
-  grams: number;
-}
-
 const colorKey = (
   material?: string | null,
   color?: string | null,
@@ -74,75 +52,6 @@ const colorKey = (
   variantId
     ? `variant:${variantId}`
     : `${material ?? ''}|${(color ?? '').toUpperCase()}`;
-
-/**
- * Estimates are per plate of unitsPerPrint units, so each unit costs estimate / unitsPerPrint. No rounding up to whole plates.
- * Selected variants stay distinct; unselected requirements group by file color.
- * `grams` is the sum of `colors`, so the rows always add up to the total.
- */
-export function printTotals(
-  parts: Map<string, number>,
-  catalog: PartEstimate[],
-) {
-  let minutes = 0;
-  let unestimated = 0;
-  const byColor = new Map<string, ColorTotal>();
-  const addGrams = (
-    material: string | null | undefined,
-    color: string | null | undefined,
-    grams: number,
-    variantId?: string | null,
-  ) => {
-    const key = colorKey(material, color, variantId);
-    const total = byColor.get(key) ?? {
-      materialType: material ?? null,
-      colorHex: color ?? null,
-      grams: 0,
-      ...(variantId ? { variantId } : {}),
-    };
-    total.grams += grams;
-    byColor.set(key, total);
-  };
-
-  for (const [id, need] of parts) {
-    const est = catalog.find((p) => p.id === id);
-    const plates = need / Math.max(1, est?.unitsPerPrint ?? 1);
-    if (est?.estimatedPrintTimeMinutes == null) unestimated++;
-    minutes += plates * (est?.estimatedPrintTimeMinutes ?? 0);
-
-    const colors = est?.filamentByColor ?? [];
-    if (colors.length > 0 && colors.every((c) => c.grams != null)) {
-      for (const c of colors)
-        addGrams(
-          c.materialType,
-          c.colorHex,
-          plates * (c.grams ?? 0),
-          c.narrowFilamentVariantId,
-        );
-    } else if (est?.estimatedFilamentWeightGrams != null) {
-      // One colour: the part total is that colour's grams (just without purge). Several, unsplit: unknown.
-      const sole = colors.length === 1 ? colors[0] : undefined;
-      addGrams(
-        sole?.materialType,
-        sole?.colorHex,
-        plates * est.estimatedFilamentWeightGrams,
-        sole?.narrowFilamentVariantId,
-      );
-    }
-  }
-
-  const colors = [...byColor.values()].sort(
-    (a, b) =>
-      Number(a.colorHex == null) - Number(b.colorHex == null) ||
-      b.grams - a.grams,
-  );
-  return {
-    minutes,
-    grams: colors.reduce((sum, c) => sum + c.grams, 0),
-    unestimated,
-    colors,
-  };
-}
 
 /** Σ qty x unitCost; components without a cost are counted, not guessed. */
 export function hardwareCost(
@@ -166,8 +75,13 @@ interface FilamentPrice {
 
 /** Resolve prices and group by selected variant, falling back to file color when unselected. */
 export function filamentCost(
-  parts: Map<string, number>,
-  catalog: PartEstimate[],
+  rows: {
+    materialType?: string | null;
+    colorHex?: string | null;
+    variantId?: string | null;
+    grams?: number | null;
+    missing?: number;
+  }[],
   filaments: FilamentPrice[],
 ) {
   const prices = new Map<string, number | null | undefined>();
@@ -184,41 +98,24 @@ export function filamentCost(
     string,
     { total: number; priced: number; missing: number }
   >();
-  for (const [id, quantity] of parts) {
-    const part = catalog.find((p) => p.id === id);
-    const scale = quantity / Math.max(1, part?.unitsPerPrint ?? 1);
-    const requirements = part?.filamentByColor ?? [];
-    const splitKnown =
-      requirements.length > 0 && requirements.every((r) => r.grams != null);
-    const rows = splitKnown
-      ? requirements
-      : requirements.length === 1
-        ? [{ ...requirements[0], grams: part?.estimatedFilamentWeightGrams }]
-        : requirements.length > 1
-          ? requirements.map((requirement) => ({ ...requirement, grams: null }))
-          : [{ grams: part?.estimatedFilamentWeightGrams }];
-    for (const row of rows) {
-      const key = colorKey(
-        row.materialType,
-        row.colorHex,
-        row.narrowFilamentVariantId,
-      );
-      const color = colors.get(key) ?? { total: 0, priced: 0, missing: 0 };
-      const variantId = row.narrowFilamentVariantId;
-      const price = variantId ? prices.get(variantId) : null;
-      if (row.grams == null) missingGrams++;
-      if (!variantId) missingSelection++;
-      else if (price == null) missingPrice++;
-      if (row.grams == null || price == null) color.missing++;
-      else {
-        const cost = ((row.grams * scale) / 1000) * price;
-        total += cost;
-        color.total += cost;
-        color.priced++;
-        priced++;
-      }
-      colors.set(key, color);
+  for (const row of rows) {
+    const key = colorKey(row.materialType, row.colorHex, row.variantId);
+    const color = colors.get(key) ?? { total: 0, priced: 0, missing: 0 };
+    const variantId = row.variantId;
+    const price = variantId ? prices.get(variantId) : null;
+    if (row.grams == null || (row.missing ?? 0) > 0) missingGrams++;
+    if (!variantId) missingSelection++;
+    else if (price == null) missingPrice++;
+    if (row.grams == null || price == null || (row.missing ?? 0) > 0)
+      color.missing++;
+    if (row.grams != null && price != null) {
+      const cost = (row.grams / 1000) * price;
+      total += cost;
+      color.total += cost;
+      color.priced++;
+      priced++;
     }
+    colors.set(key, color);
   }
   return {
     total,

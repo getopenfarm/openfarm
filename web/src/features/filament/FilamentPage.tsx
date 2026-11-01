@@ -1,7 +1,7 @@
 import { PackageIcon, PlusIcon } from 'lucide-react';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -77,6 +77,16 @@ export function FilamentPage() {
       />
       {filamentsQuery.isLoading ? (
         <Skeleton className="h-64 w-full" />
+      ) : filamentsQuery.isError && !list ? (
+        <ErrorState
+          title="Could not load filaments"
+          onRetry={() => filamentsQuery.refetch()}
+        />
+      ) : filamentsQuery.isError && filaments.length === 0 ? (
+        <ErrorState
+          title="Could not refresh filaments"
+          onRetry={() => filamentsQuery.refetch()}
+        />
       ) : filaments.length === 0 ? (
         <EmptyState
           icon={<PackageIcon className="size-8 text-muted-foreground" />}
@@ -93,6 +103,13 @@ export function FilamentPage() {
         />
       ) : (
         <div className="flex flex-col gap-4">
+          {filamentsQuery.isError && (
+            <ErrorState
+              title="Could not refresh filaments"
+              description="Showing previous results."
+              onRetry={() => filamentsQuery.refetch()}
+            />
+          )}
           <StockTiles stock={list?.stock ?? []} />
           <FilamentCatalogTable
             filaments={filaments}

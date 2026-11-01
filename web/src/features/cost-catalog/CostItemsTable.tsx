@@ -311,7 +311,7 @@ export function CostItemsTable({
         const error = failures.get(target.id);
         if (error === undefined) continue;
         toast.error(
-          `${target.name}: ${await extractErrorDetail(error, 'Removal failed.')}`,
+          `${target.name}: ${await extractErrorDetail(error, 'Could not remove cost item.')}`,
         );
       }
       await queryClient.invalidateQueries({ queryKey: [catalogKey] });
@@ -359,42 +359,35 @@ export function CostItemsTable({
         rowSelection={selection}
         onRowSelectionChange={setSelection}
         enableRowSelection={(row) => Boolean(row.original.id)}
-        toolbar={null}
-      />
-      <div
-        className={
-          selected.length
-            ? 'fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-30 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 rounded-xl border bg-background p-3 shadow-lg'
-            : 'sr-only'
-        }
-      >
-        <DataTableSelectionBar
-          selectedCount={selected.length}
-          pending={interactionPending}
-          label="Cost items actions"
-          onClear={() => {
-            setSelection({});
-            selectionHeaderRef.current?.focus();
-          }}
-        >
-          <Button
-            permission="non-printed-components:delete"
-            ref={bulkTriggerRef}
-            type="button"
-            variant="destructive"
-            size="sm"
-            disabled={interactionPending}
-            onClick={() => {
-              removalTriggerRef.current = bulkTriggerRef.current;
-              setBulk(true);
-              setTargets(selected.flatMap(toRemovable));
+        toolbar={
+          <DataTableSelectionBar
+            selectedCount={selected.length}
+            pending={interactionPending}
+            label="Cost items actions"
+            onClear={() => {
+              setSelection({});
+              selectionHeaderRef.current?.focus();
             }}
           >
-            <Trash2Icon data-icon="inline-start" />
-            Remove selected
-          </Button>
-        </DataTableSelectionBar>
-      </div>
+            <Button
+              permission="non-printed-components:delete"
+              ref={bulkTriggerRef}
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={interactionPending}
+              onClick={() => {
+                removalTriggerRef.current = bulkTriggerRef.current;
+                setBulk(true);
+                setTargets(selected.flatMap(toRemovable));
+              }}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              Remove selected
+            </Button>
+          </DataTableSelectionBar>
+        }
+      />
       <ConfirmDialog
         open={targets.length > 0}
         onOpenChange={(open) => {

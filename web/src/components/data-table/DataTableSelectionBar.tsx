@@ -1,10 +1,8 @@
 import { type ReactNode, useId } from 'react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
 
 interface DataTableSelectionBarProps {
-  floating?: boolean;
   selectedCount: number;
   pending?: boolean;
   onClear: () => void;
@@ -14,7 +12,6 @@ interface DataTableSelectionBarProps {
 
 /** Bulk actions for DataTable's `toolbar` slot; renders nothing visible until rows are selected. */
 export function DataTableSelectionBar({
-  floating = false,
   selectedCount,
   pending = false,
   onClear,
@@ -32,19 +29,11 @@ export function DataTableSelectionBar({
           data-slot="table-selection-bar"
           aria-label={label}
           aria-describedby={countId}
-          className={cn(
-            'flex min-w-0 flex-1',
-            floating &&
-              'fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 w-max max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-lg border bg-background p-3 shadow-lg',
-          )}
+          className="flex min-w-0 flex-1"
         >
           <fieldset
             disabled={pending}
-            className={cn(
-              'flex min-w-0 flex-1 flex-wrap items-center gap-2',
-              floating &&
-                '[&>button]:h-auto [&>button]:min-h-8 [&>button]:min-w-0 [&>button]:max-w-full [&>button]:whitespace-normal',
-            )}
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-2 [&>button]:h-auto [&>button]:min-h-8 [&>button]:min-w-0 [&>button]:max-w-full [&>button]:whitespace-normal"
           >
             <span
               aria-hidden="true"
