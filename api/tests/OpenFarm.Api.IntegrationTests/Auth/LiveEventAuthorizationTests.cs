@@ -27,17 +27,41 @@ public class LiveEventAuthorizationTests(CustomWebApplicationFactory factory) : 
         var connections = new FarmConnections();
         connections.All["active"] = new(user.Id, sid, login.ExpiresAtUtc);
         var proxy = new Capture();
-        var sender = new AuthorizedFarmClients(new FakeHub(proxy), factory.Services.GetRequiredService<IServiceScopeFactory>(), connections);
-        await sender.SendCoreAsync("CameraFrameReceived", []);
+        var sender = new AuthorizedFarmClients(new FakeHub(proxy), factory.Services.GetRequiredService<IServiceScopeFactory>(), connections, TimeSpan.Zero);
+        await sender.SendCoreAsync("PrinterTelemetryUpdated", []);
         proxy.Sends.Should().Be(1);
         await users.RemoveClaimAsync(user, grant);
-        await sender.SendCoreAsync("CameraFrameReceived", []);
+        await sender.SendCoreAsync("PrinterTelemetryUpdated", []);
         proxy.Sends.Should().Be(1);
         await users.AddClaimAsync(user, grant);
         await sessionService.RevokeAsync(user.Id, sid, user.Id, CancellationToken.None);
-        await sender.SendCoreAsync("CameraFrameReceived", []);
+        await sender.SendCoreAsync("PrinterTelemetryUpdated", []);
         await sender.SendCoreAsync("UnknownEvent", []);
         proxy.Sends.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Delivery_CachesAccessBriefly_SoEachEventDoesNotQueryEveryUser()
+    {
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser { UserName = "live-cached", Email = "live-cached@example.test" };
+        (await users.CreateAsync(user, "test-password")).Succeeded.Should().BeTrue();
+        var grant = new System.Security.Claims.Claim(PermissionCatalog.GrantClaim, "printers:get-detail");
+        await users.AddClaimAsync(user, grant);
+        var login = await scope.ServiceProvider.GetRequiredService<BrowserSessionService>().CreateAsync(user.Id, "Test", CancellationToken.None);
+        var sid = Guid.Parse(new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(login.Token).Claims.Single(c => c.Type == "sid").Value);
+        var connections = new FarmConnections();
+        connections.All["active"] = new(user.Id, sid, login.ExpiresAtUtc);
+        var proxy = new Capture();
+        var sender = new AuthorizedFarmClients(new FakeHub(proxy), factory.Services.GetRequiredService<IServiceScopeFactory>(), connections, TimeSpan.FromMilliseconds(500));
+        await sender.SendCoreAsync("PrinterTelemetryUpdated", []);
+        await users.RemoveClaimAsync(user, grant);
+        await sender.SendCoreAsync("PrinterTelemetryUpdated", []);
+        proxy.Sends.Should().Be(2, "the grant was read moments ago and is still cached");
+        await Task.Delay(TimeSpan.FromMilliseconds(600));
+        await sender.SendCoreAsync("PrinterTelemetryUpdated", []);
+        proxy.Sends.Should().Be(2, "the cache expired and the removed grant now applies");
     }
 
     private sealed class Capture : IClientProxy

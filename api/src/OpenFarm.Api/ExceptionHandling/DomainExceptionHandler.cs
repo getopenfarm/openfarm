@@ -121,6 +121,9 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             PrintFilamentNotAssignableException => (StatusCodes.Status409Conflict, "A spool cannot be assigned to this filament line"),
             FilamentUsageNotEstimableException => (StatusCodes.Status422UnprocessableEntity, "Filament usage cannot be estimated"),
             PrintJobNotEligibleForRequeueException => (StatusCodes.Status409Conflict, "Print job is not eligible for requeue"),
+            OpenFarm.Domain.Maintenance.MaintenanceException => (StatusCodes.Status422UnprocessableEntity, "Invalid maintenance"),
+            OpenFarm.Application.Maintenance.MaintenanceCompletionFailedException => (StatusCodes.Status422UnprocessableEntity, "Maintenance not marked done"),
+            OpenFarm.Application.Maintenance.MaintenanceNotFoundException => (StatusCodes.Status404NotFound, "Maintenance not found"),
             RunLineNotEligibleForBackfillLimitsException => (StatusCodes.Status409Conflict, "Run line is not unlimited, so backfill limits don't apply"),
             // Backstop for domain invariant guards (blank names, weight above capacity, ...) not caught by a request validator.
             ArgumentException => (StatusCodes.Status422UnprocessableEntity, "Invalid request"),
@@ -145,6 +148,8 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             extensions["code"] = setBlocked.Code;
             extensions["issues"] = setBlocked.Issues.Select(issue => new { kind = issue.Kind?.ToString(), code = issue.Code.ToString(), name = issue.Name }).ToList();
         }
+        else if (exception is OpenFarm.Application.Maintenance.MaintenanceCompletionFailedException completion)
+            extensions["failures"] = completion.Failures.ToDictionary(f => f.Key.ToString(), f => f.Value);
         else if (exception is SlicingProfileUnconfiguredException { Code: { } profileCode }) extensions["code"] = profileCode;
         httpContext.Response.StatusCode = statusCode;
         await httpContext.Response.WriteAsJsonAsync(

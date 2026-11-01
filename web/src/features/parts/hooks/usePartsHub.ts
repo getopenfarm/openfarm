@@ -1,9 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import type { PartProcessingJobResponse } from '@/lib/api/generated/endpoints.schemas';
 import { getOpenFarmApiEndpointsPartProcessingJobsGetPartProcessingJobEndpointQueryKey } from '@/lib/api/generated/part-processing-jobs/part-processing-jobs';
 import { getOpenFarmApiEndpointsPartsGetPartEndpointQueryKey } from '@/lib/api/generated/parts/parts';
-import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
+import {
+  useFarmHubEvent,
+  useOnFarmHubReconnected,
+} from '@/lib/signalr/farmHubConnection';
 
 interface PartProcessingJobStatusChangedPayload {
   jobId: string;
@@ -51,8 +53,8 @@ function invalidatePartQueries(queryClient: ReturnType<typeof useQueryClient>) {
 }
 
 /**
- * Opens the /hubs/farm SignalR connection and writes Part Library events directly into TanStack
- * Query's cache — no polling fallback, matching every other real-time feature in this app.
+ * Writes Part Library events from the tab's shared hub connection directly into TanStack Query's cache — no polling
+ * fallback, matching every other real-time feature in this app.
  *
  * `PartProcessingJobStatusChanged` carries the derived preview directly in the push
  * (contracts/part-library-api.md), so the job-detail cache is written in place first — the review
@@ -61,83 +63,55 @@ function invalidatePartQueries(queryClient: ReturnType<typeof useQueryClient>) {
  */
 export function usePartsHub() {
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const { connection, stop } = connectFarmHub({
-      onConnected: () => invalidatePartQueries(queryClient),
-      onReconnected: () => invalidatePartQueries(queryClient),
+  const invalidatePart = (payload: { partId: string }) => {
+    invalidatePartQueries(queryClient);
+    queryClient.invalidateQueries({
+      queryKey: getOpenFarmApiEndpointsPartsGetPartEndpointQueryKey(
+        payload.partId,
+      ),
     });
+  };
 
-    connection.on(
-      'PartProcessingJobStatusChanged',
-      (payload: PartProcessingJobStatusChangedPayload) => {
-        const jobKey =
-          getOpenFarmApiEndpointsPartProcessingJobsGetPartProcessingJobEndpointQueryKey(
-            payload.jobId,
-          );
-        queryClient.setQueryData<JobQueryData | undefined>(
-          jobKey,
-          (current) => {
-            const base: PartProcessingJobResponse = current?.data ?? {
-              id: payload.jobId,
-            };
-            return {
-              ...(current ?? { status: 200, headers: new Headers() }),
-              data: {
-                ...base,
-                id: payload.jobId,
-                status: payload.status,
-                partId: payload.partId ?? base.partId ?? null,
-                errorMessage: payload.errorMessage ?? null,
-                preview: payload.preview ?? base.preview ?? null,
-              },
-            };
-          },
+  useOnFarmHubReconnected(() => invalidatePartQueries(queryClient));
+  useFarmHubEvent(
+    'PartProcessingJobStatusChanged',
+    (payload: PartProcessingJobStatusChangedPayload) => {
+      const jobKey =
+        getOpenFarmApiEndpointsPartProcessingJobsGetPartProcessingJobEndpointQueryKey(
+          payload.jobId,
         );
-        // The push is a partial preview (no estimation source, warnings or print-requirements status), so refetch the rest.
-        queryClient.invalidateQueries({ queryKey: jobKey });
-      },
-    );
-
-    connection.on('PartUpserted', (payload: PartUpsertedPayload) => {
-      invalidatePartQueries(queryClient);
-      queryClient.invalidateQueries({
-        queryKey: getOpenFarmApiEndpointsPartsGetPartEndpointQueryKey(
-          payload.partId,
-        ),
+      queryClient.setQueryData<JobQueryData | undefined>(jobKey, (current) => {
+        const base: PartProcessingJobResponse = current?.data ?? {
+          id: payload.jobId,
+        };
+        return {
+          ...(current ?? { status: 200, headers: new Headers() }),
+          data: {
+            ...base,
+            id: payload.jobId,
+            status: payload.status,
+            partId: payload.partId ?? base.partId ?? null,
+            errorMessage: payload.errorMessage ?? null,
+            preview: payload.preview ?? base.preview ?? null,
+          },
+        };
       });
-    });
-
-    connection.on(
-      'PartEstimateResolved',
-      (payload: PartEstimateResolvedPayload) => {
-        invalidatePartQueries(queryClient);
-        queryClient.invalidateQueries({
-          queryKey: getOpenFarmApiEndpointsPartsGetPartEndpointQueryKey(
-            payload.partId,
-          ),
-        });
-      },
-    );
-
-    connection.on(
-      'PartEstimateUnavailable',
-      (payload: PartEstimateUnavailablePayload) => {
-        invalidatePartQueries(queryClient);
-        queryClient.invalidateQueries({
-          queryKey: getOpenFarmApiEndpointsPartsGetPartEndpointQueryKey(
-            payload.partId,
-          ),
-        });
-      },
-    );
-
-    connection.on('PartDeleted', (_payload: PartDeletedPayload) => {
-      invalidatePartQueries(queryClient);
-    });
-
-    return () => {
-      stop();
-    };
-  }, [queryClient]);
+      // The push is a partial preview (no estimation source, warnings or print-requirements status), so refetch the rest.
+      queryClient.invalidateQueries({ queryKey: jobKey });
+    },
+  );
+  useFarmHubEvent('PartUpserted', (payload: PartUpsertedPayload) =>
+    invalidatePart(payload),
+  );
+  useFarmHubEvent(
+    'PartEstimateResolved',
+    (payload: PartEstimateResolvedPayload) => invalidatePart(payload),
+  );
+  useFarmHubEvent(
+    'PartEstimateUnavailable',
+    (payload: PartEstimateUnavailablePayload) => invalidatePart(payload),
+  );
+  useFarmHubEvent('PartDeleted', (_payload: PartDeletedPayload) =>
+    invalidatePartQueries(queryClient),
+  );
 }

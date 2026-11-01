@@ -103,11 +103,6 @@ public class MarkPrinterReadyCommandHandlerTests
             PrinterModel? model,
             PrinterTelemetrySnapshot telemetry,
             CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task CameraFrameReceivedAsync(
-            Guid printerId,
-            string frameJpegBase64,
-            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class RecordingProductionDispatcher : IProductionDispatcher

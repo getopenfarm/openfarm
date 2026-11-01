@@ -4,6 +4,7 @@ using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.FilamentTracking;
+using OpenFarm.Domain.Maintenance;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
@@ -87,6 +88,12 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
     public DbSet<Print> Prints => Set<Print>();
 
     public DbSet<PrintFilament> PrintFilaments => Set<PrintFilament>();
+
+    public DbSet<MaintenanceTask> MaintenanceTasks => Set<MaintenanceTask>();
+
+    public DbSet<MaintenanceEnrollment> MaintenanceEnrollments => Set<MaintenanceEnrollment>();
+
+    public DbSet<MaintenanceLog> MaintenanceLogs => Set<MaintenanceLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

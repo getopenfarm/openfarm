@@ -285,13 +285,14 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         }
     }
 
+    /// <summary>Nothing faster than this is ever stored or served: the UI shows about 1 fps, and frames cross the tunnel.</summary>
+    private static readonly TimeSpan CameraFrameInterval = TimeSpan.FromSeconds(1);
+
     /// <summary>
-    /// Runs alongside <see cref="RunConnectionLoopAsync"/> in its own DI scope, but never touches the
-    /// <see cref="Printer"/> entity or its DbContext — a camera frame carries no printer-entity data,
-    /// and reachability is already tracked from the MQTT report channel (which must already be
-    /// connected for the camera stream to exist), so frames go straight to
-    /// <see cref="IPrinterEventPublisher"/> with no DB write. Cancelled together with the MQTT loop
-    /// via the shared <paramref name="connectionToken"/>.
+    /// Runs alongside <see cref="RunConnectionLoopAsync"/>, but never touches the <see cref="Printer"/> entity or its
+    /// DbContext: frames go straight to <see cref="IPrinterCameraSnapshotStore"/>, which serves them to the UI. The relay
+    /// runs only while <see cref="CameraDemand"/> says someone is watching, so an unwatched camera is closed (and the
+    /// Snapmaker's is not kept awake). Cancelled together with the MQTT loop via the shared <paramref name="connectionToken"/>.
     /// </summary>
     private async Task RunCameraLoopAsync(Guid printerId, PrinterConnectionDetails details, CancellationToken connectionToken)
     {
@@ -301,18 +302,50 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             {
                 using var scope = _scopeFactory.CreateScope();
                 var services = scope.ServiceProvider;
+                var demand = services.GetRequiredService<CameraDemand>();
+                // ponytail: 1 s demand poll, so a camera starts up to 1 s after the first request; signal it if that matters.
+                while (!demand.IsWanted(printerId)) await Task.Delay(CameraFrameInterval, connectionToken);
+
                 var cameraRelay = services.GetRequiredService<IPrinterConnectorFactory>().CreateCameraRelay(details);
-                var publisher = services.GetRequiredService<IPrinterEventPublisher>();
-                var printer = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printerId, connectionToken);
-                if (printer is null) return;
-                await foreach (var frame in cameraRelay.StreamFramesAsync(details, connectionToken))
-                    await publisher.CameraFrameReceivedAsync(printer.Id, Convert.ToBase64String(frame), connectionToken);
+                var snapshots = services.GetRequiredService<IPrinterCameraSnapshotStore>();
+                using var watchedCts = CancellationTokenSource.CreateLinkedTokenSource(connectionToken);
+                var unwatched = StopWhenUnwatchedAsync(demand, printerId, watchedCts);
+                try
+                {
+                    var lastSavedUtc = DateTimeOffset.MinValue;
+                    await foreach (var frame in cameraRelay.StreamFramesAsync(details, watchedCts.Token))
+                    {
+                        var now = DateTimeOffset.UtcNow;
+                        if (now - lastSavedUtc < CameraFrameInterval) continue;
+                        lastSavedUtc = now;
+                        await snapshots.SaveAsync(printerId, new(frame, now), watchedCts.Token);
+                    }
+                }
+                catch (OperationCanceledException) when (watchedCts.IsCancellationRequested && !connectionToken.IsCancellationRequested)
+                {
+                    continue; // Nobody is watching any more: back to idle, no retry delay.
+                }
+                finally
+                {
+                    await watchedCts.CancelAsync();
+                    await unwatched;
+                }
             }
             catch (OperationCanceledException) when (connectionToken.IsCancellationRequested) { return; }
             catch (Exception ex) { LogCameraLoopFailed(_logger, printerId, ex); }
             try { await Task.Delay(_retryDelay, connectionToken); }
             catch (OperationCanceledException) when (connectionToken.IsCancellationRequested) { return; }
         }
+    }
+
+    private static async Task StopWhenUnwatchedAsync(CameraDemand demand, Guid printerId, CancellationTokenSource relay)
+    {
+        try
+        {
+            while (demand.IsWanted(printerId)) await Task.Delay(CameraFrameInterval, relay.Token);
+            await relay.CancelAsync();
+        }
+        catch (OperationCanceledException) { }
     }
 
     /// <summary>

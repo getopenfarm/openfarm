@@ -5,8 +5,8 @@ import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Swatch } from '@/components/swatch/Swatch';
 import { Progress } from '@/components/ui/progress';
-import type { MatchedMaintenanceFlag } from '@/features/maintenance/lib/matchMaintenanceToFleet';
 import type { FleetPrinterResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useAllowed } from '@/lib/auth/AccessContext';
 import type { DensityMode } from '@/lib/preferences/types';
 import { printerStatusToBadge } from '../lib/printerStatusBadge';
 
@@ -19,9 +19,15 @@ const DENSITY_CELL_PADDING: Record<DensityMode, string> = {
   large: 'py-4',
 };
 
+/** Due-soon and overdue maintenance per printer. */
+export interface MaintenanceCounts {
+  overdue: number;
+  dueSoon: number;
+}
+
 interface PrintersTableProps {
   printers: FleetPrinterResponse[];
-  maintenanceByPrinterId: Map<string, MatchedMaintenanceFlag>;
+  maintenanceByPrinterId: Map<string, MaintenanceCounts>;
   density?: DensityMode;
   onOpen: (id: string) => void;
 }
@@ -32,6 +38,7 @@ export function PrintersTable({
   density = 'medium',
   onOpen,
 }: PrintersTableProps) {
+  const showMaintenance = useAllowed('maintenance:view');
   const columns: ColumnDef<FleetPrinterResponse>[] = [
     {
       id: 'printer',
@@ -93,22 +100,35 @@ export function PrintersTable({
       header: 'Filament',
       cell: () => <Swatch colorHex={PLACEHOLDER_FILAMENT_COLOR} size="sm" />,
     },
-    {
-      id: 'maintenance',
-      header: 'Maintenance',
-      cell: ({ row }) => {
-        const flag = maintenanceByPrinterId.get(row.original.id ?? '');
-        if (!flag) {
-          return <span className="text-sm text-muted-foreground">—</span>;
-        }
-        return (
-          <StatusBadge
-            kind={flag.severity === 'overdue' ? 'red' : 'amber'}
-            label={flag.severity === 'overdue' ? 'Overdue' : 'Due soon'}
-          />
-        );
-      },
-    },
+    ...(showMaintenance
+      ? [
+          {
+            id: 'maintenance',
+            header: 'Maintenance',
+            cell: ({ row }) => {
+              const counts = maintenanceByPrinterId.get(row.original.id ?? '');
+              if (!counts)
+                return <span className="text-sm text-muted-foreground">—</span>;
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {counts.overdue > 0 && (
+                    <StatusBadge
+                      kind="red"
+                      label={`${counts.overdue} overdue`}
+                    />
+                  )}
+                  {counts.dueSoon > 0 && (
+                    <StatusBadge
+                      kind="amber"
+                      label={`${counts.dueSoon} due soon`}
+                    />
+                  )}
+                </div>
+              );
+            },
+          } satisfies ColumnDef<FleetPrinterResponse>,
+        ]
+      : []),
   ];
 
   return (

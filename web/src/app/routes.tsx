@@ -16,6 +16,7 @@ import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { FilamentDetailPage } from '../features/filament/FilamentDetailPage';
 import { FilamentFormPage } from '../features/filament/FilamentFormPage';
 import { FilamentPage } from '../features/filament/FilamentPage';
+import { MaintenanceFormPage } from '../features/maintenance/MaintenanceFormPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
 import { PartDetailPage } from '../features/parts/PartDetailPage';
 import { PartFormPage } from '../features/parts/PartFormPage';
@@ -287,8 +288,23 @@ export const router = createBrowserRouter([
           },
           {
             path: '/maintenance',
-            element: <MaintenancePage />,
             handle: { title: 'Maintenance' },
+            children: [
+              {
+                index: true,
+                element: <MaintenancePage />,
+              },
+              {
+                path: 'new',
+                element: <MaintenanceFormPage mode="add" />,
+                handle: { title: 'Add task' },
+              },
+              {
+                path: ':id/edit',
+                element: <MaintenanceFormPage mode="edit" />,
+                handle: { title: 'Task' },
+              },
+            ],
           },
           {
             path: '/activity-log',

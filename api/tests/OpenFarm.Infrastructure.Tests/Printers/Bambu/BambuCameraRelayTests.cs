@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net.Security;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using OpenFarm.Application.Printers;
 using OpenFarm.Infrastructure.Printers.Bambu;
 
@@ -47,6 +48,7 @@ public class BambuCameraRelayTests
     [InlineData("oversized")]
     public async Task StreamFrames_ReconnectsAfterTruncationOrOversizedHeader(string failure)
     {
+        var logger = new RecordingLogger();
         var connections = 0;
         byte[] jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0xFF, 0xD9];
         await using var server = new LoopbackTlsServer(async (stream, token) =>
@@ -74,16 +76,18 @@ public class BambuCameraRelayTests
             await WriteFrameAsync(stream, jpeg, token);
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
         });
-        await using var frames = CreateRelay(server).StreamFramesAsync(Details, CancellationToken.None).GetAsyncEnumerator();
+        await using var frames = CreateRelay(server, logger).StreamFramesAsync(Details, CancellationToken.None).GetAsyncEnumerator();
 
         (await frames.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3))).Should().BeTrue();
         frames.Current.Should().Equal(jpeg);
         Volatile.Read(ref connections).Should().Be(2);
+        logger.Entries.Should().ContainSingle().Which.Exception.Should().BeOfType<IOException>();
     }
 
     [Fact]
     public async Task StreamFrames_CancellationDuringBlockedRead_StopsPromptly()
     {
+        var logger = new RecordingLogger();
         var authenticated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var server = new LoopbackTlsServer(async (stream, token) =>
         {
@@ -92,7 +96,7 @@ public class BambuCameraRelayTests
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
         });
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await using var frames = CreateRelay(server).StreamFramesAsync(Details, cts.Token).GetAsyncEnumerator();
+        await using var frames = CreateRelay(server, logger).StreamFramesAsync(Details, cts.Token).GetAsyncEnumerator();
         var read = frames.MoveNextAsync().AsTask();
         await authenticated.Task.WaitAsync(TimeSpan.FromSeconds(3));
 
@@ -100,6 +104,8 @@ public class BambuCameraRelayTests
 
         var pendingRead = async () => await read.WaitAsync(TimeSpan.FromSeconds(3));
         await pendingRead.Should().ThrowAsync<OperationCanceledException>();
+        await frames.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
+        logger.Entries.Should().BeEmpty();
     }
 
     [Theory]
@@ -107,6 +113,7 @@ public class BambuCameraRelayTests
     [InlineData(true)]
     public async Task StreamFrames_OpenButStalledConnection_Reconnects(bool partialPayload)
     {
+        var logger = new RecordingLogger();
         var connections = 0;
         byte[] jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0xFF, 0xD9];
         await using var server = new LoopbackTlsServer(async (stream, token) =>
@@ -130,11 +137,15 @@ public class BambuCameraRelayTests
             ValidateCertificate = server.TrustCertificate,
             ReconnectDelay = TimeSpan.FromMilliseconds(30),
             CameraFrameTimeout = TimeSpan.FromMilliseconds(200),
-        });
+        }, logger);
         await using var frames = relay.StreamFramesAsync(Details, CancellationToken.None).GetAsyncEnumerator();
         (await frames.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3))).Should().BeTrue();
         frames.Current.Should().Equal(jpeg);
         Volatile.Read(ref connections).Should().Be(2);
+        var entry = logger.Entries.Should().ContainSingle().Which;
+        entry.Level.Should().Be(LogLevel.Warning);
+        entry.Message.Should().Contain(Details.SerialNumber).And.Contain("timed out; retrying in");
+        entry.Exception.Should().BeNull("expected timeouts must not produce a stack trace");
     }
 
     [Fact]
@@ -173,12 +184,25 @@ public class BambuCameraRelayTests
         Volatile.Read(ref authenticated).Should().Be(0);
     }
 
-    private static BambuCameraRelay CreateRelay(LoopbackTlsServer server) => new(new BambuTransportOptions
+    private static BambuCameraRelay CreateRelay(LoopbackTlsServer server, ILogger<BambuCameraRelay>? logger = null) => new(new BambuTransportOptions
     {
         CameraPort = server.Port,
         ValidateCertificate = server.TrustCertificate,
         ReconnectDelay = TimeSpan.FromMilliseconds(30),
-    });
+    }, logger);
+
+    private sealed class RecordingLogger : ILogger<BambuCameraRelay>
+    {
+        public ConcurrentQueue<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Enqueue((logLevel, formatter(state, exception), exception));
+    }
 
     private static byte[] BuildHeader(int payloadSize)
     {

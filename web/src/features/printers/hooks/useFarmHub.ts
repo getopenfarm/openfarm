@@ -1,5 +1,7 @@
+import type { HubConnection } from '@microsoft/signalr';
 import { useQueryClient } from '@tanstack/react-query';
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useState } from 'react';
+import { invalidateMaintenanceQueries } from '@/features/maintenance/maintenance';
 import { getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey } from '@/lib/api/generated/activity-log/activity-log';
 import type {
   FeedReadingResponse,
@@ -18,7 +20,11 @@ import {
 import { getOpenFarmApiEndpointsReportsStatsEndpointQueryKey } from '@/lib/api/generated/reports/reports';
 import { AccessContext } from '@/lib/auth/AccessContext';
 import { invalidateFilamentTrackingQueries } from '@/lib/invalidateFilamentTrackingQueries';
-import { connectFarmHub } from '@/lib/signalr/farmHubConnection';
+import {
+  connectFarmHub,
+  type FarmConnectionStatus,
+  farmConnectionQueryKey,
+} from '@/lib/signalr/farmHubConnection';
 import { rfidKey, topologyKey } from '../lib/feedSlotView';
 import { filamentColorFromReadings } from '../lib/filamentColor';
 
@@ -34,32 +40,7 @@ interface PrinterTelemetryUpdatedPayload {
   feedReadings: FeedReadingResponse[];
 }
 
-interface CameraFrameReceivedPayload {
-  printerId: string;
-  frameJpegBase64: string;
-  receivedAtUtc: string;
-}
-
-export interface CameraFrameQueryData {
-  frameJpegBase64: string;
-  receivedAtUtc: number;
-  fromSnapshot?: boolean;
-}
-
-/**
- * Shared latest-frame slot: live events and the snapshot bootstrap merge here by server receipt time.
- * The snapshot HTTP query uses a separate key so a slow response cannot replace a newer live frame.
- */
-export function cameraFrameQueryKey(printerId: string) {
-  return ['printer-camera-frame', printerId] as const;
-}
-
-export const farmConnectionQueryKey = ['farm-connection-status'] as const;
-export type FarmConnectionStatus =
-  | 'connecting'
-  | 'connected'
-  | 'reconnecting'
-  | 'disconnected';
+export { type FarmConnectionStatus, farmConnectionQueryKey };
 
 type FleetQueryData = {
   data: ListFleetResponse;
@@ -99,13 +80,14 @@ function invalidateNotificationQueries(
 }
 
 /**
- * Opens the /hubs/farm SignalR connection and writes incoming events directly into TanStack
- * Query's cache (contracts/farm-hub.md) — the sole real-time entry point, no polling fallback.
- * Wires PrinterStatusChanged into the fleet-list query, both PrinterStatusChanged and
- * PrinterTelemetryUpdated into the printer-detail query when that printer's detail is cached, and
- * CameraFrameReceived into the dedicated cameraFrameQueryKey cache slot CameraView reads from.
+ * Opens the tab's one /hubs/farm SignalR connection and writes incoming events directly into TanStack
+ * Query's cache (contracts/farm-hub.md). Wires PrinterStatusChanged into the fleet-list query, and both
+ * PrinterStatusChanged and PrinterTelemetryUpdated into the printer-detail query when that printer's detail is cached.
+ * Returns the connection for FarmHubContext, so other features register their handlers on it instead of opening their
+ * own. Camera frames are not pushed: a visible CameraSurface polls them.
  */
-export function useFarmHub() {
+export function useFarmHub(): HubConnection | null {
+  const [hub, setHub] = useState<HubConnection | null>(null);
   const queryClient = useQueryClient();
   const access = useContext(AccessContext);
   const enabled = access === undefined || access.size > 0;
@@ -123,6 +105,7 @@ export function useFarmHub() {
         setConnectionStatus('connected');
         invalidatePrinterQueries(queryClient);
         invalidateNotificationQueries(queryClient);
+        invalidateMaintenanceQueries(queryClient);
       },
       onReconnecting: () => setConnectionStatus('reconnecting'),
       onClose: () => setConnectionStatus('disconnected'),
@@ -137,6 +120,7 @@ export function useFarmHub() {
         nozzleByPrinter.clear();
         invalidatePrinterQueries(queryClient);
         invalidateNotificationQueries(queryClient);
+        invalidateMaintenanceQueries(queryClient);
       },
     });
 
@@ -318,6 +302,8 @@ export function useFarmHub() {
     connection.on(
       'PrinterActivityChanged',
       (payload: { printerId: string }) => {
+        // Covers printer removal too: its enrollments go with it.
+        invalidateMaintenanceQueries(queryClient);
         queryClient.invalidateQueries({
           queryKey:
             getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey(),
@@ -344,6 +330,8 @@ export function useFarmHub() {
     // Queued work moves the filament shortages shown on the catalog, wherever the operator is; a print starting or
     // ending moves the stats.
     connection.on('PrintJobStatusChanged', () => {
+      // A print starting or ending moves hours and prints toward due.
+      invalidateMaintenanceQueries(queryClient);
       queryClient.invalidateQueries({
         queryKey:
           getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryKey(),
@@ -351,6 +339,10 @@ export function useFarmHub() {
       queryClient.invalidateQueries({
         queryKey: getOpenFarmApiEndpointsReportsStatsEndpointQueryKey(),
       });
+    });
+
+    connection.on('MaintenanceChanged', () => {
+      invalidateMaintenanceQueries(queryClient);
     });
 
     connection.on('SpoolStateChanged', () => {
@@ -365,23 +357,11 @@ export function useFarmHub() {
       invalidateFilamentTrackingQueries(queryClient);
     });
 
-    connection.on(
-      'CameraFrameReceived',
-      (payload: CameraFrameReceivedPayload) => {
-        const receivedAtUtc = Date.parse(payload.receivedAtUtc);
-        if (!Number.isFinite(receivedAtUtc)) return;
-        queryClient.setQueryData<CameraFrameQueryData>(
-          cameraFrameQueryKey(payload.printerId),
-          (previous) =>
-            previous && previous.receivedAtUtc > receivedAtUtc
-              ? previous
-              : { frameJpegBase64: payload.frameJpegBase64, receivedAtUtc },
-        );
-      },
-    );
-
+    setHub(connection);
     return () => {
+      setHub(null);
       stop();
     };
   }, [queryClient, enabled]);
+  return hub;
 }

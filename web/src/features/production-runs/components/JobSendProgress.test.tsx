@@ -10,13 +10,10 @@ const mock = vi.hoisted(() => ({
   handlers: new Map<string, (payload: unknown) => void>(),
 }));
 vi.mock('@/lib/signalr/farmHubConnection', () => ({
-  connectFarmHub: () => ({
-    connection: {
-      on: (event: string, handler: (payload: unknown) => void) =>
-        mock.handlers.set(event, handler),
-    },
-    stop: vi.fn(),
-  }),
+  // Each handler is registered on the shared connection; the latest render's wins, as in useFarmHubEvent.
+  useFarmHubEvent: (event: string, handler: (payload: never) => void) =>
+    mock.handlers.set(event, handler as never),
+  useOnFarmHubReconnected: () => {},
 }));
 
 function Row() {

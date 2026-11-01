@@ -222,4 +222,43 @@ describe('PrintersPage', () => {
       screen.queryByRole('button', { name: /^remove /i }),
     ).not.toBeInTheDocument();
   });
+
+  it('shows real due-soon and overdue counts per printer', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/hubs/farm')) {
+        return Promise.reject(new Error('SignalR not available in tests'));
+      }
+      if (url.includes('/api/v1/maintenance/enrollments')) {
+        expect(url).toContain('state=attention');
+        return Promise.resolve(
+          jsonResponse({
+            items: [
+              { id: 'e1', printerId: 'p1', state: 'Overdue' },
+              { id: 'e2', printerId: 'p1', state: 'Overdue' },
+              { id: 'e3', printerId: 'p1', state: 'DueSoon' },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({
+          printers: [
+            { id: 'p1', name: 'Bay 1', status: 'Idle', isReachable: true },
+            { id: 'p2', name: 'Bay 2', status: 'Idle', isReachable: true },
+          ],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage();
+
+    expect(await screen.findByText('2 overdue')).toBeInTheDocument();
+    expect(screen.getByText('1 due soon')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^Maintenance/ }));
+    expect(screen.getByRole('table')).toHaveTextContent('Bay 1');
+    expect(screen.getByRole('table')).not.toHaveTextContent('Bay 2');
+  });
 });

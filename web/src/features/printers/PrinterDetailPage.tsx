@@ -22,6 +22,7 @@ import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
 import { HardwareCard } from './components/HardwareCard';
+import { MaintenanceCard } from './components/MaintenanceCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { PrinterReportedStatus } from './components/PrinterReportedStatus';
 import { RecentActivityCard } from './components/RecentActivityCard';
@@ -157,6 +158,7 @@ export function PrinterDetailPage() {
                 model={printer.model}
                 extruders={printer.telemetry?.extruders}
               />
+              <MaintenanceCard printerId={printer.id ?? ''} />
               <Card className="gap-0 py-0">
                 <CardHeader className="border-b px-[18px] py-3.5">
                   <CardTitle className="text-sm font-semibold">

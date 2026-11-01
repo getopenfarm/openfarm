@@ -23,6 +23,7 @@ using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Application.Maintenance;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
@@ -36,6 +37,7 @@ using OpenFarm.Infrastructure.Assemblies;
 using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.FilamentTracking;
 using OpenFarm.Infrastructure.Identity;
+using OpenFarm.Infrastructure.Maintenance;
 using OpenFarm.Infrastructure.Parts;
 using OpenFarm.Infrastructure.Parts.SlicerInvocation;
 using OpenFarm.Infrastructure.Persistence;
@@ -228,8 +230,8 @@ builder.Services.AddCors(options =>
         .AllowCredentials()
         .AllowAnyHeader()
         .AllowAnyMethod()
-        // A page on another origin (VITE_API_BASE_URL) reads a download's file name from it.
-        .WithExposedHeaders("Content-Disposition")));
+        // A page on another origin (VITE_API_BASE_URL) reads a download's file name and a camera frame's age.
+        .WithExposedHeaders("Content-Disposition", "ETag", OpenFarm.Api.Endpoints.Printers.GetPrinterCameraFrameEndpoint.ReceivedAtHeader)));
 
 builder.Services.AddValidatorsFromAssemblyContaining<ISecretProtector>();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
@@ -257,6 +259,7 @@ builder.Services.AddScoped<IPrinterConnectorFactory, PrinterConnectorFactory>();
 
 builder.Services.Configure<CameraSnapshotStorageOptions>(builder.Configuration.GetSection(CameraSnapshotStorageOptions.SectionName));
 builder.Services.AddSingleton<IPrinterCameraSnapshotStore, LocalDiskPrinterCameraSnapshotStore>();
+builder.Services.AddSingleton<CameraDemand>();
 builder.Services.AddScoped<IPrinterEventPublisher, FarmHubPrinterEventPublisher>();
 builder.Services.AddSingleton<PrinterConnectionBackgroundService>();
 if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<PrinterConnectionBackgroundService>());
@@ -321,6 +324,12 @@ builder.Services.AddScoped<IQueryHandler<GetSpoolHistoryQuery, SpoolHistoryPage>
 builder.Services.AddScoped<IQueryHandler<GetMaterialsReportQuery, MaterialsReport>, GetMaterialsReportQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetDailyUsageQuery, DailyUsage>, GetDailyUsageQueryHandler>();
 builder.Services.AddScoped<IStatsReadModel, StatsReadModel>();
+builder.Services.AddScoped<IMaintenanceRepository, MaintenanceRepository>();
+builder.Services.AddScoped<IMaintenanceUsageReadModel, MaintenanceUsageReadModel>();
+builder.Services.AddScoped<MaintenanceCommandHandlers>();
+builder.Services.AddScoped<IQueryHandler<ListMaintenanceEnrollmentsQuery, IReadOnlyList<MaintenanceEnrollmentView>>, ListMaintenanceEnrollmentsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<ListMaintenanceTasksQuery, IReadOnlyList<MaintenanceTaskView>>, ListMaintenanceTasksQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<ListMaintenanceLogsQuery, (IReadOnlyList<MaintenanceLogView> Items, int TotalCount)>, ListMaintenanceLogsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetStatsQuery, StatsReport>, GetStatsQueryHandler>();
 builder.Services.AddScoped<LoadSpoolHandlerType, LoadSpoolOntoFeedSlotCommandHandler>();
 builder.Services.AddScoped<UnloadSpoolHandlerType, UnloadSpoolCommandHandler>();

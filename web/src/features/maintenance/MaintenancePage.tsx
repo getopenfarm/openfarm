@@ -1,108 +1,227 @@
-import { ClipboardListIcon, PlusIcon, WrenchIcon } from 'lucide-react';
-import { toast } from 'sonner';
+import { CheckIcon, PlusIcon, WrenchIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { DataTableSearch } from '@/components/data-table/DataTableSearch';
+import {
+  DataTableTabCount,
+  DataTableTabsList,
+  DataTableToolbar,
+} from '@/components/data-table/DataTableToolbar';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { KpiStrip } from '@/components/kpi-card/KpiStrip';
+import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
-import { SkeletonGrid } from '@/components/skeleton-grid/SkeletonGrid';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
-import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
-import { NeedsAttentionCard } from './components/NeedsAttentionCard';
-import { TaskTemplatesTable } from './components/TaskTemplatesTable';
-import { MAINTENANCE_FLAG_SEEDS, TASK_TEMPLATES } from './data/mockMaintenance';
-import { matchMaintenanceToFleet } from './lib/matchMaintenanceToFleet';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
+import type { MaintenanceTasksResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsMaintenanceListMaintenanceTasksEndpoint } from '@/lib/api/generated/maintenance/maintenance';
+import { EnrollmentsTable } from './components/EnrollmentsTable';
+import { MaintenanceHistory } from './components/MaintenanceHistory';
+import { TasksTable } from './components/TasksTable';
+import { needsAttention, useMaintenanceEnrollments } from './maintenance';
+
+type Tab = 'attention' | 'all' | 'tasks' | 'history';
+const TRIGGERS = [
+  { value: 'all', label: 'Any trigger' },
+  { value: 'Hours', label: 'Hours' },
+  { value: 'Days', label: 'Days' },
+  { value: 'Prints', label: 'Prints' },
+];
 
 export function MaintenancePage() {
-  const fleetQuery = useOpenFarmApiEndpointsPrintersListFleetEndpoint();
-  const printers =
-    (fleetQuery.data?.data as ListFleetResponse | undefined)?.printers ?? [];
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>('attention');
+  const [search, setSearch] = useState('');
+  const [trigger, setTrigger] = useState('all');
+  const { query, items } = useMaintenanceEnrollments();
+  const tasksQuery =
+    useOpenFarmApiEndpointsMaintenanceListMaintenanceTasksEndpoint();
+  const tasks =
+    (tasksQuery.data?.data as MaintenanceTasksResponse | undefined)?.items ??
+    [];
 
-  const flags = matchMaintenanceToFleet(printers, MAINTENANCE_FLAG_SEEDS);
-  const overdueCount = flags.filter((f) => f.severity === 'overdue').length;
-  const dueCount = flags.filter((f) => f.severity === 'due').length;
+  const attention = useMemo(() => items.filter(needsAttention), [items]);
+  const shown = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return (tab === 'attention' ? attention : items).filter(
+      (e) =>
+        (trigger === 'all' || e.drivingTrigger === trigger) &&
+        (!needle ||
+          `${e.printerName} ${e.taskName}`.toLowerCase().includes(needle)),
+    );
+  }, [tab, attention, items, search, trigger]);
+  const count = (state: string) =>
+    items.filter((e) => e.state === state).length;
+  const enrolledPrinters = new Set(items.map((e) => e.printerId)).size;
+  const filtered = search.trim() !== '' || trigger !== 'all';
+  const listTab = tab === 'attention' || tab === 'all';
+
+  const addTask = (
+    <Button
+      permission="maintenance:manage"
+      onClick={() => navigate('/maintenance/new')}
+    >
+      <PlusIcon data-icon="inline-start" />
+      Add task
+    </Button>
+  );
+
+  function enrollmentsContent() {
+    if (query.isLoading) return <Skeleton className="h-64 w-full" />;
+    if (query.isError && !query.data)
+      return (
+        <ErrorState
+          title="Could not load maintenance"
+          onRetry={() => query.refetch()}
+        />
+      );
+    if (items.length === 0)
+      return (
+        <EmptyState
+          icon={<WrenchIcon className="size-8 text-muted-foreground" />}
+          title="No printers enrolled"
+          description="Add a task, or Add recommended on a printer."
+          action={addTask}
+        />
+      );
+    if (shown.length === 0)
+      return filtered ? (
+        <EmptyState
+          title="No matches"
+          description="Change the search or filter."
+        />
+      ) : (
+        <EmptyState
+          icon={<CheckIcon className="size-8 text-muted-foreground" />}
+          title="Nothing due"
+        />
+      );
+    return <EnrollmentsTable enrollments={shown} />;
+  }
 
   return (
     <Page>
-      <PageHeader
-        title="Maintenance"
-        description={
-          <>
-            <span className="font-medium text-kind-red">
-              {overdueCount} overdue
-            </span>
-            {' · '}
-            <span className="font-medium text-kind-amber">
-              {dueCount} due soon
-            </span>
-          </>
-        }
-        action={
-          <Button onClick={() => toast('Not implemented.')}>
-            <PlusIcon data-icon="inline-start" />
-            Add task
-          </Button>
-        }
+      <PageHeader title="Maintenance" action={addTask} />
+      <KpiStrip
+        cells={[
+          {
+            label: 'Overdue',
+            value: query.data ? count('Overdue') : '—',
+            dotClassName: 'bg-kind-red',
+          },
+          {
+            label: 'Due soon',
+            value: query.data ? count('DueSoon') : '—',
+            dotClassName: 'bg-kind-amber',
+          },
+          {
+            label: 'OK',
+            value: query.data ? count('Ok') : '—',
+            dotClassName: 'bg-kind-green',
+          },
+          {
+            label: 'Printers enrolled',
+            value: query.data ? enrolledPrinters : '—',
+          },
+        ]}
       />
-
-      <Card className="shrink-0">
-        <CardHeader>
-          <CardTitle>Needs attention</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {fleetQuery.isLoading ? (
-            <SkeletonGrid itemClassName="h-32" />
-          ) : fleetQuery.isError ? (
+      <Tabs
+        value={tab}
+        onValueChange={(next) => setTab(next as Tab)}
+        className="min-w-0 gap-4"
+      >
+        <DataTableToolbar
+          search={
+            listTab ? (
+              <DataTableSearch
+                value={search}
+                onValueChange={setSearch}
+                label="Search by printer or task"
+                placeholder="Search printers or tasks…"
+              />
+            ) : undefined
+          }
+          actions={
+            listTab ? (
+              <Select value={trigger} onValueChange={setTrigger}>
+                <SelectTrigger
+                  aria-label="Filter by trigger"
+                  className="w-full sm:w-36"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {TRIGGERS.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : undefined
+          }
+        >
+          <DataTableTabsList aria-label="Maintenance views">
+            <TabsTrigger value="attention">
+              Needs attention
+              <DataTableTabCount
+                count={query.data ? attention.length : undefined}
+              />
+            </TabsTrigger>
+            <TabsTrigger value="all">
+              All
+              <DataTableTabCount
+                count={query.data ? items.length : undefined}
+              />
+            </TabsTrigger>
+            <TabsTrigger value="tasks">
+              Tasks
+              <DataTableTabCount
+                count={tasksQuery.data ? tasks.length : undefined}
+              />
+            </TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </DataTableTabsList>
+        </DataTableToolbar>
+        <TabsContent value="attention" className="flex flex-col gap-4">
+          {enrollmentsContent()}
+        </TabsContent>
+        <TabsContent value="all" className="flex flex-col gap-4">
+          {enrollmentsContent()}
+        </TabsContent>
+        <TabsContent value="tasks" className="flex flex-col gap-4">
+          {tasksQuery.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : tasksQuery.isError && !tasksQuery.data ? (
             <ErrorState
-              size="sm"
-              title="Could not load printers"
-              onRetry={() => fleetQuery.refetch()}
+              title="Could not load tasks"
+              onRetry={() => tasksQuery.refetch()}
             />
-          ) : printers.length === 0 ? (
+          ) : tasks.length === 0 ? (
             <EmptyState
-              size="sm"
               icon={<WrenchIcon className="size-8 text-muted-foreground" />}
-              title="No printers"
-              description="Add a printer to see maintenance flags."
+              title="No maintenance tasks"
+              action={addTask}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))] sm:grid-cols-2 xl:grid-cols-3">
-              {flags.map((flag) => (
-                <NeedsAttentionCard
-                  key={`${flag.printerId}-${flag.task}`}
-                  flag={flag}
-                />
-              ))}
-            </div>
+            <TasksTable tasks={tasks} />
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Task templates</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {TASK_TEMPLATES.length === 0 ? (
-            <EmptyState
-              size="sm"
-              icon={
-                <ClipboardListIcon className="size-8 text-muted-foreground" />
-              }
-              title="No task templates"
-              description="Define what maintenance to track and when."
-              action={
-                <Button onClick={() => toast('Not implemented.')}>
-                  <PlusIcon data-icon="inline-start" />
-                  Add task
-                </Button>
-              }
-            />
-          ) : (
-            <TaskTemplatesTable templates={TASK_TEMPLATES} />
-          )}
-        </CardContent>
-      </Card>
+        </TabsContent>
+        <TabsContent value="history" className="flex flex-col gap-4">
+          <MaintenanceHistory />
+        </TabsContent>
+      </Tabs>
     </Page>
   );
 }

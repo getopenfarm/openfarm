@@ -9,6 +9,14 @@ function humanizeIdentifier(value: string): string {
     .replace(/\brfid\b/g, 'RFID');
 }
 
+// Maintenance entries land on the printer timeline; name them by what happened to the printer's maintenance.
+const MAINTENANCE_EVENTS: Record<string, string> = {
+  MaintenanceEnrolled: 'Maintenance task enrolled',
+  MaintenanceUnenrolled: 'Maintenance task unenrolled',
+  MaintenanceRebaselined: 'Maintenance last done set',
+  MaintenanceCompleted: 'Maintenance done',
+};
+
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
@@ -27,6 +35,7 @@ export function describeActivityEvent(
   ) {
     return `Printer reported ${reportedStateLabel(details.reportedState)}`;
   }
+  if (MAINTENANCE_EVENTS[eventType]) return MAINTENANCE_EVENTS[eventType];
   const humanizedEvent = humanizeIdentifier(eventType);
   const humanizedEntity = humanizeIdentifier(entityType);
 
@@ -52,6 +61,7 @@ export function activityEventKind(
   if (
     type.includes('registered') ||
     type.includes('created') ||
+    type.includes('maintenancecompleted') ||
     type.includes('markedready')
   ) {
     return 'green';

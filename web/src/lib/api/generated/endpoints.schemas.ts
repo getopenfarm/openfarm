@@ -1573,11 +1573,6 @@ export interface DiscoveredPrinterResponse {
   alreadyRegistered?: boolean;
 }
 
-export interface PrinterCameraSnapshot {
-  frameJpegBase64?: string;
-  receivedAtUtc?: string;
-}
-
 export interface PrinterConnectionFieldsResponse {
   serialRequired?: boolean;
   secretName?: string;
@@ -2229,6 +2224,158 @@ export interface ListNonPrintedComponentsResponse {
 
 export interface ListNonPrintedComponentsRequest {
   [key: string]: unknown;
+}
+
+export interface MaintenanceTaskResponse {
+  id?: string;
+  name?: string;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  everyPrintHours?: number | null;
+  /** @nullable */
+  everyDays?: number | null;
+  /** @nullable */
+  everyPrints?: number | null;
+  warnAtPercent?: number;
+  createdAtUtc?: string;
+  printerIds?: string[];
+  /** @nullable */
+  worstState?: string | null;
+}
+
+export interface MaintenanceTasksResponse {
+  items?: MaintenanceTaskResponse[];
+}
+
+export interface MaintenanceEnrollmentResponse {
+  id?: string;
+  taskId?: string;
+  taskName?: string;
+  printerId?: string;
+  printerName?: string;
+  cycleStartedAtUtc?: string;
+  /** @nullable */
+  lastDoneAtUtc?: string | null;
+  carryHours?: number;
+  carryPrints?: number;
+  /** @nullable */
+  everyPrintHours?: number | null;
+  /** @nullable */
+  everyDays?: number | null;
+  /** @nullable */
+  everyPrints?: number | null;
+  warnAtPercent?: number;
+  hours?: number;
+  prints?: number;
+  untrackedHours?: number;
+  state?: string;
+  drivingTrigger?: string;
+  used?: number;
+  interval?: number;
+  remaining?: number;
+}
+
+export interface MaintenanceEnrollmentsResponse {
+  items?: MaintenanceEnrollmentResponse[];
+}
+
+export interface ListMaintenanceEnrollmentsRequest {
+  [key: string]: unknown;
+}
+
+export interface MaintenanceLogView {
+  id?: string;
+  /** @nullable */
+  enrollmentId?: string | null;
+  /** @nullable */
+  taskId?: string | null;
+  taskName?: string;
+  /** @nullable */
+  printerId?: string | null;
+  printerName?: string;
+  performedAtUtc?: string;
+  performedByUserId?: string;
+  /** @nullable */
+  performedByName?: string | null;
+  /** @nullable */
+  performedByNote?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  cost?: number | null;
+  hoursAtCompletion?: number;
+  printsAtCompletion?: number;
+}
+
+export interface MaintenanceLogsResponse {
+  items?: MaintenanceLogView[];
+  totalCount?: number;
+}
+
+export interface ListMaintenanceLogsRequest {
+  [key: string]: unknown;
+}
+
+export interface SaveMaintenanceTaskRequest {
+  name?: string;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  everyPrintHours?: number | null;
+  /** @nullable */
+  everyDays?: number | null;
+  /** @nullable */
+  everyPrints?: number | null;
+  warnAtPercent?: number;
+  printerIds?: string[];
+  /** @nullable */
+  lastDoneAtUtc?: string | null;
+  carryHours?: number;
+  carryPrints?: number;
+}
+
+export interface DeleteMaintenanceTaskRequest {
+  [key: string]: unknown;
+}
+
+export interface MaintenanceChangeResponse {
+  entityIds?: string[];
+  count?: number;
+}
+
+export interface EnrollPrintersRequest {
+  printerIds?: string[];
+  /** @nullable */
+  lastDoneAtUtc?: string | null;
+  carryHours?: number;
+  carryPrints?: number;
+}
+
+export interface UnenrollPrinterRequest {
+  [key: string]: unknown;
+}
+
+export interface EnrollPrinterInTasksRequest {
+  taskIds?: string[];
+}
+
+export interface RebaselineMaintenanceRequest {
+  lastDoneAtUtc?: string;
+  carryHours?: number;
+  carryPrints?: number;
+}
+
+export interface CompleteMaintenanceRequest {
+  enrollmentIds?: string[];
+  /** @nullable */
+  performedAtUtc?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  performedByNote?: string | null;
+  /** @nullable */
+  cost?: number | null;
 }
 
 export interface LibraryFolder {
@@ -3251,6 +3398,35 @@ export type OpenFarmApiEndpointsNonPrintedComponentsListNonPrintedComponentsEndp
     page: number;
     pageSize: number;
   };
+
+export type OpenFarmApiEndpointsMaintenanceListMaintenanceEnrollmentsEndpointParams =
+  {
+    /**
+     * @nullable
+     */
+    printerId?: string | null;
+    /**
+     * @nullable
+     */
+    taskId?: string | null;
+    /**
+     * @nullable
+     */
+    state?: string | null;
+  };
+
+export type OpenFarmApiEndpointsMaintenanceListMaintenanceLogsEndpointParams = {
+  page: number;
+  pageSize: number;
+  /**
+   * @nullable
+   */
+  printerId?: string | null;
+  /**
+   * @nullable
+   */
+  taskId?: string | null;
+};
 
 export type OpenFarmApiEndpointsLibraryListFoldersEndpointParams = {
   /**

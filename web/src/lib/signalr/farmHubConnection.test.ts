@@ -14,6 +14,7 @@ const hub = vi.hoisted(() => ({
 }));
 
 vi.mock('@microsoft/signalr', () => ({
+  HttpTransportType: { WebSockets: 1 },
   HubConnectionBuilder: class {
     withUrl(...args: unknown[]) {
       hub.withUrl(...args);
@@ -61,6 +62,8 @@ describe('farm hub recovery', () => {
         expect.objectContaining({
           accessTokenFactory: expect.any(Function),
           withCredentials: true,
+          transport: 1,
+          skipNegotiation: true,
         }),
       );
       await session.stop();

@@ -6,6 +6,7 @@ import {
 } from '@/components/data-table/DataTableToolbar';
 import { getStatusLabel, OFFLINE_META } from '@/components/printer-tile/status';
 import { TabsTrigger } from '@/components/ui/tabs';
+import { useAllowed } from '@/lib/auth/AccessContext';
 
 export type PrinterStatusFilter =
   | 'all'
@@ -44,6 +45,7 @@ export function PrinterFilterBar({
   onQueryChange,
   counts,
 }: PrinterFilterBarProps) {
+  const showMaintenance = useAllowed('maintenance:view');
   return (
     <DataTableToolbar
       search={
@@ -56,7 +58,9 @@ export function PrinterFilterBar({
       }
     >
       <DataTableTabsList aria-label="Filter printers by status">
-        {FILTERS.map((filter) => (
+        {FILTERS.filter(
+          (f) => showMaintenance || f.value !== 'maintenance',
+        ).map((filter) => (
           <TabsTrigger key={filter.value} value={filter.value}>
             {filter.label}
             <DataTableTabCount count={counts?.[filter.value]} />

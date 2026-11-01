@@ -1,8 +1,8 @@
 namespace OpenFarm.Application.Printers;
 
-public sealed record PrinterCameraSnapshot(string FrameJpegBase64, DateTimeOffset ReceivedAtUtc);
+public sealed record PrinterCameraSnapshot(byte[] FrameJpeg, DateTimeOffset ReceivedAtUtc);
 
-/// <summary>One persistent last frame per printer. Storage failures are logged, never fatal to streaming.</summary>
+/// <summary>One last frame per printer, served to the UI and kept across restarts. Storage failures are logged, never fatal to streaming.</summary>
 public interface IPrinterCameraSnapshotStore
 {
     Task SaveAsync(Guid printerId, PrinterCameraSnapshot snapshot, CancellationToken ct);
