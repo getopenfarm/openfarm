@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Antiforgery;
 using OpenFarm.Application.Auth;
+using OpenFarm.Api.Hosting;
 
 namespace OpenFarm.Api.Security;
 
@@ -25,7 +26,8 @@ public static class SessionCookies
         {
             Path = "/api/v1/auth",
             HttpOnly = true,
-            Secure = context.Request.IsHttps || crossSite || configuration.GetValue("Auth:SecureCookies", false),
+            Secure = context.Request.IsHttps || crossSite || configuration.GetValue("Auth:SecureCookies", false)
+                || context.RequestServices.GetRequiredService<PublicOrigin>().IsHttps,
             SameSite = crossSite ? SameSiteMode.None : SameSiteMode.Lax,
         };
     }

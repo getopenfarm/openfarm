@@ -18,7 +18,21 @@ Migrations run at server startup. Back up the database before deployment and kee
 
 ## Deployment
 
-Same-origin hosting is the default and Vite proxies /api and /hubs in development. HTTPS sets Secure cookies automatically. When HTTPS terminates at a reverse proxy, set `Auth__SecureCookies=true` unless trusted forwarded-header handling already makes Request.IsHttps correct. Keep HTTP development limited to trusted local networks.
+Same-origin hosting is the default and Vite proxies /api and /hubs in development. For Cloudflare Tunnel or another reverse proxy, configure the public address:
+
+```dotenv
+ORIGIN=https://farm.example.com
+```
+
+`ORIGIN` is optional. Unset or blank preserves existing behavior. A configured value must be an absolute HTTP/HTTPS origin, optionally ending in `/`, with no credentials, non-root path, query, or fragment. Invalid values stop startup with an `ORIGIN` configuration error. Host casing and default ports are normalized.
+
+The configured origin is added to the trusted authentication origins and CORS allowlist alongside explicitly configured additional origins. HTTPS `ORIGIN` enables Secure refresh cookies even when the proxy connects to OpenFarm over HTTP. Cookie deletion uses the same settings. Antiforgery validation remains required, and this setting does not rewrite request schemes or enable trust in forwarded headers. Use the configured HTTPS hostname for sign-in; direct HTTP LAN sign-in is not supported with Secure refresh cookies.
+
+The built frontend continues to use relative API/hub URLs, so this requires no frontend rebuild. With the supplied Compose deployment, set `ORIGIN` in `.env` and run `docker compose up -d --force-recreate openfarm`. Route the entire public hostname to OpenFarm, including `/api` and `/hubs`.
+
+The normalized public origin is also available to backend services for future MCP endpoint URLs and OAuth metadata/callback construction. This setting does not implement MCP/OAuth, change JWT issuer/audience, or register OAuth client redirect allowlists.
+
+Without `ORIGIN`, HTTPS requests still set Secure refresh cookies automatically. The existing `Auth__SecureCookies=true` setting remains available for other reverse-proxy configurations. Keep HTTP development limited to trusted local networks.
 
 For a frontend on another origin, set the exact `Cors__AllowedOrigins__0` (and additional numbered origins). Credentialed requests and antiforgery headers are required. If frontend and API are on different *sites*, also set `Auth__CrossSiteCookies=true` and `Auth__SecureCookies=true`; both must use HTTPS. Browsers that block third-party cookies may still prevent this setup; prefer a same-origin reverse proxy.
 
