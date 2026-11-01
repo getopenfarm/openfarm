@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenFarm.Application.Printers;
@@ -13,19 +12,28 @@ public sealed class CameraSnapshotStorageOptions
     public string RootDirectory { get; set; } = "/data/camera-snapshots";
 }
 
+/// <summary>
+/// The latest frame lives in memory and is served from there; disk only keeps a frame across restarts, written at most
+/// once per <see cref="PersistInterval"/> per printer as a plain JPEG whose last-write time is the receipt time.
+/// </summary>
 public sealed partial class LocalDiskPrinterCameraSnapshotStore(
     IOptions<CameraSnapshotStorageOptions> options,
     ILogger<LocalDiskPrinterCameraSnapshotStore> logger) : IPrinterCameraSnapshotStore
 {
+    // ponytail: a restart loses up to this much of the last frame; flush on shutdown if that ever matters.
+    internal static readonly TimeSpan PersistInterval = TimeSpan.FromSeconds(60);
+
     // Per-printer serialization makes replacement and deletion safe against in-flight frames.
     private sealed class Entry
     {
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public bool Deleted { get; set; }
+        public PrinterCameraSnapshot? Latest { get; set; }
+        public DateTimeOffset LastPersistedUtc { get; set; } = DateTimeOffset.MinValue;
     }
     private readonly ConcurrentDictionary<Guid, Entry> _entries = new();
     private string FilePath(Guid printerId) =>
-        Path.Combine(options.Value.RootDirectory, $"{printerId:N}.json");
+        Path.Combine(options.Value.RootDirectory, $"{printerId:N}.jpg");
 
     public async Task SaveAsync(Guid printerId, PrinterCameraSnapshot snapshot, CancellationToken ct)
     {
@@ -37,8 +45,13 @@ public sealed partial class LocalDiskPrinterCameraSnapshotStore(
         try
         {
             if (entry.Deleted) return;
+            entry.Latest = snapshot;
+            var now = DateTimeOffset.UtcNow;
+            if (now - entry.LastPersistedUtc < PersistInterval) return;
+            entry.LastPersistedUtc = now;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(snapshot), ct);
+            await File.WriteAllBytesAsync(temporary, snapshot.FrameJpeg, ct);
+            File.SetLastWriteTimeUtc(temporary, snapshot.ReceivedAtUtc.UtcDateTime);
             File.Move(temporary, path, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -60,12 +73,15 @@ public sealed partial class LocalDiskPrinterCameraSnapshotStore(
         try
         {
             if (entry.Deleted) return null;
+            if (entry.Latest is not null) return entry.Latest;
             var path = FilePath(printerId);
             if (!File.Exists(path)) return null;
-            var snapshot = JsonSerializer.Deserialize<PrinterCameraSnapshot>(await File.ReadAllTextAsync(path, ct));
-            return snapshot is not null && Valid(snapshot) ? snapshot : null;
+            var snapshot = new PrinterCameraSnapshot(await File.ReadAllBytesAsync(path, ct), File.GetLastWriteTimeUtc(path));
+            if (!Valid(snapshot)) return null;
+            entry.Latest = snapshot;
+            return snapshot;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             LogStorageFailure(logger, ex, printerId);
             return null;
@@ -80,19 +96,17 @@ public sealed partial class LocalDiskPrinterCameraSnapshotStore(
         try
         {
             entry.Deleted = true;
+            entry.Latest = null;
             File.Delete(FilePath(printerId));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { LogStorageFailure(logger, ex, printerId); }
         finally { entry.Gate.Release(); }
     }
 
-    private static bool Valid(PrinterCameraSnapshot snapshot)
-    {
-        if (snapshot.ReceivedAtUtc == default || string.IsNullOrEmpty(snapshot.FrameJpegBase64)
-            || snapshot.FrameJpegBase64.Length > BambuCameraFrameCodec.MaxPayloadSize * 4 / 3 + 4) return false;
-        try { return JpegFrame.IsValid(Convert.FromBase64String(snapshot.FrameJpegBase64)); }
-        catch (FormatException) { return false; }
-    }
+    private static bool Valid(PrinterCameraSnapshot snapshot) =>
+        snapshot.ReceivedAtUtc != default
+        && snapshot.FrameJpeg.Length <= BambuCameraFrameCodec.MaxPayloadSize
+        && JpegFrame.IsValid(snapshot.FrameJpeg);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Camera snapshot storage failed for printer {PrinterId}")]
     private static partial void LogStorageFailure(ILogger logger, Exception exception, Guid printerId);

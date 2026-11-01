@@ -24,9 +24,4 @@ public interface IPrinterEventPublisher
         PrinterModel? model,
         PrinterTelemetrySnapshot telemetry,
         CancellationToken cancellationToken);
-
-    Task CameraFrameReceivedAsync(
-        Guid printerId,
-        string frameJpegBase64,
-        CancellationToken cancellationToken);
 }

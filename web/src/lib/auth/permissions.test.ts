@@ -6,6 +6,12 @@ describe('routePermission', () => {
     expect(routePermission('/profile')).toBeNull();
     expect(routePermission('/profiles')).toBe('profiles:list-machine');
   });
+
+  it('gates maintenance reads on view and its forms on manage', () => {
+    expect(routePermission('/maintenance')).toBe('maintenance:view');
+    expect(routePermission('/maintenance/new')).toBe('maintenance:manage');
+    expect(routePermission('/maintenance/t1/edit')).toBe('maintenance:manage');
+  });
 });
 
 describe('settingsPath', () => {

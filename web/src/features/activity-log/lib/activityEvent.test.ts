@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeActivityEvent } from './activityEvent';
+import { activityEventKind, describeActivityEvent } from './activityEvent';
 
 describe('describeActivityEvent', () => {
   it('names the event once and keeps acronyms upper case', () => {
@@ -12,5 +12,18 @@ describe('describeActivityEvent', () => {
     expect(describeActivityEvent('Printer', 'ConnectionEdited')).toBe(
       'Printer connection edited',
     );
+  });
+
+  it('names maintenance entries on the printer timeline', () => {
+    expect(describeActivityEvent('Printer', 'MaintenanceCompleted')).toBe(
+      'Maintenance done',
+    );
+    expect(describeActivityEvent('Printer', 'MaintenanceRebaselined')).toBe(
+      'Maintenance last done set',
+    );
+    expect(
+      describeActivityEvent('MaintenanceTask', 'MaintenanceTaskCreated'),
+    ).toBe('Maintenance task created');
+    expect(activityEventKind('MaintenanceCompleted')).toBe('green');
   });
 });

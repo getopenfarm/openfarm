@@ -1,9 +1,11 @@
 import { Link } from 'react-router';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Swatch } from '@/components/swatch/Swatch';
+import { progressCaption } from '@/features/maintenance/maintenance';
 import { normalizeFilamentColor } from '@/features/printers/lib/feedSlotView';
 import type {
   LowStockNotificationResponse,
+  MaintenanceEnrollmentResponse,
   NotificationItemResponse,
   NotificationLineResponse,
   RfidWeightDriftResponse,
@@ -242,6 +244,29 @@ export function RfidWeightDriftNotification({
           {correcting ? 'Correcting…' : `Correct to ${read}`}
         </Button>
       </div>
+    </li>
+  );
+}
+
+/** A printer's task due soon or overdue; the maintenance page has Done. */
+export function MaintenanceDueNotification({
+  item,
+}: {
+  item: MaintenanceEnrollmentResponse;
+}) {
+  return (
+    <li className="flex flex-col gap-0.5 px-3 py-3">
+      <Link
+        to="/maintenance"
+        className="block truncate text-sm font-medium hover:underline"
+      >
+        {item.taskName} · {item.printerName}
+      </Link>
+      <p
+        className={`text-xs tabular-nums ${item.state === 'Overdue' ? 'text-kind-red' : 'text-kind-amber'}`}
+      >
+        {progressCaption(item)}
+      </p>
     </li>
   );
 }

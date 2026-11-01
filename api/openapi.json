@@ -4310,12 +4310,12 @@
         ]
       }
     },
-    "/api/v1/printers/{id}/camera-snapshot": {
+    "/api/v1/printers/{id}/camera.jpg": {
       "get": {
         "tags": [
           "Printers"
         ],
-        "operationId": "OpenFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint",
+        "operationId": "OpenFarmApiEndpointsPrintersGetPrinterCameraFrameEndpoint",
         "parameters": [
           {
             "name": "id",
@@ -4330,15 +4330,19 @@
           "200": {
             "description": "Success",
             "content": {
-              "application/json": {
+              "image/jpeg": {
                 "schema": {
-                  "$ref": "#/components/schemas/PrinterCameraSnapshot"
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
           },
           "204": {
             "description": "No Content"
+          },
+          "304": {
+            "description": ""
           },
           "404": {
             "description": "Not Found"
@@ -5442,6 +5446,546 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NonPrintedComponentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance/tasks": {
+      "get": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceListMaintenanceTasksEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceTasksResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceCreateMaintenanceTaskEndpoint",
+        "requestBody": {
+          "x-name": "SaveMaintenanceTaskRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveMaintenanceTaskRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceTaskResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance/enrollments": {
+      "get": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceListMaintenanceEnrollmentsEndpoint",
+        "parameters": [
+          {
+            "name": "printerId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceEnrollmentsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance/logs": {
+      "get": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceListMaintenanceLogsEndpoint",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "printerId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceLogsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance/tasks/{id}": {
+      "put": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceEditMaintenanceTaskEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SaveMaintenanceTaskRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveMaintenanceTaskRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceTaskResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceDeleteMaintenanceTaskEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance/tasks/{id}/enrollments": {
+      "post": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceEnrollPrintersEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "EnrollPrintersRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollPrintersRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceChangeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance/tasks/{taskId}/enrollments/{printerId}": {
+      "delete": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceUnenrollPrinterEndpoint",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "printerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/printers/{id}/maintenance/enrollments": {
+      "post": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceEnrollPrinterInTasksEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "EnrollPrinterInTasksRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollPrinterInTasksRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceChangeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance/enrollments/{id}/baseline": {
+      "put": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceRebaselineMaintenanceEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "RebaselineMaintenanceRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RebaselineMaintenanceRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceChangeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance/enrollments/complete": {
+      "post": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "OpenFarmApiEndpointsMaintenanceCompleteMaintenanceEndpoint",
+        "requestBody": {
+          "x-name": "CompleteMaintenanceRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteMaintenanceRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceChangeResponse"
                 }
               }
             }
@@ -11804,19 +12348,6 @@
           }
         }
       },
-      "PrinterCameraSnapshot": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "frameJpegBase64": {
-            "type": "string"
-          },
-          "receivedAtUtc": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
       "PrinterCatalogResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -13582,6 +14113,423 @@
       "ListNonPrintedComponentsRequest": {
         "type": "object",
         "additionalProperties": false
+      },
+      "MaintenanceTasksResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceTaskResponse"
+            }
+          }
+        }
+      },
+      "MaintenanceTaskResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "everyPrintHours": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "everyDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "everyPrints": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "warnAtPercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "printerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "worstState": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "MaintenanceEnrollmentsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceEnrollmentResponse"
+            }
+          }
+        }
+      },
+      "MaintenanceEnrollmentResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "taskName": {
+            "type": "string"
+          },
+          "printerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "printerName": {
+            "type": "string"
+          },
+          "cycleStartedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastDoneAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "carryHours": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "carryPrints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "everyPrintHours": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "everyDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "everyPrints": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "warnAtPercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hours": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "prints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "untrackedHours": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "state": {
+            "type": "string"
+          },
+          "drivingTrigger": {
+            "type": "string"
+          },
+          "used": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "interval": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "remaining": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "ListMaintenanceEnrollmentsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "MaintenanceLogsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceLogView"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MaintenanceLogView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "enrollmentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "taskId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "taskName": {
+            "type": "string"
+          },
+          "printerId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "printerName": {
+            "type": "string"
+          },
+          "performedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "performedByUserId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "performedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "performedByNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "hoursAtCompletion": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "printsAtCompletion": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ListMaintenanceLogsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SaveMaintenanceTaskRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "everyPrintHours": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "everyDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "everyPrints": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "warnAtPercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "printerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "lastDoneAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "carryHours": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "carryPrints": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DeleteMaintenanceTaskRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "MaintenanceChangeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entityIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EnrollPrintersRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "printerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "lastDoneAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "carryHours": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "carryPrints": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UnenrollPrinterRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "EnrollPrinterInTasksRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        }
+      },
+      "RebaselineMaintenanceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lastDoneAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "carryHours": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "carryPrints": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CompleteMaintenanceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enrollmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "performedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "performedByNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
       },
       "FolderPage": {
         "type": "object",

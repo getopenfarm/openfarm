@@ -19,6 +19,7 @@ public static class PermissionCatalog
     public static readonly IReadOnlyList<PermissionArea> Areas =
     [
         new("printers", "Printers", "printers", false),
+        new("maintenance", "Maintenance", "maintenance", false),
         new("print-jobs", "Print jobs", "print jobs", false),
         new("production-runs", "Production runs", "production runs", false),
         new("parts", "Parts", "parts", false),
@@ -46,6 +47,11 @@ public static class PermissionCatalog
         new("printers:verify-connection", "printers", "Verify connection", "Test a printer address and access code from the server before saving them.", false, true, false, Phrase: "verify printer connections"),
         new("printers:edit-connection", "printers", "Change connection", "Rename a printer and change its address, access code and profiles. A wrong value takes it offline.", false, true, false, IsExplicit: true, Phrase: "change printer connections"),
         new("printers:remove", "printers", "Remove", "Remove a printer from the fleet.", false, false, true, Verb: "remove"),
+
+        new("maintenance:view", "maintenance", "View", "See maintenance tasks, what is due and the maintenance log.", true, false, false, Verb: "see"),
+        new("maintenance:complete", "maintenance", "Mark done", "Mark maintenance done, including backdated.", false, false, false, Verb: "mark done"),
+        new("maintenance:manage", "maintenance", "Change", "Add and change maintenance tasks, sign printers up, and set when a task was last done.", false, false, false, Verb: "change"),
+        new("maintenance:delete", "maintenance", "Delete", "Delete maintenance tasks. Their log stays.", false, false, true, Verb: "delete"),
 
         new("print-jobs:view", "print-jobs", "View", "See the queue, job details, objects and print files.", true, false, false, Verb: "see"),
         new("print-jobs:pin", "print-jobs", "Pin", "Pin a job to a printer, unpin it, and set its filament requirements.", false, false, false, Verb: "pin"),

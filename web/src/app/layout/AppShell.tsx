@@ -2,6 +2,7 @@ import { Outlet, useMatches } from 'react-router';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useFarmHub } from '@/features/printers/hooks/useFarmHub';
+import { FarmHubContext } from '@/lib/signalr/farmHubConnection';
 import { cn } from '@/lib/utils';
 import { AppSidebar } from './AppSidebar';
 import { BreadcrumbOutletProvider } from './BreadcrumbOutlet';
@@ -15,7 +16,7 @@ function readSidebarCookie(): boolean | null {
 }
 
 export function AppShell() {
-  useFarmHub();
+  const farmHub = useFarmHub();
   const fillViewport = useMatches().some(
     (match) =>
       (match.handle as { fillViewport?: boolean } | undefined)?.fillViewport,
@@ -25,29 +26,34 @@ export function AppShell() {
   const defaultOpen = cookieState ?? true;
 
   return (
-    <TooltipProvider>
-      <SidebarProvider
-        defaultOpen={defaultOpen}
-        className={fillViewport ? 'h-dvh min-h-0' : undefined}
-      >
-        <AppSidebar />
-        <BreadcrumbOutletProvider>
-          <SidebarInset
-            className={cn('min-w-0', fillViewport && 'min-h-0 overflow-hidden')}
-          >
-            <TitleBar />
-            <div
-              className={
-                fillViewport
-                  ? 'flex min-h-0 flex-1 flex-col overflow-y-auto p-4'
-                  : 'flex flex-1 flex-col p-4'
-              }
+    <FarmHubContext value={farmHub}>
+      <TooltipProvider>
+        <SidebarProvider
+          defaultOpen={defaultOpen}
+          className={fillViewport ? 'h-dvh min-h-0' : undefined}
+        >
+          <AppSidebar />
+          <BreadcrumbOutletProvider>
+            <SidebarInset
+              className={cn(
+                'min-w-0',
+                fillViewport && 'min-h-0 overflow-hidden',
+              )}
             >
-              <Outlet />
-            </div>
-          </SidebarInset>
-        </BreadcrumbOutletProvider>
-      </SidebarProvider>
-    </TooltipProvider>
+              <TitleBar />
+              <div
+                className={
+                  fillViewport
+                    ? 'flex min-h-0 flex-1 flex-col overflow-y-auto p-4'
+                    : 'flex flex-1 flex-col p-4'
+                }
+              >
+                <Outlet />
+              </div>
+            </SidebarInset>
+          </BreadcrumbOutletProvider>
+        </SidebarProvider>
+      </TooltipProvider>
+    </FarmHubContext>
   );
 }

@@ -7,15 +7,17 @@ import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { MAINTENANCE_FLAG_SEEDS } from '@/features/maintenance/data/mockMaintenance';
-import { matchMaintenanceToFleet } from '@/features/maintenance/lib/matchMaintenanceToFleet';
+import { useMaintenanceEnrollments } from '@/features/maintenance/maintenance';
 import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsPrintersListFleetEndpoint } from '@/lib/api/generated/printers/printers';
 import {
   PrinterFilterBar,
   type PrinterStatusFilter,
 } from './components/PrinterFilterBar';
-import { PrintersTable } from './components/PrintersTable';
+import {
+  type MaintenanceCounts,
+  PrintersTable,
+} from './components/PrintersTable';
 
 export function PrintersPage() {
   const navigate = useNavigate();
@@ -27,10 +29,20 @@ export function PrintersPage() {
   const printers =
     (fleetQuery.data?.data as ListFleetResponse | undefined)?.printers ?? [];
 
+  const attention = useMaintenanceEnrollments({ state: 'attention' }).items;
   const maintenanceByPrinterId = useMemo(() => {
-    const flags = matchMaintenanceToFleet(printers, MAINTENANCE_FLAG_SEEDS);
-    return new Map(flags.map((flag) => [flag.printerId, flag]));
-  }, [printers]);
+    const byPrinter = new Map<string, MaintenanceCounts>();
+    for (const e of attention) {
+      const counts = byPrinter.get(e.printerId ?? '') ?? {
+        overdue: 0,
+        dueSoon: 0,
+      };
+      if (e.state === 'Overdue') counts.overdue++;
+      else counts.dueSoon++;
+      byPrinter.set(e.printerId ?? '', counts);
+    }
+    return byPrinter;
+  }, [attention]);
 
   const counts = useMemo(
     () => ({

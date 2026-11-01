@@ -29,17 +29,17 @@ public class PrinterConnectionBackgroundServiceTests
     // like the pre-throttle code (every event flushes), so they stay deterministic.
     private static readonly TimeSpan NoFlushThrottling = TimeSpan.Zero;
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PublisherFailure_RetriesWithoutOrphaningCamera_AndStopsRequestStartedConnections(bool failCamera)
+    [Fact]
+    public async Task PublisherFailure_RetriesWithoutOrphaningCamera_AndStopsRequestStartedConnections()
     {
         var printer = Printer.Create("Recovery", "Bambu", "P1S", "10.0.0.50", "SN-RECOVERY");
         var secret = ConnectionSecret.Create(printer.SerialNumber, "code");
         var connector = new EmittingPrinterConnector();
-        var publisher = new FailOncePublisher(failCamera);
+        var publisher = new FailOncePublisher();
         var relay = new TrackingCameraRelay();
-        using var provider = BuildServiceProvider(printer, secret, connector, out _, publisher, cameraRelay: relay);
+        var demand = new CameraDemand();
+        demand.Touch(printer.Id);
+        using var provider = BuildServiceProvider(printer, secret, connector, out _, publisher, cameraRelay: relay, demand: demand);
         using var service = new PrinterConnectionBackgroundService(provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<PrinterConnectionBackgroundService>.Instance, SweepInterval, TimeSpan.FromSeconds(10),
             NoFlushThrottling, retryDelay: TimeSpan.FromMilliseconds(30));
@@ -51,10 +51,9 @@ public class PrinterConnectionBackgroundServiceTests
         {
             connector.Emit(printer.SerialNumber, new(DateTimeOffset.UtcNow,
                 Telemetry: new(210, null, 1, null, null, null, [])));
-            await WaitUntilAsync(() => publisher.Attempts >= 1, TimeSpan.FromSeconds(3));
-            if (!failCamera)
-                connector.Emit(printer.SerialNumber, new(DateTimeOffset.UtcNow,
-                    Telemetry: new(220, null, 2, null, null, null, [])));
+            await WaitUntilAsync(() => publisher.Attempts >= 1 && relay.Active == 1, TimeSpan.FromSeconds(3));
+            connector.Emit(printer.SerialNumber, new(DateTimeOffset.UtcNow,
+                Telemetry: new(220, null, 2, null, null, null, [])));
             await WaitUntilAsync(() => publisher.Attempts >= 2, TimeSpan.FromSeconds(3));
         }
         finally
@@ -422,16 +421,19 @@ public class PrinterConnectionBackgroundServiceTests
     }
 
     [Fact]
-    public async Task CameraFrames_NeverTouchPrinterRepositoryOrTriggerDbWrite()
+    public async Task CameraFrames_GoToTheStoreAtMostOncePerSecond_AndNeverWriteThePrinter()
     {
         var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-CAMERA-1");
         var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
         var connector = new EmittingPrinterConnector(); // never emits an MQTT event in this test
-        var publisher = new RecordingPrinterEventPublisher();
         var repository = new SaveCountingPrinterRepository(new InMemoryPrinterRepository(printer));
         var cameraRelay = new EmittingCameraRelay([1, 2, 3], [4, 5, 6]);
+        var store = new RecordingSnapshotStore();
+        var demand = new CameraDemand();
+        demand.Touch(printer.Id);
 
-        var provider = BuildServiceProvider(printer, secret, connector, out _, publisher, repository, cameraRelay);
+        var provider = BuildServiceProvider(printer, secret, connector, out _, repository: repository, cameraRelay: cameraRelay,
+            demand: demand, snapshots: store);
         var service = new PrinterConnectionBackgroundService(
             provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<PrinterConnectionBackgroundService>.Instance,
@@ -442,13 +444,42 @@ public class PrinterConnectionBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitUntilAsync(() => publisher.CameraFramesReceived.Count >= 2, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(() => store.Saved.Count >= 1, TimeSpan.FromSeconds(2));
+            await Task.Delay(200);
 
-            publisher.CameraFramesReceived.Should().Equal(
-                Convert.ToBase64String([1, 2, 3]),
-                Convert.ToBase64String([4, 5, 6]));
+            store.Saved.Should().ContainSingle("the second frame came within a second of the first")
+                .Which.FrameJpeg.Should().Equal(1, 2, 3);
             repository.SaveChangesCallCount.Should().Be(2,
                 "only startup (the unwatched gap) and starting the telemetry connection (the unconfirmed nozzle state) write; camera frames add no writes");
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task CameraRelay_RunsOnlyWhileSomeoneWatches()
+    {
+        var printer = Printer.Create("Printer 1", "Bambu", "P1S", "10.0.0.50", "SN-CAMERA-2");
+        var secret = ConnectionSecret.Create(printer.SerialNumber, "encrypted-code");
+        var relay = new TrackingCameraRelay();
+        var demand = new CameraDemand(TimeSpan.FromMilliseconds(1500));
+        var provider = BuildServiceProvider(printer, secret, new EmittingPrinterConnector(), out _, cameraRelay: relay, demand: demand);
+        var service = new PrinterConnectionBackgroundService(provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PrinterConnectionBackgroundService>.Instance, SweepInterval, UnreachableThreshold, NoFlushThrottling);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await Task.Delay(1200);
+            relay.Started.Should().Be(0, "nobody has asked for a frame");
+
+            demand.Touch(printer.Id);
+            await WaitUntilAsync(() => relay.Active == 1, TimeSpan.FromSeconds(3));
+
+            await WaitUntilAsync(() => relay.Active == 0, TimeSpan.FromSeconds(5));
+            relay.Started.Should().Be(1, "the relay idles once the watch window passes, without restarting");
         }
         finally
         {
@@ -618,7 +649,9 @@ public class PrinterConnectionBackgroundServiceTests
         IPrinterRepository? repository = null,
         IPrinterCameraRelay? cameraRelay = null,
         IFeedSlotTelemetrySync? feedSlotTelemetrySync = null,
-        IJobTelemetrySync? jobTelemetrySync = null)
+        IJobTelemetrySync? jobTelemetrySync = null,
+        CameraDemand? demand = null,
+        IPrinterCameraSnapshotStore? snapshots = null)
     {
         var writer = new RecordingActivityLogWriter();
         activityLogWriter = writer;
@@ -632,9 +665,11 @@ public class PrinterConnectionBackgroundServiceTests
         services.AddSingleton<IFeedSlotTelemetrySync>(feedSlotTelemetrySync ?? new NoOpFeedSlotTelemetrySync());
         services.AddSingleton<IJobTelemetrySync>(jobTelemetrySync ?? new NoOpJobTelemetrySync());
         services.AddSingleton<IProductionDispatcher>(new NoOpProductionDispatcher());
-        // Test printers use BinaryImage-camera models (e.g. P1S), so RunConnectionLoopAsync always
-        // starts a concurrent camera loop too — the stub factory below hands out a relay that never
-        // emits by default so that path doesn't throw.
+        services.AddSingleton(demand ?? new CameraDemand());
+        services.AddSingleton(snapshots ?? new RecordingSnapshotStore());
+        // Test printers use camera models (e.g. P1S), so RunConnectionLoopAsync always starts a
+        // concurrent camera loop too; it idles until the demand is touched, and the stub factory
+        // below hands out a relay that never emits by default.
         services.AddSingleton<IPrinterConnectorFactory>(new StubPrinterConnectorFactory(connector, cameraRelay ?? new SilentCameraRelay()));
 
         return services.BuildServiceProvider();
@@ -828,10 +863,13 @@ public class PrinterConnectionBackgroundServiceTests
     private sealed class TrackingCameraRelay : IPrinterCameraRelay
     {
         private int _active;
+        private int _started;
         public int Active => Volatile.Read(ref _active);
+        public int Started => Volatile.Read(ref _started);
         public async IAsyncEnumerable<byte[]> StreamFramesAsync(PrinterConnectionDetails details,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref _started);
             Interlocked.Increment(ref _active);
             try
             {
@@ -842,19 +880,26 @@ public class PrinterConnectionBackgroundServiceTests
         }
     }
 
-    private sealed class FailOncePublisher(bool failCamera) : IPrinterEventPublisher
+    private sealed class FailOncePublisher : IPrinterEventPublisher
     {
         private int _attempts;
         public int Attempts => Volatile.Read(ref _attempts);
-        private Task Publish(bool camera)
+        public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterModel? model, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) =>
+            Interlocked.Increment(ref _attempts) == 1 ? throw new IOException("Transient publisher failure") : Task.CompletedTask;
+    }
+
+    private sealed class RecordingSnapshotStore : IPrinterCameraSnapshotStore
+    {
+        private readonly List<PrinterCameraSnapshot> _saved = [];
+        public IReadOnlyList<PrinterCameraSnapshot> Saved { get { lock (_saved) return [.. _saved]; } }
+        public Task SaveAsync(Guid printerId, PrinterCameraSnapshot snapshot, CancellationToken ct)
         {
-            if (camera == failCamera && Interlocked.Increment(ref _attempts) == 1)
-                throw new IOException("Transient publisher failure");
+            lock (_saved) _saved.Add(snapshot);
             return Task.CompletedTask;
         }
-        public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterModel? model, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) => Publish(false);
-        public Task CameraFrameReceivedAsync(Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) => Publish(true);
+        public Task<PrinterCameraSnapshot?> GetAsync(Guid printerId, CancellationToken ct) => Task.FromResult<PrinterCameraSnapshot?>(null);
+        public Task DeleteAsync(Guid printerId, CancellationToken ct) => Task.CompletedTask;
     }
 
     private sealed class NoOpPrinterEventPublisher : IPrinterEventPublisher
@@ -863,9 +908,6 @@ public class PrinterConnectionBackgroundServiceTests
             Task.CompletedTask;
 
         public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterModel? model, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task CameraFrameReceivedAsync(Guid printerId, string frameJpegBase64, CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 
@@ -880,20 +922,12 @@ public class PrinterConnectionBackgroundServiceTests
 
         public List<PrinterTelemetrySnapshot> TelemetryBroadcasts { get; } = [];
 
-        public List<string> CameraFramesReceived { get; } = [];
-
         public Task PrinterStatusChangedAsync(Guid printerId, PrinterStatus status, bool isReachable, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
         public Task PrinterTelemetryUpdatedAsync(Guid printerId, PrinterModel? model, PrinterTelemetrySnapshot telemetry, CancellationToken cancellationToken)
         {
             TelemetryBroadcasts.Add(telemetry);
-            return Task.CompletedTask;
-        }
-
-        public Task CameraFrameReceivedAsync(Guid printerId, string frameJpegBase64, CancellationToken cancellationToken)
-        {
-            CameraFramesReceived.Add(frameJpegBase64);
             return Task.CompletedTask;
         }
     }

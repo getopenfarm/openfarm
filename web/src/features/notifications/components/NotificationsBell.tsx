@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMaintenanceEnrollments } from '@/features/maintenance/maintenance';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
   ListFleetResponse,
@@ -34,6 +35,7 @@ import { badgeText, bellLabel, findLine } from '../lib/notifications';
 import { AssignSpoolDialog } from './AssignSpoolDialog';
 import {
   LowStockNotification,
+  MaintenanceDueNotification,
   NotificationItem,
   RfidWeightDriftNotification,
   UnregisteredRfidSpoolNotification,
@@ -54,11 +56,14 @@ export function NotificationsBell() {
   const lowStock = data?.lowStock ?? [];
   const rfidSpools = data?.rfidSpools ?? [];
   const rfidDrift = data?.rfidDrift ?? [];
+  // Separate from the notifications endpoint, which needs print-job, spool and filament access together.
+  const maintenance = useMaintenanceEnrollments({ state: 'attention' }).items;
   const count =
     (data?.totalCount ?? items.length) +
     lowStock.length +
     rfidSpools.length +
-    rfidDrift.length;
+    rfidDrift.length +
+    maintenance.length;
 
   const fleet = useOpenFarmApiEndpointsPrintersListFleetEndpoint().data?.data as
     | ListFleetResponse
@@ -161,6 +166,7 @@ export function NotificationsBell() {
             {count > 0 && <Badge variant="secondary">{count}</Badge>}
           </div>
           <div className="max-h-96 overflow-y-auto">
+            {/* Maintenance has its own query, so a notifications load or error doesn't hide it. */}
             {query.isLoading ? (
               <Skeleton className="m-3 h-20" />
             ) : query.isError ? (
@@ -170,17 +176,17 @@ export function NotificationsBell() {
                 title="Could not load notifications"
                 onRetry={() => query.refetch()}
               />
-            ) : items.length === 0 &&
-              lowStock.length === 0 &&
-              rfidSpools.length === 0 &&
-              rfidDrift.length === 0 ? (
-              <EmptyState
-                size="sm"
-                bordered={false}
-                icon={<CheckIcon className="size-6 text-muted-foreground" />}
-                title="Nothing to do"
-              />
             ) : (
+              count === 0 && (
+                <EmptyState
+                  size="sm"
+                  bordered={false}
+                  icon={<CheckIcon className="size-6 text-muted-foreground" />}
+                  title="Nothing to do"
+                />
+              )
+            )}
+            {count > 0 && (
               <ul className="divide-y">
                 {items.map((item) => (
                   <NotificationItem
@@ -228,6 +234,9 @@ export function NotificationsBell() {
                     }
                     onCorrect={() => correct.mutate(item)}
                   />
+                ))}
+                {maintenance.map((item) => (
+                  <MaintenanceDueNotification key={item.id} item={item} />
                 ))}
                 {lowStock.map((item) => (
                   <LowStockNotification

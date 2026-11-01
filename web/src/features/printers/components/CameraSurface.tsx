@@ -2,16 +2,70 @@ import { useQueryClient } from '@tanstack/react-query';
 import { VideoOffIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint } from '@/lib/api/generated/printers/printers';
+import { getOpenFarmApiEndpointsPrintersGetPrinterCameraFrameEndpointUrl } from '@/lib/api/generated/printers/printers';
+import { authenticatedFetch } from '@/lib/auth/session';
 import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { formatDateTime } from '@/lib/formatDateTime';
 import { cn } from '@/lib/utils';
-import {
-  type CameraFrameQueryData,
-  cameraFrameQueryKey,
-} from '../hooks/useFarmHub';
 
 const FRESHNESS_TIMEOUT_MS = 5000;
+/** The server stores at most one frame a second, so polling faster only adds 304s. */
+const POLL_INTERVAL_MS = 1000;
+
+export interface CameraFrame {
+  /** A data: URL, so a frame stays valid for as long as anything still shows it. */
+  src: string;
+  receivedAtUtc: number;
+  etag: string | null;
+}
+
+/** Keyed by the endpoint path so useAuthorizedQuery gates it on printers:list. */
+export function cameraFrameQueryKey(printerId: string) {
+  return [
+    getOpenFarmApiEndpointsPrintersGetPrinterCameraFrameEndpointUrl(printerId),
+  ] as const;
+}
+
+function readAsDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * One poll of the latest frame. Sends the previous ETag, so an unchanged frame is a bodyless 304 that keeps the
+ * previous data (same reference: no re-render). Each request also keeps the printer's camera running server-side.
+ */
+export async function fetchCameraFrame(
+  printerId: string,
+  previous: CameraFrame | null,
+  signal?: AbortSignal,
+): Promise<CameraFrame | null> {
+  const response = await authenticatedFetch(
+    getOpenFarmApiEndpointsPrintersGetPrinterCameraFrameEndpointUrl(printerId),
+    {
+      signal,
+      headers: previous?.etag ? { 'If-None-Match': previous.etag } : {},
+    },
+  );
+  if (response.status === 304) return previous;
+  if (response.status === 204) return previous ?? null;
+  if (!response.ok) throw response;
+  const etag = response.headers.get('ETag');
+  if (previous && etag && etag === previous.etag) return previous;
+  const receivedAtUtc = Date.parse(
+    response.headers.get('X-Frame-Received-At') ?? '',
+  );
+  if (!Number.isFinite(receivedAtUtc)) return previous;
+  return {
+    src: await readAsDataUrl(await response.blob()),
+    receivedAtUtc,
+    etag,
+  };
+}
 
 export function formatCameraAge(ageMs: number) {
   const seconds = Math.max(0, Math.floor(ageMs / 1000));
@@ -50,46 +104,21 @@ export function CameraSurface({
     observer.observe(container.current);
     return () => observer.disconnect();
   }, []);
-  const { data } = useQuery<CameraFrameQueryData | null>({
-    queryKey: cameraFrameQueryKey(printerId),
-    queryFn: () => null,
-    enabled: false,
-    initialData: null,
-    staleTime: Infinity,
-  });
   const client = useQueryClient();
-  useQuery({
-    queryKey: ['printer-camera-snapshot', printerId],
+  const queryKey = cameraFrameQueryKey(printerId);
+  // Polls only while on screen in a visible tab (TanStack pauses intervals in background tabs); an offline printer
+  // loads its last frame once.
+  const { data } = useQuery<CameraFrame | null>({
+    queryKey,
     enabled: visible && supported && Boolean(printerId),
-    queryFn: async ({ signal }) => {
-      const response =
-        await openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint(
-          printerId,
-          {
-            signal,
-          },
-        );
-      const snapshot = response.status === 200 ? response.data : null;
-      if (snapshot?.frameJpegBase64 && snapshot.receivedAtUtc) {
-        const frameJpegBase64 = snapshot.frameJpegBase64;
-        const receivedAtUtc = Date.parse(snapshot.receivedAtUtc);
-        if (Number.isFinite(receivedAtUtc)) {
-          client.setQueryData<CameraFrameQueryData | null>(
-            cameraFrameQueryKey(printerId),
-            (previous) =>
-              previous && previous.receivedAtUtc >= receivedAtUtc
-                ? previous
-                : {
-                    frameJpegBase64,
-                    receivedAtUtc,
-                    fromSnapshot: true,
-                  },
-          );
-        }
-      }
-      return snapshot;
-    },
-    refetchOnWindowFocus: true,
+    queryFn: ({ signal }) =>
+      fetchCameraFrame(
+        printerId,
+        client.getQueryData<CameraFrame | null>(queryKey) ?? null,
+        signal,
+      ),
+    refetchInterval: isReachable ? POLL_INTERVAL_MS : false,
+    refetchOnWindowFocus: false,
   });
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -99,10 +128,10 @@ export function CameraSurface({
     return () => clearInterval(interval);
   }, [data, visible]);
   const [lastGood, setLastGood] = useState<
-    (CameraFrameQueryData & { printerId: string }) | null
+    (CameraFrame & { printerId: string }) | null
   >(null);
   const [failedFrame, setFailedFrame] = useState<string | null>(null);
-  const invalidFrame = Boolean(data && failedFrame === data.frameJpegBase64);
+  const invalidFrame = Boolean(data && failedFrame === data.src);
   const fallback = lastGood?.printerId === printerId ? lastGood : null;
   const displayed = invalidFrame ? fallback : data;
   const fresh = Boolean(
@@ -110,8 +139,7 @@ export function CameraSurface({
       now - data.receivedAtUtc < FRESHNESS_TIMEOUT_MS &&
       Date.now() - data.receivedAtUtc < FRESHNESS_TIMEOUT_MS,
   );
-  const live =
-    isReachable && supported && fresh && !invalidFrame && !data?.fromSnapshot;
+  const live = isReachable && supported && fresh && !invalidFrame;
   const label = !isReachable
     ? 'Printer offline'
     : !supported
@@ -153,8 +181,8 @@ export function CameraSurface({
                 currentTarget.naturalWidth / currentTarget.naturalHeight,
               );
           }}
-          onError={() => setFailedFrame(displayed.frameJpegBase64)}
-          src={`data:image/jpeg;base64,${displayed.frameJpegBase64}`}
+          onError={() => setFailedFrame(displayed.src)}
+          src={displayed.src}
           alt={`${name} camera${live ? ' live view' : ' last received frame'}`}
           className="absolute inset-0 size-full object-contain"
         />

@@ -21,6 +21,10 @@ export const apiQueryPermissions = [
     permissions: ['non-printed-components:view'],
   },
   {
+    pattern: '^/api/v1/maintenance/enrollments$',
+    permissions: ['maintenance:view'],
+  },
+  {
     pattern: '^/api/v1/settings/printer\\-costs$',
     permissions: ['settings:printer-costs:read'],
   },
@@ -49,6 +53,10 @@ export const apiQueryPermissions = [
     permissions: ['users:manage'],
   },
   {
+    pattern: '^/api/v1/maintenance/tasks$',
+    permissions: ['maintenance:view'],
+  },
+  {
     pattern: '^/api/v1/profiles/filament$',
     permissions: ['profiles:list-filament'],
   },
@@ -59,6 +67,10 @@ export const apiQueryPermissions = [
   {
     pattern: '^/api/v1/slicing/readiness$',
     permissions: ['settings:slicing-defaults:read'],
+  },
+  {
+    pattern: '^/api/v1/maintenance/logs$',
+    permissions: ['maintenance:view'],
   },
   {
     pattern: '^/api/v1/printers/catalog$',
@@ -161,10 +173,6 @@ export const apiQueryPermissions = [
     permissions: ['filaments:list'],
   },
   {
-    pattern: '^/api/v1/printers/[^/]+/camera\\-snapshot$',
-    permissions: ['printers:list'],
-  },
-  {
     pattern: '^/api/v1/part\\-processing\\-jobs/[^/]+$',
     permissions: ['parts:read'],
   },
@@ -179,6 +187,10 @@ export const apiQueryPermissions = [
   {
     pattern: '^/api/v1/printers/[^/]+/feed\\-units$',
     permissions: ['feed-units:list'],
+  },
+  {
+    pattern: '^/api/v1/printers/[^/]+/camera\\.jpg$',
+    permissions: ['printers:list'],
   },
   {
     pattern: '^/api/v1/print\\-jobs/[^/]+/objects$',

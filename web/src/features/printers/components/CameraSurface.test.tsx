@@ -7,24 +7,35 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint } from '@/lib/api/generated/printers/printers';
-import { cameraFrameQueryKey } from '../hooks/useFarmHub';
-import { CameraSurface, formatCameraAge } from './CameraSurface';
+import { authenticatedFetch } from '@/lib/auth/session';
+import {
+  CameraSurface,
+  cameraFrameQueryKey,
+  formatCameraAge,
+} from './CameraSurface';
 
-vi.mock('@/lib/api/generated/printers/printers', () => ({
-  openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint: vi.fn(),
-}));
-beforeEach(() => {
-  vi.mocked(
-    openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint,
-  ).mockReset();
-  vi.mocked(
-    openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint,
-  ).mockResolvedValue({
-    data: undefined,
-    status: 204,
-    headers: new Headers(),
+vi.mock('@/lib/auth/session', () => ({ authenticatedFetch: vi.fn() }));
+const fetchFrame = vi.mocked(authenticatedFetch);
+const notModified = () => new Response(null, { status: 304 });
+function jpeg(etag: string, receivedAtUtc: number) {
+  return new Response(new Blob([etag], { type: 'image/jpeg' }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/jpeg',
+      ETag: etag,
+      'X-Frame-Received-At': new Date(receivedAtUtc).toISOString(),
+    },
   });
+}
+const src = (name: string) => `data:image/jpeg;base64,${name}`;
+/** Lets the mount poll settle, so a frame written to the cache afterwards isn't overwritten by its 304. */
+async function settleFirstPoll() {
+  await waitFor(() => expect(fetchFrame).toHaveBeenCalled());
+  await act(async () => {});
+}
+beforeEach(() => {
+  fetchFrame.mockReset();
+  fetchFrame.mockImplementation(async () => notModified());
 });
 
 function setup(
@@ -37,7 +48,8 @@ function setup(
   if (receivedAtUtc != null)
     client.setQueryData(cameraFrameQueryKey('p1'), {
       receivedAtUtc,
-      frameJpegBase64: 'frame',
+      src: src('frame'),
+      etag: '"frame"',
     });
   render(
     <QueryClientProvider client={client}>
@@ -64,10 +76,12 @@ describe('Camera frame freshness', () => {
   it('recovers from unavailable when a new frame arrives', async () => {
     const client = setup();
     expect(screen.getByText('Camera unavailable')).toBeInTheDocument();
+    await settleFirstPoll();
     act(() =>
       client.setQueryData(cameraFrameQueryKey('p1'), {
         receivedAtUtc: Date.now(),
-        frameJpegBase64: 'new',
+        src: src('new'),
+        etag: '"new"',
       }),
     );
     await waitFor(() => expect(screen.getByText('Live')).toBeInTheDocument());
@@ -115,112 +129,76 @@ describe('Camera frame freshness', () => {
   });
 });
 
-describe('Persistent camera snapshot', () => {
-  it('loads a shared snapshot without calling it live, even when recent', async () => {
-    vi.mocked(
-      openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint,
-    ).mockResolvedValue({
-      data: {
-        frameJpegBase64: 'saved',
-        receivedAtUtc: new Date().toISOString(),
-      },
-      status: 200,
-      headers: new Headers(),
+describe('Camera polling', () => {
+  it('loads the frame as a JPEG and revalidates it with its ETag, keeping it on 304', async () => {
+    const receivedAtUtc = Date.now();
+    fetchFrame.mockImplementationOnce(async () => jpeg('"a"', receivedAtUtc));
+    setup();
+    await waitFor(() =>
+      expect(screen.getByRole('img').getAttribute('src')).toMatch(
+        /^data:image\/jpeg;base64,/,
+      ),
+    );
+    const first = screen.getByRole('img').getAttribute('src');
+    expect(screen.getByText('Live')).toBeInTheDocument();
+    await waitFor(() => expect(fetchFrame).toHaveBeenCalledTimes(2), {
+      timeout: 3000,
     });
+    expect(fetchFrame).toHaveBeenLastCalledWith(
+      '/api/v1/printers/p1/camera.jpg',
+      expect.objectContaining({ headers: { 'If-None-Match': '"a"' } }),
+    );
+    expect(screen.getByRole('img').getAttribute('src')).toBe(first);
+  });
+  it("loads an offline printer's last frame once without calling it live", async () => {
+    fetchFrame.mockImplementationOnce(async () => jpeg('"saved"', Date.now()));
     setup(undefined, { isReachable: false });
     await waitFor(() =>
       expect(screen.getByRole('img')).toHaveAttribute(
-        'src',
-        'data:image/jpeg;base64,saved',
+        'alt',
+        'P1S-01 camera last received frame',
       ),
     );
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
-    expect(screen.queryByText('Printer offline')).not.toBeInTheDocument();
-    expect(screen.getByRole('img')).not.toHaveClass('grayscale', 'opacity-30');
     expect(screen.getByText('0s ago')).toHaveAttribute(
       'title',
       expect.stringContaining('Printer offline'),
     );
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(fetchFrame).toHaveBeenCalledTimes(1);
   });
-  it('does not replace a newer live frame with a delayed snapshot', async () => {
-    let finish!: (
-      value: Awaited<
-        ReturnType<
-          typeof openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint
-        >
-      >,
-    ) => void;
-    vi.mocked(
-      openFarmApiEndpointsPrintersGetPrinterCameraSnapshotEndpoint,
-    ).mockReturnValue(
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-    );
-    const client = setup();
-    act(() =>
-      client.setQueryData(cameraFrameQueryKey('p1'), {
-        frameJpegBase64: 'new',
-        receivedAtUtc: Date.now(),
-      }),
-    );
-    await waitFor(() =>
-      expect(screen.getByRole('img')).toHaveAttribute(
-        'src',
-        'data:image/jpeg;base64,new',
-      ),
-    );
-    await act(async () =>
-      finish({
-        data: {
-          frameJpegBase64: 'old',
-          receivedAtUtc: new Date(Date.now() - 60000).toISOString(),
-        },
-        status: 200,
-        headers: new Headers(),
-      }),
-    );
-    expect(screen.getByRole('img')).toHaveAttribute(
-      'src',
-      'data:image/jpeg;base64,new',
-    );
-    expect(screen.getByText('Live')).toBeInTheDocument();
+  it('does not poll an unsupported camera', async () => {
+    setup(undefined, { supported: false });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchFrame).not.toHaveBeenCalled();
   });
   it('keeps the last decoded frame when a corrupt frame arrives and recovers', async () => {
-    const client = setup(Date.now() - 120000);
+    const client = setup(Date.now() - 120000, { isReachable: false });
+    await settleFirstPoll();
     fireEvent.load(screen.getByRole('img'));
     act(() =>
       client.setQueryData(cameraFrameQueryKey('p1'), {
-        frameJpegBase64: 'broken',
+        src: src('broken'),
         receivedAtUtc: Date.now(),
+        etag: '"broken"',
       }),
     );
     await waitFor(() =>
-      expect(screen.getByRole('img')).toHaveAttribute(
-        'src',
-        'data:image/jpeg;base64,broken',
-      ),
+      expect(screen.getByRole('img')).toHaveAttribute('src', src('broken')),
     );
     fireEvent.error(screen.getByRole('img'));
-    expect(screen.getByRole('img')).toHaveAttribute(
-      'src',
-      'data:image/jpeg;base64,frame',
-    );
+    expect(screen.getByRole('img')).toHaveAttribute('src', src('frame'));
     expect(screen.getByText('2m ago')).toBeInTheDocument();
-    expect(screen.queryByText('Live')).not.toBeInTheDocument();
     act(() =>
       client.setQueryData(cameraFrameQueryKey('p1'), {
-        frameJpegBase64: 'recovered',
+        src: src('recovered'),
         receivedAtUtc: Date.now(),
+        etag: '"recovered"',
       }),
     );
     await waitFor(() =>
-      expect(screen.getByRole('img')).toHaveAttribute(
-        'src',
-        'data:image/jpeg;base64,recovered',
-      ),
+      expect(screen.getByRole('img')).toHaveAttribute('src', src('recovered')),
     );
-    expect(screen.getByText('Live')).toBeInTheDocument();
   });
   it('updates the age without receiving another frame', () => {
     vi.useFakeTimers();

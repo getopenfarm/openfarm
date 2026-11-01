@@ -77,6 +77,12 @@ public sealed partial class BambuCameraRelay : IPrinterCameraRelay
                 {
                     break;
                 }
+                catch (OperationCanceledException)
+                {
+                    // The connection or frame deadline expired. This is expected recovery,
+                    // so report the timeout without an exception stack trace.
+                    LogConnectionTimedOut(_logger, details.SerialNumber, _options.ReconnectDelay.TotalSeconds);
+                }
                 catch (Exception ex)
                 {
                     LogReconnectFailed(_logger, details.SerialNumber, _options.ReconnectDelay.TotalSeconds, ex);
@@ -162,4 +168,7 @@ public sealed partial class BambuCameraRelay : IPrinterCameraRelay
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Camera connection to printer {SerialNumber} failed or stalled; retrying in {DelaySeconds}s.")]
     private static partial void LogReconnectFailed(ILogger logger, string serialNumber, double delaySeconds, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Camera connection to printer {SerialNumber} timed out; retrying in {DelaySeconds}s.")]
+    private static partial void LogConnectionTimedOut(ILogger logger, string serialNumber, double delaySeconds);
 }

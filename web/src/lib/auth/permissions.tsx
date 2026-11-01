@@ -76,6 +76,7 @@ export function routePermission(path: string): string | null {
       : 'production-runs:edit',
     'cost-catalog': 'non-printed-components:create',
     profiles: 'profiles:confirm-import',
+    maintenance: 'maintenance:manage',
   };
   if (
     (path.endsWith('/new') ||
@@ -87,7 +88,7 @@ export function routePermission(path: string): string | null {
   const mapping: Record<string, string> = {
     '': 'printers:list',
     printers: 'printers:list',
-    maintenance: 'printers:list',
+    maintenance: 'maintenance:view',
     jobs: 'print-jobs:view',
     'print-jobs': 'print-jobs:view',
     'production-runs': 'production-runs:view',

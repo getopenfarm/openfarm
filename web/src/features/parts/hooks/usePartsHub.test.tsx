@@ -4,18 +4,14 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { usePartsHub } from './usePartsHub';
 
-const { handlers, stop } = vi.hoisted(() => ({
+const { handlers } = vi.hoisted(() => ({
   handlers: new Map<string, (payload: { partId: string }) => void>(),
-  stop: vi.fn(),
 }));
 vi.mock('@/lib/signalr/farmHubConnection', () => ({
-  connectFarmHub: () => ({
-    connection: {
-      on: (event: string, handler: (payload: { partId: string }) => void) =>
-        handlers.set(event, handler),
-    },
-    stop,
-  }),
+  // Each handler is registered on the shared connection; the latest render's wins, as in useFarmHubEvent.
+  useFarmHubEvent: (event: string, handler: (payload: never) => void) =>
+    handlers.set(event, handler as never),
+  useOnFarmHubReconnected: () => {},
 }));
 describe('Library event invalidation', () => {
   it('refreshes unified Parts and Assembly preview queries after part events', () => {
@@ -37,6 +33,5 @@ describe('Library event invalidation', () => {
     for (const key of keys)
       expect(client.getQueryState(key)?.isInvalidated).toBe(true);
     unmount();
-    expect(stop).toHaveBeenCalled();
   });
 });

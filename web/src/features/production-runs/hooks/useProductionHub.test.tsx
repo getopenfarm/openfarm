@@ -6,16 +6,12 @@ import { useProductionHub } from './useProductionHub';
 
 const mock = vi.hoisted(() => ({
   handlers: new Map<string, () => void>(),
-  stop: vi.fn(),
 }));
 vi.mock('@/lib/signalr/farmHubConnection', () => ({
-  connectFarmHub: () => ({
-    connection: {
-      on: (event: string, handler: () => void) =>
-        mock.handlers.set(event, handler),
-    },
-    stop: mock.stop,
-  }),
+  // Each handler is registered on the shared connection; the latest render's wins, as in useFarmHubEvent.
+  useFarmHubEvent: (event: string, handler: (payload: never) => void) =>
+    mock.handlers.set(event, handler as never),
+  useOnFarmHubReconnected: () => {},
 }));
 
 it('refreshes job and run capabilities when a library part is removed', () => {
@@ -34,5 +30,4 @@ it('refreshes job and run capabilities when a library part is removed', () => {
   expect(client.getQueryState(runKey)?.isInvalidated).toBe(true);
   expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);
   unmount();
-  expect(mock.stop).toHaveBeenCalled();
 });

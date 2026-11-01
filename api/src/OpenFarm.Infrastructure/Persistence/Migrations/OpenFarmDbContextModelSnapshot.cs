@@ -793,6 +793,136 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Maintenance.MaintenanceEnrollment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("CarryHours")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("CarryPrints")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CycleStartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PrinterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrinterId");
+
+                    b.HasIndex("TaskId", "PrinterId")
+                        .IsUnique();
+
+                    b.ToTable("MaintenanceEnrollments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MaintenanceEnrollments_Carries", "\"CarryHours\" >= 0 AND \"CarryPrints\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Maintenance.MaintenanceLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Cost")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid?>("EnrollmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("HoursAtCompletion")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("PerformedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PerformedByNote")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PerformedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PrinterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PrinterName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("PrintsAtCompletion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TaskName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnrollmentId");
+
+                    b.HasIndex("TaskId");
+
+                    b.HasIndex("PrinterId", "PerformedAtUtc")
+                        .IsDescending(false, true);
+
+                    b.ToTable("MaintenanceLogs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MaintenanceLogs_Cost", "\"Cost\" IS NULL OR \"Cost\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Maintenance.MaintenanceTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("EveryDays")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("EveryPrintHours")
+                        .HasColumnType("numeric");
+
+                    b.Property<int?>("EveryPrints")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<int>("WarnAtPercent")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("MaintenanceTasks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MaintenanceTasks_Intervals", "(\"EveryPrintHours\" IS NOT NULL OR \"EveryDays\" IS NOT NULL OR \"EveryPrints\" IS NOT NULL) AND coalesce(\"EveryPrintHours\", 1) > 0 AND coalesce(\"EveryDays\", 1) > 0 AND coalesce(\"EveryPrints\", 1) > 0 AND \"WarnAtPercent\" BETWEEN 1 AND 99");
+                        });
+                });
+
             modelBuilder.Entity("OpenFarm.Domain.Parts.Part", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2310,6 +2440,39 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Maintenance.MaintenanceEnrollment", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Printers.Printer", null)
+                        .WithMany()
+                        .HasForeignKey("PrinterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpenFarm.Domain.Maintenance.MaintenanceTask", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Domain.Maintenance.MaintenanceLog", b =>
+                {
+                    b.HasOne("OpenFarm.Domain.Maintenance.MaintenanceEnrollment", null)
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("OpenFarm.Domain.Printers.Printer", null)
+                        .WithMany()
+                        .HasForeignKey("PrinterId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("OpenFarm.Domain.Maintenance.MaintenanceTask", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Parts.Part", b =>

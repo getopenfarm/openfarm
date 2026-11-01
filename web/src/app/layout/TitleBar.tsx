@@ -11,13 +11,18 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { NotificationsBell } from '@/features/notifications/components/NotificationsBell';
-import { Can } from '@/lib/auth/permissions';
+import { useAllowed } from '@/lib/auth/AccessContext';
 import { BreadcrumbOutlet } from './BreadcrumbOutlet';
 import { FarmPulse } from './FarmPulse';
 import { useBreadcrumb } from './useBreadcrumb';
 
 export function TitleBar() {
   const trail = useBreadcrumb();
+  // The bell has two sources with their own gates: notifications, and maintenance due.
+  const canNotifications = useAllowed(
+    'print-jobs:view,spools:list,filaments:list',
+  );
+  const canMaintenance = useAllowed('maintenance:view');
 
   return (
     <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
@@ -61,9 +66,7 @@ export function TitleBar() {
       <div className="ml-auto flex shrink-0 items-center gap-3">
         <FarmPulse />
         <Separator orientation="vertical" />
-        <Can permission="print-jobs:view,spools:list,filaments:list">
-          <NotificationsBell />
-        </Can>
+        {(canNotifications || canMaintenance) && <NotificationsBell />}
       </div>
     </header>
   );

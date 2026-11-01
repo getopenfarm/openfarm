@@ -17,3 +17,7 @@ const SHORT: Intl.DateTimeFormatOptions = {
 /** Locale date + time without the year, e.g. "Oct 16, 3:04 PM": for recent events listed together. */
 export const formatShortDateTime = (value: string | number | Date) =>
   new Date(value).toLocaleString(undefined, SHORT);
+
+/** Locale date only, e.g. "Oct 16, 2026": for days, not instants. */
+export const formatDate = (value: string | number | Date) =>
+  new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' });
