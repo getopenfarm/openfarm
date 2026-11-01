@@ -67,7 +67,7 @@ type Values = z.infer<typeof schema>;
 export function UserFormPage() {
   const { id } = useParams();
   const query = useAdministration();
-  const isNew = id === 'new';
+  const isNew = id === undefined;
   const user = isNew ? undefined : query.data?.users.find((u) => u.id === id);
   const back = (
     <BackLink to={listUrl} className="mb-1">

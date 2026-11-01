@@ -99,6 +99,8 @@ using UnpinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<Ope
 using WriteOffPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.WriteOffPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 
 var builder = WebApplication.CreateBuilder(args);
+var publicOrigin = new OpenFarm.Api.Hosting.PublicOrigin(builder.Configuration);
+builder.Services.AddSingleton(publicOrigin);
 
 builder.Host.UseSerilog((ctx, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
@@ -224,6 +226,8 @@ builder.Services.AddAntiforgery(o =>
 });
 
 var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+if (publicOrigin.Value is { } configuredOrigin)
+    corsAllowedOrigins = [.. corsAllowedOrigins, configuredOrigin];
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy => policy
         .WithOrigins(corsAllowedOrigins)

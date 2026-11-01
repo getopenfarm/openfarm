@@ -55,6 +55,7 @@ function renderAt(path: string) {
   const router = createMemoryRouter(
     [
       { path: '/users-groups', element: <UsersGroupsPage /> },
+      { path: '/users-groups/users/new', element: <UserFormPage /> },
       { path: '/users-groups/users/:id', element: <UserFormPage /> },
     ],
     { initialEntries: [path] },
@@ -84,6 +85,48 @@ describe('UsersGroupsPage', () => {
 });
 
 describe('UserFormPage', () => {
+  it('opens the add form from the keyboard and creates a user', async () => {
+    const user = userEvent.setup();
+    const router = renderAt('/users-groups');
+
+    const add = await screen.findByRole('button', { name: 'Add user' });
+    add.focus();
+    await user.keyboard('{Enter}');
+
+    expect(router.state.location.pathname).toBe('/users-groups/users/new');
+    expect(
+      await screen.findByRole('heading', { name: 'Add user' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('User not found')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Remove' }),
+    ).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Full name'), 'Alex Tan');
+    await user.type(screen.getByLabelText('Email'), 'alex@example.com');
+    await user.type(screen.getByLabelText('Username'), 'alex');
+    await user.type(
+      screen.getByLabelText('Temporary password'),
+      'initial-password',
+    );
+    await user.click(screen.getByRole('button', { name: 'Add user' }));
+
+    expect(http).toHaveBeenCalledWith('/api/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Alex Tan',
+        email: 'alex@example.com',
+        username: 'alex',
+        groupIds: [],
+        extraGrants: [],
+        isEnabled: true,
+        password: 'initial-password',
+      }),
+    });
+    expect(await screen.findByText('Mei Ling')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/users-groups');
+  });
+
   it('saves an edit with an inline password reset', async () => {
     const user = userEvent.setup();
     renderAt('/users-groups/users/u1');
