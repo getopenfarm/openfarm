@@ -82,10 +82,10 @@ public sealed class SendProgressRecorder(IProductionEventPublisher inner, FeedMa
 
     public Task NotificationsChangedAsync(CancellationToken cancellationToken) => inner.NotificationsChangedAsync(cancellationToken);
 
-    public Task PrintJobSendProgressAsync(Guid printJobId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken)
+    public Task PrintJobSendProgressAsync(Guid printJobId, Guid printerId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken)
     {
         recorder.SendProgress.Enqueue((printJobId, stage, percent, attempt));
-        return inner.PrintJobSendProgressAsync(printJobId, stage, percent, attempt, failure, cancellationToken);
+        return inner.PrintJobSendProgressAsync(printJobId, printerId, stage, percent, attempt, failure, cancellationToken);
     }
 }
 

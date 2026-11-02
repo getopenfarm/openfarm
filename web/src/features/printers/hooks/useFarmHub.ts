@@ -2,6 +2,10 @@ import type { HubConnection } from '@microsoft/signalr';
 import { useQueryClient } from '@tanstack/react-query';
 import { useContext, useEffect, useState } from 'react';
 import { invalidateMaintenanceQueries } from '@/features/maintenance/maintenance';
+import {
+  type PrintJobSendProgress,
+  printerSendProgressKey,
+} from '@/features/production-runs/hooks/sendProgress';
 import { getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey } from '@/lib/api/generated/activity-log/activity-log';
 import type {
   FeedReadingResponse,
@@ -127,6 +131,10 @@ export function useFarmHub(): HubConnection | null {
     connection.on(
       'PrinterStatusChanged',
       (payload: PrinterStatusChangedPayload) => {
+        // The printer's own state takes over from any send shown on it.
+        queryClient.resetQueries({
+          queryKey: printerSendProgressKey(payload.printerId),
+        });
         // RFID items in Action required list only reachable printers.
         invalidateNotificationQueries(queryClient);
         // Stats split each printer's time by its status.
@@ -258,8 +266,22 @@ export function useFarmHub(): HubConnection | null {
           },
         );
 
+        // A new print: refetch so the fleet's job id (and the card's thumbnail) follow the name.
+        const fleetKey =
+          getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey();
+        const cached = queryClient
+          .getQueryData<FleetQueryData>(fleetKey)
+          ?.data.printers?.find((p) => p.id === payload.printerId);
+        if (
+          cached &&
+          (cached.currentJobName ?? null) !==
+            (payload.telemetry.currentJobName ?? null)
+        ) {
+          queryClient.invalidateQueries({ queryKey: fleetKey });
+        }
+
         queryClient.setQueryData<FleetQueryData | undefined>(
-          getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey(),
+          fleetKey,
           (current) => {
             if (!current?.data.printers) {
               return current;
@@ -329,17 +351,34 @@ export function useFarmHub(): HubConnection | null {
 
     // Queued work moves the filament shortages shown on the catalog, wherever the operator is; a print starting or
     // ending moves the stats.
-    connection.on('PrintJobStatusChanged', () => {
-      // A print starting or ending moves hours and prints toward due.
-      invalidateMaintenanceQueries(queryClient);
-      queryClient.invalidateQueries({
-        queryKey:
-          getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryKey(),
-      });
-      queryClient.invalidateQueries({
-        queryKey: getOpenFarmApiEndpointsReportsStatsEndpointQueryKey(),
-      });
+    // An Idle printer shows the send in progress to it until the print starts or the attempt stops.
+    connection.on('PrintJobSendProgress', (payload: PrintJobSendProgress) => {
+      const key = printerSendProgressKey(payload.printerId);
+      if (payload.stage === 'Ended')
+        queryClient.resetQueries({ queryKey: key });
+      else queryClient.setQueryData(key, payload);
     });
+
+    connection.on(
+      'PrintJobStatusChanged',
+      (payload: { printJobId: string }) => {
+        queryClient.resetQueries({
+          queryKey: ['printer-send-progress'],
+          predicate: (query) =>
+            (query.state.data as PrintJobSendProgress | undefined)
+              ?.printJobId === payload.printJobId,
+        });
+        // A print starting or ending moves hours and prints toward due.
+        invalidateMaintenanceQueries(queryClient);
+        queryClient.invalidateQueries({
+          queryKey:
+            getOpenFarmApiEndpointsFilamentsListFilamentShortagesEndpointQueryKey(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: getOpenFarmApiEndpointsReportsStatsEndpointQueryKey(),
+        });
+      },
+    );
 
     connection.on('MaintenanceChanged', () => {
       invalidateMaintenanceQueries(queryClient);

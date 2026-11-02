@@ -24,9 +24,9 @@ public interface IProductionEventPublisher
     Task NotificationsChangedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <summary>
-    /// How far sending <paramref name="printJobId"/> to its printer is, while it is being sent. <paramref name="attempt"/> counts from 1;
+    /// How far sending <paramref name="printJobId"/> to <paramref name="printerId"/> is, while it is being sent. <paramref name="attempt"/> counts from 1;
     /// <paramref name="failure"/> says why the previous attempt failed when <paramref name="stage"/> is <see cref="PrintSendStage.Retrying"/>.
     /// </summary>
-    Task PrintJobSendProgressAsync(Guid printJobId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken) =>
+    Task PrintJobSendProgressAsync(Guid printJobId, Guid printerId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 }

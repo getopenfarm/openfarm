@@ -2,6 +2,7 @@ import type { PrinterStatus } from '@/components/printer-tile/status';
 import type { BadgeKind } from '@/components/status-badge/kinds';
 import { printerStatusToBadge } from '@/features/printers/lib/printerStatusBadge';
 import { reportedStateName } from '@/features/printers/lib/reportedState';
+import type { PrintJobSendProgress } from '@/features/production-runs/hooks/sendProgress';
 import type {
   FleetPrinterResponse,
   PrinterDetailResponse,
@@ -13,7 +14,10 @@ export function reportedState(printer: MonitoredPrinter) {
   return printer.telemetry?.reportedState?.trim().toUpperCase();
 }
 
-export function monitoringStatus(printer: MonitoredPrinter): {
+export function monitoringStatus(
+  printer: MonitoredPrinter,
+  sending?: PrintJobSendProgress,
+): {
   label: string;
   kind: BadgeKind;
 } {
@@ -27,6 +31,7 @@ export function monitoringStatus(printer: MonitoredPrinter): {
   return printerStatusToBadge(
     (printer.status ?? 'Idle') as PrinterStatus,
     printer.isReachable ?? false,
+    sending,
   );
 }
 

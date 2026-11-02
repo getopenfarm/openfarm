@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -8,21 +9,23 @@ describe('PrintersTable', () => {
   it('shows awaiting-clear status without readiness controls and supports detail navigation', async () => {
     const onOpen = vi.fn();
     render(
-      <MemoryRouter>
-        <PrintersTable
-          printers={[
-            {
-              id: 'ready',
-              name: 'P01',
-              status: 'AwaitingClear',
-              isReachable: true,
-            },
-            { id: 'printing', name: 'P02', status: 'Printing' },
-          ]}
-          maintenanceByPrinterId={new Map()}
-          onOpen={onOpen}
-        />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <PrintersTable
+            printers={[
+              {
+                id: 'ready',
+                name: 'P01',
+                status: 'AwaitingClear',
+                isReachable: true,
+              },
+              { id: 'printing', name: 'P02', status: 'Printing' },
+            ]}
+            maintenanceByPrinterId={new Map()}
+            onOpen={onOpen}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
     expect(
       screen.queryByRole('button', { name: 'Actions for P02' }),

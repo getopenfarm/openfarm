@@ -36,10 +36,10 @@ public sealed class FarmHubProductionEventPublisher(IFarmEventClients clients) :
         Group.SendAsync("NotificationsChanged", cancellationToken);
 
     public Task PrintJobSendProgressAsync(
-        Guid printJobId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken) =>
+        Guid printJobId, Guid printerId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken) =>
         Group.SendAsync(
             "PrintJobSendProgress",
-            new { printJobId, stage = stage.ToString(), percent, attempt, error = failure },
+            new { printJobId, printerId, stage = stage.ToString(), percent, attempt, error = failure },
             cancellationToken);
 
     private IClientProxy Group => clients;

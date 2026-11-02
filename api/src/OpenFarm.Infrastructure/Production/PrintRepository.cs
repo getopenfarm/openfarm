@@ -27,7 +27,7 @@ public sealed class PrintRepository(OpenFarmDbContext dbContext) : IPrintReposit
         return (prints, total);
     }
 
-    public async Task<IReadOnlyDictionary<Guid, string?>> GetCurrentPrintNamesAsync(
+    public async Task<IReadOnlyDictionary<Guid, CurrentPrint>> GetCurrentPrintsAsync(
         IReadOnlyCollection<Printer> printers, CancellationToken cancellationToken)
     {
         var ids = printers.Select(p => p.Id).ToList();
@@ -37,10 +37,12 @@ public sealed class PrintRepository(OpenFarmDbContext dbContext) : IPrintReposit
                 && (!ClosedStatuses.Contains(p.Status) || awaitingClear.Contains(p.PrinterId.Value)))
             .GroupBy(p => p.PrinterId!.Value)
             .Select(g => g.OrderBy(p => ClosedStatuses.Contains(p.Status)).ThenByDescending(p => p.EndedAtUtc)
-                .Select(p => new { PrinterId = g.Key, p.Source, p.Name }).First())
+                .Select(p => new { PrinterId = g.Key, p.Id, p.Source, p.Name }).First())
             .ToDictionaryAsync(p => p.PrinterId, cancellationToken);
         return printers.ToDictionary(p => p.Id, p =>
-            current.GetValueOrDefault(p.Id) is { Source: PrintSource.Dispatched } print ? print.Name : p.CurrentJobName);
+            current.GetValueOrDefault(p.Id) is { Source: PrintSource.Dispatched } print
+                ? new CurrentPrint(print.Name, print.Id)
+                : new CurrentPrint(p.CurrentJobName, null));
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)

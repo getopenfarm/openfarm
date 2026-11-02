@@ -396,7 +396,7 @@ describe('PartDetailPage', () => {
       expect(
         screen.queryByRole('button', { name: /Map print units/ }),
       ).not.toBeInTheDocument();
-      const queue = screen.getByRole('button', { name: 'Send to queue' });
+      const queue = screen.getByRole('button', { name: 'Print' });
       if (stale) {
         expect(queue).toBeDisabled();
         expect(screen.getByText(/Detected 4 objects. Reprocess/)).toBeVisible();
@@ -431,9 +431,7 @@ describe('PartDetailPage', () => {
 
     renderPage(partId);
 
-    expect(
-      await screen.findByRole('button', { name: 'Send to queue' }),
-    ).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Print' })).toBeDisabled();
     expect(
       await screen.findByText('Print requirements incomplete'),
     ).toBeVisible();

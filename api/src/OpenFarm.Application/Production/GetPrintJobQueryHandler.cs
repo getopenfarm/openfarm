@@ -1,9 +1,10 @@
 using OpenFarm.Application.Common;
+using OpenFarm.Application.Parts;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
-public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository, IExternalPrintRepository? externalPrintRepository = null, IPartRequirementRepository? requirements = null, IProductionRunRepository? runs = null) : IQueryHandler<GetPrintJobQuery, PrintJobDetail?>
+public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository, IExternalPrintRepository? externalPrintRepository = null, IPartRequirementRepository? requirements = null, IProductionRunRepository? runs = null, IPartRepository? parts = null) : IQueryHandler<GetPrintJobQuery, PrintJobDetail?>
 {
     public async Task<PrintJobDetail?> HandleAsync(GetPrintJobQuery query, CancellationToken cancellationToken)
     {
@@ -17,6 +18,7 @@ public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository, I
 
         var requirement = requirements is null ? null : await requirements.GetByIdAsync(job.PartRequirementId, cancellationToken);
         var run = requirement is null || runs is null ? null : await runs.GetByRunLineIdAsync(requirement.RunLineId, cancellationToken);
+        var part = requirement is null || parts is null ? null : await parts.GetByIdAsync(requirement.PartId, cancellationToken);
         var canResolve = requirement?.Quantity is not null && job.IsUnresolvedLoss && (run?.IsOpen ?? true);
         return new PrintJobDetail(
             job.Id, job.PartRequirementId, job.QueuePosition, job.PlateQuantity, job.AssignmentMode,
@@ -27,7 +29,8 @@ public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository, I
                 .Select(c => new JobFilamentConsumptionDetail(c.Id, c.MaterialType, c.DetectedColorHex, c.SpoolId, c.GramsConsumed, c.NarrowFilamentVariantId, c.NarrowFilamentProfileId, c.ToolIndex, c.EstimatedGrams, c.PricePerKg, c.PriceSource, c.Cost))
                 .ToList(),
             job.CreatedAtUtc, job.GetSnapshotState(), job.SnapshotRecoveryReason, job.Source, job.Name,
-            job.LastBlockReason, job.LastBlockedAtUtc, DispatchProvenance.FromJson(job.DispatchProvenanceJson), job.WrittenOffAtUtc, job.EffectiveTargetUnits, job.ProducedUnits, job.MissingUnits, canResolve);
+            job.LastBlockReason, job.LastBlockedAtUtc, DispatchProvenance.FromJson(job.DispatchProvenanceJson), job.WrittenOffAtUtc, job.EffectiveTargetUnits, job.ProducedUnits, job.MissingUnits, canResolve,
+            part?.Thumbnails.OrderBy(t => t.PlateIndex).FirstOrDefault() is { } thumbnail ? Convert.ToBase64String(thumbnail.Bytes) : null);
     }
 
     /// <summary>A print the printer started itself has no requirement, queue slot, plate or file revision.</summary>

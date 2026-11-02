@@ -96,9 +96,7 @@ async function openQueue() {
   await userEvent.click(
     screen.getByRole('button', { name: 'Actions for Bracket' }),
   );
-  await userEvent.click(
-    screen.getByRole('menuitem', { name: 'Send to queue' }),
-  );
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Print' }));
 }
 
 describe('PartsTable queue action', () => {
@@ -174,7 +172,7 @@ describe('PartsTable queue action', () => {
     ).toBeInTheDocument();
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Send to queue',
+        name: 'Print',
       }),
     );
     await waitFor(() =>
@@ -245,21 +243,20 @@ describe('PartsTable queue action', () => {
     await userEvent.click(
       screen.getByRole('button', { name: 'Actions for Bracket' }),
     );
-    expect(
-      screen.getByRole('menuitem', { name: 'Send to queue' }),
-    ).not.toHaveAttribute('aria-disabled');
+    expect(screen.getByRole('menuitem', { name: 'Print' })).not.toHaveAttribute(
+      'aria-disabled',
+    );
     await userEvent.keyboard('{Escape}');
     await userEvent.click(
       screen.getByRole('button', { name: 'Actions for Incomplete part' }),
     );
-    expect(
-      screen.getByRole('menuitem', { name: 'Send to queue' }),
-    ).toHaveAttribute('aria-disabled', 'true');
-    expect(
-      screen.getByRole('menuitem', { name: 'Send to queue' }),
-    ).toHaveAttribute(
+    expect(screen.getByRole('menuitem', { name: 'Print' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByRole('menuitem', { name: 'Print' })).toHaveAttribute(
       'title',
-      'Complete this part’s print requirements before queueing.',
+      'Complete this part’s print requirements before printing.',
     );
   });
 
@@ -267,7 +264,7 @@ describe('PartsTable queue action', () => {
     setup({ detailStatus: 'Incomplete' });
     await openQueue();
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Print requirements incomplete. Complete them before queueing.',
+      'Print requirements incomplete. Complete them before printing.',
     );
     expect(screen.queryByLabelText('Number of plates')).not.toBeInTheDocument();
   });
@@ -280,13 +277,11 @@ describe('PartsTable queue action', () => {
     const input = await screen.findByLabelText('Number of plates');
     fireEvent.change(input, { target: { value: '9' } });
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Send to queue' }),
-      ).toBeEnabled(),
+      expect(screen.getByRole('button', { name: 'Print' })).toBeEnabled(),
     );
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Send to queue',
+        name: 'Print',
       }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent(

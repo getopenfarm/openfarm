@@ -86,7 +86,7 @@ function setup(
 }
 afterEach(() => vi.unstubAllGlobals());
 async function send() {
-  const button = screen.getByRole('button', { name: 'Send to queue' });
+  const button = screen.getByRole('button', { name: 'Print' });
   await waitFor(() => expect(button).toBeEnabled());
   await userEvent.click(button);
 }
@@ -146,9 +146,7 @@ it('keeps inputs available after all-zero plans fail and validates component cou
   for (const value of ['', '-1', '1.5']) {
     fireEvent.change(bracket, { target: { value } });
     expect(bracket).toHaveAttribute('aria-invalid', 'true');
-    expect(
-      screen.getByRole('button', { name: 'Send to queue' }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Print' })).toBeDisabled();
   }
   fireEvent.change(bracket, { target: { value: '0' } });
   fireEvent.change(screen.getByLabelText('Plates for Cover'), {
@@ -157,12 +155,12 @@ it('keeps inputs available after all-zero plans fail and validates component cou
   expect(
     await screen.findByText('Choose at least one plate.'),
   ).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Send to queue' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Print' })).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Plates for Cover'), {
     target: { value: '2' },
   });
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Send to queue' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Print' })).toBeEnabled(),
   );
 });
 it('switches backfill with Space, restores finite counts and submits the whole recipe', async () => {
@@ -229,7 +227,7 @@ it('blocks incomplete parts', async () => {
   expect(
     await screen.findByText(/Print requirements incomplete/),
   ).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Send to queue' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Print' })).toBeDisabled();
 });
 it('reuses submission IDs on retry and disables conflicting controls while pending', async () => {
   const onClose = vi.fn();

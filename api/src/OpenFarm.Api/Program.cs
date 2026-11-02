@@ -356,6 +356,7 @@ builder.Services.AddScoped<IPrinterCostRepository, PrinterCostRepository>();
 builder.Services.AddScoped<IFeeProfileRepository, FeeProfileRepository>();
 builder.Services.AddScoped<AssemblyMachineCosts>();
 builder.Services.AddScoped<OpenFarm.Application.Library.IAssemblyPreviewReader, OpenFarm.Infrastructure.Library.AssemblyPreviewReader>();
+builder.Services.AddScoped<OpenFarm.Application.Library.ILibraryFolderPreviewReader, OpenFarm.Infrastructure.Library.LibraryFolderPreviewReader>();
 builder.Services.AddScoped<OpenFarm.Application.Library.ILibraryContentsReader, OpenFarm.Infrastructure.Library.LibraryContentsReader>();
 builder.Services.AddScoped<OpenFarm.Application.Library.ILibraryFolderService, OpenFarm.Infrastructure.Library.LibraryFolderService>();
 builder.Services.AddScoped<IPartRepository, PartRepository>();

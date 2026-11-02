@@ -212,6 +212,22 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
+    public async Task Connect_BrokerNeverAcksSubscribe_RecoversOnNextAttempt()
+    {
+        await using var harness = new BambuMqttHarness { WithholdFirstSuback = true };
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            ConnectTimeout = TimeSpan.FromMilliseconds(200),
+            TelemetryTimeout = TimeSpan.FromMilliseconds(200),
+        });
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        while (await ReadNextAsync(events, cts) && events.Current.GcodeState is null) { }
+        events.Current.GcodeState.Should().Be("IDLE");
+        harness.ConnectionCount.Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    [Fact]
     public async Task Connect_OpenButSilentBroker_ReconnectsAndRequestsFreshReports()
     {
         await using var harness = new BambuMqttHarness();

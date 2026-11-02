@@ -132,6 +132,9 @@ public sealed class JobFilamentConsumptionResponse
 public sealed class PrintJobResponse
 {
     public bool CanResolveShortfall { get; set; }
+
+    /// <summary>The part's first plate thumbnail; null for a printer-started print or a part without one.</summary>
+    public string? ThumbnailBase64 { get; set; }
     public Guid Id { get; set; }
 
     public Guid? PartRequirementId { get; set; }
@@ -199,6 +202,7 @@ public sealed class PrintJobResponse
         ProducedUnits = detail.ProducedUnits,
         MissingUnits = detail.MissingUnits,
         CanResolveShortfall = detail.CanResolveShortfall,
+        ThumbnailBase64 = detail.ThumbnailBase64,
         AssignmentMode = detail.AssignmentMode?.ToString(),
         PinnedPrinterId = detail.PinnedPrinterId,
         DispatchedPrinterId = detail.DispatchedPrinterId,

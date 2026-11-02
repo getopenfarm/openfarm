@@ -54,7 +54,7 @@ function LibraryBrowserContents({ library }: { library: LibraryKind }) {
   const query = useLibraryContents(library, {
     ...list.params,
     ...(folderId ? { parentId: folderId } : {}),
-    includePreviews: library === 'assemblies' && view === 'grid',
+    includePreviews: true,
   });
   const data = useRetainedListData(query.data);
   const entries = data?.items ?? [];

@@ -11353,6 +11353,10 @@
           "canResolveShortfall": {
             "type": "boolean"
           },
+          "thumbnailBase64": {
+            "type": "string",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "guid"
@@ -12787,6 +12791,11 @@
           },
           "currentJobName": {
             "type": "string",
+            "nullable": true
+          },
+          "currentPrintJobId": {
+            "type": "string",
+            "format": "guid",
             "nullable": true
           },
           "filamentColorHex": {
@@ -14747,6 +14756,13 @@
                 "$ref": "#/components/schemas/AssemblySummaryResponse"
               }
             ]
+          },
+          "previewThumbnails": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

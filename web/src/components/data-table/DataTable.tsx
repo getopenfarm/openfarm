@@ -366,7 +366,8 @@ export function DataTable<TData, TValue>({
                     // Utility columns hug their control instead of sharing slack width.
                     className={cn(
                       header.id === 'select' && selectColumnClassName,
-                      header.id === 'actions' && 'w-px',
+                      (header.id === 'actions' || header.id === 'print') &&
+                        'w-px',
                     )}
                     aria-sort={
                       header.column.getCanSort() && header.column.getIsSorted()

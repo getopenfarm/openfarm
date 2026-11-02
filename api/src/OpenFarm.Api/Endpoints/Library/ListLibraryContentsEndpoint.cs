@@ -17,11 +17,11 @@ public sealed class ListLibraryContentsRequest : FolderLibraryRequest
     public string? SortDirection { get; set; }
     public bool? IncludePreviews { get; set; }
 }
-public sealed record LibraryEntryResponse(Guid Id, string Name, string Kind, LibraryFolder? Folder = null, PartSummaryResponse? Part = null, AssemblySummaryResponse? Assembly = null);
+public sealed record LibraryEntryResponse(Guid Id, string Name, string Kind, LibraryFolder? Folder = null, PartSummaryResponse? Part = null, AssemblySummaryResponse? Assembly = null, IReadOnlyList<string>? PreviewThumbnails = null);
 public sealed record LibraryContentsResponse(IReadOnlyList<LibraryEntryResponse> Items, int TotalCount, IReadOnlyList<LibraryFolder> Ancestors);
 
 [Permission("library:view")]
-public sealed class ListLibraryContentsEndpoint(ILibraryContentsReader reader, IAssemblyPreviewReader previews) : Endpoint<ListLibraryContentsRequest, LibraryContentsResponse>
+public sealed class ListLibraryContentsEndpoint(ILibraryContentsReader reader, IAssemblyPreviewReader previews, ILibraryFolderPreviewReader folderPreviews) : Endpoint<ListLibraryContentsRequest, LibraryContentsResponse>
 {
     public override void Configure()
     {
@@ -33,11 +33,14 @@ public sealed class ListLibraryContentsEndpoint(ILibraryContentsReader reader, I
         var result = await reader.ReadAsync(req.Library, req.ParentId, Math.Max(1, req.Page), req.PageSize is < 1 or > 200 ? 25 : req.PageSize, ListSort.Parse(req.SortBy, req.SortDirection, "name"), ct);
         var images = req.IncludePreviews == true && req.Library == "assemblies"
             ? await previews.ReadAsync(result.Items.Where(e => e.Kind == "assembly").Select(e => e.Id).ToList(), ct) : null;
+        var folderImages = req.IncludePreviews == true
+            ? await folderPreviews.ReadAsync(req.Library, result.Items.Where(e => e.Kind == "folder").Select(e => e.Id).ToList(), ct) : null;
         Response = new(result.Items.Select(entry =>
         {
             var assembly = entry.Assembly is null ? null : AssemblySummaryResponse.FromSummary(entry.Assembly);
             if (assembly is not null) assembly.PreviewThumbnails = images?.GetValueOrDefault(entry.Id) ?? [];
-            return new LibraryEntryResponse(entry.Id, entry.Name, entry.Kind, entry.Folder, entry.Part is null ? null : PartSummaryResponse.FromSummary(entry.Part), assembly);
+            return new LibraryEntryResponse(entry.Id, entry.Name, entry.Kind, entry.Folder, entry.Part is null ? null : PartSummaryResponse.FromSummary(entry.Part), assembly,
+                entry.Kind == "folder" ? folderImages?.GetValueOrDefault(entry.Id) : null);
         }).ToList(), result.TotalCount, result.Ancestors);
     }
 }

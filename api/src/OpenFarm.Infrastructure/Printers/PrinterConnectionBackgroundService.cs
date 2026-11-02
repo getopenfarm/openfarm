@@ -538,7 +538,7 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
     // The name screens show: an OpenFarm job's part name, else the printer's own job name.
     private static async Task<string?> PrintNameAsync(Printer printer, IServiceProvider services, CancellationToken cancellationToken) =>
         services.GetService<IPrintRepository>() is { } prints
-            ? (await prints.GetCurrentPrintNamesAsync([printer], cancellationToken))[printer.Id]
+            ? (await prints.GetCurrentPrintsAsync([printer], cancellationToken))[printer.Id].Name
             : printer.CurrentJobName;
 
     private async Task SweepUnreachablePrintersAsync(CancellationToken stoppingToken)

@@ -446,7 +446,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 try
                 {
                     await services.GetRequiredService<IProductionEventPublisher>()
-                        .PrintJobSendProgressAsync(job.Id, PrintSendStage.Ended, null, 1, null, CancellationToken.None);
+                        .PrintJobSendProgressAsync(job.Id, printer.Id, PrintSendStage.Ended, null, 1, null, CancellationToken.None);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException) { LogSendProgressFailed(_logger, job.Id, ex); }
             }
@@ -502,7 +502,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var profileReadiness = services.GetRequiredService<ProductionProfileReadiness>();
         var materialRequirements = job.Filaments.Select(c => c.Requirement).ToList();
         var eventPublisher = services.GetRequiredService<IProductionEventPublisher>();
-        await eventPublisher.PrintJobSendProgressAsync(job.Id, PrintSendStage.Slicing, null, 1, null, cancellationToken);
+        await eventPublisher.PrintJobSendProgressAsync(job.Id, printer.Id, PrintSendStage.Slicing, null, 1, null, cancellationToken);
         try
         {
             // One resolution produces both the file and the stamp of the exact configuration it was made for.
@@ -627,7 +627,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var connector = connectorFactory.CreateConnector(details);
         for (var attempt = 1; ; attempt++)
         {
-            var progress = new SendProgressRelay(eventPublisher, job.Id, attempt);
+            var progress = new SendProgressRelay(eventPublisher, job.Id, printer.Id, attempt);
             try
             {
                 using var stream = new MemoryStream(fileContent.Bytes);
@@ -677,7 +677,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 if (attempt <= _sendRetryDelays.Count)
                 {
                     LogSendRetrying(_logger, job.Id, printer.Id, attempt, ex);
-                    await eventPublisher.PrintJobSendProgressAsync(job.Id, PrintSendStage.Retrying, null, attempt + 1, Truncate(ex.Message), cancellationToken);
+                    await eventPublisher.PrintJobSendProgressAsync(job.Id, printer.Id, PrintSendStage.Retrying, null, attempt + 1, Truncate(ex.Message), cancellationToken);
                     await Task.Delay(_sendRetryDelays[attempt - 1], cancellationToken);
                     if (await IsStillIdleAsync(printer.Id, cancellationToken)) continue;
                 }
@@ -699,7 +699,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             job.ClearBlock();
             await jobRepository.SaveChangesAsync(cancellationToken);
             await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
-            await eventPublisher.PrintJobSendProgressAsync(job.Id, PrintSendStage.Sent, null, 1, null, cancellationToken);
+            await eventPublisher.PrintJobSendProgressAsync(job.Id, printer.Id, PrintSendStage.Sent, null, 1, null, cancellationToken);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -733,7 +733,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     /// Forwards a connector's send progress as hub events: on a stage change, or every 5 % of the upload. The connector reports
     /// synchronously; the events are chained so they leave in order.
     /// </summary>
-    private sealed class SendProgressRelay(IProductionEventPublisher publisher, Guid jobId, int attempt) : IProgress<PrintSendProgress>
+    private sealed class SendProgressRelay(IProductionEventPublisher publisher, Guid jobId, Guid printerId, int attempt) : IProgress<PrintSendProgress>
     {
         private Task _sending = Task.CompletedTask;
         private PrintSendProgress? _last;
@@ -747,7 +747,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             if (_last is { } last && last.Stage == value.Stage && (value.Percent ?? 0) - (last.Percent ?? 0) < 5 && value.Percent != 100) return;
             _last = value;
             _sending = _sending.ContinueWith(
-                _ => publisher.PrintJobSendProgressAsync(jobId, value.Stage, value.Percent, attempt, null, CancellationToken.None),
+                _ => publisher.PrintJobSendProgressAsync(jobId, printerId, value.Stage, value.Percent, attempt, null, CancellationToken.None),
                 CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default).Unwrap();
         }
 

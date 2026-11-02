@@ -5,12 +5,7 @@ import type {
   RowSelectionState,
 } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
-import {
-  FolderInputIcon,
-  ImageOffIcon,
-  ListPlusIcon,
-  Trash2Icon,
-} from 'lucide-react';
+import { FolderInputIcon, Trash2Icon } from 'lucide-react';
 import {
   createContext,
   type ReactNode,
@@ -28,7 +23,11 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
-import { PermissionButton as Button } from '@/components/PermissionButton';
+import { NozzleIcon } from '@/components/NozzleIcon';
+import {
+  PermissionButton as Button,
+  PermissionButton,
+} from '@/components/PermissionButton';
 import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -50,6 +49,7 @@ import {
 } from '@/features/library/LibraryFolders';
 import { LibraryItemCard } from '@/features/library/LibraryItemCard';
 import { LibraryItemLink } from '@/features/library/LibraryItemLink';
+import { LibraryPreview } from '@/features/library/LibraryPreview';
 import { MoveToDialog } from '@/features/library/MoveToDialog';
 import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { useAllowed } from '@/lib/auth/AccessContext';
@@ -106,18 +106,13 @@ const columns: ColumnDef<PartLibraryRow>[] = [
     cell: ({ row }) => (
       <div className="flex items-center gap-3">
         <LibraryDragHandle name={row.original.name ?? 'Part'} />
-        <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
-          {row.original.thumbnailBase64 ? (
-            <img
-              draggable={false}
-              src={`data:image/png;base64,${row.original.thumbnailBase64}`}
-              alt=""
-              className="size-full object-contain"
-            />
-          ) : (
-            <ImageOffIcon className="size-4" />
-          )}
-        </div>
+        <LibraryPreview
+          kind="part"
+          images={
+            row.original.thumbnailBase64 ? [row.original.thumbnailBase64] : []
+          }
+          compact
+        />
         <div className="flex flex-col">
           <LibraryItemLink library="parts" id={row.original.id}>
             {row.original.name}
@@ -194,11 +189,7 @@ function PartRowActions({
   onQueue,
   onRemove,
   onMove,
-  selected,
-  onSelect,
 }: {
-  selected: boolean;
-  onSelect: () => void;
   part: PartLibraryRow;
   disabled: boolean;
   onMove: (trigger: HTMLButtonElement | null) => void;
@@ -215,20 +206,17 @@ function PartRowActions({
       disabled={disabled || !part.id}
     >
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={onSelect}>
-          {selected ? 'Deselect' : 'Select'}
-        </DropdownMenuItem>
         <DropdownMenuItem
           permission="production-runs:create"
           disabled={incomplete}
           title={
             incomplete
-              ? 'Complete this part’s print requirements before queueing.'
+              ? 'Complete this part’s print requirements before printing.'
               : undefined
           }
           onSelect={() => onQueue(triggerRef.current)}
         >
-          <ListPlusIcon /> Send to queue
+          <NozzleIcon /> Print
         </DropdownMenuItem>
         <DropdownMenuItem
           permission="library:manage"
@@ -299,14 +287,36 @@ function SelectionCell({ row }: CellContext<PartLibraryRow, unknown>) {
     />
   );
 }
+function PrintCell({ row }: CellContext<PartLibraryRow, unknown>) {
+  const { pending, onQueue } = usePartsTableActions();
+  const part = row.original;
+  if (part.libraryFolder || !part.id) return null;
+  const incomplete = part.printRequirementsStatus !== 'Complete';
+  return (
+    <PermissionButton
+      permission="production-runs:create"
+      type="button"
+      variant="outline"
+      size="sm"
+      aria-label={`Print ${part.name}`}
+      disabled={pending || incomplete}
+      title={
+        incomplete
+          ? 'Complete this part’s print requirements before printing.'
+          : undefined
+      }
+      onClick={(event) => onQueue(part, event.currentTarget)}
+    >
+      <NozzleIcon data-icon="inline-start" /> Print
+    </PermissionButton>
+  );
+}
 function ActionsCell({ row }: CellContext<PartLibraryRow, unknown>) {
   const actions = usePartsTableActions();
   if (row.original.libraryFolder)
     return <LibraryFolderActions folder={row.original.libraryFolder} />;
   return (
     <PartRowActions
-      selected={row.getIsSelected()}
-      onSelect={() => row.toggleSelected()}
       part={row.original}
       onMove={(trigger) => {
         if (row.original.id) actions.onMove([row.original.id], trigger);
@@ -340,6 +350,13 @@ const tableColumns: ColumnDef<PartLibraryRow>[] = [
         flexRender(column.cell, context)
       ),
   })),
+  {
+    id: 'print',
+    header: () => <span className="sr-only">Print</span>,
+    enableSorting: false,
+    enableHiding: false,
+    cell: PrintCell,
+  },
   {
     id: 'actions',
     header: () => <span className="sr-only">Actions</span>,

@@ -33,6 +33,8 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
     public bool ReplyToVersion { get; init; } = true;
     public bool ReplyToPushAll { get; init; } = true;
     public bool WithholdFirstConnack { get; init; }
+    public bool WithholdFirstSuback { get; init; }
+    private int _subackWithheld;
     public string InitialReport { get; init; } = """{"print":{"gcode_state":"IDLE","nozzle_temper":25,"bed_temper":24,"mc_percent":0}}""";
     public int ConnectionCount => Volatile.Read(ref _connectionCount);
     public int SubscriptionCount => Volatile.Read(ref _subscriptionCount);
@@ -116,6 +118,8 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
                         offset = 2; // Packet identifier.
                         var topic = ReadString(body, ref offset);
                         Subscriptions.Enqueue(topic);
+                        if (WithholdFirstSuback && Interlocked.Exchange(ref _subackWithheld, 1) == 0)
+                            break;
                         session.Subscribed = topic == ReportTopic;
                         await session.SendAsync(0x90, [body[0], body[1], 0], cancellationToken);
                         Interlocked.Increment(ref _subscriptionCount);

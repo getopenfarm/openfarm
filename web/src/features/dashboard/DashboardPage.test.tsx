@@ -391,7 +391,7 @@ describe('Fixed compact dashboard', () => {
   it('retains offline job identity without showing current ETA or clearing actions', async () => {
     setup([{ ...printing, isReachable: false }]);
     await screen.findByText('Enclosure bracket');
-    expect(screen.getAllByText('Offline')).toHaveLength(2);
+    expect(screen.getAllByText('Offline')).toHaveLength(1);
     expect(screen.queryByText('1h 24m left')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Mark.*ready/ }),
@@ -404,5 +404,49 @@ describe('Fixed compact dashboard', () => {
     setup([], {}, { fleetStatus: 500 });
     await screen.findByText('Could not load dashboard.');
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('pauses an OpenFarm print and asks before stopping it', async () => {
+    const { fetch } = setup([{ ...printing, currentPrintJobId: 'j1' }]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop print' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Stop print?')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/cancel'),
+      expect.anything(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/print-jobs/j1/pause'),
+        expect.anything(),
+      ),
+    );
+    expect(await screen.findByText('Pause requested…')).toBeInTheDocument();
+  });
+
+  it('shows disabled controls when there is nothing to control', async () => {
+    setup([printing, idle]);
+    const started = await screen.findByRole('article', {
+      name: 'P1S-01 monitor',
+    });
+    expect(
+      within(started).getByRole('button', { name: 'Pause' }),
+    ).toBeDisabled();
+    expect(
+      within(started).getByRole('button', { name: 'Stop print' }),
+    ).toBeDisabled();
+    const idleCard = screen.getByRole('article', { name: 'P1S-03 monitor' });
+    expect(
+      within(idleCard).getByRole('button', { name: 'Pause' }),
+    ).toBeDisabled();
+  });
+
+  it('shows nozzle and bed temperatures', async () => {
+    setup([{ ...printing, nozzleTempC: 245.4, bedTempC: 70 }]);
+    const card = await screen.findByRole('article', { name: 'P1S-01 monitor' });
+    expect(within(card).getByText('245°')).toBeInTheDocument();
+    expect(within(card).getByText('70°')).toBeInTheDocument();
   });
 });

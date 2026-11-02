@@ -15,7 +15,7 @@ namespace OpenFarm.Api.IntegrationTests.Library;
 
 public class LibraryContentsEndpointTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
-    public sealed record Entry(Guid Id, string Name, string Kind, JsonElement? Part, JsonElement? Assembly);
+    public sealed record Entry(Guid Id, string Name, string Kind, JsonElement? Part, JsonElement? Assembly, List<string>? PreviewThumbnails = null);
     public sealed record Ancestor(Guid Id, string Name);
     public sealed record Contents(List<Entry> Items, int TotalCount, List<Ancestor> Ancestors);
     private static Uri Url(string path) => new(path, UriKind.Relative);
@@ -90,5 +90,42 @@ public class LibraryContentsEndpointTests(CustomWebApplicationFactory factory) :
         (await client.GetAsync(Url($"/api/v1/library/assemblies/contents?parentId={id}"))).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await client.GetAsync(Url($"/api/v1/library/parts/contents?parentId={Guid.NewGuid()}"))).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await client.GetAsync(Url($"/api/v1/library/parts/contents?parentId={id}&sortBy=unknown"))).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+    [Theory]
+    [InlineData("parts")]
+    [InlineData("assemblies")]
+    public async Task Contents_FolderPreviewsComeFromItsWholeSubtree(string library)
+    {
+        using var client = await ClientAsync();
+        Guid parentId, filledId, emptyId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var folders = scope.ServiceProvider.GetRequiredService<ILibraryFolderService>();
+            parentId = (await folders.CreateAsync(library, Guid.NewGuid().ToString(), null, default)).Id;
+            filledId = (await folders.CreateAsync(library, "Filled", parentId, default)).Id;
+            emptyId = (await folders.CreateAsync(library, "Empty", parentId, default)).Id;
+            var nestedId = (await folders.CreateAsync(library, "Nested", filledId, default)).Id;
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var dependency = MakePart("Dependency", null);
+            db.Parts.Add(dependency);
+            // Five items, two levels deep: the collage holds at most four.
+            foreach (var i in Enumerable.Range(0, 5))
+            {
+                var location = i == 0 ? filledId : nestedId;
+                if (library == "parts") db.Parts.Add(MakePart($"Item {i}", location));
+                else
+                {
+                    var assembly = Assembly.Create($"Item {i}", null, [new BomLineSpec(BomLineTargetKind.Part, dependency.Id, null, null, 1)]);
+                    assembly.MoveToFolder(location); db.Assemblies.Add(assembly);
+                }
+            }
+            await db.SaveChangesAsync();
+        }
+        var path = $"/api/v1/library/{library}/contents?parentId={parentId}";
+        var withPreviews = await client.GetFromJsonAsync<Contents>(Url(path + "&includePreviews=true"));
+        withPreviews!.Items.Single(e => e.Id == filledId).PreviewThumbnails.Should().NotBeEmpty().And.HaveCountLessThanOrEqualTo(4).And.OnlyContain(i => i == "AQID");
+        withPreviews.Items.Single(e => e.Id == emptyId).PreviewThumbnails.Should().BeEmpty();
+        var without = await client.GetFromJsonAsync<Contents>(Url(path));
+        without!.Items.Should().OnlyContain(e => e.PreviewThumbnails == null);
     }
 }
