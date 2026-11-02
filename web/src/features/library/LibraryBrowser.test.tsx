@@ -117,7 +117,18 @@ function setup(
         items: [
           ...(options.noFolders || url.searchParams.has('parentId')
             ? []
-            : [{ id: folder.id, name: folder.name, kind: 'folder', folder }]),
+            : [
+                {
+                  id: folder.id,
+                  name: folder.name,
+                  kind: 'folder',
+                  folder,
+                  previewThumbnails:
+                    url.searchParams.get('includePreviews') === 'true'
+                      ? ['BAUG', 'BwgJ', 'CgsM']
+                      : null,
+                },
+              ]),
           ...(showItem
             ? [
                 {
@@ -542,7 +553,7 @@ describe('Library browser', () => {
     ).toHaveFocus();
   });
   it.each(['parts', 'assemblies'] as const)(
-    'selects %s using modifiers and the card menu while ordinary clicks open',
+    'selects %s using modifiers while ordinary clicks open',
     async (library) => {
       const { user } = setup({ library });
       const name = library === 'parts' ? 'Bracket' : 'Enclosure';
@@ -564,21 +575,36 @@ describe('Library browser', () => {
       expect(card).toHaveAttribute('data-state', 'selected');
       fireEvent.click(screen.getByRole('link', { name }), { metaKey: true });
       expect(card).not.toHaveAttribute('data-state');
-      await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: `Actions for ${name}` }),
-        ).toBeEnabled(),
-      );
-      await user.click(
-        screen.getByRole('button', { name: `Actions for ${name}` }),
-      );
-      await user.click(screen.getByRole('menuitem', { name: /^Select$/ }));
+      fireEvent.click(screen.getByRole('link', { name }), { ctrlKey: true });
       expect(card).toHaveAttribute('data-state', 'selected');
       await user.click(screen.getByRole('button', { name: 'Clear selection' }));
       expect(add).toHaveFocus();
       expect(card).not.toHaveAttribute('data-state');
       await user.click(screen.getByRole('link', { name }));
       expect(screen.getByText(`/${library}/${id}`)).toBeInTheDocument();
+    },
+  );
+  it.each(['parts', 'assemblies'] as const)(
+    'prints %s from the row menu',
+    async (library) => {
+      const { user } = setup({ library });
+      const name = library === 'parts' ? 'Bracket' : 'Enclosure';
+      await screen.findByRole('link', { name });
+      const actions = screen.getByRole('button', {
+        name: `Actions for ${name}`,
+      });
+      await waitFor(() => expect(actions).toBeEnabled());
+      await user.click(actions);
+      await user.click(screen.getByRole('menuitem', { name: 'Print' }));
+      expect(
+        await screen.findByRole('dialog', { name: 'Print' }),
+      ).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await user.click(screen.getByRole('button', { name: `Print ${name}` }));
+      expect(
+        await screen.findByRole('dialog', { name: 'Print' }),
+      ).toBeInTheDocument();
     },
   );
   it.each(['parts', 'assemblies'] as const)(
@@ -868,25 +894,47 @@ describe('Library browser', () => {
     );
     expect(dialog).toBeInTheDocument();
   });
-  it('loads assembly collages on demand and remembers its view independently', async () => {
+  it('shows folder and assembly collages in both views and remembers its view independently', async () => {
     localStorage.setItem(
       'openfarm.preferences.v1',
       JSON.stringify({ listViews: { parts: 'grid' } }),
     );
-    const { user, calls } = setup({ library: 'assemblies' });
-    await screen.findByRole('link', { name: 'Enclosure' });
+    const { user } = setup({ library: 'assemblies' });
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('link', { name: 'Enclosure' })
+          .closest('tr')
+          ?.querySelector('img'),
+      ).toHaveAttribute('src', 'data:image/png;base64,AQID'),
+    );
     expect(screen.getByRole('tab', { name: 'Details view' })).toHaveAttribute(
       'aria-selected',
       'true',
     );
+    // Rows show the first image as a cover with a count; cards show the collage.
+    const folderRow = screen.getByRole('link', { name: 'Brackets' });
+    expect(folderRow.querySelectorAll('img')).toHaveLength(1);
+    expect(folderRow.querySelector('img')).toHaveAttribute(
+      'src',
+      'data:image/png;base64,BAUG',
+    );
+    expect(within(folderRow).getByText('+2')).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Thumbnails view' }));
     await waitFor(() =>
       expect(
-        calls.mock.calls.some(([url]) =>
-          String(url).includes('includePreviews=true'),
-        ),
-      ).toBe(true),
+        screen
+          .getByRole('link', { name: 'Brackets' })
+          .closest('[data-slot="card"]')
+          ?.querySelector('img'),
+      ).toHaveAttribute('src', 'data:image/png;base64,BAUG'),
     );
+    expect(
+      screen
+        .getByRole('link', { name: 'Brackets' })
+        .closest('[data-slot="card"]')
+        ?.querySelectorAll('img'),
+    ).toHaveLength(3);
     const card = screen
       .getByRole('link', { name: 'Enclosure' })
       .closest('[data-slot="card"]');

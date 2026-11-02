@@ -20,6 +20,8 @@ export interface Folder {
   name: string;
   parentId: string | null;
   library: string;
+  /** Up to four thumbnails from items in the folder's subtree; only on contents entries. */
+  previewThumbnails?: string[];
 }
 export interface FolderPage {
   items: Folder[];
@@ -169,7 +171,10 @@ function normalizeEntry(
     return {
       ...base,
       kind: 'folder',
-      folder: normalizeFolder(entry.folder, library),
+      folder: {
+        ...normalizeFolder(entry.folder, library),
+        previewThumbnails: entry.previewThumbnails ?? [],
+      },
     };
   if (entry.kind === 'part' && entry.part)
     return { ...base, kind: 'part', part: entry.part };

@@ -31,4 +31,4 @@ public sealed record PrintJobDetail(
     DateTimeOffset CreatedAtUtc, string SnapshotState = "Ready", string? SnapshotRecoveryReason = null,
     PrintSource Source = PrintSource.Dispatched, string Name = "",
     string? LastBlockReason = null, DateTimeOffset? LastBlockedAtUtc = null, DispatchProvenance? Provenance = null,
-    DateTimeOffset? WrittenOffAtUtc = null, int? TargetUnits = null, int? ProducedUnits = null, int? MissingUnits = null, bool CanResolveShortfall = false);
+    DateTimeOffset? WrittenOffAtUtc = null, int? TargetUnits = null, int? ProducedUnits = null, int? MissingUnits = null, bool CanResolveShortfall = false, string? ThumbnailBase64 = null);

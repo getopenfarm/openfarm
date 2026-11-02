@@ -197,6 +197,8 @@ export function FilamentRail({ printer }: { printer: MonitoredPrinter }) {
     (spoolQuery.data?.data as ListSpoolsResponse | undefined)?.spools ?? [];
   const rail = buildFilamentRail(printer, units, spools, catalog);
   const unavailable = feedQuery.isError || spoolQuery.isError;
+  // Every meter is one fixed-width column; the rail is only as wide as it needs.
+  const single = rail.meters.length <= 1;
 
   // One hover popover for the whole rail, anchored to the rail so it opens beside both columns
   // instead of over the neighbouring bar. Clicking a bar opens the slot dialog.
@@ -233,9 +235,17 @@ export function FilamentRail({ printer }: { printer: MonitoredPrinter }) {
         <section
           ref={railRef}
           aria-label={`${printer.name} filament remaining`}
-          className="flex w-12 shrink-0 flex-col gap-1"
+          className={cn(
+            'flex shrink-0 flex-col gap-1',
+            single ? 'w-[22px]' : 'w-12',
+          )}
         >
-          <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-1">
+          <div
+            className={cn(
+              'grid min-h-0 flex-1 grid-rows-2 gap-1',
+              single ? 'grid-cols-1' : 'grid-cols-2',
+            )}
+          >
             {rail.meters.length ? (
               rail.meters.map((meter) => (
                 <MeterBar
@@ -245,19 +255,13 @@ export function FilamentRail({ printer }: { printer: MonitoredPrinter }) {
                   onHover={() => hover(meter.key)}
                   onLeave={leave}
                   onSelect={() => select(meter)}
-                  className={
-                    rail.meters.length === 1
-                      ? 'col-span-2 row-span-2'
-                      : rail.meters.length === 2
-                        ? 'row-span-2'
-                        : undefined
-                  }
+                  className={rail.meters.length <= 2 ? 'row-span-2' : undefined}
                 />
               ))
             ) : (
               <DashboardHint
                 label="Filament remaining unknown"
-                className="filament-consumed col-span-2 row-span-2 flex items-center justify-center rounded-sm text-destructive"
+                className="filament-consumed row-span-2 flex items-center justify-center rounded-sm text-destructive"
                 details={
                   <p>
                     {feedQuery.isLoading

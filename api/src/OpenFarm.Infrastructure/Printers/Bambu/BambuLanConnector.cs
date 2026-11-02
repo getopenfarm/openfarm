@@ -147,18 +147,21 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             return Task.CompletedTask;
         };
 
-        client.ConnectedAsync += async _ =>
+        // MQTTnet awaits this inside ConnectAsync, so it must not wait on the broker: subscribing here with no
+        // timeout froze the reconnect loop for good when a printer never sent SUBACK. MaintainConnectionAsync subscribes.
+        client.ConnectedAsync += _ =>
         {
             Interlocked.Exchange(ref lastReportTicks, DateTimeOffset.UtcNow.UtcTicks);
             channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionStarted: true));
             LogConnected(_logger, details.SerialNumber);
             LiveClients[liveKey] = client;
-            await SubscribeAndRequestAsync(client, details.SerialNumber, connectionToken);
+            return Task.CompletedTask;
         };
 
+        // Not unregistered here: MQTTnet raises this on a background task, which can land after a fast reconnect and
+        // would drop the live session commands publish on. PublishCommandAsync checks IsConnected instead.
         client.DisconnectedAsync += e =>
         {
-            LiveClients.TryRemove(new KeyValuePair<string, IMqttClient>(liveKey, client));
             if (e.ClientWasConnected) LogDisconnected(_logger, details.SerialNumber, e.Reason, e.Exception);
             channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionEnded: true));
             return Task.CompletedTask;
@@ -428,6 +431,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         connectCts.CancelAfter(_options.ConnectTimeout);
                         await client.ConnectAsync(options, connectCts.Token);
+                        // Bounded: a SUBACK that never comes fails this attempt; the stall check above then reconnects.
+                        await SubscribeAndRequestAsync(client, serialNumber, connectCts.Token);
                     }
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)

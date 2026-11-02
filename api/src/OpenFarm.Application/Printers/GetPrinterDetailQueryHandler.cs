@@ -51,7 +51,7 @@ public sealed class GetPrinterDetailQueryHandler(
             .Select(value => new BuildPlateTypeOption(value, BuildPlateTypeVendorNames.Resolve(value)))
             .ToList();
 
-        var printNames = await printRepository.GetCurrentPrintNamesAsync([printer], cancellationToken);
+        var printNames = await printRepository.GetCurrentPrintsAsync([printer], cancellationToken);
 
         return new PrinterDetail(
             printer.Id,
@@ -67,7 +67,7 @@ public sealed class GetPrinterDetailQueryHandler(
             printer.PrintProgressPercent,
             printer.CurrentStageLabel,
             printer.RemainingTimeMinutes,
-            printNames[printer.Id],
+            printNames[printer.Id].Name,
             printer.FeedReadings,
             printer.MachineProfileId,
             machineProfileName,

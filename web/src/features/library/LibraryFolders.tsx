@@ -39,7 +39,7 @@ import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import { type Folder, type LibraryKind, useLibraryMutation } from './api';
 import { LibraryBreadcrumb } from './LibraryBreadcrumb';
 import { LibraryDragHandle } from './LibraryDnd';
-import { LibraryPreview } from './LibraryPreview';
+import { LIBRARY_TILE_CLASS, LibraryPreview } from './LibraryPreview';
 import { MoveToDialog } from './MoveToDialog';
 
 export function LibraryFolderControls({
@@ -314,7 +314,13 @@ export function LibraryFolderName({
         to={`/${library}?folder=${folder.id}`}
         className="flex items-center gap-3"
       >
-        {preview && <LibraryPreview kind="folder" compact />}
+        {preview && (
+          <LibraryPreview
+            kind="folder"
+            images={folder.previewThumbnails}
+            compact
+          />
+        )}
         <span className="truncate">{folder.name}</span>
       </Link>
     </div>
@@ -335,10 +341,7 @@ export function LibraryFolderActions({ folder }: { folder: Folder }) {
 export function LibraryFolderCard({ folder }: { folder: Folder }) {
   const { library, busy } = useFolderControls();
   return (
-    <Card
-      size="sm"
-      className="h-full transition-colors group-hover/library-tile:bg-muted/50 group-focus-within/library-tile:bg-muted/50"
-    >
+    <Card size="sm" className={LIBRARY_TILE_CLASS} data-row-actions-scope>
       <CardHeader>
         <div className="flex min-w-0 items-center gap-2">
           <CardTitle className="min-w-0">
@@ -349,7 +352,7 @@ export function LibraryFolderCard({ folder }: { folder: Folder }) {
           <LibraryFolderActions folder={folder} />
         </CardAction>
       </CardHeader>
-      <CardContent className="flex min-h-32 flex-1">
+      <CardContent className="flex min-h-0 flex-1">
         <Link
           draggable={false}
           to={`/${library}?folder=${folder.id}`}
@@ -358,9 +361,13 @@ export function LibraryFolderCard({ folder }: { folder: Folder }) {
           onClick={(event) => {
             if (busy) event.preventDefault();
           }}
-          className="flex min-h-32 flex-1 items-center justify-center rounded-md bg-muted"
+          className="relative flex-1 overflow-hidden rounded-md bg-muted"
         >
-          <LibraryPreview kind="folder" fill />
+          <LibraryPreview
+            kind="folder"
+            images={folder.previewThumbnails}
+            fill
+          />
         </Link>
       </CardContent>
     </Card>

@@ -9,7 +9,7 @@ public sealed class GetFleetQueryHandler(IPrinterRepository printerRepository, I
     public async Task<IReadOnlyList<FleetPrinterSummary>> HandleAsync(GetFleetQuery query, CancellationToken cancellationToken)
     {
         var printers = await printerRepository.ListAsync(cancellationToken);
-        var printNames = await printRepository.GetCurrentPrintNamesAsync(printers, cancellationToken);
+        var currentPrints = await printRepository.GetCurrentPrintsAsync(printers, cancellationToken);
 
         return printers
             .Select(p => new FleetPrinterSummary(
@@ -26,8 +26,9 @@ public sealed class GetFleetQueryHandler(IPrinterRepository printerRepository, I
                 p.BedTempC,
                 p.CurrentStageLabel,
                 p.RemainingTimeMinutes,
-                printNames[p.Id],
-                FilamentColor.FromFeedReadings(p.FeedReadings), p.ReportedNozzleDiameterMm, p.NozzleObservedAtUtc, p.NozzleConfirmed))
+                currentPrints[p.Id].Name,
+                FilamentColor.FromFeedReadings(p.FeedReadings), p.ReportedNozzleDiameterMm, p.NozzleObservedAtUtc, p.NozzleConfirmed,
+                currentPrints[p.Id].JobId))
             .ToList();
     }
 }

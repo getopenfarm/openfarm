@@ -271,9 +271,7 @@ function DemandDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>
-            {runId ? 'Add part or assembly' : 'Send to queue'}
-          </DialogTitle>
+          <DialogTitle>{runId ? 'Add part or assembly' : 'Print'}</DialogTitle>
           <DialogDescription>
             {runId
               ? 'Set the required output for this run. Jobs appear in Queue.'
@@ -319,7 +317,7 @@ function DemandDialog({
                   <p role="alert">
                     {partQuery.isPending
                       ? 'Loading part…'
-                      : 'Print requirements incomplete. Complete them before queueing.'}
+                      : 'Print requirements incomplete. Complete them before printing.'}
                   </p>
                 )}
                 {!backfill && !notReady && (
@@ -513,7 +511,7 @@ function DemandDialog({
                   ? 'Enable backfill'
                   : runId
                     ? 'Add to run'
-                    : 'Send to queue'}
+                    : 'Print'}
             </Button>
           </DialogFooter>
         </form>

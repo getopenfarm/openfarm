@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { LibraryDragHandle } from './LibraryDnd';
-import { LibraryPreview } from './LibraryPreview';
+import { LIBRARY_TILE_CLASS, LibraryPreview } from './LibraryPreview';
 import { useLibraryLocation } from './useLibraryLocation';
 
 export function LibraryItemCard<T>({
@@ -51,10 +51,7 @@ export function LibraryItemCard<T>({
         ).includes(c.column.id),
     );
   return (
-    <Card
-      size="sm"
-      className="h-full transition-colors group-hover/library-tile:bg-muted/50 group-focus-within/library-tile:bg-muted/50"
-    >
+    <Card size="sm" className={LIBRARY_TILE_CLASS} data-row-actions-scope>
       <CardHeader>
         <div className="flex min-w-0 items-center gap-2">
           <LibraryDragHandle name={name} />
@@ -74,24 +71,24 @@ export function LibraryItemCard<T>({
         </div>
         <CardAction>{cell('actions')}</CardAction>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <div className="h-32">
-          <Link
-            draggable={false}
-            tabIndex={-1}
-            aria-hidden="true"
-            to={detailLocation}
-            onClick={(e) => {
-              if (disabled) e.preventDefault();
-            }}
-            className="flex h-full items-center justify-center overflow-hidden rounded-md bg-muted"
-          >
-            <LibraryPreview
-              images={images}
-              kind={assembly ? 'assembly' : 'part'}
-            />
-          </Link>
-        </div>
+      {/* The tile height is fixed; the preview takes what the fields leave. */}
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-2">
+        <Link
+          draggable={false}
+          tabIndex={-1}
+          aria-hidden="true"
+          to={detailLocation}
+          onClick={(e) => {
+            if (disabled) e.preventDefault();
+          }}
+          className="relative min-h-12 flex-1 overflow-hidden rounded-md bg-muted"
+        >
+          <LibraryPreview
+            images={images}
+            kind={assembly ? 'assembly' : 'part'}
+            fill
+          />
+        </Link>
         {(fileTypeChip || materialChip) && (
           <div className="flex min-w-0 items-center gap-1">
             {materialChip && <div className="min-w-0">{materialChip}</div>}
@@ -113,7 +110,7 @@ export function LibraryItemCard<T>({
                       ? field.column.columnDef.header
                       : field.column.id)}
                 </dt>
-                <dd className="min-w-0 wrap-break-word">
+                <dd className="min-w-0 truncate">
                   {flexRender(field.column.columnDef.cell, field.getContext())}
                 </dd>
               </div>

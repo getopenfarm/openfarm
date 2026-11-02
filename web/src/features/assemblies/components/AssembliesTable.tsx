@@ -26,7 +26,11 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/DataTableColumnHeader';
 import { DataTableRowActions } from '@/components/data-table/DataTableRowActions';
 import { DataTableSelectionBar } from '@/components/data-table/DataTableSelectionBar';
-import { PermissionButton as Button } from '@/components/PermissionButton';
+import { NozzleIcon } from '@/components/NozzleIcon';
+import {
+  PermissionButton as Button,
+  PermissionButton,
+} from '@/components/PermissionButton';
 import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
@@ -47,6 +51,7 @@ import { LibraryItemCard } from '@/features/library/LibraryItemCard';
 import { LibraryItemLink } from '@/features/library/LibraryItemLink';
 import { LibraryPreview } from '@/features/library/LibraryPreview';
 import { MoveToDialog } from '@/features/library/MoveToDialog';
+import { SendToQueueDialog } from '@/features/production-runs/components/SendToQueueDialog';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   getOpenFarmApiEndpointsAssembliesListAssembliesEndpointQueryKey,
@@ -90,7 +95,11 @@ const columns: ColumnDef<AssemblyLibraryRow>[] = [
     cell: ({ row }) => (
       <div className="flex items-center gap-3">
         <LibraryDragHandle name={row.original.name ?? 'Assembly'} />
-        <LibraryPreview kind="assembly" compact />
+        <LibraryPreview
+          kind="assembly"
+          images={row.original.previewThumbnails ?? []}
+          compact
+        />
         <div className="flex flex-col">
           <LibraryItemLink library="assemblies" id={row.original.id}>
             {row.original.name}
@@ -123,6 +132,10 @@ interface AssembliesTableActions {
   onMove: (ids: string[], trigger: HTMLButtonElement | null) => void;
   pending: boolean;
   selectionHeaderRef: RefObject<HTMLButtonElement | null>;
+  onQueue: (
+    assembly: AssemblyLibraryRow,
+    trigger: HTMLButtonElement | null,
+  ) => void;
   onRemove: (
     assembly: AssemblyLibraryRow,
     trigger: HTMLButtonElement | null,
@@ -170,24 +183,42 @@ function SelectionCell({ row }: CellContext<AssemblyLibraryRow, unknown>) {
     />
   );
 }
+function PrintCell({ row }: CellContext<AssemblyLibraryRow, unknown>) {
+  const { pending, onQueue } = useAssembliesTableActions();
+  const assembly = row.original;
+  if (assembly.libraryFolder || !assembly.id) return null;
+  return (
+    <PermissionButton
+      permission="production-runs:create"
+      type="button"
+      variant="outline"
+      size="sm"
+      aria-label={`Print ${assembly.name}`}
+      disabled={pending}
+      onClick={(event) => onQueue(assembly, event.currentTarget)}
+    >
+      <NozzleIcon data-icon="inline-start" /> Print
+    </PermissionButton>
+  );
+}
 function ActionsCell({ row }: CellContext<AssemblyLibraryRow, unknown>) {
-  const { pending, onRemove, onMove } = useAssembliesTableActions();
+  const { pending, onQueue, onRemove, onMove } = useAssembliesTableActions();
   const triggerRef = useRef<HTMLButtonElement>(null);
   if (row.original.libraryFolder)
     return <LibraryFolderActions folder={row.original.libraryFolder} />;
   return (
     <DataTableRowActions
-      permission="assemblies:delete|library:manage"
+      permission="assemblies:delete|production-runs:create|library:manage"
       label={row.original.name ?? 'assembly'}
       triggerRef={triggerRef}
       disabled={pending || !row.original.id}
     >
       <DropdownMenuGroup>
         <DropdownMenuItem
-          onSelect={() => row.toggleSelected()}
-          disabled={pending}
+          permission="production-runs:create"
+          onSelect={() => onQueue(row.original, triggerRef.current)}
         >
-          {row.getIsSelected() ? 'Deselect' : 'Select'}
+          <NozzleIcon /> Print
         </DropdownMenuItem>
         <DropdownMenuItem
           permission="library:manage"
@@ -233,6 +264,13 @@ const tableColumns: ColumnDef<AssemblyLibraryRow>[] = [
       ),
   })),
   {
+    id: 'print',
+    header: () => <span className="sr-only">Print</span>,
+    enableSorting: false,
+    enableHiding: false,
+    cell: PrintCell,
+  },
+  {
     id: 'actions',
     header: () => <span className="sr-only">Actions</span>,
     enableSorting: false,
@@ -275,6 +313,10 @@ export function AssembliesTable({
   const [bulk, setBulk] = useState(false);
   const [pending, setPending] = useState(false);
   const removalTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const queueTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [queueAssembly, setQueueAssembly] = useState<AssemblyLibraryRow | null>(
+    null,
+  );
   const selectionHeaderRef = useRef<HTMLButtonElement>(null);
   const bulkTriggerRef = useRef<HTMLButtonElement>(null);
   const interactionPending = !!(
@@ -379,6 +421,10 @@ export function AssembliesTable({
           setMoveIds(ids);
         },
         selectionHeaderRef,
+        onQueue: (assembly, trigger) => {
+          queueTriggerRef.current = trigger;
+          setQueueAssembly(assembly);
+        },
         onRemove: (assembly, trigger) => {
           removalTriggerRef.current = trigger;
           setBulk(false);
@@ -530,6 +576,18 @@ export function AssembliesTable({
           void execute();
         }}
       />
+      {queueAssembly && (
+        <SendToQueueDialog
+          key={queueAssembly.id}
+          target={{
+            kind: 'Assembly',
+            id: queueAssembly.id ?? '',
+            name: queueAssembly.name ?? '',
+          }}
+          returnFocusRef={queueTriggerRef}
+          onClose={() => setQueueAssembly(null)}
+        />
+      )}
     </AssembliesTableContext.Provider>
   );
 }

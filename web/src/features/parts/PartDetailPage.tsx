@@ -1,11 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  ChevronDownIcon,
-  InfoIcon,
-  ListPlusIcon,
-  TriangleAlertIcon,
-} from 'lucide-react';
+import { ChevronDownIcon, InfoIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
@@ -14,6 +9,7 @@ import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { FormFooter } from '@/components/form-footer/FormFooter';
+import { NozzleIcon } from '@/components/NozzleIcon';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -410,13 +406,13 @@ export function PartDetailPage() {
                   disabled={incomplete || part.quantityNeedsReprocessing}
                   title={
                     incomplete
-                      ? 'Complete this part’s print requirements before queueing.'
+                      ? 'Complete this part’s print requirements before printing.'
                       : undefined
                   }
                   onClick={() => setQueueOpen(true)}
                 >
-                  <ListPlusIcon data-icon="inline-start" />
-                  Send to queue
+                  <NozzleIcon data-icon="inline-start" />
+                  Print
                 </Button>
                 <Button
                   permission="parts:replace-file"

@@ -8,7 +8,17 @@ import { Progress } from '@/components/ui/progress';
 import type { FleetPrinterResponse } from '@/lib/api/generated/endpoints.schemas';
 import { useAllowed } from '@/lib/auth/AccessContext';
 import type { DensityMode } from '@/lib/preferences/types';
+import { usePrinterSendProgress } from '../hooks/usePrinterSendProgress';
 import { printerStatusToBadge } from '../lib/printerStatusBadge';
+
+function PrinterStatusCell({ printer }: { printer: FleetPrinterResponse }) {
+  const { kind, label } = printerStatusToBadge(
+    (printer.status ?? 'Idle') as PrinterStatus,
+    printer.isReachable ?? false,
+    usePrinterSendProgress(printer.id ?? ''),
+  );
+  return <StatusBadge kind={kind} label={label} />;
+}
 
 const PLACEHOLDER_FILAMENT_COLOR = '#8892a6';
 
@@ -62,13 +72,7 @@ export function PrintersTable({
       id: 'status',
       header: 'Status',
       accessorFn: (row) => row.status ?? '',
-      cell: ({ row }) => {
-        const { kind, label } = printerStatusToBadge(
-          (row.original.status ?? 'Idle') as PrinterStatus,
-          row.original.isReachable ?? false,
-        );
-        return <StatusBadge kind={kind} label={label} />;
-      },
+      cell: ({ row }) => <PrinterStatusCell printer={row.original} />,
     },
     {
       id: 'job',

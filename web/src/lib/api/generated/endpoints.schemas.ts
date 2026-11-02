@@ -1207,6 +1207,8 @@ export interface DispatchProvenanceResponse {
 
 export interface PrintJobResponse {
   canResolveShortfall?: boolean;
+  /** @nullable */
+  thumbnailBase64?: string | null;
   id?: string;
   /** @nullable */
   partRequirementId?: string | null;
@@ -1730,6 +1732,8 @@ export interface FleetPrinterResponse {
   remainingTimeMinutes?: number | null;
   /** @nullable */
   currentJobName?: string | null;
+  /** @nullable */
+  currentPrintJobId?: string | null;
   /** @nullable */
   filamentColorHex?: string | null;
 }
@@ -2441,6 +2445,8 @@ export interface LibraryEntryResponse {
   folder?: LibraryFolder | null;
   part?: PartSummaryResponse | null;
   assembly?: AssemblySummaryResponse | null;
+  /** @nullable */
+  previewThumbnails?: string[] | null;
 }
 
 export interface LibraryContentsResponse {

@@ -42,6 +42,9 @@ public sealed class FleetPrinterResponse
 
     public string? CurrentJobName { get; set; }
 
+    /// <summary>The OpenFarm job on the printer (open, or just ended while awaiting clear); null for a printer-started print.</summary>
+    public Guid? CurrentPrintJobId { get; set; }
+
     public string? FilamentColorHex { get; set; }
 }
 
@@ -87,6 +90,7 @@ public sealed class ListFleetEndpoint(IQueryHandler<GetFleetQuery, IReadOnlyList
                     CurrentStageLabel = p.CurrentStageLabel,
                     RemainingTimeMinutes = p.RemainingTimeMinutes,
                     CurrentJobName = p.CurrentJobName,
+                    CurrentPrintJobId = p.CurrentPrintJobId,
                     FilamentColorHex = p.FilamentColorHex,
                 })
                 .ToList(),

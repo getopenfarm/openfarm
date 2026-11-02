@@ -27,10 +27,12 @@ import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { PrinterReportedStatus } from './components/PrinterReportedStatus';
 import { RecentActivityCard } from './components/RecentActivityCard';
 import { useMarkPrinterReady } from './hooks/useMarkPrinterReady';
+import { usePrinterSendProgress } from './hooks/usePrinterSendProgress';
 import { printerStatusToBadge } from './lib/printerStatusBadge';
 
 export function PrinterDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const sending = usePrinterSendProgress(id ?? '');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
@@ -110,6 +112,7 @@ export function PrinterDetailPage() {
                   const { kind, label } = printerStatusToBadge(
                     (printer.status ?? 'Idle') as PrinterStatus,
                     printer.isReachable ?? false,
+                    sending,
                   );
                   return <StatusBadge kind={kind} label={label} />;
                 })()}

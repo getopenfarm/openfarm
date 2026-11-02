@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { ListPlusIcon, TrashIcon } from 'lucide-react';
+import { TrashIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { NozzleIcon } from '@/components/NozzleIcon';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
@@ -182,10 +183,10 @@ export function AssemblyDetailPage() {
               type="button"
               variant="outline"
               disabled={isDirty}
-              title={isDirty ? 'Save changes before queueing.' : undefined}
+              title={isDirty ? 'Save changes before printing.' : undefined}
               onClick={() => setQueueOpen(true)}
             >
-              <ListPlusIcon data-icon="inline-start" /> Send to queue
+              <NozzleIcon data-icon="inline-start" /> Print
             </Button>
             <Button
               permission="assemblies:delete"

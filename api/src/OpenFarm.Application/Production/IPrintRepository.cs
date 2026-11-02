@@ -17,9 +17,11 @@ public interface IPrintRepository
 
     /// <summary>
     /// What each printer's current print is called, by printer id: the part name of an OpenFarm job (its open print, or while
-    /// awaiting clear the one that just ended), else the printer's own job name.
+    /// awaiting clear the one that just ended), else the printer's own job name. JobId is set only for an OpenFarm job.
     /// </summary>
-    Task<IReadOnlyDictionary<Guid, string?>> GetCurrentPrintNamesAsync(IReadOnlyCollection<Printer> printers, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<Guid, CurrentPrint>> GetCurrentPrintsAsync(IReadOnlyCollection<Printer> printers, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
+
+public sealed record CurrentPrint(string? Name, Guid? JobId);

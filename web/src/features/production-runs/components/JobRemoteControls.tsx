@@ -1,6 +1,7 @@
-import { PauseIcon, PlayIcon, XIcon } from 'lucide-react';
+import { PauseIcon, PlayIcon, SquareIcon, XIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import { PermissionMenuItem as DropdownMenuItem } from '@/components/PermissionMenuItem';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -10,8 +11,17 @@ import {
   useOpenFarmApiEndpointsPrintJobsPausePrintJobEndpoint,
   useOpenFarmApiEndpointsPrintJobsResumePrintJobEndpoint,
 } from '@/lib/api/generated/print-jobs/print-jobs';
+import { cn } from '@/lib/utils';
 
 type PendingAction = 'pause' | 'resume' | 'cancel' | null;
+
+/** Round tinted control buttons; disabled ones turn grey. Shared with the dashboard's inert placeholders. */
+export const ROUND_CONTROL =
+  "size-7 rounded-full disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 [&_svg:not([class*='size-'])]:size-3";
+export const ROUND_PAUSE =
+  'bg-kind-blue/15 text-kind-blue hover:bg-kind-blue/25 hover:text-kind-blue';
+export const ROUND_STOP =
+  'bg-kind-red/15 text-kind-red hover:bg-kind-red/25 hover:text-kind-red';
 
 interface JobRemoteControlsProps {
   jobId: string;
@@ -19,6 +29,10 @@ interface JobRemoteControlsProps {
   menu?: boolean;
   pending?: PendingAction;
   onPendingChange?: (action: PendingAction) => void;
+  /** Dashboard card style: round tinted buttons, and Stop asks first (a misclick there is costly). */
+  round?: boolean;
+  /** Names the print in the Stop confirmation. */
+  name?: string;
 }
 
 /**
@@ -32,7 +46,10 @@ export function JobRemoteControls({
   menu = false,
   pending,
   onPendingChange,
+  round = false,
+  name,
 }: JobRemoteControlsProps) {
+  const [stopOpen, setStopOpen] = useState(false);
   const [localPending, setLocalPending] = useState<PendingAction>(null);
   const pendingAction = pending === undefined ? localPending : pending;
   function setPendingAction(action: PendingAction) {
@@ -140,9 +157,13 @@ export function JobRemoteControls({
           variant="ghost"
           permission="print-jobs:remote-control"
           aria-label="Pause"
+          className={cn(round && [ROUND_CONTROL, ROUND_PAUSE])}
           onClick={handlePause}
         >
-          <PauseIcon data-icon="inline-start" className="" />
+          <PauseIcon
+            data-icon="inline-start"
+            className={cn(round && 'fill-current')}
+          />
         </Button>
       )}
       {status === 'Paused' && (
@@ -152,21 +173,53 @@ export function JobRemoteControls({
           variant="ghost"
           permission="print-jobs:remote-control"
           aria-label="Resume"
+          className={cn(round && [ROUND_CONTROL, ROUND_PAUSE])}
           onClick={handleResume}
         >
-          <PlayIcon data-icon="inline-start" className="" />
+          <PlayIcon
+            data-icon="inline-start"
+            className={cn(round && 'fill-current')}
+          />
         </Button>
       )}
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        permission="print-jobs:cancel"
-        aria-label="Cancel job"
-        onClick={handleCancel}
-      >
-        <XIcon data-icon="inline-start" className="" />
-      </Button>
+      {round ? (
+        <>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            permission="print-jobs:cancel"
+            aria-label="Stop print"
+            className={cn(ROUND_CONTROL, ROUND_STOP)}
+            onClick={() => setStopOpen(true)}
+          >
+            <SquareIcon data-icon="inline-start" className="fill-current" />
+          </Button>
+          <ConfirmDialog
+            open={stopOpen}
+            onOpenChange={setStopOpen}
+            title="Stop print?"
+            description={`${name ? `${name} stops` : 'The print stops'} now. It cannot be resumed.`}
+            confirmLabel="Stop print"
+            destructive
+            onConfirm={() => {
+              setStopOpen(false);
+              void handleCancel();
+            }}
+          />
+        </>
+      ) : (
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          permission="print-jobs:cancel"
+          aria-label="Cancel job"
+          onClick={handleCancel}
+        >
+          <XIcon data-icon="inline-start" className="" />
+        </Button>
+      )}
     </div>
   );
 }
