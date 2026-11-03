@@ -114,21 +114,36 @@ user check under the repository UI conventions.
 2. In that repository, open **Settings → Pages**. Choose **Deploy from a branch**,
    branch **main**, folder **/ (root)**, and save. The build adds `.nojekyll` so
    GitHub serves the generated files without Jekyll processing.
-3. Create a fine-grained personal access token with resource owner `getopenfarm`,
-   repository access limited to `getopenfarm.github.io`, and **Contents: Read
-   and write**. Complete organization approval if required. No workflow write
-   permission is needed. Give it an expiration and rotate it before expiry.
-4. In the **source** repository `getopenfarm/openfarm`, add an Actions secret
-   named **PAGES_DEPLOY_TOKEN** containing that token. Never commit the token.
-5. Merge the source changes into `main`, or run **Website and documentation**
+3. Generate a dedicated SSH key pair on your computer, outside the repository.
+   Use an empty passphrase so CI can use it without a prompt. Choose a new file
+   path if this one already exists; do not overwrite an existing key:
+
+   ```bash
+   ssh-keygen -t ed25519 -C "openfarm-pages-deploy" -f "$HOME/.ssh/openfarm-pages-deploy" -N ""
+   ```
+
+4. In the **destination** repository `getopenfarm/getopenfarm.github.io`, open
+   **Settings → Deploy keys → Add deploy key**. Name it `OpenFarm Pages deploy`,
+   paste the contents of `~/.ssh/openfarm-pages-deploy.pub`, and enable
+   **Allow write access**. This public key belongs only to this repository.
+5. In the **source** repository `getopenfarm/openfarm`, open
+   **Settings → Secrets and variables → Actions → New repository secret**.
+   Name it **PAGES_DEPLOY_KEY** and paste the entire private key file
+   `~/.ssh/openfarm-pages-deploy`, including its BEGIN and END lines. Keep the
+   private key out of Git and chat. No personal access token or GitHub App is needed.
+6. Merge the source changes into `main`, or run **Website and documentation**
    manually from `main` in the Actions tab.
 
 The existing `.github/workflows/docs.yml` builds both projects on relevant pull
 requests and uploads the combined artifact for review. Only a successful build
 on `main` publishes it. The publish job commits generated output to the target
-repository; that push uses the scoped token and triggers its branch-based Pages
+repository over SSH using the deploy key and triggers its branch-based Pages
 deployment. The default source `GITHUB_TOKEN` cannot write to that other repo.
-Publishing fails with a setup message when `PAGES_DEPLOY_TOKEN` is absent.
+Checkout verifies GitHub's SSH host key and removes its SSH credential after the
+job. Publishing fails with a setup message when `PAGES_DEPLOY_KEY` is absent.
+Deploy keys do not expire automatically. To rotate this key, generate a new pair,
+add its public key to the destination, update the source secret, verify publishing,
+and remove the old deploy key. Remove `PAGES_DEPLOY_TOKEN` if previously configured.
 
 The final URLs are:
 
