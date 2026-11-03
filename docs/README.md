@@ -14,7 +14,7 @@ This policy does not claim full ASD-STE100 compliance.
 ## Develop
 
 From the repository root, run `./dev.sh docs`. It installs the frozen docs
-dependencies and starts the development server on http://localhost:3000.
+dependencies and starts the development server on http://localhost:3000/docs/.
 Additional Docusaurus options pass through, for example
 `./dev.sh docs --port 3001 --no-open`.
 
@@ -25,7 +25,7 @@ bun install --frozen-lockfile
 bun run start
 ```
 
-The development server defaults to http://localhost:3000.
+The development server defaults to http://localhost:3000/docs/.
 
 ## Validate and preview production
 
@@ -51,7 +51,8 @@ The audit uses narrowly documented tooling exceptions in
 ## Content and navigation
 
 - Edit `content/` for user documentation and `sidebars.ts` for reading order.
-- The quick start is the site root. There is no separate marketing homepage/blog.
+- The quick start is the documentation root (`/docs/`). The Astro marketing
+  homepage lives in `../website/`; the docs have no separate homepage/blog.
 - Add titles and descriptions to each guide and link using relative `.md` paths.
 - Verify workflow names and constraints against the current frontend, domain,
   and endpoint code. See [the source map](../dev-notes/DOCUMENTATION.md).
@@ -62,23 +63,26 @@ The audit uses narrowly documented tooling exceptions in
 
 ## Static hosting
 
-Publish the **contents** of `build/` with any static host. This repository change
-does not deploy the site or put the guides in the application image.
+The default deployment combines the **contents** of `build/` under `/docs/`
+with the Astro website at `/`. Source stays in `getopenfarm/openfarm`; CI
+publishes generated files to `getopenfarm/getopenfarm.github.io`. See
+[website setup and deployment](../website/README.md) for the one-time credential
+and Pages settings. Guides are not included in the application image.
 
 For a dedicated hostname:
 
 ```bash
-DOCS_URL=https://docs.example.com bun run build
+DOCS_URL=https://docs.example.com DOCS_BASE_URL=/ bun run build
 ```
 
 For a project subpath, set the origin and a leading/trailing-slash base path:
 
 ```bash
-DOCS_URL=https://getopenfarm.github.io DOCS_BASE_URL=/openfarm/ bun run build
+DOCS_URL=https://getopenfarm.github.io DOCS_BASE_URL=/docs/ bun run build
 ```
 
 Both settings are build-time values. The default origin is
-`https://getopenfarm.github.io`, with `/` as the base path; change it to the actual
+`https://getopenfarm.github.io`, with `/docs/` as the base path; change it to the actual
 host before publishing so canonical and sitemap URLs are correct. Links, assets,
 and local search support the configured base path. The generated site is static:
 no backend, database, login, or printer connection is needed to serve it.

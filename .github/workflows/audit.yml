@@ -32,3 +32,5 @@ jobs:
       - working-directory: docs
         # Preview/build-only exceptions are documented in dev-notes/DOCS_DEPENDENCY_AUDIT.md.
         run: bun install --frozen-lockfile && bun run audit
+      - working-directory: website
+        run: bun install --frozen-lockfile && bun run audit

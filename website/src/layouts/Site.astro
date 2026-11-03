@@ -1,0 +1,58 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'OpenFarm — Open source print farm management',
+  description = 'Manage your 3D printers, filament, parts, and production in one self-hosted workspace. Connect your farm and keep production moving with OpenFarm.',
+} = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="light dark" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href="/openfarm.svg" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="/" aria-label="OpenFarm home">
+          <img src="/openfarm.svg" alt="" width="30" height="30" />
+          <span>OpenFarm</span>
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="/#features">Features</a>
+          <a href="/docs/">Documentation</a>
+          <a href="https://github.com/getopenfarm/openfarm">GitHub <span aria-hidden="true">↗</span></a>
+        </nav>
+      </div>
+    </header>
+    <main id="main" tabindex="-1"><slot /></main>
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>OpenFarm <span aria-hidden="true">·</span> Open source print farm management</p>
+        <nav aria-label="Footer navigation">
+          <a href="/docs/">Docs</a>
+          <a href="https://github.com/getopenfarm/openfarm">Source code</a>
+          <a href="https://github.com/getopenfarm/openfarm/issues">Report an issue</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

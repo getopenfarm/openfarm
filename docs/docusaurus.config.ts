@@ -7,9 +7,9 @@ const config: Config = {
   tagline: 'Set up your farm. Keep production moving.',
   favicon: 'img/openfarm.svg',
   url: process.env.DOCS_URL ?? 'https://getopenfarm.github.io',
-  baseUrl: process.env.DOCS_BASE_URL ?? '/',
+  baseUrl: process.env.DOCS_BASE_URL ?? '/docs/',
   organizationName: 'getopenfarm',
-  projectName: 'openfarm',
+  projectName: 'getopenfarm.github.io',
   trailingSlash: true,
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
@@ -55,6 +55,11 @@ const config: Config = {
       title: 'OpenFarm',
       logo: { alt: '', src: 'img/openfarm.svg' },
       items: [
+        {
+          href: 'https://getopenfarm.github.io/',
+          label: 'Website',
+          position: 'left',
+        },
         {
           type: 'docSidebar',
           sidebarId: 'guide',

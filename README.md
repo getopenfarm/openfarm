@@ -5,6 +5,10 @@ and PostgreSQL; the frontend uses React, Vite, and Bun.
 
 ## Documentation
 
+The [Astro website](website/README.md) and Docusaurus documentation are maintained
+in this repository and published together to `getopenfarm/getopenfarm.github.io`.
+The website lives at `/` and the guides at `/docs/`.
+
 The [Docusaurus site](docs/README.md) contains the [quick start](docs/content/quick-start.md),
 installation instructions, and guides for printers, filament, production, and administration.
 To run it independently of the application (Node.js 20+ and Bun required):
@@ -13,7 +17,7 @@ To run it independently of the application (Node.js 20+ and Bun required):
 ./dev.sh docs
 ```
 
-This installs the docs dependencies and starts Docusaurus at `http://localhost:3000`.
+This installs the docs dependencies and starts Docusaurus at `http://localhost:3000/docs/`.
 Pass options through, for example `./dev.sh docs --port 3001 --no-open`.
 
 Engineering notes and plans live in [dev-notes/](dev-notes/).
