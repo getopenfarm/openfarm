@@ -65,8 +65,17 @@ public sealed class PersonalAccessTokenService(OpenFarmDbContext db, PermissionS
         if (await live.AnyAsync(t => t.Name == name, ct)) throw new ArgumentException("There is already a token with that name.");
         var selected = await ValidatePermissionsAsync(owner, input.Permissions, ct);
         var credential = Mint();
-        var row = new PersonalAccessToken { Id = Guid.NewGuid(), UserId = owner, Name = name,
-            CredentialHash = Hash(credential), LastFour = credential[^4..], Permissions = selected, CreatedAtUtc = now, ExpiresAtUtc = expiry };
+        var row = new PersonalAccessToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = owner,
+            Name = name,
+            CredentialHash = Hash(credential),
+            LastFour = credential[^4..],
+            Permissions = selected,
+            CreatedAtUtc = now,
+            ExpiresAtUtc = expiry
+        };
         db.PersonalAccessTokens.Add(row);
         Audit(owner, row, "AccessTokenCreated");
         await db.SaveChangesAsync(ct);
