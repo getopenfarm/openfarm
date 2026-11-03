@@ -5,6 +5,11 @@ and plans live in [`../dev-notes/`](../dev-notes/).
 
 ## Develop
 
+From the repository root, run `./dev.sh docs`. It installs the frozen docs
+dependencies and starts the development server on http://localhost:3000.
+Additional Docusaurus options pass through, for example
+`./dev.sh docs --port 3001 --no-open`.
+
 Use Node.js 20+ and Bun 1.3.14. From this directory:
 
 ```bash

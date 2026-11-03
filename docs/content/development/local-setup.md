@@ -30,14 +30,17 @@ The web app is at `http://localhost:5173`, with the HTTP API at `http://localhos
 From the repository root:
 
 ```bash
-cd docs
-bun install --frozen-lockfile
-bun run start
+./dev.sh docs
 ```
 
-Use Node.js 20 or later. Docusaurus defaults to `http://localhost:3000`. Production verification:
+Use Node.js 20 or later and Bun. The command installs the frozen docs dependencies
+and starts Docusaurus at `http://localhost:3000` with live reload. Additional options
+pass through, for example `./dev.sh docs --port 3001 --no-open`.
+
+Production verification from `docs/`:
 
 ```bash
+cd docs
 bun run typecheck
 bun run build
 bun run serve

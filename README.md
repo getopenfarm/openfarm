@@ -10,10 +10,11 @@ installation instructions, and guides for printers, filament, production, and ad
 To run it independently of the application (Node.js 20+ and Bun required):
 
 ```bash
-cd docs
-bun install --frozen-lockfile
-bun run start
+./dev.sh docs
 ```
+
+This installs the docs dependencies and starts Docusaurus at `http://localhost:3000`.
+Pass options through, for example `./dev.sh docs --port 3001 --no-open`.
 
 Engineering notes and plans live in [dev-notes/](dev-notes/).
 

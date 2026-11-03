@@ -63,6 +63,8 @@ case "${1:-help}" in
 api)     dotnet run --project="$API" --launch-profile=https --urls="https://0.0.0.0:8889;http://0.0.0.0:6868" ;;
 #: web      vite dev server on :5173
 web)     cd web && VITE_API_BASE_URL="${VITE_API_BASE_URL:-}" bun run dev --host 0.0.0.0 ;;
+#: docs     docusaurus dev server on :3000 (installs docs dependencies)
+docs)    cd docs && bun install --frozen-lockfile && exec bun run start --host 0.0.0.0 "${@:2}" ;;
 #: up       api + web in one terminal, Ctrl-C stops both
 # `kill 0` signals the whole process group, which is what reaps `dotnet run`'s grandchildren.
 # Run this from an interactive shell only — job control gives it its own process group there.
