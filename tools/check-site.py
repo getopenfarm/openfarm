@@ -51,7 +51,7 @@ def exists(path):
 
 errors = []
 pages = list(ROOT.rglob("*.html"))
-for required in ("index.html", "404.html", "docs/index.html", "docs/sitemap.xml", ".nojekyll", "robots.txt", "sitemap.xml", "sitemap-pages.xml", "social-card.png"):
+for required in ("index.html", "404.html", "docs/index.html", "docs/sitemap.xml", "app-preview/index.html", ".nojekyll", "robots.txt", "sitemap.xml", "sitemap-pages.xml", "social-card.png"):
     if not (ROOT / required).is_file():
         errors.append(f"Missing required output: {required}")
 
@@ -79,6 +79,8 @@ for page in pages:
             errors.append(f"Invalid homepage structured data: {error}")
     if relative == "404.html" and "noindex" not in (parser.meta.get("robots") or ""):
         errors.append("Website error page must be marked noindex")
+    if relative == "app-preview/index.html" and "noindex" not in (parser.meta.get("robots") or ""):
+        errors.append("The live demo must be marked noindex")
     for reference in parser.urls:
         if reference.startswith("#"):
             continue
@@ -98,8 +100,8 @@ for relative in ("sitemap.xml", "sitemap-pages.xml", "docs/sitemap.xml"):
             url = urlsplit(location.text or "")
             if url.scheme != "https" or url.netloc != "getopenfarm.github.io" or not exists(url.path):
                 errors.append(f"{relative}: invalid or missing URL {location.text}")
-            if "404" in url.path:
-                errors.append(f"{relative}: error page must not appear in sitemap")
+            if "404" in url.path or url.path.startswith("/app-preview"):
+                errors.append(f"{relative}: {url.path} must not appear in sitemap")
     except (OSError, ElementTree.ParseError) as error:
         errors.append(f"Invalid sitemap {relative}: {error}")
 

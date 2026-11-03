@@ -60,6 +60,28 @@ disable animation and transitions; no carousel or autoplay view changes run.
 DOM tests cover tab keyboard navigation, diagnosis and focus return, readiness,
 run planning, spool selection, theme isolation, reset, and listener cleanup.
 
+## Live demo and dark redesign (second pass)
+
+The first preview was a hand-built imitation of the app. Its cards, labels and colours drifted
+from the real UI: a KPI row and printer drawings the dashboard does not have, "Awaiting
+clearance" for "Awaiting clear", blue for Printing, 4 of 13 nav items, and 9–10 px text. Every UI
+change would have needed a second, manual change on the website.
+
+[OpenBot](https://openbot.run/) shows the alternative: its landing page iframes the real app at
+`/app-preview`, running on scripted data. OpenFarm now does the same, fully static. `web/` builds in
+Vite's `demo` mode, where an in-browser API serves a synthetic farm, typed against the generated API
+contract, and a simulator makes it live: prints progress and finish, and a cleared printer takes the
+next matching plate through the real send stages. Tour chips and the feature cards drive the iframe
+over `postMessage`. The demo needs no server, never ships in the app bundle, and fails the build when
+the API contract changes, not silently when the UI changes.
+
+The page became dark-first, quieter and less templated. It dropped the gradient-text headline,
+eyebrow pills on every heading, 01–06 numbers on a list that is not a sequence, arrows after every
+link, and hover-lift cards. It keeps one bold moment: the headline "prints" bottom-up in layers. The
+other sections use the product's own vocabulary: a numbered run flow (a real sequence), feature cards
+that open their page in the demo, a "$0 per printer" statement, copyable install commands that stay
+true to the guide's database step, and a shelf of spools behind the final call to action.
+
 ## Feature evidence
 
 | Homepage topic | Source in this repository |
@@ -106,11 +128,8 @@ special search appearance.
 
 ## Highest-value remaining work
 
-1. Capture real OpenFarm screens from a controlled demonstration farm: queue
-   with a diagnosed waiting job, a production run with component progress,
-   and filament inventory with loaded slots. Remove identifying information.
-   Export appropriately sized WebP/AVIF assets with meaningful alt text and
-   dimensions. Replace explanatory panels where real screens explain more.
+1. Optional: a camera still from a real printer, so printer detail in the demo shows a frame
+   instead of "Camera unavailable". Check that it shows nothing private.
 2. Perform the repository's user visual review: narrow/medium/wide viewports,
    system light/dark themes, 200% zoom, focus, navigation wrapping, and FAQ use.
 3. After publishing, verify the public homepage, nested docs, canonical URLs,

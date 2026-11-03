@@ -1,0 +1,45 @@
+---
+import Icon from './Icon.astro';
+
+// The real app, built from web/ in demo mode (bun run build:demo) and copied to /app-preview/ by
+// tools/build-site.sh. `./dev.sh website` serves it on :5174 while you work on this page.
+const demoUrl = import.meta.env.DEV ? 'http://localhost:5174/app-preview/' : '/app-preview/';
+const tour = [
+  { step: 'clear-plate', label: 'Clear a finished plate' },
+  { step: 'why-waiting', label: 'See why a job waits' },
+  { step: 'plan-run', label: 'Plan a run' },
+  { step: 'filament', label: 'Check filament stock' },
+  { step: 'printer', label: 'Open a printer' },
+  { step: 'stats', label: 'Review the month' },
+];
+---
+
+<section id="demo" class="demo" aria-labelledby="demo-title">
+  <div class="container">
+    <h2 id="demo-title" class="visually-hidden">Live demo</h2>
+    <div class="demo-stage">
+      <div class="window" data-demo data-src={demoUrl}>
+        <div class="window-bar">
+          <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="window-address"><span class="live-dot" aria-hidden="true"></span>openfarm.local:6868</div>
+          <button type="button" class="window-reset" data-demo-reset><Icon name="rotate-ccw" size={14} />Reset</button>
+        </div>
+        <div class="window-view" data-demo-view>
+          <div class="demo-skeleton" aria-hidden="true"><div></div><div><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+          <iframe src={`${demoUrl}#/`} title="OpenFarm live demo: the real interface on a sample farm" loading="lazy"></iframe>
+          <noscript><p class="demo-noscript">The live demo needs JavaScript.</p></noscript>
+        </div>
+      </div>
+    </div>
+    <div class="tour" role="group" aria-label="Try in the demo">
+      {tour.map((item) => <button type="button" data-tour={item.step} aria-pressed="false">{item.label}</button>)}
+    </div>
+    <p class="demo-caption">The real OpenFarm interface on a sample farm. Runs in your browser. Saves nothing.</p>
+  </div>
+</section>
+
+<script>
+  import { mountLiveDemo } from '../scripts/live-demo';
+  const root = document.querySelector<HTMLElement>('[data-demo]');
+  if (root) mountLiveDemo(root);
+</script>

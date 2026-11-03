@@ -9,50 +9,52 @@ Use Node.js 24 and Bun 1.3.14. From the repository root:
 
 ```bash
 ./dev.sh website     # http://localhost:4321
+./dev.sh demo        # the embedded live demo, http://localhost:5174/app-preview/
 ./dev.sh docs        # http://localhost:3000/docs/ (a separate terminal)
 ```
 
-The development servers are independent. Links from the homepage to `/docs/`
-work in the combined production preview below.
+The development servers are independent. In development the homepage embeds the
+demo from `:5174`; links to `/docs/` work in the combined production preview below.
 
 Edit `src/pages/index.astro` for homepage copy and `src/styles/global.css` for
-styles. Keep claims aligned with `docs/content/` and the application. Match the
-Geist fonts, zinc surfaces, blue primary, 10px corners, and light/dark colors in
-`../web/src/index.css` and `../docs/src/css/custom.css`. The website follows the
-system color scheme. `public/openfarm.svg` is copied from the application mark
-in `../web/public/favicon.svg`; update both when branding changes.
+styles. Keep claims aligned with `docs/content/` and the application. The page is
+dark-first: its surfaces, blue and cyan are the app's dark tokens in
+`../web/src/index.css`, so the page and the embedded app read as one material.
+`public/openfarm.svg` is copied from the application mark in
+`../web/public/favicon.svg`; update both when branding changes.
 
-The homepage has a clickable sample workspace followed by production workflows,
-supporting features, compatibility details, and FAQ. Keep model lists,
-deployment requirements, and FAQ answers aligned with the guides. See the
-[website review](../dev-notes/WEBSITE_REVIEW.md) for reference-site research,
-feature evidence, and screenshot priorities.
+The homepage has a live demo, the run-to-printer flow, a feature index whose
+"Show in demo" buttons drive the demo, the price statement, installation steps,
+FAQ, and a final call to action. Keep model lists, deployment requirements, and
+FAQ answers aligned with the guides. See the [website review](../dev-notes/WEBSITE_REVIEW.md)
+for reference-site research and design decisions.
 
-## Interactive product preview
+## Live demo
 
-`src/components/ProductDemo.astro` renders the sample workspace. Its small,
-framework-free TypeScript controller is `src/scripts/product-demo.ts`; sample
-data lives in `src/lib/demo-data.ts`, and its styles in
-`src/styles/product-demo.css`. The demo uses OpenFarm's navigation names,
-status colors, fonts, surfaces, and workflow rules. It is a simplified sample,
-not a connected installation or a screenshot of the complete application.
+The demo is the real application, not a copy. `bun run build:demo` in `../web`
+builds the app in Vite's `demo` mode; `tools/build-site.sh` publishes it at
+`/app-preview/`, and `src/components/LiveDemo.astro` embeds it in an iframe.
+Everything runs in the visitor's browser: `../web/src/demo/install.ts` answers
+`/api/v1` requests from a synthetic farm (`farm.ts`, `api.ts`), the SignalR client
+is replaced by an in-memory hub (`signalr.ts`), and `simulator.ts` advances prints,
+finishes them, and sends the next matching plate when a printer is marked ready.
+Production builds contain none of it; CI checks that.
 
-Visitors can explore Dashboard, Queue, Runs, and Filament; open job diagnosis;
-mark a sample printer ready; change example run quantities; inspect spools;
-switch the preview theme; and reset the sample. Changes live only in memory.
-The preview makes no API calls and does not store data or connect to printers.
-Navigation supports arrow keys, Home, and End. Diagnosis supports Escape and
-returns focus to its trigger. Status changes have a polite live announcement.
+UI changes reach the demo on the next site build. When an API response changes
+shape, the typed demo data fails the web build where it needs an update. A page
+whose data the demo does not serve logs `[demo] unhandled GET` in the browser
+console of `./dev.sh demo`. Unsupported actions answer "Not available in the demo."
 
-All page copy and the initial fleet are rendered as HTML. Until the demo script
-loads, its controls are disabled and a no-script documentation link is available.
-The site uses blue/cyan gradients and short transitions. Printer-head movement
-runs for less than five seconds; `prefers-reduced-motion` disables animations
-and transitions. There is no automatic tab rotation.
+The page talks to the demo with `postMessage` (`src/scripts/live-demo.ts`): tour
+chips and "Show in demo" buttons navigate it and ring the control to try, the
+active chip follows the demo's route, its clock pauses while it is off screen,
+and Reset reloads it. The demo renders at 90% on wide screens, like browser zoom,
+so the desktop layout fits the window; phones get the app's own mobile layout.
+Part thumbnails come from `../tools/demo-thumbnails.py` plus two real slicer
+renders from our test fixtures. `/app-preview/` is `noindex` and not in the sitemap.
 
-The combined build runs DOM interaction tests against the generated HTML. To
-run them independently after `bun run build`, use `bun run test` here. JSDOM is
-a test-only dependency and is not included in the browser bundle.
+Reduced motion turns off the headline's print animation, the flow pulse, and the
+demo's highlight rings.
 
 ## Search and link previews
 
@@ -76,6 +78,7 @@ From the repository root:
 ```bash
 (cd website && bun install --frozen-lockfile)
 (cd docs && bun install --frozen-lockfile)
+(cd web && bun install --frozen-lockfile)
 bash tools/build-site.sh
 python3 -m http.server 8080 --directory site-dist
 ```
@@ -83,16 +86,17 @@ python3 -m http.server 8080 --directory site-dist
 Open http://localhost:8080/ for the website and http://localhost:8080/docs/ for
 the guides. The build typechecks both projects, validates the docs' internal links,
 generates local search, and checks local HTML links and asset references across
-the assembled site. It runs the preview interaction tests and checks homepage metadata and structured-data JSON,
+the assembled site. It builds the live demo and checks homepage metadata and structured-data JSON,
 robots.txt, and sitemap URLs. Python 3 is needed for this check and preview server.
 
-`site-dist/` contains Astro at its root and the complete Docusaurus build under
-`docs/`. It is generated and ignored by Git. Both builds must succeed before
-the previous combined output is replaced. Astro owns `/`; Docusaurus owns
-`/docs/`. Use ordinary links between them and keep `/docs/` out of Astro routes.
+`site-dist/` contains Astro at its root, the complete Docusaurus build under
+`docs/`, and the demo build under `app-preview/`. It is generated and ignored by
+Git. Every build must succeed before the previous combined output is replaced.
+Astro owns `/`; Docusaurus owns `/docs/`; the demo owns `/app-preview/`. Use
+ordinary links between them and keep both prefixes out of Astro routes.
 
-Before publishing, review 375px, 768px, and 1440px widths, both system themes,
-200% zoom, keyboard focus, and documentation search. Browser review remains a
+Before publishing, review 375px, 768px, and 1440px widths, 200% zoom, reduced
+motion, keyboard focus into and out of the demo, and documentation search. Browser review remains a
 user check under the repository UI conventions.
 
 ## One-time GitHub setup

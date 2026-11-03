@@ -9,12 +9,13 @@ interface Props {
 
 const {
   title = 'OpenFarm | Self-hosted 3D print farm management software',
-  description = 'Open source 3D print farm management software. Queue production runs, match jobs to printers, and track filament and parts on your own server.',
+  description = 'Open source 3D print farm management software. Queue production runs, match every plate to a ready printer, and track filament and parts on your own server.',
   noindex = false,
 } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const socialImage = new URL('/social-card.png', Astro.site);
 const isHomepage = Astro.url.pathname === '/';
+const github = 'https://github.com/getopenfarm/openfarm';
 const structuredData = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -26,9 +27,9 @@ const structuredData = {
       description,
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Linux server; web browser client',
-      sameAs: 'https://github.com/getopenfarm/openfarm',
-      license: 'https://github.com/getopenfarm/openfarm/blob/main/LICENSE',
-      featureList: ['Production runs', 'Printer matching', 'Continuous backfill', 'Filament tracking', 'Parts and assemblies', 'Cost estimates'],
+      sameAs: github,
+      license: `${github}/blob/main/LICENSE`,
+      featureList: ['Live printer dashboard', 'Production runs', 'Printer matching', 'Continuous backfill', 'Filament tracking', 'Parts and assemblies', 'Cost estimates', 'Maintenance tracking', 'Production statistics'],
     },
   ],
 };
@@ -40,7 +41,8 @@ const structuredData = {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#121214" />
     {noindex && <meta name="robots" content="noindex, follow" />}
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
@@ -50,12 +52,12 @@ const structuredData = {
     <meta property="og:image" content={socialImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="OpenFarm — Self-hosted 3D print farm management" />
+    <meta property="og:image:alt" content="OpenFarm, self-hosted 3D print farm management" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={socialImage} />
-    <meta name="twitter:image:alt" content="OpenFarm — Self-hosted 3D print farm management" />
+    <meta name="twitter:image:alt" content="OpenFarm, self-hosted 3D print farm management" />
     {!noindex && <link rel="canonical" href={canonical} />}
     <link rel="sitemap" href="/sitemap.xml" />
     <link rel="icon" type="image/svg+xml" href="/openfarm.svg" />
@@ -67,27 +69,56 @@ const structuredData = {
     <header class="site-header">
       <div class="container header-inner">
         <a class="brand" href="/" aria-label="OpenFarm home">
-          <img src="/openfarm.svg" alt="" width="30" height="30" />
+          <img src="/openfarm.svg" alt="" width="28" height="28" />
           <span>OpenFarm</span>
         </a>
-        <nav aria-label="Main navigation">
-          <a href="/#demo">Preview</a>
+        <nav class="site-nav" aria-label="Main">
+          <a href="/#demo">Demo</a>
           <a href="/#features">Features</a>
-          <a href="/docs/">Documentation</a>
-          <a href="https://github.com/getopenfarm/openfarm">GitHub <span aria-hidden="true">↗</span></a>
+          <a href="/docs/" class="keep">Docs</a>
+          <a href={github} class="keep">GitHub</a>
         </nav>
+        <a class="button button-primary button-small" href="/#install">Install</a>
       </div>
     </header>
     <main id="main" tabindex="-1"><slot /></main>
     <footer class="site-footer">
-      <div class="container footer-inner">
-        <p>OpenFarm <span aria-hidden="true">·</span> Open source print farm management</p>
-        <nav aria-label="Footer navigation">
-          <a href="/docs/">Docs</a>
-          <a href="/docs/development/api/">API</a>
-          <a href="https://github.com/getopenfarm/openfarm">Source code</a>
-          <a href="https://github.com/getopenfarm/openfarm/issues">Report an issue</a>
-        </nav>
+      <div class="container">
+        <div class="footer-grid">
+          <div>
+            <a class="brand" href="/"><img src="/openfarm.svg" alt="" width="24" height="24" /><span>OpenFarm</span></a>
+            <p>Open source print farm management, self-hosted on your LAN.</p>
+          </div>
+          <div>
+            <h2>Product</h2>
+            <ul>
+              <li><a href="/#demo">Live demo</a></li>
+              <li><a href="/#features">Features</a></li>
+              <li><a href="/#install">Install</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2>Docs</h2>
+            <ul>
+              <li><a href="/docs/">Quick start</a></li>
+              <li><a href="/docs/printers/supported-printers/">Supported printers</a></li>
+              <li><a href="/docs/production/runs/">Production runs</a></li>
+              <li><a href="/docs/development/api/">REST API</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2>Project</h2>
+            <ul>
+              <li><a href={github}>Source code</a></li>
+              <li><a href={`${github}/issues`}>Report an issue</a></li>
+              <li><a href={`${github}/blob/main/LICENSE`}>License (AGPL-3.0)</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>OpenFarm contributors</span>
+          <span>Free and open source under AGPL-3.0</span>
+        </div>
       </div>
     </footer>
   </body>

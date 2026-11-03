@@ -65,8 +65,10 @@ api)     dotnet run --project="$API" --launch-profile=https --urls="https://0.0.
 web)     cd web && VITE_API_BASE_URL="${VITE_API_BASE_URL:-}" bun run dev --host 0.0.0.0 ;;
 #: docs     docusaurus dev server on :3000 (installs docs dependencies)
 docs)    cd docs && bun install --frozen-lockfile && exec bun run start --host 0.0.0.0 "${@:2}" ;;
-#: website  astro dev server on :4321 (installs website dependencies)
+#: website  astro dev server on :4321 (installs website dependencies); run `demo` too for its live demo
 website) cd website && bun install --frozen-lockfile && exec bun run dev --host 0.0.0.0 "${@:2}" ;;
+#: demo     the app on in-browser demo data at :5174/app-preview/ (the website's live demo)
+demo)    cd web && exec bun run dev:demo --host 0.0.0.0 ;;
 #: up       api + web in one terminal, Ctrl-C stops both
 # `kill 0` signals the whole process group, which is what reaps `dotnet run`'s grandchildren.
 # Run this from an interactive shell only — job control gives it its own process group there.
