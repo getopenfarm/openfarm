@@ -94,12 +94,14 @@ export function TokenList({ userId }: { userId?: string }) {
         </Alert>
       )}
       {!userId && (
-        <Button asChild className="self-start">
-          <Link to="/profile/tokens/new">
-            <PlusIcon data-icon="inline-start" />
-            Add token
-          </Link>
-        </Button>
+        <div className="flex justify-end">
+          <Button asChild size="sm">
+            <Link to="/profile/tokens/new">
+              <PlusIcon data-icon="inline-start" />
+              Add token
+            </Link>
+          </Button>
+        </div>
       )}
       {query.data.length === 0 ? (
         <EmptyState

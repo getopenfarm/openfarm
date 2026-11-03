@@ -56,7 +56,12 @@ export function DatePicker({
     ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(selected)
     : placeholder;
   return (
-    <div className="relative w-[260px] max-w-full">
+    // Field stretches its direct children. Inline width keeps the clear action
+    // beside the date even when this control is used directly inside Field.
+    <div
+      className="relative max-w-full self-start"
+      style={{ width: 'fit-content' }}
+    >
       <Popover
         open={open}
         onOpenChange={(next) => {
@@ -78,7 +83,7 @@ export function DatePicker({
             onBlur={onBlur}
             aria-describedby={describedBy}
             className={cn(
-              'h-9 w-full justify-start gap-2 rounded-md bg-card px-3 text-left text-[13.5px] font-normal',
+              'h-9 max-w-full justify-start gap-2 rounded-md bg-card px-3 text-left text-[13.5px] font-normal',
               selected && 'pr-[34px]',
               !selected && 'text-muted-foreground',
             )}
