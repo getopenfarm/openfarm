@@ -22,6 +22,27 @@ Geist fonts, zinc surfaces, blue primary, 10px corners, and light/dark colors in
 system color scheme. `public/openfarm.svg` is copied from the application mark
 in `../web/public/favicon.svg`; update both when branding changes.
 
+The homepage explains production runs, printer matching, and backfill before
+the supporting features, compatibility details, and FAQ. Its diagrams are
+examples, not screenshots. Keep model lists, deployment requirements, and FAQ
+answers aligned with the guides. See the [website review](../dev-notes/WEBSITE_REVIEW.md)
+for reference-site research, feature evidence, and the next screenshot priorities.
+
+## Search and link previews
+
+`src/layouts/Site.astro` contains canonical, social, and homepage structured-data
+metadata. The root `robots.txt` advertises `/sitemap.xml`, which indexes both
+`/sitemap-pages.xml` and Docusaurus's `/docs/sitemap.xml`. Add future marketing
+page URLs to `src/pages/sitemap-pages.xml.ts`; omit error pages.
+
+`public/social-card.png` is the 1200 × 630 link-preview image. Its editable source
+is `public/social-card.svg`; export that SVG to PNG after changing it. Neither
+file is an application screenshot. The 404 page is marked `noindex`.
+
+After publishing, verify these public endpoints and submit `/sitemap.xml` in a
+Search Console URL-prefix property for `https://getopenfarm.github.io/`. Search
+performance and indexing can only be assessed after deployment.
+
 ## Build and preview both sites
 
 From the repository root:
@@ -36,7 +57,8 @@ python3 -m http.server 8080 --directory site-dist
 Open http://localhost:8080/ for the website and http://localhost:8080/docs/ for
 the guides. The build typechecks the docs, validates their internal links,
 generates local search, and checks local HTML links and asset references across
-the assembled site. Python 3 is needed for this check and preview server.
+the assembled site. It also checks homepage metadata and structured-data JSON,
+robots.txt, and sitemap URLs. Python 3 is needed for this check and preview server.
 
 `site-dist/` contains Astro at its root and the complete Docusaurus build under
 `docs/`. It is generated and ignored by Git. Both builds must succeed before
@@ -83,4 +105,6 @@ Main-branch publish runs are serialized; pull request builds never receive the
 publishing credential. Weekly dependency auditing includes both sites.
 
 To change the hostname later, update Astro's `site`, the docs `url`/`baseUrl`,
-the Website navigation link, and the origin in `tools/check-site.py` together.
+the Website navigation link, the social-card artwork, and the origin in
+`tools/check-site.py` together. Astro's sitemap and robots endpoints derive
+absolute URLs from `site`.

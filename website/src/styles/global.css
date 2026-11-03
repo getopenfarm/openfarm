@@ -76,6 +76,53 @@ nav a { color: var(--muted); text-decoration: none; }
 .compatibility p { color: var(--muted); }
 .compatibility-inner > div { display: flex; flex-wrap: wrap; gap: 1rem 2rem; }
 .compatibility a { text-decoration: none; }
+.workflow-section, .setup-section, .faq-section { padding-block: 5rem; scroll-margin-top: 2rem; }
+.workflow-section { padding-bottom: 2rem; }
+.spotlight { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4rem; align-items: center; padding-block: 2.5rem; }
+.spotlight-copy h3 { font-size: clamp(1.5rem, 2.5vw, 2rem); letter-spacing: -0.035em; }
+.spotlight-copy > p:not(.eyebrow) { color: var(--muted); margin-top: 1rem; max-width: 32rem; }
+.spotlight-copy > a { display: inline-block; margin-top: 1.5rem; }
+.spotlight-reverse .explanation-panel { order: -1; }
+.explanation-panel { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 1.5rem; }
+.diagram-caption { font-family: 'Geist Mono Variable', monospace; font-size: 0.75rem; color: var(--muted); }
+.assembly-target { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+.assembly-target strong, .assembly-target div > span { display: block; }
+.assembly-target strong { font-size: 0.9375rem; font-weight: 600; }
+.assembly-target div > span { color: var(--muted); font-size: 0.8125rem; margin-top: 0.25rem; }
+.assembly-icon { display: grid; place-items: center; width: 3rem; height: 3rem; flex-shrink: 0; font-family: 'Geist Mono Variable', monospace; font-size: 1.25rem; border: 1px solid var(--border); border-radius: var(--radius); color: var(--link); background: var(--background); }
+.component-quantities { margin: 1.5rem 0 0; }
+.component-quantities > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; padding: 0.875rem 0; border-top: 1px solid var(--border); font-size: 0.875rem; }
+.component-quantities dd { margin: 0; font-family: 'Geist Mono Variable', monospace; }
+.panel-note { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8125rem; }
+.matching-checks { padding: 0; margin: 1.5rem 0 0; list-style: none; display: grid; gap: 1.25rem; }
+.matching-checks > li { display: flex; align-items: flex-start; gap: 1rem; }
+.matching-checks > li > span { color: var(--link); font-family: 'Geist Mono Variable', monospace; font-size: 0.8125rem; line-height: 1.75; }
+.matching-checks strong { font-weight: 600; font-size: 0.9375rem; }
+.matching-checks p { color: var(--muted); font-size: 0.875rem; margin-top: 0.25rem; }
+.backfill-story { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4rem; border-block: 1px solid var(--border); padding-block: 2rem; margin-top: 1.5rem; }
+.backfill-story h3 { font-size: 1.5rem; letter-spacing: -0.03em; }
+.backfill-story p:not(.eyebrow), .backfill-story ul { color: var(--muted); font-size: 0.9375rem; }
+.backfill-story p:not(.eyebrow) { margin-top: 1rem; }
+.backfill-story ul { margin: 0 0 1rem; padding-left: 1.25rem; }
+.backfill-story li + li { margin-top: 0.5rem; }
+.setup-section { border-top: 1px solid var(--border); }
+.setup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.setup-card { padding: 1.75rem; border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; align-items: flex-start; }
+.setup-card dl { margin: 1.5rem 0 0; }
+.setup-card dl > div + div { margin-top: 1rem; }
+.setup-card dt { font-weight: 500; font-size: 0.875rem; }
+.setup-card dd { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9375rem; }
+.setup-card > p { margin-top: 1.5rem; color: var(--muted); font-size: 0.875rem; }
+.setup-card ol { margin: 1.5rem 0 0; padding-left: 1.25rem; color: var(--muted); font-size: 0.9375rem; }
+.setup-card li + li { margin-top: 1rem; }
+.setup-card > a { margin-top: auto; padding-top: 1.5rem; }
+.faq-section { display: grid; grid-template-columns: 1fr 1.4fr; gap: 3rem; padding-top: 0; }
+.faq-list { border-top: 1px solid var(--border); }
+.faq-list details { border-bottom: 1px solid var(--border); }
+.faq-list summary { cursor: pointer; min-height: 3.5rem; padding: 1rem 0.25rem; font-weight: 500; font-size: 0.9375rem; }
+.faq-list details > div { padding: 0 0.25rem 1.5rem; }
+.faq-list p { color: var(--muted); font-size: 0.9375rem; }
+.faq-list a { display: inline-block; margin-top: 0.75rem; }
 .features { padding-block: 5rem; scroll-margin-top: 2rem; }
 .section-heading { margin-bottom: 2.5rem; }
 .section-heading > p:last-child { color: var(--muted); margin-top: 1rem; }
@@ -95,6 +142,8 @@ nav a { color: var(--muted); text-decoration: none; }
 .not-found > p:not(.eyebrow) { margin-top: 1.5rem; color: var(--muted); }
 @media (max-width: 900px) {
   .hero { gap: 2rem; padding-block: 4rem; }
+  .spotlight, .backfill-story { gap: 2rem; }
+  .faq-section { grid-template-columns: 1fr; gap: 0; }
   .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ownership { flex-direction: column; align-items: flex-start; }
 }
@@ -103,6 +152,12 @@ nav a { color: var(--muted); text-decoration: none; }
   .header-inner { flex-wrap: wrap; }
   nav { gap: 1rem; }
   .hero { grid-template-columns: 1fr; gap: 2.5rem; padding-block: 3rem; }
+  .workflow-section, .setup-section, .faq-section { padding-block: 3rem; }
+  .spotlight, .backfill-story, .setup-grid { grid-template-columns: 1fr; }
+  .spotlight { gap: 1.5rem; padding-block: 1.5rem; }
+  .spotlight-reverse .explanation-panel { order: 0; }
+  .workflow-section { padding-bottom: 0; }
+  .faq-section { padding-top: 0; }
   .feature-grid { grid-template-columns: 1fr; }
   .features { padding-block: 3rem; }
   .ownership { padding: 1.5rem; margin-bottom: 3rem; }

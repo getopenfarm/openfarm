@@ -2,12 +2,21 @@
 import Site from '../layouts/Site.astro';
 
 const features = [
-  { number: '01', title: 'See the whole fleet', description: 'Follow printer status and current work. Keep maintenance alongside the machines that need it.', href: '/docs/printers/manage-fleet/', label: 'Manage printers' },
-  { number: '02', title: 'Know what is loaded', description: 'Track filament, physical spools, remaining material, and feed slots in one place.', href: '/docs/filament/spools/', label: 'Track filament' },
-  { number: '03', title: 'Build a reusable library', description: 'Organize parts, sliced files, profiles, and assemblies so the next batch starts with the right requirements.', href: '/docs/library/parts/', label: 'Explore the library' },
-  { number: '04', title: 'Give every job a path', description: 'Queue individual plates, plan production runs, and use continuous backfill to fill spare capacity.', href: '/docs/production/runs/', label: 'Plan production' },
-  { number: '05', title: 'Understand what is waiting', description: 'See why a printer cannot take a job and follow the diagnosis to the configuration that needs attention.', href: '/docs/production/matching/', label: 'Understand matching' },
-  { number: '06', title: 'Keep track of the outcome', description: 'Review production results, material usage, and cost estimates as your farm keeps working.', href: '/docs/operations/stats/', label: 'Review farm statistics' },
+  { number: '01', title: 'Printer monitoring and maintenance', description: 'Follow printer status and current work. Track service intervals alongside the machines that need attention.', href: '/docs/printers/manage-fleet/', label: 'Manage your fleet' },
+  { number: '02', title: 'Filament and spool tracking', description: 'Know which spool is in each feed slot. Track remaining material, usage, and purchase prices.', href: '/docs/filament/spools/', label: 'Track your filament' },
+  { number: '03', title: 'Parts, profiles, and assemblies', description: 'Keep files and print requirements with reusable parts. Define products from printed components and nested assemblies.', href: '/docs/library/assemblies/', label: 'Organize your parts' },
+  { number: '04', title: 'Cost and sale-price estimates', description: 'Combine material, printer, and additional costs. Explore pricing rules and channel fees before you quote.', href: '/docs/costs/pricing/', label: 'Understand your estimates' },
+  { number: '05', title: 'Production statistics', description: 'Review completed work, printer activity, and filament use. Keep failed attempts separate from their replacements.', href: '/docs/operations/stats/', label: 'Review your production' },
+  { number: '06', title: 'Team access and API tokens', description: 'Give operators the permissions they need. Connect scripts to the REST API with scoped personal access tokens.', href: '/docs/administration/accounts/', label: 'Set up your team' },
+];
+
+const faqs = [
+  { question: 'What is OpenFarm?', answer: 'OpenFarm is open source 3D print farm management software. It brings printer monitoring, print queues, production runs, filament tracking, and a reusable parts library into one self-hosted web application.', href: '/docs/overview/openfarm/', label: 'Read the overview' },
+  { question: 'Which 3D printers can I connect?', answer: 'The current catalog includes Bambu Lab X1, X1 Carbon, X1E, P1P, P1S, A1, and A1 mini, plus Snapmaker U1. A similar or newer model is not automatically supported. Check the compatibility guide for connection and camera details.', href: '/docs/printers/supported-printers/', label: 'Check supported printers' },
+  { question: 'Where does OpenFarm run?', answer: 'You host one OpenFarm instance with PostgreSQL on a server that can reach your printers over the LAN. The supplied Docker deployment targets Linux/amd64. Your team uses the application through a browser.', href: '/docs/installation/docker/', label: 'Review the installation requirements' },
+  { question: 'Can I print both fixed batches and repeat stock?', answer: 'Yes. Use a production run for fixed part quantities or complete assembly sets. Use continuous backfill for repeat whole-plate production on compatible printers available after fixed-quantity jobs.', href: '/docs/production/backfill/', label: 'Learn about continuous backfill' },
+  { question: 'Does automatic queueing clear the printer bed?', answer: 'You still inspect the output and physically clear the bed. Mark the printer ready after the physical checks. Queued work can then start automatically when a compatible printer is ready.', href: '/docs/', label: 'Follow the quick start' },
+  { question: 'Can I inspect or modify the source?', answer: 'Yes. The application source and its AGPL-3.0 license are available on GitHub. Review the license terms when using, modifying, or distributing the software.', href: 'https://github.com/getopenfarm/openfarm', label: 'Explore the source code' },
 ];
 ---
 
@@ -15,13 +24,13 @@ const features = [
   <section class="container hero" aria-labelledby="hero-title">
     <div>
       <p class="eyebrow"><span class="brand-dot" aria-hidden="true"></span> Open source. Self-hosted.</p>
-      <h1 id="hero-title">Your print farm.<br /><span>One clear workspace.</span></h1>
-      <p class="hero-description">Bring your printers, filament, parts, and production together. Run OpenFarm on your own server and keep your farm moving.</p>
+      <h1 id="hero-title">3D print farm management.<br /><span>On your own terms.</span></h1>
+      <p class="hero-description">Queue production runs, match jobs to ready printers, and track filament and parts. One workspace, hosted on your own server.</p>
       <div class="actions">
-        <a class="button primary" href="/docs/installation/docker/">Set up OpenFarm <span aria-hidden="true">→</span></a>
-        <a class="button" href="/docs/">Read the docs</a>
+        <a class="button primary" href="/docs/installation/docker/">Install OpenFarm <span aria-hidden="true">→</span></a>
+        <a class="button" href="#workflow">Explore the workflow</a>
       </div>
-      <p class="hero-note">Connect directly to supported printers on your local network.</p>
+      <p class="hero-note">Open source · Direct LAN connections · Your data on your server</p>
     </div>
     <aside class="workflow" aria-labelledby="workflow-title">
       <div class="panel-heading"><img src="/openfarm.svg" alt="" width="22" height="22" /><h2 id="workflow-title">From file to finished part</h2></div>
@@ -35,11 +44,36 @@ const features = [
   </section>
 
   <section class="compatibility" aria-label="Printer compatibility">
-    <div class="container compatibility-inner"><p>Built for a connected farm</p><div><span>Bambu Lab</span><span>Snapmaker U1</span><a href="/docs/printers/supported-printers/">Check supported models <span aria-hidden="true">→</span></a></div></div>
+    <div class="container compatibility-inner"><p>Connect over your local network</p><div><span>Selected Bambu Lab models</span><span>Snapmaker U1</span><a href="#compatibility">Check compatibility <span aria-hidden="true">→</span></a></div></div>
+  </section>
+
+  <section id="workflow" class="container workflow-section" aria-labelledby="workflow-section-title">
+    <div class="section-heading"><p class="eyebrow">From a production target to the next print</p><h2 id="workflow-section-title">Plan the batch.<br />Keep the work moving.</h2><p>Give jobs a destination, track complete products, and make the next action clear.</p></div>
+    <article class="spotlight">
+      <div class="spotlight-copy"><p class="eyebrow">01 / Production runs</p><h3>Count finished products,<br />not just plates.</h3><p>Request complete assembly sets or fixed part quantities. OpenFarm totals the printed components across the run and plans the plate jobs.</p><p>Track produced output and unresolved shortfalls. Requeue missing units when a batch needs a replacement.</p><a class="text-link" href="/docs/production/runs/">Explore production runs <span aria-hidden="true">→</span></a></div>
+      <div class="explanation-panel" aria-label="Example assembly quantities">
+        <p class="diagram-caption">Example · Eight enclosure sets</p>
+        <div class="assembly-target"><span class="assembly-icon" aria-hidden="true">8</span><div><strong>Enclosure assembly</strong><span>One base + one lid per set</span></div></div>
+        <dl class="component-quantities"><div><dt>Printed bases</dt><dd>8 units</dd></div><div><dt>Printed lids</dt><dd>8 units</dd></div></dl>
+        <p class="panel-note">The run tracks the components needed for complete sets.</p>
+      </div>
+    </article>
+    <article class="spotlight spotlight-reverse">
+      <div class="spotlight-copy"><p class="eyebrow">02 / Printer matching</p><h3>See what a job needs<br />before it can print.</h3><p>Match queued work against printer configuration, loaded material, and readiness. When a job must wait, open its diagnosis to see which requirement needs attention.</p><p>Follow the link to the relevant configuration instead of searching through settings.</p><a class="text-link" href="/docs/production/matching/">Understand printer matching <span aria-hidden="true">→</span></a></div>
+      <div class="explanation-panel" aria-label="Printer matching requirements">
+        <p class="diagram-caption">What the queue checks</p>
+        <ul class="matching-checks"><li><span aria-hidden="true">01</span><div><strong>Printer configuration</strong><p>Compatible model, nozzle, and build plate</p></div></li><li><span aria-hidden="true">02</span><div><strong>Loaded material</strong><p>Tracked spools that meet the job requirements</p></div></li><li><span aria-hidden="true">03</span><div><strong>Readiness</strong><p>A reachable printer ready to take work</p></div></li></ul>
+        <p class="panel-note">The diagnosis explains unmet requirements.</p>
+      </div>
+    </article>
+    <article class="backfill-story">
+      <div><p class="eyebrow">03 / Continuous backfill</p><h3>Put spare capacity to work.</h3><p>Print repeat stock after fixed-quantity work. Assembly backfill balances printed components toward complete sets, so one available part does not leave the rest behind.</p></div>
+      <div><ul><li>Repeat whole plates on compatible printers</li><li>Limit how many printers an entry can use</li><li>Pause, resume, or refresh the assembly recipe</li></ul><a class="text-link" href="/docs/production/backfill/">Explore continuous backfill <span aria-hidden="true">→</span></a></div>
+    </article>
   </section>
 
   <section id="features" class="container features" aria-labelledby="features-title">
-    <div class="section-heading"><p class="eyebrow">Operate. Organize. Repeat.</p><h2 id="features-title">Less switching.<br />More making.</h2><p>One place for the daily work and the records behind it.</p></div>
+    <div class="section-heading"><p class="eyebrow">The records behind the production</p><h2 id="features-title">A connected workspace<br />for the rest of the farm.</h2><p>Keep materials, reusable parts, estimated costs, and team access close to the work.</p></div>
     <div class="feature-grid">
       {features.map((feature) => (
         <article class="feature">
@@ -51,8 +85,21 @@ const features = [
     </div>
   </section>
 
+  <section id="compatibility" class="container setup-section" aria-labelledby="setup-title">
+    <div class="section-heading"><p class="eyebrow">Check your setup</p><h2 id="setup-title">Start with your printers<br />and a server on their network.</h2><p>Check the current catalog and deployment requirements before installing.</p></div>
+    <div class="setup-grid">
+      <article class="setup-card"><h3>Supported printers</h3><dl><div><dt>Bambu Lab</dt><dd>X1, X1 Carbon, X1E, P1P, P1S, A1, A1 mini</dd></div><div><dt>Snapmaker</dt><dd>U1 through Moonraker</dd></div></dl><p>Model and camera support are separate. See the guide for the current connection requirements and limitations.</p><a class="text-link" href="/docs/printers/supported-printers/">Read the compatibility guide <span aria-hidden="true">→</span></a></article>
+      <article class="setup-card"><h3>Your OpenFarm installation</h3><ol><li>Prepare a Linux/amd64 host with Docker Compose.</li><li>Configure OpenFarm and PostgreSQL with persistent storage.</li><li>Connect a supported LAN printer and follow the quick start.</li></ol><a class="text-link" href="/docs/installation/docker/">Open the installation guide <span aria-hidden="true">→</span></a></article>
+    </div>
+  </section>
+
+  <section id="faq" class="container faq-section" aria-labelledby="faq-title">
+    <div class="section-heading"><p class="eyebrow">Before you get started</p><h2 id="faq-title">Common questions,<br />practical answers.</h2></div>
+    <div class="faq-list">{faqs.map((faq) => (<details><summary>{faq.question}</summary><div><p>{faq.answer}</p><a class="text-link" href={faq.href}>{faq.label} <span aria-hidden="true">→</span></a></div></details>))}</div>
+  </section>
+
   <section class="container ownership" aria-labelledby="ownership-title">
-    <div><p class="eyebrow">At home on your network</p><h2 id="ownership-title">Your server. Your farm.</h2><p>Keep the database and files on your own infrastructure. The OpenFarm server connects to your printers; your team works through the browser.</p></div>
+    <div><p class="eyebrow">Your server. Your farm.</p><h2 id="ownership-title">Bring your next batch together.</h2><p>Install OpenFarm, connect a supported printer, and take your first part from the library to the queue.</p></div>
     <div class="ownership-actions"><a class="button primary" href="/docs/installation/docker/">Installation guide <span aria-hidden="true">→</span></a><a class="text-link" href="https://github.com/getopenfarm/openfarm">Explore the source on GitHub <span aria-hidden="true">↗</span></a></div>
   </section>
 </Site>

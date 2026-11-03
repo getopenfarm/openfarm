@@ -4,13 +4,34 @@ import '../styles/global.css';
 interface Props {
   title?: string;
   description?: string;
+  noindex?: boolean;
 }
 
 const {
-  title = 'OpenFarm — Open source print farm management',
-  description = 'Manage your 3D printers, filament, parts, and production in one self-hosted workspace. Connect your farm and keep production moving with OpenFarm.',
+  title = 'OpenFarm | Self-hosted 3D print farm management software',
+  description = 'Open source 3D print farm management software. Queue production runs, match jobs to printers, and track filament and parts on your own server.',
+  noindex = false,
 } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
+const socialImage = new URL('/social-card.png', Astro.site);
+const isHomepage = Astro.url.pathname === '/';
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'WebSite', '@id': new URL('/#website', Astro.site).href, name: 'OpenFarm', url: Astro.site?.href, inLanguage: 'en' },
+    {
+      '@type': 'SoftwareApplication',
+      name: 'OpenFarm',
+      url: Astro.site?.href,
+      description,
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Linux server; web browser client',
+      sameAs: 'https://github.com/getopenfarm/openfarm',
+      license: 'https://github.com/getopenfarm/openfarm/blob/main/LICENSE',
+      featureList: ['Production runs', 'Printer matching', 'Continuous backfill', 'Filament tracking', 'Parts and assemblies', 'Cost estimates'],
+    },
+  ],
+};
 ---
 
 <!doctype html>
@@ -20,13 +41,26 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="color-scheme" content="light dark" />
+    {noindex && <meta name="robots" content="noindex, follow" />}
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <link rel="canonical" href={canonical} />
+    <meta property="og:site_name" content="OpenFarm" />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="OpenFarm — Self-hosted 3D print farm management" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
+    <meta name="twitter:image:alt" content="OpenFarm — Self-hosted 3D print farm management" />
+    {!noindex && <link rel="canonical" href={canonical} />}
+    <link rel="sitemap" href="/sitemap.xml" />
     <link rel="icon" type="image/svg+xml" href="/openfarm.svg" />
     <title>{title}</title>
+    {isHomepage && !noindex && <script type="application/ld+json" set:html={JSON.stringify(structuredData).replace(/</g, '\\u003c')} />}
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -38,6 +72,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
         </a>
         <nav aria-label="Main navigation">
           <a href="/#features">Features</a>
+          <a href="/#compatibility">Compatibility</a>
+          <a href="/#faq">FAQ</a>
           <a href="/docs/">Documentation</a>
           <a href="https://github.com/getopenfarm/openfarm">GitHub <span aria-hidden="true">↗</span></a>
         </nav>
@@ -49,6 +85,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
         <p>OpenFarm <span aria-hidden="true">·</span> Open source print farm management</p>
         <nav aria-label="Footer navigation">
           <a href="/docs/">Docs</a>
+          <a href="/docs/development/api/">API</a>
           <a href="https://github.com/getopenfarm/openfarm">Source code</a>
           <a href="https://github.com/getopenfarm/openfarm/issues">Report an issue</a>
         </nav>
