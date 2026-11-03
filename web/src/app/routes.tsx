@@ -69,7 +69,7 @@ export const router = createBrowserRouter([
           {
             path: '/profile/tokens/new',
             element: <TokenCreatePage />,
-            handle: { title: 'Add access token' },
+            handle: { title: 'New access token' },
           },
           { path: '/account', element: <Navigate to="/profile" replace /> },
           {

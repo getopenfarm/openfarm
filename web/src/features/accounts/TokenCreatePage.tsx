@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
+import { ShieldCheckIcon } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import { BackLink } from '@/components/back-link/BackLink';
@@ -11,6 +12,8 @@ import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   Field,
   FieldError,
@@ -18,6 +21,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
@@ -79,21 +83,18 @@ export function TokenCreatePage() {
     }
   }
   return (
-    <Page className="min-h-full flex-1">
+    <Page className="min-h-full flex-1 gap-[18px]">
       <PageHeader
-        title={credential ? 'Your token is ready' : 'Add access token'}
-        description="Let a script or an AI assistant use OpenFarm with only the permissions you choose."
+        className="[&_h2]:mb-1.5 [&_p]:text-[12.5px]"
+        title={credential ? form.getValues('name') : 'New access token'}
+        description={
+          credential
+            ? 'Your token is ready.'
+            : 'A token lets a script or an AI assistant use OpenFarm as you — with only what you choose here.'
+        }
         above={<BackLink to={home}>Access tokens</BackLink>}
       />
-      {credential ? (
-        <TokenCredential
-          credential={credential}
-          onDone={() => {
-            setCredential(null);
-            navigate(home, { replace: true });
-          }}
-        />
-      ) : !options.data ? (
+      {!options.data ? (
         options.isError ? (
           <ErrorState
             title="Could not load permissions"
@@ -104,99 +105,140 @@ export function TokenCreatePage() {
         )
       ) : (
         <form
-          className="flex flex-1 flex-col gap-6"
+          className="flex flex-1 flex-col gap-4"
           onSubmit={form.handleSubmit(submit)}
         >
-          <fieldset disabled={isSubmitting} className="contents">
-            <FieldGroup>
-              <Field data-invalid={!!errors.name}>
-                <FieldLabel htmlFor="token-name">Name</FieldLabel>
-                <Input
-                  id="token-name"
-                  maxLength={100}
-                  placeholder="e.g. Inventory reporting"
-                  {...form.register('name')}
-                  aria-invalid={!!errors.name}
-                  aria-describedby={
-                    errors.name ? 'token-name-error' : undefined
-                  }
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="grid items-start gap-[18px] pb-10 min-[1100px]:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="flex min-w-0 flex-col gap-4">
+              {credential ? (
+                <TokenCredential
+                  credential={credential}
+                  onDone={() => {
+                    setCredential(null);
+                    navigate(home, { replace: true });
+                  }}
                 />
-                {errors.name && (
-                  <FieldError id="token-name-error">
-                    {errors.name.message}
-                  </FieldError>
-                )}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="token-expiry">
-                  Expires (end of day, UTC)
-                </FieldLabel>
-                <Input
-                  id="token-expiry"
-                  className="w-48"
-                  type="date"
-                  min={localDay(tomorrow)}
-                  {...form.register('expiresOn')}
-                  aria-describedby="token-expiry-note"
-                />
-                <p
-                  id="token-expiry-note"
-                  className="text-xs text-muted-foreground"
-                >
-                  {expiry
-                    ? 'The credential stops working at the end of this date, UTC. Clear the date for no expiry.'
-                    : 'Never expires. Anyone who gets this credential can use it until you revoke it.'}
-                </p>
-              </Field>
-              <section
-                className="flex flex-col gap-3"
-                aria-labelledby="token-permissions"
-              >
-                <h3 id="token-permissions" className="text-sm font-semibold">
-                  Permissions
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Choose a level per area, or Custom for individual abilities.
-                  You can only hand on access you currently hold. Account
-                  administration requires a browser session.
-                </p>
-                {options.data.available?.length ? (
-                  <AccessEditor
-                    areas={options.data.areas ?? []}
-                    permissions={options.data.permissions ?? []}
-                    available={options.data.available}
-                    value={selected}
-                    onChange={(v) =>
-                      form.setValue('permissions', v, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      })
-                    }
-                    disabled={isSubmitting}
-                  />
-                ) : (
-                  <EmptyState
-                    title="Nothing to hand on yet"
-                    description="Ask an administrator to grant your account access."
-                  />
-                )}
-                {errors.permissions && (
-                  <FieldError role="alert">
-                    {errors.permissions.message}
-                  </FieldError>
-                )}
-              </section>
-              <section
-                className="rounded-lg border bg-card p-4"
-                aria-label="This token can"
-              >
-                <h3 className="mb-2 text-sm font-semibold">This token can</h3>
+              ) : (
+                <fieldset disabled={isSubmitting} className="contents">
+                  <TokenPanel title="Token" titleId="token-details">
+                    <FieldGroup className="gap-4">
+                      <Field data-invalid={!!errors.name} className="gap-1.5">
+                        <FieldLabel
+                          htmlFor="token-name"
+                          className="text-[12.5px]"
+                        >
+                          Name
+                        </FieldLabel>
+                        <Input
+                          id="token-name"
+                          className="h-9 text-[13.5px]"
+                          maxLength={100}
+                          placeholder="e.g. Claude — farm reporting"
+                          {...form.register('name')}
+                          aria-invalid={!!errors.name}
+                          aria-describedby={
+                            errors.name ? 'token-name-error' : 'token-name-note'
+                          }
+                        />
+                        <p
+                          id="token-name-note"
+                          className="text-[11.5px] text-muted-foreground"
+                        >
+                          What uses this token, so you can tell it apart later.
+                        </p>
+                        {errors.name && (
+                          <FieldError id="token-name-error">
+                            {errors.name.message}
+                          </FieldError>
+                        )}
+                      </Field>
+                      <Field className="gap-1.5">
+                        <FieldLabel
+                          htmlFor="token-expiry"
+                          className="text-[12.5px]"
+                        >
+                          Expires
+                        </FieldLabel>
+                        <Controller
+                          control={form.control}
+                          name="expiresOn"
+                          render={({ field }) => (
+                            <DatePicker
+                              id="token-expiry"
+                              {...field}
+                              min={localDay(tomorrow)}
+                              disabled={isSubmitting}
+                              placeholder="Never expires"
+                              clearLabel="Remove the expiry date"
+                              describedBy="token-expiry-note"
+                            />
+                          )}
+                        />
+                        <p
+                          id="token-expiry-note"
+                          className={
+                            expiry
+                              ? 'text-[11.5px] text-muted-foreground'
+                              : 'text-[11.5px] text-amber'
+                          }
+                        >
+                          {expiry
+                            ? `Works until the end of ${new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${expiry}T00:00:00Z`))} (UTC), then stops.`
+                            : 'Anyone who gets this token can use it until you revoke it.'}
+                        </p>
+                      </Field>
+                    </FieldGroup>
+                  </TokenPanel>
+                  <TokenPanel title="Permissions" titleId="token-permissions">
+                    {options.data.available?.length ? (
+                      <>
+                        <p className="mb-3 text-[12.5px] text-muted-foreground">
+                          Pick a level for each area. Choose Custom to pick
+                          single abilities. Areas you can't hand on are greyed
+                          out.
+                        </p>
+                        <AccessEditor
+                          areas={options.data.areas ?? []}
+                          permissions={options.data.permissions ?? []}
+                          available={options.data.available}
+                          value={selected}
+                          onChange={(v) =>
+                            form.setValue('permissions', v, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                          disabled={isSubmitting}
+                        />
+                      </>
+                    ) : (
+                      <EmptyState
+                        title="Nothing to hand on yet"
+                        description="Ask an administrator to grant your account access."
+                      />
+                    )}
+                    {errors.permissions && (
+                      <FieldError role="alert">
+                        {errors.permissions.message}
+                      </FieldError>
+                    )}
+                  </TokenPanel>
+                </fieldset>
+              )}
+            </div>
+            <aside className="min-w-0" aria-label="Token access summary">
+              <TokenPanel title="This token can" titleId="token-summary">
                 {selected.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Nothing yet. Choose at least one permission.
+                  <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
+                    Nothing yet. Pick a level for at least one area.
                   </p>
                 ) : (
-                  <ul className="space-y-2 text-xs">
+                  <ul className="flex flex-col gap-2.5" aria-live="polite">
                     {options.data.areas
                       ?.filter((a) =>
                         options.data.permissions?.some(
@@ -205,54 +247,95 @@ export function TokenCreatePage() {
                         ),
                       )
                       .map((a) => (
-                        <li key={a.key}>
-                          <strong>{a.label}: </strong>
-                          {describeArea(
-                            (options.data?.permissions?.filter(
-                              (p) => p.area === a.key,
-                            ) ?? []) as Ability[],
-                            a.noun ?? '',
-                            selected,
-                          )}
+                        <li key={a.key} className="flex flex-col gap-px">
+                          <span className="text-[13px] font-semibold">
+                            {a.label}
+                          </span>
+                          <span className="text-[12.5px] leading-[1.45] text-muted-foreground">
+                            {describeArea(
+                              (options.data?.permissions?.filter(
+                                (p) => p.area === a.key,
+                              ) ?? []) as Ability[],
+                              a.noun ?? '',
+                              selected,
+                            )}
+                          </span>
                         </li>
                       ))}
                   </ul>
                 )}
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Never more than your current access at the moment it is used.
+                <Separator className="mt-3.5 mb-3" />
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <ShieldCheckIcon className="mt-px size-3.5 shrink-0" />
+                  <span>
+                    Never more than you can do yourself at the moment it is
+                    used.
+                  </span>
                 </p>
-              </section>
-            </FieldGroup>
-          </fieldset>
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+              </TokenPanel>
+            </aside>
+          </div>
+          {!credential && isDirty && (
+            <FormFooter
+              className="mx-0 mb-0 border-0 px-0 [&>div]:w-full"
+              end={
+                <>
+                  <span className="mr-auto text-[12.5px] text-muted-foreground">
+                    Not created yet
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      form.reset();
+                      setError('');
+                    }}
+                  >
+                    Discard
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting || !options.data.available?.length}
+                  >
+                    {isSubmitting && <Spinner data-icon="inline-start" />}
+                    {isSubmitting ? 'Creating…' : 'Create token'}
+                  </Button>
+                </>
+              }
+            />
           )}
-          <FormFooter
-            end={
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isSubmitting}
-                  onClick={() => navigate(home)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmitting || !options.data.available?.length}
-                >
-                  {isSubmitting && <Spinner data-icon="inline-start" />}
-                  {isSubmitting ? 'Creating…' : 'Create token'}
-                </Button>
-              </>
-            }
-          />
         </form>
       )}
       <ConfirmLeaveDialog />
     </Page>
+  );
+}
+
+function TokenPanel({
+  title,
+  titleId,
+  children,
+}: {
+  title: string;
+  titleId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card
+      role="region"
+      aria-labelledby={titleId}
+      className="min-w-0 gap-3 rounded-lg border py-4 shadow-sm ring-0"
+    >
+      <CardHeader className="px-[18px]">
+        <CardTitle
+          id={titleId}
+          className="text-[11px] font-semibold tracking-[0.05em] text-muted-foreground uppercase"
+        >
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-[18px]">{children}</CardContent>
+    </Card>
   );
 }

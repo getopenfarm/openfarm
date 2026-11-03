@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -126,4 +126,55 @@ it('reports clipboard failure with a manual-copy fallback', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Select the credential and copy it manually.',
   );
+});
+
+it('keeps the access summary in its own side card and updates it with selected abilities', async () => {
+  const user = userEvent.setup();
+  setup();
+  const rail = await screen.findByRole('complementary', {
+    name: 'Token access summary',
+  });
+  expect(
+    within(rail).getByRole('region', { name: 'This token can' }),
+  ).toBeInTheDocument();
+  expect(rail).toHaveTextContent(
+    'Nothing yet. Pick a level for at least one area.',
+  );
+  await user.click(screen.getByRole('radio', { name: 'View' }));
+  expect(rail).toHaveTextContent('Printers');
+  expect(rail).toHaveTextContent('Can list printers.');
+  expect(rail).not.toHaveTextContent('Nothing yet.');
+});
+it('clears expiry to no expiry and Discard restores the original form', async () => {
+  const user = userEvent.setup();
+  setup();
+  const trigger = await screen.findByLabelText('Expires');
+  const original = trigger.textContent;
+  await user.click(
+    screen.getByRole('button', { name: 'Remove the expiry date' }),
+  );
+  expect(trigger).toHaveTextContent('Never expires');
+  expect(
+    screen.getByText(
+      'Anyone who gets this token can use it until you revoke it.',
+    ),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Discard' }));
+  expect(trigger.textContent).toBe(original);
+  await user.click(
+    screen.getByRole('button', { name: 'Remove the expiry date' }),
+  );
+  await user.type(screen.getByLabelText('Name'), 'No expiry');
+  await user.click(screen.getByRole('radio', { name: 'View' }));
+  await user.click(screen.getByRole('button', { name: 'Create token' }));
+  await screen.findByText(credential);
+  expect(http).toHaveBeenCalledWith(
+    '/api/v1/auth/tokens',
+    expect.objectContaining({
+      body: expect.stringContaining('"expiresOn":null'),
+    }),
+  );
+  expect(
+    screen.getByRole('complementary', { name: 'Token access summary' }),
+  ).toHaveTextContent('Can list printers.');
 });
