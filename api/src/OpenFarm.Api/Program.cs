@@ -167,7 +167,14 @@ var jwtSigningKey = builder.Configuration["Jwt:SigningKey"] is { Length: > 0 } c
 builder.Configuration["Jwt:SigningKey"] = jwtSigningKey;
 
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddAuthentication("ApiBearer")
+    .AddPolicyScheme("ApiBearer", "Browser JWT or personal access token", options =>
+    {
+        options.ForwardDefaultSelector = context => context.Request.Headers.Authorization.ToString()
+            .StartsWith("Bearer " + PersonalAccessTokenService.Prefix, StringComparison.OrdinalIgnoreCase)
+                ? PersonalAccessTokenHandler.SchemeName : JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, PersonalAccessTokenHandler>(PersonalAccessTokenHandler.SchemeName, _ => { })
     .AddJwtBearer(options =>
     {
         options.MapInboundClaims = false;
@@ -207,11 +214,13 @@ builder.Services
     });
 
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("Permission", p => p.Requirements.Add(new PermissionRequirement()));
+    .AddPolicy("Permission", p => p.Requirements.Add(new PermissionRequirement()))
+    .AddPolicy("BrowserSession", p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser().RequireClaim("sid"));
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<BrowserSessionService>();
 builder.Services.AddHostedService<SessionCleanupService>();
 builder.Services.AddScoped<PermissionService>();
+builder.Services.AddScoped<PersonalAccessTokenService>();
 builder.Services.AddScoped<AccountAdministrationService>();
 builder.Services.AddSingleton<FarmConnections>();
 builder.Services.AddSingleton<IFarmEventClients, AuthorizedFarmClients>();
@@ -589,7 +598,7 @@ app.UseFastEndpoints(c =>
 });
 app.UseSwaggerGen();
 
-app.MapHub<FarmHub>("/hubs/farm", o => o.CloseOnAuthenticationExpiration = true);
+app.MapHub<FarmHub>("/hubs/farm", o => o.CloseOnAuthenticationExpiration = true).RequireAuthorization("BrowserSession");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");

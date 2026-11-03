@@ -16,6 +16,10 @@ public sealed class PermissionAuthorizationHandler(PermissionService permissions
             || !Guid.TryParse(context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var userId)) return;
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.IsEnabled, http.RequestAborted);
         if (user is null) return;
+        var isToken = context.User.HasClaim(c => c.Type == "pat");
+        // Account/session administration always requires a browser JWT, even for an administrator's token.
+        if (isToken && (http.Request.Path.StartsWithSegments("/api/v1/admin")
+            || (http.Request.Path.StartsWithSegments("/api/v1/auth") && http.Request.Path != "/api/v1/auth/whoami"))) return;
         var endpoint = http.GetEndpoint();
         var metadata = endpoint?.Metadata.GetMetadata<PermissionAttribute>();
         // FastEndpoints exposes endpoint attributes via its endpoint definition as well.
@@ -38,6 +42,7 @@ public sealed class PermissionAuthorizationHandler(PermissionService permissions
             else if (library == "assemblies") required.Add("assemblies:view");
             else return;
         }
-        if (required.All(p => access.Permissions.Contains(p, StringComparer.Ordinal))) context.Succeed(requirement);
+        var scope = context.User.FindAll(PersonalAccessTokenHandler.PermissionClaim).Select(c => c.Value).ToHashSet(StringComparer.Ordinal);
+        if (required.All(p => access.Permissions.Contains(p, StringComparer.Ordinal) && (!isToken || scope.Contains(p)))) context.Succeed(requirement);
     }
 }

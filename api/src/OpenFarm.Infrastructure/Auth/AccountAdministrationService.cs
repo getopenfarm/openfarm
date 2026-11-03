@@ -18,7 +18,7 @@ public sealed record ResetPasswordInput(string Password);
 public sealed record ProfileInput(string? Name, string Email, string Username);
 
 public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManager<ApplicationUser> users,
-    RoleManager<ApplicationRole> roles, PermissionService permissions, BrowserSessionService sessions)
+    RoleManager<ApplicationRole> roles, PermissionService permissions, BrowserSessionService sessions, PersonalAccessTokenService tokens)
 {
     public async Task<AccountResponse[]> ListUsersAsync(CancellationToken ct)
     {
@@ -89,7 +89,11 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         Audit(actor, "User", user.Id, id is null ? "UserCreated" : "UserUpdated");
         await db.SaveChangesAsync(ct);
         await EnsureAdministratorAsync(ct);
-        if (!user.IsEnabled) await sessions.RevokeAsync(user.Id, null, actor, ct);
+        if (!user.IsEnabled)
+        {
+            await sessions.RevokeAsync(user.Id, null, actor, ct);
+            await tokens.RevokeAsync(user.Id, null, actor, ct);
+        }
         await transaction.CommitAsync(ct);
         return user.Id;
     }
@@ -183,6 +187,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         if (result.Errors.Any(e => e.Code == "PasswordMismatch")) throw new ArgumentException("Current password is incorrect.");
         Check(result);
         await sessions.RevokeAsync(userId, null, userId, currentSessionId, ct);
+        await tokens.RevokeAsync(userId, null, userId, ct);
         Audit(userId, "User", userId, "PasswordChanged");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -199,6 +204,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         user.SecurityStamp = Guid.NewGuid().ToString();
         Check(await users.UpdateAsync(user));
         await sessions.RevokeAsync(userId, null, actor, ct);
+        await tokens.RevokeAsync(userId, null, actor, ct);
         Audit(actor, "User", userId, "PasswordReset");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

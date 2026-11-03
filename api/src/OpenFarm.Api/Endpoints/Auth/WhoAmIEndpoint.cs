@@ -32,6 +32,11 @@ public sealed class WhoAmIEndpoint(IQueryHandler<WhoAmIQuery, WhoAmIResult?> han
             return;
         }
 
+        if (User.HasClaim(c => c.Type == "pat"))
+        {
+            var scope = User.FindAll(PersonalAccessTokenHandler.PermissionClaim).Select(c => c.Value);
+            result = result with { Permissions = result.Permissions.Intersect(scope, StringComparer.Ordinal).ToArray(), IsAdministrator = false };
+        }
         Response = result;
     }
 }

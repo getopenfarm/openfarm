@@ -19,6 +19,8 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
 {
     public DbSet<OpenFarm.Domain.Library.LibraryFolder> LibraryFolders => Set<OpenFarm.Domain.Library.LibraryFolder>();
 
+    public DbSet<PersonalAccessToken> PersonalAccessTokens => Set<PersonalAccessToken>();
+
     public DbSet<BrowserSession> BrowserSessions => Set<BrowserSession>();
 
     public DbSet<SessionCredential> SessionCredentials => Set<SessionCredential>();

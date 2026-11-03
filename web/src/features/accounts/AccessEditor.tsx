@@ -39,6 +39,7 @@ export function AccessEditor({
   value,
   onChange,
   inherited = [],
+  available,
   disabled = false,
 }: {
   areas: PermissionArea[];
@@ -46,11 +47,14 @@ export function AccessEditor({
   value: string[];
   onChange: (keys: string[]) => void;
   inherited?: string[];
+  /** For tokens: abilities the owner may hand on. Unavailable choices stay visible and disabled. */
+  available?: string[];
   disabled?: boolean;
 }) {
   const id = useId();
   /** Areas whose Custom panel was opened by hand, while still on a level. */
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  const allowed = available ? new Set(available) : null;
   const chosen = new Set(value);
   const fromGroup = new Set(inherited);
   const held = (key: string) => chosen.has(key) || fromGroup.has(key);
@@ -76,14 +80,22 @@ export function AccessEditor({
       rows
         .flatMap((row) => row.leaves)
         .map((leaf) => leaf.key)
-        .filter((key) => !fromGroup.has(key) && isOn(key)),
+        .filter(
+          (key) =>
+            !fromGroup.has(key) && (!allowed || allowed.has(key)) && isOn(key),
+        ),
     );
   }
 
   function isBlocked(leaves: Ability[], level: AccessLevel) {
     const want = new Set(levelLeaves(leaves, level).map((l) => l.key));
-    return levelledLeaves(leaves).some(
-      (leaf) => fromGroup.has(leaf.key) && !want.has(leaf.key),
+    return (
+      levelLeaves(leaves, level).some(
+        (leaf) => allowed && !allowed.has(leaf.key),
+      ) ||
+      levelledLeaves(leaves).some(
+        (leaf) => fromGroup.has(leaf.key) && !want.has(leaf.key),
+      )
     );
   }
 
@@ -96,7 +108,12 @@ export function AccessEditor({
   }
 
   function toggle(leaf: Ability, on: boolean) {
-    if (disabled || fromGroup.has(leaf.key)) return;
+    if (
+      disabled ||
+      fromGroup.has(leaf.key) ||
+      (allowed && !allowed.has(leaf.key))
+    )
+      return;
     // Keep the panel open: a switch that happens to land on a level must not
     // fold the switches away under the pointer.
     if (!leaf.isExplicit) setOpen(leaf.area, true);
@@ -105,7 +122,8 @@ export function AccessEditor({
 
   function ability(area: Required<PermissionArea>, leaf: Ability) {
     const on = held(leaf.key);
-    const locked = disabled || fromGroup.has(leaf.key);
+    const unavailable = !!allowed && !allowed.has(leaf.key);
+    const locked = disabled || fromGroup.has(leaf.key) || unavailable;
     return (
       <label
         key={leaf.key}
@@ -137,6 +155,7 @@ export function AccessEditor({
             )}
           </span>
           <span className="text-xs leading-[1.4] text-muted-foreground">
+            {unavailable ? 'You can’t hand this on. ' : ''}
             {leaf.description}
           </span>
         </span>
@@ -216,7 +235,13 @@ export function AccessEditor({
                         key={l}
                         value={l}
                         disabled={disabled || blocked}
-                        title={blocked ? BLOCKED : undefined}
+                        title={
+                          blocked
+                            ? allowed
+                              ? 'You can’t hand this on.'
+                              : BLOCKED
+                            : undefined
+                        }
                         className={segment}
                       >
                         {LEVEL_LABELS[l]}
