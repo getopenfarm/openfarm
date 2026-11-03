@@ -177,8 +177,8 @@ behind. Reconciliation is the safety net of last resort, not a licence to lose w
 
 ## Governance
 
-This constitution supersedes ad hoc practice. `CLAUDE.md`, `docs/FEATURE_PLAN.md`, and
-`docs/TECH_STACKS.md` operationalize these principles for day-to-day work and carry the detailed
+This constitution supersedes ad hoc practice. `CLAUDE.md`, `dev-notes/FEATURE_PLAN.md`, and
+`dev-notes/TECH_STACKS.md` operationalize these principles for day-to-day work and carry the detailed
 rationale referenced above.
 
 Amendments are proposed via a PR modifying this file. Each amendment PR MUST include an updated Sync

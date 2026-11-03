@@ -73,7 +73,7 @@ are hand-authored catalog entities, not per-job data) is expected to stay small 
 in memory even at hundreds of assemblies. Doing it as a pure C# algorithm over a fetched edge list, rather
 than a second independent SQL implementation of graph traversal, keeps exactly one recursive-traversal
 implementation to reason about and test (R1's), while making the validation rule itself — the thing the
-constitution separately calls out as "the clearest TDD target in the plan" per `docs/FEATURE_PLAN.md` —
+constitution separately calls out as "the clearest TDD target in the plan" per `dev-notes/FEATURE_PLAN.md` —
 directly unit-testable with xUnit + FluentAssertions against constructed graphs, no database required.
 This is squarely inside what constitution Principle II requires TDD for ("Domain state machines,
 BOM/assembly recursive decomposition... non-trivial FluentValidation gates").

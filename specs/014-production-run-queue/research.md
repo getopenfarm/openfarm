@@ -1,7 +1,7 @@
 # Phase 0 Research: Production runs, jobs & print queue
 
 No `[NEEDS CLARIFICATION]` markers remain in `spec.md`'s Technical Context — the genuinely open points
-from `docs/FEATURE_PLAN.md` (run-closing trigger, backfill ceiling default, `priority` field usage,
+from `dev-notes/FEATURE_PLAN.md` (run-closing trigger, backfill ceiling default, `priority` field usage,
 capability tie-break) were resolved as documented defaults in the spec's own Assumptions section. This
 document instead records the non-trivial *implementation-approach* decisions, grounded in a direct
 codebase audit of Phases 0–6 (Printers, Parts, FilamentTracking, Assemblies) rather than the spec — this
@@ -162,7 +162,7 @@ Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancella
 Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
 ```
 
-`BambuLanConnector` implements `StartJobAsync` as an FTPS upload (port 990, per `docs/FEATURE_PLAN.md`'s
+`BambuLanConnector` implements `StartJobAsync` as an FTPS upload (port 990, per `dev-notes/FEATURE_PLAN.md`'s
 own Phase 1 risk note: "FTPS file transfer runs on port 990 and becomes relevant in Phase 7 ... not this
 phase" — confirming this integration point was always intended to land here) followed by an MQTT
 print-start command; `PauseJobAsync`/`ResumeJobAsync`/`StopJobAsync` are each a single MQTT publish (the
@@ -193,7 +193,7 @@ LAN MQTT broker accepts a second, short-lived client connection issuing a comman
 printer, or whether these commands need to be published on that *same* client connection instead, is a
 real protocol question that can only be settled against physical hardware — flagged here for `tasks.md`
 and manual verification, the same "unofficial, unversioned MQTT access" risk already called out in
-`docs/FEATURE_PLAN.md`'s own Risks/notes for Phase 1. The interface above is written the simpler,
+`dev-notes/FEATURE_PLAN.md`'s own Risks/notes for Phase 1. The interface above is written the simpler,
 stateless way (open, command, close, matching `VerifyAsync`'s own existing shape) as the starting
 assumption; if hardware testing shows the broker rejects concurrent connections, the fix is
 `BambuLanConnector` internally routing these four calls through whatever connection
@@ -224,7 +224,7 @@ earlier).
 additive-only feature — flagged explicitly so it isn't mistaken for a design gap during implementation. Without it, FR-009's Snapshot mode is unimplementable the moment a Follow-latest-adjacent replace happens
 elsewhere in the same farm: the old bytes a Snapshot job still needs would already be gone. Garbage-
 collecting a revision's bytes once genuinely nothing references it (no Snapshot job, no Part row currently
-pointing at it) is explicitly **not** built in this phase — `docs/FEATURE_PLAN.md`'s own words, "full
+pointing at it) is explicitly **not** built in this phase — `dev-notes/FEATURE_PLAN.md`'s own words, "full
 version history is not implied and stays out of scope," are read here as license to let retained-but-
 unreferenced revision files accumulate on disk for now rather than build a reference-counting reaper; this
 is recorded as a deferred cleanup concern in Assumptions, not silently ignored.
@@ -268,7 +268,7 @@ codebase uses anywhere today.
 ## R10 — Printer tags: not modeled yet, matching narrowed accordingly
 
 **Finding**: no `PrinterTag`/tag-on-printer concept exists anywhere in the current codebase — a direct
-grep across `Printer.cs` and every feature spec through `013-assembly-bom` confirms it. `docs/FEATURE_PLAN.md`'s
+grep across `Printer.cs` and every feature spec through `013-assembly-bom` confirms it. `dev-notes/FEATURE_PLAN.md`'s
 Phase 5 ("Printer tags... location, capability, farm zone") describes intended future scope, not
 already-shipped schema.
 
@@ -287,7 +287,7 @@ treated as the simpler/less versatile machine) and picks the first; a full tie f
 ordering for determinism.
 
 **Rationale**: this is explicitly named in the spec's own Assumptions as "a cheap heuristic, not real
-optimization" (`docs/FEATURE_PLAN.md`: "whole-queue optimization is Phase 12's job"), and total AMS/tray
+optimization" (`dev-notes/FEATURE_PLAN.md`: "whole-queue optimization is Phase 12's job"), and total AMS/tray
 count is the one capability signal already present on every printer row today (`Printer.AmsUnits`) without
 depending on a linked `MachineProfile` being present or parseable — using it keeps the tie-break from
 silently no-op'ing (falling through to the arbitrary `Printer.Id` case) for the common farm that hasn't

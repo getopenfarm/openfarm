@@ -1,0 +1,41 @@
+name: Documentation
+
+on:
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install docs dependencies
+        working-directory: docs
+        run: bun install --frozen-lockfile
+      - name: Typecheck
+        working-directory: docs
+        run: bun run typecheck
+      - name: Build and validate links
+        working-directory: docs
+        run: bun run build

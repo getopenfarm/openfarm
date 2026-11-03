@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Phase 2 in @docs/FEATURE_PLAN.md"
+**Input**: User description: "Phase 2 in @dev-notes/FEATURE_PLAN.md"
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -249,7 +249,7 @@ value, saving, and confirming the catalog now reflects the new value.
   are out of scope until a later phase, if ever.
 - A preset's declared base is frequently a built-in preset shipped with the slicer itself (e.g. a stock
   vendor filament preset), which is never exported or imported on its own since OpenFarm never seeds
-  default slicer profiles (consistent with `docs/FEATURE_PLAN.md`'s "import-your-own-bundle only"
+  default slicer profiles (consistent with `dev-notes/FEATURE_PLAN.md`'s "import-your-own-bundle only"
   design). Storing an override whose base reference never resolves to a catalog record is therefore the
   common case, not an exceptional one.
 - A filament preset's declared printer compatibility is stored and shown as plain declared text (FR-016)
@@ -259,7 +259,7 @@ value, saving, and confirming the catalog now reflects the new value.
   "catalog data only, no cross-record linking beyond base/override" scope for its first phase.
 - Structured per-field create/edit forms are explicitly out of scope for this phase; the raw JSON
   editor/viewer is the only way to inspect or correct an imported profile, consistent with
-  `docs/FEATURE_PLAN.md` Phase 2 deferring per-attribute forms until real imported data has settled the
+  `dev-notes/FEATURE_PLAN.md` Phase 2 deferring per-attribute forms until real imported data has settled the
   schema.
 - No live printer connection or printer/job linkage is needed or built in this feature — imported
   profiles are a standalone library; wiring a machine profile onto a fleet `Printer` row or a filament

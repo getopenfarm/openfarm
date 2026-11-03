@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Create specifications based on docs/FEATURE_PLAN.md" — scoped to Phase 0 (Foundation) per user clarification, including a base UI kit setup.
+**Input**: User description: "Create specifications based on dev-notes/FEATURE_PLAN.md" — scoped to Phase 0 (Foundation) per user clarification, including a base UI kit setup.
 
 ## User Scenarios & Testing *(mandatory)*
 

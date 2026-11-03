@@ -32,7 +32,7 @@
 ## Notes
 
 - All items pass on first validation pass. No [NEEDS CLARIFICATION] markers were needed — the source
-  material in `docs/FEATURE_PLAN.md` Phase 2 (and its cross-referenced Dependency notes) already resolved
+  material in `dev-notes/FEATURE_PLAN.md` Phase 2 (and its cross-referenced Dependency notes) already resolved
   the scope-critical questions (supported bundle formats, no manual forms, no printer/job linkage yet),
   so remaining ambiguities (duplicate handling, permission gating) were closed with documented reasonable
   defaults in the Assumptions section instead.

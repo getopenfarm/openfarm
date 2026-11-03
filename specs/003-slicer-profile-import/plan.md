@@ -28,7 +28,7 @@ it against the machine-profile catalog was designed and then deliberately cut fo
 profiles
 are viewable in two separate catalog lists and editable only through a raw JSON viewer/editor — no
 structured per-field forms, no printer/job linkage, consistent with this phase's deliberately narrow
-scope per `docs/FEATURE_PLAN.md` Phase 2.
+scope per `dev-notes/FEATURE_PLAN.md` Phase 2.
 
 ## Technical Context
 

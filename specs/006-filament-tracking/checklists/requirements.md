@@ -31,7 +31,7 @@
 
 ## Notes
 
-- All checklist items pass. The roadmap in `docs/FEATURE_PLAN.md` (Phase 3 — Filament tracking) already resolved every open design question for this feature, so no [NEEDS CLARIFICATION] markers were needed; forward dependencies on later phases (auto-reload feed-slot configuration from Phase 4, formal job/consumption tracking from Phase 8) are captured explicitly in the Assumptions section instead.
+- All checklist items pass. The roadmap in `dev-notes/FEATURE_PLAN.md` (Phase 3 — Filament tracking) already resolved every open design question for this feature, so no [NEEDS CLARIFICATION] markers were needed; forward dependencies on later phases (auto-reload feed-slot configuration from Phase 4, formal job/consumption tracking from Phase 8) are captured explicitly in the Assumptions section instead.
 - 2026-07-18 clarification session: introduced the Filament (type) / Spool (instance) split plus a separate Vendor entity, per the existing `web/src/features/filament` and `web/src/features/spools` mockups. Re-validated — all items still pass.
 - 2026-07-18 follow-up revision: Filament color variants no longer define weight options — starting weight is entered freely per spool at creation time instead. Re-validated — all items still pass.
 - 2026-07-18 second follow-up revision: spool creation now captures two fields — Spool Weight (predefined-list or custom) and Remaining Weight (defaults to Spool Weight, lowerable at creation for already-partially-used spools). FR numbering shifted (new FR-002; old FR-002–017 renumbered to FR-003–018). Re-validated — all items still pass.

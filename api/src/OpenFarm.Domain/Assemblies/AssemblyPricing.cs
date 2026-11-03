@@ -3,7 +3,7 @@ namespace OpenFarm.Domain.Assemblies;
 /// <summary>
 /// How the selling price is set: a fixed <c>Price</c>, or a <c>Margin</c>/<c>Markup</c> percent that
 /// makes the price follow cost. Sales-channel fees are applied by the estimate, not stored here, so a
-/// margin that fees later make unreachable is a display state, not an invalid record (docs/PRICING.md).
+/// margin that fees later make unreachable is a display state, not an invalid record (dev-notes/PRICING.md).
 /// </summary>
 public sealed record AssemblyPricing
 {

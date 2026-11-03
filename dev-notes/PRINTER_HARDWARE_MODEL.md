@@ -91,7 +91,7 @@ The printer detail page's Hardware card shows the model, driver, camera and one 
    inside the adapter; no Application or Domain code may know the protocol.
 2. Route the driver in `PrinterConnectorFactory`.
 3. Map its connection fields and copy in `PrinterConnectionFieldsResponse.For`.
-4. Add its catalog entries, then fixture-replay tests against a fake transport (see `docs/SNAPMAKER_U1.md`).
+4. Add its catalog entries, then fixture-replay tests against a fake transport (see `dev-notes/SNAPMAKER_U1.md`).
 
 ## Next: Bambu H2D (dual nozzle)
 

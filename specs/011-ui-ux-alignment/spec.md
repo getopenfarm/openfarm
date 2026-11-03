@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "I want optimize/modify the current UI according to @../docs/UI_CONVENTIONS.md to have better UX. Please go through current code base again, since there are some changes since we write the convention."
+**Input**: User description: "I want optimize/modify the current UI according to @../dev-notes/UI_CONVENTIONS.md to have better UX. Please go through current code base again, since there are some changes since we write the convention."
 
 ## Clarifications
 
@@ -17,7 +17,7 @@
 
 ## Codebase re-scan summary
 
-`docs/UI_CONVENTIONS.md` was written to end the drift between routed-page and
+`dev-notes/UI_CONVENTIONS.md` was written to end the drift between routed-page and
 modal-dialog treatments of Add/Edit flows. Re-checking the codebase against
 its classification table today shows:
 
@@ -212,7 +212,7 @@ timing as the Printer/Spool/Part forms delivered in User Story 2.
 - **FR-012**: On successful create/update from any page in scope, the system
   MUST show a success toast, invalidate the relevant cached query data, and
   navigate back to the feature's list page.
-- **FR-013**: The modals explicitly reserved by `docs/UI_CONVENTIONS.md`
+- **FR-013**: The modals explicitly reserved by `dev-notes/UI_CONVENTIONS.md`
   (confirmations already using alert-dialog, quick actions on an existing
   entity, and in-form pickers/sub-entity add) MUST remain unchanged as modals.
 - **FR-014**: If an operator attempts to navigate away from any Add/Edit page
@@ -247,10 +247,10 @@ timing as the Printer/Spool/Part forms delivered in User Story 2.
 - Jobs' and Maintenance's "New" actions are excluded from this feature: both
   are currently non-functional stubs (toast "not implemented yet") backed by
   mock data stores with no real backend create flow to classify as page or
-  modal yet. They will be classified per `docs/UI_CONVENTIONS.md` when their
+  modal yet. They will be classified per `dev-notes/UI_CONVENTIONS.md` when their
   real create flow is built in a later phase.
 - The in-form pickers, quick-action dialogs, and inspect dialogs already
-  classified as correct modals in `docs/UI_CONVENTIONS.md` (feed unit,
+  classified as correct modals in `dev-notes/UI_CONVENTIONS.md` (feed unit,
   variant, vendor quick-create, part picker, load/unload/record-usage,
   replace-part-file, profile raw-data view) are out of scope — this feature
   only touches the flows the doc lists as needing migration, plus the two
@@ -259,12 +259,12 @@ timing as the Printer/Spool/Part forms delivered in User Story 2.
   (spec `007-part-library`) once moved to a page; this is a presentation
   change only, not a behavior change.
 - The unsaved-changes-on-navigation prompt (FR-014) is a net-new UX
-  improvement not explicitly in `docs/UI_CONVENTIONS.md` today, added because
+  improvement not explicitly in `dev-notes/UI_CONVENTIONS.md` today, added because
   converting these flows from modals (which already blocked background
   navigation) to full pages introduces a new way to accidentally navigate away
   and lose input.
 - This feature is delivered as one coordinated effort rather than the
-  incremental "next time touched" migration `docs/UI_CONVENTIONS.md` normally
+  incremental "next time touched" migration `dev-notes/UI_CONVENTIONS.md` normally
   allows, per the user's explicit request to address the drift now.
 - No backend Assembly API exists (no controller, no endpoints, no generated
   Orval client — unlike Filament/Parts/Printers). Wiring the Assembly form to

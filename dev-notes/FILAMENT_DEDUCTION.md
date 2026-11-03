@@ -20,7 +20,7 @@ Job filament use is deducted automatically; operators never enter it. Manual spo
    - Manual-brand printer: Completed deducts in full; Failed has no progress, so nothing is deducted.
 3. Deduction applies only the difference from what the line already recorded, writes a
    `SpoolUsageRecord` with source `Job` (see Spool history), and triggers auto-continuation when a spool hits zero. The first
-   deduction of a line also writes its price per kg and where it came from (see Realized cost in `docs/FILAMENT_PRICING.md`).
+   deduction of a line also writes its price per kg and where it came from (see Realized cost in `dev-notes/FILAMENT_PRICING.md`).
 4. A line with no bound spool, no estimate, no progress, or a spool no longer Using is skipped, never
    thrown, and logged as `PrintJobFilamentDeductionSkipped` on the job. Correct with manual spool usage.
 
@@ -135,7 +135,7 @@ Every change to a spool's remaining weight writes one append-only `SpoolUsageRec
   it. The `SpoolStateChanged` hub event exists but is never raised.
 
 ## Known limits
-- Spool binding follows the feed mapping in `docs/BAMBU_LAN_PRINTING.md`: on an AMS printer only the AMS or only the external
+- Spool binding follows the feed mapping in `dev-notes/BAMBU_LAN_PRINTING.md`: on an AMS printer only the AMS or only the external
   spool is a usable feed at a time, so a spool on the other one is never bound.
 
 ## Open issues (check back later)

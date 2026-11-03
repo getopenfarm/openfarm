@@ -24,7 +24,7 @@ JSON.
 | `snapmaker-u1-idle.json` | Hand-written | `standby` | **Synthetic.** The `status` object of a `printer.objects.subscribe` answer, shaped from Snapmaker's open-source firmware: per-head arrays from `u1-klipper` `klippy/extras/print_task_config.py` `get_status()`, `nozzle_diameter`/`state` on `extruder`..`extruder3` as `u1-moonraker` `machine.py` subscribes them. Head 3 has no filament (`filament_exist` false); head 2 is configured without a sub type. |
 | `snapmaker-u1-printing.json` | Hand-written | `printing` | **Synthetic.** Head 2 (`extruder1`) is the active one (`ACTIVATE`); M73 progress (`display_status`) differs from the file position (`virtual_sdcard`) on purpose. |
 
-Replace both with sanitized captures from a real U1 (firmware ≥ 1.3) — see `docs/SNAPMAKER_U1.md`'s hardware checklist.
+Replace both with sanitized captures from a real U1 (firmware ≥ 1.3) — see `dev-notes/SNAPMAKER_U1.md`'s hardware checklist.
 
 Real-hardware validation against a physical Bambu printer remains a required manual step before
 trusting `BambuLanConnector`/`BambuMqttMessageParser`/`BambuCameraRelay` in production — see

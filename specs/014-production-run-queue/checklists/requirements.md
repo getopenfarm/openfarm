@@ -32,7 +32,7 @@
 ## Notes
 
 - All items pass on first validation pass. This phase closely follows the detailed design already
-  ratified in `docs/FEATURE_PLAN.md` (Phase 7 section), so ambiguity was resolved with documented,
+  ratified in `dev-notes/FEATURE_PLAN.md` (Phase 7 section), so ambiguity was resolved with documented,
   rationale-backed defaults in the spec's Assumptions section rather than [NEEDS CLARIFICATION]
   markers — none of the open points (run-closing trigger, backfill ceiling default, priority-field
   usage, capability tie-break) change the feature's scope or user-facing behavior in a way that

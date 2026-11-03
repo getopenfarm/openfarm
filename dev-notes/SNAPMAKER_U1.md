@@ -92,7 +92,7 @@ and readiness says so.
 `StartJobAsync`:
 
 1. Unwraps the dispatched plate's `Metadata/plate_<n>.gcode` when the file is a sliced project (`.gcode.3mf`; plate
-   chosen as in `docs/BAMBU_LAN_PRINTING.md`); plain G-code is sent as it is.
+   chosen as in `dev-notes/BAMBU_LAN_PRINTING.md`); plain G-code is sent as it is.
    The U1 prints plain G-code, and its own 3MF handling expects files Snapmaker's slicer made.
 2. Uploads it with `POST /server/files/upload` (`root=gcodes`, `path=openfarm`, `checksum=<sha256>`), named like
    Bambu uploads but ending in `.gcode`.
@@ -107,7 +107,7 @@ Pause, resume and stop are `POST /printer/print/pause|resume|cancel`. A print st
 Snapmaker Orca is read back from `/server/files/gcodes/<print_stats.filename>` for filament accounting.
 
 **Multi-colour.** A pre-sliced multi-colour file dispatches with a full `map_table`. A plain multi-colour 3MF is
-sliced server-side with one filament per project slot (`docs/FILAMENT_PROFILE_ASSIGNMENTS.md`) — checked with the real
+sliced server-side with one filament per project slot (`dev-notes/FILAMENT_PROFILE_ASSIGNMENTS.md`) — checked with the real
 Orca 2.3.1 CLI on the U1 preset: each slot prints on its own tool.
 
 **Pre-sliced files go only to their own model.** A file that needs no slicing must name the printer it was sliced

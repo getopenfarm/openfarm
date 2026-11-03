@@ -14,7 +14,7 @@ contract.
 | `/profiles/import` | `ProfilesImportPage` | n/a | Same permission `ImportProfilesDialog` already required | `ImportProfilesDialog` |
 | `/settings/connection-secrets/new` | `ConnectionSecretFormPage` | n/a | Same permission the inline add form already required | Inline `Dialog` in `ConnectionSecretsPage.tsx` |
 
-All six follow the existing recipe in `docs/UI_CONVENTIONS.md` § Recipe:
+All six follow the existing recipe in `dev-notes/UI_CONVENTIONS.md` § Recipe:
 `PageHeader` + `BackLink` header, sticky `FormFooter` Cancel/Save bar, and on
 success: `toast.success(...)`, TanStack Query cache invalidation, then
 `navigate('/<feature>')`.

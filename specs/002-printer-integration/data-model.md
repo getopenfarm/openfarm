@@ -26,7 +26,7 @@ protocol).
 
 Resolves `(Brand, ModelCode)` into typed, protocol-relevant static facts, replacing a bare free-text
 `Model` string. This is deliberately **not** a full extracted `printer_profiles` table (that stays
-Phase 4's job, per spec Assumptions and `docs/FEATURE_PLAN.md` — no real duplication across brands
+Phase 4's job, per spec Assumptions and `dev-notes/FEATURE_PLAN.md` — no real duplication across brands
 exists yet to justify it, and the constitution's "Build for Expansion, Not Speculation" principle
 argues against pulling that forward speculatively). It's a small in-code lookup living in
 `OpenFarm.Domain.Printers.PrinterModelCatalog`, resolved at read/connect time, not persisted

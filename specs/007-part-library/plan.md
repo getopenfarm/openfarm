@@ -50,7 +50,7 @@ writing either onto the still-open job's preview (live-updating an unconfirmed r
 already-saved `Part` (pushed via a new `PartEstimateResolved`/`PartEstimateUnavailable` SignalR event) —
 whichever currently holds the truth. Discarding instead of confirming still means nothing is saved. Nothing
 about the derived numbers themselves is ever hand-editable, at review time or anywhere else in this phase.
-This phase finally wires the Printer ↔ Machine Profile link `docs/FEATURE_PLAN.md`'s own Phase 1 dependency
+This phase finally wires the Printer ↔ Machine Profile link `dev-notes/FEATURE_PLAN.md`'s own Phase 1 dependency
 notes earmarked for whichever later phase consumes it — nozzle diameter is read from a printer's linked
 Machine Profile, not duplicated onto `Printer`. A thumbnail is derived automatically per plate on a
 best-effort basis (normalized to one standard image format) that never blocks saving. There is no
@@ -211,7 +211,7 @@ already used by every other catalog feature — no virtualization concern this p
   (attach/edit/review/save), not several inconsistent ones — extended, not broken, by Save now enabling
   earlier than the full result (§3b). All API errors surface as `ProblemDetails`. **Pass.**
 - **IV. Build for Expansion, Not Speculation**: `ISlicerEngine` is built once, reused unmodified by Phase 7
-  (FR-010). `Printer.MachineProfileId` finally fills the deferred link `docs/FEATURE_PLAN.md`'s Phase 1
+  (FR-010). `Printer.MachineProfileId` finally fills the deferred link `dev-notes/FEATURE_PLAN.md`'s Phase 1
   notes earmarked. `PartFilamentRequirement` becoming a collection, the parse/slice unification behind
   `IPartFileProcessor`, `filamentId`'s removal in favor of `IUnslicedProjectMaterialResolver`, per-plate
   thumbnails, and the two-milestone `ReadyForReview`/`EstimateStatus` split are all this principle applied to

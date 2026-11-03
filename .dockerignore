@@ -7,6 +7,7 @@ web/build
 .slicers
 specs
 docs
+dev-notes
 .specify
 .claude
 api/src/OpenFarm.Api/keys

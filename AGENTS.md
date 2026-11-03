@@ -3,7 +3,7 @@
 ## Web tables
 
 Read and follow the [shadcn skill](.agents/skills/shadcn/SKILL.md) when working on
-web tables. Follow [Web UI conventions](docs/UI_CONVENTIONS.md) for surrounding
+web tables. Follow [Web UI conventions](dev-notes/UI_CONVENTIONS.md) for surrounding
 navigation, forms, themes, and verification.
 
 - Reuse `web/src/components/data-table/DataTable.tsx` and existing shadcn Table
