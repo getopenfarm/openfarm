@@ -52,7 +52,7 @@ export function settingsPath(can: (key: string) => boolean): string | null {
   return settingsPaths.find((path) => can(routePermission(path) ?? '')) ?? null;
 }
 export function routePermission(path: string): string | null {
-  if (path === '/profile') return null;
+  if (path === '/profile' || path.startsWith('/profile/')) return null;
   if (path.startsWith('/users-groups')) return 'users:manage';
   if (path.startsWith('/settings')) {
     if (path.includes('/fees')) return 'settings:fees:read';

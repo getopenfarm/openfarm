@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Api.Hubs;
 
-[Authorize]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public sealed class FarmHub(FarmConnections connections, OpenFarmDbContext db) : Hub
 {
     public const string Group = "farm";

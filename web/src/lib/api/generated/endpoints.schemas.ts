@@ -2744,6 +2744,66 @@ export interface SaveCostItemRequest {
   pricing?: CatalogPricing;
 }
 
+export interface PermissionArea {
+  key?: string;
+  label?: string;
+  noun?: string;
+  administratorOnly?: boolean;
+}
+
+export interface PermissionDefinition {
+  key?: string;
+  area?: string;
+  label?: string;
+  description?: string;
+  isRead?: boolean;
+  isSensitive?: boolean;
+  isDestructive?: boolean;
+  isExplicit?: boolean;
+  /** @nullable */
+  verb?: string | null;
+  /** @nullable */
+  phrase?: string | null;
+}
+
+export interface TokenOptionsResponse {
+  areas?: PermissionArea[];
+  permissions?: PermissionDefinition[];
+  available?: string[];
+}
+
+export interface AccessTokenView {
+  id?: string;
+  name?: string;
+  lastFour?: string;
+  permissions?: string[];
+  createdAtUtc?: string;
+  /** @nullable */
+  expiresAtUtc?: string | null;
+  /** @nullable */
+  lastUsedAtUtc?: string | null;
+}
+
+export interface AccessTokenCreated {
+  credential?: string;
+  token?: AccessTokenView;
+}
+
+export interface AccessTokenInput {
+  name?: string;
+  permissions?: string[];
+  /** @nullable */
+  expiresOn?: string | null;
+}
+
+export interface AccessTokenRequest {
+  [key: string]: unknown;
+}
+
+export interface UserAccessTokenRequest {
+  [key: string]: unknown;
+}
+
 export interface GroupSummary {
   id?: string;
   name?: string;
@@ -2771,28 +2831,6 @@ export interface GroupResponse {
   isProtected?: boolean;
   grants?: string[];
   memberCount?: number;
-}
-
-export interface PermissionArea {
-  key?: string;
-  label?: string;
-  noun?: string;
-  administratorOnly?: boolean;
-}
-
-export interface PermissionDefinition {
-  key?: string;
-  area?: string;
-  label?: string;
-  description?: string;
-  isRead?: boolean;
-  isSensitive?: boolean;
-  isDestructive?: boolean;
-  isExplicit?: boolean;
-  /** @nullable */
-  verb?: string | null;
-  /** @nullable */
-  phrase?: string | null;
 }
 
 export interface PermissionCatalogResponse {

@@ -47,6 +47,7 @@ import {
 } from './api';
 import { SessionList } from './SessionList';
 import { sectionLabel } from './styles';
+import { TokenList } from './TokenList';
 
 const listUrl = '/users-groups';
 
@@ -390,6 +391,16 @@ function UserForm({
                 userId={id}
                 emptyText="This user has no active sessions."
               />
+            </section>
+          )}
+          {id && (
+            <section className="flex flex-col gap-3">
+              <div className={sectionLabel}>Access tokens</div>
+              <p className="text-xs text-muted-foreground">
+                Only the user can create tokens. You can inspect and revoke
+                theirs.
+              </p>
+              <TokenList userId={id} />
             </section>
           )}
         </FieldGroup>

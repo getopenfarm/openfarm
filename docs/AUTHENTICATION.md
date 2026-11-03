@@ -10,6 +10,56 @@ Users inherit the union of their groups' permissions. Extra permissions can add 
 
 The initial groups are Administrators, Operators, and Viewers. Operators have routine business abilities without removal, credential management, remote printer control, settings administration, or audit access. Viewers receive business read abilities. The API remains authoritative even when a caller bypasses the UI. Live events are filtered against current sessions and permissions.
 
+## Personal access tokens
+
+My Profile › Access tokens lets a signed-in user create credentials for scripts and integrations.
+Choose a unique name, an expiry date (six months by default), and at least one permission.
+Clear the date for a credential that never expires. Expiry is the end of the selected day in UTC.
+The creation page shows the credential once, with Copy and Done. It is never recoverable from the server.
+The list shows its name, last four characters, access summary, expiry and last-used date.
+Regenerate replaces the credential immediately while preserving its permissions and expiry;
+an expired token must be replaced with a new token. Revoke and Revoke all take effect on the next request.
+A user may hold 50 unrevoked tokens, including expired ones. Revocation releases the name and quota.
+
+Send the credential in an HTTP header over HTTPS:
+
+```sh
+curl --header "Authorization: Bearer $OPENFARM_TOKEN" https://farm.example.com/api/v1/printers
+```
+
+Select `printers:list` to use that example. Invalid, expired or revoked credentials return 401;
+a valid credential without the required permission returns 403. Personal access tokens work with
+REST APIs. SignalR live events require a browser session. Do not place personal credentials in URLs.
+
+The API intersects the token's selected abilities with its owner's **current** permissions on every
+request. Removing group or individual access therefore also limits existing tokens. Tokens cannot
+manage accounts, browser sessions, or other tokens; those operations require a signed-in browser.
+Unlike Akaun's separate group delegation ceiling, OpenFarm currently uses the owner's current access
+as its ceiling. Sensitive abilities such as remote printer control must be selected explicitly;
+None/View/Edit/Full presets do not include them.
+
+Users & Groups lets an administrator list and revoke another user's tokens, individually or all at once.
+Administrators cannot create or regenerate another user's credential. Changing or resetting a password
+revokes all personal tokens; changing your own password still preserves the current browser session.
+Disabling an account revokes its tokens and sessions. Re-enabling it does not restore those credentials.
+
+Credentials use an `ofp_` prefix plus 32 cryptographically random bytes encoded as hex. Only a SHA-256
+hash and the last four characters are stored. Lifecycle actions are audited with non-secret metadata;
+credentials and hashes are excluded. Last-used writes are limited to once per minute per token.
+Creation and regeneration serialize on the owner row, and the database enforces unique unrevoked names.
+
+Browser-only management endpoints:
+
+- `GET /api/v1/auth/tokens/options`: catalog and abilities the owner may select.
+- `GET/POST /api/v1/auth/tokens`: list metadata or create a credential.
+- `POST /api/v1/auth/tokens/{id}/regenerate`: rotate and reveal the replacement once.
+- `DELETE /api/v1/auth/tokens/{id}` and `POST /api/v1/auth/tokens/revoke-all`: revoke.
+- `GET/DELETE /api/v1/admin/users/{id}/tokens`: administrator list/revoke all.
+- `DELETE /api/v1/admin/users/{id}/tokens/{tokenId}`: administrator revoke one.
+
+The additive PersonalAccessTokens migration runs at startup. Existing browser sessions continue to work.
+Back up the database before deployment. No existing account receives a personal token automatically.
+
 ## Upgrade
 
 The additive migration assigns existing accounts to Administrators once, preserving their previous effective access. Review membership after upgrading. New accounts do not inherit administrator access. Existing JWTs require a fresh sign-in because they have no session identifier. Change the default administrator password after the first sign-in.

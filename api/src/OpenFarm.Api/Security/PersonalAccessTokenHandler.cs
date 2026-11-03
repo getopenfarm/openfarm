@@ -1,0 +1,28 @@
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
+using OpenFarm.Infrastructure.Auth;
+
+namespace OpenFarm.Api.Security;
+
+public sealed class PersonalAccessTokenHandler(IOptionsMonitor<AuthenticationSchemeOptions> options,
+    ILoggerFactory logger, UrlEncoder encoder, PersonalAccessTokenService tokens)
+    : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    public const string SchemeName = "PersonalAccessToken";
+    public const string PermissionClaim = "openfarm.token-permission";
+
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        if (!Request.Path.StartsWithSegments("/api/v1"))
+            return AuthenticateResult.Fail("Personal access tokens are only supported by the REST API.");
+        var header = Request.Headers.Authorization.ToString();
+        if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return AuthenticateResult.NoResult();
+        var row = await tokens.AuthenticateAsync(header[7..], Context.RequestAborted);
+        if (row is null) return AuthenticateResult.Fail("Invalid access token.");
+        var claims = new List<Claim> { new("sub", row.UserId.ToString()), new("pat", row.Id.ToString()) };
+        claims.AddRange(row.Permissions.Select(p => new Claim(PermissionClaim, p)));
+        return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
+    }
+}

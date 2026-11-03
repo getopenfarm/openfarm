@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router';
 import { ProfilePage } from '@/features/accounts/ProfilePage';
+import { TokenCreatePage } from '@/features/accounts/TokenCreatePage';
 import { UserFormPage } from '@/features/accounts/UserFormPage';
 import { UsersGroupsPage } from '@/features/accounts/UsersGroupsPage';
 import { GeneralSettingsPage } from '@/features/settings/GeneralSettingsPage';
@@ -64,6 +65,11 @@ export const router = createBrowserRouter([
             path: '/profile',
             element: <ProfilePage />,
             handle: { title: 'My profile' },
+          },
+          {
+            path: '/profile/tokens/new',
+            element: <TokenCreatePage />,
+            handle: { title: 'New access token' },
           },
           { path: '/account', element: <Navigate to="/profile" replace /> },
           {

@@ -37,6 +37,10 @@ export const apiQueryPermissions = [
     permissions: ['spools:list'],
   },
   {
+    pattern: '^/api/v1/auth/tokens/options$',
+    permissions: [],
+  },
+  {
     pattern: '^/api/v1/filaments/shortages$',
     permissions: ['filaments:list'],
   },
@@ -121,6 +125,10 @@ export const apiQueryPermissions = [
     permissions: ['users:manage'],
   },
   {
+    pattern: '^/api/v1/auth/tokens$',
+    permissions: [],
+  },
+  {
     pattern: '^/api/v1/admin/users$',
     permissions: ['users:manage'],
   },
@@ -195,6 +203,10 @@ export const apiQueryPermissions = [
   {
     pattern: '^/api/v1/print\\-jobs/[^/]+/objects$',
     permissions: ['print-jobs:view'],
+  },
+  {
+    pattern: '^/api/v1/admin/users/[^/]+/tokens$',
+    permissions: ['users:manage'],
   },
   {
     pattern: '^/api/v1/profiles/filament/[^/]+$',

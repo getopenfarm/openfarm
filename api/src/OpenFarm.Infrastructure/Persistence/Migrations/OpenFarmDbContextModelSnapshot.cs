@@ -2115,6 +2115,58 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.ToTable("BrowserSessions");
                 });
 
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.PersonalAccessToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CredentialHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastFour")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<DateTimeOffset?>("LastUsedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.PrimitiveCollection<string[]>("Permissions")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CredentialHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Name")
+                        .IsUnique()
+                        .HasFilter("\"RevokedAtUtc\" IS NULL");
+
+                    b.ToTable("PersonalAccessTokens");
+                });
+
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.SessionCredential", b =>
                 {
                     b.Property<string>("Hash")
@@ -2606,6 +2658,15 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.BrowserSession", b =>
+                {
+                    b.HasOne("OpenFarm.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.PersonalAccessToken", b =>
                 {
                     b.HasOne("OpenFarm.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()

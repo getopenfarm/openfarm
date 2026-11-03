@@ -23,11 +23,13 @@ import { httpClient } from '@/lib/api/httpClient';
 import { type CurrentUser, useIdentity } from '@/lib/auth/permissions';
 import { sessionsKey, useUpdateProfile, whoAmIKey } from './api';
 import { SessionList } from './SessionList';
+import { TokenList } from './TokenList';
 
 const tabs = [
   { id: 'profile', label: 'Profile' },
   { id: 'security', label: 'Security' },
   { id: 'sessions', label: 'Sessions' },
+  { id: 'tokens', label: 'Access tokens' },
 ] as const;
 type Tab = (typeof tabs)[number]['id'];
 
@@ -72,6 +74,14 @@ export function ProfilePage() {
           <Skeleton className="h-48 max-w-[640px]" />
         ))}
       {tab === 'security' && <SecurityTab />}
+      {tab === 'tokens' && (
+        <SettingsSection
+          title="Access tokens"
+          description="Credentials for scripts and integrations"
+        >
+          <TokenList />
+        </SettingsSection>
+      )}
       {tab === 'sessions' && (
         <SettingsSection
           title="Sessions"

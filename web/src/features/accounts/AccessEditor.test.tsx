@@ -143,3 +143,24 @@ describe('AccessEditor', () => {
     expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
   });
 });
+
+it('keeps token permissions outside the owner ceiling visible but disabled', async () => {
+  render(
+    <AccessEditor
+      areas={areas}
+      permissions={permissions}
+      available={['parts:view']}
+      value={[]}
+      onChange={() => {}}
+    />,
+  );
+  const group = screen.getByRole('radiogroup', { name: 'Parts access' });
+  expect(within(group).getByRole('radio', { name: 'Edit' })).toBeDisabled();
+  expect(within(group).getByRole('radio', { name: 'Full' })).toBeDisabled();
+  await userEvent
+    .setup()
+    .click(within(group).getByRole('radio', { name: 'Custom' }));
+  expect(screen.getByRole('switch', { name: 'Parts: View' })).toBeEnabled();
+  expect(screen.getByRole('switch', { name: 'Parts: Change' })).toBeDisabled();
+  expect(screen.getByRole('switch', { name: 'Parts: Control' })).toBeDisabled();
+});
