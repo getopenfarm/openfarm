@@ -133,6 +133,17 @@ public class BambuMqttMessageParserTests
         BambuMqttMessageParser.IsGetVersionResponse(getVersionPayload).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("idle-a1.json", "01.05.00.00", "-48dBm")]
+    [InlineData("awaiting-clear-p1p-no-ams.json", "01.08.02.00", "-42dBm")]
+    public void FirmwareAndWifiSignal_ReadFromRealFixtures(string fixtureFile, string firmware, string wifi)
+    {
+        BambuMqttMessageParser.TryParseFirmwareVersion(LoadSection(fixtureFile, "get_version")).Should().Be(firmware);
+        BambuMqttMessageParser.TryParseWifiSignal(LoadSection(fixtureFile, "pushall")).Should().Be(wifi);
+        BambuMqttMessageParser.TryParseFirmwareVersion(LoadSection(fixtureFile, "pushall")).Should().BeNull();
+        BambuMqttMessageParser.TryParseWifiSignal("{broken").Should().BeNull();
+    }
+
     [Fact]
     public void IsGetVersionResponse_WithReportPayload_ReturnsFalse()
     {

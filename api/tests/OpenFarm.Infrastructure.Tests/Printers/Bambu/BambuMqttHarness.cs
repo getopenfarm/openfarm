@@ -32,6 +32,8 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
     public PrinterConnectionDetails Details { get; }
     public bool ReplyToVersion { get; init; } = true;
     public bool ReplyToPushAll { get; init; } = true;
+    /// <summary>Whether a <c>pushing.start</c> nudge brings a report, as it does on firmware that honours it.</summary>
+    public bool ReplyToPushStart { get; init; } = true;
     public bool WithholdFirstConnack { get; init; }
     public bool WithholdFirstSuback { get; init; }
     private int _subackWithheld;
@@ -136,7 +138,8 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
                                 await session.PublishAsync(ReportTopic, """{"info":{"command":"get_version"}}""", cancellationToken);
                             }
 
-                            if (ReplyToPushAll && document.RootElement.TryGetProperty("pushing", out _))
+                            if (document.RootElement.TryGetProperty("pushing", out var pushing)
+                                && (pushing.GetProperty("command").GetString() == "start" ? ReplyToPushStart : ReplyToPushAll))
                             {
                                 await session.PublishAsync(ReportTopic, InitialReport, cancellationToken);
                             }

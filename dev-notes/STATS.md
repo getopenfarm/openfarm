@@ -38,7 +38,7 @@ Add an index on `Prints.EndedAtUtc` past ~100k prints, and an hourly rollup only
 
 - Derived, in order: Awaiting clear (OpenFarm's own state, kept while the printer is unreachable) → Offline → Paused (reported
   PAUSE) → Printing → Idle.
-- Offline starts when the printer was last heard, not when the 30 s sweep noticed.
+- Offline starts when the printer was last heard, not when the 90 s sweep noticed.
 - On startup each printer heard before the restart records Unknown from its last message: OpenFarm saw nothing then.
 - Times earlier than the open stretch are clamped; empty stretches are dropped.
 

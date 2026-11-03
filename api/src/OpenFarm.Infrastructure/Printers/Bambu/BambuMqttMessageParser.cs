@@ -67,6 +67,39 @@ public static class BambuMqttMessageParser
         }
     }
 
+    /// <summary>The firmware version in a <c>get_version</c> reply (its <c>ota</c> module), else null. Never throws.</summary>
+    public static string? TryParseFirmwareVersion(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (!IsGetVersionResponse(json) || !document.RootElement.GetProperty("info").TryGetProperty("module", out var modules)
+                || modules.ValueKind != JsonValueKind.Array) return null;
+            return modules.EnumerateArray()
+                .Where(m => m.ValueKind == JsonValueKind.Object && GetString(m, "name") == "ota")
+                .Select(m => GetString(m, "sw_ver")).FirstOrDefault(v => !string.IsNullOrEmpty(v));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A report's <c>wifi_signal</c> (e.g. <c>-52dBm</c>), else null. Never throws.</summary>
+    public static string? TryParseWifiSignal(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("print", out var print)
+                && print.ValueKind == JsonValueKind.Object ? GetString(print, "wifi_signal") : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Whether this payload is a full <c>print</c> status dump (present on every report message).</summary>
     public static bool IsPrintReport(string json)
     {

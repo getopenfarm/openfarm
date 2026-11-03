@@ -17,7 +17,7 @@ namespace OpenFarm.Infrastructure.Printers;
 /// <summary>
 /// Owns the per-printer <see cref="IPrinterConnector"/> connection lifecycle: one long-lived
 /// consumption loop per registered printer, tracking <see cref="Printer.LastMessageUtc"/> on every
-/// message and running the ~30s-threshold/5s-interval unreachable sweep (research.md §6). Routine
+/// message and running the 90 s-threshold/5 s-interval unreachable sweep (research.md §6). Routine
 /// telemetry/heartbeat writes are coalesced to at most one DB save + SignalR broadcast per
 /// <see cref="_flushInterval"/> per printer — Bambu pushes report messages far more often than the
 /// DB or UI need to observe them — while status/reachability transitions still persist and broadcast
@@ -29,7 +29,7 @@ namespace OpenFarm.Infrastructure.Printers;
 public sealed partial class PrinterConnectionBackgroundService : BackgroundService, IPrinterConnectionManager
 {
     private static readonly TimeSpan DefaultSweepInterval = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan DefaultUnreachableThreshold = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan DefaultUnreachableThreshold = TimeSpan.FromSeconds(90);
     private static readonly TimeSpan DefaultFlushInterval = TimeSpan.FromSeconds(1);
 
     private readonly IServiceScopeFactory _scopeFactory;

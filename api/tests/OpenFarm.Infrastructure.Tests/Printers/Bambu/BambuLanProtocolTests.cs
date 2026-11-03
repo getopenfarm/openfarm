@@ -228,20 +228,66 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
-    public async Task Connect_OpenButSilentBroker_ReconnectsAndRequestsFreshReports()
+    public async Task Connect_SilentPrinter_IsNudgedOnTheSameSession()
     {
         await using var harness = new BambuMqttHarness();
         var connector = harness.CreateConnector(harness.Options with
         {
             TelemetryTimeout = TimeSpan.FromMilliseconds(200),
+            PushAllMinInterval = TimeSpan.FromMilliseconds(400),
+            SilenceReconnectAfter = TimeSpan.FromSeconds(30),
         });
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
         (await ReadNextAsync(events, cts)).Should().BeTrue();
-        await WaitUntilAsync(() => harness.SubscriptionCount >= 2);
-        (await ReadNextAsync(events, cts)).Should().BeTrue();
+        (await harness.NextRequestAsync()).Payload.Should().Contain("get_version");
+        (await harness.NextRequestAsync()).Payload.Should().Contain("pushall");
+
+        (await harness.NextRequestAsync()).Payload.Should().Contain("\"start\"");
+        (await ReadNextAsync(events, cts)).Should().BeTrue("the nudge's report arrives on the open session");
         events.Current.GcodeState.Should().Be("IDLE");
-        harness.ConnectionCount.Should().BeGreaterThanOrEqualTo(2);
+        harness.ConnectionCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Connect_SilenceOutlastingNudges_ReconnectsAfterTheLimit()
+    {
+        await using var harness = new BambuMqttHarness { ReplyToPushStart = false };
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            TelemetryTimeout = TimeSpan.FromMilliseconds(100),
+            PushAllMinInterval = TimeSpan.FromSeconds(30),
+            SilenceReconnectAfter = TimeSpan.FromMilliseconds(600),
+        });
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        (await ReadNextAsync(events, cts)).Should().BeTrue();
+        await WaitUntilAsync(() => harness.Subscriptions.Count >= 2);
+        harness.ConnectionCount.Should().Be(2);
+        while (await ReadNextAsync(events, cts) && events.Current.GcodeState is null) { }
+        events.Current.GcodeState.Should().Be("IDLE", "the new session's pushall is answered");
+    }
+
+    [Fact]
+    public async Task Command_WhileLiveSessionReconnects_WaitsForItInsteadOfOpeningAnother()
+    {
+        await using var harness = new BambuMqttHarness();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var connector = harness.CreateConnector(harness.Options with { ReconnectDelay = TimeSpan.FromMilliseconds(300) });
+        await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        await ReadNextAsync(events, cts);
+        await harness.NextRequestAsync();
+        await harness.NextRequestAsync();
+
+        harness.DropConnections();
+        while (await events.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)) && !events.Current.ConnectionEnded) { }
+        await connector.PauseJobAsync(harness.Details, cts.Token);
+
+        BambuMqttHarness.Request pause;
+        while (!(pause = await harness.NextRequestAsync()).Payload.Contains("pause", StringComparison.Ordinal)) { }
+        await WaitUntilAsync(() => harness.SubscriptionCount >= 2);
+        pause.ConnectionId.Should().Be(2, "the command goes out on the reconnected telemetry session");
+        harness.ConnectionCount.Should().Be(2);
     }
 
     [Fact]
@@ -560,6 +606,45 @@ public class BambuLanProtocolTests
 
         var pendingStart = async () => await start.WaitAsync(TimeSpan.FromSeconds(3));
         await pendingStart.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task StartJob_RetryAfterFailedStart_RepublishesWithoutUploadingAgain()
+    {
+        await using var harness = new BambuMqttHarness { WithholdFirstConnack = true };
+        var uploads = new List<string>();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            CommandTimeout = TimeSpan.FromMilliseconds(500),
+            UploadFileAsync = (_, _, path, _, _) => { uploads.Add(path); return Task.FromResult(FtpStatus.Success); },
+        });
+        byte[] bytes = Encoding.UTF8.GetBytes("print payload");
+
+        var first = async () => await connector.StartJobAsync(harness.Details, new MemoryStream(bytes), "part.gcode", 1, null, CancellationToken.None);
+        await first.Should().ThrowAsync<Exception>("the first start never gets a CONNACK");
+        await connector.StartJobAsync(harness.Details, new MemoryStream(bytes), "part.gcode", 1, null, CancellationToken.None);
+
+        uploads.Should().ContainSingle();
+        using var document = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
+        document.RootElement.GetProperty("print").GetProperty("url").GetString().Should().Be($"file:///sdcard{uploads[0]}");
+
+        await connector.StartJobAsync(harness.Details, new MemoryStream(bytes), "part.gcode", 1, null, CancellationToken.None);
+        uploads.Should().HaveCount(2, "a start that went out clears the reuse: a new send uploads afresh");
+    }
+
+    [Fact]
+    public async Task StartJob_UploadThatHangs_TimesOutWithoutPublishing()
+    {
+        await using var harness = new BambuMqttHarness();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            UploadTimeoutFloor = TimeSpan.FromMilliseconds(200),
+            UploadFileAsync = async (_, _, _, _, token) => { await Task.Delay(Timeout.InfiniteTimeSpan, token); return FtpStatus.Success; },
+        });
+
+        var start = () => connector.StartJobAsync(harness.Details, new MemoryStream([1, 2, 3]), "part.gcode", 1, null, CancellationToken.None);
+        await start.Should().ThrowAsync<TimeoutException>().WaitAsync(TimeSpan.FromSeconds(3));
+        harness.ConnectionCount.Should().Be(0);
     }
 
     [Fact]
