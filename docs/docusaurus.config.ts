@@ -68,7 +68,7 @@ const config: Config = {
         },
       ],
     },
-    docs: { sidebar: { hideable: true, autoCollapseCategories: false } },
+    docs: { sidebar: { hideable: false, autoCollapseCategories: false } },
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
     footer: {
       style: 'light',
