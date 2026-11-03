@@ -17,7 +17,7 @@ Configure a filament's profile assignments for each **printer brand/model + nozz
 
 Assignments must match the material, hardware, nozzle, and selected slicer catalog. Inventory can be saved without them, but production requires compatible assignments, including for pre-sliced files.
 
-The farm's default slicer controls picker catalogs. Existing parts retain their exact slicer pin; a profile must resolve in that pinned catalog before production. See [Profiles and slicers](../library/profiles.md).
+The farm's default slicer controls picker catalogs. When production needs slicing, existing parts retain their exact slicer pin and the selected profiles must resolve in that pinned catalog. Already-sliced jobs validate assignments without applying their settings to the toolpaths. See [When profiles apply](../library/profile-behavior.md) and [Profiles and slicers](../library/profiles.md).
 
 ## Choose production filament on a part
 

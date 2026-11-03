@@ -24,6 +24,8 @@ Remove the finished/failed output, inspect the bed and material path, and then c
 
 Use **Edit** to change the name, connection settings, profiles, and compatible build plate. Changing connection information triggers verification. Select a machine profile only after current telemetry confirms the relevant nozzle size.
 
+Machine/process profiles generate new toolpaths only for files that need slicing. A machine profile also participates in already-sliced job validation. See [When profiles apply](../library/profile-behavior.md) before expecting a profile change to alter a G-code or sliced 3MF file.
+
 A last-known nozzle value can remain visible while offline; production needs confirmation from the current connection. See [Printer matching](../production/matching.md) when the displayed size seems correct but a job is blocked.
 
 ## Remove a printer

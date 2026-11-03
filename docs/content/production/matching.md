@@ -15,7 +15,7 @@ Use **Job diagnosis** on the job page or the queue row's blocking-status link. T
 | File/model | Pre-sliced files match their declared target model. |
 | Material | Required filament is physically loaded and registered as an active tracked spool. |
 | Identity | The loaded spool matches the part/job's effective production color variant or applicable material/color constraints. |
-| Profiles | Machine, process where slicing is needed, and every required filament profile resolve compatibly in the pinned slicer catalog. |
+| Profiles | All jobs need a compatible machine profile and loaded-spool filament assignments. Jobs needing slicing also need a process profile and resolution of all three presets into the part/job's pinned slicer catalog. |
 | Build plate | A required slicing plate is selected and compatible. |
 | Stock | Known estimated use plus the fixed 10% margin fits available compatible stock. |
 
@@ -26,6 +26,8 @@ With a 120 g requirement, the initial check needs 132 g. Compatible continuation
 Unknown need does not block the stock check. After slicing, OpenFarm checks again using the generated file's exact grams. If it no longer fits, nothing is sent. Load more stock or correct a measured spool weight, then reevaluate.
 
 ## Profile or nozzle mismatch
+
+Use [When profiles apply](../library/profile-behavior.md) to distinguish settings used to slice a new file from profiles checked for an already-sliced file. Pre-sliced jobs do not apply your current process/filament settings to existing toolpaths.
 
 Do not rely on an offline last-known nozzle or a profile name that merely looks right. Reconnect telemetry, choose the compatible machine profile, and check filament assignments for that hardware/nozzle group.
 

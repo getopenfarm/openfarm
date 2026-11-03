@@ -11,6 +11,8 @@ The upload UI accepts **STL**, **3MF** (including sliced `.gcode.3mf`), and raw 
 
 Use a file prepared for the intended printer; raw G-code cannot safely become a different machine's toolpath just by changing a profile.
 
+See [When profiles apply](profile-behavior.md) for the file decision tree and the separate rules for library estimates, production slicing, and already-sliced jobs.
+
 ## Upload and review
 
 1. Upload or drop a file and choose its name/tags.

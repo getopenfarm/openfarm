@@ -5,6 +5,8 @@ description: Use bundled catalogs and imported presets without losing the exact 
 
 Profiles configure slicing; they do not represent physical printers or spools. **Profiles** separates machine, process, and filament catalogs.
 
+See [When profiles apply](profile-behavior.md) for exactly which presets are applied or only validated for STL, project/geometry-only 3MF, sliced 3MF, and G-code.
+
 ## Bundled system catalogs
 
 The production image bundles the slicers declared in the repository manifest. Startup ingests their system profiles. Each engine/version has its own catalog.
@@ -27,6 +29,6 @@ Unsliced multi-color projects need compatible profiles for every required materi
 
 ## When profiles do not resolve
 
-OpenFarm resolves saved choices into the part's pinned slicer's own catalog. Compatible system twins can map across supported catalogs; a user preset from another engine is blocked. Missing, ambiguous, unloaded, or incompatible presets stop dispatch rather than triggering a substitute.
+When production needs slicing, OpenFarm resolves saved choices into the part's pinned slicer's own catalog. Compatible system twins can map across supported catalogs; a user preset from another engine is blocked. Missing, ambiguous, unloaded, or incompatible presets stop dispatch rather than triggering a substitute. Already-sliced files skip this slicing resolution, while still requiring a compatible machine profile and loaded-spool filament assignments.
 
 Use [Job diagnosis](../production/matching.md) for the resolved requirement and configuration link. If bundled profiles are missing after a native setup, run the profile-ingestion step in [Local development](../development/local-setup.md). Do not change a pin merely to hide an unexplained compatibility failure.
