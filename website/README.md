@@ -22,11 +22,37 @@ Geist fonts, zinc surfaces, blue primary, 10px corners, and light/dark colors in
 system color scheme. `public/openfarm.svg` is copied from the application mark
 in `../web/public/favicon.svg`; update both when branding changes.
 
-The homepage explains production runs, printer matching, and backfill before
-the supporting features, compatibility details, and FAQ. Its diagrams are
-examples, not screenshots. Keep model lists, deployment requirements, and FAQ
-answers aligned with the guides. See the [website review](../dev-notes/WEBSITE_REVIEW.md)
-for reference-site research, feature evidence, and the next screenshot priorities.
+The homepage has a clickable sample workspace followed by production workflows,
+supporting features, compatibility details, and FAQ. Keep model lists,
+deployment requirements, and FAQ answers aligned with the guides. See the
+[website review](../dev-notes/WEBSITE_REVIEW.md) for reference-site research,
+feature evidence, and screenshot priorities.
+
+## Interactive product preview
+
+`src/components/ProductDemo.astro` renders the sample workspace. Its small,
+framework-free TypeScript controller is `src/scripts/product-demo.ts`; sample
+data lives in `src/lib/demo-data.ts`, and its styles in
+`src/styles/product-demo.css`. The demo uses OpenFarm's navigation names,
+status colors, fonts, surfaces, and workflow rules. It is a simplified sample,
+not a connected installation or a screenshot of the complete application.
+
+Visitors can explore Dashboard, Queue, Runs, and Filament; open job diagnosis;
+mark a sample printer ready; change example run quantities; inspect spools;
+switch the preview theme; and reset the sample. Changes live only in memory.
+The preview makes no API calls and does not store data or connect to printers.
+Navigation supports arrow keys, Home, and End. Diagnosis supports Escape and
+returns focus to its trigger. Status changes have a polite live announcement.
+
+All page copy and the initial fleet are rendered as HTML. Until the demo script
+loads, its controls are disabled and a no-script documentation link is available.
+The site uses blue/cyan gradients and short transitions. Printer-head movement
+runs for less than five seconds; `prefers-reduced-motion` disables animations
+and transitions. There is no automatic tab rotation.
+
+The combined build runs DOM interaction tests against the generated HTML. To
+run them independently after `bun run build`, use `bun run test` here. JSDOM is
+a test-only dependency and is not included in the browser bundle.
 
 ## Search and link previews
 
@@ -55,9 +81,9 @@ python3 -m http.server 8080 --directory site-dist
 ```
 
 Open http://localhost:8080/ for the website and http://localhost:8080/docs/ for
-the guides. The build typechecks the docs, validates their internal links,
+the guides. The build typechecks both projects, validates the docs' internal links,
 generates local search, and checks local HTML links and asset references across
-the assembled site. It also checks homepage metadata and structured-data JSON,
+the assembled site. It runs the preview interaction tests and checks homepage metadata and structured-data JSON,
 robots.txt, and sitemap URLs. Python 3 is needed for this check and preview server.
 
 `site-dist/` contains Astro at its root and the complete Docusaurus build under

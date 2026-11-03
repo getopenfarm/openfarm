@@ -1,0 +1,13 @@
+---
+interface Props { active?: boolean; }
+---
+<svg class:list={['printer-drawing', { 'printer-drawing-active': Astro.props.active }]} viewBox="0 0 240 150" fill="none" aria-hidden="true">
+  <path class="printer-floor" d="M31 117 120 73l89 44-89 28z" />
+  <path d="m48 105 72 36 72-36 M72 93l72 36 M96 81l72 36 M72 117l72-36 M96 129l72-36" stroke="currentColor" opacity=".12" />
+  <path d="M63 112V25h114v87 M73 110V35h94v75 M63 54h114" stroke="currentColor" stroke-width="4" stroke-linejoin="round" opacity=".45" />
+  <path d="m77 110 43-22 43 22-43 22z" fill="var(--demo-surface)" stroke="currentColor" stroke-width="2" opacity=".65" />
+  <path class="printed-part" d="m101 105 19-10 19 10v13l-19 10-19-10z" fill="var(--demo-blue-soft)" stroke="var(--demo-blue)" stroke-width="1.5" />
+  <path d="m101 105 19 10 19-10 M120 115v13 M103 110l17 9 17-9 M103 114l17 9 17-9" stroke="var(--demo-blue)" stroke-width="1.2" opacity=".65" />
+  <g class="printer-head"><path d="M110 49h20v17h-20z" fill="var(--demo-bg)" stroke="currentColor" stroke-width="2" /><path d="m115 66 5 7 5-7" fill="var(--demo-blue)" /><path d="M120 73v18" stroke="var(--demo-blue)" stroke-dasharray="2 3" /></g>
+  <path d="M63 115v5 M177 115v5" stroke="currentColor" stroke-width="6" stroke-linecap="round" opacity=".4" />
+</svg>

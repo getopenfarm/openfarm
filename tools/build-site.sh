@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Dependencies are installed separately with frozen lockfiles, locally or in CI.
-(cd website && bun run build)
+(cd website && bun run build && bun run typecheck && bun run test)
 (cd docs && bun run typecheck && bun run build)
 
 # Both builds must succeed before replacing the combined output.

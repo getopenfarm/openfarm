@@ -1,5 +1,6 @@
 ---
 import Site from '../layouts/Site.astro';
+import ProductDemo from '../components/ProductDemo.astro';
 
 const features = [
   { number: '01', title: 'Printer monitoring and maintenance', description: 'Follow printer status and current work. Track service intervals alongside the machines that need attention.', href: '/docs/printers/manage-fleet/', label: 'Manage your fleet' },
@@ -21,6 +22,7 @@ const faqs = [
 ---
 
 <Site>
+  <div class="hero-backdrop" aria-hidden="true"></div>
   <section class="container hero" aria-labelledby="hero-title">
     <div>
       <p class="eyebrow"><span class="brand-dot" aria-hidden="true"></span> Open source. Self-hosted.</p>
@@ -28,20 +30,13 @@ const faqs = [
       <p class="hero-description">Queue production runs, match jobs to ready printers, and track filament and parts. One workspace, hosted on your own server.</p>
       <div class="actions">
         <a class="button primary" href="/docs/installation/docker/">Install OpenFarm <span aria-hidden="true">→</span></a>
-        <a class="button" href="#workflow">Explore the workflow</a>
+        <a class="button" href="#demo">Try the interactive preview <span aria-hidden="true">↗</span></a>
       </div>
       <p class="hero-note">Open source · Direct LAN connections · Your data on your server</p>
     </div>
-    <aside class="workflow" aria-labelledby="workflow-title">
-      <div class="panel-heading"><img src="/openfarm.svg" alt="" width="22" height="22" /><h2 id="workflow-title">From file to finished part</h2></div>
-      <ol class="workflow-steps">
-        <li><span class="step-number">01</span><div><h3>Prepare the work</h3><p>Add parts, choose profiles, and track the filament ready for production.</p></div></li>
-        <li><span class="step-number">02</span><div><h3>Find the right printer</h3><p>Match queued work to compatible printers and loaded material.</p></div></li>
-        <li><span class="step-number">03</span><div><h3>Keep the cycle moving</h3><p>Inspect the output, clear the bed, and mark the printer ready for its next job.</p></div></li>
-      </ol>
-      <a class="panel-footer" href="/docs/">Follow the quick start <span aria-hidden="true">→</span></a>
-    </aside>
   </section>
+
+  <ProductDemo />
 
   <section class="compatibility" aria-label="Printer compatibility">
     <div class="container compatibility-inner"><p>Connect over your local network</p><div><span>Selected Bambu Lab models</span><span>Snapmaker U1</span><a href="#compatibility">Check compatibility <span aria-hidden="true">→</span></a></div></div>

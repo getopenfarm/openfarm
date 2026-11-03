@@ -1,0 +1,14 @@
+---
+interface Props { name: 'dashboard' | 'queue' | 'runs' | 'filament' | 'sun' | 'reset' | 'arrow' | 'check'; }
+const paths = {
+  dashboard: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+  queue: 'M9 5H5v16h14V5h-4 M9 3h6v4H9z M8 12h8 M8 16h5',
+  runs: 'M8 6h13 M8 12h13 M8 18h13 M2 5l1 1 2-2 M2 11l1 1 2-2 M2 17l1 1 2-2',
+  filament: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 3v5 M12 16v5 M3 12h5 M16 12h5',
+  sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v2 M12 20v2 M2 12h2 M20 12h2 M5 5l1 1 M18 18l1 1 M5 19l1-1 M18 6l1-1',
+  reset: 'M3 10a9 9 0 1 1 1 7 M3 4v6h6',
+  arrow: 'M4 12h16 M14 6l6 6-6 6',
+  check: 'M5 12l4 4L19 6',
+};
+---
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={paths[Astro.props.name]} /></svg>

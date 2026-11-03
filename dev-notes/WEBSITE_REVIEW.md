@@ -39,6 +39,27 @@ No customer logos, testimonials, savings percentages, uptime numbers, or fleet
 size claims are available to substantiate, so the page uses verifiable product
 behavior as its evidence.
 
+## Interactive presentation pass
+
+The follow-up references were [OpenBot](https://openbot.run/), which presents an
+interactive application preview, and [Grok Bot](https://x.ai/bot), which uses
+interface examples to explain workflows. The useful pattern is allowing a
+visitor to explore a recognizable workspace before installing the product.
+
+OpenFarm now places a simplified, clickable workspace immediately below the
+hero. It includes Dashboard, Queue, Runs, and Filament views. Visitors can
+resolve a sample readiness requirement, plan complete assembly sets, and inspect
+loaded spools. Navigation, statuses, and terminology follow the application;
+the preview is explicitly labelled as sample data. It does not import the full
+React application, connect to a backend, or present itself as the entire product.
+
+The hero uses ambient blue/cyan gradients and a gradient headline. The preview
+has a gradient frame, short panel transitions, finite printer-head motion, and
+a local theme switch. Card hover treatments add depth. Reduced-motion settings
+disable animation and transitions; no carousel or autoplay view changes run.
+DOM tests cover tab keyboard navigation, diagnosis and focus return, readiness,
+run planning, spool selection, theme isolation, reset, and listener cleanup.
+
 ## Feature evidence
 
 | Homepage topic | Source in this repository |
