@@ -90,6 +90,7 @@ code, pre { font-family: 'Geist Mono Variable', ui-monospace, monospace; }
 .demo { position: relative; padding-top: clamp(3rem, 6vw, 4.5rem); scroll-margin-top: 4.5rem; overflow-x: clip; }
 .demo .container { width: min(1320px, 100% - 2 * var(--gutter)); }
 .demo-stage { position: relative; }
+.demo-stage::before { content: ''; position: absolute; left: 0; right: 0; top: -220px; height: 560px; background: radial-gradient(ellipse 46% 170px at 50% 220px, rgb(71 191 255 / 0.2), transparent); pointer-events: none; }
 /* The nozzle trace (scripts/nozzle-trace.ts) prints the window's frame; it reaches into the hero above. */
 .trace { position: absolute; z-index: 1; left: -24px; top: -200px; width: calc(100% + 48px); height: calc(100% + 224px); pointer-events: none; }
 .window { position: relative; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--raised); overflow: hidden; box-shadow: 0 50px 120px -50px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(0 0 0 / 0.35); }
