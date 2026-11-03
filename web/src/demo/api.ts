@@ -41,6 +41,8 @@ import type {
   VariantStockResponse,
   WhoAmIResult,
 } from '@/lib/api/generated/endpoints.schemas';
+import cameraP1s from './assets/camera-p1s.jpg';
+import cameraU1 from './assets/camera-u1.jpg';
 import {
   type Assembly,
   assemblies,
@@ -1319,6 +1321,7 @@ type Context = {
   params: Record<string, string>;
   query: URLSearchParams;
   body: Record<string, unknown>;
+  headers: Headers;
 };
 type Handler = (ctx: Context) => unknown;
 
@@ -1498,11 +1501,32 @@ route('GET', '/printers/{id}', ({ params }) => {
   const printer = printerById(params.id);
   return printer ? printerDetail(printer) : problem(404, 'Printer not found.');
 });
-route(
-  'GET',
-  '/printers/{id}/camera.jpg',
-  () => new Response(null, { status: 404 }),
-);
+// Stills from real printers. Each poll is a new frame, so the camera shows Live; A1 and A1 mini have none.
+const CAMERA_STILLS: Partial<Record<Printer['modelCode'], string>> = {
+  P1S: cameraP1s,
+  U1: cameraU1,
+};
+const cameraBlobs = new Map<string, Promise<Blob>>();
+route('GET', '/printers/{id}/camera.jpg', async ({ params, headers }) => {
+  const printer = printerById(params.id);
+  const still = printer && CAMERA_STILLS[printer.modelCode];
+  if (!still) return new Response(null, { status: 404 });
+  const etag = `"${printer.id}-${Math.floor(Date.now() / 1000)}"`;
+  if (headers.get('If-None-Match') === etag)
+    return new Response(null, { status: 304, headers: { ETag: etag } });
+  let blob = cameraBlobs.get(still);
+  if (!blob) {
+    blob = fetch(still).then((response) => response.blob());
+    cameraBlobs.set(still, blob);
+  }
+  return new Response(await blob, {
+    headers: {
+      'Content-Type': 'image/jpeg',
+      ETag: etag,
+      'X-Frame-Received-At': new Date().toISOString(),
+    },
+  });
+});
 route('GET', '/printers/{printerId}/feed-units', ({ params }) => ({
   feedUnits: feedUnits(printerById(params.printerId) ?? printers[0]),
 }));
@@ -2040,7 +2064,12 @@ export async function handle(request: Request): Promise<Response> {
     const params = Object.fromEntries(
       names.map((name, index) => [name, decodeURIComponent(match[index + 1])]),
     );
-    const result = handler({ params, query: url.searchParams, body });
+    const result = await handler({
+      params,
+      query: url.searchParams,
+      body,
+      headers: request.headers,
+    });
     return result instanceof Response ? result : json(result);
   }
   if (method === 'GET') {

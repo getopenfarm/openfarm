@@ -1,3 +1,5 @@
+import { mountNozzleTrace } from './nozzle-trace';
+
 // Drives the embedded demo (web/src/demo/install.ts) over postMessage: tour chips and "Show in demo"
 // buttons navigate it, the active chip follows its route, and its clock pauses while it is off screen.
 const TOUR_ROUTES: Record<string, (path: string) => boolean> = {
@@ -42,9 +44,12 @@ export function mountLiveDemo(root: HTMLElement) {
     bringIntoView();
   });
 
+  const canvas = root.parentElement?.querySelector<HTMLCanvasElement>('[data-trace]');
+  const trace = canvas ? mountNozzleTrace(canvas, root) : null;
   root.querySelector('[data-demo-reset]')?.addEventListener('click', () => {
     view.classList.remove('is-loaded');
     frame.src = `${base}?reset=${Date.now()}#/`;
+    trace?.play();
   });
 
   // The farm only moves while you can see it.

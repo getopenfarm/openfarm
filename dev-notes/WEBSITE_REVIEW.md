@@ -82,6 +82,12 @@ other sections use the product's own vocabulary: a numbered run flow (a real seq
 that open their page in the demo, a "$0 per printer" statement, copyable install commands that stay
 true to the guide's database step, and a shelf of spools behind the final call to action.
 
+OpenBot's scroll effect is a WebGL light beam that crashes onto its app window. OpenFarm's counterpart is
+taken from printing instead: a nozzle trace prints two glowing perimeters around the demo window and cools
+into the brand cyan. Of four options (nozzle trace, a window that prints itself, a slicer-style toolpath
+preview, filament strands feeding the window), it was the one that looked engineered rather than
+atmospheric, with no dependency.
+
 ## Feature evidence
 
 | Homepage topic | Source in this repository |

@@ -53,8 +53,14 @@ so the desktop layout fits the window; phones get the app's own mobile layout.
 Part thumbnails come from `../tools/demo-thumbnails.py` plus two real slicer
 renders from our test fixtures. `/app-preview/` is `noindex` and not in the sitemap.
 
-Reduced motion turns off the headline's print animation, the flow pulse, and the
-demo's highlight rings.
+When the demo window first comes into view, `src/scripts/nozzle-trace.ts` prints
+its frame: a white-hot nozzle drops in and draws two perimeters around the window,
+cooling from white to amber to cyan (Canvas 2D; the loop stops when it is done).
+Reset prints it again. Printer detail in the demo shows real P1S and U1 camera
+stills (`../web/src/demo/assets/camera-*.jpg`, the U1 label pixelated).
+
+Reduced motion turns off the headline's print animation, the nozzle trace (only
+its finished frame is drawn), the flow pulse, and the demo's highlight rings.
 
 ## Search and link previews
 
