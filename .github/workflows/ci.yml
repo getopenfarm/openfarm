@@ -78,6 +78,10 @@ jobs:
         run: bun run test
       - working-directory: web
         run: bun run build
+      # The marketing-site demo (web/src/demo) must never ship in the app: its demo user must not be in dist/.
+      - name: No demo code in the production bundle
+        working-directory: web
+        run: "! grep -rl 'demo@openfarm.local' dist"
       - name: Orval contract-drift check
         working-directory: web
         run: bunx orval && git diff --exit-code src/lib/api/generated

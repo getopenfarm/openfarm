@@ -76,7 +76,7 @@ export function LoginPage() {
     <div className="flex min-h-svh items-center justify-center bg-background px-6 py-10">
       <div className="w-full max-w-[368px]">
         <img
-          src="/favicon.svg"
+          src={`${import.meta.env.BASE_URL}favicon.svg`}
           alt="OpenFarm"
           className="mx-auto mb-6 size-[54px] drop-shadow-[0_4px_10px_rgb(21_96_245/0.35)]"
         />

@@ -34,13 +34,18 @@ bun run lint              # biome check .
 bun run format             # biome format --write .
 bunx tsc -b                # typecheck only
 bun run icons              # regenerate favicon/PWA/iOS icons in public/ from public/favicon.svg
+bun run dev:demo           # the website's live demo: the app on in-browser demo data, :5174/app-preview/
+bun run build:demo         # tsc -b && vite build --mode demo → dist-demo/ (tools/build-site.sh publishes it)
 ```
+
+`src/demo/` is the marketing site's live demo (see `website/README.md`): it replaces `fetch` for `/api/v1` and the SignalR client, so the real UI runs on a synthetic farm with no server. It is bundled only in `--mode demo`; CI fails if it reaches `dist/`. Its data is typed against the generated contract, so **an API response change can fail `tsc -b` in `src/demo/`: update the demo farm (`farm.ts`/`api.ts`) with it.** A new page whose GETs the demo does not answer logs `[demo] unhandled GET` in `bun run dev:demo`.
 
 ### Local dev — `./dev.sh` (native, against a locally installed Postgres)
 ```
 ./dev.sh            # prints the subcommand list
 ./dev.sh api        # backend on :6868/:8889 (auto-migrates + seeds on startup)
 ./dev.sh web        # vite dev server on :5173
+./dev.sh demo       # the website's live demo (app on in-browser demo data) on :5174/app-preview/
 ./dev.sh up         # both in one terminal, Ctrl-C stops both
 ./dev.sh slicers    # provision slicer bundles into ./.slicers for this platform
 ./dev.sh ingest     # ingest system profiles from the provisioned slicers

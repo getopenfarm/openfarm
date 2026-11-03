@@ -20,21 +20,48 @@ function resolveAppVersion(): string {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  define: { __APP_VERSION__: JSON.stringify(resolveAppVersion()) },
-  server: {
-    proxy: {
-      '/api': 'http://localhost:6868',
-      '/hubs': {
-        target: 'http://localhost:6868',
-        ws: true,
+export default defineConfig(({ mode }) => {
+  const demo = mode === 'demo';
+  return {
+    plugins: [
+      react(),
+      tailwindcss(),
+      // The demo is published at /app-preview/ on the marketing site; keep it out of search.
+      demo && {
+        name: 'openfarm-demo-noindex',
+        transformIndexHtml: (html: string) =>
+          html.replace(
+            '</head>',
+            '  <meta name="robots" content="noindex, follow" />\n  </head>',
+          ),
+      },
+    ],
+    define: { __APP_VERSION__: JSON.stringify(resolveAppVersion()) },
+    // `bun run build:demo` → dist-demo/, served from /app-preview/ by tools/build-site.sh.
+    base: demo ? '/app-preview/' : '/',
+    build: demo ? { outDir: 'dist-demo' } : undefined,
+    server: {
+      proxy: demo
+        ? undefined
+        : {
+            '/api': 'http://localhost:6868',
+            '/hubs': {
+              target: 'http://localhost:6868',
+              ws: true,
+            },
+          },
+    },
+    resolve: {
+      alias: {
+        '@': path.resolve(import.meta.dirname, './src'),
+        // The demo has no server: its farm hub is an in-memory event emitter.
+        ...(demo && {
+          '@microsoft/signalr': path.resolve(
+            import.meta.dirname,
+            './src/demo/signalr.ts',
+          ),
+        }),
       },
     },
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
-  },
+  };
 });

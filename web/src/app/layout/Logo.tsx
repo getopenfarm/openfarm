@@ -2,7 +2,7 @@ export function Logo() {
   return (
     <div className="flex items-center gap-2.5 px-2.5 pt-1.5 pb-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
       <img
-        src="/favicon.svg"
+        src={`${import.meta.env.BASE_URL}favicon.svg`}
         alt=""
         className="size-8 shrink-0 drop-shadow-[0_2px_6px_rgb(21_96_245/0.3)]"
       />

@@ -1,4 +1,9 @@
-import { createBrowserRouter, Navigate } from 'react-router';
+import {
+  createBrowserRouter,
+  createHashRouter,
+  Navigate,
+  type RouteObject,
+} from 'react-router';
 import { ProfilePage } from '@/features/accounts/ProfilePage';
 import { TokenCreatePage } from '@/features/accounts/TokenCreatePage';
 import { UserFormPage } from '@/features/accounts/UserFormPage';
@@ -46,7 +51,7 @@ import { StatsPage } from '../features/stats/StatsPage';
 import { AppShell } from './layout/AppShell';
 import { ProtectedRoute } from './layout/ProtectedRoute';
 
-export const router = createBrowserRouter([
+const routes: RouteObject[] = [
   {
     path: '/login',
     element: <LoginPage />,
@@ -369,4 +374,10 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+// The marketing-site demo (`vite --mode demo`) runs from static files inside an iframe: hash routes
+// deep-link it and never hit the host's 404 page.
+export const router = (
+  import.meta.env.MODE === 'demo' ? createHashRouter : createBrowserRouter
+)(routes);
