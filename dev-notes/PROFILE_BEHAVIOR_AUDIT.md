@@ -98,3 +98,30 @@ Reproduction: run the Infrastructure test project with filter
 `FullyQualifiedName~RealSlicerGoldenFileTests.OrcaSlicer231_EmbeddedProject_PreservesItsSavedSettings`
 using the installed 2.3.1 Linux bundle. The environment was configured with
 `source /workspace/openfarm-setup/env.sh` so bundled native libraries were available.
+
+## Documentation-wide English review
+
+The follow-up editorial pass reviewed and revised all 33 published guides under
+`docs/content/`, including this PR's new profile page. It also updated the diagram,
+the docs README, and contributor instructions.
+
+The writing policy is `docs/WRITING_GUIDE.md`: clear technical English guided by
+ASD-STE100, written for print-farm owners and operators. It preserves necessary
+printing and software terms. It does not claim full standard compliance.
+
+The review covered every guide in administration, costs, development, filament,
+installation, library, operations, overview, printers, and production, plus the
+quick start, support, and troubleshooting pages. Changes include shorter active
+sentences, separate procedural steps, clearer conditions, definitions for OpenFarm
+terms, and removal of unexplained phrases such as "native twins" and "repin."
+
+Before/after checks confirmed that the editorial pass preserved all existing
+fenced code blocks, inline code literals, Markdown link destinations, and heading
+texts. The product rules and exceptions were reviewed while rewriting the prose.
+Sentence-length screening was used only to find wording for review, not to claim
+ASD-STE100 compliance.
+
+The docs typecheck and production build, including internal links and anchors,
+passed after the editorial changes. Application behavior and test expectations
+remain unchanged. The earlier runtime-test results and numeric baseline mismatch
+above still apply. Browser visual verification remains pending under `AGENTS.md`.

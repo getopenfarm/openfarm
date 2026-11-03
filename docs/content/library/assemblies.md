@@ -13,13 +13,13 @@ An assembly is a reusable product definition. It contains at least one part or s
 4. Add additional [Cost items](../costs/catalog.md) such as hardware, packaging, labor, or shipping as needed.
 5. Save the assembly.
 
-Nested assembly quantities multiply when the product is expanded. OpenFarm prevents circular definitions. A library picker can find items across folders; moving a record to another folder does not change its BOM references.
+For nested assemblies, OpenFarm multiplies component quantities through each level. It prevents circular definitions, such as an assembly containing itself. The library selection list can find items across folders. Moving a record to another folder does not change its bill of materials (BOM) references.
 
 ## Plan production
 
 For complete products, create a [run](../production/runs.md) and request the assembly in **sets**. OpenFarm expands the whole batch and totals each printed part before splitting it into plate jobs. It does not multiply the rounded plate count for one set by the number of sets.
 
-The assembly's direct **Print** action instead offers whole-plate counts for each printed component. Use a run's set quantity when you need an exact number of complete products.
+The assembly's direct **Print** action lets you enter whole-plate counts for each printed component. Use a run's set quantity when you need an exact number of complete products.
 
 Non-printed cost items contribute estimated costs, not printer output or stock reservations. A run does not purchase or consume cost-catalog inventory.
 
@@ -27,4 +27,4 @@ Non-printed cost items contribute estimated costs, not printer output or stock r
 
 The assembly page's Build estimate combines printed materials, configured printer costs, additional costs, and applicable allowances. The Pricing section calculates sale-price estimates against fee profiles. See [Costs and pricing](../costs/pricing.md).
 
-Use a one-part assembly to cost and price a standalone part with packaging or labor. Keep partial/unknown estimates visible when inputs are missing.
+To include packaging or labor for a standalone part, create an assembly containing that part. If inputs are missing, the cost estimate remains partial or unknown.

@@ -3,7 +3,7 @@ title: Docker installation
 description: Run a single OpenFarm instance with PostgreSQL on a Linux host.
 ---
 
-Use the repository's production Compose files to run OpenFarm and PostgreSQL. The supplied configuration uses host networking for printer discovery, so a Linux host is the straightforward deployment target.
+Use the repository's production Compose files to run OpenFarm and PostgreSQL on a Linux host. The supplied configuration uses host networking so OpenFarm can discover printers on the LAN.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ Seed__AdminUsername=admin
 Seed__AdminPassword=replace-with-a-strong-admin-password
 ```
 
-Keep the database password in step with the database configuration. PostgreSQL initialization variables apply only when a new volume is created.
+Make sure the configured password matches the database password. PostgreSQL uses initialization variables only when it creates a new volume.
 
 The current source Compose file puts OpenFarm on the host network but leaves PostgreSQL on a private container network. Add this **inside its existing `postgres` service** so `Database__Host=127.0.0.1` can reach it:
 
@@ -59,7 +59,7 @@ docker compose up -d
 docker compose logs --tail=100 openfarm
 ```
 
-Startup applies database migrations, seeds the first administrator, and ingests the bundled slicer profiles. Open `http://<server-ip>:6868` and sign in with the configured administrator credentials.
+On startup, OpenFarm applies database migrations, creates the first administrator account, and imports the bundled slicer profiles. Open `http://<server-ip>:6868` and sign in with the configured administrator credentials.
 
 If you omitted `Seed__AdminPassword`, the initial password is **admin-openfarm**. Change it before allowing other people to reach the installation. Seed settings do not reset an existing account's password.
 
@@ -67,7 +67,7 @@ If you omitted `Seed__AdminPassword`, the initial password is **admin-openfarm**
 
 The supplied Compose file uses named volumes `data` and `postgres`. Application data is mounted at `/data` and includes part files and cryptographic keys. Keep both volumes when recreating containers.
 
-Host networking supports Bambu SSDP and Snapmaker mDNS discovery. It also means the host's firewall controls exposure. Restrict database access to the OpenFarm host. A bridged/custom deployment can add printers by IP if multicast discovery is unavailable.
+Host networking supports Bambu SSDP and Snapmaker mDNS discovery. The host's firewall controls which network connections can reach OpenFarm. Restrict database access to the OpenFarm host. If multicast discovery is unavailable with your container network setup, add printers by IP address.
 
 :::caution One application instance
 Run exactly one OpenFarm application instance per installation. Do not scale the service or run overlapping application containers against the same database during an upgrade.

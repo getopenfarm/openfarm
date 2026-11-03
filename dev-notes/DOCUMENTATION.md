@@ -42,6 +42,9 @@ Check these sources when updating a guide; the notes alone may predate later cod
 
 ## Maintenance and verification
 
+- Follow `docs/WRITING_GUIDE.md` for clear technical English guided by ASD-STE100.
+  Keep necessary domain terms and preserve exact technical behavior. This is an
+  editorial policy, not a claim of full standard compliance.
 - `docs/sidebars.ts` is explicit to make category and previous/next order stable.
 - Only `docs/content/` is published. Notes and specs are not indexed by search.
 - The dedicated docs workflow installs the frozen Bun lock, typechecks, and

@@ -1,7 +1,15 @@
 # OpenFarm documentation
 
-Independent Docusaurus 3 site. User guides live in `content/`; engineering notes
-and plans live in [`../dev-notes/`](../dev-notes/).
+This Docusaurus 3 site builds independently of the application. User guides live
+in `content/`. Engineering notes and plans live in [`../dev-notes/`](../dev-notes/).
+
+## Writing style
+
+Follow [the writing guide](WRITING_GUIDE.md) for every page. Write clear technical
+English for print-farm owners and operators, guided by ASD-STE100 principles.
+Keep necessary printing and software terms. Explain unfamiliar OpenFarm terms,
+use short active sentences, and separate user actions from automatic behavior.
+This policy does not claim full ASD-STE100 compliance.
 
 ## Develop
 
@@ -28,9 +36,10 @@ bun run audit
 bun run serve
 ```
 
-The build fails on broken internal links or Markdown links and generates the
-local search index. Search is available in the production preview; a fresh dev
-server does not generate an index. There is no hosted search account or API key.
+The build checks internal links and generates the local search index. Broken
+links cause the build to fail. Search is available in the production preview.
+A fresh development server does not generate a search index. No hosted search
+account or API key is needed.
 
 Check narrow screens, light/dark mode, 200% zoom, keyboard navigation, search,
 sidebar, and focus appearance during visual review. A successful build does not

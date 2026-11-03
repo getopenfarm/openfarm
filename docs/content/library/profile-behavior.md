@@ -1,14 +1,16 @@
 ---
 title: When profiles apply
-description: Follow STL, geometry-only 3MF, project 3MF, sliced 3MF, and G-code from library processing to production, and see which profiles are applied or only checked.
+description: See which profiles generate toolpaths and which profiles only validate a job, for each supported file type.
 ---
 
-**The first question is whether OpenFarm needs to generate toolpaths.** STL and unsliced 3MF need slicing. Supported sliced 3MF and raw G-code already contain toolpaths, so changing a profile does not regenerate them.
+**Profiles generate new toolpaths only when the file needs slicing.** STL and unsliced 3MF need slicing. Supported sliced 3MF and raw G-code already contain toolpaths. Changing an OpenFarm profile does not regenerate those toolpaths.
 
 There are two separate stages:
 
 1. **Library processing** reads the uploaded file and, when supported, calculates estimates. It does not select settings from your connected printers or loaded spools.
-2. **Production file preparation** checks the destination printer and its loaded spools. If the file needs slicing, OpenFarm generates a new file using that printer's configuration and the part's pinned slicer.
+2. **Production file preparation** checks the destination printer and its loaded spools. If slicing is needed, OpenFarm uses that printer's configuration and the part's saved slicer engine and exact version.
+
+The saved engine and version are called the **slicer pin**. Pinning a job to a printer is a separate choice.
 
 A successful estimate or **Ready to print** part does not guarantee that a particular printer can take the job. [Printer matching](../production/matching.md) still applies.
 
@@ -16,11 +18,11 @@ A successful estimate or **Ready to print** part does not guarantee that a parti
 
 | Profile | Where you configure it for production | Role when slicing |
 | --- | --- | --- |
-| **Printer / machine** | Edit the destination printer → machine profile | Supplies the slicer's machine settings, including machine G-code and nozzle configuration. OpenFarm separately checks the registered hardware and currently confirmed nozzle. |
+| **Printer / machine** | Edit the destination printer → machine profile | Supplies machine settings, including machine G-code and nozzle configuration. OpenFarm also checks the registered hardware and the connected printer's nozzle report. |
 | **Process** | Edit the destination printer → process profile | Supplies the process preset, such as layer height, walls, infill, and support defaults. |
-| **Filament** | Edit the filament → assignment for the printer's brand/model and nozzle size, with an optional color override | Supplies material settings for the tracked spool selected for each required material/color line. |
+| **Filament** | Edit the filament → assign a profile for the printer brand, model, and nozzle size. A color can override this assignment. | Supplies material settings for the tracked spool selected for each required material and color. |
 
-A printer record is physical hardware. A machine profile is a slicing preset. Likewise, a spool is physical stock, while a filament profile is a preset. Selecting a profile does not change the physical nozzle, plate, or material.
+A printer record describes physical hardware. A machine profile contains slicer settings. A spool record tracks a physical roll of filament. A filament profile contains material settings for the slicer. Selecting a profile does not change the physical nozzle, plate, or material.
 
 ## Which kind of file did I upload?
 
@@ -34,70 +36,82 @@ The `.3mf` extension alone does not answer this question. A 3MF archive can cont
 | **Sliced 3MF**, often named `.gcode.3mf` | Contains a supported `Metadata/plate_*.gcode` entry. OpenFarm treats the upload as already sliced, even if it also contains project settings and models. |
 | **Raw `.gcode`, `.gco`, or `.g`** | Already sliced. |
 
-OpenFarm inspects a 3MF archive for supported plate G-code; it does not decide from the `.gcode.3mf` filename alone. Other vendors' 3MF layouts are not automatically supported. Malformed or unsupported files can be rejected, and unreadable or conflicting metadata can leave requirements or estimates unknown.
+OpenFarm looks inside the 3MF archive for supported plate G-code. The `.gcode.3mf` filename alone does not select the file's processing route. Other vendors' 3MF layouts are not automatically supported. OpenFarm can reject malformed or unsupported files. Unreadable or conflicting metadata can leave requirements or estimates unknown.
 
-If an archive mixes sliced and unsliced plates, the presence of supported plate G-code selects the already-sliced route for the upload. OpenFarm does not automatically slice the remaining plates through that route; a requested plate must have usable sliced output.
+If an archive contains supported plate G-code, OpenFarm processes the upload as already sliced. This also applies to archives that mix sliced and unsliced plates. OpenFarm does not automatically slice the remaining plates. A requested plate must have usable sliced output.
 
 For background on the format, Prusa's [Saving projects as 3MF](https://help.prusa3d.com/article/saving-projects-as-3mf_1773) explains why a project can carry settings and modifiers as well as geometry. OpenFarm's own supported entries determine its behavior.
 
 ## During upload, replacement, or reprocessing
 
-**The fleet's machine/process selections and inventory's filament-profile assignments are not used to calculate library estimates.** There is no farm estimation-profile fallback to configure.
+**Library estimates do not use the fleet's selected machine and process profiles or the inventory's filament-profile assignments.** There is no separate farm estimation profile to configure.
 
-| Uploaded file | Where library time/weight estimates come from | Are production profiles applied? |
+| Uploaded file | Source of library time and weight estimates | Are production profiles applied? |
 | --- | --- | --- |
 | STL or geometry-only 3MF | No automatic slicing estimate. Complete missing requirements during review; estimates remain unavailable. | No. |
 | Supported unsliced project 3MF | OpenFarm first runs the selected slicer with the project's embedded settings. See the restricted retry below. | No; the destination printer and loaded spools are not selected here. |
 | Sliced 3MF or raw G-code | Metadata already present in the file. OpenFarm does not run the slicer to recalculate it. | No. |
 
-Missing time or weight stays unknown. It does not become zero, and an estimate failure does not by itself prevent saving a reviewable part. Production still needs complete requirements.
+Missing time or weight stays unknown. It does not become zero. If an estimate fails, you can still save a part after reviewing its requirements. Production still needs complete requirements.
 
 ### Project settings and the named-preset retry
 
-Embedded-project estimation is supported for recognized OrcaSlicer/Bambu Studio projects with usable settings and an available selected engine/version. Bambu Studio **2.7.1 on macOS** is explicitly excluded from this estimation mode. Prusa/Cura project settings are not supported by this estimator.
+OpenFarm can estimate recognized OrcaSlicer and Bambu Studio projects from their embedded settings. The settings must be usable, and the selected slicer engine and version must be available. This estimation mode excludes Bambu Studio **2.7.1 on macOS**. It does not support Prusa or Cura project settings.
 
-The initial invocation loads the project without external machine, process, or filament preset files. If the slicer rejects the project settings with a recognized validation/version/modified-machine error, OpenFarm can make a second attempt:
+The first attempt loads the project without external machine, process, or filament preset files. A second attempt is available only for specific validation, version, or modified-machine errors. For this second attempt, OpenFarm:
 
-1. Read the machine, process, filament preset names, and build plate recorded in the project.
-2. Look up each preset by name in the **selected engine's exact version catalog**. Each name must have exactly one match, the plate must be recognized, and the resulting set must pass compatibility checks.
-3. Retry using those catalog presets. This replaces the project's global preset settings; it does not reproduce its custom preset edits. Project geometry and local settings remain inputs to the slicer.
+1. Reads the machine, process, and filament preset names and the build plate stored in the project.
+2. Looks up each preset by name in the **selected engine's exact version catalog**. Each name must have exactly one match.
+3. Checks that the build plate is recognized and the matched presets are compatible.
+4. Retries with those catalog presets.
 
-The retry currently requires **one distinct nonblank filament preset name**; several slots may share it. A project with several distinct filament presets can still succeed on the initial embedded-settings attempt, but cannot use this retry. Missing/ambiguous presets or another slicing failure leave the estimate unavailable. This retry never selects your fleet's production profiles and is not a fallback used by production dispatch.
+This retry replaces the project's global preset settings. It does not reproduce custom edits to those presets. Project geometry and local settings remain inputs to the slicer.
+
+The retry requires **one distinct nonblank filament preset name**. Several slots can share that name. A project with several different filament presets can succeed on the first attempt. It cannot use this retry.
+
+Missing presets, multiple matches, or another slicing failure leave the estimate unavailable. This retry does not select your fleet's production profiles. Production dispatch does not use this retry as a fallback.
 
 ### Estimating does not make the source file pre-sliced
 
-For an unsliced upload, the estimator's generated toolpath is temporary. OpenFarm keeps estimates and thumbnails, not that toolpath as the production file. The stored source still needs slicing when a job is prepared for a printer.
+For an unsliced upload, the toolpath generated for estimation is temporary. OpenFarm saves the estimates and thumbnails, then discards that toolpath. It slices the stored source again when preparing a production job.
 
 ## When a job is prepared for a printer
 
-Direct part printing, assembly printing, finite runs, and continuous backfill create queue work. They use the same production file-resolution and dispatch checks. Pinning a job restricts its destination; it does not bypass those checks.
+Direct part printing, assembly printing, runs with fixed quantities, and continuous backfill all create queue work. They use the same file preparation and dispatch checks. Pinning a job restricts it to one printer. It does not bypass those checks.
 
-![Decision tree: check whether the source already contains toolpaths, validate the printer and loaded filament assignments, then either prepare the existing toolpaths or resolve all three profiles and slice a new file.](../../static/img/profile-production-flow.svg)
+![Production decision tree. Already-sliced files keep their toolpaths. Unsliced files use compatible machine, process, and filament profiles to generate toolpaths. All jobs must pass the applicable printer and stock checks.](../../static/img/profile-production-flow.svg)
 
 ### STL and unsliced 3MF: generate a new production file
 
 For each destination printer, OpenFarm:
 
-1. Checks complete part/job requirements, current nozzle confirmation, a compatible machine profile, and matching tracked spools on active feed paths.
-2. Selects each required spool's filament-profile assignment for that hardware/nozzle group. A color override wins over the filament default. A part/job profile constraint must agree with the assignment; it does not choose a replacement preset. Spools in storage or on another printer are not fallbacks.
-3. Requires the destination printer's **machine profile, process profile, and build plate**, plus the part/job's **exact slicer engine/version pin**.
-4. Resolves the selected presets and their inheritance into that pin's catalog, validates the resolved set, and supplies it to the slicer. Each required filament line is checked separately, including compatibility with the selected plate's bed temperature.
-5. Slices the part's selected project plate. Rechecks current configuration and stock before sending. If a check or slicing fails, nothing is sent.
+1. Checks that the job's requirements are complete and current printer reports confirm the nozzle size.
+2. Checks the machine profile and finds matching tracked spools on active feed paths.
+3. Selects each spool's filament-profile assignment for that printer hardware and nozzle size. A color override takes priority over the filament default.
+4. Requires the printer's **machine profile, process profile, and build plate**, plus the job's **exact slicer engine and version pin**.
+5. Finds compatible presets and their inherited settings in the pinned catalog.
+6. Checks each required filament separately, including its bed-temperature setting for the selected plate.
+7. Supplies those presets to the slicer and slices the part's selected project plate.
+8. Rechecks the current configuration and stock before sending.
+
+If a check or slicing fails, OpenFarm sends nothing. A profile constraint saved on a part or job must agree with the loaded spool's assignment. It cannot select a replacement preset. Spools in storage or on another printer are not fallbacks.
 
 | Setting source | Used to generate the production file? |
 | --- | --- |
 | Destination printer's machine profile | **Yes**, after resolution and validation. |
 | Destination printer's process profile | **Yes**, after resolution and validation. |
-| Destination printer's selected build plate | **Yes**; OpenFarm injects that plate selection into the process settings. |
-| Selected tracked spools' effective filament-profile assignments | **Yes**, after resolution and validation, for each required line/slot. |
-| Project's global machine/process/filament preset settings | They are not the production preset selection. OpenFarm loads the resolved external presets over the project. |
-| Project geometry, placement, painting, modifiers, and object/part settings | The project is still passed to the slicer. OpenFarm does not strip these to make the file geometry-only. Local overrides can affect the result. |
+| Destination printer's selected build plate | **Yes**. OpenFarm adds the plate selection to the process settings. |
+| Filament-profile assignments for the selected tracked spools | **Yes**, after matching and compatibility checks, for each required filament slot. |
+| Project's global machine, process, and filament preset settings | OpenFarm loads the selected external presets with priority over these project settings. |
+| Project geometry, placement, painting, modifiers, and object or part settings | OpenFarm still passes these to the slicer. Local overrides can affect the result. |
 
-The OrcaSlicer/Bambu Studio CLI loads external machine/process settings and filament files with priority over project-level settings. That does **not** mean every local override in a project is erased. Do not assume selecting a process preset removes an object's custom infill or support settings. The upstream [OrcaSlicer 2.3.1 CLI implementation](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.3.1/src/OrcaSlicer.cpp#L6099-L6103) and [Bambu Studio 2.7.1 CLI implementation](https://github.com/bambulab/BambuStudio/blob/v02.07.01.57/src/BambuStudio.cpp#L8257-L8260) describe the global loading priority.
+The OrcaSlicer and Bambu Studio command-line interfaces (CLIs) give external presets priority over project-level settings. They do **not** erase every local override. Selecting a process preset does not necessarily remove an object's custom infill or support settings. See the loading priority in the [OrcaSlicer 2.3.1 CLI implementation](https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.3.1/src/OrcaSlicer.cpp#L6099-L6103) and [Bambu Studio 2.7.1 CLI implementation](https://github.com/bambulab/BambuStudio/blob/v02.07.01.57/src/BambuStudio.cpp#L8257-L8260).
 
-For multi-color projects, OpenFarm matches project slots to job lines by the detected material/color, then loads each line's resolved filament profile in slot order. Slots known to be unused on that plate need no separate line. An unmatched used slot blocks the job; OpenFarm does not silently keep an embedded filament preset for it. STL/geometry-only files without project slots cannot supply several independent filament lines this way.
+For multi-color projects, OpenFarm matches each project slot to a job line by its detected material and color. It loads the matched filament profile for each slot, in slot order. A slot known to be unused on that plate needs no separate job line.
 
-Production profile resolution supports **OrcaSlicer and Bambu Studio**. A SuperSlicer CLI adapter exists, but its scalar-only invocation does not implement these profile catalogs; it is not an alternative route around a missing or incompatible profile.
+If a used slot has no match, OpenFarm blocks the job. It does not keep an embedded filament preset as a substitute. STL and geometry-only files without project slots cannot supply several independent filament lines this way.
+
+Production profile matching supports **OrcaSlicer and Bambu Studio**. A SuperSlicer CLI adapter exists in the code, but it does not support these profile catalogs. It cannot bypass a missing or incompatible profile.
 
 ### Sliced 3MF and raw G-code: keep the existing toolpaths
 
@@ -105,53 +119,58 @@ OpenFarm does **not** re-slice these files or apply the destination printer's pr
 
 | Configuration | What happens for an already-sliced job? |
 | --- | --- |
-| Machine profile | **Required and validated** against registered hardware and the currently confirmed nozzle, as part of selecting compatible loaded filament. Its settings are not loaded into a slicer or applied to the toolpaths. |
+| Machine profile | **Required and validated** against registered hardware and the current nozzle report when OpenFarm selects loaded filament. OpenFarm does not apply its settings to the toolpaths. |
 | Process profile | **Not required for this route and not applied** to the toolpaths. |
-| Filament-profile assignments | **Required and validated** for the tracked loaded spools, including material/nozzle/machine compatibility and any narrower profile constraint. Their temperatures, flow, cooling, etc. do not replace values in the toolpaths. |
-| Build plate | No new slicing-plate selection or plate-temperature validation is performed by the slicing-profile resolver. Prepare the file for the physical plate you will use. |
-| Part's slicer pin | Not needed to run a slicer for this route. Production does not map these validation assignments into a pinned slicer catalog. |
+| Filament-profile assignments | **Required and validated** for the loaded, tracked spools. OpenFarm checks material, nozzle, machine, and saved profile constraints. It does not replace toolpath settings such as temperature, flow, or cooling. |
+| Build plate | OpenFarm does not select a new slicing plate or validate its profile temperature for this route. Prepare the file for the physical plate you will use. |
+| Part's slicer pin | No slicer is run. OpenFarm does not look up these validation assignments in a pinned slicer catalog. |
 
-For real supported printers, the file must declare a recognizable **target printer model matching the destination**. A missing/unrecognized target or another model blocks dispatch. The simulator is exempt from this model check. Filling a missing nozzle/material requirement manually does not fill in a missing printer-model declaration inside the sliced file.
+For real supported printers, the file must declare a recognizable **target printer model matching the destination**. A missing target, an unrecognized target, or a different model blocks the job. This model check does not apply to the simulator.
 
-The existing slicing temperatures, speeds, layer height, supports, and other toolpath choices remain those of the original slice. Choosing another spool color can change physical stock matching; it does not rewrite the file's slicing settings.
+Entering a missing nozzle or material requirement manually does not add a missing printer-model declaration to the sliced file.
+
+Temperatures, speeds, layer height, supports, and other toolpath choices remain those of the original slice. Choosing another spool color changes which physical stock can match the job. It does not rewrite the file's slicing settings.
 
 :::note Existing toolpaths can still need execution preparation
-Keeping toolpaths does not promise byte-for-byte identical uploads. Supported exact partial plates/object skipping can prepare an execution artifact, and printer adapters can package or adapt the file for the protocol. These operations are separate from applying slicing profiles. See [Outcomes and recovery](../production/outcomes.md).
+OpenFarm can still prepare the file for a partial plate or supported object skipping. It can also package or adapt the file for the printer's protocol. The uploaded bytes can therefore differ from the stored file. These operations do not apply slicing profiles. See [Outcomes and recovery](../production/outcomes.md).
 :::
 
 ### Original downloads, job downloads, and printer-started prints
 
 Downloading a **part's original file** returns the stored upload without applying profiles. It does not export the temporary library-estimation result.
 
-A **job file** download returns its retained execution artifact when one is available. Otherwise, it uses the same production file preparation described above and needs an assigned or pinned target printer. Downloading a retained artifact does not re-slice it with today's profiles.
+A **job file** download returns the file saved for that job, if available. Otherwise, OpenFarm prepares a production file as described above. This requires an assigned or pinned target printer. Downloading a saved job file does not slice it again with today's profiles.
 
-A print started outside OpenFarm can be observed as a printer-started print. Observation does not run it through OpenFarm's queue slicing or apply OpenFarm's profile choices to it.
+OpenFarm can observe a print started outside its queue. This is a printer-started print. Observing it does not cause OpenFarm to slice it or apply profile settings.
 
 ## Which version of a profile is used?
 
-This section applies when OpenFarm **slices** a production file. A saved profile choice may come from a different catalog than the part's pin:
+This section applies when OpenFarm **slices** a production file. A selected profile can come from a different catalog than the part's pinned slicer:
 
 | Saved choice | Resolution for production slicing |
 | --- | --- |
-| System preset already in the pinned engine/version | Use that preset. |
-| System preset from another version of the same engine | Map to the pinned catalog by vendor and external preset ID, tolerating a rename. Without an ID, use vendor/name. |
-| System preset from the other supported engine | Require an exact twin in the pinned catalog by external ID, vendor, and name. A similar display name is insufficient. |
-| User preset native to the pinned engine | Use the user preset; resolve its system ancestors to the pin's catalog. |
+| System preset already in the pinned engine and version | Use that preset. |
+| System preset from another version of the same engine | Find a match by vendor and external preset ID. A renamed preset can match. Without an ID, use vendor and name. |
+| System preset from the other supported engine | Require an exact match by external ID, vendor, and name. A similar display name is insufficient. |
+| User preset made for the pinned engine | Use the user preset. Match its inherited system presets to the pinned catalog. |
 | User preset from another engine | Block. |
 
-Missing/ambiguous matches, missing catalogs, unresolved inheritance/templates, unavailable slicers, and incompatible resolved presets block slicing. OpenFarm does not choose a nearby preset, another engine, or a newer version to make a job proceed.
+OpenFarm blocks slicing if a preset is missing, has multiple matches, or is incompatible. It also blocks missing catalogs, unavailable slicers, and inherited presets or templates that it cannot load. It does not substitute a similar preset, another engine, or a newer version.
 
 ## What happens after I change something?
 
 | Change | Effect |
 | --- | --- |
-| Change the farm default slicer | Changes default processing choices and picker catalogs. Existing part/job pins do not move. |
-| Replace or reprocess an unsliced part | Keeps its current pin unless you explicitly choose another slicer; a part without a pin can take the farm default. Re-reads requirements/estimates using the applicable file route above. |
+| Change the farm default slicer | Changes the default for new processing and the catalog shown in profile lists. Existing parts and jobs keep their pins. |
+| Replace or reprocess an unsliced part | Keeps its current pin unless you choose another slicer. A part without a pin can use the farm default. Reads requirements and estimates again using the applicable route above. |
 | Reprocess a sliced file | Reads its metadata again. Does not regenerate toolpaths with your current profiles. |
-| Change printer machine/process/plate settings or a filament assignment | Used/checked on the next production preparation according to the route above. Does not recalculate saved library estimates. |
+| Change printer machine, process, or plate settings, or a filament assignment | OpenFarm uses or checks the new configuration on the next production preparation, according to the file route. Saved library estimates stay unchanged. |
 | Change settings or loaded spools while a file is being generated | Dispatch checks fresh state again. A configuration mismatch stops the send and leaves the job for retry. |
-| Edit a library part after finite jobs were queued | Finite jobs retain their captured source inputs and pin. Live printer settings and spool assignments are still checked at dispatch. Continuous follow-latest work can use the updated part before dispatch. |
+| Edit a library part after jobs with fixed quantities were queued | Those jobs keep their saved source inputs and pin. OpenFarm still checks current printer settings and spool assignments. Continuous backfill can use the updated part before dispatch. |
 
-**To preserve the slicing choices of an external slicer, upload its supported sliced output. To have OpenFarm generate toolpaths with your destination printer's configured profiles, upload STL or an unsliced supported 3MF.** Either route still needs valid hardware, material, and matching configuration.
+- **To keep an external slicer's toolpaths**, upload its supported sliced output.
+- **To generate toolpaths with your destination printer's profiles**, upload STL or a supported unsliced 3MF.
 
-Use **Job diagnosis** to see why a particular printer cannot take a job. After production slicing, the job's recorded slicer and resolved profiles describe that production slice; the library estimate may have used different settings.
+Either route still needs compatible hardware, material, and configuration.
+
+Use **Job diagnosis** to see why a printer cannot take a job. After production slicing, the job records the slicer and profiles used for that slice. The library estimate can use different settings.

@@ -9,21 +9,21 @@ The filament catalog describes what material you stock. Physical rolls are separ
 
 Open **Filament → Add filament**. Set the vendor, name, material type, and any known price per kilogram. Add the color variants you actually use. Optional low-stock and days-left thresholds help identify replenishment needs.
 
-Blank prices mean unknown; do not enter zero unless the cost really is zero. A color can override the material's default price.
+Leave prices blank if they are unknown. Enter zero only when the known cost is zero. A color can override the material's default price.
 
 ## Assign slicing profiles
 
-Configure a filament's profile assignments for each **printer brand/model + nozzle size** you use. Identical hardware shares an assignment row. A color can override that row; clearing the override restores inheritance from the filament default.
+Assign a filament profile for each **printer brand, model, and nozzle size** you use. Printers with the same hardware share an assignment row. A color can override the default assignment. If you clear the color override, the color uses the filament's default assignment again.
 
 Assignments must match the material, hardware, nozzle, and selected slicer catalog. Inventory can be saved without them, but production requires compatible assignments, including for pre-sliced files.
 
-The farm's default slicer controls picker catalogs. When production needs slicing, existing parts retain their exact slicer pin and the selected profiles must resolve in that pinned catalog. Already-sliced jobs validate assignments without applying their settings to the toolpaths. See [When profiles apply](../library/profile-behavior.md) and [Profiles and slicers](../library/profiles.md).
+The farm's default slicer determines which catalog appears in profile selection lists. Existing parts keep their saved slicer and exact version, called the slicer pin. If a job needs slicing, the selected profiles must have compatible matches in that slicer's catalog. Already-sliced jobs still need compatible assignments, but OpenFarm does not apply their settings to the toolpaths. See [When profiles apply](../library/profile-behavior.md) and [Profiles and slicers](../library/profiles.md).
 
 ## Choose production filament on a part
 
-Select the catalog **Production filament** on the part's requirement. That chosen color variant becomes the effective identity the job matches against tracked loaded spools. The file's detected material/color remains visible as source metadata.
+Select **Production filament** for the part's material requirement. OpenFarm then matches the job to a loaded, tracked spool of that catalog color variant. The material and color detected in the file remain visible as source metadata.
 
-You can choose another color of the same material; selecting a different known material type is rejected. A loaded spool of the exact selected variant satisfies the identity check. Review [matching diagnostics](../production/matching.md) for narrower profile constraints or missing assignments.
+You can choose another color of the same material. OpenFarm rejects a different known material type. A loaded spool of the exact selected variant satisfies the identity check. Review [matching diagnostics](../production/matching.md) for profile constraints or missing assignments.
 
 ## Review stock and use
 

@@ -1,5 +1,12 @@
 # OpenFarm agent conventions
 
+## Documentation
+
+Follow [the documentation writing guide](docs/WRITING_GUIDE.md) when editing the
+docs site. Use clear technical English guided by ASD-STE100 principles for
+print-farm owners. Preserve exact interface labels, commands, technical values,
+requirements, and behavior exceptions. Do not claim full ASD-STE100 compliance.
+
 ## Web tables
 
 Read and follow the [shadcn skill](.agents/skills/shadcn/SKILL.md) when working on

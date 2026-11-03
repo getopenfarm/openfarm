@@ -7,7 +7,7 @@ Back up PostgreSQL and the application data volume as one recovery set. A databa
 
 ## Back up an installation
 
-For the [supplied production Compose file](docker.md), run from its directory. Pause new work and stop the application so files and database records stay consistent while the backup runs. Let active prints finish first when possible.
+For the [supplied production Compose file](docker.md), run these commands from its directory. Let active prints finish first when possible. Pause new work before you stop the application. Stopping OpenFarm keeps files and database records consistent during the backup.
 
 ```bash
 backup_dir="backups/$(date -u +%Y%m%dT%H%M%SZ)"
@@ -23,7 +23,7 @@ docker compose cp openfarm:/data "$backup_dir/application-data"
 docker compose start openfarm
 ```
 
-Store the SQL dump, copied data (including `keys/`), Compose file, `.env`, and any encryption certificate securely together. If any backup step fails, retain previous backups and restart the application when appropriate. Test recovery on an isolated installation before depending on a backup.
+Store the SQL dump, copied data (including `keys/`), Compose file, `.env`, and encryption certificates together in a secure location. If a backup step fails, keep previous backups. Restart the application when appropriate. Test recovery on a separate, isolated installation before you rely on the backup.
 
 ## Upgrade
 
@@ -36,15 +36,21 @@ docker compose up -d openfarm
 docker compose logs --tail=100 openfarm
 ```
 
-Migrations run on startup. Keep the existing project directory/name so Compose reuses the same named volumes. Use a specific release image tag if you want controlled upgrades instead of following `latest`.
+Migrations run on startup. Keep the existing project directory and project name so Compose reuses the same named volumes. To control when you upgrade, use a specific release image tag instead of `latest`.
 
-Only one application instance may use the database. Expect brief downtime; do not perform a rolling deployment with overlapping instances.
+Only one application instance can use the database. Expect brief downtime. Do not run overlapping instances during an upgrade.
 
 ## Restore
 
-1. Prepare an isolated installation with the application version corresponding to the backup. Keep the application stopped and start PostgreSQL only.
-2. Restore the dump into an empty database using its configured owner. Restore the **contents** of the saved application data to the volume mounted at `/data`.
-3. Restore matching configuration and certificates, check file ownership for `PUID`/`PGID`, and verify that the original encryption keys are present.
-4. Start a single application instance and inspect logs. Confirm sign-in, files, printer credentials, and queued work before returning the farm to use.
+1. Prepare an isolated installation with the application version that matches the backup.
+2. Keep OpenFarm stopped and start PostgreSQL only.
+3. Restore the dump into an empty database using its configured owner.
+4. Restore the **contents** of the saved application data to the volume mounted at `/data`.
+5. Restore the matching configuration and certificates.
+6. Check file ownership against `PUID` and `PGID`.
+7. Verify that the original encryption keys are present.
+8. Start one OpenFarm application instance.
+9. Inspect the logs.
+10. Confirm sign-in, files, printer credentials, and queued work before returning the farm to use.
 
 Rollback requires a compatible application **and** database schema. Starting an old image against a migrated database is not a restore strategy. Do not use `docker compose down -v` on an installation whose data you need to keep.

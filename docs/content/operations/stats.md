@@ -9,21 +9,21 @@ Open **Stats** to review the farm over a selected date range and compare it with
 
 | Figure | Interpretation |
 | --- | --- |
-| Prints and success | Ended prints that actually started; completed prints divided by completed, failed, and cancelled attempts. |
-| Printer time | Recorded printing, awaiting-clear, paused, idle, and offline stretches. Unobserved time appears as no data. |
+| Prints and success | Includes ended prints that actually started. Success rate is completed prints divided by all completed, failed, and cancelled attempts. |
+| Printer time | Recorded periods of printing, awaiting-clear, paused, idle, and offline status. Unobserved time appears as no data. |
 | Utilization | Printing hours divided by observed hours. Offline time is observed; unknown time is excluded. |
 | Queue wait | Time from job creation to start, summarized for jobs that started in the range. |
-| Filament and waste | Recorded/estimated material on completed work versus failed/cancelled work. |
-| Units made | The current Stats aggregate uses completed jobs' recorded plate quantities; use job/run outcome details to verify exact accepted output. |
+| Filament and waste | Compares recorded or estimated material use for completed work with material use for failed and cancelled work. |
+| Units made | Stats uses the recorded plate quantities of completed jobs. Use job and run outcome details to verify the exact accepted output. |
 
 ## Dates and coverage
 
-The browser's local days determine the range; the API takes an IANA time zone and supports up to 366 days. Prints are bucketed by when they ended, not merely when they were queued.
+The date range uses local days in the browser's time zone. The API accepts an IANA time zone and supports up to 366 days. OpenFarm groups prints by their end date, not their queue date.
 
-Time comes from printer activity, while output comes from print records. A print still open does not contribute a completed duration. Server downtime can leave unknown stretches; OpenFarm cannot reconstruct every print that started and ended while it was offline.
+Time comes from printer activity. Output comes from print records. A print that has not ended does not contribute a completed duration. Server downtime can leave periods with no data. OpenFarm cannot reconstruct every print that started and ended while the server was offline.
 
 ## Material costs
 
-Material use is estimated from files and observed progress. Realized material cost uses the price captured when deduction was recorded, rather than silently repricing old prints with today's catalog values. Missing prices or deductions can make figures partial.
+OpenFarm estimates material use from files and observed print progress. Recorded material cost uses the price saved when OpenFarm deducted the usage. Later catalog price changes do not change that recorded cost. Missing prices or deductions can leave the report incomplete.
 
 Use the filament's **Usage / History**, spool history, and **Action required** print entries to investigate discrepancies. These reports do not measure filament on a scale or record sales revenue.

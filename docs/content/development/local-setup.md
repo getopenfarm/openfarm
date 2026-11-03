@@ -3,11 +3,18 @@ title: Local development
 description: Run the API, web application, and standalone documentation site from the repository.
 ---
 
-The repository contains `api/` (ASP.NET Core), `web/` (React/Vite), `docs/` (this Docusaurus site), and `dev-notes/` (engineering notes). The docs site builds independently of the farm application.
+The repository contains these directories:
+
+- `api/`: the ASP.NET Core backend.
+- `web/`: the React application, built with Vite.
+- `docs/`: this Docusaurus site.
+- `dev-notes/`: engineering notes.
+
+You can build the docs site independently of the farm application.
 
 ## Run the application
 
-Install the .NET SDK pinned in `api/global.json`, Bun, Bash, and PostgreSQL. Follow the root [README](https://github.com/getopenfarm/openfarm/blob/main/README.md) to create/configure the database or start its Compose service.
+Install the .NET SDK version specified in `api/global.json`, Bun, Bash, and PostgreSQL. Follow the root [README](https://github.com/getopenfarm/openfarm/blob/main/README.md) to configure the database or start its Compose service.
 
 From the repository root:
 
@@ -17,7 +24,9 @@ dotnet restore api/OpenFarm.slnx
 ./dev.sh up
 ```
 
-`setup` installs web dependencies, provisions slicer bundles, and ingests profiles. API startup/ingestion applies migrations and initial seeding automatically. `dev.sh` does not load `.env` files; use `ConnectionStrings__Default` in the shell if the development database differs from the bundled settings.
+`setup` installs web dependencies and slicer bundles, then imports their profiles. API startup and profile import apply database migrations and create initial records automatically.
+
+`dev.sh` does not load `.env` files. If your database uses different connection settings, set `ConnectionStrings__Default` in the shell.
 
 The web app is at `http://localhost:5173`, with the HTTP API at `http://localhost:6868`. Development seed defaults are `admin` / `admin-openfarm` unless configured before account creation.
 
@@ -50,6 +59,6 @@ Local search is generated during the production build. Use the served build to t
 
 ## Contribute
 
-Edit user guides in `docs/content/` and their order in `docs/sidebars.ts`. Keep content grounded in actual UI/endpoints. Engineering designs, protocol details, and future plans belong in `dev-notes/`.
+Edit user guides in `docs/content/` and their order in `docs/sidebars.ts`. Describe the current interface and API behavior. Engineering designs, protocol details, and future plans belong in `dev-notes/`.
 
 Application checks remain separate: run `bun run test`, `bun run lint`, and `bun run build` from `web/`, and the relevant .NET checks for backend changes. Do not hand-edit generated API clients.
