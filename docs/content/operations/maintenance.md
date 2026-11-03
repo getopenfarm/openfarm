@@ -3,7 +3,7 @@ title: Maintenance
 description: Track recurring service by elapsed days, print hours, or print count.
 ---
 
-Maintenance combines reusable task definitions with a separate service cycle for each enrolled printer.
+Create a maintenance task once and assign it to printers. Each assigned printer has its own service cycle.
 
 ## Define and enroll
 
@@ -16,16 +16,16 @@ Seeded tasks are editable templates. Choose intervals based on the printer and o
 
 ## Read due state
 
-When a task has several triggers, whichever reaches its interval first controls the due state. The default warning threshold is 80%. **Due soon** warns before the interval; **Overdue** means at least one interval has been reached.
+If a task has several intervals, it becomes due when the first interval is reached. The default warning threshold is 80%. **Due soon** warns before an interval is reached. **Overdue** means at least one interval has been reached.
 
-Hours use recorded activity/print durations. A `≥` indicator means the observed hours are a lower bound because some time was untracked. Failed/cancelled prints and observable printer-started prints can contribute to wear.
+Hours use recorded printer activity and print durations. A `≥` indicator means actual hours can be higher because OpenFarm could not track some time. Failed prints, cancelled prints, and observed printer-started prints can also contribute to wear.
 
 Overdue maintenance currently **warns only**; it does not block automatic dispatch. Pause or otherwise manage work before physically servicing a printer.
 
 ## Record service
 
-After performing service, choose **Mark done** and add an optional note. A backdated service date cannot be in the future or before the current cycle began. The signed-in user is recorded as the performer.
+After you complete the service, choose **Mark done**. Add a note if necessary. A service date cannot be in the future or before the current cycle began. OpenFarm records the signed-in user as the person who did the service.
 
-Use **Set last done** to establish a baseline for service performed before tracking, including known carried usage. History is preserved if a task or printer is later removed.
+Use **Set last done** to record service completed before OpenFarm began tracking it. Include known usage since that service. OpenFarm keeps the history if you later remove the task or printer.
 
-The page includes attention/all views, task definitions, and history. Completing service and managing/removing task definitions require distinct permissions.
+The page has views for tasks needing attention, all tasks, task definitions, and history. Recording completed service requires different permissions from managing or removing task definitions.

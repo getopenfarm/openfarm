@@ -3,7 +3,7 @@ title: Spools and usage
 description: Register physical rolls, load them into printers, and maintain their remaining weights.
 ---
 
-One spool record represents one physical roll. Its lifecycle is **In storage → Using → Finished**, with usage history retained along the way.
+One spool record represents one physical roll. Its states are **In storage → Using → Finished**. OpenFarm keeps its usage history through these changes.
 
 ## Add spools
 
@@ -21,7 +21,7 @@ Set the spool weight, known remaining filament for a partly used roll, and price
 
 ## Automatic usage
 
-OpenFarm binds job filament to the loaded spool and estimates consumption from the dispatched file. Completed work deducts its estimated usage; stopped work uses available layer/progress information. Object exclusions affect the estimate without simply scaling grams by the final good-unit count.
+OpenFarm links each job's filament to a loaded spool. It estimates consumption from the file sent to the printer. For completed prints, OpenFarm deducts the estimated usage. For stopped prints, it uses available layer or progress information. Object exclusions affect the estimate. Filament use is not simply proportional to the number of good units produced.
 
 These are estimates, not scale measurements. Prints started outside OpenFarm can also be tracked when the server can recover their file and spool mapping.
 
@@ -29,6 +29,6 @@ These are estimates, not scale measurements. Prints started outside OpenFarm can
 
 Open a spool for its weight and history. Use **Record usage** for adjustments such as purging, test extrusion, or drift. Correct the remaining amount when a measured weight is more reliable.
 
-If deduction could not identify a spool or estimate, the print appears under **Action required**. Assign a spool or resolve the missing-use issue from the print workflow where available; use a manual adjustment when needed. Avoid deducting the same use twice.
+If OpenFarm cannot identify a spool or estimate, the print appears under **Action required**. Open the print and assign a spool or resolve the missing usage information where the controls are available. Make a manual adjustment if necessary. Do not deduct the same usage twice.
 
 Use **Finish** when the roll is exhausted. [Feed units and reloaders](feed-units.md) explains how OpenFarm selects continuation spools.

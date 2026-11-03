@@ -17,7 +17,7 @@ OpenFarm manages a 3D print farm from one web application. You run it on your ow
 
 ## One installation, one farm
 
-Each installation serves a single farm. Run **one application instance** with PostgreSQL; printer connections and dispatch workers live inside that instance. The browser can reach the server remotely, but the server needs network access to the printers.
+Each installation serves one farm. Run **one application instance** with PostgreSQL. That instance manages printer connections and sends jobs to printers. You can use the browser remotely, but the server must have network access to the printers.
 
 See [Installation](../installation/docker.md) for deployment and [Supported printers](../printers/supported-printers.md) for the actual model catalog.
 

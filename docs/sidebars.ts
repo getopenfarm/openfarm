@@ -38,7 +38,12 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Parts & profiles',
-      items: ['library/parts', 'library/profiles', 'library/assemblies'],
+      items: [
+        'library/parts',
+        'library/profiles',
+        'library/profile-behavior',
+        'library/assemblies',
+      ],
     },
     {
       type: 'category',

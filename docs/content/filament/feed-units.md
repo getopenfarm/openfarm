@@ -9,7 +9,7 @@ Feed units describe the printer's physical material paths. Each has slots where 
 
 - Bambu printers expose AMS positions and external spool paths according to their hardware.
 - The U1 exposes one four-slot toolhead unit, **T1–T4**, with each slot feeding its corresponding head.
-- A registered spool and printer telemetry are separate observations. Confirm both when troubleshooting.
+- The spool record and the printer's reported material are separate. Check both when troubleshooting.
 
 ## Add a reloader
 
@@ -21,10 +21,10 @@ If replacing a port with a registered spool, transfer it to the selected reloade
 
 The feeding slot is the spool position actually supplying the printer. Change it when the physical path changes. A selection can exist even when the filament has not been registered, but that does not satisfy production's tracked-spool requirement.
 
-Standby reloader positions are not independent active material sources. Readiness uses the selected slot; compatible continuation stock can contribute to the enough-filament check. Port detection describes the replaced printer port, not separate sensors on every standby slot.
+Only the selected reloader slot supplies material for job matching. Compatible standby spools can count toward the stock available to continue the print. Port detection reports the replaced printer port. It does not report a separate sensor for each standby slot.
 
-When recorded depletion finishes a spool, OpenFarm may select a loaded sibling as **estimated** continuation. Check the physical reloader; bookkeeping does not prove that hardware switched successfully.
+If recorded usage finishes a spool, OpenFarm can select another loaded spool in the same reloader as **estimated** continuation. Check the physical reloader. The record does not confirm that the hardware switched spools successfully.
 
 ## Remove a reloader
 
-Removal returns its tracked spools to storage, preserves their weights/history, and archives the reloader. The original external port becomes available again. Re-adding creates a new unit.
+Removing a reloader returns its tracked spools to storage and keeps their weights and history. OpenFarm archives the reloader, and the original external port becomes available again. Adding it again creates a new unit.

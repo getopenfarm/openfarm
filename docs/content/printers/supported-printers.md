@@ -3,7 +3,7 @@ title: Supported printers
 description: The printer models currently registered in OpenFarm's hardware catalog.
 ---
 
-OpenFarm selects a connector from its hardware catalog. Only registered models are accepted; similarity to another printer does not establish support.
+OpenFarm uses its hardware catalog to select the printer connection software. Only models in this catalog are supported. A similar model is not automatically compatible.
 
 ## Current catalog
 
@@ -24,4 +24,4 @@ Camera support is separate: P1/A1 snapshot cameras and the U1 HTTP camera are su
 - Prepare [Bambu LAN access](bambu.md) or [Snapmaker Moonraker access](snapmaker.md).
 - Match the physical nozzle and build plate to production configuration.
 
-For a printer that discovery does not see, use manual entry on **Add printer**. Discovery needs local broadcast/multicast; unicast connection by IP can still work when discovery cannot.
+If discovery does not find a printer, use manual entry on **Add printer**. Discovery needs local broadcast or multicast traffic. A direct connection by IP address can still work when discovery is unavailable.

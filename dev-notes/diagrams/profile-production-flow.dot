@@ -1,0 +1,31 @@
+// Regenerate from the repository root:
+// dot -Tsvg dev-notes/diagrams/profile-production-flow.dot -o docs/static/img/profile-production-flow.svg
+digraph ProfileProduction {
+  graph [rankdir=TB, bgcolor="#ffffff", pad="0.3", nodesep="0.35", ranksep="0.4", fontname="Arial", fontsize=15, label="Production: which profiles apply?", labelloc=t];
+  node [shape=box, style="rounded,filled", fillcolor="#f4f4f5", color="#71717a", fontname="Arial", fontsize=12, margin="0.18,0.12", fontcolor="#18181b"];
+  edge [fontname="Arial", fontsize=11, color="#52525b", fontcolor="#18181b", arrowsize=0.7];
+  start [label="Part / assembly print, run, or backfill job"];
+  sliced [shape=diamond, style=filled, fillcolor="#eff6ff", color="#2563eb", label="Already sliced?\nSupported plate G-code in 3MF\nor raw G-code"];
+  stored [label="Existing toolpaths\nRequire a matching declared printer model\nCheck machine and loaded filament profiles\nDo not apply their settings to toolpaths"];
+  newfile [label="STL or unsliced 3MF\nCheck machine and loaded filament profiles\nRequire a process profile and build plate\nMatch presets to the saved slicer version"];
+  keep [label="Prepare existing toolpaths\nNo slicing or process-profile requirement"];
+  slice [label="Slice the selected plate\nLoad matched machine, process, and filament presets\nKeep project geometry and local overrides as inputs"];
+  check [label="Recheck current configuration and stock\nAll applicable dispatch checks pass?", shape=diamond, style=filled, fillcolor="#eff6ff", color="#2563eb"];
+  blocked [label="Blocked: send nothing\nRead Job diagnosis / last-attempt reason", fillcolor="#fff7ed", color="#c2410c"];
+  send [label="Prepare printer-specific upload and send", fillcolor="#eff6ff", color="#2563eb"];
+  start -> sliced;
+  sliced -> stored [label="Yes"];
+  sliced -> newfile [label="No"];
+  stored -> keep [label="Checks pass"];
+  newfile -> slice [label="Checks pass"];
+  stored -> blocked [label="Fail", style=dashed, constraint=false];
+  newfile -> blocked [label="Fail", style=dashed, constraint=false];
+  keep -> check;
+  slice -> check;
+  check -> send [label="Yes"];
+  check -> blocked [label="No"];
+  slice -> blocked [label="Slicing fails", style=dashed, constraint=false];
+  { rank=same; stored; newfile; }
+  { rank=same; keep; slice; }
+  { rank=same; send; blocked; }
+}

@@ -7,26 +7,31 @@ Administrators create accounts under **Users & groups**. There is no public self
 
 ## Add a user
 
-Choose **Add user**, enter the username, email, temporary password, and groups, then save. Passwords require at least eight characters. Ask the user to change the temporary password under **My profile → Security**.
+1. Choose **Add user**.
+2. Enter the username, email, and temporary password. Passwords require at least eight characters.
+3. Select the user's groups.
+4. Save the account.
+
+Ask the user to change the temporary password under **My profile → Security**.
 
 ## Grant access
 
-Users receive the union of their groups' permissions plus any individual extra abilities. The permission editor offers **None, View, Edit, Full, Custom** by area. Sensitive actions, including remote printer control, require explicit selection.
+Each user receives all permissions granted by their groups, plus permissions granted directly to that user. The permission editor offers **None, View, Edit, Full, Custom** for each area. Select sensitive permissions, such as remote printer control, explicitly.
 
 - **Administrators** is protected and has every permission.
-- **Operators** receives routine operational abilities with limits on removal, administration, credentials, and remote control.
-- **Viewers** receives business read access.
+- **Operators** grants permissions for daily work, with limits on removal, administration, credentials, and remote control.
+- **Viewers** grants read access to business information.
 
-The API enforces permissions even when a button or navigation link is hidden. Disabled controls can mean the account can view an area but cannot change it. At least one enabled administrator must remain; an ordinary group must be empty before removal.
+The API enforces permissions even when a button or navigation link is hidden. A disabled control can mean the account can view an area but cannot change it. Keep at least one administrator account enabled. Before removing an ordinary group, remove its members.
 
 ## Sessions and passwords
 
 **My profile → Sessions** lists active browser sessions and can sign out one or all devices. Administrators can revoke another user's sessions from that account's page.
 
-Browser sessions expire fourteen days after sign-in; refreshing an access token does not extend the deadline. Changing your own password preserves the current browser session and revokes others. An administrator password reset revokes every session. Both password changes revoke personal access tokens.
+Browser sessions expire fourteen days after sign-in. Refreshing an access token does not extend this period. If you change your own password, your current browser session stays active and other sessions end. If an administrator resets the password, all sessions end. Either type of password change revokes personal access tokens.
 
 Disabling an account blocks and revokes its sessions and tokens. Enabling it again does not restore old credentials. See [API access](../development/api.md) for personal tokens.
 
 ## Forgotten administrator password
 
-Another administrator can reset it in **Users & groups**. Seed password settings only apply when creating the first account and do not overwrite an existing password. Keep more than one trusted administrator and a tested backup for installation-level recovery.
+Another administrator can reset the password in **Users & groups**. The initial password settings apply only when OpenFarm creates the first account. They do not replace an existing password. Keep more than one trusted administrator account and test your installation backup.

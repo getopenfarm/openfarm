@@ -38,9 +38,14 @@ A printer-reported material does not replace a tracked spool. OpenFarm needs bot
 
 ## 4. Add a part
 
-Go to **Parts → Add part**, upload the file, and review its metadata after background processing finishes. For a multi-plate upload, review the plates you want to save. Select the **Production filament** that matches the loaded spool's catalog color and complete any missing print requirements.
+1. Go to **Parts → Add part**.
+2. Upload the file.
+3. Wait for background processing to finish.
+4. Review the file information. For a multi-plate upload, review the plates you want to save.
+5. Select the **Production filament** that matches the loaded spool's catalog color.
+6. Complete any missing print requirements.
 
-Save the part. **Ready to print** means its requirements are complete; printer matching is checked separately. A missing estimate stays unknown. See [Parts and files](library/parts.md).
+Save the part. **Ready to print** means its requirements are complete. OpenFarm checks printer compatibility separately. A missing estimate stays unknown. See [Parts and files](library/parts.md).
 
 ## 5. Send a plate to the queue
 
@@ -50,7 +55,7 @@ Open **Queue** to follow the job. If it cannot start, open its status link or **
 
 ## 6. Clear the bed and mark ready
 
-Physically check that the bed is empty, the correct plate is installed, and the printer is safe to start. Use **Mark ready** when the printer is awaiting clearance. A reachable, idle printer with compatible loaded material can take queued work automatically.
+Check that the physical bed is empty, the correct plate is installed, and the printer is safe to start. If the printer is awaiting clearance, use **Mark ready**. A connected, idle printer with compatible loaded material can take queued work automatically.
 
 :::caution Automatic dispatch
 Sending work to the queue can start a compatible ready printer. Finish the physical checks before queueing work or marking a printer ready.
@@ -62,7 +67,7 @@ Monitor the job from **Queue**, the printer page, or **Dashboard**. After printi
 
 ## Next steps
 
-- [Production runs](production/runs.md) track a finite order or batch.
+- [Production runs](production/runs.md) track an order or batch with fixed quantities.
 - [Assemblies](library/assemblies.md) define products with multiple printed components.
 - [Maintenance](operations/maintenance.md) tracks service intervals.
 - [Troubleshooting](troubleshooting.md) helps with connection and dispatch problems.

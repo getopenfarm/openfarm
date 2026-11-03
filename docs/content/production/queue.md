@@ -12,21 +12,21 @@ Open a part and choose **Print**. Select the number of whole plates, review the 
 For an exact unit target or complete assembly sets, use [Runs](runs.md). For repeat production during idle capacity, use [Continuous backfill](backfill.md).
 
 :::caution Ready printers may start
-Queueing is an operational action. A compatible idle printer can take work automatically. Check the physical bed and material path before making work available.
+A queued job can start automatically on a compatible idle printer. Before you send work to the queue, check the physical bed and material path.
 :::
 
 ## Follow a job
 
-Open **Queue** and use its status tabs and part-name search. A job page shows the printer, production inputs, resolved profiles, outcome, and available file/actions. Per-printer send progress helps distinguish file preparation/upload from physical printing.
+Open **Queue** and use its status tabs and part-name search. A job page shows the printer, production inputs, matched profiles, outcome, file, and available actions. Each printer shows progress while OpenFarm prepares and uploads its file. Physical printing starts separately.
 
 Queue ordering affects selection among eligible jobs. Compatibility is a separate decision: a job near the top may remain blocked while a later compatible job runs.
 
 ## Change waiting work
 
-The row action menu exposes eligible operations:
+The row action menu shows the operations available for that job:
 
 - **Move to top** changes waiting priority.
-- **Pin to printer** constrains the destination; **Unpin** restores automatic assignment.
+- **Pin to printer** restricts the job to one printer. **Unpin** restores automatic assignment.
 - **Remove job** cancels unsent work after confirmation.
 
 Pinning does not bypass matching. A pinned job waits if its printer is busy, offline, missing material, or incompatible. Open the blocking status or **Job diagnosis** for details.
