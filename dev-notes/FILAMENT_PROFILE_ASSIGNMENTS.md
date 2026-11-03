@@ -6,7 +6,7 @@ Filament inventory and profile configuration are separate. Inventory can be save
 
 The profile-assignment card groups the fleet by registered brand, model, and **reported nozzle diameter**. Duplicate printers share one row; a printer whose extruders have different nozzles is in one group per size. Machine profiles never supply a nozzle diameter. Last reported sizes remain available for offline configuration, but production and new machine-profile selections require confirmation from the current printer connection.
 
-Bambu telemetry accepts numeric and string diameters, including uniform nested nozzle reports. Partial reports preserve the last observation. Each extruder is confirmed at its own reported nozzle; an explicit unknown report removes that extruder's confirmation. Reconnection, connection edits, and reachability loss remove confirmation until a fresh valid nozzle report arrives (`docs/PRINTER_HARDWARE_MODEL.md`, Nozzles).
+Bambu telemetry accepts numeric and string diameters, including uniform nested nozzle reports. Partial reports preserve the last observation. Each extruder is confirmed at its own reported nozzle; an explicit unknown report removes that extruder's confirmation. Reconnection, connection edits, and reachability loss remove confirmation until a fresh valid nozzle report arrives (`dev-notes/PRINTER_HARDWARE_MODEL.md`, Nozzles).
 
 ## Assignments
 

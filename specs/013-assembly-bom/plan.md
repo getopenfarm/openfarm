@@ -81,7 +81,7 @@ printer-connectivity type. FR-009/FR-009f — explosion MUST be side-effect-free
 max depth rather than recurse unbounded. FR-007/FR-007a/FR-008 — cycle and depth rejection MUST be
 unconditional, evaluated bidirectionally, and MUST hold under any interleaving of concurrent saves, not
 just within one transaction's own view. FR-009c — no per-path breakdown may be computed, stored, or
-returned in this phase (spec Clarifications, 2026-08-06) — `docs/FEATURE_PLAN.md`'s Phase 6 prose still
+returned in this phase (spec Clarifications, 2026-08-06) — `dev-notes/FEATURE_PLAN.md`'s Phase 6 prose still
 describes retaining one as display-only metadata, which this spec's own later clarification session
 explicitly supersedes; noted here so the discrepancy isn't mistaken for a design gap during implementation.
 
@@ -116,7 +116,7 @@ validation without needing its own pagination or streaming strategy.
 - **III. Consistent User Experience Across the Fleet** — PASS. No SignalR/real-time surface is introduced
   or required — this phase has no live/streaming data (FR-016), so nothing here risks a manual-refresh
   fallback the constitution would otherwise flag. Forms use react-hook-form + zod; primitives come from
-  `src/components/ui/`; Add/Edit follow the Page-first convention (`docs/UI_CONVENTIONS.md`) for both
+  `src/components/ui/`; Add/Edit follow the Page-first convention (`dev-notes/UI_CONVENTIONS.md`) for both
   Assembly and NonPrintedComponent. Every domain exception gets one `DomainExceptionHandler` mapping to
   RFC 7807 `ProblemDetails`, the same single error shape every other feature already uses.
 - **IV. Build for Expansion, Not Speculation** — PASS. `Assembly`/`BomLine`/`NonPrintedComponent` are all
@@ -243,7 +243,7 @@ web/src/features/assemblies/
   AssembliesPage.tsx                    # catalog list (DataTable + pagination)
   AssemblyDetailPage.tsx                 # expandable structure (lazy per-row fetch, research.md R7),
                                            # explosion panel, buildable-units panel
-  AssemblyFormPage.tsx                   # new/edit — Page-first (docs/UI_CONVENTIONS.md), react-hook-form + zod
+  AssemblyFormPage.tsx                   # new/edit — Page-first (dev-notes/UI_CONVENTIONS.md), react-hook-form + zod
   components/BomLineEditor.tsx           # add/edit/remove a line; target-kind picker (Part/Assembly/NonPrintedComponent);
                                            # on the edit page, queues pending line changes in local state and flushes
                                            # them as sequential line-level calls on "Save" (contracts/assembly-bom-api.md's

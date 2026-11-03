@@ -32,5 +32,5 @@
 ## Notes
 
 - All items pass. This spec covers Phase 0 (Foundation) only, per user scoping decision — Phase 1 onward will each get their own spec via separate `/speckit-specify` runs.
-- Phase 0 is inherently an infrastructure/prerequisite phase (per `docs/FEATURE_PLAN.md`), so some requirements reference technical concepts (encryption, sessions, tenant scoping) — these are described functionally (what must be true) rather than naming specific libraries, frameworks, or classes, keeping the spec implementation-agnostic while still being concrete enough to plan against.
-- Zero [NEEDS CLARIFICATION] markers were needed — Phase 0 is already well-specified in `docs/FEATURE_PLAN.md` and `CLAUDE.md`, and the user's own clarification (scope to Phase 0 + base UI kit) resolved the one ambiguity (multi-invocation scoping) up front.
+- Phase 0 is inherently an infrastructure/prerequisite phase (per `dev-notes/FEATURE_PLAN.md`), so some requirements reference technical concepts (encryption, sessions, tenant scoping) — these are described functionally (what must be true) rather than naming specific libraries, frameworks, or classes, keeping the spec implementation-agnostic while still being concrete enough to plan against.
+- Zero [NEEDS CLARIFICATION] markers were needed — Phase 0 is already well-specified in `dev-notes/FEATURE_PLAN.md` and `CLAUDE.md`, and the user's own clarification (scope to Phase 0 + base UI kit) resolved the one ambiguity (multi-invocation scoping) up front.

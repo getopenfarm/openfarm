@@ -32,4 +32,4 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
-- All items pass on first validation pass. Open decisions from `docs/FEATURE_PLAN.md`'s "Open decisions" section relevant to this phase (LAN-only/Cloud-disconnect trade-off surfacing, status-history retention) were resolved as reasonable defaults in the Assumptions section rather than left as `[NEEDS CLARIFICATION]` markers.
+- All items pass on first validation pass. Open decisions from `dev-notes/FEATURE_PLAN.md`'s "Open decisions" section relevant to this phase (LAN-only/Cloud-disconnect trade-off surfacing, status-history retention) were resolved as reasonable defaults in the Assumptions section rather than left as `[NEEDS CLARIFICATION]` markers.

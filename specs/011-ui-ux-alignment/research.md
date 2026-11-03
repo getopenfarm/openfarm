@@ -2,7 +2,7 @@
 
 No unknowns in the Technical Context required external research — this is a
 refactor of existing, already-running code inside a monorepo whose stack and
-conventions are fully documented (`docs/TECH_STACKS.md`, `docs/UI_CONVENTIONS.md`,
+conventions are fully documented (`dev-notes/TECH_STACKS.md`, `dev-notes/UI_CONVENTIONS.md`,
 `.specify/memory/constitution.md`). Each decision below was resolved by
 inspecting the current codebase rather than external sources.
 

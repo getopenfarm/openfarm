@@ -241,6 +241,6 @@ With multiple developers:
 
 - No `api/` (.NET) changes anywhere in this feature — every task is inside `web/src/`.
 - Every migrated flow keeps its existing mutation calls, query keys, and validation rules per `plan.md` Constraints — tasks above say "lift ... verbatim" deliberately; rewriting working validation logic during the move is explicit scope creep to avoid.
-- `AddOrReplacePartDialog.tsx`'s `replace` mode, and every modal listed in `docs/UI_CONVENTIONS.md` as reserved (feed unit, variant, vendor quick-create, part picker, load/unload/record-usage, replace-part-file, profile raw-data view), must NOT be touched beyond T024's internal refactor to consume the extracted hook.
+- `AddOrReplacePartDialog.tsx`'s `replace` mode, and every modal listed in `dev-notes/UI_CONVENTIONS.md` as reserved (feed unit, variant, vendor quick-create, part picker, load/unload/record-usage, replace-part-file, profile raw-data view), must NOT be touched beyond T024's internal refactor to consume the extracted hook.
 - Commit after each task or logical group (per flow in US2, per file in US3).
 - Verify tests pass after each task; this feature is test-after, not TDD, per Constitution II.

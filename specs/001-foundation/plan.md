@@ -88,7 +88,7 @@ routes (`/login`, `/`, `/connection-secrets`, `/activity-log`).
   bounded startup task, not a `BackgroundService` (it isn't long-running/connection-holding work).
 - **Security & Multi-Tenancy Isolation** — PASS, explicitly verified: Finbuckle's real EF
   Core global query filter is used via `.IsMultiTenant()`, fed by `WithStaticStrategy(...)`
-  instead of claim-based resolution — this is precisely what `docs/FEATURE_PLAN.md`'s Phase 0
+  instead of claim-based resolution — this is precisely what `dev-notes/FEATURE_PLAN.md`'s Phase 0
   section and Principle IV pre-authorize, not a hand-rolled `WHERE` clause. `IDataProtector`
   encryption is real from the first commit (no fixture exemption). The activity-log
   post-processor is registered **globally** against all mutating verbs, not opt-in per

@@ -17,7 +17,7 @@ namespace OpenFarm.Infrastructure.Printers.Snapmaker;
 /// Snapmaker U1 LAN connector over the printer's Moonraker (port 7125): plain HTTP for one-off requests and one
 /// websocket per live connection for <c>printer.objects.subscribe</c> status pushes. The four toolheads are reported as
 /// one four-tray unit whose tray id is the head index, so dispatch's tray mapping is the firmware's tool→head map.
-/// Protocol notes and the hardware checklist: <c>docs/SNAPMAKER_U1.md</c>.
+/// Protocol notes and the hardware checklist: <c>dev-notes/SNAPMAKER_U1.md</c>.
 /// </summary>
 public sealed partial class SnapmakerU1Connector : IPrinterConnector
 {

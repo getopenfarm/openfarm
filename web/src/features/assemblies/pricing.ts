@@ -48,7 +48,7 @@ export interface ProfilePricing {
 const cents = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Prices one fee profile (docs/PRICING.md). Fees come off the sale price: a percent of it plus a fixed
+ * Prices one fee profile (dev-notes/PRICING.md). Fees come off the sale price: a percent of it plus a fixed
  * amount per order, counted once per unit. Margin is profit after fees ÷ price; markup is on cost, before fees.
  */
 export function profilePricing(

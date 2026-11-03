@@ -30,7 +30,7 @@
 
 - Q: Should OpenFarm be allowed to send stop/pause/resume commands to a printer for a job that's already
   printing, or does the original "OpenFarm never sends a stop command on the operator's behalf" rule
-  (`docs/FEATURE_PLAN.md`) stand as written? → A: Reversed for the single-job case — an operator can
+  (`dev-notes/FEATURE_PLAN.md`) stand as written? → A: Reversed for the single-job case — an operator can
   explicitly pause, resume, or cancel (stop) one specific printing job through OpenFarm for a
   live-integrated printer. A bulk run-level cancel/delete still never force-stops a physical print as an
   automatic side effect (that scope of the original rule is unchanged) — only the deliberate, single-job
@@ -509,7 +509,7 @@ afterward uses the new revision.
   telemetry actually carrying a signal that tells the two apart** — this spec asserts the required
   *behavior* (a stop, however triggered, closes as `Cancelled`; an unplanned fault closes as `Failed`), but
   the exact telemetry field(s) that distinguish them for Bambu printers (a specific gcode state, or the
-  fault/print-error code Phase 1 deliberately left unsurfaced — see `docs/FEATURE_PLAN.md`'s Open
+  fault/print-error code Phase 1 deliberately left unsurfaced — see `dev-notes/FEATURE_PLAN.md`'s Open
   Decisions on HMS fault surfacing) is an implementation-level detail to confirm against the vendored
   protocol reference and real hardware, not resolved here. If telemetry genuinely cannot distinguish the
   two for some scenario, the safer default is to resolve as `Cancelled` whenever OpenFarm itself requested

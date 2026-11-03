@@ -10,7 +10,7 @@
 
 Bring the six remaining Add/Edit flows still built as modals (Printer add/edit,
 Spool add, Part add, Profiles import, Connection-secret add) into conformance
-with the Page-first rule in `docs/UI_CONVENTIONS.md`, add the still-missing
+with the Page-first rule in `dev-notes/UI_CONVENTIONS.md`, add the still-missing
 `alert-dialog` primitive to replace both `window.confirm` call sites (Part and
 Printer delete), and convert the two remaining forms not on react-hook-form +
 zod (Filament, Assembly) to the shared pattern. This is a frontend-only,
@@ -60,7 +60,7 @@ paths; existing SPA responsiveness expectations carry over unchanged
 - Must preserve Part-add's continuous background-processing behavior (spec
   `007-part-library`) exactly when lifted from `AddOrReplacePartDialog`
   (`add` mode) into `/parts/new`.
-- Must NOT touch the modals `docs/UI_CONVENTIONS.md` explicitly reserves:
+- Must NOT touch the modals `dev-notes/UI_CONVENTIONS.md` explicitly reserves:
   feed unit, variant, vendor quick-create, part picker, load/unload/record-
   usage, replace-part-file (the `replace` mode of `AddOrReplacePartDialog`),
   profile raw-data view.

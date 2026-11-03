@@ -256,7 +256,7 @@ natively via periodic `<img>` updates with zero additional frontend dependencies
 
 ## 5. MQTT library
 
-**Decision**: MQTTnet, confirmed (not re-litigated) — `docs/FEATURE_PLAN.md` already names it as the
+**Decision**: MQTTnet, confirmed (not re-litigated) — `dev-notes/FEATURE_PLAN.md` already names it as the
 intended choice, citing `Bambu.NET`'s MQTTnet-based `BambuMQTTClient` as the closest existing .NET
 prior art for this exact protocol. MQTTnet supports MQTT 3.1.1/5, TLS with custom certificate
 validation callbacks (needed per §1's finding), and async I/O throughout — no blocking-thread-per-

@@ -3,6 +3,20 @@
 OpenFarm is a print-farm management web application. The backend uses ASP.NET Core
 and PostgreSQL; the frontend uses React, Vite, and Bun.
 
+## Documentation
+
+The [Docusaurus site](docs/README.md) contains the [quick start](docs/content/quick-start.md),
+installation instructions, and guides for printers, filament, production, and administration.
+To run it independently of the application (Node.js 20+ and Bun required):
+
+```bash
+cd docs
+bun install --frozen-lockfile
+bun run start
+```
+
+Engineering notes and plans live in [dev-notes/](dev-notes/).
+
 ## Local development prerequisites
 
 - .NET 10 SDK (the backend pins its version in [api/global.json](api/global.json)).
@@ -12,7 +26,7 @@ and PostgreSQL; the frontend uses React, Vite, and Bun.
 
 Run the commands below from the repository root. See [CLAUDE.md](CLAUDE.md)
 for backend/frontend commands and architecture, and
-[docs/TECH_STACKS.md](docs/TECH_STACKS.md) for technology decisions.
+[dev-notes/TECH_STACKS.md](dev-notes/TECH_STACKS.md) for technology decisions.
 
 ## Set up PostgreSQL
 

@@ -45,7 +45,7 @@ interface AddOrReplacePartDialogProps {
 const SKIP = 'skip';
 
 /**
- * Replace-file dialog (research.md §11, "reserved" modal per docs/UI_CONVENTIONS.md — a quick
+ * Replace-file dialog (research.md §11, "reserved" modal per dev-notes/UI_CONVENTIONS.md — a quick
  * action on an existing entity, not a page). Attaching a file fires Replace immediately; Save
  * enables as soon as the job reaches ReadyForReview (nozzle diameter + material resolved) — it
  * does not wait for the estimate or thumbnails to finish (FR-009c). Cancel discards whatever job

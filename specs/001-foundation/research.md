@@ -1,7 +1,7 @@
 # Phase 0 Research: Foundation
 
-No `NEEDS CLARIFICATION` markers remained in the Technical Context — `docs/TECH_STACKS.md`
-and `docs/FEATURE_PLAN.md`'s Phase 0 section already lock in the stack and scoping. This
+No `NEEDS CLARIFICATION` markers remained in the Technical Context — `dev-notes/TECH_STACKS.md`
+and `dev-notes/FEATURE_PLAN.md`'s Phase 0 section already lock in the stack and scoping. This
 document instead records the concrete design decisions this plan makes where the source
 docs leave implementation shape open, plus the alternatives considered for each.
 
@@ -19,7 +19,7 @@ docs leave implementation shape open, plus the alternatives considered for each.
   already used for `IPrinterConnector`.
 - **Alternatives considered**: A hand-rolled `Domain.User` entity with its own password
   hashing — rejected as reinventing what ASP.NET Core Identity already does correctly, and
-  `docs/TECH_STACKS.md` explicitly locks in "ASP.NET Core Identity" as the auth/identity choice.
+  `dev-notes/TECH_STACKS.md` explicitly locks in "ASP.NET Core Identity" as the auth/identity choice.
 
 ## 2. Command/query dispatch without violating layering
 
@@ -27,7 +27,7 @@ docs leave implementation shape open, plus the alternatives considered for each.
   `ICommandHandler<TCommand, TResult>` / `IQueryHandler<TQuery, TResult>` marker interfaces.
   `Api` endpoints resolve the concrete handler via DI and call `HandleAsync` directly — no
   bus/mediator indirection.
-- **Rationale**: `docs/TECH_STACKS.md` says to use "FastEndpoints' own lightweight command
+- **Rationale**: `dev-notes/TECH_STACKS.md` says to use "FastEndpoints' own lightweight command
   bus instead of adding MediatR," but that bus's types live in the `FastEndpoints` NuGet
   package, which Principle I forbids `Application` from referencing. Defining Application's
   own trivial handler interface preserves the REPR pattern and avoids adding MediatR, while
@@ -35,7 +35,7 @@ docs leave implementation shape open, plus the alternatives considered for each.
   need bus indirection to get FastEndpoints' benefits.
 - **Alternatives considered**: Reference `FastEndpoints.Command`/`ICommandHandler` directly
   from `Application` — rejected, direct Principle I violation. Add MediatR — rejected,
-  `docs/TECH_STACKS.md` explicitly rejects it.
+  `dev-notes/TECH_STACKS.md` explicitly rejects it.
 
 ## 3. Multi-tenancy resolution strategy for Phase 0
 
@@ -44,7 +44,7 @@ docs leave implementation shape open, plus the alternatives considered for each.
 - **Decision**: Wire real Finbuckle.MultiTenant packages (`Finbuckle.MultiTenant` +
   `.EntityFrameworkCore`), `AddMultiTenant<AppTenantInfo>().WithStaticStrategy(<fixed id>)`.
   EF Core's `.IsMultiTenant()` per-entity global query filter is still Finbuckle-generated.
-- **Rationale**: `docs/FEATURE_PLAN.md`'s Phase 0 section explicitly calls for "schema now,
+- **Rationale**: `dev-notes/FEATURE_PLAN.md`'s Phase 0 section explicitly calls for "schema now,
   resolution machinery later" — a static single-tenant resolver until Phase 20 needs real
   org-switching. Using Finbuckle's own static-strategy mode (rather than hand-rolling a
   `WHERE organization_id = ...` filter) keeps the constitution's "tenant isolation enforced

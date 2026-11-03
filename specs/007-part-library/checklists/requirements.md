@@ -38,7 +38,7 @@
   from this phase entirely per explicit user instruction.
 - Updated after a second `/speckit-clarify` pass (2026-07-19, 3 more formal questions) that merged
   the former Phase 23 — In-app slicing into this phase, per explicit user instruction, and updated
-  `docs/FEATURE_PLAN.md` accordingly (Phase 23 merged into Phase 4; former Phase 24 renumbered to
+  `dev-notes/FEATURE_PLAN.md` accordingly (Phase 23 merged into Phase 4; former Phase 24 renumbered to
   Phase 23). Added: automatic in-app slicing at source-model upload (organization-configurable
   slicer engine + defaults, per-part override, async execution, failure fallback), manual sliced-file
   upload retained alongside it, and a forward-compatibility note that Phase 7 (Jobs) will reuse the
@@ -66,7 +66,7 @@
   always replaces the current one; running the same design against a different nozzle/filament-diameter
   target requires a separate Part record, not a second file on the same one. A 3MF bundling multiple
   plates internally is an accepted, unaddressed limitation, not solved in this phase. The entire spec
-  and the relevant parts of `docs/FEATURE_PLAN.md` (Phase 4 and Phase 7's job-locking description) were
+  and the relevant parts of `dev-notes/FEATURE_PLAN.md` (Phase 4 and Phase 7's job-locking description) were
   rewritten to reflect single-file cardinality — FR count dropped from 25 to 23 as the
   multiple-files-per-part machinery (old FR-016/018/019) was removed.
 - Follow-up clarification (same day, final): confirmed that automatic in-app slicing of an STL/3MF
@@ -79,7 +79,7 @@
   though Phase 7 will still need to invoke in-app slicing again on-demand at job-dispatch time to get
   real toolpath data for it. FR-013/FR-014 (parse nozzle/diameter/material) now apply only to
   already-sliced uploads; the old cache/reuse FR was dropped (nothing persists to reuse within this
-  phase). `docs/FEATURE_PLAN.md`'s Phase 4 and Phase 7 sections were updated to match — Phase 7's
+  phase). `dev-notes/FEATURE_PLAN.md`'s Phase 4 and Phase 7 sections were updated to match — Phase 7's
   job-locking description now distinguishes "job-ready" from "has an actual sliceable file in hand."
 - Follow-up clarification (same day, final round — 4 direct corrections, no formal questions asked
   since each was already decisive): (1) **dropped the optional Machine Profile link entirely** — a
@@ -97,7 +97,7 @@
   input** for nozzle diameter, filament diameter, print time, or filament weight — every value must be
   derived from the file or the operation is rejected; the only remaining manual numeric input in this
   phase is the organization's default nozzle/filament-diameter Settings (FR-019). FR count is now 20
-  (was 22); `docs/FEATURE_PLAN.md`'s Phase 4 and Phase 7 sections were updated to match throughout.
+  (was 22); `dev-notes/FEATURE_PLAN.md`'s Phase 4 and Phase 7 sections were updated to match throughout.
 - Follow-up clarification (same day, final round — 1 formal question, since the resolution needed a
   concrete mechanism decision): (1) **removed the organization-configured default material** — a
   Filament (generic, e.g. "Any PETG," or a specific variant) is now a hard per-part requirement
@@ -109,16 +109,16 @@
   auto-detected from the farm's registered printers** (whichever value is most common), with no
   operator input and no Settings field — new FR-005a, and a new explicit dependency of this phase on
   the printer catalog (Phase 1). FR count is now 18 top-level (+4 lettered sub-items);
-  `docs/FEATURE_PLAN.md`'s Phase 4 and Phase 7 sections were updated to match throughout.
+  `dev-notes/FEATURE_PLAN.md`'s Phase 4 and Phase 7 sections were updated to match throughout.
 - Follow-up clarification (same day, final — 1 formal question, resolving the cross-phase dependency
   the previous round flagged but left open): confirmed this phase **wires the Printer ↔ Machine
-  Profile link** that `docs/FEATURE_PLAN.md`'s own Phase 1 dependency notes already earmarked for
+  Profile link** that `dev-notes/FEATURE_PLAN.md`'s own Phase 1 dependency notes already earmarked for
   "whichever later phase actually consumes it" — nozzle diameter is read from a printer's linked
   Machine Profile (Phase 2, which already models nozzle size), not a new duplicate field on `Printer`.
   The link is optional at printer-creation time (a matching Machine Profile might not be imported
   yet); only a printer with one linked counts as a "real fleet member" for FR-005a's nozzle-diameter
   determination. New FR-005b, new Key Entity ("Printer ↔ Machine Profile link"), and updated wording
-  throughout the spec and `docs/FEATURE_PLAN.md`'s Phase 4 section to reflect this resolved mechanism
+  throughout the spec and `dev-notes/FEATURE_PLAN.md`'s Phase 4 section to reflect this resolved mechanism
   rather than leaving it as an open planning-level decision.
 - No [NEEDS CLARIFICATION] markers remain — remaining minor ambiguities (precise thumbnail-rendering
   mechanism, the nozzle-diameter tiebreak rule when the fleet is evenly split) are resolved with
@@ -137,7 +137,7 @@
   Acceptance Scenarios. (2) **a Part's filament requirement became a collection** (`Filament Requirement`,
   a new Key Entity) rather than a single value, so a real multi-color/AMS part's per-slot material/color
   mapping is representable; in-app slicing itself still only ever produces exactly one requirement. Updated
-  FR-002/FR-012/FR-012a, User Story 3's Acceptance Scenario 3, and `docs/FEATURE_PLAN.md`'s Phase 4 section
+  FR-002/FR-012/FR-012a, User Story 3's Acceptance Scenario 3, and `dev-notes/FEATURE_PLAN.md`'s Phase 4 section
   accordingly. Both items are recorded in the Clarifications section above and in Assumptions; no scope
   change beyond these two decisions.
 - Second follow-up clarification during `/speckit-plan` (2026-07-19, again raised directly by the user, 1
@@ -150,7 +150,7 @@
   requirements, per-requirement narrow-override mechanics for a multi-color file) — the only genuine
   difference (parse vs. slice) belongs behind one interface's implementation, not exposed as two different
   operator-facing flows. Updated FR-009/FR-009a, User Stories 1 and 3's Acceptance Scenarios/Independent
-  Tests, and relevant Assumptions/Edge Cases entries; `docs/FEATURE_PLAN.md`'s Phase 4 section updated to
+  Tests, and relevant Assumptions/Edge Cases entries; `dev-notes/FEATURE_PLAN.md`'s Phase 4 section updated to
   match. No scope change beyond unifying the two previously-separate completion shapes.
 - Third follow-up clarification during `/speckit-plan` (2026-07-19, again raised directly by the user, 1
   further UX-flow decision): **name/tags are no longer required at the initial file-attach step — they're
@@ -159,7 +159,7 @@
   immediately as one continuous add-part dialog; Save stays disabled until processing reaches "ready for
   review" and (for a new part) a name has been entered, then submits name/tags/narrow overrides together as
   the confirm action. New FR-009b, updated FR-001, updated User Story 1's Acceptance Scenarios/Independent
-  Test, new Edge Case. `docs/FEATURE_PLAN.md`'s Phase 4 section updated to match. No scope change — this is
+  Test, new Edge Case. `dev-notes/FEATURE_PLAN.md`'s Phase 4 section updated to match. No scope change — this is
   a request/response-shape and UX-sequencing refinement of the already-uniform review/confirm pipeline, not
   a new capability.
 - Fourth follow-up clarification during `/speckit-plan` (2026-07-19, again raised directly by the user, 1
@@ -175,7 +175,7 @@
   detection was reopened, not the whole limitation. Print time/weight estimates now explicitly sum across
   all plates. Updated FR-012/FR-012a/FR-013, User Story 3's Acceptance Scenario 3, the Key Entities
   "Filament Requirement" description, the relevant Edge Case and Assumptions entries, and
-  `docs/FEATURE_PLAN.md`'s Phase 4 section.
+  `dev-notes/FEATURE_PLAN.md`'s Phase 4 section.
 - Fifth follow-up clarification during `/speckit-plan` (2026-07-19, again raised directly by the user, 1
   formal question plus one directly-answered factual question): (1) **Filament becomes optional, not
   required, for a requires-slicing file — omitting it is a genuine "any material" wildcard, not a rejection
@@ -188,7 +188,7 @@
   specified" rejection case from FR-006 (relettering its remaining sub-items a/b/c), added new FR-002a,
   updated FR-001/FR-002/FR-005, User Story 1's Acceptance Scenario 3, the matching Edge Case, SC-003, the
   Key Entities "Part" description, the "no organization-configured default material" Assumption, and
-  `docs/FEATURE_PLAN.md`'s Phase 4 section. (2) **Confirmed directly (factual, no decision needed): an
+  `dev-notes/FEATURE_PLAN.md`'s Phase 4 section. (2) **Confirmed directly (factual, no decision needed): an
   already-sliced file's requirement can never be widened to "any material"** — its process parameters
   (nozzle/bed temp, retraction, flow) are physically fixed to one specific material once sliced, so this
   wildcard applies only to a file requiring slicing, which is always re-sliced fresh whenever its real

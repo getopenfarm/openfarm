@@ -261,7 +261,7 @@ sharing a given tag.
 ## Phase 8: Polish & Cross-Cutting Concerns
 
 - [ ] T115 [P] `api/tests/OpenFarm.Api.IntegrationTests/ActivityLog/PartLibraryActivityLogTests.cs` — FR-017: part creation, file replacement, a discarded reviewed slice, and an org slicer-default change all recorded with actor/timestamp
-- [ ] T116 Update `docs/FEATURE_PLAN.md` — fold the former Phase 23 (In-app slicing) into Phase 4, renumber the former Phase 24 down to Phase 23 (per spec.md Assumptions)
+- [ ] T116 Update `dev-notes/FEATURE_PLAN.md` — fold the former Phase 23 (In-app slicing) into Phase 4, renumber the former Phase 24 down to Phase 23 (per spec.md Assumptions)
 - [ ] T117 [P] Final regeneration pass: `api/openapi.json` + `bunx orval` in `web/`, confirm `src/lib/api/generated` has zero drift from the finalized contract
 - [ ] T118 Run `dotnet format api/OpenFarm.slnx --verify-no-changes` and `bun run lint` / `bunx tsc -b` clean across the whole feature
 - [ ] T119 Run `dotnet test api/OpenFarm.slnx` and `bun run test` full suites, confirm green

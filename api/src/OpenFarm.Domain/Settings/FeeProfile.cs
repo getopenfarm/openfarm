@@ -1,6 +1,6 @@
 namespace OpenFarm.Domain.Settings;
 
-/// <summary>Where products sell (Shopee, Direct) and the fees taken from each sale there (docs/PRICING.md).</summary>
+/// <summary>Where products sell (Shopee, Direct) and the fees taken from each sale there (dev-notes/PRICING.md).</summary>
 public sealed class FeeProfile
 {
     private FeeProfile() { }

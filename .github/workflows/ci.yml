@@ -2,10 +2,10 @@ name: CI
 
 on:
   pull_request:
-    paths-ignore: ["docs/**", "specs/**", ".specify/**", "**/*.md"]
+    paths-ignore: ["docs/**", "dev-notes/**", "specs/**", ".specify/**", "**/*.md"]
   push:
     branches: [main]
-    paths-ignore: ["docs/**", "specs/**", ".specify/**", "**/*.md"]
+    paths-ignore: ["docs/**", "dev-notes/**", "specs/**", ".specify/**", "**/*.md"]
   workflow_call:
 
 # A new push to a PR cancels its superseded run; main and release-tag runs always finish.

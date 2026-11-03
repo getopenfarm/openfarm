@@ -217,7 +217,7 @@ Web app split, matching plan.md's Project Structure exactly: `api/src/OpenFarm.{
 - [X] T088 Remove the backend "applies migrations" `NOTE` stub now that `InitialFoundation` exists, and confirm the `backend-build-test` job's migration path (via `CustomWebApplicationFactory`/Testcontainers) is real, in `.github/workflows/ci.yml`
 - [X] T089 [P] Run `dotnet format api/OpenFarm.slnx --verify-no-changes` and fix any drift introduced by this feature
 - [X] T090 [P] Run `bun run lint` / `bun run format` in `web/` and fix any drift introduced by this feature
-- [X] T091 [P] Update the Phase 0 status marker in `docs/FEATURE_PLAN.md` (and `CLAUDE.md` if it references phase status) to reflect Foundation as delivered
+- [X] T091 [P] Update the Phase 0 status marker in `dev-notes/FEATURE_PLAN.md` (and `CLAUDE.md` if it references phase status) to reflect Foundation as delivered
 - [X] T092 Manual quickstart walkthrough — Scenario 1 (seeded login, browser + curl negative checks) per `specs/001-foundation/quickstart.md`
 - [X] T093 Manual quickstart walkthrough — Scenario 2 (single org, 3× restart idempotency via `psql`) per `specs/001-foundation/quickstart.md`
 - [X] T094 Manual quickstart walkthrough — Scenario 3 (encryption/masking/immutability, including log-grep for plaintext) per `specs/001-foundation/quickstart.md`

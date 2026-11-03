@@ -58,7 +58,7 @@ const percent = (f: number | null, digits = 1) =>
 const numberOrNull = (text: string) =>
   text.trim() === '' || !Number.isFinite(Number(text)) ? null : Number(text);
 
-/** Selling price per fee profile: the price splits into cost, the profile's fees and profit (docs/PRICING.md). */
+/** Selling price per fee profile: the price splits into cost, the profile's fees and profit (dev-notes/PRICING.md). */
 export function PricingSection({
   lines,
   additionalCosts,

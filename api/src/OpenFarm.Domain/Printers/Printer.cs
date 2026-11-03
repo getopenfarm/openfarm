@@ -177,7 +177,7 @@ public sealed class Printer
     public IReadOnlyList<ExtruderReading> Extruders { get; private set; }
 
     /// <summary>
-    /// Optional link to a Machine Profile (Phase 2), filling the deferred link `docs/FEATURE_PLAN.md`'s
+    /// Optional link to a Machine Profile (Phase 2), filling the deferred link `dev-notes/FEATURE_PLAN.md`'s
     /// own Phase 1 notes earmarked (FR-005b). `null` at creation time — a matching profile might not be
     /// imported yet.
     /// </summary>

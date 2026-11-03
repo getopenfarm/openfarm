@@ -4,7 +4,7 @@ namespace OpenFarm.Domain.Assemblies;
 /// A named description of a finished product (spec Key Entities) — one or more polymorphic
 /// <see cref="BomLine"/>s, each targeting a Part, a sub-Assembly, or a <see cref="NonPrintedComponent"/>.
 /// No status, no stock, no printer/job/run relationship — only <see cref="Name"/>/<see cref="Description"/>/<see cref="Lines"/>,
-/// additional costs and an optional selling <see cref="Pricing"/> (data-model.md, docs/PRICING.md).
+/// additional costs and an optional selling <see cref="Pricing"/> (data-model.md, dev-notes/PRICING.md).
 /// </summary>
 public sealed class Assembly
 {

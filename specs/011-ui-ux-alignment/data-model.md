@@ -30,7 +30,7 @@ already collected today:
 - `materialType: enum` (one of the existing `MATERIAL_TYPES`)
 - `filamentProfileId: string | null`
 - `variants: NewFilamentVariant[]` (managed via the existing `VariantDialog`
-  sub-entity modal — unchanged, still a modal per `docs/UI_CONVENTIONS.md`)
+  sub-entity modal — unchanged, still a modal per `dev-notes/UI_CONVENTIONS.md`)
 
 Persistence: existing filament API (unchanged).
 
