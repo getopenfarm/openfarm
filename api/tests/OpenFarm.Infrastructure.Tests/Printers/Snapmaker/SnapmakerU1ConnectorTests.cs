@@ -120,6 +120,20 @@ public class SnapmakerU1ConnectorTests
     }
 
     [Fact]
+    public async Task Connect_AQuietPrinterThatStillAnswers_StaysReachable()
+    {
+        await using var harness = new MoonrakerHarness();
+        var options = harness.Options with { AliveInterval = TimeSpan.FromMilliseconds(100), CameraWakeInterval = TimeSpan.FromMilliseconds(50) };
+        await using var stream = new EventStream(harness.CreateConnector(options), harness.Details());
+        var initial = await stream.NextMatchingAsync(e => e.GcodeState == "IDLE");
+
+        // No status pushes: only the camera wake answers arrive.
+        var alive = await stream.NextMatchingAsync(e => e is { Telemetry: null, GcodeState: null, HmsAlerts: null, ConnectionStarted: false, ConnectionEnded: false });
+
+        alive.ReceivedAtUtc.Should().BeAfter(initial.ReceivedAtUtc);
+    }
+
+    [Fact]
     public async Task Connect_ExceptionsBecomeAlertsAtOnce()
     {
         await using var harness = new MoonrakerHarness();

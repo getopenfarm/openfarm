@@ -24,6 +24,8 @@ internal sealed record MoonrakerTransportOptions
     public TimeSpan ReconnectDelay { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan KeepAlive { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan TelemetryInterval { get; init; } = TimeSpan.FromSeconds(1);
+    // A liveness-only event at least this often while the printer keeps sending frames.
+    public TimeSpan AliveInterval { get; init; } = TimeSpan.FromSeconds(10);
     // ponytail: fixed 1 Hz camera poll; the U1's snapshot refreshes about that often.
     public TimeSpan CameraPollInterval { get; init; } = TimeSpan.FromSeconds(1);
     // The camera idles a few seconds after the last camera.start_monitor.
@@ -52,6 +54,10 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
     private readonly CancellationTokenSource _closing = new();
     private readonly Task _receiveLoop;
     private int _nextId;
+    private long _lastReceivedTicks = DateTimeOffset.UtcNow.UtcTicks;
+
+    /// <summary>When the printer last sent anything (an answer or a notification); Moonraker pushes status only on change.</summary>
+    public DateTimeOffset LastReceivedUtc => new(Interlocked.Read(ref _lastReceivedTicks), TimeSpan.Zero);
 
     private MoonrakerSocket(ClientWebSocket socket)
     {
@@ -172,6 +178,7 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
                 message.Write(buffer, 0, result.Count);
                 if (!result.EndOfMessage) continue;
 
+                Interlocked.Exchange(ref _lastReceivedTicks, DateTimeOffset.UtcNow.UtcTicks);
                 Dispatch(Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length));
                 message.SetLength(0);
             }

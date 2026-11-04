@@ -33,7 +33,7 @@ The connector requests `printer.objects.list` and subscribes only to available o
 | Metadata `estimated_time`, else elapsed/progress | Remaining-time estimate |
 | Per-head state `ACTIVATE`, else selected extruder on firmware without head states | Active feed slot |
 
-State tracking survives reconnects. A repeated FINISH cannot undo Mark ready. Printer observations have their actual timestamp; override refreshes and cached publications do not invent fresh status or nozzle observations. Camera wakes, transfer progress and command acknowledgements do not count as printer telemetry. The shared reachability policy remains 90 seconds.
+State tracking survives reconnects. A repeated FINISH cannot undo Mark ready. Printer observations have their actual timestamp; override refreshes and cached publications do not invent fresh status or nozzle observations. Camera wakes, transfer progress and command acknowledgements do not count as printer telemetry. The shared reachability policy remains 90 seconds. Moonraker pushes only changed fields, so an idle, cooled U1 can send no status for minutes. Any frame the printer sends, including the camera wake answers every 2 seconds, counts as hearing from it: the session sends a liveness-only event (no telemetry, no state) at least every 10 seconds while frames arrive. Fuse does the same: a printer is offline only when its transport drops, and it re-sends cached state every 60 seconds.
 
 Metadata is fetched when the current filename changes and cleared when it clears. Failed optional operations do not discard the last valid status.
 

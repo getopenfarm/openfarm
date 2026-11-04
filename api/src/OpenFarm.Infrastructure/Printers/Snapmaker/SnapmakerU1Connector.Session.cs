@@ -63,6 +63,7 @@ public sealed partial class SnapmakerU1Connector
         var alerts = new U1ExceptionTracker();
         alerts.SetActive(await QueryExceptionsAsync(socket, cancellationToken));
         var observedAt = DateTimeOffset.UtcNow;
+        var aliveAt = observedAt;
         await using var poller = new U1FilamentPoller(details, _options, _logger, cancellationToken);
         using var workers = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var cameraWorker = KeepCameraAwakeAsync(socket, workers.Token);
@@ -155,6 +156,10 @@ public sealed partial class SnapmakerU1Connector
                 while (poller.Updates.TryRead(out var overrides)) { filament.Overrides = overrides; dirty = true; }
                 if (now >= lateAt) { lateAt = DateTimeOffset.MaxValue; dirty = true; }
                 if (dirty) Publish(null);
+                // Moonraker pushes only changes, so an idle, cooled U1 is quiet for minutes. Any frame it sends
+                // (camera wake answers every 2 s) shows it is there; without this the 90 s sweep marks it offline.
+                if (socket.LastReceivedUtc - aliveAt >= _options.AliveInterval)
+                    writer.TryWrite(new PrinterConnectorEvent(aliveAt = socket.LastReceivedUtc));
             }
         }
         finally
