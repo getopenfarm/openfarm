@@ -72,26 +72,26 @@ public class U1StateTests
     }
 
     [Fact]
-    public async Task Upload_ProgressRenewsDeadlineBeyondItsInitialWindow()
+    public async Task Upload_RenewsDeadlineAfterEveryChunk()
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-        using var content = new SnapmakerU1Connector.UploadContent(new byte[1024 * 1024], null,
-            () => timeout.CancelAfter(TimeSpan.FromMilliseconds(200)));
-        await using var stream = new SlowStream();
-        await content.CopyToAsync(stream, timeout.Token);
+        // No wall clock: a real deadline here flakes on a loaded CI runner. Each write checks the
+        // deadline was renewed after every earlier chunk, so no gap ever spans more than one chunk.
+        var renewals = 0;
+        using var content = new SnapmakerU1Connector.UploadContent(new byte[1024 * 1024], null, () => renewals++);
+        await using var stream = new RecordingStream(() => renewals);
+        await content.CopyToAsync(stream);
         stream.Length.Should().Be(1024 * 1024);
-        stream.Writes.Should().Be(16);
-        timeout.IsCancellationRequested.Should().BeFalse();
+        stream.RenewalsBeforeEachWrite.Should().Equal(Enumerable.Range(0, 16));
+        renewals.Should().Be(16);
     }
 
-    private sealed class SlowStream : MemoryStream
+    private sealed class RecordingStream(Func<int> renewals) : MemoryStream
     {
-        internal int Writes { get; private set; }
-        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default)
+        internal List<int> RenewalsBeforeEachWrite { get; } = [];
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default)
         {
-            await Task.Delay(30, ct);
-            Writes++;
-            await base.WriteAsync(buffer, ct);
+            RenewalsBeforeEachWrite.Add(renewals());
+            return base.WriteAsync(buffer, ct);
         }
     }
 
